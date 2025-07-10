@@ -41,6 +41,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -211,9 +212,26 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
+	// First check if bucket exists
+	_, err := client.HeadBucket(t.Context(), &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	if err != nil {
+		if isAWSResourceNotFoundError(err) {
+			t.Logf("S3 bucket %s does not exist, cleanup already complete", bucketName)
+			return nil
+		}
+
+		t.Logf("Error checking if S3 bucket %s exists: %v", bucketName, err)
+		// Continue with deletion attempt in case it's a different error
+	}
+
 	cleanS3Bucket(t, client, bucketName)
 
 	if _, err := client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if isAWSResourceNotFoundError(err) {
+			t.Logf("S3 bucket %s was already deleted", bucketName)
+			return nil
+		}
+
 		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 
 		// If the bucket is not empty, try to clean it again before deleting it.
@@ -224,7 +242,13 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 		cleanS3Bucket(t, client, bucketName)
 
 		if _, err = client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s was already deleted", bucketName)
+				return nil
+			}
+
 			t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+
 			return err
 		}
 
@@ -243,7 +267,14 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 
 	for {
 		out, err := client.ListObjectVersions(t.Context(), versionsInput)
-		require.NoError(t, err)
+		if err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s does not exist, skipping cleanup", bucketName)
+				return
+			}
+
+			require.NoError(t, err)
+		}
 
 		if len(out.Versions) == 0 && len(out.DeleteMarkers) == 0 {
 			break
@@ -267,7 +298,14 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 			}
 
 			_, err := client.DeleteObjects(t.Context(), deleteInput)
-			require.NoError(t, err)
+			if err != nil {
+				if isAWSResourceNotFoundError(err) {
+					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+					return
+				}
+
+				require.NoError(t, err)
+			}
 		}
 
 		if len(out.DeleteMarkers) > 0 {
@@ -288,7 +326,14 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 			}
 
 			_, err := client.DeleteObjects(t.Context(), deleteInput)
-			require.NoError(t, err)
+			if err != nil {
+				if isAWSResourceNotFoundError(err) {
+					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+					return
+				}
+
+				require.NoError(t, err)
+			}
 		}
 
 		if out.IsTruncated == nil || !*out.IsTruncated {
@@ -1159,4 +1204,13 @@ func CopyFile(t *testing.T, src, dst string) {
 	require.NoError(t, err)
 
 	require.NoError(t, os.Chmod(dst, sourceInfo.Mode()))
+}
+
+// isAWSResourceNotFoundError checks if an error indicates that an AWS resource (S3 bucket, DynamoDB table, etc.) was not found
+func isAWSResourceNotFoundError(err error) bool {
+	var apiErr smithy.APIError
+
+	return errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchBucket" ||
+		apiErr.ErrorCode() == "NotFound" ||
+		apiErr.ErrorCode() == "ResourceNotFoundException")
 }

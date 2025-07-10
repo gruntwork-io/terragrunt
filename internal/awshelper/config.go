@@ -236,6 +236,13 @@ func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig
 			return aws.Config{}, errors.New(err)
 		}
 
+		// Ensure a region is set - fallback to us-east-1 if none is configured
+		if cfg.Region == "" {
+			l.Debugf("No region configured, using default region us-east-1")
+
+			cfg.Region = "us-east-1"
+		}
+
 		if opts.IAMRoleOptions.RoleARN != "" {
 			if opts.IAMRoleOptions.WebIdentityToken != "" {
 				l.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)

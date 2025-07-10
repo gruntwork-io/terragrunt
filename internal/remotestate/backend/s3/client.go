@@ -635,11 +635,23 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger)
 // CreateS3Bucket creates the S3 bucket specified in the given config.
 func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
 	l.Debugf("Creating S3 bucket %s", bucket)
-	// https://github.com/aws/aws-sdk-go/blob/v1.44.245/service/s3/api.go#L41760
-	_, err := client.s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+
+	input := &s3.CreateBucketInput{
 		Bucket:          aws.String(bucket),
 		ObjectOwnership: types.ObjectOwnershipObjectWriter,
-	})
+	}
+
+	// For regions other than us-east-1, we need to specify the location constraint
+	// to avoid IllegalLocationConstraintException
+	region := client.awsConfig.Region
+	if region != "us-east-1" && region != "" {
+		l.Debugf("Creating S3 bucket %s in region %s", bucket, region)
+		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
+			LocationConstraint: types.BucketLocationConstraint(region),
+		}
+	}
+
+	_, err := client.s3Client.CreateBucket(ctx, input)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -1212,6 +1224,11 @@ func (client *Client) DoesLockTableExistAndIsActive(ctx context.Context, tableNa
 
 	res, err := client.dynamoClient.DescribeTable(ctx, input)
 	if err != nil {
+		if isAWSResourceNotFoundError(err) {
+			// Table doesn't exist, so it's not active
+			return false, nil
+		}
+
 		return false, err
 	}
 
@@ -1226,8 +1243,7 @@ func (client *Client) DoesLockTableExist(ctx context.Context, tableName string) 
 
 	_, err := client.dynamoClient.DescribeTable(ctx, input)
 	if err != nil {
-		var apiErr smithy.APIError
-		if ok := errors.As(err, &apiErr); ok && apiErr.ErrorCode() == "ResourceNotFoundException" {
+		if isAWSResourceNotFoundError(err) {
 			return false, nil
 		} else {
 			return false, errors.New(err)
@@ -1245,6 +1261,11 @@ func (client *Client) LockTableCheckSSEncryptionIsOn(ctx context.Context, tableN
 
 	output, err := client.dynamoClient.DescribeTable(ctx, input)
 	if err != nil {
+		if isAWSResourceNotFoundError(err) {
+			// Table doesn't exist, so encryption is not enabled
+			return false, nil
+		}
+
 		return false, errors.New(err)
 	}
 
@@ -1803,4 +1824,10 @@ func (client *Client) CreateTableItemIfNecessary(ctx context.Context, l log.Logg
 // GetDynamoDBClient returns the DynamoDB client for testing purposes.
 func (client *Client) GetDynamoDBClient() *dynamodb.Client {
 	return client.dynamoClient
+}
+
+// isAWSResourceNotFoundError checks if an error indicates that an AWS resource was not found
+func isAWSResourceNotFoundError(err error) bool {
+	var apiErr smithy.APIError
+	return errors.As(err, &apiErr) && apiErr.ErrorCode() == "ResourceNotFoundException"
 }
