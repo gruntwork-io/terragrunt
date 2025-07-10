@@ -201,8 +201,8 @@ func TestNewAzureTelemetryCollector(t *testing.T) {
 
 	logger := log.New()
 
-	// Test with nil telemeter
-	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
+	// Test with logger
+	collector := azurerm.NewAzureTelemetryCollector(logger)
 	require.NotNil(t, collector)
 	// Note: Cannot test private fields from external package
 	// Test functionality instead through public methods
@@ -216,8 +216,8 @@ func TestAzureTelemetryCollector_NilSafety(t *testing.T) {
 
 	logger := log.New()
 
-	// Test with nil telemeter - should not panic
-	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
+	// Test with logger - should not panic
+	collector := azurerm.NewAzureTelemetryCollector(logger)
 	require.NotNil(t, collector)
 
 	ctx := t.Context()
@@ -242,7 +242,7 @@ func TestAzureTelemetryCollector_LogError(t *testing.T) {
 	t.Parallel()
 
 	logger := log.New()
-	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
+	collector := azurerm.NewAzureTelemetryCollector(logger)
 
 	ctx := t.Context()
 	err := errors.New("test authentication error")
@@ -281,7 +281,7 @@ func TestAzureTelemetryCollector_LogOperation(t *testing.T) {
 	t.Parallel()
 
 	logger := log.New()
-	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
+	collector := azurerm.NewAzureTelemetryCollector(logger)
 
 	ctx := t.Context()
 

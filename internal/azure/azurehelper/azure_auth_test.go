@@ -9,13 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAzureEnvironmentVariables(t *testing.T) {
-
 	t.Setenv("AZURE_CLIENT_ID", "test-client-id")
 	t.Setenv("AZURE_CLIENT_SECRET", "test-client-secret")
 	t.Setenv("AZURE_TENANT_ID", "test-tenant-id")
@@ -40,7 +39,6 @@ func TestAzureEnvironmentVariables(t *testing.T) {
 }
 
 func TestAzureCredentialPriority(t *testing.T) {
-
 	testCases := []struct {
 		name                   string
 		azureClientID          string
@@ -121,7 +119,6 @@ func TestAzureCredentialPriority(t *testing.T) {
 }
 
 func TestGetAzureCredentialsPriority(t *testing.T) {
-
 	testCases := []struct {
 		name                   string
 		azureSubscriptionID    string
@@ -236,7 +233,6 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 }
 
 func TestAzureCredentialEnvironmentVariables(t *testing.T) {
-
 	testCases := []struct {
 		name                   string
 		setupEnvVars           map[string]string
@@ -327,7 +323,6 @@ func TestAzureCredentialEnvironmentVariables(t *testing.T) {
 }
 
 func TestAzureSafeConfiguration(t *testing.T) {
-
 	testCases := []struct {
 		name              string
 		envVars           map[string]string

@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/gruntwork-io/terragrunt/awshelper"
-	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"

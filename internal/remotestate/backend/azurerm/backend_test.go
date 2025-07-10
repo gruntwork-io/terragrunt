@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	testing_pkg "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm/testing"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -24,10 +25,16 @@ func createLogger() log.Logger {
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
+// newTestBackend creates a backend instance for testing with mock services
+func newTestBackend() *azurerm.Backend {
+	return azurerm.NewBackend(testing_pkg.NewTestBackendConfig())
+}
+
 func TestNewBackend(t *testing.T) {
 	t.Parallel()
 
-	b := azurerm.NewBackend()
+	// Create backend with mock config
+	b := newTestBackend()
 	require.NotNil(t, b)
 	assert.IsType(t, &azurerm.Backend{}, b)
 }
@@ -70,7 +77,7 @@ func TestBackendBootstrapInvalidConfig(t *testing.T) {
 		},
 	}
 
-	b := azurerm.NewBackend()
+	b := newTestBackend()
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -99,7 +106,7 @@ func TestDeleteStorageAccount(t *testing.T) {
 	opts.NonInteractive = true
 
 	// Create a backend instance
-	b := azurerm.NewBackend()
+	b := newTestBackend()
 
 	// Test with missing resource group name
 	t.Run("MissingResourceGroupName", func(t *testing.T) {
@@ -198,8 +205,8 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 	uniqueSuffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 	uniqueSuffix = uniqueSuffix[len(uniqueSuffix)-8:] // Last 8 digits
 
-	// Create a backend instance
-	b := azurerm.NewBackend()
+	// Create a backend instance with mock services
+	b := newTestBackend()
 
 	// Test cases for various bootstrap scenarios
 	testCases := []struct {
@@ -376,7 +383,7 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 		// Config parsing succeeds but bootstrap would fail because subscription_id and location are required
 		l := createLogger()
 		opts, _ := options.NewTerragruntOptionsForTest("")
-		b := azurerm.NewBackend()
+		b := newTestBackend()
 		err = b.Bootstrap(t.Context(), l, config, opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "subscription_id", "Error should mention missing subscription_id")
@@ -497,8 +504,8 @@ func TestBlobServiceClientCreationError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a new backend instance for testing
-			b := azurerm.NewBackend()
+			// Create a new backend instance with mock services
+			b := newTestBackend()
 
 			// Call Bootstrap and expect an error
 			err := b.Bootstrap(t.Context(), l, tc.config, opts)
@@ -568,8 +575,8 @@ func TestContainerCreationError(t *testing.T) {
 				t.Skip("Skipping container creation error tests. Set TG_TEST_AZURE_ERROR_PATHS=true to enable")
 			}
 
-			// Create a new backend instance for testing
-			b := azurerm.NewBackend()
+			// Create a new backend instance with mock services
+			b := newTestBackend()
 
 			// Call Bootstrap and expect an error
 			err := b.Bootstrap(t.Context(), l, tc.config, opts)
@@ -981,7 +988,7 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	//nolint: govet
 	testCases := []struct {
@@ -1088,7 +1095,7 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	//nolint: govet
 	testCases := []struct {
@@ -1196,7 +1203,7 @@ func TestDelete_ErrorPathsDetailed(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	//nolint: govet
 	testCases := []struct {
@@ -1285,7 +1292,7 @@ func TestDeleteContainer_ErrorPathsDetailed(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	//nolint: govet
 	testCases := []struct {
@@ -1350,7 +1357,7 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	//nolint: govet
 	testCases := []struct {
@@ -1427,7 +1434,7 @@ func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	//nolint: govet
 	testCases := []struct {
@@ -1526,7 +1533,7 @@ func TestDeleteStorageAccount_ConfigValidation(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 
 	t.Run("missing_storage_account_name", func(t *testing.T) {
 		t.Parallel()

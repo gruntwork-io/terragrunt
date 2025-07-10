@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -28,13 +28,83 @@ const (
 	JitterDivisorFloat64 = 1000.0 // Float64 version for division
 )
 
-// RetryConfig holds configuration for retry behavior
+// RetryConfig holds configuration for retry behavior when interacting with Azure services.
+// This configuration controls how Terragrunt retries operations that fail due to
+// transient errors such as network timeouts, service throttling, or temporary
+// Azure service unavailability.
+//
+// The retry logic implements exponential backoff with optional jitter to avoid
+// thundering herd problems when multiple operations retry simultaneously.
+//
+// Usage examples:
+//
+//	// Basic retry configuration
+//	config := RetryConfig{
+//	    MaxRetries:      3,
+//	    InitialDelay:    2 * time.Second,
+//	    MaxDelay:        30 * time.Second,
+//	    BackoffMultiple: 2.0,
+//	    Jitter:          true,
+//	}
+//
+//	// Conservative retry configuration for production
+//	config := RetryConfig{
+//	    MaxRetries:      5,
+//	    InitialDelay:    1 * time.Second,
+//	    MaxDelay:        60 * time.Second,
+//	    BackoffMultiple: 1.5,
+//	    Jitter:          true,
+//	}
+//
+//	// Aggressive retry configuration for development
+//	config := RetryConfig{
+//	    MaxRetries:      10,
+//	    InitialDelay:    500 * time.Millisecond,
+//	    MaxDelay:        15 * time.Second,
+//	    BackoffMultiple: 2.0,
+//	    Jitter:          false,
+//	}
 type RetryConfig struct {
-	MaxRetries      int           // Maximum number of retry attempts
-	InitialDelay    time.Duration // Initial delay between retries
-	MaxDelay        time.Duration // Maximum delay between retries
-	BackoffMultiple float64       // Exponential backoff multiplier
-	Jitter          bool          // Whether to add jitter to delay
+	// MaxRetries specifies the maximum number of retry attempts.
+	// After this many attempts, the operation will fail with the last error.
+	// A value of 0 means no retries (fail immediately on first error).
+	// Higher values provide more resilience but increase operation time.
+	// Recommended range: 3-10 for most operations.
+	// Default: 5
+	MaxRetries int
+
+	// InitialDelay specifies the initial delay before the first retry attempt.
+	// This is the base delay that gets multiplied by BackoffMultiple for each retry.
+	// Should be long enough to allow transient issues to resolve.
+	// Too short values may not give Azure services time to recover.
+	// Recommended range: 1-5 seconds for most operations.
+	// Default: 2 seconds
+	InitialDelay time.Duration
+
+	// MaxDelay specifies the maximum delay between retry attempts.
+	// This caps the exponential backoff to prevent excessively long waits.
+	// Should be balanced between giving Azure services time to recover
+	// and not making operations unacceptably slow.
+	// Recommended range: 30-120 seconds for most operations.
+	// Default: 60 seconds
+	MaxDelay time.Duration
+
+	// BackoffMultiple specifies the exponential backoff multiplier.
+	// Each retry delay is calculated as: min(InitialDelay * BackoffMultiple^attempt, MaxDelay).
+	// A value of 1.0 provides constant delays (no exponential backoff).
+	// Higher values increase delays more aggressively.
+	// Values greater than 3.0 may cause delays to reach MaxDelay too quickly.
+	// Recommended range: 1.5-2.0 for most operations.
+	// Default: 2.0
+	BackoffMultiple float64
+
+	// Jitter indicates whether to add random jitter to delay calculations.
+	// When true, adds up to 20% random variation to delays to prevent
+	// thundering herd problems when multiple operations retry simultaneously.
+	// Recommended: true for most operations, especially in concurrent scenarios.
+	// Set to false only for predictable delay requirements in testing.
+	// Default: true
+	Jitter bool
 }
 
 // DefaultRetryConfig returns a sensible default retry configuration for Azure operations

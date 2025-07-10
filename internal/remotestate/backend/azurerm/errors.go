@@ -4,14 +4,36 @@
 package azurerm
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // MissingRequiredAzureRemoteStateConfig represents a missing required configuration parameter for Azure remote state.
+// This error type is used when essential configuration fields are missing from the Azure backend configuration.
+// The error contains the name of the missing configuration parameter to help with debugging.
+//
+// Common missing configuration parameters include:
+// - "storage_account_name": The Azure Storage account name
+// - "container_name": The blob container name for state storage
+// - "key": The path/filename for the state file
+// - "resource_group_name": The resource group containing the storage account
+// - "subscription_id": The Azure subscription ID
+//
+// This error typically occurs when:
+// - Required fields are not specified in the Terragrunt configuration
+// - Environment variables are not set for required parameters
+// - Configuration parsing fails to populate required fields
+//
+// Example error messages:
+// - "missing required Azure remote state configuration storage_account_name"
+// - "missing required Azure remote state configuration container_name"
+// - "missing required Azure remote state configuration key"
 type MissingRequiredAzureRemoteStateConfig string
 
 // Error returns a string indicating that the Azure remote state configuration is missing a required parameter.
@@ -164,8 +186,29 @@ func (err NonInteractiveDeleteRestrictionError) Error() string {
 }
 
 // IncompleteServicePrincipalConfigError represents an error when service principal configuration is incomplete.
+// This error occurs when attempting to use Service Principal authentication but required fields are missing.
+// The error provides information about which specific fields are missing to help with configuration debugging.
+//
+// Common missing fields include:
+// - client_id: The Azure AD application (client) ID
+// - client_secret: The client secret for the application
+// - tenant_id: The Azure AD tenant ID
+// - subscription_id: The Azure subscription ID
+//
+// This error is typically encountered when:
+// - Environment variables are not set properly
+// - Configuration files are missing required fields
+// - Service Principal credentials are incomplete
+//
+// Example scenarios:
+// - Missing AZURE_CLIENT_ID environment variable
+// - Empty client_secret in configuration
+// - Incorrect tenant_id format
 type IncompleteServicePrincipalConfigError struct {
-	MissingFields []string // 24 bytes (slice)
+	// MissingFields contains the list of configuration fields that are missing or empty.
+	// Field names correspond to the configuration keys (e.g., "client_id", "client_secret", "tenant_id").
+	// This information helps users identify exactly which configuration values need to be provided.
+	MissingFields []string
 }
 
 // Error returns a string indicating that service principal configuration is incomplete.
@@ -221,6 +264,72 @@ func (err MaxRetriesExceededError) Error() string {
 // Unwrap returns the underlying error that caused the final failure.
 func (err MaxRetriesExceededError) Unwrap() error {
 	return err.Underlying
+}
+
+// IsPermissionError checks if an error indicates a permission issue
+func IsPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Convert to string for pattern matching
+	errStr := strings.ToLower(err.Error())
+
+	// Check for common permission error patterns
+	return strings.Contains(errStr, "permission") ||
+		strings.Contains(errStr, "access denied") ||
+		strings.Contains(errStr, "insufficient") ||
+		strings.Contains(errStr, "forbidden") ||
+		strings.Contains(errStr, "not authorized") ||
+		strings.Contains(errStr, "authorization failed") ||
+		strings.Contains(errStr, "role assignment") ||
+		strings.Contains(errStr, "storage blob data owner")
+}
+
+// IsNotFoundError checks if an error indicates a resource not found issue
+func IsNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Convert to string for pattern matching
+	errStr := strings.ToLower(err.Error())
+
+	// Check for common not found patterns
+	return strings.Contains(errStr, "not found") ||
+		strings.Contains(errStr, "does not exist") ||
+		strings.Contains(errStr, "404")
+}
+
+// IsValidationError checks if an error indicates a validation issue
+func IsValidationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Convert to string for pattern matching
+	errStr := strings.ToLower(err.Error())
+
+	// Check for common validation error patterns
+	return strings.Contains(errStr, "validation") ||
+		strings.Contains(errStr, "invalid") ||
+		strings.Contains(errStr, "must be") ||
+		strings.Contains(errStr, "cannot")
+}
+
+// IsQuotaError checks if an error indicates a quota or limit issue
+func IsQuotaError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Convert to string for pattern matching
+	errStr := strings.ToLower(err.Error())
+
+	// Check for common quota/limit error patterns
+	return strings.Contains(errStr, "quota") ||
+		strings.Contains(errStr, "limit") ||
+		strings.Contains(errStr, "exceeded")
 }
 
 // Helper functions for common error patterns to reduce code duplication
@@ -373,4 +482,103 @@ func NewServicePrincipalMissingSubscriptionIDError() error {
 // NewMultipleAuthMethodsSpecifiedError creates a new MultipleAuthMethodsSpecifiedError
 func NewMultipleAuthMethodsSpecifiedError() error {
 	return errors.New(MultipleAuthMethodsSpecifiedError{})
+}
+
+// WrapError provides a unified way to wrap Azure errors with context
+func WrapError(err error, operation string, resourceType string, resourceName string) error {
+	if err == nil {
+		return nil
+	}
+
+	// First classify the error
+	switch {
+	case IsPermissionError(err):
+		return WrapAuthenticationError(err, "permission denied")
+	case IsNotFoundError(err):
+		switch resourceType {
+		case "StorageAccount":
+			return WrapStorageAccountError(err, resourceName)
+		case "Container":
+			return WrapContainerDoesNotExistError(err, resourceName)
+		default:
+			return errors.Errorf("%s %s not found: %w", resourceType, resourceName, err)
+		}
+	case IsValidationError(err):
+		switch resourceType {
+		case "Container":
+			return WrapContainerValidationError(err.Error())
+		default:
+			return errors.Errorf("%s validation failed: %w", resourceType, err)
+		}
+	case IsQuotaError(err):
+		return errors.Errorf("%s quota exceeded for %s: %w", resourceType, resourceName, err)
+	case IsRetryableError(err):
+		// Extract status code if available
+		statusCode := extractStatusCode(err.Error())
+		return WrapTransientAzureError(err, operation, statusCode)
+	default:
+		// For unclassified errors, still provide context
+		return errors.Errorf("%s operation failed for %s %s: %w", operation, resourceType, resourceName, err)
+	}
+}
+
+// Error checking helpers
+
+// GetErrorContext extracts classification and operation info from an error
+func GetErrorContext(err error) (ErrorClassification, OperationType, string) {
+	if err == nil {
+		return "", "", ""
+	}
+
+	// Get classification first
+	classification := ClassifyError(err)
+
+	// Determine operation type and details
+	var operationType OperationType
+	var details string
+
+	switch {
+	case errors.As(err, &StorageAccountCreationError{}):
+		operationType = OperationStorageOp
+		details = "storage account operation"
+	case errors.As(err, &ContainerCreationError{}):
+		operationType = OperationContainerOp
+		details = "container operation"
+	case errors.As(err, &AuthenticationError{}):
+		operationType = OperationAuthentication
+		details = "authentication"
+	case errors.As(err, &ContainerValidationError{}):
+		operationType = OperationValidation
+		details = "validation"
+	default:
+		operationType = "" // Let caller decide default
+		details = "unknown operation"
+	}
+
+	return classification, operationType, details
+}
+
+// WrapErrorWithTelemetry wraps an error and logs telemetry data
+func WrapErrorWithTelemetry(ctx context.Context, err error, tel *AzureTelemetryCollector, operation OperationType, resourceType string, resourceName string) error {
+	if err == nil {
+		return nil
+	}
+
+	// Get error context
+	classification, _, details := GetErrorContext(err)
+	
+	// Log error with telemetry
+	tel.LogError(ctx, err, operation, AzureErrorMetrics{
+		Classification: classification,
+		Operation:     OperationType(operation),
+		ResourceType:  resourceType,
+		ResourceName:  resourceName,
+		ErrorMessage:  details,
+		Additional: map[string]interface{}{
+			"error_type": reflect.TypeOf(err).String(),
+		},
+	})
+
+	// Wrap the error with context
+	return WrapError(err, string(operation), resourceType, resourceName)
 }

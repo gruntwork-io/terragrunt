@@ -34,7 +34,7 @@ func init() {
 func RegisterBackends(opts *options.TerragruntOptions) {
 	// Register experimental backends if enabled
 	if opts.Experiments.Evaluate(experiment.AzureBackend) {
-		backends = append(backends, azurerm.NewBackend())
+		backends = append(backends, azurerm.NewBackend(nil))
 	}
 }
 

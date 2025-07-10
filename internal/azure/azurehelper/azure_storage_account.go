@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/google/uuid"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -41,26 +42,175 @@ type StorageAccountClient struct {
 }
 
 // StorageAccountConfig represents the configuration for an Azure Storage Account.
-// It contains all the necessary parameters to create or update a storage account.
+//
+// This struct contains all the necessary parameters to create, update, or configure
+// an Azure Storage Account. It supports various storage tiers, replication types,
+// encryption options, and access controls.
+//
+// Required Fields:
+//   - SubscriptionID: Must be a valid Azure subscription UUID
+//   - ResourceGroupName: Must be 1-90 characters, alphanumeric, periods, underscores, hyphens, and parentheses
+//   - StorageAccountName: Must be 3-24 characters, lowercase letters and numbers only, globally unique
+//   - Location: Must be a valid Azure region (e.g., "eastus", "westeurope")
+//
+// Field Dependencies:
+//   - AccountTier and ReplicationType are combined to form AccountSKU
+//   - Premium tier only supports LRS and ZRS replication
+//   - Cool and Archive access tiers are only available for StorageV2 accounts
+//   - KeyEncryptionKey requires appropriate Azure Key Vault permissions
+//
+// Default Values (applied when fields are empty):
+//   - AccountKind: "StorageV2" (General Purpose v2)
+//   - AccountTier: "Standard" (Standard performance tier)
+//   - AccessTier: "Hot" (Hot access tier for frequent access)
+//   - ReplicationType: "LRS" (Locally Redundant Storage)
+//   - EnableVersioning: true (Blob versioning enabled)
+//   - AllowBlobPublicAccess: false (Public access disabled for security)
+//   - Tags: {"created-by": "terragrunt"}
+//
+// Examples:
+//
+//	// Minimal configuration with defaults
+//	config := StorageAccountConfig{
+//	    SubscriptionID:     "12345678-1234-1234-1234-123456789abc",
+//	    ResourceGroupName:  "my-rg",
+//	    StorageAccountName: "mystorageaccount",
+//	    Location:           "eastus",
+//	}
+//
+//	// Production configuration with hot tier
+//	config := StorageAccountConfig{
+//	    SubscriptionID:     "12345678-1234-1234-1234-123456789abc",
+//	    ResourceGroupName:  "prod-rg",
+//	    StorageAccountName: "prodstorageaccount",
+//	    Location:           "eastus",
+//	    AccountKind:        "StorageV2",
+//	    AccountTier:        "Standard",
+//	    AccessTier:         "Hot",
+//	    ReplicationType:    "GRS",
+//	    EnableVersioning:   true,
+//	    Tags: map[string]string{
+//	        "environment": "production",
+//	        "team":        "platform",
+//	        "created-by":  "terragrunt",
+//	    },
+//	}
+//
+//	// Archive storage for long-term backup
+//	config := StorageAccountConfig{
+//	    SubscriptionID:     "12345678-1234-1234-1234-123456789abc",
+//	    ResourceGroupName:  "backup-rg",
+//	    StorageAccountName: "archivestorage",
+//	    Location:           "westus2",
+//	    AccessTier:         "Cool", // Use Cool for infrequent access
+//	    ReplicationType:    "GRS",  // Geo-redundant for durability
+//	    EnableVersioning:   false,  // Disable versioning for archive
+//	}
 type StorageAccountConfig struct {
-	// Put map field first (larger alignment requirements)
+	// Tags represents custom metadata tags applied to the storage account.
+	// Keys and values must each be 512 characters or less.
+	// Cannot exceed 50 tags per storage account.
+	// Default: {"created-by": "terragrunt"}
 	Tags map[string]string
 
-	// String fields in alphabetical order
-	AccessTier         string // Storage tier (Hot/Cool)
-	AccountKind        string // Kind of storage account (e.g., StorageV2, BlobStorage)
-	AccountSKU         string // SKU name for the storage account
-	AccountTier        string // Performance tier (Standard/Premium)
-	KeyEncryptionKey   string // Source of encryption key (e.g., "Microsoft.KeyVault")
-	Location           string // Azure region where the storage account exists/will be created
-	ReplicationType    string // Type of replication (LRS/GRS/etc)
-	ResourceGroupName  string // Name of the resource group containing the storage account
-	StorageAccountName string // Name of the storage account
-	SubscriptionID     string // Azure subscription ID where the storage account exists
+	// AccessTier specifies the access tier for blob storage data.
+	// Valid values: "Hot", "Cool"
+	// - Hot: Optimized for frequent access, higher storage cost, lower access cost
+	// - Cool: Optimized for infrequent access, lower storage cost, higher access cost
+	// - Archive tier is set per-blob, not per-account
+	// Only applies to StorageV2 and BlobStorage account kinds.
+	// Default: "Hot"
+	AccessTier string
 
-	// Boolean fields at the end
-	AllowBlobPublicAccess bool // Whether to allow public access to blobs (not recommended)
-	EnableVersioning      bool // Whether to enable blob versioning
+	// AccountKind specifies the type of storage account.
+	// Valid values:
+	// - "StorageV2": General Purpose v2 (recommended, supports all features)
+	// - "Storage": General Purpose v1 (legacy, limited features)
+	// - "BlobStorage": Blob-only storage (legacy, use StorageV2 instead)
+	// - "FileStorage": Premium file shares only
+	// - "BlockBlobStorage": Premium block blobs and append blobs only
+	// Default: "StorageV2"
+	AccountKind string
+
+	// AccountSKU specifies the SKU name for the storage account.
+	// This is automatically computed from AccountTier and ReplicationType.
+	// Format: "{AccountTier}_{ReplicationType}" (e.g., "Standard_LRS", "Premium_ZRS")
+	// Valid combinations:
+	// - Standard: LRS, GRS, RAGRS, ZRS, GZRS, RAGZRS
+	// - Premium: LRS, ZRS (limited regions)
+	// Default: "Standard_LRS"
+	AccountSKU string
+
+	// AccountTier specifies the performance tier of the storage account.
+	// Valid values:
+	// - "Standard": Lower cost, higher latency, supports all replication types
+	// - "Premium": Higher cost, lower latency, SSD-based, limited replication (LRS/ZRS only)
+	// Premium tier has region limitations and higher costs.
+	// Default: "Standard"
+	AccountTier string
+
+	// KeyEncryptionKey specifies the source of the encryption key for the storage account.
+	// Valid values:
+	// - "" (empty): Microsoft-managed keys (default)
+	// - "Microsoft.KeyVault": Customer-managed keys in Azure Key Vault
+	// When using Key Vault, ensure the storage account has proper access permissions.
+	// Optional: Default is Microsoft-managed encryption
+	KeyEncryptionKey string
+
+	// Location specifies the Azure region where the storage account will be created.
+	// Must be a valid Azure region name (e.g., "eastus", "westeurope", "southeastasia").
+	// This cannot be changed after creation.
+	// Consider data residency, compliance, and latency requirements.
+	// Required field.
+	Location string
+
+	// ReplicationType specifies the replication strategy for data durability.
+	// Valid values:
+	// - "LRS": Locally Redundant Storage (3 copies in single datacenter)
+	// - "GRS": Geo-Redundant Storage (LRS + async copy to paired region)
+	// - "RAGRS": Read-Access Geo-Redundant Storage (GRS + read access to secondary)
+	// - "ZRS": Zone-Redundant Storage (3 copies across availability zones)
+	// - "GZRS": Geo-Zone-Redundant Storage (ZRS + async copy to paired region)
+	// - "RAGZRS": Read-Access Geo-Zone-Redundant Storage (GZRS + read access to secondary)
+	// Premium tier only supports LRS and ZRS.
+	// ZRS, GZRS, RAGZRS have limited region availability.
+	// Default: "LRS"
+	ReplicationType string
+
+	// ResourceGroupName specifies the name of the Azure resource group containing the storage account.
+	// Must be 1-90 characters long.
+	// Can contain alphanumeric characters, periods, underscores, hyphens, and parentheses.
+	// Cannot end with period.
+	// Required field.
+	ResourceGroupName string
+
+	// StorageAccountName specifies the name of the Azure storage account.
+	// Must be 3-24 characters long.
+	// Must contain only lowercase letters and numbers.
+	// Must be globally unique across all Azure storage accounts.
+	// Cannot be changed after creation.
+	// Required field.
+	StorageAccountName string
+
+	// SubscriptionID specifies the Azure subscription ID where the storage account exists or will be created.
+	// Must be a valid UUID format (e.g., "12345678-1234-1234-1234-123456789abc").
+	// Required field.
+	SubscriptionID string
+
+	// AllowBlobPublicAccess controls whether public access to blobs is allowed.
+	// When false (recommended), all blob access requires authentication.
+	// When true, individual containers can be configured for public access.
+	// For security reasons, public access should be disabled unless specifically required.
+	// Default: false (public access disabled)
+	AllowBlobPublicAccess bool
+
+	// EnableVersioning controls whether blob versioning is enabled for the storage account.
+	// When enabled, Azure automatically creates a version when a blob is modified.
+	// Provides protection against accidental deletion or modification.
+	// Has cost implications as old versions consume storage space.
+	// Can be combined with lifecycle management policies for cost optimization.
+	// Default: true (versioning enabled)
+	EnableVersioning bool
 }
 
 // DefaultStorageAccountConfig returns the default configuration for a storage account
@@ -100,17 +250,21 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 	subscriptionID, _ := config["subscription_id"].(string)
 	location, _ := config["location"].(string)
 
-	// Get Azure credentials, checking environment variables first
-	cred, envSubscriptionID, err := GetAzureCredentials(ctx, l)
+	// Use centralized authentication logic
+	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
+	if err != nil {
+		return nil, fmt.Errorf("error getting azure auth config: %w", err)
+	}
+
+	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error getting azure credentials: %w", err)
 	}
 
-	// Use environment subscription ID if not provided in config
-	if subscriptionID == "" && envSubscriptionID != "" {
-		subscriptionID = envSubscriptionID
-
-		l.Infof("Using subscription ID from environment: %s", envSubscriptionID)
+	// Use subscription ID from auth config if not provided in config
+	if subscriptionID == "" && authConfig.SubscriptionID != "" {
+		subscriptionID = authConfig.SubscriptionID
+		l.Infof("Using subscription ID from auth config: %s", subscriptionID)
 	}
 
 	// Still need a subscription ID at this point
@@ -120,6 +274,9 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 			"  2. As an environment variable (AZURE_SUBSCRIPTION_ID or ARM_SUBSCRIPTION_ID)\n" +
 			"Please provide at least one of these values to continue")
 	}
+
+	// Get the credential from the auth result
+	cred := authResult.Credential
 
 	// Create storage accounts client
 	accountsClient, err := armstorage.NewAccountsClient(subscriptionID, cred, nil)
@@ -220,7 +377,6 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 
 	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(enable)
 	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
-
 	if err != nil {
 		return errors.Errorf("failed to set versioning on storage account %s: %w", c.storageAccountName, err)
 	}
@@ -231,7 +387,6 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
 	err := c.listAndUpdateVersioning(ctx, true)
-
 	if err != nil {
 		return err
 	}
@@ -244,7 +399,6 @@ func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Contex
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
 	err := c.listAndUpdateVersioning(ctx, false)
-
 	if err != nil {
 		return err
 	}
@@ -594,7 +748,6 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error {
 	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
 	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
-
 	if err != nil {
 		return fmt.Errorf("error creating resource group client: %w", err)
 	}
@@ -985,74 +1138,29 @@ func GenerateUUID() string {
 
 // GetAzureCredentials checks for Azure environment variables and returns appropriate credentials.
 // If no environment variables are set, it attempts to use default authentication methods.
+// This function is now implemented using the centralized authentication package.
+// Note: This function exists for backward compatibility.
 func GetAzureCredentials(ctx context.Context, l log.Logger) (*azidentity.DefaultAzureCredential, string, error) {
-	// Check for common Azure environment variables
-	var envVarsFound []string
+	// Create an empty config and let the azureauth package handle finding credentials
+	config := make(map[string]interface{})
 
-	var subscriptionID string
-
-	// First check for Azure CLI environment variables (these take precedence)
-	if envVal := os.Getenv("AZURE_SUBSCRIPTION_ID"); envVal != "" {
-		subscriptionID = envVal // AZURE_* takes precedence
-
-		envVarsFound = append(envVarsFound, "AZURE_SUBSCRIPTION_ID")
-	} else if envVal := os.Getenv("ARM_SUBSCRIPTION_ID"); envVal != "" {
-		// Only use ARM_SUBSCRIPTION_ID if AZURE_SUBSCRIPTION_ID is not set
-		subscriptionID = envVal
-
-		envVarsFound = append(envVarsFound, "ARM_SUBSCRIPTION_ID")
-	}
-
-	// Check for tenant ID
-	if envVal := os.Getenv("AZURE_TENANT_ID"); envVal != "" {
-		envVarsFound = append(envVarsFound, "AZURE_TENANT_ID")
-	} else if envVal := os.Getenv("ARM_TENANT_ID"); envVal != "" {
-		envVarsFound = append(envVarsFound, "ARM_TENANT_ID")
-	}
-
-	// Check for client ID
-	if envVal := os.Getenv("AZURE_CLIENT_ID"); envVal != "" {
-		envVarsFound = append(envVarsFound, "AZURE_CLIENT_ID")
-	} else if envVal := os.Getenv("ARM_CLIENT_ID"); envVal != "" {
-		envVarsFound = append(envVarsFound, "ARM_CLIENT_ID")
-	}
-
-	// Check for client secret
-	if envVal := os.Getenv("AZURE_CLIENT_SECRET"); envVal != "" {
-		envVarsFound = append(envVarsFound, "AZURE_CLIENT_SECRET")
-	} else if envVal := os.Getenv("ARM_CLIENT_SECRET"); envVal != "" {
-		envVarsFound = append(envVarsFound, "ARM_CLIENT_SECRET")
-	}
-
-	// Check for managed identity environment variables
-	if envVal := os.Getenv("AZURE_MANAGED_IDENTITY_CLIENT_ID"); envVal != "" {
-		envVarsFound = append(envVarsFound, "AZURE_MANAGED_IDENTITY_CLIENT_ID")
-	}
-
-	// Log what environment variables we found
-	if len(envVarsFound) > 0 {
-		l.Infof("Found Azure environment variables: %v", envVarsFound)
-	} else {
-		l.Info("No Azure environment variables found, attempting to use default authentication")
-	}
-
-	// Create credentials using DefaultAzureCredential, which will try multiple authentication methods
-	options := &azidentity.DefaultAzureCredentialOptions{}
-
-	// Create the credential
-	cred, err := azidentity.NewDefaultAzureCredential(options)
+	// Use centralized authentication logic to determine auth method
+	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, subscriptionID, errors.Errorf("failed to obtain Azure credentials: %w", err)
+		return nil, "", fmt.Errorf("error getting azure auth config: %w", err)
 	}
 
-	// If we don't have a subscription ID, we'll need the caller to provide one
-	if subscriptionID == "" {
-		l.Debug("No subscription ID found in environment variables (checked AZURE_SUBSCRIPTION_ID and ARM_SUBSCRIPTION_ID)")
-	} else {
-		l.Debug("Found subscription ID in environment variables: " + subscriptionID)
+	// For backward compatibility, always create a DefaultAzureCredential
+	// This ensures existing code that depends on this type still works
+	defaultCred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+	if err != nil {
+		return nil, "", fmt.Errorf("error creating azure default credential: %w", err)
 	}
 
-	return cred, subscriptionID, nil
+	// Log the authentication method being used
+	l.Infof("Using authentication method: %s", authConfig.Method)
+
+	return defaultCred, authConfig.SubscriptionID, nil
 }
 
 // GetStorageAccountSKU returns the SKU name for a storage account based on account tier and replication type

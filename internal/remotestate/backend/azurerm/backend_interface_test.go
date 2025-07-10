@@ -32,7 +32,7 @@ func TestBackendInterfaceCompliance(t *testing.T) {
 	var _ backend.Backend = (*azurerm.Backend)(nil)
 
 	// Test that we can create a backend
-	b := azurerm.NewBackend()
+	b := azurerm.NewBackend(nil)
 	require.NotNil(t, b)
 
 	// Test that backend name is correct
@@ -43,7 +43,7 @@ func TestBackendInterfaceCompliance(t *testing.T) {
 func TestBackendGetTFInitArgs(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	testCases := []struct {
 		name     string
@@ -117,7 +117,7 @@ func TestBackendBootstrapValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -172,7 +172,7 @@ func TestBackendNeedsBootstrapValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -305,7 +305,7 @@ func TestBackendContainerNameValidation(t *testing.T) {
 func TestBackendPathValidation(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	// Test different state file paths for validation
 	testPaths := []struct {
@@ -346,7 +346,7 @@ func TestBackendIsVersionControlEnabled(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -389,7 +389,7 @@ func TestBackendIsVersionControlEnabled(t *testing.T) {
 func TestBackendConfigurationOptions(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	// Test that all common Azure backend configuration options are preserved in GetTFInitArgs
 	// Note: Some options like resource_group_name are filtered out as they're only used by Terragrunt
@@ -427,7 +427,7 @@ func TestBackendDeleteValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -482,7 +482,7 @@ func TestBackendDeleteContainerValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -528,7 +528,7 @@ func TestBackendMigrateValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -564,7 +564,7 @@ func TestBackendMigrateValidation(t *testing.T) {
 func TestBackendConfigurationFiltering(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	// Test configuration with Terragrunt-only options that should be filtered out
 	configWithTerragruntOptions := azurerm.Config{
@@ -616,7 +616,7 @@ func TestBackendConfigurationFiltering(t *testing.T) {
 func TestBackendConfigurationParsing(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	testCases := []struct {
 		name   string
@@ -677,7 +677,7 @@ func TestBackendConfigurationParsing(t *testing.T) {
 func TestBackendNameMethod(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	// Test that Name returns the correct backend name
 	assert.Equal(t, "azurerm", azureBackend.Name())
@@ -688,7 +688,7 @@ func TestBackendNameMethod(t *testing.T) {
 	assert.Equal(t, name1, name2)
 
 	// Test that different backend instances return the same name
-	anotherBackend := azurerm.NewBackend()
+	anotherBackend := azurerm.NewBackend(nil)
 	assert.Equal(t, azureBackend.Name(), anotherBackend.Name())
 }
 
@@ -697,7 +697,7 @@ func TestBackendDeleteStorageAccountValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	opts.NonInteractive = true
@@ -742,7 +742,7 @@ func TestBackendDeleteStorageAccountValidation(t *testing.T) {
 func TestBackendAdvancedConfigurationOptions(t *testing.T) {
 	t.Parallel()
 
-	azureBackend := azurerm.NewBackend()
+	azureBackend := azurerm.NewBackend(nil)
 
 	testCases := []struct {
 		name   string

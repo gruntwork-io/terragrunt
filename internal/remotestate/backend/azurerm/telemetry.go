@@ -9,10 +9,69 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azureutil"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
+
+// TelemetryCollectorSettings defines settings for the telemetry collector
+type TelemetryCollectorSettings struct {
+	// EnableDetailedMetrics enables collection of detailed performance metrics
+	EnableDetailedMetrics bool
+	// BufferSize sets the buffer size for metrics collection
+	BufferSize int
+	// EnableCaching enables caching of telemetry data
+	EnableCaching bool
+	// FlushInterval sets how often to flush telemetry data (in seconds)
+	FlushInterval time.Duration
+}
+
+// TelemetryAdapter provides a bridge between azureutil.TelemetryCollector and AzureTelemetryCollector
+type TelemetryAdapter struct {
+	collector *AzureTelemetryCollector
+	logger    log.Logger
+}
+
+// NewTelemetryAdapter creates a new adapter that implements azureutil.TelemetryCollector
+func NewTelemetryAdapter(collector *AzureTelemetryCollector, l log.Logger) *TelemetryAdapter {
+	return &TelemetryAdapter{
+		collector: collector,
+		logger:    l,
+	}
+}
+
+// LogError implements azureutil.TelemetryCollector
+func (a *TelemetryAdapter) LogError(ctx context.Context, err error, opType azureutil.OperationType, metrics azureutil.ErrorMetrics) {
+	if a.collector != nil {
+		// Convert azureutil types to our internal types
+		azureMetrics := AzureErrorMetrics{
+			ErrorType:      metrics.ErrorType,
+			Classification: ErrorClassification(metrics.Classification),
+			Operation:      OperationType(opType),
+			ResourceType:   metrics.ResourceType,
+			ResourceName:   metrics.ResourceName,
+			SubscriptionID: metrics.SubscriptionID,
+			Location:       metrics.Location,
+			ErrorMessage:   metrics.ErrorMessage,
+			StatusCode:     metrics.StatusCode,
+			RetryAttempts:  metrics.RetryAttempts,
+			IsRetryable:    metrics.IsRetryable,
+		}
+
+		// Log through our collector
+		a.collector.LogError(ctx, err, OperationType(opType), azureMetrics)
+	}
+}
+
+// LogOperation implements azureutil.TelemetryCollector
+func (a *TelemetryAdapter) LogOperation(ctx context.Context, operation azureutil.OperationType, duration time.Duration, attrs map[string]interface{}) {
+	if a.collector != nil {
+		// Convert azureutil.OperationType to our internal OperationType
+		localOp := OperationType(string(operation))
+		a.collector.LogOperation(ctx, localOp, duration, attrs)
+	}
+}
 
 // AzureTelemetryCollector provides structured telemetry collection for Azure backend operations
 type AzureTelemetryCollector struct {
@@ -21,17 +80,33 @@ type AzureTelemetryCollector struct {
 }
 
 // NewAzureTelemetryCollector creates a new telemetry collector for Azure operations
-func NewAzureTelemetryCollector(telemeter *telemetry.Telemeter, logger log.Logger) *AzureTelemetryCollector {
+func NewAzureTelemetryCollector(l log.Logger) *AzureTelemetryCollector {
 	return &AzureTelemetryCollector{
-		telemeter: telemeter,
-		logger:    logger,
+		logger: l,
 	}
+}
+
+// NewAzureTelemetryCollectorWithSettings creates a new telemetry collector with specific settings
+func NewAzureTelemetryCollectorWithSettings(l log.Logger, settings *TelemetryCollectorSettings) *AzureTelemetryCollector {
+	collector := &AzureTelemetryCollector{
+		logger: l,
+	}
+
+	// Apply settings to collector if provided
+	if settings != nil {
+		// For now, we store the settings for future use
+		// In a full implementation, these would configure internal behavior
+		_ = settings
+	}
+
+	return collector
 }
 
 // ErrorClassification represents different categories of Azure errors for telemetry
 type ErrorClassification string
 
 const (
+	ErrorClassUnknown          ErrorClassification = "unknown"
 	ErrorClassAuthentication   ErrorClassification = "authentication"
 	ErrorClassConfiguration    ErrorClassification = "configuration"
 	ErrorClassStorage          ErrorClassification = "storage"
@@ -53,11 +128,32 @@ const (
 	OperationNeedsBootstrap  OperationType = "needs_bootstrap"
 	OperationDelete          OperationType = "delete"
 	OperationDeleteContainer OperationType = "delete_container"
+	OperationDeleteAccount   OperationType = "delete_account"
 	OperationMigrate         OperationType = "migrate"
 	OperationContainerOp     OperationType = "container_operation"
 	OperationStorageOp       OperationType = "storage_operation"
 	OperationValidation      OperationType = "validation"
 	OperationAuthentication  OperationType = "authentication"
+
+	// New interface-based operations
+	OperationBlobGet         OperationType = "blob_get"
+	OperationBlobPut         OperationType = "blob_put"
+	OperationBlobDelete      OperationType = "blob_delete"
+	OperationBlobExists      OperationType = "blob_exists"
+	OperationBlobList        OperationType = "blob_list"
+	OperationContainerCreate OperationType = "container_create"
+	OperationContainerDelete OperationType = "container_delete"
+	OperationContainerExists OperationType = "container_exists"
+	OperationStorageCreate   OperationType = "storage_create"
+	OperationStorageDelete   OperationType = "storage_delete"
+	OperationStorageExists   OperationType = "storage_exists"
+	OperationStorageUpdate   OperationType = "storage_update"
+	OperationVersionCheck    OperationType = "version_check"
+	OperationRoleAssign      OperationType = "role_assign"
+	OperationRoleRevoke      OperationType = "role_revoke"
+	OperationRoleList        OperationType = "role_list"
+	OperationAuthRefresh     OperationType = "auth_refresh"
+	OperationAuthValidate    OperationType = "auth_validate"
 )
 
 // AzureErrorMetrics is the metrics and context about Azure errors
@@ -429,4 +525,62 @@ func IsSensitiveAttribute(key string) bool {
 	}
 
 	return false
+}
+
+// LogError records an error with context for telemetry
+func (t *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err error, opType OperationType, metrics AzureErrorMetrics) {
+	if t == nil {
+		return
+	}
+
+	if err == nil {
+		return
+	}
+
+	// Convert telemetry types if needed
+	var operation OperationType
+	switch opType {
+	case "bootstrap":
+		operation = OperationBootstrap
+	case "delete":
+		operation = OperationDelete
+	default:
+		operation = OperationType(opType)
+	}
+
+	// Convert ErrorMetrics to AzureErrorMetrics
+	azureMetrics := AzureErrorMetrics{
+		ErrorType:      metrics.ErrorType,
+		Classification: ErrorClassification(metrics.Classification),
+		Operation:      operation,
+		ResourceType:   metrics.ResourceType,
+		ResourceName:   metrics.ResourceName,
+		SubscriptionID: metrics.SubscriptionID,
+		Location:       metrics.Location,
+		ErrorMessage:   metrics.ErrorMessage,
+		StatusCode:     metrics.StatusCode,
+		RetryAttempts:  metrics.RetryAttempts,
+		IsRetryable:    metrics.IsRetryable,
+	}
+
+	if t.telemeter != nil {
+		// Count the error occurrence
+		t.telemeter.Count(ctx, "azure_backend_errors", 1)
+	}
+
+	// Log the error details
+	errorDetails := fmt.Sprintf("Error Type: %s, Classification: %s, Operation: %s",
+		azureMetrics.ErrorType, azureMetrics.Classification, azureMetrics.Operation)
+
+	if azureMetrics.ResourceType != "" {
+		errorDetails += fmt.Sprintf(", Resource Type: %s", azureMetrics.ResourceType)
+	}
+	if azureMetrics.ResourceName != "" {
+		errorDetails += fmt.Sprintf(", Resource Name: %s", azureMetrics.ResourceName)
+	}
+	if azureMetrics.StatusCode != 0 {
+		errorDetails += fmt.Sprintf(", Status Code: %d", azureMetrics.StatusCode)
+	}
+
+	t.logger.Errorf("Azure backend error: %v (%s)", err, errorDetails)
 }

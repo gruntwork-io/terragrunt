@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/require"
@@ -21,17 +21,71 @@ const (
 	AzureStorageContainerMaxLength = 63
 )
 
-// AzureTestConfig contains Azure storage test configuration
+// AzureTestConfig contains Azure storage test configuration.
+// This configuration is used during testing to configure Azure Storage backend
+// operations in test environments. It supports both access key and Azure AD authentication.
+//
+// The configuration is typically populated from environment variables during test execution:
+// - TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT: Storage account name
+// - TERRAGRUNT_AZURE_TEST_ACCESS_KEY: Storage account access key (optional if using Azure AD)
+// - TERRAGRUNT_AZURE_TEST_CONTAINER: Container name (optional, defaults to generated name)
+// - TERRAGRUNT_AZURE_TEST_LOCATION: Azure region (optional, defaults to "eastus")
+//
+// Usage examples:
+//
+//	// Basic test configuration with access key
+//	config := AzureTestConfig{
+//	    StorageAccountName: "teststorageaccount",
+//	    ContainerName:      "test-container",
+//	    Location:           "eastus",
+//	    AccessKey:          "access-key-value",
+//	    UseAzureAD:         false,
+//	}
+//
+//	// Test configuration with Azure AD authentication
+//	config := AzureTestConfig{
+//	    StorageAccountName: "teststorageaccount",
+//	    ContainerName:      "test-container",
+//	    Location:           "eastus",
+//	    AccessKey:          "", // Empty when using Azure AD
+//	    UseAzureAD:         true,
+//	}
 type AzureTestConfig struct {
-	// Group string fields together
+	// StorageAccountName specifies the name of the Azure Storage account for testing.
+	// Must be 3-24 characters long, contain only lowercase letters and numbers.
+	// Should be a dedicated test storage account, not used for production.
+	// Environment variable: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT
 	StorageAccountName string
-	ContainerName      string
-	Location           string
-	AccessKey          string
-	// Put bool field at the end
+
+	// ContainerName specifies the name of the blob container for test operations.
+	// Must be 3-63 characters long, contain only lowercase letters, numbers, and hyphens.
+	// Test containers are typically cleaned up after test completion.
+	// Environment variable: TERRAGRUNT_AZURE_TEST_CONTAINER
+	ContainerName string
+
+	// Location specifies the Azure region for test resources.
+	// Must be a valid Azure region name (e.g., "eastus", "westus2").
+	// Should be a region that supports all required Azure services.
+	// Environment variable: TERRAGRUNT_AZURE_TEST_LOCATION
+	// Default: "eastus"
+	Location string
+
+	// AccessKey specifies the storage account access key for authentication.
+	// Required when UseAzureAD is false.
+	// This is a sensitive value that should be handled securely in CI/CD environments.
+	// Environment variable: TERRAGRUNT_AZURE_TEST_ACCESS_KEY
+	// Optional when using Azure AD authentication.
+	AccessKey string
+
+	// UseAzureAD indicates whether to use Azure AD authentication instead of access keys.
+	// When true, the test will use Azure AD authentication with automatic credential discovery.
+	// When false, the test will use the provided AccessKey for authentication.
+	// Azure AD authentication is preferred for security and credential management.
+	// Default: false (use access key if provided)
 	UseAzureAD bool
-	// Add padding to optimize struct size
-	_ [3]byte // padding to align to 8-byte boundary
+
+	// 3 bytes padding to align to 8-byte boundary for optimal memory layout
+	_ [3]byte
 }
 
 // CheckAzureTestCredentials checks if the required Azure test credentials are available

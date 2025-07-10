@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -20,28 +21,117 @@ type ResourceGroupClient struct {
 }
 
 // ResourceGroupConfig represents the configuration for an Azure Resource Group.
+//
+// Resource groups are logical containers for Azure resources that share the same
+// lifecycle, permissions, and policies. They provide a way to manage and organize
+// related Azure resources together.
+//
+// Required Fields:
+//   - SubscriptionID: Must be a valid Azure subscription UUID
+//   - ResourceGroupName: Must be 1-90 characters, alphanumeric, periods, underscores, hyphens, and parentheses
+//   - Location: Must be a valid Azure region (e.g., "eastus", "westeurope")
+//
+// Naming Constraints:
+//   - ResourceGroupName cannot end with a period
+//   - Special characters allowed: periods, underscores, hyphens, parentheses
+//   - Cannot contain spaces or other special characters
+//
+// Location Considerations:
+//   - Resource group location is used for metadata storage
+//   - Resources within the group can be in different regions
+//   - Some Azure policies may require resources to be in the same region as the group
+//
+// Tags Usage:
+//   - Applied to all resources in the group by default (inheritance)
+//   - Used for cost tracking, automation, and governance
+//   - Maximum 50 tags per resource group
+//   - Each tag key and value limited to 512 characters
+//
+// Examples:
+//
+//	// Basic resource group for development
+//	config := ResourceGroupConfig{
+//	    SubscriptionID:    "12345678-1234-1234-1234-123456789abc",
+//	    ResourceGroupName: "dev-terragrunt-rg",
+//	    Location:          "eastus",
+//	    Tags: map[string]string{
+//	        "environment": "development",
+//	        "team":        "platform",
+//	        "created-by":  "terragrunt",
+//	    },
+//	}
+//
+//	// Production resource group with comprehensive tagging
+//	config := ResourceGroupConfig{
+//	    SubscriptionID:    "12345678-1234-1234-1234-123456789abc",
+//	    ResourceGroupName: "prod-app-rg",
+//	    Location:          "eastus",
+//	    Tags: map[string]string{
+//	        "environment":   "production",
+//	        "application":   "web-app",
+//	        "team":          "platform",
+//	        "cost-center":   "engineering",
+//	        "owner":         "platform-team@company.com",
+//	        "backup-policy": "daily",
+//	        "created-by":    "terragrunt",
+//	    },
+//	}
+//
+//	// Minimal configuration (tags are optional)
+//	config := ResourceGroupConfig{
+//	    SubscriptionID:    "12345678-1234-1234-1234-123456789abc",
+//	    ResourceGroupName: "simple-rg",
+//	    Location:          "westus2",
+//	}
 type ResourceGroupConfig struct {
-	// Put map field first (larger alignment requirements)
+	// Tags represents custom metadata applied to the resource group.
+	// These tags are inherited by all resources created within the group by default.
+	// Used for organization, cost tracking, automation, and compliance.
+	// Maximum 50 tags allowed per resource group.
+	// Keys and values must each be 512 characters or less.
+	// Optional: Can be nil or empty map.
 	Tags map[string]string
 
-	// Then string fields in alphabetical order
-	Location          string
+	// Location specifies the Azure region where the resource group's metadata will be stored.
+	// Must be a valid Azure region name (e.g., "eastus", "westeurope", "southeastasia").
+	// The resource group location determines where metadata about the group is stored,
+	// but resources within the group can be deployed to different regions.
+	// Consider data residency and compliance requirements when choosing location.
+	// Required field.
+	Location string
+
+	// ResourceGroupName specifies the name of the Azure resource group.
+	// Must be 1-90 characters long.
+	// Can contain alphanumeric characters, periods, underscores, hyphens, and parentheses.
+	// Cannot end with a period.
+	// Must be unique within the subscription.
+	// Once created, the name cannot be changed.
+	// Required field.
 	ResourceGroupName string
-	SubscriptionID    string
+
+	// SubscriptionID specifies the Azure subscription ID where the resource group will be created.
+	// Must be a valid UUID format (e.g., "12345678-1234-1234-1234-123456789abc").
+	// The subscription determines billing, access control, and quota limits.
+	// Required field.
+	SubscriptionID string
 }
 
 // CreateResourceGroupClient creates a new ResourceGroup client
 func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID string) (*ResourceGroupClient, error) {
-	// If subscription ID is empty, try to get it from environment variables
+	// If subscription ID is empty, use the centralized authentication package to get it
 	if subscriptionID == "" {
-		_, envSubscriptionID, err := GetAzureCredentials(ctx, l)
+		// Create empty config
+		config := make(map[string]interface{})
+
+		// Get auth config which includes subscription ID from environment variables if available
+		authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 		if err != nil {
-			return nil, fmt.Errorf("error getting azure credentials: %w", err)
+			return nil, fmt.Errorf("error getting azure auth config: %w", err)
 		}
 
-		if envSubscriptionID != "" {
-			subscriptionID = envSubscriptionID
-			l.Infof("Using subscription ID from environment: %s", subscriptionID)
+		if authConfig.SubscriptionID != "" {
+			subscriptionID = authConfig.SubscriptionID
+			l.Infof("Using subscription ID from auth config: %s", subscriptionID)
 		} else {
 			return nil, errors.Errorf("subscription_id is required either in configuration or as an environment variable")
 		}
@@ -57,14 +147,22 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 		return nil, errors.Errorf("invalid subscription ID format: %s", subscriptionID)
 	}
 
-	// Get Azure credentials
-	cred, _, err := GetAzureCredentials(ctx, l)
+	// Get Azure credentials using the centralized auth package
+	config := make(map[string]interface{})
+	config["subscription_id"] = subscriptionID
+
+	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
+	if err != nil {
+		return nil, fmt.Errorf("error getting azure auth config: %w", err)
+	}
+
+	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error getting azure credentials: %w", err)
 	}
 
 	// Create resource group client
-	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, authResult.Credential, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating resource group client: %w", err)
 	}

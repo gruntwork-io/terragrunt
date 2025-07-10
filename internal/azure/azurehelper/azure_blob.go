@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -85,7 +85,6 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		// Create storage account client to verify the storage account exists
 		var saClient *StorageAccountClient
 		saClient, err = CreateStorageAccountClient(ctx, l, config)
-
 		if err != nil {
 			return nil, errors.Errorf("error creating storage account client: %w", err)
 		}
@@ -93,7 +92,6 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		// Check if the storage account exists
 		var exists bool
 		exists, _, err = saClient.StorageAccountExists(ctx)
-
 		if err != nil {
 			return nil, errors.Errorf("error checking if storage account exists: %w", err)
 		}
@@ -108,12 +106,25 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 
 	url := fmt.Sprintf("https://%s.blob.core.windows.net", storageAccountName)
 
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+	// Use the centralized auth package to get credentials
+	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, errors.Errorf("error getting default azure credential: %v", err)
+		return nil, errors.Errorf("error getting azure auth config: %v", err)
 	}
 
-	client, err := azblob.NewClient(url, cred, nil)
+	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
+	if err != nil {
+		return nil, errors.Errorf("error getting azure credentials: %v", err)
+	}
+
+	var client *azblob.Client
+	if authResult.Method == azureauth.AuthMethodSasToken {
+		// For SAS token authentication, use a different client initialization
+		client, err = azblob.NewClientWithNoCredential(url+"?"+authResult.SasToken, nil)
+	} else {
+		// For credential-based authentication methods
+		client, err = azblob.NewClient(url, authResult.Credential, nil)
+	}
 	if err != nil {
 		// Check if error is due to storage account not existing
 		if strings.Contains(err.Error(), "not exist") ||
@@ -131,7 +142,6 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	testContainerName := "terragrunt-connectivity-test"
 	testContainer := client.ServiceClient().NewContainerClient(testContainerName)
 	_, err = testContainer.GetProperties(ctx, nil)
-
 	if err != nil {
 		var respErr *azcore.ResponseError
 
@@ -219,7 +229,6 @@ func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName s
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
 	_, err := container.GetProperties(ctx, nil)
-
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) {
@@ -248,7 +257,6 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 	if !exists {
 		l.Infof("Creating Azure Storage container %s", containerName)
 		_, err = c.client.CreateContainer(ctx, containerName, nil)
-
 		if err != nil {
 			return ContainerCreationError{
 				Underlying:    err,
@@ -283,7 +291,6 @@ func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, c
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
 	_, err := container.Delete(ctx, nil)
-
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.ErrorCode == "ContainerNotFound" {
@@ -315,7 +322,8 @@ func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, contai
 
 // CopyBlobToContainer copies a blob from one container to another, potentially across storage accounts.
 func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *BlobServiceClient,
-	dstContainer, dstKey string) error {
+	dstContainer, dstKey string,
+) error {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
 		return errors.Errorf("container names and blob keys are required")
 	}

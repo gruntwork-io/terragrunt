@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
