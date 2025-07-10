@@ -84,10 +84,10 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	)
 
 	if dr.runner == nil {
-		return errors.Errorf("controller runner is not set")
+		return errors.Errorf("Runner Pool Controller: runner is not set, cannot run")
 	}
 
-	l.Debugf("Controller: starting with %d tasks, concurrency %d",
+	l.Debugf("Runner Pool Controller: starting with %d tasks, concurrency %d",
 		len(dr.q.Entries), dr.concurrency)
 
 	// Initial signal to start scheduling
@@ -98,11 +98,11 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 	for {
 		ready := dr.q.GetReadyWithDependencies()
-		l.Debugf("Controller: found %d ready tasks", len(ready))
+		l.Debugf("Runner Pool Controller: found %d ready tasks", len(ready))
 
 		for _, e := range ready {
 			// log debug which entry is running
-			l.Debugf("Controller: running %s", e.Config.Path)
+			l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
 			e.Status = queue.StatusRunning
 			sem <- struct{}{}
 
@@ -120,8 +120,8 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 				unit := dr.unitsMap[ent.Config.Path]
 				if unit == nil {
-					err := errors.Errorf("unit for path %s is nil", ent.Config.Path)
-					l.Errorf("Controller: %s unit is nil, skipping execution", ent.Config.Path)
+					err := errors.Errorf("unit for path %s not found in discovered units", ent.Config.Path)
+					l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Config.Path)
 					dr.q.FailEntry(ent)
 					results.Store(ent.Config.Path, err)
 
@@ -132,13 +132,13 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				results.Store(ent.Config.Path, err)
 
 				if err != nil {
-					l.Debugf("Controller: %s failed", ent.Config.Path)
+					l.Debugf("Runner Pool Controller: %s failed", ent.Config.Path)
 					dr.q.FailEntry(ent)
 
 					return
 				}
 
-				l.Debugf("Controller: %s succeeded", ent.Config.Path)
+				l.Debugf("Runner Pool Controller: %s succeeded", ent.Config.Path)
 				ent.Status = queue.StatusSucceeded
 			}(e)
 		}

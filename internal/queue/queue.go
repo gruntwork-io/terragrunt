@@ -278,9 +278,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
-	out := make([]*Entry, 0, len(q.Entries))
-
 	if q.IgnoreDependencyOrder {
+		out := make([]*Entry, 0, len(q.Entries))
+
 		for _, e := range q.Entries {
 			if e.Status == StatusReady {
 				out = append(out, e)
@@ -290,8 +290,15 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		return out
 	}
 
+	out := make([]*Entry, 0, len(q.Entries))
+
 	for _, e := range q.Entries {
-		if e.Status == StatusReady {
+		if e.Status != StatusReady {
+			continue
+		}
+
+		if e.IsUp() {
+			// Up logic: all dependencies must be succeeded
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
@@ -305,6 +312,33 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 			if allDepsReady {
 				out = append(out, e)
 			}
+
+			continue
+		}
+		// Down logic: all dependents must be succeeded
+		allDependentsReady := true
+
+		for _, other := range q.Entries {
+			if other == e || other.Config.Dependencies == nil {
+				continue
+			}
+
+			for _, dep := range other.Config.Dependencies {
+				if dep.Path == e.Config.Path {
+					if other.Status != StatusSucceeded {
+						allDependentsReady = false
+						break
+					}
+				}
+			}
+
+			if !allDependentsReady {
+				break
+			}
+		}
+
+		if allDependentsReady {
+			out = append(out, e)
 		}
 	}
 
@@ -332,14 +366,15 @@ func (q *Queue) FailEntry(e *Entry) {
 	}
 
 	if e.IsUp() {
-		q.earlyExitEntries(e) // propagate to dependents (default behavior)
-	} else {
-		q.earlyExitDependencies(e) // propagate to dependencies for destroy
+		q.earlyExitDependents(e)
+		return
 	}
+
+	q.earlyExitDependencies(e)
 }
 
-// earlyExitEntries - Recursively mark all entries that come after this one as early exit.
-func (q *Queue) earlyExitEntries(e *Entry) {
+// earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
+func (q *Queue) earlyExitDependents(e *Entry) {
 	for _, entry := range q.Entries {
 		if entry.Config.Dependencies == nil {
 			continue
@@ -353,7 +388,7 @@ func (q *Queue) earlyExitEntries(e *Entry) {
 
 				entry.Status = StatusEarlyExit
 
-				q.earlyExitEntries(entry)
+				q.earlyExitDependents(entry)
 
 				break
 			}
@@ -361,7 +396,7 @@ func (q *Queue) earlyExitEntries(e *Entry) {
 	}
 }
 
-// earlyExitDependencies - Recursively mark all entries that come before this one as early exit.
+// earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
 func (q *Queue) earlyExitDependencies(e *Entry) {
 	if e.Config.Dependencies == nil {
 		return

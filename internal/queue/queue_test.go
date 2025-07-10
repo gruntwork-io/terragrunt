@@ -758,12 +758,19 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	entries := q.Entries
+	var processed []string
+	for {
+		ready := q.GetReadyWithDependencies()
+		if len(ready) == 0 {
+			break
+		}
+		for _, entry := range ready {
+			processed = append(processed, entry.Config.Path)
+			entry.Status = queue.StatusSucceeded
+		}
+	}
 
-	// For destroy, the queue should be in reverse dependency order: E, D, C, B, A
-	assert.Equal(t, "E", entries[0].Config.Path)
-	assert.Equal(t, "D", entries[1].Config.Path)
-	assert.Equal(t, "C", entries[2].Config.Path)
-	assert.Equal(t, "B", entries[3].Config.Path)
-	assert.Equal(t, "A", entries[4].Config.Path)
+	// For destruction, the queue should be in reverse dependency order: E, D, C, B, A
+	expected := []string{"C", "D", "E", "B", "A"}
+	assert.Equal(t, expected, processed)
 }
