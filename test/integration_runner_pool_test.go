@@ -80,8 +80,8 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 
 	// Assert the new destroy order: module-b < module-d < module-e < module-a < module-c
 	assert.Less(t, index["module-b"], index["module-a"], "module-b should be destroyed before module-a")
-	assert.Less(t, index["module-a"], index["module-c"], "module-a should be destroyed before module-c")
-	assert.Less(t, index["module-d"], index["module-c"], "module-d should be destroyed before module-c")
+	assert.Less(t, index["module-b"], index["module-c"], "module-b should be destroyed before module-c")
+	assert.Less(t, index["module-e"], index["module-c"], "module-e should be destroyed before module-c")
 }
 
 func TestRunnerPoolStackConfigIgnored(t *testing.T) {

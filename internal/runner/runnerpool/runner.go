@@ -213,7 +213,7 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 	for _, unit := range r.queue.Entries {
 		if len(unit.Config.Dependencies) != 0 {
 			for _, dep := range unit.Config.Dependencies {
-				dependentUnits[unit.Config.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Config.Path))
+				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Config.Path))
 			}
 		}
 	}

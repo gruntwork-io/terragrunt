@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -50,8 +52,9 @@ func WithMaxConcurrency(concurrency int) ControllerOption {
 // NewController creates a new Controller with the given options and a pre-built queue.
 func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOption) *Controller {
 	dr := &Controller{
-		q:       q,
-		readyCh: make(chan struct{}, 1), // buffered to avoid blocking
+		q:           q,
+		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
+		concurrency: options.DefaultParallelism,
 	}
 	// Map to link runner Units and Queue Entries
 	unitsMap := make(map[string]*common.Unit)
