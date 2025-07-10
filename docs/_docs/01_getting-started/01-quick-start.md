@@ -376,6 +376,7 @@ dependency "foo" {
 }
 
 inputs = {
+ output_dir = get_terragrunt_dir()
  content = "Foo content: ${dependency.foo.outputs.content}"
 }
 ```
@@ -439,6 +440,7 @@ dependency "foo" {
 }
 
 inputs = {
+  output_dir = get_terragrunt_dir()
   content = "Foo content: ${dependency.foo.outputs.content}"
 }
 ```
