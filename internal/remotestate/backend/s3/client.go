@@ -107,7 +107,11 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 // CreateS3BucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
 func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *options.TerragruntOptions) error {
-	cfg := &client.RemoteStateConfigS3
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot create S3 bucket if necessary")
+	}
+
+	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
 
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, cfg.Bucket); err != nil || exists {
 		return err
@@ -252,9 +256,13 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 // configureAccessLogBucket - configure access log bucket.
 func (client *Client) configureAccessLogBucket(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	cfg := &client.RemoteStateConfigS3
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot configure access log bucket")
+	}
 
-	l.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", client.RemoteStateConfigS3.Bucket, client.AccessLoggingBucketName)
+	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
+
+	l.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", cfg.Bucket, client.AccessLoggingBucketName)
 
 	if err := client.CreateLogsS3BucketIfNecessary(ctx, l, client.AccessLoggingBucketName, opts); err != nil {
 		l.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", client.AccessLoggingBucketName, cfg.Bucket, err.Error())
@@ -435,7 +443,11 @@ func (client *Client) CheckIfVersioningEnabled(ctx context.Context, l log.Logger
 
 // CreateS3BucketWithVersioningSSEncryptionAndAccessLogging creates the given S3 bucket and enable versioning for it.
 func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	cfg := &client.RemoteStateConfigS3
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot create S3 bucket")
+	}
+
+	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
 
 	l.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", cfg.Bucket)
 
@@ -565,7 +577,11 @@ func (client *Client) TagS3BucketAccessLogging(ctx context.Context, l log.Logger
 
 // TagS3Bucket tags the S3 bucket with the tags specified in the config.
 func (client *Client) TagS3Bucket(ctx context.Context, l log.Logger) error {
-	cfg := &client.RemoteStateConfigS3
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot tag S3 bucket")
+	}
+
+	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
 
 	if len(client.S3BucketTags) == 0 {
 		l.Debugf("No tags to apply to S3 bucket %s", cfg.Bucket)
@@ -612,7 +628,11 @@ func convertTags(tags map[string]string) []types.Tag {
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere.
 func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger) error {
-	cfg := &client.RemoteStateConfigS3
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot wait for S3 bucket")
+	}
+
+	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
 
 	l.Debugf("Waiting for bucket %s to be created", cfg.Bucket)
 
@@ -634,6 +654,10 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger)
 
 // CreateS3Bucket creates the S3 bucket specified in the given config.
 func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
+	if client.s3Client == nil {
+		return errors.Errorf("S3 client is nil - cannot create S3 bucket %s", bucket)
+	}
+
 	l.Debugf("Creating S3 bucket %s", bucket)
 
 	input := &s3.CreateBucketInput{
@@ -684,17 +708,41 @@ func isBucketErrorRetriable(err error) bool {
 
 // EnableRootAccesstoS3Bucket adds a policy to allow root access to the bucket.
 func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logger) error {
-	bucket := client.RemoteStateConfigS3.Bucket
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot enable root access to S3 bucket")
+	}
+
+	if client.s3Client == nil {
+		return errors.Errorf("S3 client is nil - cannot enable root access to S3 bucket")
+	}
+
+	// Access bucket name safely through defensive checking
+	config := client.ExtendedRemoteStateConfigS3
+	bucket := config.RemoteStateConfigS3.Bucket
+	if bucket == "" {
+		return errors.Errorf("S3 bucket name is empty - cannot enable root access to S3 bucket")
+	}
+
 	l.Debugf("Enabling root access to S3 bucket %s", bucket)
+
+	if client.awsConfig.Region == "" {
+		return errors.Errorf("AWS config region is empty - cannot enable root access to S3 bucket %s", bucket)
+	}
 
 	accountID, err := awshelper.GetAWSAccountID(ctx, client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucket, err)
 	}
+	if accountID == "" {
+		return errors.Errorf("AWS account ID is empty - cannot enable root access to S3 bucket %s", bucket)
+	}
 
 	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
+	}
+	if partition == "" {
+		return errors.Errorf("AWS partition is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
 
 	var policyInBucket awshelper.Policy
@@ -708,7 +756,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		l.Debugf("Policy not exists for bucket %s", bucket)
 	}
 
-	if policyOutput.Policy != nil {
+	if policyOutput != nil && policyOutput.Policy != nil {
 		l.Debugf("Policy already exists for bucket %s", bucket)
 
 		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
@@ -717,10 +765,13 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		}
 	}
 
-	for _, statement := range policyInBucket.Statement {
-		if statement.Sid == SidRootPolicy {
-			l.Debugf("Policy for RootAccess already exists for bucket %s", bucket)
-			return nil
+	// Safely iterate over statements only if they exist
+	if policyInBucket.Statement != nil {
+		for _, statement := range policyInBucket.Statement {
+			if statement.Sid == SidRootPolicy {
+				l.Debugf("Policy for RootAccess already exists for bucket %s", bucket)
+				return nil
+			}
 		}
 	}
 
@@ -854,6 +905,10 @@ func (client *Client) EnablePublicAccessBlockingForS3Bucket(ctx context.Context,
 }
 
 func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l log.Logger) error {
+	if client.ExtendedRemoteStateConfigS3 == nil {
+		return errors.Errorf("client configuration is nil - cannot enable access logging for S3 bucket")
+	}
+
 	cfg := client.ExtendedRemoteStateConfigS3
 	bucket := cfg.RemoteStateConfigS3.Bucket
 	logsBucket := cfg.AccessLoggingBucketName
@@ -1091,7 +1146,7 @@ func (client *Client) DeleteS3BucketObjects(ctx context.Context, l log.Logger, b
 // DeleteS3Bucket deletes the S3 bucket specified in the given config.
 func (client *Client) DeleteS3Bucket(ctx context.Context, l log.Logger, bucketName string) error {
 	var (
-		cfg         = &client.RemoteStateConfigS3
+		cfg         = &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
 		key         = cfg.Key
 		bucketInput = &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}
 	)
@@ -1183,6 +1238,12 @@ func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key str
 }
 
 func (client *Client) DoesS3ObjectExistWithLogging(ctx context.Context, l log.Logger, bucketName, key string) (bool, error) {
+	if client.s3Client == nil {
+		return false, errors.Errorf("S3 client is nil - cannot check if S3 bucket %s exists", bucketName)
+	}
+
+	l.Debugf("Checking if bucket %s exists", bucketName)
+
 	if exists, err := client.DoesS3ObjectExist(ctx, bucketName, key); err != nil || exists {
 		return exists, err
 	}
@@ -1711,6 +1772,12 @@ func (client *Client) DoesS3BucketExist(ctx context.Context, bucketName string) 
 
 // DoesS3BucketExistWithLogging checks if the S3 bucket exists and logs if not.
 func (client *Client) DoesS3BucketExistWithLogging(ctx context.Context, l log.Logger, bucketName string) (bool, error) {
+	if client.s3Client == nil {
+		return false, errors.Errorf("S3 client is nil - cannot check if S3 bucket %s exists", bucketName)
+	}
+
+	l.Debugf("Checking if bucket %s exists", bucketName)
+
 	exists, err := client.DoesS3BucketExist(ctx, bucketName)
 	if err != nil || !exists {
 		l.Debugf("Remote state S3 bucket %s does not exist or you don't have permissions to access it.", bucketName)
