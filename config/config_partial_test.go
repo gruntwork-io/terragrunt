@@ -1,9 +1,15 @@
 package config_test
 
 import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -387,4 +393,31 @@ dependency "ec2" {
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+}
+
+func TestPartialParseSavesToHclCache(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(`dependencies { paths = ["../app1"] }`), 0644))
+
+	fileInfo, err := os.Stat(configPath)
+	require.NoError(t, err)
+	modTime := fileInfo.ModTime().UnixMicro()
+	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, modTime)
+
+	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+
+	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
+
+	l := logger.CreateLogger()
+	parsingContext := config.NewParsingContext(baseCtx, l, mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock)
+
+	_, err = config.PartialParseConfigFile(parsingContext, l, configPath, nil)
+	require.NoError(t, err)
+
+	val, found := hclCache.Get(parsingContext, cacheKey)
+	require.True(t, found, "expected file to be in cache after first parse")
+	require.NotNil(t, val)
 }
