@@ -97,10 +97,10 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	}
 
 	for {
-		ready := dr.q.GetReadyWithDependencies()
-		l.Debugf("Runner Pool Controller: found %d ready tasks", len(ready))
+		readyEntries := dr.q.GetReadyWithDependencies()
+		l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
-		for _, e := range ready {
+		for _, e := range readyEntries {
 			// log debug which entry is running
 			l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
 			e.Status = queue.StatusRunning
@@ -143,7 +143,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			}(e)
 		}
 
-		if len(ready) == 0 {
+		if len(readyEntries) == 0 {
 			// If no goroutines are running, break
 			if len(sem) == 0 {
 				break

@@ -458,14 +458,7 @@ func isTerminal(status Status) bool {
 	return false
 }
 
-// isTerminalOrRunning returns true if the status is terminal.
+// isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
-	switch status {
-	case StatusPending, StatusBlocked, StatusUnsorted, StatusReady:
-		return false
-	case StatusSucceeded, StatusFailed, StatusRunning, StatusEarlyExit:
-		return true
-	}
-
-	return false
+	return status == StatusRunning || isTerminal(status)
 }
