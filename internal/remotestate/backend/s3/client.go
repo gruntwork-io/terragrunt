@@ -567,6 +567,10 @@ func (client *Client) TagS3BucketAccessLogging(ctx context.Context, l log.Logger
 
 	_, err := client.s3Client.PutBucketTagging(ctx, &putBucketTaggingInput)
 	if err != nil {
+		if handleS3TaggingMethodNotAllowed(err, l, "access logging bucket") {
+			return nil
+		}
+
 		return errors.New(err)
 	}
 
@@ -601,6 +605,10 @@ func (client *Client) TagS3Bucket(ctx context.Context, l log.Logger) error {
 
 	_, err := client.s3Client.PutBucketTagging(ctx, &putBucketTaggingInput)
 	if err != nil {
+		if handleS3TaggingMethodNotAllowed(err, l, cfg.Bucket) {
+			return nil
+		}
+
 		return errors.New(err)
 	}
 
@@ -718,6 +726,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 
 	// Access bucket name safely through defensive checking
 	config := client.ExtendedRemoteStateConfigS3
+
 	bucket := config.RemoteStateConfigS3.Bucket
 	if bucket == "" {
 		return errors.Errorf("S3 bucket name is empty - cannot enable root access to S3 bucket")
@@ -733,6 +742,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucket, err)
 	}
+
 	if accountID == "" {
 		return errors.Errorf("AWS account ID is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
@@ -741,6 +751,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
 	}
+
 	if partition == "" {
 		return errors.Errorf("AWS partition is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
@@ -1897,4 +1908,16 @@ func (client *Client) GetDynamoDBClient() *dynamodb.Client {
 func isAWSResourceNotFoundError(err error) bool {
 	var apiErr smithy.APIError
 	return errors.As(err, &apiErr) && apiErr.ErrorCode() == "ResourceNotFoundException"
+}
+
+// handleS3TaggingMethodNotAllowed handles MethodNotAllowed errors for S3 bucket tagging operations
+// Returns true if the error was handled (caller should return nil), false otherwise
+func handleS3TaggingMethodNotAllowed(err error, l log.Logger, bucketName string) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "MethodNotAllowed" {
+		l.Warnf("S3 bucket tagging is not supported for bucket %s - skipping tagging (this is normal for some AWS configurations)", bucketName)
+		return true
+	}
+
+	return false
 }

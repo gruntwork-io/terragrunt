@@ -243,7 +243,7 @@ func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig
 			cfg.Region = "us-east-1"
 		}
 
-		if opts.IAMRoleOptions.RoleARN != "" {
+		if opts != nil && opts.IAMRoleOptions.RoleARN != "" {
 			if opts.IAMRoleOptions.WebIdentityToken != "" {
 				l.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
 				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions)
@@ -251,8 +251,10 @@ func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig
 				l.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
 				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions, "")
 			}
-		} else if creds := getCredentialsFromEnvs(opts); creds != nil {
-			cfg.Credentials = creds
+		} else if opts != nil {
+			if creds := getCredentialsFromEnvs(opts); creds != nil {
+				cfg.Credentials = creds
+			}
 		}
 	} else {
 		cfg, err = CreateAwsConfigFromConfig(ctx, awsCfg, opts)
