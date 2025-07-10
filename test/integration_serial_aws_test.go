@@ -63,12 +63,12 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
 	// I'm not sure why, but this test doesn't work with tenv
-	os.Setenv("AWS_ACCESS_KEY_ID", "")     //nolint: tenv,usetesting
-	os.Setenv("AWS_SECRET_ACCESS_KEY", "") //nolint: tenv,usetesting
+	os.Setenv("AWS_ACCESS_KEY_ID", "")     //nolint: usetesting
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "") //nolint: usetesting
 
 	defer func() {
-		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint: tenv,usetesting
-		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: tenv,usetesting
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint: usetesting
+		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: usetesting
 	}()
 
 	credsConfig := util.JoinPath(rootPath, "creds.config")
