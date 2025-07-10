@@ -2,6 +2,7 @@
 package runner
 
 import (
+	"maps"
 	"context"
 	"path/filepath"
 	"slices"
@@ -41,9 +42,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		for k, v := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
-			matchedModulesMap[k] = v
-		}
+		maps.Copy(matchedModulesMap, findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig))
 	}
 
 	var matchedModules = make(common.Units, 0, len(matchedModulesMap))

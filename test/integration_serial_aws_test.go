@@ -162,7 +162,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath := t.TempDir()
-	for i := 0; i < numberOfModules; i++ {
+	for i := range numberOfModules {
 		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
 		if err != nil {
 			return "", 0, err

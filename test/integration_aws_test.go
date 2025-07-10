@@ -1299,7 +1299,7 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		tt()
 		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 		// This is only a problem during testing, where the process is shared across terragrunt runs.
@@ -1400,7 +1400,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := t.TempDir()
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
 		err = os.Rename(

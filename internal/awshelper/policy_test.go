@@ -92,7 +92,7 @@ func TestAwsUnmarshalActionResourceList(t *testing.T) {
 	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
 
 	switch actions := bucketPolicy.Statement[0].Action.(type) {
-	case []interface{}:
+	case []any:
 		assert.Len(t, actions, 11)
 		assert.Contains(t, actions, "s3:ListJobs")
 	default:
@@ -100,7 +100,7 @@ func TestAwsUnmarshalActionResourceList(t *testing.T) {
 	}
 
 	switch resource := bucketPolicy.Statement[0].Resource.(type) {
-	case []interface{}:
+	case []any:
 		assert.Len(t, resource, 2)
 		assert.Contains(t, resource, "arn:aws:s3:*:666:job/*")
 	default:
