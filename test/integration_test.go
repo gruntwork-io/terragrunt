@@ -4261,14 +4261,13 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 }
 
 func TestTerragruntPlanAllOutput(t *testing.T) {
+	t.Parallel()
+
 	helpers.CleanupTerraformFolder(t, testFixturePlanOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePlanOutput)
 
 	outDir := filepath.Join(tmpEnvPath, "plans")
-	pwd := filepath.Join(tmpEnvPath, testFixturePlanOutput)
-	t.Chdir(pwd)
-
-	cmd := fmt.Sprintf("terragrunt plan --all --non-interactive --out-dir %s --working-dir %s ", outDir, ".")
+	cmd := fmt.Sprintf("terragrunt plan --all --non-interactive --out-dir %s --working-dir ./%s ", outDir, testFixturePlanOutput)
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
@@ -4277,8 +4276,9 @@ func TestTerragruntPlanAllOutput(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
-	t.Logf("STDOUT: %s", stdout.String())
-	t.Logf("STDERR: %s", stderr.String())
+	output := stdout.String()
+	errOutput := stderr.String()
+	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 
 	assert.FileExists(t, filepath.Join(outDir, "vnet", "tfplan.tfplan"))
 	assert.FileExists(t, filepath.Join(outDir, "resource-group", "tfplan.tfplan"))
