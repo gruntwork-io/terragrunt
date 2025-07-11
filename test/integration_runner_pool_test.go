@@ -1,7 +1,6 @@
 package test_test
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 
 const (
 	testFixtureMixedConfig = "fixtures/mixed-config"
+	testFixtureFailFast    = "fixtures/fail-fast"
 )
 
 func TestRunnerPoolDiscovery(t *testing.T) {
@@ -25,7 +25,6 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment runner-pool --working-dir "+testPath+"  -- apply")
-	fmt.Printf("error: %v\n", err)
 	require.NoError(t, err)
 	// Verify that the output contains value from the app
 	require.Contains(t, stdout, "output_value = \"42\"")
@@ -79,12 +78,10 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 		index[mod] = i
 	}
 
-	// module-a must be destroyed before module-b
-	assert.Less(t, index["module-a"], index["module-b"], "module-a should be destroyed before module-b")
-	// module-c must be destroyed before module-d
-	assert.Less(t, index["module-c"], index["module-d"], "module-c should be destroyed before module-d")
-	// module-e must be destroyed before module-d
-	assert.Less(t, index["module-e"], index["module-d"], "module-e should be destroyed before module-d")
+	// Assert the new destroy order: module-b < module-d < module-e < module-a < module-c
+	assert.Less(t, index["module-b"], index["module-a"], "module-b should be destroyed before module-a")
+	assert.Less(t, index["module-b"], index["module-c"], "module-b should be destroyed before module-c")
+	assert.Less(t, index["module-e"], index["module-c"], "module-e should be destroyed before module-c")
 }
 
 func TestRunnerPoolStackConfigIgnored(t *testing.T) {
@@ -98,4 +95,19 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, stderr, "Error: Unsupported block type")
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
+}
+
+func TestRunnerPoolFailFast(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+
+	// create fail.txt in unit-a to trigger a failure
+	helpers.CreateFile(t, testPath, "unit-a", "fail.txt")
+	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+
+	assert.Contains(t, stderr, "unit-b did not run due to early exit")
+	assert.Contains(t, stderr, "unit-c did not run due to early exit")
 }

@@ -62,7 +62,7 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 			continue
 		}
 
-		modLogger, modOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
+		unitLogger, unitOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
 
 		if err != nil {
 			l.Warnf("Skipping unit at %s due to error cloning options: %s", cfg.Path, err)
@@ -70,8 +70,8 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 		}
 
 		mod := &common.Unit{
-			TerragruntOptions: modOpts,
-			Logger:            modLogger,
+			TerragruntOptions: unitOpts,
+			Logger:            unitLogger,
 			Path:              cfg.Path,
 			Config:            *cfg.Parsed,
 		}
@@ -135,40 +135,26 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	taskRun := func(ctx context.Context, u *common.Unit) (int, error) {
+	taskRun := func(ctx context.Context, u *common.Unit) error {
 		unitRunner := common.NewUnitRunner(u)
 
 		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
 		if err != nil {
-			return 1, err
+			return err
 		}
 
-		return 0, nil
+		return nil
 	}
 	r.queue.FailFast = opts.FailFast
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
-	dagRunner := NewDAGRunner(
+	controller := NewController(
 		r.queue,
 		r.Stack.Units,
 		WithRunner(taskRun),
 		WithMaxConcurrency(opts.Parallelism),
 	)
 
-	results := dagRunner.Run(ctx, l)
-
-	var errs []error
-
-	for _, res := range results {
-		if res.Err != nil {
-			errs = append(errs, res.Err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
+	return controller.Run(ctx, l)
 }
 
 // handleApplyDestroy handles logic for apply and destroy commands.
@@ -196,8 +182,8 @@ func (r *Runner) handlePlan() {
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
-	for _, unit := range r.Stack.Units {
-		outStr += fmt.Sprintf("Unit %s\n", unit.Path)
+	for _, unit := range r.queue.Entries {
+		outStr += fmt.Sprintf("Unit %s\n", unit.Config.Path)
 	}
 
 	l.Info(outStr)
@@ -207,9 +193,9 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
 func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
-	orderedUnits := make([]string, 0, len(r.Stack.Units))
-	for _, unit := range r.Stack.Units {
-		orderedUnits = append(orderedUnits, unit.Path)
+	orderedUnits := make([]string, 0, len(r.queue.Entries))
+	for _, unit := range r.queue.Entries {
+		orderedUnits = append(orderedUnits, unit.Config.Path)
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")
@@ -224,10 +210,10 @@ func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 func (r *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
-	for _, unit := range r.Stack.Units {
-		if len(unit.Dependencies) != 0 {
-			for _, dep := range unit.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
+	for _, unit := range r.queue.Entries {
+		if len(unit.Config.Dependencies) != 0 {
+			for _, dep := range unit.Config.Dependencies {
+				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Config.Path))
 			}
 		}
 	}

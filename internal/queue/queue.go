@@ -278,9 +278,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
-	out := make([]*Entry, 0, len(q.Entries))
-
 	if q.IgnoreDependencyOrder {
+		out := make([]*Entry, 0, len(q.Entries))
+
 		for _, e := range q.Entries {
 			if e.Status == StatusReady {
 				out = append(out, e)
@@ -290,8 +290,15 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		return out
 	}
 
+	out := make([]*Entry, 0, len(q.Entries))
+
 	for _, e := range q.Entries {
-		if e.Status == StatusReady {
+		if e.Status != StatusReady {
+			continue
+		}
+
+		if e.IsUp() {
+			// Up logic: all dependencies must be succeeded
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
@@ -305,18 +312,47 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 			if allDepsReady {
 				out = append(out, e)
 			}
+
+			continue
+		}
+		// Down logic: all dependents must be succeeded
+		allDependentsReady := true
+
+		for _, other := range q.Entries {
+			if other == e || other.Config.Dependencies == nil {
+				continue
+			}
+
+			for _, dep := range other.Config.Dependencies {
+				if dep.Path == e.Config.Path {
+					if other.Status != StatusSucceeded {
+						allDependentsReady = false
+						break
+					}
+				}
+			}
+
+			if !allDependentsReady {
+				break
+			}
+		}
+
+		if allDependentsReady {
+			out = append(out, e)
 		}
 	}
 
 	return out
 }
 
-// FailEntry marks the given entry as failed, handles fail-fast logic if enabled, and updates the statuses of dependents accordingly.
-// This method should be used only for failure transitions. For other status changes, set the Status field directly.
+// FailEntry marks the entry as failed and updates related entries if needed.
+// For up commands, this marks entries that come after this one as early exit.
+// For destroy/down commands, this marks entries that come before this one as early exit.
+// Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
 	e.Status = StatusFailed
 
-	// If this entry failed and has dependents, we need to propagate the failure.
+	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
 	if q.FailFast {
 		for _, n := range q.Entries {
 			if isTerminalOrRunning(n.Status) {
@@ -329,7 +365,16 @@ func (q *Queue) FailEntry(e *Entry) {
 		return
 	}
 
-	// Dynamically find dependents: any entry whose dependencies include e.Config
+	if e.IsUp() {
+		q.earlyExitDependents(e)
+		return
+	}
+
+	q.earlyExitDependencies(e)
+}
+
+// earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
+func (q *Queue) earlyExitDependents(e *Entry) {
 	for _, entry := range q.Entries {
 		if entry.Config.Dependencies == nil {
 			continue
@@ -341,11 +386,34 @@ func (q *Queue) FailEntry(e *Entry) {
 					continue
 				}
 
-				entry.Status = StatusFailed
+				entry.Status = StatusEarlyExit
+
+				q.earlyExitDependents(entry)
 
 				break
 			}
 		}
+	}
+}
+
+// earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
+func (q *Queue) earlyExitDependencies(e *Entry) {
+	if e.Config.Dependencies == nil {
+		return
+	}
+
+	for _, dep := range e.Config.Dependencies {
+		depEntry := q.EntryByPath(dep.Path)
+		if depEntry == nil {
+			continue
+		}
+
+		if isTerminalOrRunning(depEntry.Status) {
+			continue
+		}
+
+		depEntry.Status = StatusEarlyExit
+		q.earlyExitDependencies(depEntry)
 	}
 }
 
@@ -380,10 +448,17 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 
 // isTerminal returns true if the status is terminal.
 func isTerminal(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusEarlyExit
+	switch status {
+	case StatusPending, StatusBlocked, StatusUnsorted, StatusReady, StatusRunning:
+		return false
+	case StatusSucceeded, StatusFailed, StatusEarlyExit:
+		return true
+	}
+
+	return false
 }
 
-// isTerminalOrRunning returns true if the status is terminal.
+// isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning || status == StatusEarlyExit
+	return status == StatusRunning || isTerminal(status)
 }

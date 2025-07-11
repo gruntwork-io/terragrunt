@@ -165,7 +165,11 @@ func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
 
 // FindByPath returns the unit that matches the given path, or nil if no such unit exists in the map.
 func (unitsMap UnitsMap) FindByPath(path string) *Unit {
-	return unitsMap[path]
+	if unit, ok := unitsMap[path]; ok {
+		return unit
+	}
+
+	return nil
 }
 
 // CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If

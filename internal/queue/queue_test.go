@@ -389,11 +389,12 @@ func TestQueue_FailFast(t *testing.T) {
 
 // buildMultiLevelDependencyTree returns the configs for the following dependency tree:
 //
-//	    A
-//	   / \
-//	  B   C
+//	  A
 //	 / \
-//	D   E
+//	B   C
+//
+// / \
+// D   E
 func buildMultiLevelDependencyTree() []*discovery.DiscoveredConfig {
 	cfgA := &discovery.DiscoveredConfig{Path: "A"}
 	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
@@ -558,10 +559,10 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 
 	assert.False(t, q.Finished(), "Finished should be false after B fails if C is not done")
 
-	// D and E should be marked as failed due to dependency on B
+	// D and E should be marked as early exit due to dependency on B
 	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("D").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("E").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("E").Status)
 
 	// C should still be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -631,4 +632,145 @@ func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 5, "Should be ready all entries")
+}
+
+func TestFailEntry_DirectAndRecursive(t *testing.T) {
+	t.Parallel()
+	// Build a graph: A -> B -> C, A -> D
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// Non-fail-fast: Should recursively mark all dependencies as StatusEarlyExit
+	q.FailFast = false
+	entryA := q.EntryByPath("A")
+	q.FailEntry(entryA)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+
+	// Reset statuses for fail-fast test
+	q, err = queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+	entryA = q.EntryByPath("A")
+	q.FailEntry(entryA)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+}
+
+func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
+	t.Parallel()
+	// Build a graph: A -> B -> C, A -> D
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+
+	// Set all configs to destroy (down) command
+	for _, cfg := range configs {
+		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = false
+
+	// Fail C (should mark B and A as early exit, D should remain ready)
+	entryC := q.EntryByPath("C")
+	q.FailEntry(entryC)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusReady, q.EntryByPath("D").Status)
+}
+
+func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
+	t.Parallel()
+	// Build a graph: A -> B -> C, A -> D
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+
+	// Set all configs to destroy (down) command
+	for _, cfg := range configs {
+		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	}
+
+	// Only test fail-fast mode here
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+	entryC := q.EntryByPath("C")
+	q.FailEntry(entryC)
+	// All non-terminal entries should be early exit
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+}
+
+func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Create a simple chain: A -> B -> C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+
+	// Set all configs to destroy (down) command
+	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	entries := q.Entries
+
+	// For destroy, the queue should be in reverse dependency order: C, B, A
+	assert.Equal(t, "C", entries[0].Config.Path)
+	assert.Equal(t, "B", entries[1].Config.Path)
+	assert.Equal(t, "A", entries[2].Config.Path)
+}
+
+func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
+	t.Parallel()
+
+	configs := buildMultiLevelDependencyTree()
+	for _, cfg := range configs {
+		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	var processed []string
+	for {
+		ready := q.GetReadyWithDependencies()
+		if len(ready) == 0 {
+			break
+		}
+		for _, entry := range ready {
+			processed = append(processed, entry.Config.Path)
+			entry.Status = queue.StatusSucceeded
+		}
+	}
+
+	// For destruction, the queue should be in reverse dependency order: E, D, C, B, A
+	expected := []string{"C", "D", "E", "B", "A"}
+	assert.Equal(t, expected, processed)
 }
