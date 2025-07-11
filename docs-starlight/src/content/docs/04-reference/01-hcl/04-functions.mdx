@@ -908,6 +908,50 @@ Notes:
 
 - `read_terragrunt_config` can be also used to read `terragrunt.stack.hcl` and `terragrunt.values.hcl` files.
 
+## read_terragrunt_config_with_cache
+
+`read_terragrunt_config_with_cache(config_path, [default_val])` is similar to `read_terragrunt_config`, but it caches the parsed configuration to avoid re-parsing the same file multiple times during configuration parsing. This can improve performance when the same configuration file is read multiple times.
+
+The function has the same signature and behavior as `read_terragrunt_config`, with the addition of caching:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  common_vars = read_terragrunt_config_with_cache(find_in_parent_folders("common.hcl"))
+}
+
+inputs = merge(
+  local.common_vars.inputs,
+  {
+    # additional inputs
+  }
+)
+```
+
+Like `read_terragrunt_config`, this function also supports an optional default value:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  common_vars = read_terragrunt_config_with_cache(find_in_parent_folders("i-dont-exist.hcl"), {inputs = {}})
+}
+```
+
+**When to use `read_terragrunt_config_with_cache` vs `read_terragrunt_config`:**
+
+- Use `read_terragrunt_config_with_cache` when you expect the same configuration file to be read multiple times during parsing, and you want to optimize performance by avoiding redundant parsing.
+- Use `read_terragrunt_config` when you need fresh parsing on each call, or when caching behavior might cause issues with dynamic configuration that changes during parsing.
+
+**Note:** The cached values are preserved from the first time the configuration is parsed, which means that if the same file is read multiple times, subsequent reads will return the cached value from the first read, not a fresh parse. This is expected behavior and proves that the cache is working correctly.
+
+**Warning:** When using `read_terragrunt_config_with_cache`, be aware that functions that depend on the original terragrunt directory context (such as [`get_original_terragrunt_dir()`](#get_original_terragrunt_dir)) will return values from the first time the configuration was parsed, not from the current parsing context.
+
+For example, if a configuration file is first read when called from module A, and then later read when called from module B, the cached version will preserve the `original_terragrunt_dir` value from module A, even when accessed from module B. This is expected caching behavior.
+
+If you need the `original_terragrunt_dir` to reflect the current parsing context, use `read_terragrunt_config` instead of `read_terragrunt_config_with_cache`.
+
 ## sops_decrypt_file
 
 `sops_decrypt_file(file_path)` decrypts a yaml, json, ini, env or "raw text" file encrypted with `sops`.
