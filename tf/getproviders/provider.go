@@ -16,6 +16,9 @@ type Provider interface {
 	// Version returns a version of the provider. e.g.: 5.36.0
 	Version() string
 
+	// Constraints returns the version constraints from the module's required_providers block, or empty string if none.
+	Constraints() string
+
 	// DocumentSHA256Sums returns a document with providers hashes for different platforms.
 	DocumentSHA256Sums(ctx context.Context) ([]byte, error)
 
