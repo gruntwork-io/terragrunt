@@ -21,6 +21,9 @@ updates:
     labels:
       - "go"
       - "dependencies"
+    ignore:
+      - dependency-name: "github.com/charmbracelet/glamour"
+        versions: ["<= 0.10.1"]
 
   - package-ecosystem: "bun"
     directories:
