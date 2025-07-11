@@ -945,7 +945,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.CreateAwsConfig(t.Context(), nil, nil, nil)
+	awsCfg, err := awshelper.CreateAwsConfig(t.Context(), createLogger(), nil, nil)
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
