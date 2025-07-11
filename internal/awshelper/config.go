@@ -48,6 +48,8 @@ func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, op
 	// Set region
 	if awsCfg.Region != "" {
 		configOptions = append(configOptions, config.WithRegion(awsCfg.Region))
+	} else {
+		configOptions = append(configOptions, config.WithRegion("us-east-1"))
 	}
 
 	// Set profile
