@@ -217,7 +217,7 @@ func (tracer *Tracer) openSpan(ctx context.Context, name string, attrs map[strin
 	// a useful lint, though. We should consider removing the suppression
 	// and fixing the lint.
 
-	ctx, span := tracer.Tracer.Start(ctx, name) // nolint:spancheck
+	ctx, span := tracer.Start(ctx, name) // nolint:spancheck
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
 

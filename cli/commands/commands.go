@@ -402,7 +402,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
-	terragruntVersion, err := version.NewVersion(cliCtx.App.Version)
+	terragruntVersion, err := version.NewVersion(cliCtx.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
