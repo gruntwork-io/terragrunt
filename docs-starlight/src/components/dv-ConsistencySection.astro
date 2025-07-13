@@ -8,7 +8,7 @@ import Card from '@components/dv-Card.astro';
 import PatternDotsRight from '@assets/pattern-dots-right.svg';
 ---
 
-<section class="flex justify-center items-center px-5 md:px-10">
+<section class="flex justify-center items-center px-5 md:px-0">
     <div class="flex flex-col md:w-[680px] lg:w-[900px]">
         <!-- Header Section -->
         <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
@@ -28,7 +28,7 @@ import PatternDotsRight from '@assets/pattern-dots-right.svg';
             </Card>
         </div>
         <div class="md:px-6">
-            <div class="flex items-center h-[72px] md:h-auto md:justify-between md:pl-6 border-dashed border-1 border-gray-3">
+            <div class="flex items-center h-[72px] md:h-auto justify-center md:justify-between md:pl-6 border-dashed border-x border-gray-3">
                 <p class="text-3xl md:text-[34px] font-sans">and <span class="text-accent">Enable</span> Self-Service</p>
                 <Image 
                     src={PatternDotsRight}

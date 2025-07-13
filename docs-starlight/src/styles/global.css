@@ -48,7 +48,12 @@
 
 /* Docs Dark mode colors. */
 :root {
-  --sl-nav-height: 5rem;
+  --sl-nav-height: fit-content;
+  --sl-color-bg-nav: #0f1731;
+  --sl-color-bg-sidebar: #0f1731;
+  --sl-color-bg-inline-code: rgba(46, 42, 77, 0.8);
+  --sl-color-bg: #0f1731;
+
 	--sl-color-accent-low: #1f1d47;
 	--sl-color-accent: #5e46e6;
 	--sl-color-accent-high: #c0c3fa;
@@ -60,10 +65,18 @@
 	--sl-color-gray-5: #2d3754;
 	--sl-color-gray-6: #1c2541;
 	--sl-color-black: #131824;
+
+  @media (width >= 768px) {
+    --sl-nav-height: 84px;
+  }
 }
 /* Docs Light mode colors. */
 :root[data-theme='light'] {
-  --sl-nav-height: 5rem;
+  --sl-nav-height: 87px;
+  --sl-color-bg-nav: #0f1731;
+  --sl-color-bg-sidebar: #ffffff;
+  --sl-color-bg: #ffffff;
+  
 	--sl-color-accent-low: #d0d3fc;
 	--sl-color-accent: #6049e8;
 	--sl-color-accent-high: #2c2669;
@@ -76,6 +89,24 @@
 	--sl-color-gray-6: #e8eefc;
 	--sl-color-gray-7: #f3f6fe;
 	--sl-color-black: #ffffff;
+
+  @media (width >= 768px) {
+    --sl-nav-height: 84px;
+  }
+}
+
+/* Fix to site-search button area smaller on mobile */
+@media (width <= 768px) {
+  site-search > button {
+    width: 100%;
+  }
+}
+
+header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0px !important; 
 }
 
 * {
@@ -139,7 +170,7 @@ body {
 
 .secondary-button:hover {
   transition: .25s ease-in-out;
-  background-color: var(--sl-color-gray-6);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .primary-button:focus, .secondary-button:focus {
