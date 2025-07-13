@@ -1,14 +1,22 @@
 ---
 import '@styles/global.css';
+import config from 'virtual:starlight/user-config';
+import type { Props } from '@astrojs/starlight/props';
 import { Image } from 'astro:assets';
+
+import Search from 'virtual:starlight/components/Search';
 
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import PipelineIcon from '@assets/pipelines.svg';
 import HeadphonesIcon from '@assets/headset-icon.svg';
 
-import Search from '@astrojs/starlight/components/Search.astro';
+/**
+ * Render the `Search` component if Pagefind is enabled or the default search component has been overridden.
+ */
+const shouldRenderSearch =
+	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
 
-let starCountDisplay = process.env.GITHUB_STARS || '22k';
+let starCountDisplay = process.env.GITHUB_STARS || '8.6k';
 
 try {  
     // Only fetch if not in environment variable  
@@ -32,7 +40,7 @@ try {
     console.error('Error fetching GitHub stars:', error);  
 }
 ---
-<nav class="z-50">
+<nav class="z-50 flex flex-col">
     <div class="navbar">
         <!-- Logo -->
         <a href="/" class="hover:cursor-pointer">
@@ -63,7 +71,7 @@ try {
 
                 <!-- SearchBar -->
                 <div class="hidden lg:block w-[280px]">
-                    <Search />
+                    {shouldRenderSearch && <Search {...Astro.props} />}
                 </div>
                 <!-- <div class="searchbar">
                     <svg xmlns="http://www.w3.org/2000/svg" class="text-[var(--color-gray-1)]" width="16" height="16" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16">
@@ -71,7 +79,6 @@ try {
                     </svg>
                     <input class="text-sm font-sans text-[var(--color-gray-1)]" placeholder="Search"></input>
                 </div> -->
-
             </div>
             <div class="flex items-center gap-3 md:gap-3.5">
                 <!-- Buttons -->
@@ -110,7 +117,7 @@ try {
     </div>
     <div class="block md:hidden justify-center bg-bg-dark px-5 py-2.5 border-b border-stroke-dark">
         <div class="flex items-center border border-white/10 bg-white/5 rounded-md px-3">
-            <Search />
+            {shouldRenderSearch && <Search {...Astro.props} />}
         </div>
     </div>
 </nav>
