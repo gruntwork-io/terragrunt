@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@astrojs/partytown": "^2.1.4",
-    "@astrojs/starlight": "^0.34.4",
+    "@astrojs/starlight": "^0.34.5",
     "@astrojs/starlight-tailwind": "^4.0.1",
     "@astrojs/vercel": "^8.2.1",
     "@tailwindcss/vite": "^4.1.11",
@@ -19,7 +19,7 @@
     "astro": "^5.11.0",
     "astro-d2": "^0.8.0",
     "gray-matter": "^4.0.3",
-    "sharp": "^0.34.2",
+    "sharp": "^0.34.3",
     "starlight-links-validator": "^0.17.0",
     "tailwindcss": "^4.1.11"
   },
