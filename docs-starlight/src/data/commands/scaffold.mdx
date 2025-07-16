@@ -8,6 +8,8 @@ sidebar:
 usage: |
   Generate Terragrunt configuration files from a catalog.
 flags:
+  - scaffold-enable-shell
+  - scaffold-enable-hooks
   - scaffold-no-include-root
   - scaffold-root-file-name
   - scaffold-var
@@ -16,10 +18,16 @@ examples:
   - description: Scaffold a standard MySQL database module as a new unit.
     code: |
       terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
+  - description: Scaffold with shell functions enabled.
+    code: |
+      terragrunt scaffold github.com/org/repo//modules/mysql --enable-shell
+  - description: Scaffold with hooks enabled.
+    code: |
+      terragrunt scaffold github.com/org/repo//modules/mysql --enable-hooks
 ---
 
 ```bash
-terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-include-root] [--root-file-name]
+terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--enable-shell] [--enable-hooks] [--no-include-root] [--root-file-name]
 ```
 
 For more information on how scaffolding works, see the dedicated [scaffold documentation](/docs/features/scaffold).

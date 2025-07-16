@@ -1,0 +1,22 @@
+---
+name: enable-hooks
+description: Enable hooks in scaffold templates when scaffolding from catalog.
+type: boolean
+env:
+  - TG_ENABLE_HOOKS
+---
+
+Enables hooks in boilerplate templates when scaffolding modules from the catalog. When enabled, templates can define `before` and `after` hooks in their `boilerplate.yml` configuration that execute commands during the scaffolding process.
+
+**Security Note**: Only enable hooks when using trusted templates, as they can execute arbitrary commands on your system.
+
+Precedence (highest to lowest):
+1. CLI flag (`--enable-hooks`)
+2. Catalog configuration (`enable_hooks = true`)
+3. Default (disabled for security)
+
+Example:
+
+```bash
+terragrunt catalog --enable-hooks
+``` 

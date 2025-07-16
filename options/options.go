@@ -197,6 +197,10 @@ type TerragruntOptions struct {
 	RetryableErrors []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
+	// Enable shell functions in scaffold templates.
+	ScaffoldEnableShell bool
+	// Enable hooks in scaffold templates.
+	ScaffoldEnableHooks bool
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
 	ProviderCacheRegistryNames []string
 	// If set hclfmt will skip files in given directories.
@@ -438,6 +442,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
 		NoDependencyPrompt:         false,
+		ScaffoldEnableShell:        false,
+		ScaffoldEnableHooks:        false,
 	}
 }
 

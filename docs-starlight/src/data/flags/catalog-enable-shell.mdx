@@ -1,0 +1,22 @@
+---
+name: enable-shell
+description: Enable shell functions in scaffold templates when scaffolding from catalog.
+type: boolean
+env:
+  - TG_ENABLE_SHELL
+---
+
+Enables shell functions in boilerplate templates when scaffolding modules from the catalog. When enabled, templates can use shell commands like `{{shell "echo" "hello"}}` to execute system commands and include their output in generated files.
+
+**Security Note**: Only enable shell functions when using trusted templates, as they can execute arbitrary commands on your system.
+
+Precedence (highest to lowest):
+1. CLI flag (`--enable-shell`)
+2. Catalog configuration (`enable_shell = true`)
+3. Default (disabled for security)
+
+Example:
+
+```bash
+terragrunt catalog --enable-shell
+``` 

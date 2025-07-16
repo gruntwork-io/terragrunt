@@ -200,3 +200,103 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
 	assert.Empty(t, modules, "Should return empty modules slice on 'no modules found' error")
 }
+
+func TestScaffoldConfigurationApplied(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                 string
+		catalogConfig        string
+		initialShellEnabled  bool
+		initialHooksEnabled  bool
+		expectedShellEnabled bool
+		expectedHooksEnabled bool
+	}{
+		{
+			name: "enable_shell_from_catalog",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				enable_shell = true
+			}`,
+			initialShellEnabled:  false,
+			initialHooksEnabled:  false,
+			expectedShellEnabled: true,
+			expectedHooksEnabled: false,
+		},
+		{
+			name: "enable_hooks_from_catalog",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				enable_hooks = true
+			}`,
+			initialShellEnabled:  false,
+			initialHooksEnabled:  false,
+			expectedShellEnabled: false,
+			expectedHooksEnabled: true,
+		},
+		{
+			name: "cli_flags_take_precedence",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				enable_shell = true
+				enable_hooks = true
+			}`,
+			initialShellEnabled:  true, // CLI flag already set
+			initialHooksEnabled:  false,
+			expectedShellEnabled: true, // Should stay true (CLI precedence)
+			expectedHooksEnabled: true, // Should be set from catalog
+		},
+		{
+			name: "no_scaffold_config",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+			}`,
+			initialShellEnabled:  false,
+			initialHooksEnabled:  false,
+			expectedShellEnabled: false,
+			expectedHooksEnabled: false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions()
+			opts.ScaffoldRootFileName = config.RecommendedParentConfigName
+			opts.ScaffoldEnableShell = tt.initialShellEnabled
+			opts.ScaffoldEnableHooks = tt.initialHooksEnabled
+
+			mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
+				dummyRepoDir := filepath.Join(t.TempDir(), "test-repo")
+				os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
+				os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
+				os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+				os.WriteFile(filepath.Join(dummyRepoDir, "README.md"), []byte("# test module"), 0644)
+				os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte{}, 0644)
+				return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
+			}
+
+			tmpDir := t.TempDir()
+			rootFile := filepath.Join(tmpDir, "root.hcl")
+			err := os.WriteFile(rootFile, []byte(tt.catalogConfig), 0600)
+			require.NoError(t, err)
+
+			unitDir := filepath.Join(tmpDir, "unit")
+			os.MkdirAll(unitDir, 0755)
+			opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
+
+			svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
+			l := logger.CreateLogger()
+
+			err = svc.Load(t.Context(), l)
+			require.NoError(t, err)
+
+			// Verify scaffold configuration was applied correctly
+			assert.Equal(t, tt.expectedShellEnabled, opts.ScaffoldEnableShell,
+				"ScaffoldEnableShell should be %v", tt.expectedShellEnabled)
+			assert.Equal(t, tt.expectedHooksEnabled, opts.ScaffoldEnableHooks,
+				"ScaffoldEnableHooks should be %v", tt.expectedHooksEnabled)
+		})
+	}
+}

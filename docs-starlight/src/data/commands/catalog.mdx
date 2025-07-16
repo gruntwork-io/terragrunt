@@ -14,7 +14,15 @@ examples:
   - description: Explicitly indicate the name of the root configuration being discovered.
     code: |
       terragrunt catalog --root-file-name root.hcl
+  - description: Enable shell functions in templates when scaffolding from catalog.
+    code: |
+      terragrunt catalog --enable-shell
+  - description: Enable hooks in templates when scaffolding from catalog.
+    code: |
+      terragrunt catalog --enable-hooks
 flags:
+  - catalog-enable-shell
+  - catalog-enable-hooks
   - catalog-no-include-root
   - catalog-root-file-name
 ---

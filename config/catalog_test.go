@@ -123,6 +123,49 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 	}
 
+	// Test scaffold config parsing
+	scaffoldTests := []struct {
+		name           string
+		configContent  string
+		expectedConfig *config.CatalogConfig
+	}{
+		{
+			name: "enable_shell_true",
+			configContent: `catalog {
+				urls = ["github.com/test/repo"]
+				enable_shell = true
+			}`,
+			expectedConfig: &config.CatalogConfig{
+				URLs:        []string{"github.com/test/repo"},
+				EnableShell: &[]bool{true}[0],
+			},
+		},
+		{
+			name: "enable_hooks_false",
+			configContent: `catalog {
+				urls = ["github.com/test/repo"]
+				enable_hooks = false
+			}`,
+			expectedConfig: &config.CatalogConfig{
+				URLs:        []string{"github.com/test/repo"},
+				EnableHooks: &[]bool{false}[0],
+			},
+		},
+		{
+			name: "both_enabled",
+			configContent: `catalog {
+				urls = ["github.com/test/repo"]
+				enable_shell = true
+				enable_hooks = true
+			}`,
+			expectedConfig: &config.CatalogConfig{
+				URLs:        []string{"github.com/test/repo"},
+				EnableShell: &[]bool{true}[0],
+				EnableHooks: &[]bool{true}[0],
+			},
+		},
+	}
+
 	for i, tt := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
@@ -142,6 +185,26 @@ func TestCatalogParseConfigFile(t *testing.T) {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
+	}
 
+	// Test scaffold configuration parsing
+	for _, tt := range scaffoldTests {
+		t.Run("scaffold_"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "terragrunt.hcl")
+			err := os.WriteFile(configPath, []byte(tt.configContent), 0644)
+			require.NoError(t, err)
+
+			opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+			require.NoError(t, err)
+			opts.ScaffoldRootFileName = "terragrunt.hcl"
+
+			l := logger.CreateLogger()
+			config, err := config.ReadCatalogConfig(t.Context(), l, opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedConfig, config)
+		})
 	}
 }
