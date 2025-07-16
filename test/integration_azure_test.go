@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/azuretest"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -605,8 +606,8 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 func TestAzureStorageContainerCreation(t *testing.T) {
 	t.Parallel()
 
-	// Setup Azure test environment using helper
-	azureCtx := setupAzureTest(t, "StorageContainerCreation")
+	// Setup Azure test environment using new isolation helpers
+	azureCtx := setupAzureTestWithIsolation(t, "StorageContainerCreation")
 	defer azureCtx.Cleanup()
 
 	// Create storage account using helper
@@ -691,9 +692,9 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 // TestStorageAccountBootstrap tests storage account bootstrap functionality
 func TestStorageAccountBootstrap(t *testing.T) {
 	t.Parallel()
-	
+
 	// Create a dynamic Azure test environment
-	azureCtx := setupDynamicAzureTest(t, "StorageAccountBootstrap")
+	azureCtx := setupAzureTestWithIsolation(t, "StorageAccountBootstrap")
 	defer azureCtx.Cleanup()
 
 	// Test with non-existent storage account
@@ -748,9 +749,9 @@ func TestStorageAccountBootstrap(t *testing.T) {
 
 		// Create a context for Azure operations
 		ctx := t.Context()
-		
+
 		// Set up Azure test environment
-		azureCtx := setupDynamicAzureTest(t, "StorageAccountBootstrap_ExistingAccount")
+		azureCtx := setupAzureTestWithIsolation(t, "StorageAccountBootstrap_ExistingAccount")
 		defer azureCtx.Cleanup()
 
 		// We'll use the dynamically created test storage account
@@ -784,7 +785,7 @@ func TestBlobOperations(t *testing.T) {
 	t.Parallel()
 
 	// Create a dynamic Azure test environment
-	azureCtx := setupDynamicAzureTest(t, "BlobOperations")
+	azureCtx := setupAzureTestWithIsolation(t, "BlobOperations")
 	defer azureCtx.Cleanup()
 
 	ctx := azureCtx.Ctx
@@ -818,8 +819,8 @@ func TestBlobOperations(t *testing.T) {
 func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	t.Parallel()
 
-	// Setup Azure test environment using helper
-	azureCtx := setupAzureTest(t, "StorageAccountCreationAndBlobUpload")
+	// Setup Azure test environment using new isolation helpers
+	azureCtx := setupAzureTestWithIsolation(t, "StorageAccountCreationAndBlobUpload")
 	defer azureCtx.Cleanup()
 
 	// Create storage account with versioning enabled
@@ -886,7 +887,7 @@ func TestAzureBackendBootstrap(t *testing.T) {
 	t.Parallel()
 
 	// Create a dynamic Azure test environment
-	azureCtx := setupDynamicAzureTest(t, "AzureBackendBootstrap")
+	azureCtx := setupAzureTestWithIsolation(t, "AzureBackendBootstrap")
 	defer azureCtx.Cleanup()
 
 	// Use the logger from the test context
@@ -905,7 +906,7 @@ func TestAzureBackendBootstrap(t *testing.T) {
 		t.Parallel()
 
 		// Create a separate Azure test environment for this subtest
-		subtestAzureCtx := setupDynamicAzureTest(t, "AzureBackendBootstrap-WithCreatedAccount")
+		subtestAzureCtx := setupAzureTestWithIsolation(t, "AzureBackendBootstrap-WithCreatedAccount")
 		defer subtestAzureCtx.Cleanup()
 
 		ctx := t.Context()
@@ -1114,29 +1115,29 @@ func TestAzureBackendCustomErrorTypes(t *testing.T) {
 				// With our new error handling middleware, errors are wrapped with context
 				// We should check that the error message contains the expected text
 				assert.Contains(t, err.Error(), tc.expectedMsg, "Error message should contain expected text")
-				
+
 				// The error type assertion is more challenging with the new middleware approach
 				// With our error wrapping, we should be more forgiving in the tests
 				// Just ensure the error message contains what we expect
-				
+
 				// For debugging purposes, dump the error and its chain
 				t.Logf("Error received: %v", err)
-				
+
 				// Since the original error types are now deeply wrapped, we'll check the message content
 				// This makes the tests more resilient to implementation changes in error handling
 				switch tc.containerName {
 				case "":
 					// For empty container, just verify it mentions the missing container_name
-					assert.Contains(t, err.Error(), "missing required Azure remote state configuration container_name", 
+					assert.Contains(t, err.Error(), "missing required Azure remote state configuration container_name",
 						"Error should mention missing container_name")
 				case "ab":
-					assert.Contains(t, err.Error(), "container name must be between 3 and 63 characters", 
+					assert.Contains(t, err.Error(), "container name must be between 3 and 63 characters",
 						"Error should mention container name length validation")
 				case "Invalid-Container":
-					assert.Contains(t, err.Error(), "container name can only contain lowercase letters", 
+					assert.Contains(t, err.Error(), "container name can only contain lowercase letters",
 						"Error should mention lowercase validation")
 				case "container--name":
-					assert.Contains(t, err.Error(), "container name cannot contain consecutive hyphens", 
+					assert.Contains(t, err.Error(), "container name cannot contain consecutive hyphens",
 						"Error should mention consecutive hyphens validation")
 				}
 			})
@@ -1299,8 +1300,8 @@ func TestAzureErrorUnwrappingAndPropagation(t *testing.T) {
 		// Should contain a container validation error message about lowercase
 		// With the new error handling middleware, the error might be wrapped
 		// so we check the error message content instead of the error type
-		assert.Contains(t, err.Error(), "lowercase", "Error should mention lowercase requirement for container names")
-		
+		assert.Contains(t, err.Error(), "lowercase", "Error should mention lowercase requirement")
+
 		// For backward compatibility, also try to extract the specific error type
 		var containerValidationError azurerm.ContainerValidationError
 		if errors.As(err, &containerValidationError) {
@@ -1642,8 +1643,8 @@ func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
 func TestAzureBackendMigrationWithUnits(t *testing.T) {
 	t.Parallel()
 
-	// Setup Azure test environment with helpers
-	azureCtx := setupAzureTest(t, "TestAzureBackendMigrationWithUnits")
+	// Setup Azure test environment with new isolation helpers
+	azureCtx := setupAzureTestWithIsolation(t, "TestAzureBackendMigrationWithUnits")
 	defer azureCtx.Cleanup()
 
 	// Create temporary directory for test fixtures
@@ -1817,61 +1818,61 @@ func TestDynamicAzureStorage(t *testing.T) {
 	if os.Getenv("CI") != "" && os.Getenv("SKIP_AZURE_TESTS") != "" {
 		t.Skip("Skipping Azure test in CI environment")
 	}
-	
+
 	t.Parallel()
-	
+
 	// Create dynamic Azure test environment
-	azureCtx := setupDynamicAzureTest(t, "DynamicStorageTest")
+	azureCtx := setupAzureTestWithIsolation(t, "DynamicStorageTest")
 	defer azureCtx.Cleanup()
-	
+
 	// Verify we got valid data
 	t.Logf("Created dynamic test environment:")
 	t.Logf("- Storage Account: %s", azureCtx.StorageAccountName)
 	t.Logf("- Resource Group: %s", azureCtx.ResourceGroupName)
 	t.Logf("- Container: %s", azureCtx.ContainerName)
-	
+
 	// Verify the storage account was created
 	ctx := azureCtx.Ctx
 	log := azureCtx.Logger
-	
+
 	storageConfig := map[string]interface{}{
 		"storage_account_name": azureCtx.StorageAccountName,
 		"resource_group_name":  azureCtx.ResourceGroupName,
 		"subscription_id":      azureCtx.SubscriptionID,
 		"use_azuread_auth":     true,
 	}
-	
+
 	// Create client to verify the storage account
 	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, log, storageConfig)
 	require.NoError(t, err, "Should be able to create storage account client")
-	
+
 	exists, account, err := storageClient.StorageAccountExists(ctx)
 	require.NoError(t, err, "Should be able to check if storage account exists")
 	require.True(t, exists, "Storage account should exist")
 	require.NotNil(t, account, "Storage account info should not be nil")
-	
+
 	t.Logf("Successfully verified storage account exists")
-	
+
 	// Test creating a container
 	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, log, nil, storageConfig)
 	require.NoError(t, err, "Should be able to create blob service client")
-	
+
 	err = blobClient.CreateContainerIfNecessary(ctx, log, azureCtx.ContainerName)
 	require.NoError(t, err, "Should be able to create container")
-	
+
 	exists, err = blobClient.ContainerExists(ctx, azureCtx.ContainerName)
 	require.NoError(t, err, "Should be able to check if container exists")
 	require.True(t, exists, "Container should exist")
-	
+
 	t.Logf("Successfully created and verified container exists")
-	
+
 	// Upload a test blob
 	testContent := []byte("This is a test blob content for the dynamic Azure test")
 	err = blobClient.UploadBlob(ctx, log, azureCtx.ContainerName, "test-blob.txt", testContent)
 	require.NoError(t, err, "Should be able to upload blob")
-	
+
 	t.Logf("Successfully uploaded test blob")
-	
+
 	// Download the blob to verify it was uploaded correctly
 	containerName := azureCtx.ContainerName
 	blobName := "test-blob.txt"
@@ -1879,33 +1880,33 @@ func TestDynamicAzureStorage(t *testing.T) {
 		Container: &containerName,
 		Key:       &blobName,
 	}
-	
+
 	result, err := blobClient.GetObject(ctx, getInput)
 	require.NoError(t, err, "Should be able to download blob")
 	defer result.Body.Close()
-	
+
 	downloadedContent, err := io.ReadAll(result.Body)
 	require.NoError(t, err, "Should be able to read blob content")
 	require.Equal(t, testContent, downloadedContent, "Downloaded content should match uploaded content")
-	
+
 	t.Logf("Successfully verified blob content matches")
-	
+
 	// Test deleting the blob
 	err = blobClient.DeleteBlobIfNecessary(ctx, log, azureCtx.ContainerName, "test-blob.txt")
 	require.NoError(t, err, "Should be able to delete blob")
-	
+
 	t.Logf("Successfully deleted test blob")
-	
+
 	// Test deleting the container
 	err = blobClient.DeleteContainer(ctx, log, azureCtx.ContainerName)
 	require.NoError(t, err, "Should be able to delete container")
-	
+
 	exists, err = blobClient.ContainerExists(ctx, azureCtx.ContainerName)
 	require.NoError(t, err, "Should be able to check if container exists")
 	require.False(t, exists, "Container should no longer exist")
-	
+
 	t.Logf("Successfully deleted and verified container no longer exists")
-	
+
 	// The Cleanup function will handle deleting the storage account and resource group
 }
 
@@ -1984,183 +1985,6 @@ type azureTestContext struct {
 	Cleanup            func()
 }
 
-// setupDynamicAzureTest creates all required Azure resources for testing:
-// - Generates unique identifiers for all resources
-// - Creates a resource group
-// - Creates a storage account
-// - Returns cleanup function that handles deletion in the correct order
-func setupDynamicAzureTest(t *testing.T, testName string) *azureTestContext {
-	t.Helper()
-	ctx := t.Context()
-	log := logger.CreateLogger()
-	
-	// Get Azure credentials
-	_, subscriptionID, err := azurehelper.GetAzureCredentials(ctx, log)
-	if err != nil {
-		t.Skipf("Skipping %s: Failed to get Azure credentials: %v", testName, err)
-	}
-	if subscriptionID == "" {
-		t.Skipf("Skipping %s: No subscription ID found in environment variables", testName)
-	}
-	
-	// Get location from env var or use default
-	location := os.Getenv("AZURE_LOCATION")
-	if location == "" {
-		location = os.Getenv("ARM_LOCATION")
-		if location == "" {
-			location = "westeurope"
-		}
-	}
-	
-	// Generate unique IDs for resources
-	uniqueID := strconv.FormatInt(time.Now().UnixNano(), 10)
-	if len(uniqueID) > 10 {
-		uniqueID = uniqueID[len(uniqueID)-10:]
-	}
-	
-	// Create unique resource names
-	storageAccountName := "tgtest" + strings.ToLower(uniqueID)
-	resourceGroupName := fmt.Sprintf("terragrunt-test-rg-%s-%s", strings.ReplaceAll(testName, " ", "-"), uniqueID)
-	containerName := "test-container-" + strings.ToLower(uniqueID)
-	
-	// Track created resources for cleanup
-	var resourceGroupCreated, storageAccountCreated bool
-	
-	// Create cleanup function
-	cleanup := func() {
-		cleanupLogger := logger.CreateLogger()
-		
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		
-		retry := func(op func() error, desc string) {
-			const maxAttempts = 5
-			const delay = 5 * time.Second
-			var lastErr error
-			for i := 0; i < maxAttempts; i++ {
-				lastErr = op()
-				if lastErr == nil {
-					t.Logf("%s cleanup succeeded on attempt %d", desc, i+1)
-					return
-				}
-				t.Logf("%s cleanup failed on attempt %d: %v", desc, i+1, lastErr)
-				time.Sleep(delay)
-			}
-			t.Errorf("%s cleanup failed after %d attempts: %v", desc, maxAttempts, lastErr)
-		}
-		
-		// Delete storage account first, then resource group
-		if storageAccountCreated {
-			t.Logf("Cleaning up storage account %s", storageAccountName)
-			storageConfig := map[string]interface{}{
-				"storage_account_name": storageAccountName,
-				"resource_group_name":  resourceGroupName,
-				"subscription_id":      subscriptionID,
-				"use_azuread_auth":     true,
-			}
-			retry(func() error {
-				storageClient, err := azurehelper.CreateStorageAccountClient(ctx, cleanupLogger, storageConfig)
-				if err != nil {
-					return err
-				}
-				return storageClient.DeleteStorageAccount(ctx, cleanupLogger)
-			}, "Storage account")
-			
-			// Wait for storage account deletion to complete before attempting resource group deletion
-			time.Sleep(10 * time.Second)
-		}
-		
-		if resourceGroupCreated {
-			t.Logf("Cleaning up resource group %s", resourceGroupName)
-			retry(func() error {
-				rgClient, err := azurehelper.CreateResourceGroupClient(ctx, cleanupLogger, subscriptionID)
-				if err != nil {
-					return err
-				}
-				return rgClient.DeleteResourceGroup(ctx, cleanupLogger, resourceGroupName)
-			}, "Resource group")
-		}
-	}
-	
-	// Create resource group
-	rgClient, err := azurehelper.CreateResourceGroupClient(ctx, log, subscriptionID)
-	if err != nil {
-		t.Skipf("Skipping %s: Failed to create resource group client: %v", testName, err)
-	}
-	
-	err = rgClient.EnsureResourceGroup(ctx, log, resourceGroupName, location, map[string]string{
-		"created-by": "terragrunt-integration-test",
-		"test-name":  testName,
-	})
-	if err != nil {
-		cleanup()
-		t.Skipf("Skipping %s: Failed to create resource group: %v", testName, err)
-	}
-	resourceGroupCreated = true
-	t.Logf("Resource group %s created successfully", resourceGroupName)
-	
-	// Create storage account
-	storageConfig := map[string]interface{}{
-		"storage_account_name": storageAccountName,
-		"resource_group_name":  resourceGroupName,
-		"subscription_id":      subscriptionID,
-		"location":             location,
-		"use_azuread_auth":     true,
-	}
-	
-	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, log, storageConfig)
-	if err != nil {
-		cleanup()
-		t.Skipf("Skipping %s: Failed to create storage account client: %v", testName, err)
-	}
-	
-	// Create storage account using azurehelper
-	saConfig := azurehelper.StorageAccountConfig{
-		SubscriptionID:        subscriptionID,
-		ResourceGroupName:     resourceGroupName,
-		StorageAccountName:    storageAccountName,
-		Location:              location,
-		EnableVersioning:      true, // Enable versioning by default for tests
-		AllowBlobPublicAccess: false, // More secure default
-		AccountKind:           "StorageV2", // Modern storage account type
-		AccountTier:           "Standard", // Cheaper for tests
-		ReplicationType:       "LRS", // Cheaper for tests
-		Tags: map[string]string{
-			"created-by": "terragrunt-integration-test",
-			"test-name":  testName,
-		},
-	}
-	
-	err = storageClient.CreateStorageAccountIfNecessary(ctx, log, saConfig)
-	require.NoError(t, err)
-	storageAccountCreated = true // Mark as created for cleanup
-
-	// Verify storage account exists
-	exists, account, err := storageClient.StorageAccountExists(ctx)
-	require.NoError(t, err)
-	require.True(t, exists, "Storage account should exist after creation")
-	require.NotNil(t, account)
-
-	// Wait a moment for the storage account to be fully ready
-	time.Sleep(5 * time.Second)
-
-	return &azureTestContext{
-		SubscriptionID:     subscriptionID,
-		Location:           location,
-		StorageAccountName: storageAccountName,
-		ResourceGroupName:  resourceGroupName,
-		ContainerName:      containerName,
-		Logger:             log,
-		Ctx:                ctx,
-		Cleanup:            cleanup,
-	}
-}
-
-// Keep the old function for backward compatibility, but implement it in terms of the new one
-func setupAzureTest(t *testing.T, testName string) *azureTestContext {
-	return setupDynamicAzureTest(t, testName)
-}
-
 func createTestStorageAccount(ctx context.Context, t *testing.T, azureCtx *azureTestContext, enableVersioning bool) {
 	t.Helper()
 	storageAccountConfig := map[string]interface{}{
@@ -2217,7 +2041,7 @@ func setupTestContainer(ctx context.Context, t *testing.T, storageAccountName, c
 	sleepTime := 5 * time.Second // Allow some time for the container to be fully ready
 	time.Sleep(sleepTime)
 	err = blobClient.UploadBlob(ctx, log, containerName, testBlobName, testContent)
-	require.NoError(t, err, "Should be able to upload test blob - check Azure permissions")
+	require.NoError(t, err, "Deleting non-existent blob should not error")
 	err = blobClient.DeleteBlobIfNecessary(ctx, log, containerName, testBlobName)
 	require.NoError(t, err)
 	t.Logf("Blob permissions test passed successfully")
@@ -2332,3 +2156,35 @@ terraform {
 }
 
 // --- End helper ---
+
+// --- Test helpers for new isolation pattern ---
+func setupAzureTestWithIsolation(t *testing.T, testName string) *azureTestContext {
+	t.Helper()
+
+	// Get isolated Azure configuration
+	config := azuretest.GetIsolatedAzureConfig(t)
+
+	// Create resources
+	azuretest.EnsureResourceGroupExists(t, config)
+	azuretest.EnsureStorageAccountExists(t, config)
+
+	// Create context
+	ctx := context.Background()
+	log := logger.CreateLogger()
+
+	// Create cleanup function
+	cleanup := func() {
+		azuretest.CleanupAzureResources(t, config)
+	}
+
+	return &azureTestContext{
+		SubscriptionID:     config.SubscriptionID,
+		Location:           config.Location,
+		StorageAccountName: config.StorageAccountName,
+		ResourceGroupName:  config.ResourceGroup,
+		ContainerName:      config.ContainerName,
+		Logger:             log,
+		Ctx:                ctx,
+		Cleanup:            cleanup,
+	}
+}
