@@ -58,10 +58,10 @@ func NewAzureBackendDependencies(
 		return nil, err
 	}
 
-	// Create config map with subscription ID for resource group service
-	rgConfig := map[string]interface{}{
+	// Merge original config with subscription ID for resource group service
+	rgConfig := mergeConfig(config, map[string]interface{}{
 		"subscriptionId": subscriptionID,
-	}
+	})
 	resourceGroupService, err := container.GetResourceGroupService(ctx, l, rgConfig)
 	if err != nil {
 		return nil, err

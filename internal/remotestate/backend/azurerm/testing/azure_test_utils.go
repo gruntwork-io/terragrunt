@@ -2,6 +2,7 @@
 package testing
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -129,13 +130,19 @@ func GetAzureTestConfig(t *testing.T) *AzureTestConfig {
 	}
 }
 
-// CleanupAzureContainer deletes an Azure storage container with retries
-// nolint:mnd
-func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
+// CleanupAzureContainer deletes an Azure storage container with advanced retry logic
+// If maxRetries is not provided (set to 0), a default of 3 retries will be used
+func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...int) {
 	t.Helper()
 
 	if config == nil {
 		return
+	}
+
+	// Set default max retries if not specified
+	retryLimit := 3
+	if len(maxRetries) > 0 && maxRetries[0] > 0 {
+		retryLimit = maxRetries[0]
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
@@ -158,31 +165,49 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
 	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
 	require.NoError(t, err)
 
-	// Check if container exists
-	exists, err := client.ContainerExists(ctx, config.ContainerName)
-	require.NoError(t, err)
-
-	if exists {
-		// Delete container with retries
-		maxRetries := 3
-
-		var deleteErr error
-
-		for i := 0; i < maxRetries; i++ {
-			deleteErr = client.DeleteContainer(ctx, logger, config.ContainerName)
-			if deleteErr == nil {
-				break
-			}
-
-			time.Sleep(2 * time.Second)
+	for i := 0; i < retryLimit; i++ {
+		// Check if container exists first
+		exists, err := client.ContainerExists(ctx, config.ContainerName)
+		if err != nil {
+			t.Logf("Error checking container existence (attempt %d): %v", i+1, err)
+			time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+			continue
 		}
 
-		require.NoError(t, deleteErr, "Failed to delete container "+config.ContainerName)
+		if !exists {
+			t.Logf("Container %s already cleaned up or doesn't exist", config.ContainerName)
+			return // Already cleaned up
+		}
 
-		// Verify container is deleted
+		// Try to clean up
+		err = client.DeleteContainer(ctx, logger, config.ContainerName)
+		if err != nil {
+			t.Logf("Cleanup attempt %d failed: %v", i+1, err)
+		}
+
+		// Wait a bit for Azure to process the deletion
+		time.Sleep(2 * time.Second)
+
+		// Verify deletion
 		exists, err = client.ContainerExists(ctx, config.ContainerName)
-		require.NoError(t, err)
-		require.False(t, exists, "Container should be deleted")
+		if err != nil {
+			t.Logf("Error verifying container deletion (attempt %d): %v", i+1, err)
+			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
+			continue
+		}
+
+		if !exists {
+			t.Logf("Successfully cleaned up container %s", config.ContainerName)
+			return // Successfully cleaned up
+		}
+
+		if i == retryLimit-1 {
+			// On the last attempt, we fail the test if cleanup doesn't succeed
+			require.Fail(t, fmt.Sprintf("Failed to cleanup container %s after %d attempts", config.ContainerName, retryLimit))
+		} else {
+			t.Logf("Cleanup attempt %d failed, retrying...", i+1)
+			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
+		}
 	}
 }
 
@@ -235,76 +260,12 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 	require.True(t, exists, "Container should exist")
 }
 
-// CleanupAzureContainerWithRetry deletes an Azure storage container with enhanced retry logic
+// CleanupAzureContainerWithRetry is deprecated, use CleanupAzureContainer instead
+// This function is kept for backward compatibility
 func CleanupAzureContainerWithRetry(t *testing.T, config *AzureTestConfig, maxRetries int) {
 	t.Helper()
-
-	if config == nil {
-		return
-	}
-
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	ctx := t.Context()
-	logger := log.Default()
-
-	// Create configuration based on authentication method
-	azureConfig := map[string]interface{}{
-		"storage_account_name": config.StorageAccountName,
-	}
-
-	if config.UseAzureAD {
-		azureConfig["use_azuread_auth"] = true
-	} else {
-		azureConfig["access_key"] = config.AccessKey
-	}
-
-	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
-	require.NoError(t, err)
-
-	for i := 0; i < maxRetries; i++ {
-		// Check if container exists first
-		exists, err := client.ContainerExists(ctx, config.ContainerName)
-		if err != nil {
-			t.Logf("Error checking container existence (attempt %d): %v", i+1, err)
-			continue
-		}
-
-		if !exists {
-			t.Logf("Container %s already cleaned up", config.ContainerName)
-			return // Already cleaned up
-		}
-
-		// Try to clean up
-		err = client.DeleteContainer(ctx, logger, config.ContainerName)
-		if err != nil {
-			t.Logf("Cleanup attempt %d failed: %v", i+1, err)
-		}
-
-		// Wait a bit for Azure to process the deletion
-		time.Sleep(2 * time.Second)
-
-		// Verify deletion
-		exists, err = client.ContainerExists(ctx, config.ContainerName)
-		if err != nil {
-			t.Logf("Error verifying container deletion (attempt %d): %v", i+1, err)
-			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
-			continue
-		}
-
-		if !exists {
-			t.Logf("Successfully cleaned up container %s", config.ContainerName)
-			return // Successfully cleaned up
-		}
-
-		if i == maxRetries-1 {
-			t.Logf("Warning: Failed to cleanup container %s after %d attempts", config.ContainerName, maxRetries)
-		} else {
-			t.Logf("Cleanup attempt %d failed, retrying...", i+1)
-			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
-		}
-	}
+	t.Logf("Warning: CleanupAzureContainerWithRetry is deprecated, use CleanupAzureContainer instead")
+	CleanupAzureContainer(t, config, maxRetries)
 }
 
 // generateUniqueContainerName creates a truly unique container name for Azure storage

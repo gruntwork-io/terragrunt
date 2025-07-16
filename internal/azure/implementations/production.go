@@ -33,15 +33,26 @@ func NewStorageAccountService(client *azurehelper.StorageAccountClient) interfac
 
 // CreateStorageAccount creates a new storage account using the new types config
 func (s *StorageAccountServiceImpl) CreateStorageAccount(ctx context.Context, cfg *types.StorageAccountConfig) error {
-	// Implement the actual creation logic here using s.client or the Azure SDK as needed
-	// For now, just return nil to satisfy the interface
-	return nil
+	// Convert the types.StorageAccountConfig to azurehelper.StorageAccountConfig
+	helperConfig := azurehelper.StorageAccountConfig{
+		StorageAccountName:    cfg.Name,
+		ResourceGroupName:     cfg.ResourceGroupName,
+		Location:              cfg.Location,
+		EnableVersioning:      cfg.EnableVersioning,
+		AllowBlobPublicAccess: cfg.AllowBlobPublicAccess,
+		AccountKind:           string(cfg.AccountKind),
+		AccountTier:           string(cfg.AccountTier),
+		AccessTier:            string(cfg.AccessTier),
+		ReplicationType:       string(cfg.ReplicationType),
+		Tags:                  cfg.Tags,
+	}
+
+	return s.client.CreateStorageAccountIfNecessary(ctx, nil, helperConfig)
 }
 
 // DeleteStorageAccount deletes a storage account by resource group and account name
 func (s *StorageAccountServiceImpl) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
-	// TODO: Implement deletion logic using s.client
-	return nil
+	return s.client.DeleteStorageAccount(ctx, nil)
 }
 
 // GetResourceID gets the resource ID of the storage account
@@ -154,74 +165,77 @@ func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resou
 
 // GetStorageAccountKeys retrieves storage account keys
 func (s *StorageAccountServiceImpl) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
-	// TODO: Implement using s.client
-	return nil, nil
+	return s.client.GetStorageAccountKeys(ctx)
 }
 
 // GetStorageAccountSAS generates a SAS token for the storage account
 func (s *StorageAccountServiceImpl) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
-	// TODO: Implement using s.client
-	return "", nil
+	return s.client.GetStorageAccountSAS(ctx, "", nil)
 }
 
 // GetStorageAccountProperties retrieves properties of a storage account
 func (s *StorageAccountServiceImpl) GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error) {
-	// TODO: Implement using s.client
-	return nil, nil
+	// Get the properties from the Azure client
+	azureProps, err := s.client.GetStorageAccountProperties(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if azureProps == nil {
+		return nil, nil
+	}
+
+	// Convert Azure properties to our internal type
+	props := &types.StorageAccountProperties{
+		SupportsHttpsOnly: getBoolValue(azureProps.EnableHTTPSTrafficOnly),
+		IsHnsEnabled:      getBoolValue(azureProps.IsHnsEnabled),
+	}
+
+	// Map provisioning state
+	if azureProps.ProvisioningState != nil {
+		props.ProvisioningState = string(*azureProps.ProvisioningState)
+	}
+
+	// Map access tier
+	if azureProps.AccessTier != nil {
+		props.AccessTier = types.AccessTier(string(*azureProps.AccessTier))
+	}
+
+	// Map primary status
+	if azureProps.StatusOfPrimary != nil {
+		props.StatusOfPrimary = string(*azureProps.StatusOfPrimary)
+	}
+
+	// Map secondary status
+	if azureProps.StatusOfSecondary != nil {
+		props.StatusOfSecondary = string(*azureProps.StatusOfSecondary)
+	}
+
+	// Map endpoints
+	if azureProps.PrimaryEndpoints != nil {
+		props.PrimaryEndpoints = types.StorageEndpoints{
+			Blob:  getStringValue(azureProps.PrimaryEndpoints.Blob),
+			Queue: getStringValue(azureProps.PrimaryEndpoints.Queue),
+			Table: getStringValue(azureProps.PrimaryEndpoints.Table),
+			File:  getStringValue(azureProps.PrimaryEndpoints.File),
+		}
+	}
+
+	if azureProps.SecondaryEndpoints != nil {
+		props.SecondaryEndpoints = types.StorageEndpoints{
+			Blob:  getStringValue(azureProps.SecondaryEndpoints.Blob),
+			Queue: getStringValue(azureProps.SecondaryEndpoints.Queue),
+			Table: getStringValue(azureProps.SecondaryEndpoints.Table),
+			File:  getStringValue(azureProps.SecondaryEndpoints.File),
+		}
+	}
+
+	return props, nil
 }
 
 // IsVersioningEnabled checks if blob versioning is enabled for the storage account
 func (s *StorageAccountServiceImpl) IsVersioningEnabled(ctx context.Context) (bool, error) {
 	return s.client.GetStorageAccountVersioning(ctx)
-}
-
-// BlobServiceImpl is the production implementation of BlobService
-type BlobServiceImpl struct {
-	client *azurehelper.BlobServiceClient
-}
-
-// NewBlobService creates a new BlobService implementation
-func NewBlobService(client *azurehelper.BlobServiceClient) interfaces.BlobService {
-	return &BlobServiceImpl{
-		client: client,
-	}
-}
-
-// GetObject gets a blob object using the new types
-func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectInput) (*types.GetObjectOutput, error) {
-	// Delegate to client or implement logic here
-	return nil, nil
-}
-
-// ContainerExists checks if a container exists
-func (b *BlobServiceImpl) ContainerExists(ctx context.Context, containerName string) (bool, error) {
-	return b.client.ContainerExists(ctx, containerName)
-}
-
-// CreateContainerIfNecessary creates a container if it doesn't exist
-func (b *BlobServiceImpl) CreateContainerIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
-	return b.client.CreateContainerIfNecessary(ctx, l, containerName)
-}
-
-// DeleteContainer deletes a container
-func (b *BlobServiceImpl) DeleteContainer(ctx context.Context, l log.Logger, containerName string) error {
-	return b.client.DeleteContainer(ctx, l, containerName)
-}
-
-// DeleteBlobIfNecessary deletes a blob if it exists
-func (b *BlobServiceImpl) DeleteBlobIfNecessary(ctx context.Context, l log.Logger, containerName string, blobName string) error {
-	return b.client.DeleteBlobIfNecessary(ctx, l, containerName, blobName)
-}
-
-// UploadBlob uploads a blob to a container
-func (b *BlobServiceImpl) UploadBlob(ctx context.Context, l log.Logger, containerName, blobName string, data []byte) error {
-	return b.client.UploadBlob(ctx, l, containerName, blobName, data)
-}
-
-// CopyBlobToContainer copies a blob from one container to another
-func (b *BlobServiceImpl) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, destService interfaces.BlobService, destContainer, destKey string) error {
-	// Implement the copy logic using the interface, or just return nil for now
-	return nil
 }
 
 // ResourceGroupServiceImpl is the production implementation of ResourceGroupService
@@ -982,15 +996,17 @@ func extractRoleNameFromDefinitionID(roleDefinitionID string) string {
 // Helper functions for client creation
 
 func createStorageClient(ctx context.Context, config map[string]interface{}) (*azurehelper.StorageAccountClient, error) {
-	// This is a placeholder implementation
-	// In practice, we would use the config to create the client
-	return &azurehelper.StorageAccountClient{}, nil
+	// This is a stub that will return descriptive error
+	// Using the existing function requires a logger and configuration
+	// that may not be available in all contexts
+	return nil, fmt.Errorf("storage account client creation not initialized: use proper initialization through a service container instead")
 }
 
 func createBlobClient(ctx context.Context, config map[string]interface{}) (*azurehelper.BlobServiceClient, error) {
-	// This is a placeholder implementation
-	// In practice, we would use the config to create the client
-	return &azurehelper.BlobServiceClient{}, nil
+	// This is a stub that will return descriptive error
+	// Using the existing function requires a logger and configuration
+	// that may not be available in all contexts
+	return nil, fmt.Errorf("blob service client creation not initialized: use proper initialization through a service container instead")
 }
 
 func createRBACClient(ctx context.Context, config map[string]interface{}) (azcore.TokenCredential, error) {
@@ -1033,9 +1049,39 @@ func createRBACClient(ctx context.Context, config map[string]interface{}) (azcor
 
 // Helper function to create an authentication credential
 func createAuthenticationCredential(ctx context.Context, config interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
-	// This is a placeholder implementation
-	// In practice, we would create the appropriate credential based on the config
-	return nil, fmt.Errorf("not implemented")
+	// Check which authentication method to use
+	if config.UseManagedIdentity {
+		// Use managed identity if specified
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+		}
+		return cred, nil
+	} else if config.ClientID != "" && config.ClientSecret != "" && config.TenantID != "" {
+		// Use service principal if credentials are provided
+		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID, config.ClientSecret, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
+		}
+		return cred, nil
+	} else if config.TenantID != "" {
+		// If tenant ID is provided, try to create a default credential
+		options := &azidentity.DefaultAzureCredentialOptions{
+			TenantID: config.TenantID,
+		}
+		cred, err := azidentity.NewDefaultAzureCredential(options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
+		}
+		return cred, nil
+	} else {
+		// Fall back to default credential
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+		}
+		return cred, nil
+	}
 }
 
 // Helper method to merge config maps

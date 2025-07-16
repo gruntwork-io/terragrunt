@@ -60,7 +60,7 @@ func contains(s, substring string) bool {
 
 func ClassifyError(err error) ErrorClass {
 	if err == nil {
-		return ""
+		return ErrorClassUnknown
 	}
 
 	errorString := err.Error()

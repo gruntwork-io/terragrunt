@@ -108,7 +108,7 @@ func TestClassifyError(t *testing.T) {
 		{
 			name:     "nil error",
 			err:      nil,
-			expected: "",
+			expected: azureutil.ErrorClassUnknown,
 		},
 		{
 			name:     "authentication error - unauthorized",

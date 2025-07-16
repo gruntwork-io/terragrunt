@@ -1253,3 +1253,66 @@ func CompareAccessTier(current *armstorage.AccessTier, desired string) bool {
 func (c *StorageAccountClient) IsPermissionError(err error) bool {
 	return isPermissionError(err)
 }
+
+// GetStorageAccountKeys retrieves the access keys for the storage account
+func (c *StorageAccountClient) GetStorageAccountKeys(ctx context.Context) ([]string, error) {
+	resp, err := c.client.ListKeys(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list storage account keys: %w", err)
+	}
+
+	var keys []string
+	if resp.Keys != nil {
+		for _, key := range resp.Keys {
+			if key.Value != nil {
+				keys = append(keys, *key.Value)
+			}
+		}
+	}
+
+	return keys, nil
+}
+
+// GetStorageAccountSAS generates a SAS token for the storage account
+func (c *StorageAccountClient) GetStorageAccountSAS(ctx context.Context, permissions string, expiry *time.Time) (string, error) {
+	// Set default expiry if not provided
+	if expiry == nil {
+		defaultExpiry := time.Now().Add(24 * time.Hour)
+		expiry = &defaultExpiry
+	}
+
+	// Set default permissions if not provided
+	if permissions == "" {
+		permissions = "rwdlacup" // Read, Write, Delete, List, Add, Create, Update, Process
+	}
+
+	// Create SAS parameters
+	sasParams := armstorage.AccountSasParameters{
+		Services:               to.Ptr(armstorage.ServicesB),                                                                                // Blob service
+		ResourceTypes:          to.Ptr(armstorage.SignedResourceTypesC + armstorage.SignedResourceTypesO + armstorage.SignedResourceTypesS), // Container + Object + Service
+		Permissions:            to.Ptr(armstorage.Permissions(permissions)),
+		SharedAccessExpiryTime: expiry,
+		Protocols:              to.Ptr(armstorage.HTTPProtocolHTTPS),
+	}
+
+	resp, err := c.client.ListAccountSAS(ctx, c.resourceGroupName, c.storageAccountName, sasParams, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate SAS token: %w", err)
+	}
+
+	if resp.AccountSasToken == nil {
+		return "", fmt.Errorf("SAS token is nil in response")
+	}
+
+	return *resp.AccountSasToken, nil
+}
+
+// GetStorageAccountProperties retrieves the properties of the storage account
+func (c *StorageAccountClient) GetStorageAccountProperties(ctx context.Context) (*armstorage.AccountProperties, error) {
+	resp, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get storage account properties: %w", err)
+	}
+
+	return resp.Account.Properties, nil
+}

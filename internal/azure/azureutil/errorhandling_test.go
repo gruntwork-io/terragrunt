@@ -226,7 +226,7 @@ func TestErrorClassificationComprehensive(t *testing.T) {
 
 		// Generic/unknown errors
 		{"generic error", "something went wrong", ErrorClassUnknown},
-		{"empty error", "", ""}, // Empty error message actually creates nil error, which returns empty string
+		{"empty error", "", ErrorClassUnknown}, // Empty error message creates nil error, should return unknown
 	}
 
 	for _, tc := range tests {
