@@ -137,12 +137,12 @@ hooks:
 	tests := []struct {
 		name                 string
 		description          string
-		disableShell         bool
-		disableHooks         bool
 		template             string
 		boilerplateConfig    string
 		expectedInContent    []string
 		expectedNotInContent []string
+		disableShell         bool
+		disableHooks         bool
 	}{
 		{
 			name:                 "shell enabled",

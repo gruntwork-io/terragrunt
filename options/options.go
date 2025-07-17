@@ -197,10 +197,6 @@ type TerragruntOptions struct {
 	RetryableErrors []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
-	// Enable shell functions in scaffold templates.
-	ScaffoldEnableShell bool
-	// Enable hooks in scaffold templates.
-	ScaffoldEnableHooks bool
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
 	ProviderCacheRegistryNames []string
 	// If set hclfmt will skip files in given directories.
@@ -245,6 +241,10 @@ type TerragruntOptions struct {
 	Diff bool
 	// Do not include root unit in scaffolding.
 	ScaffoldNoIncludeRoot bool
+	// Enable shell functions in scaffold templates.
+	ScaffoldEnableShell bool
+	// Enable hooks in scaffold templates.
+	ScaffoldEnableHooks bool
 	// Enable check mode, by default it's disabled.
 	Check bool
 	// Enables caching of includes during partial parsing operations.
