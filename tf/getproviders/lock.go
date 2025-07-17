@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -128,7 +129,7 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 			constraintsValue = provider.Version()
 		}
 
-		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
+		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(normalizeVersionConstraint(constraintsValue)))
 	}
 
 	h1Hash, err := PackageHashV1(provider.PackageDir())
@@ -294,4 +295,29 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	}
 
 	return nil
+}
+
+var versionRegex = regexp.MustCompile(version.VersionRegexpRaw + "\\s*$")
+
+func normalizeVersionConstraint(raw string) string {
+	contrains := strings.Split(raw, ",")
+	result := make([]string, len(contrains))
+
+	for i, constrain := range contrains {
+		pos := versionRegex.FindStringIndex(constrain)
+		if pos == nil {
+			result[i] = constrain
+			continue
+		}
+		constrainClean := strings.TrimSpace(constrain[pos[0]:pos[1]])
+		v, err := version.NewVersion(constrainClean)
+		if err != nil {
+			result[i] = constrain
+			continue
+		}
+
+		result[i] = constrain[0:pos[0]] + v.String() + constrain[pos[0]+len(constrainClean):]
+	}
+
+	return strings.Join(result, ",")
 }
