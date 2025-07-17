@@ -135,7 +135,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	taskRun := func(ctx context.Context, u *common.Unit) error {
+	task := func(ctx context.Context, u *common.Unit) error {
 		unitRunner := common.NewUnitRunner(u)
 
 		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
@@ -150,7 +150,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	controller := NewController(
 		r.queue,
 		r.Stack.Units,
-		WithRunner(taskRun),
+		WithRunner(task),
 		WithMaxConcurrency(opts.Parallelism),
 	)
 
