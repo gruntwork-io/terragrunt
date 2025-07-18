@@ -197,7 +197,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			t.Parallel()
 
 			tmpDir := t.TempDir()
-			configPath := filepath.Join(tmpDir, tt.configPath)
+			configPath := filepath.Join(tmpDir, filepath.Base(tt.configPath))
 			err := os.WriteFile(configPath, []byte(tt.configContent), 0644)
 			require.NoError(t, err)
 
