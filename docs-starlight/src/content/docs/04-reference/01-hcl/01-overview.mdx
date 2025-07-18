@@ -90,7 +90,142 @@ This allows Terragrunt to avoid resolving `dependency` on units that haven't bee
 
 When multiple units, each with their own `terragrunt.hcl` file exist in child directories of a single parent directory, that parent directory becomes a [stack](/docs/getting-started/terminology#stack).
 
-To make it easier to generate configurations like this, Terragrunt has special tooling in the form of `terragrunt.stack.hcl` files. `terragrunt.stack.hcl` files support all the same HCL functions as `terragrunt.hcl` files, however, they don't support any top-level attributes, and the configuration blocks they support are limited to the following:
+> **New to stacks?** For a comprehensive introduction to the concept, see our [Stacks](/docs/features/stacks) guide.
+
+### What is a terragrunt.stack.hcl file?
+
+A `terragrunt.stack.hcl` file is a **blueprint** that defines how to generate Terragrunt configuration programmatically.
+
+It tells Terragrunt:
+
+- What units to create.
+- Where to get their configurations from.
+- Where to place them in the directory structure.
+- What values to pass to each unit.
+
+### The Two Types of Blocks
+
+#### `unit` blocks - Define Individual Infrastructure Components
+
+- **Purpose**: Define a single, deployable piece of infrastructure.
+- **Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application).
+- **Result**: Generates a single `terragrunt.hcl` file in the specified path.
+
+#### `stack` blocks - Define Reusable Infrastructure Patterns
+
+- **Purpose**: Define a collection of related units that can be reused.
+- **Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times.
+- **Result**: Generates another `terragrunt.stack.hcl` file that can contain more units or stacks.
+
+### Comparison: unit vs stack blocks
+
+| Aspect | `unit` block | `stack` block |
+|--------|-------------|---------------|
+| **Purpose** | Define a single infrastructure component | Define a reusable collection of components |
+| **When to use** | For specific, one-off infrastructure pieces | For patterns of infrastructure pieces that you want provisioned together |
+| **Generated output** | A directory with a single `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
+
+### The Complete Workflow
+
+1. **Author**: Write a `terragrunt.stack.hcl` file with `unit` and/or `stack` blocks.
+2. **Generate**: Run `terragrunt stack generate` to create the actual units\*.
+3. **Deploy**: Run `terragrunt stack run apply` to deploy all units\*\*.
+
+\* Multiple commands (like `stack run` or `run --all`) automatically generate units from `terragrunt.stack.hcl` files for you.
+
+\*\* You can also just use `run --all apply` to deploy all units in the stack.
+
+### Example: Simple Stack with Units
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+
+    vpc_path = "../vpc"
+  }
+}
+```
+
+Running `terragrunt stack generate` creates:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+    - terragrunt.values.hcl
+  - database
+    - terragrunt.hcl
+    - terragrunt.values.hcl
+
+</FileTree>
+
+### Example: Nested Stack with Reusable Patterns
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "dev" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "dev"
+  values = {
+    environment = "development"
+    cidr        = "10.0.0.0/16"
+  }
+}
+
+stack "prod" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "prod"
+  values = {
+    environment = "production"
+    cidr        = "10.1.0.0/16"
+  }
+}
+```
+
+The referenced stack might contain:
+
+```hcl
+# stacks/environment/terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = values.environment
+    cidr     = values.cidr
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    environment = values.environment
+
+    vpc_path = "../vpc"
+  }
+}
+```
+
+For more information on these configuration blocks, see:
 
 - [unit](/docs/reference/hcl/blocks#unit)
 - [stack](/docs/reference/hcl/blocks#stack)
@@ -127,7 +262,7 @@ By default, this command will recursively search for hcl files and format all of
 
 </FileTree>
 
-If you run `terragrunt hclfmt` at the `root`, this will update:
+If you run `terragrunt hcl fmt` at the `root`, this will update:
 
 - `root/root.hcl`
 
@@ -141,10 +276,10 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 - `root/qa/services/service01/terragrunt.hcl`
 
-You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
+You can set `--diff` option. `terragrunt hcl fmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
 
-Additionally, there's a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+Additionally, there's a flag `--check`. `terragrunt hcl fmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
 
-You can exclude directories from the formatting process by using the `--hclfmt-exclude-dir` flag. For example, `terragrunt hclfmt --hclfmt-exclude-dir=qa/services`.
+You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hcl fmt --exclude-dir=qa/services`.
 
-If you want to format a single file, you can use the `--hclfmt-file` flag. For example, `terragrunt hclfmt --hclfmt-file qa/services/services.hcl`.
+If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hcl fmt --file qa/services/services.hcl`.

@@ -1702,6 +1702,10 @@ errors {
 
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
+**Purpose**: Define a single, deployable piece of infrastructure.
+**Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application).
+**Result**: Generates a single `terragrunt.hcl` file in the specified path.
+
 The `unit` block supports the following arguments:
 
 - `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
@@ -1809,10 +1813,22 @@ The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**,
 
 - A pre-created `terragrunt.values.hcl` file can be provided in the unit source (sibling to the `terragrunt.hcl` file used as the source of the unit). If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
 
+### Comparison: unit vs stack blocks
+
+| Aspect | `unit` block | `stack` block |
+|--------|-------------|---------------|
+| **Purpose** | Define a single infrastructure component | Define a reusable collection of components |
+| **When to use** | For specific, one-off infrastructure pieces | For patterns of infrastructure pieces that you want provisioned together |
+| **Generated output** | A directory with a single `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
+
 ## stack
 
 The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
 Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.
+
+**Purpose**: Define a collection of related units that can be reused.
+**Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times.
+**Result**: Generates another `terragrunt.stack.hcl` file that can contain more units or stacks.
 
 Stacks are designed to be nestable, helping to mitigate the risk of stacks becoming too large or too repetitive.
 When a stack is generated, it can include nested stacks, ensuring that the configuration scales efficiently.
