@@ -142,7 +142,7 @@ It tells Terragrunt:
 2. **Generate**: Run `terragrunt stack generate` to create the actual units*.
 3. **Deploy**: Run `terragrunt stack run apply` to deploy all units**.
 
-* Multiple commands (like `stack run` or `run --all`) automatically generate units from `terragrunt.stack.hcl` files for you.
+- Multiple commands (like `stack run` or `run --all`) automatically generate units from `terragrunt.stack.hcl` files for you.
 
 ** You can also just use `run --all apply` to deploy all units in the stack.
 

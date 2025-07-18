@@ -172,7 +172,7 @@ unit "database" {
 
 Running `terragrunt stack generate` creates:
 
-```
+```tree
 terragrunt.stack.hcl
 .terragrunt-stack/
 ├── vpc/
@@ -260,7 +260,7 @@ terragrunt stack run apply  # Automatically generates first
 
 ## Choosing Between Implicit and Explicit Stacks
 
-### Use Implicit Stacks When:
+### Use Implicit Stacks When
 
 - You have a small number of units (1-10)
 - Each unit is unique and not repeated across environments
@@ -268,7 +268,7 @@ terragrunt stack run apply  # Automatically generates first
 - You're just getting started with Terragrunt
 - You need maximum flexibility and transparency
 
-### Use Explicit Stacks When:
+### Use Explicit Stacks When
 
 - You have multiple environments (dev, staging, prod)
 - You want to reuse infrastructure patterns
@@ -278,13 +278,13 @@ terragrunt stack run apply  # Automatically generates first
 
 ## The Complete Workflow
 
-### For Implicit Stacks:
+### For Implicit Stacks
 
 1. **Organize**: Create directories for each unit with `terragrunt.hcl` files
 2. **Configure**: Set up inputs, dependencies, etc. in each unit
 3. **Deploy**: Use `terragrunt run --all apply` to deploy all units
 
-### For Explicit Stacks:
+### For Explicit Stacks
 
 1. **Catalog**: Create a catalog of infrastructure patterns (using `terragrunt.hcl` files, `terragrunt.stack.hcl` files, etc.) in a git repository
 2. **Author**: Write a `terragrunt.stack.hcl` file with `unit` and/or `stack` blocks
@@ -725,10 +725,10 @@ a corresponding entry for each unit in the stack in a directory structure that m
 To save plan against a stack, use the `--out-dir` flag (or `TG_OUT_DIR` environment variable) as demonstrated below:
 
 ```bash
-$ terragrunt run --all plan --out-dir /tmp/tfplan
+terragrunt run --all plan --out-dir /tmp/tfplan
 ```
 
-```
+```tree
 app1
 └── tfplan.tfplan
 app2
@@ -741,7 +741,7 @@ project-2
 ```
 
 ```bash
-$ terragrunt run --all --out-dir /tmp/tfplan apply
+terragrunt run --all --out-dir /tmp/tfplan apply
 ```
 
 For planning a destroy operation, use the following commands:
@@ -828,7 +828,7 @@ cd root/us-east-1
 terragrunt run --all apply
 ```
 
-Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run --all command](#the-run---all-command) section).
+Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run --all command](/docs/reference/cli/commands/run#all)).
 
 Generally speaking, this is the primary tool Terragrunt users use to control the blast radius of their changes. For the most part, it is the current working directory that determines the blast radius of a `run --all` command.
 
