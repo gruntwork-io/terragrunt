@@ -3,34 +3,34 @@ layout: collection-browser-doc
 title: Stacks
 category: features
 categories_url: features
-excerpt: Learn how to work with multiple units at once in a stack.
-tags: ["DRY", "Unit", "Modules", "Use cases", "CLI", "Stack"]
-order: 202
-nav_title: Documentation
-nav_title_link: /docs/
-redirect_from:
-  - /docs/features/execute-terraform-commands-on-multiple-units-at-once/
-  - /docs/features/execute-terraform-commands-on-multiple-modules-at-once/
+excerpt: >-
+  Learn how to work with multiple units at once using implicit and explicit stacks.
+tags: ["stacks", "units", "dependencies"]
+order: 203
+nav_title: Stacks
+nav_title_link: /docs/features/stacks
 slug: stacks
 ---
 
-- [Motivation](#motivation)
-- [Stacks to the rescue](#stacks-to-the-rescue)
-- [The `run --all` command](#the-run---all-command)
-- [The `stack run` command](#the-stack-run-command)
-- [Passing outputs between units](#passing-outputs-between-units)
-  - [Unapplied dependency and mock outputs](#unapplied-dependency-and-mock-outputs)
-- [Stack outputs](#stack-outputs)
-- [Dependencies between units](#dependencies-between-units)
-- [Visualizing the DAG](#visualizing-the-dag)
-- [Testing multiple units locally](#testing-multiple-units-locally)
-- [Limiting run parallelism](#limiting-run-parallelism)
-- [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
-- [Nested Stacks](#nested-stacks)
-- [Using Local State with Stacks](#using-local-state-with-stacks)
-- [Learning more](#learning-more)
+## What are Stacks?
 
-## Motivation
+A **stack** in Terragrunt is a collection of related units that can be managed together. Stacks provide a way to:
+
+- Deploy multiple infrastructure components with a single command
+- Manage dependencies between units automatically
+- Control the blast radius of changes
+- Organize infrastructure into logical groups
+
+Terragrunt supports two approaches to defining stacks:
+
+1. **Implicit Stacks**: Created by organizing units in a directory structure
+2. **Explicit Stacks**: Defined using `terragrunt.stack.hcl` blueprint files
+
+## Implicit Stacks: Directory-Based Organization
+
+The simplest way to create a stack is to organize your units in a directory structure. When you have multiple units in a directory, Terragrunt automatically treats that directory as a stack.
+
+### Converting Terraform Modules to Units
 
 Let's say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
 
@@ -48,60 +48,7 @@ root
     └── main.tf
 ```
 
-There is one unit to deploy a frontend-app, another to deploy a backend-app, another for the MySQL database, and so on.
-
-To deploy such an environment, you’d have to manually run `tofu`/`terraform` `apply` in each root module, wait for it to complete, and then run `tofu apply`/`terraform apply` in the next root module. Moreover, you have to make sure you manually run `tofu`/`terraform` `apply` in the _right_ root module each time. The order in which they are applied can be important, especially if one root module depends on another.
-
-How do you avoid this tedious, error-prone and time-consuming process?
-
-## Stacks to the rescue
-
-Terragrunt provides special tooling for operating on sets of units at once. Sets of units in Terragrunt are called [stacks](/docs/getting-started/terminology/#stack).
-
-To work with stacks, you author [`terragrunt.stack.hcl` files](/docs/reference/configuration/#stacks) to define stacks, then use [Stack commands](/docs/reference/cli-options/#stack-commands) to generate and interact with those generated stacks.
-
-For example, the configuration for a stack that defines the units above might look like this:
-
-```hcl
-# terragrunt.stack.hcl
-
-unit "backend_app" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/backend-app?ref=v0.0.1"
-  path   = "backend-app"
-}
-
-unit "frontend_app" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/frontend-app?ref=v0.0.1"
-  path   = "frontend-app"
-}
-
-unit "mysql" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/mysql?ref=v0.0.1"
-  path   = "mysql"
-}
-
-unit "valkey" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/valkey?ref=v0.0.1"
-  path   = "valkey"
-}
-
-unit "vpc" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
-  path   = "vpc"
-}
-```
-
-And use commands like `stack run apply` to deploy the stack.
-
-```bash
-terragrunt stack run apply
-```
-
-Using `terragrunt.stack.hcl` files to define infrastructure is a bit more advanced than defining units directly in a repository, so learning how to work with stacks without using `terragrunt.stack.hcl` files will help you understand how to author effective `terragrunt.stack.hcl` files as well. At the end of the day, the core functionality of a stack is the same whether you are using `terragrunt.stack.hcl` files or not, they merely provide a more concise way to define a stack, and generate units on demand.
-
-## The `run --all` command
-
-To make it possible to concurrently deploy all these OpenTofu/Terraform root modules concurrently with as little change to your existing infrastructure as possible, first convert the OpenTofu/Terraform root modules into units. This is done simply by adding an empty `terragrunt.hcl` file within each root module folder.
+To convert these to Terragrunt units, simply add a `terragrunt.hcl` file to each directory:
 
 ```tree
 root
@@ -122,63 +69,316 @@ root
     └── terragrunt.hcl
 ```
 
-Because you've created a directory of units, you've also implicitly created a stack!
+Now you have an **implicit stack**! The `root` directory contains all your units and can be managed as a single stack.
 
-Now, you can go into the `root` folder and deploy all the units within it by using the `run --all` command with `apply`:
+### Working with Implicit Stacks
+
+Use the [`--all` flag](/docs/reference/cli/commands/run/#all) to run an OpenTofu/Terraform command on all units in the implicit stack in the current working directory:
 
 ```bash
+# Deploy all units discovered in the current working directory
 terragrunt run --all apply
-```
 
-When you run this command, Terragrunt will recursively discover all the units under the current working directory, and run `terragrunt apply` on each of those units concurrently\*.
+# Plan changes across all units discovered in the current working directory
+terragrunt run --all plan
 
-Similarly, to undeploy all the OpenTofu/Terraform units, you can use the `run --all` command with `destroy`:
-
-```bash
+# Destroy all units discovered in the current working directory
 terragrunt run --all destroy
-```
 
-To see the currently applied outputs of all of the units, you can use the `run --all` command with `output`:
-
-```bash
+# View outputs from all units discovered in the current working directory
 terragrunt run --all output
 ```
 
-Finally, if you make some changes to your project, you could evaluate the impact by using `run --all` command with `plan`:
-
-Note: It is important to realize that you could get errors running `run --all plan` if you have dependencies between your
-projects and some of those dependencies haven't been applied yet.
-
-_Ex: If unit A depends on unit B and unit B hasn't been applied yet, then run --all plan will show the plan for B, but exit with an error when trying to show the plan for A._
+You can also use the [`--graph` flag](/docs/reference/cli/commands/run/#graph) to run an OpenTofu/Terraform command on all units in the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of the unit in the current working directory.
 
 ```bash
-terragrunt run --all plan
+# Run an OpenTofu/Terraform command on all units in the DAG of the unit in the current working directory
+terragrunt run --graph apply
 ```
 
-\* Note that the units _might_ run concurrently, but some units can be blocked from running until their dependencies are run.
+### Advantages of Implicit Stacks
 
-If your units have dependencies between them, for example, you can't deploy the backend-app until MySQL and valkey are deployed. You'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
+- **Simple**: Just organize units in directory trees
+- **Familiar**: Works like recommended best practices for OpenTofu/Terraform module organization
+- **Flexible**: Easy to add/remove units by creating/deleting directories
+- **Version Control Friendly**: Each unit is a separate directory with its own history
+- **Backwards Compatible**: This has been the default way to work with Terragrunt for over eight years, and the majority of existing Terragrunt configurations use this approach
 
-Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--queue-exclude-external` flag, or use the `--exclude-dir` once for each directory you wish to exclude.
+### Limitations of Implicit Stacks
 
-## The `stack run` command
+- **Manual Management**: Each unit must be manually created and configured
+- **No Reusability**: Patterns can't be easily shared across environments
+- **Repetitive**: Similar configurations must be duplicated or referenced from [includes](/docs/features/includes)
 
-The `stack run` command is the equivalent of the `run --all` command for a single stack defined using a `terragrunt.stack.hcl` file.
+## Explicit Stacks: Blueprint-Based Generation
 
-When you run `stack run`, under the hood, Terragrunt will simply:
+For a more modern approach, you can define stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units.
 
-1. Recursively generate all stacks that are defined via the `stack` blocks of the `terragrunt.stack.hcl` file in the current directory (and all the stacks they generate).
-2. Generate all units that are defined via the `unit` blocks all the `terragrunt.stack.hcl` files in the current directory (and all the stacks generated in step 1).
-3. Perform a `run --all` in the current directory.
+### What is a terragrunt.stack.hcl file?
 
-As such, the following is functionally equivalent to running `stack run <a-command>`:
+A `terragrunt.stack.hcl` file is a blueprint that defines how to generate Terragrunt configuration programmatically. It tells Terragrunt:
+
+- What units to create
+- Where to get their configurations from
+- Where to place them in the directory structure
+- What values to pass to each unit
+
+### The Two Types of Blocks
+
+#### `unit` blocks - Define Individual Infrastructure Components
+
+- **Purpose**: Define a single, deployable piece of infrastructure
+- **Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application)
+- **Result**: Generates a single `terragrunt.hcl` file in the specified path
+
+#### `stack` blocks - Define Reusable Infrastructure Patterns
+
+- **Purpose**: Define a collection of related units that can be reused
+- **Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times
+- **Result**: Generates another `terragrunt.stack.hcl` file that can contain more units or stacks
+
+### Comparison: unit vs stack blocks
+
+| Aspect | `unit` block | `stack` block |
+|--------|-------------|---------------|
+| **Purpose** | Define a single infrastructure component | Define a reusable collection of components |
+| **When to use** | For specific, one-off infrastructure pieces | For patterns of infrastructure pieces that you want provisioned together |
+| **Generated output** | A directory with a single `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
+
+### Example: Simple Stack with Units
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+    vpc_path = "../vpc"
+  }
+}
+```
+
+Running `terragrunt stack generate` creates:
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack/
+├── vpc/
+│   ├── terragrunt.hcl
+│   └── terragrunt.values.hcl
+└── database/
+    ├── terragrunt.hcl
+    └── terragrunt.values.hcl
+```
+
+### Example: Nested Stack with Reusable Patterns
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "dev" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "dev"
+  values = {
+    environment = "development"
+    cidr        = "10.0.0.0/16"
+  }
+}
+
+stack "prod" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "prod"
+  values = {
+    environment = "production"
+    cidr        = "10.1.0.0/16"
+  }
+}
+```
+
+The referenced stack might contain:
+
+```hcl
+# stacks/environment/terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = values.environment
+    cidr     = values.cidr
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    environment = values.environment
+    vpc_path    = "../vpc"
+  }
+}
+```
+
+### Working with Explicit Stacks
 
 ```bash
+# Generate units from the `terragrunt.stack.hcl` file in the current working directory
 terragrunt stack generate
-terragrunt run --all <a-command>
+
+# Deploy all generated units defined using the `terragrunt.stack.hcl` file in the current working directory (and any units generated by stacks in this file)
+terragrunt stack run apply
+
+# Or combine generation and deployment
+terragrunt stack run apply  # Automatically generates first
 ```
 
-This manually generates all the relevant units, using the `stack generate` command, then explicitly running `run --all <a-command>` on those units.
+### Advantages of Explicit Stacks
+
+- **Reusability**: Define patterns once, use them across environments
+- **Consistency**: Ensure all environments follow the same structure
+- **Version Control**: Version collections of infrastructure patterns alongside the units of infrastructure that make them up
+- **Automation**: Generate complex infrastructure from simple blueprints
+- **Flexibility**: Easy to create variations with different values
+
+### Limitations of Explicit Stacks
+
+- **Complexity**: Requires understanding another configuration file
+- **Generation Overhead**: Units must be generated before use
+- **Debugging**: Generated files can be harder to debug if you accidentally generate files that are not what you intended
+
+## Choosing Between Implicit and Explicit Stacks
+
+### Use Implicit Stacks When
+
+- You have a small number of units (1-10)
+- Each unit is unique and not repeated across environments
+- You don't mind a high file count
+- You're just getting started with Terragrunt
+- You need maximum flexibility and transparency
+
+### Use Explicit Stacks When
+
+- You have multiple environments (dev, staging, prod)
+- You want to reuse infrastructure patterns
+- You have many similar units that differ only in values
+- You want to version your infrastructure patterns
+- You're building infrastructure catalogs or templates
+
+## The Complete Workflow
+
+### For Implicit Stacks
+
+1. **Organize**: Create directories for each unit with `terragrunt.hcl` files
+2. **Configure**: Set up inputs, dependencies, etc. in each unit
+3. **Deploy**: Use `terragrunt run --all apply` to deploy all units
+
+### For Explicit Stacks
+
+1. **Catalog**: Create a catalog of infrastructure patterns (using `terragrunt.hcl` files, `terragrunt.stack.hcl` files, etc.) in a git repository
+2. **Author**: Write a `terragrunt.stack.hcl` file with `unit` and/or `stack` blocks
+3. **Generate**: Run `terragrunt stack generate` to create the actual units\*
+4. **Deploy**: Run `terragrunt stack run apply` to deploy all units\*\*
+
+\* Multiple commands (like `stack run` or `run --all`) automatically generate units from `terragrunt.stack.hcl` files for you.
+
+\*\* You can also just use `run --all apply` to deploy all units in the stack like you can with implicit stacks.
+
+## Common Patterns
+
+> **Note**: These are simplified examples that show common high-level patterns.
+>
+> For more detailed examples, see the [Gruntwork Terragrunt Infrastructure Catalog Stack Examples](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks).
+
+### Environment-based Stacks
+
+Create reusable environment patterns that can be instantiated for dev, staging, and production:
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "dev" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "dev"
+  values = {
+    environment = "development"
+    cidr        = "10.0.0.0/16"
+  }
+}
+
+stack "staging" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "staging"
+  values = {
+    environment = "staging"
+    cidr        = "10.1.0.0/16"
+  }
+}
+
+stack "prod" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "prod"
+  values = {
+    environment = "production"
+    cidr        = "10.2.0.0/16"
+  }
+}
+```
+
+### Application Stacks
+
+Define complete application patterns with all required components:
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "web-app" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/web-application?ref=v0.0.1"
+  path   = "web-app"
+  values = {
+    app_name    = "my-web-app"
+    domain      = "example.com"
+    environment = "production"
+  }
+}
+```
+
+## Benefits of Using Stacks
+
+### Code Reusability
+
+- Define infrastructure patterns once and reuse them across environments
+- Reduce duplication and maintenance overhead
+- Ensure consistency across deployments
+
+### Simplified Management
+
+- Generate multiple units from a single configuration file
+- Deploy entire environments with a single command
+- Manage dependencies automatically
+
+### Version Control
+
+- Version your infrastructure patterns alongside your application code
+- Track changes to infrastructure patterns
+- Roll back infrastructure changes when needed
+
+### Team Collaboration
+
+- Share infrastructure patterns across teams
+- Standardize deployment approaches
+- Reduce onboarding time for new team members
 
 ## Passing outputs between units
 
@@ -187,16 +387,12 @@ Consider the following file structure:
 ```tree
 root
 ├── backend-app
-│   ├── main.tf
 │   └── terragrunt.hcl
 ├── mysql
-│   ├── main.tf
 │   └── terragrunt.hcl
 ├── valkey
-│   ├── main.tf
 │   └── terragrunt.hcl
 └── vpc
-    ├── main.tf
     └── terragrunt.hcl
 ```
 
@@ -207,6 +403,7 @@ You can use the `dependency` block to extract those outputs and use them as `inp
 For example, suppose the `vpc` unit outputs the ID under the output named `vpc_id`. To access that output, you would specify in `mysql/terragrunt.hcl`:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -223,6 +420,7 @@ You can also specify multiple `dependency` blocks to access the outputs of multi
 For example, in the above folder structure, you might want to reference the `domain` output of the `valkey` and `mysql` units for use as `inputs` in the `backend-app` unit. To access those outputs, you would specify the following in `backend-app/terragrunt.hcl`:
 
 ```hcl
+# backend-app/terragrunt.hcl
 dependency "mysql" {
   config_path = "../mysql"
 }
@@ -247,7 +445,7 @@ Note that each `dependency` block results in a relevant status in the Terragrunt
 
 If any of the units failed to deploy, then Terragrunt will not attempt to deploy the units that depend on them.
 
-**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/reference/configuration/#configuration-parsing-order) for more information.
+**Note**: Not all blocks can access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](/docs/reference/hcl#configuration-parsing-order) for more information.
 
 ### Unapplied dependency and mock outputs
 
@@ -266,6 +464,7 @@ For example, in the previous scenario with a `mysql` unit and `vpc` unit, suppos
 You can specify that in `mysql/terragrunt.hcl`:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -286,6 +485,7 @@ What if you wanted to restrict this behavior to only the `validate` command? For
 You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should only be used when running those OpenTofu/Terraform commands. So to restrict the `mock_outputs` to only when `validate` is being run, you can modify the above `terragrunt.hcl` file to:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -306,6 +506,7 @@ Note that indicating `validate` means that the `mock_outputs` will be used eithe
 You can also use `skip_outputs` on the `dependency` block to specify the dependency without pulling in the outputs:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -318,6 +519,7 @@ When `skip_outputs` is used with `mock_outputs`, mocked outputs will be returned
 This can be useful when you disable backend initialization (`remote_state.disable_init`) in CI for example.
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -332,6 +534,7 @@ dependency "vpc" {
 You can also use `mock_outputs_merge_strategy_with_state` on the `dependency` block to merge mocked outputs and real outputs:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -350,7 +553,7 @@ If real outputs only contain `vpc_id`, `dependency.outputs` will contain a real 
 
 When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack.
 
-To do this, use the [`stack output`](/docs/reference/cli-options/#stack-output) command (not the [`stack run output`](/docs/reference/cli-options/#stack-run) command).
+To do this, use the [`stack output`](/docs/reference/cli/commands/stack/output) command (not the [`stack run output`](/docs/reference/cli/commands/stack/run) command).
 
 ```bash
 $ terragrunt stack output
@@ -380,19 +583,14 @@ You can also specify dependencies without accessing any of the outputs of units.
 ```tree
 root
 ├── backend-app
-│   ├── main.tf
 │   └── terragrunt.hcl
 ├── frontend-app
-│   ├── main.tf
 │   └── terragrunt.hcl
 ├── mysql
-│   ├── main.tf
 │   └── terragrunt.hcl
 ├── valkey
-│   ├── main.tf
 │   └── terragrunt.hcl
 └── vpc
-    ├── main.tf
     └── terragrunt.hcl
 ```
 
@@ -410,7 +608,8 @@ Let's assume you have the following dependencies between OpenTofu/Terraform unit
 
 You can express these dependencies in your `terragrunt.hcl` config files using a `dependencies` block. For example, in `backend-app/terragrunt.hcl` you would specify:
 
-``` hcl
+```hcl
+# backend-app/terragrunt.hcl
 dependencies {
   paths = ["../vpc", "../mysql", "../valkey"]
 }
@@ -418,7 +617,8 @@ dependencies {
 
 Similarly, in `frontend-app/terragrunt.hcl`, you would specify:
 
-``` hcl
+```hcl
+# frontend-app/terragrunt.hcl
 dependencies {
   paths = ["../vpc", "../backend-app"]
 }
@@ -440,7 +640,12 @@ Any error encountered in an individual unit during a `run --all` command will pr
 
 To check all of your dependencies and validate the code in them, you can use the `run --all validate` command.
 
-**Note:** During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies. This is because Terragrunt knows that once resources in a dependency is destroyed, any commands run on dependent units may fail. For example, if `destroy` was called on the `valkey` unit, you'll be asked for confirmation, as the `backend-app` depends on `valkey`. You can avoid the prompt by using `--non-interactive`.
+> **Note:**
+> During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies.
+>
+> This is because Terragrunt knows that once resources in a dependency are destroyed, any commands run on dependent units may fail.
+>
+> For example, if `destroy` was called on the `Valkey` unit, you'd be asked for confirmation, as the `backend-app` depends on `Valkey`. You can suppress the prompt by using the `--non-interactive` flag.
 
 ## Visualizing the DAG
 
@@ -454,7 +659,7 @@ terragrunt dag graph | dot -Tsvg > graph.svg
 
 The example above generates the following graph:
 
-![terragrunt dag graph]({{site.baseurl}}/assets/img/collections/documentation/graph.png)
+![terragrunt dag graph](../../../assets/img/collections/documentation/graph.png)
 
 Note that this graph shows the dependency relationship in the direction of the arrow, with the tip pointing to the dependency (e.g. `frontend-app` depends on `backend-app`).
 
@@ -464,7 +669,7 @@ The exception to this rule is during the `destroy` (and `plan -destroy`) command
 
 ## Testing multiple units locally
 
-If you are using Terragrunt to download [remote OpenTofu/Terraform modules]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
+If you are using Terragrunt to download [remote OpenTofu/Terraform modules](/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
 
 ```bash
 terragrunt run --all plan --source /source/modules
@@ -480,7 +685,9 @@ For each unit that is being processed via a `run --all` command, Terragrunt will
 
 For example, consider the following `terragrunt.hcl` file:
 
-``` hcl
+```hcl
+# terragrunt.hcl
+
 terraform {
   source = "git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1"
 }
@@ -512,67 +719,74 @@ terragrunt run --all apply --parallelism 4
 
 A powerful feature of OpenTofu/Terraform is the ability to [save the result of a plan as a binary or JSON file using the -out flag](https://opentofu.org/docs/cli/commands/plan/).
 
-Terragrunt provides special tooling in `run --all` execution in order to ensure that the saved plan for a `run --all` against a stack has
+Terragrunt provides special tooling in `run --all` execution to ensure that the saved plan for a `run --all` against a stack has
 a corresponding entry for each unit in the stack in a directory structure that mirrors the stack structure.
 
 To save plan against a stack, use the `--out-dir` flag (or `TG_OUT_DIR` environment variable) as demonstrated below:
 
-```sh
-$ terragrunt run --all plan --out-dir /tmp/tfplan
-$ tree /tmp/tfplan
-/tmp/tfplan
-├── app1
-│   └── tfplan.tfplan
-├── app2
-│   └── tfplan.tfplan
-├── app3
-│   └── tfplan.tfplan
-└── project-2
-    └── project-2-app1
-        └── tfplan.tfplan
-$ terragrunt run --all apply --out-dir /tmp/tfplan
+```bash
+terragrunt run --all plan --out-dir /tmp/tfplan
+```
+
+```tree
+app1
+└── tfplan.tfplan
+app2
+└── tfplan.tfplan
+app3
+└── tfplan.tfplan
+project-2
+└── project-2-app1
+    └── tfplan.tfplan
+```
+
+```bash
+terragrunt run --all --out-dir /tmp/tfplan apply
 ```
 
 For planning a destroy operation, use the following commands:
 
-```sh
-terragrunt run --all --out-dir /tmp/tfplan -- plan -destroy
-terragrunt run --all apply --out-dir /tmp/tfplan
+```bash
+terragrunt run --all --out-dir /tmp/tfplan plan -destroy
+terragrunt run --all --out-dir /tmp/tfplan apply
 ```
 
 To save plan in json format use `--json-out-dir` flag (or `TG_JSON_OUT_DIR` environment variable):
 
-```sh
-$ terragrunt run --all plan --json-out-dir /tmp/json
-$ tree /tmp/json
-/tmp/json
-├── app1
-│   └── tfplan.json
-├── app2
-│   └── tfplan.json
-├── app3
-│   └── tfplan.json
-└── project-2
-    └── project-2-app1
-        └── tfplan.json
+```bash
+terragrunt run --all --json-out-dir /tmp/json plan
+```
 
-# combine binary and json plans
-$ terragrunt run --all plan --out-dir /tmp/all --json-out-dir /tmp/all
-$ tree /tmp/all
-/tmp/all
-├── app1
-│   ├── tfplan.json
-│   └── tfplan.tfplan
-├── app2
-│   ├── tfplan.json
-│   └── tfplan.tfplan
-├── app3
-│   ├── tfplan.json
-│   └── tfplan.tfplan
-└── project-2
-    └── project-2-app1
-        ├── tfplan.json
-        └── tfplan.tfplan
+```tree
+app1
+└── tfplan.json
+app2
+└── tfplan.json
+app3
+└── tfplan.json
+project-2
+└── project-2-app1
+    └── tfplan.json
+```
+
+```bash
+terragrunt run --all --out-dir /tmp/all --json-out-dir /tmp/all plan
+```
+
+```tree
+app1
+├── tfplan.json
+└── tfplan.tfplan
+app2
+├── tfplan.json
+└── tfplan.tfplan
+app3
+├── tfplan.json
+└── tfplan.tfplan
+project-2
+└── project-2-app1
+    ├── tfplan.json
+    └── tfplan.tfplan
 ```
 
 To recap:
@@ -614,13 +828,13 @@ cd root/us-east-1
 terragrunt run --all apply
 ```
 
-Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run --all command](#the-run---all-command) section).
+Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run --all command](/docs/reference/cli/commands/run#all)).
 
 Generally speaking, this is the primary tool Terragrunt users use to control the blast radius of their changes. For the most part, it is the current working directory that determines the blast radius of a `run --all` command.
 
-In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--queue-include-dir](/docs/reference/cli-options/#queue-include-dir) and [--queue-exclude-dir](/docs/reference/cli-options/#queue-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
+In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#run-queue), you can also use flags like [--include-dir](/docs/reference/cli/commands/run#include-dir) and [--exclude-dir](/docs/reference/cli/commands/run#exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
-There are more flags that control the behavior of the `run --all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.
+There are more flags that control the behavior of the `run` command, which you can find in the [`run` docs](/docs/reference/cli/commands/run).
 
 ## Using Local State with Stacks
 
@@ -696,7 +910,7 @@ terraform {
 
 The key insight is using `path_relative_to_include()` in the state path configuration. This function returns the relative path from each unit to the `root.hcl` file, creating unique state file paths like:
 
-```text
+```tree
 .terragrunt-local-state/live/.terragrunt-stack/vpc/tofu.tfstate
 .terragrunt-local-state/live/.terragrunt-stack/database/tofu.tfstate
 .terragrunt-local-state/live/.terragrunt-stack/app/tofu.tfstate
@@ -715,8 +929,8 @@ After running the stack, your directory structure will look like this:
 ```tree
 .
 ├── root.hcl
-├── .gitignore                        # Excludes .terragrunt-local-state
-├── .terragrunt-local-state/          # Persistent state files (ignored by git)
+├── .gitignore (Excludes .terragrunt-local-state)
+├── .terragrunt-local-state/ (Persistent state files - ignored by git)
 │   └── live/
 │       └── .terragrunt-stack/
 │           ├── vpc/
@@ -727,7 +941,7 @@ After running the stack, your directory structure will look like this:
 │               └── tofu.tfstate
 ├── live/
 │   ├── terragrunt.stack.hcl
-│   └── .terragrunt-stack/            # Generated stack (can be deleted)
+│   └── .terragrunt-stack/ (Generated stack - can be deleted)
 │       ├── vpc/
 │       │   ├── terragrunt.hcl
 │       │   └── main.tf
@@ -737,7 +951,7 @@ After running the stack, your directory structure will look like this:
 │       └── app/
 │           ├── terragrunt.hcl
 │           └── main.tf
-└── units/                            # Reusable unit definitions
+└── units/ (Reusable unit definitions)
     ├── vpc/
     ├── database/
     └── app/
@@ -768,6 +982,16 @@ terragrunt stack run plan  # Should show "No changes"
 ```
 
 This pattern is particularly useful for development environments, testing scenarios, or when you need to maintain local state for compliance or security reasons while still benefiting from Terragrunt's stack management capabilities.
+
+## Next Steps
+
+Now that you understand both implicit and explicit stacks, you can:
+
+- [Learn about the detailed syntax](/docs/reference/hcl/blocks#unit) for `unit` and `stack` blocks
+- [Explore the stack commands](/docs/reference/cli/commands/stack/generate) for generating and managing stacks
+- [Understand how to pass values between units](/docs/features/stacks#passing-outputs-between-units)
+
+> **Pro Tip**: Start with implicit stacks to get familiar with the concept, then gradually introduce explicit stacks for reusable patterns as your infrastructure grows.
 
 ## Learning more
 
