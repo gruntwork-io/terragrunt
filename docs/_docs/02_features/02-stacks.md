@@ -987,8 +987,8 @@ This pattern is particularly useful for development environments, testing scenar
 
 Now that you understand both implicit and explicit stacks, you can:
 
-- [Learn about the detailed syntax](/docs/reference/hcl/blocks#unit) for `unit` and `stack` blocks
-- [Explore the stack commands](/docs/reference/cli/commands/stack/generate) for generating and managing stacks
+- [Learn about the detailed syntax](/docs/reference/configuration/#stacks) for `unit` and `stack` blocks
+- [Explore the stack commands](/docs/reference/cli-options/#stack-generate) for generating and managing stacks
 - [Understand how to pass values between units](/docs/features/stacks#passing-outputs-between-units)
 
 > **Pro Tip**: Start with implicit stacks to get familiar with the concept, then gradually introduce explicit stacks for reusable patterns as your infrastructure grows.
