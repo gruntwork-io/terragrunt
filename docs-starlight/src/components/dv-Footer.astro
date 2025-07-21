@@ -16,12 +16,13 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
             Subscribe to the newsletter <span class="text-gray-1">to hear about the latest updates, features and innovations in Terragrunt</span>
         </p>
         <div class="flex w-full md:w-[402px] items-center gap-3">
+            <!-- Newsletter Form -->
             <form id="custom-subscribe-form" class="custom-form flex w-full items-center gap-3" data-form-id="437b604f-ae08-40cf-b68f-707ae19ab6e9" data-portal-id="8376079">
                 <label for="email" class="sr-only">Email address</label>
                 <input
                     id="email"
                     name="email"
-                    class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-gray-1"
+                    class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-white placeholder-gray-300 border border-transparent focus:border-white/20 focus:outline-none transition-colors"
                     type="email"
                     placeholder="Your email here"
                     required
@@ -29,20 +30,27 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
                 />
                 <button
                     type="submit"
-                    class="primary-button flex items-center justify-center !px-4 h-11"
+                    class="primary-button flex items-center justify-center !px-4 h-11 min-w-[44px] transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Subscribe to the newsletter"
                 >
-                    <span class="button-text">
+                    <span class="button-text flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
                         </svg>
                     </span>
-                    <span class="button-loader hidden">Loading...</span>
+                    <span class="button-loader hidden items-center">
+                        <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </span>
                 </button>
             </form>
-            <div class="success-message hidden">
-                <div class="checkmark">✓</div>
-                <p class="text-white text-sm">Thank you for subscribing!</p>
+
+            <!-- Success Message -->
+            <div class="success-message hidden w-full items-center justify-center gap-3 py-3 px-4 bg-green-500/20 border border-green-400/30 rounded-lg">
+                <div class="checkmark flex items-center justify-center w-6 h-6 bg-green-500 rounded-full text-white text-sm font-bold">✓</div>
+                <p class="text-white text-sm font-medium">Thank you for subscribing!</p>
             </div>
         </div>
     </div>
@@ -112,18 +120,17 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
     const successMessage = document.querySelector(".success-message");
     const buttonText = document.querySelector(".button-text");
     const buttonLoader = document.querySelector(".button-loader");
+    const emailInput = document.querySelector('input[name="email"]') as HTMLInputElement;
 
-    if (customForm && submitButton && successMessage && buttonText && buttonLoader) {
+    if (customForm && submitButton && successMessage && buttonText && buttonLoader && emailInput) {
       customForm.addEventListener("submit", function (e) {
         e.preventDefault();
 
         // Show loading state
-        submitButton.classList.add("loading");
+        submitButton.setAttribute('disabled', 'true');
         buttonText.classList.add("hidden");
         buttonLoader.classList.remove("hidden");
-
-        const emailInput = customForm.querySelector('input[name="email"]') as HTMLInputElement;
-        if (!emailInput) return;
+        emailInput.setAttribute('disabled', 'true');
 
         const email = emailInput.value;
 
@@ -133,6 +140,7 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
 
         if (!portalId || !formId) {
           console.error("Missing portal ID or form ID");
+          resetFormState();
           return;
         }
 
@@ -166,20 +174,38 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
             }
             return response.json();
           })
-          .then((result) => {
-            console.log("Success:", result);
-            // Hide form and show success message
+                  .then((result) => {
+          console.log("Success:", result);
+          // Hide form and show success message with smooth transition
+          (customForm as HTMLElement).style.opacity = "0";
+          (customForm as HTMLElement).style.transform = "translateY(-10px)";
+
+          setTimeout(() => {
             customForm.classList.add("hidden");
             successMessage.classList.remove("hidden");
-          })
+            (successMessage as HTMLElement).style.opacity = "0";
+            (successMessage as HTMLElement).style.transform = "translateY(10px)";
+
+            // Trigger reflow
+            (successMessage as HTMLElement).offsetHeight;
+
+            (successMessage as HTMLElement).style.opacity = "1";
+            (successMessage as HTMLElement).style.transform = "translateY(0)";
+            (successMessage as HTMLElement).style.transition = "opacity 0.3s ease, transform 0.3s ease";
+          }, 200);
+        })
           .catch((error) => {
             console.error("Error:", error);
-            // Reset button state on error
-            submitButton.classList.remove("loading");
-            buttonText.classList.remove("hidden");
-            buttonLoader.classList.add("hidden");
+            resetFormState();
           });
       });
+
+      function resetFormState() {
+        if (submitButton) submitButton.removeAttribute('disabled');
+        if (buttonText) buttonText.classList.remove("hidden");
+        if (buttonLoader) buttonLoader.classList.add("hidden");
+        if (emailInput) emailInput.removeAttribute('disabled');
+      }
     }
   });
 </script>
