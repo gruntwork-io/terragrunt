@@ -13,7 +13,7 @@ const { src, alt, text, eager = false } = Astro.props as Props;
 const loadingMode = eager ? 'eager' : 'lazy';
 ---
 
-<button class="flex border-stroke-dark border rounded-md p-1 pr-2.5 gap-1.5 items-center">
+<div class="flex border-stroke-dark border rounded-md p-1 pr-2.5 gap-1.5 items-center">
     <Image
         src={src}
         alt={alt}
@@ -21,4 +21,4 @@ const loadingMode = eager ? 'eager' : 'lazy';
         loading={loadingMode}
     />
     <span class="text-xs font-mono text-white">{text}</span>
-</button>
+</div>
