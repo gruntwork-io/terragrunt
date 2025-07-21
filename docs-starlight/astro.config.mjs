@@ -101,6 +101,16 @@ export default defineConfig({
             })(window,document,'script','dataLayer','GTM-5TTJJGTL');
           `,
       },
+      {
+        tag: 'script',
+        attrs: {
+          type: 'text/javascript',
+          id: 'hs-script-loader',
+          async: true,
+          defer: true,
+          src: '//js.hs-scripts.com/8376079.js',
+        },
+      },
     ],
     components: {
       Header: './src/components/Header.astro',
