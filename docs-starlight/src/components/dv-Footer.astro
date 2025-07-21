@@ -1,5 +1,5 @@
 ---
-import '@styles/global.css';    
+import '@styles/global.css';
 import { Image } from 'astro:assets';
 import OpenSourceCard from '@components/dv-OpenSourceCard.astro';
 import GruntworkLogo from '../assets/gruntwork-logo.svg';
@@ -13,34 +13,34 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
     <!-- Subscribe to Newsletter Responsiveness-->
     <div class="bg-bg-dark flex flex-col md:flex-row items-center justify-between gap-4 px-6 xl:px-8 py-6">
         <p class="text-white w-full md:flex-1">
-            Subscribe to newsletter <span class="text-gray-1">to hear about latest updates, features and innovations in Terragrunt</span>
+            Subscribe to the newsletter <span class="text-gray-1">to hear about the latest updates, features and innovations in Terragrunt</span>
         </p>
-        <form class="flex w-full md:w-[402px] items-center gap-3" action="/newsletter" method="POST">  
-            <label for="email" class="sr-only">Email address</label>  
-            <input  
-                id="email"  
-                name="email"  
-                class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-gray-1"  
-                type="email"  
-                placeholder="Your email here"  
-                required  
-                aria-describedby="email-description"  
-            />  
-            <button  
-                type="submit"  
-                class="primary-button flex items-center justify-center !px-4 h-11"  
-                aria-label="Subscribe to newsletter"  
-            >  
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">  
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>  
-                </svg>  
-            </button>  
+        <form class="flex w-full md:w-[402px] items-center gap-3" action="/newsletter" method="POST">
+            <label for="email" class="sr-only">Email address</label>
+            <input
+                id="email"
+                name="email"
+                class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-gray-1"
+                type="email"
+                placeholder="Your email here"
+                required
+                aria-describedby="email-description"
+            />
+            <button
+                type="submit"
+                class="primary-button flex items-center justify-center !px-4 h-11"
+                aria-label="Subscribe to the newsletter"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
+                </svg>
+            </button>
         </form>
     </div>
 
     <!-- Divider -->
     <div class="relative w-full h-[13px] bg-gradient-to-l from-[#4F2FD0] to-bg-dark overflow-hidden">
-        <Image 
+        <Image
             src={PatternDots}
             alt="Pattern Dots"
             class="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none select-none"
@@ -53,25 +53,25 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
             <p class="font-sans text-xl text-dark-blue-1">Check out our other open source tools</p>
         </div>
         <div class="flex flex-col md:flex-row w-full">
-            <OpenSourceCard 
+            <OpenSourceCard
                 icon={IconTerratest}
                 title="Terratest"
                 description="Validate IaC modules"
                 href="https://terratest.gruntwork.io/"
             />
-            <OpenSourceCard 
+            <OpenSourceCard
                 icon={IconBoilerplate}
                 title="Boilerplate"
                 description="Automate repetitive DevOps work"
                 href="https://github.com/gruntwork-io/boilerplate"
             />
-            <OpenSourceCard 
+            <OpenSourceCard
                 icon={IconCloudnuke}
                 title="CloudNuke"
                 description="Save money on unused AWS resources"
                 href="https://github.com/gruntwork-io/cloud-nuke"
             />
-            <OpenSourceCard 
+            <OpenSourceCard
                 icon={IconGitxargs}
                 title="GitXargs"
                 description="Make changes across git repos"
