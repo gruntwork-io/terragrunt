@@ -2,9 +2,10 @@
 layout: collection-browser-doc
 title: Configuration
 category: reference
+categories_url: reference
 excerpt: >-
-  Learn how to configure Terragrunt.
-tags: ["config", "formatting"]
+  Learn how to configure Terragrunt using HCL files.
+tags: ["config"]
 order: 401
 nav_title: Documentation
 nav_title_link: /docs/
@@ -14,11 +15,13 @@ redirect_from:
 slug: configuration
 ---
 
-Terragrunt unit configuration is defined in `terragrunt.hcl` files. These files use the same HCL syntax as OpenTofu/Terraform itself.
+Terragrunt configuration is defined in [HCL](https://github.com/hashicorp/hcl) files. This uses the same HCL syntax as OpenTofu/Terraform itself.
 
 Here's an example:
 
-``` hcl
+```hcl
+# terragrunt.hcl
+
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -28,9 +31,16 @@ dependencies {
 }
 ```
 
-Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) defined in a `terragrunt.hcl.json` file: where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` instead.
+The core of Terragrunt configuration is that of the [unit](/docs/getting-started/terminology#unit), which is canonically defined using `terragrunt.hcl` files.
 
-Terragrunt figures out the path to its config file according to the following rules:
+Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) defined in `terragrunt.hcl.json` files. Where `terragrunt.hcl` is mentioned in documentation, you can always use `terragrunt.hcl.json` instead.
+
+> **Note:**
+> Think carefully before using JSON configuration files for your Terragrunt configurations. The vast majority of Terragrunt users use HCL to configure Terragrunt, and you will alienate them by using JSON instead.
+>
+> JSON compatibility is largely support to make it easier to generate configurations from other tools, like `jq`.
+
+When determining the configuration for a unit, Terragrunt figures out the path to its configuration file according to the following rules:
 
 1. The value of the `--config` command-line option, if specified.
 
@@ -44,12 +54,12 @@ Terragrunt figures out the path to its config file according to the following ru
 
 Refer to the following pages for a complete reference of supported features in the terragrunt configuration file:
 
-- [Config blocks and attributes]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/)
-- [Built-in functions]({{site.baseurl}}/docs/reference/built-in-functions/)
+- [Configuration Blocks and Attributes](/docs/reference/config-blocks-and-attributes)
+- [Built-in Functions](/docs/reference/built-in-functions)
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](/docs/reference/config-blocks-and-attributes/#locals) and [dependency outputs](/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you cannot bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 
@@ -71,7 +81,7 @@ Currently terragrunt parses the config in the following order:
 
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in `locals`, `include`, or `dependencies` blocks).
 
-Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
+Note that the parsing order is slightly different when using the `--all` flag of the [`run`](/docs/reference/cli-options/#run) command. When using the `--all` flag, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
 
 1. `include` block of all configurations in the tree
 
@@ -91,23 +101,154 @@ This allows Terragrunt to avoid resolving `dependency` on units that haven't bee
 
 When multiple units, each with their own `terragrunt.hcl` file exist in child directories of a single parent directory, that parent directory becomes a [stack](/docs/getting-started/terminology#stack).
 
-To make it easier to generate configurations like this, Terragrunt has special tooling in the form of `terragrunt.stack.hcl` files. `terragrunt.stack.hcl` files support all the same HCL functions as `terragrunt.hcl` files, however, they don't support any top-level attributes, and the configuration blocks they support are limited to the following:
+> **New to stacks?** For a comprehensive introduction to the concept, see our [Stacks](/docs/features/stacks) guide.
+
+### What is a terragrunt.stack.hcl file?
+
+A `terragrunt.stack.hcl` file is a **blueprint** that defines how to generate Terragrunt configuration programmatically.
+
+It tells Terragrunt:
+
+- What units to create.
+- Where to get their configurations from.
+- Where to place them in the directory structure.
+- What values to pass to each unit.
+
+### The Two Types of Blocks
+
+#### `unit` blocks - Define Individual Infrastructure Components
+
+- **Purpose**: Define a single, deployable piece of infrastructure.
+- **Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application).
+- **Result**: Generates a single `terragrunt.hcl` file in the specified path.
+
+#### `stack` blocks - Define Reusable Infrastructure Patterns
+
+- **Purpose**: Define a collection of related units that can be reused.
+- **Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times.
+- **Result**: Generates another `terragrunt.stack.hcl` file that can contain more units or stacks.
+
+### Comparison: unit vs stack blocks
+
+| Aspect | `unit` block | `stack` block |
+|--------|-------------|---------------|
+| **Purpose** | Define a single infrastructure component | Define a reusable collection of components |
+| **When to use** | For specific, one-off infrastructure pieces | For patterns of infrastructure pieces that you want provisioned together |
+| **Generated output** | A directory with a single `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
+
+### The Complete Workflow
+
+1. **Author**: Write a `terragrunt.stack.hcl` file with `unit` and/or `stack` blocks.
+2. **Generate**: Run `terragrunt stack generate` to create the actual units*.
+3. **Deploy**: Run `terragrunt stack run apply` to deploy all units**.
+
+- Multiple commands (like `stack run` or `run --all`) automatically generate units from `terragrunt.stack.hcl` files for you.
+
+** You can also just use `run --all apply` to deploy all units in the stack.
+
+### Example: Simple Stack with Units
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+
+    vpc_path = "../vpc"
+  }
+}
+```
+
+Running `terragrunt stack generate` creates:
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack/
+├── vpc/
+│   ├── terragrunt.hcl
+│   └── terragrunt.values.hcl
+└── database/
+    ├── terragrunt.hcl
+    └── terragrunt.values.hcl
+```
+
+### Example: Nested Stack with Reusable Patterns
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "dev" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "dev"
+  values = {
+    environment = "development"
+    cidr        = "10.0.0.0/16"
+  }
+}
+
+stack "prod" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "prod"
+  values = {
+    environment = "production"
+    cidr        = "10.1.0.0/16"
+  }
+}
+```
+
+The referenced stack might contain:
+
+```hcl
+# stacks/environment/terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = values.environment
+    cidr     = values.cidr
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    environment = values.environment
+
+    vpc_path = "../vpc"
+  }
+}
+```
+
+For more information on these configuration blocks, see:
 
 - [unit](/docs/reference/config-blocks-and-attributes/#unit)
 - [stack](/docs/reference/config-blocks-and-attributes/#stack)
 - [locals](/docs/reference/config-blocks-and-attributes/#locals)
 
-These special configurations are used by the [stack generate command](/docs/reference/cli/commands/stack/generate) (and all the other `stack` prefixed commands) to generate units programmatically, on demand. The units they generate are valid unit configurations, and can be read and used as if they were manually authored.
-
 ## Formatting HCL files
 
 You can rewrite the HCL files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `tofu fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
 
-By default, this command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
+By default, this command will recursively search for hcl files and format all of them for a given stack. Consider the following file structure:
 
 ```tree
 root
-├── terragrunt.hcl
+├── root.hcl
 ├── prod
 │   └── terragrunt.hcl
 ├── dev
@@ -120,9 +261,9 @@ root
             └── terragrunt.hcl
 ```
 
-If you run `terragrunt hclfmt` at the `root`, this will update:
+If you run `terragrunt hcl fmt` at the `root`, this will update:
 
-- `root/terragrunt.hcl`
+- `root/root.hcl`
 
 - `root/prod/terragrunt.hcl`
 
@@ -134,12 +275,10 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 - `root/qa/services/service01/terragrunt.hcl`
 
-You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. The `diff` utility must be present in your `PATH`.
+You can set `--diff` option. `terragrunt hcl fmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
 
-Additionally, there's a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return the exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+Additionally, there's a flag `--check`. `terragrunt hcl fmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
 
-You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hclfmt --exclude-dir=qa/services`.
+You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hcl fmt --exclude-dir=qa/services`.
 
-If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hclfmt --file qa/services/services.hcl`.
-
-If you want to format HCL from stdin and print the result to stdout, you can use the `--stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --stdin`.
+If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hcl fmt --file qa/services/services.hcl`.
