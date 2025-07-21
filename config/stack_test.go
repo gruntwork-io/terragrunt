@@ -1,9 +1,13 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -164,4 +168,142 @@ locals {
 	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, invalidCfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")
+}
+
+func TestWriteValuesSortsKeys(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test stack configuration with more values in non-alphabetical order
+	// Using more keys and names that are more likely to be out of order
+	stackConfig := `
+unit "test_unit" {
+	source = "./unit"
+	path   = "test_unit"
+	values = {
+		zzz_last    = "should be last"
+		aaa_first   = "should be first"
+		mmm_middle  = "should be middle"
+		beta        = 42
+		gamma       = true
+		delta       = ["a", "b"]
+		zebra       = "animal"
+		alpha       = "letter"
+		omega       = "end"
+		charlie     = "nato"
+	}
+}
+`
+
+	// Create the stack file
+	stackFilePath := filepath.Join(tmpDir, "terragrunt.stack.hcl")
+	err := os.WriteFile(stackFilePath, []byte(stackConfig), 0644)
+	require.NoError(t, err)
+
+	// Create a simple unit directory with minimal terragrunt config
+	unitDir := filepath.Join(tmpDir, "unit")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	unitConfig := `
+terraform {
+	source = "."
+}
+`
+	unitConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
+	err = os.WriteFile(unitConfigPath, []byte(unitConfig), 0644)
+	require.NoError(t, err)
+
+	// Create a minimal main.tf in the unit
+	mainTf := `
+resource "local_file" "test" {
+	content  = "test"
+	filename = "test.txt"
+}
+`
+	mainTfPath := filepath.Join(unitDir, "main.tf")
+	err = os.WriteFile(mainTfPath, []byte(mainTf), 0644)
+	require.NoError(t, err)
+
+	valuesFilePath := filepath.Join(tmpDir, ".terragrunt-stack", "test_unit", "terragrunt.values.hcl")
+
+	// Helper function to read and return the values file content
+	readValuesFile := func() string {
+		content, err := os.ReadFile(valuesFilePath)
+		require.NoError(t, err)
+		return string(content)
+	}
+
+	// Run multiple generations to test for deterministic behavior
+	var generationContents []string
+	const numIterations = 5
+
+	for i := 0; i < numIterations; i++ {
+		// Clean up any existing stack directory
+		stackDir := filepath.Join(tmpDir, ".terragrunt-stack")
+		os.RemoveAll(stackDir)
+
+		// Generate the stack
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+		require.NoError(t, err)
+		require.FileExists(t, valuesFilePath)
+
+		content := readValuesFile()
+		generationContents = append(generationContents, content)
+
+		t.Logf("Generation %d content:\n%s\n", i+1, content)
+	}
+
+	// Check if all generations produced identical output
+	allIdentical := true
+	for i := 1; i < len(generationContents); i++ {
+		if generationContents[i] != generationContents[0] {
+			allIdentical = false
+			break
+		}
+	}
+
+	if !allIdentical {
+		t.Logf("Non-deterministic behavior detected! Generations produced different output:")
+		for i, content := range generationContents {
+			t.Logf("Generation %d:\n%s\n", i+1, content)
+		}
+		assert.True(t, allIdentical, "Stack generation should be deterministic - all runs should produce identical values files")
+	} else {
+		t.Logf("All generations produced identical output - checking if it's sorted...")
+
+		// Now test the actual content and ordering using the first generation
+		contentStr := generationContents[0]
+
+		// Check if the keys appear in alphabetical order
+		keys := []string{"aaa_first", "alpha", "beta", "charlie", "delta", "gamma", "mmm_middle", "omega", "zebra", "zzz_last"}
+
+		positions := make([]int, len(keys))
+		for i, key := range keys {
+			positions[i] = strings.Index(contentStr, key)
+			if positions[i] == -1 {
+				t.Fatalf("Key %s not found in generated content", key)
+			}
+		}
+
+		// Check if positions are in ascending order (alphabetical)
+		keysInOrder := true
+		for i := 1; i < len(positions); i++ {
+			if positions[i] < positions[i-1] {
+				keysInOrder = false
+				break
+			}
+		}
+
+		t.Logf("Key positions: %v", positions)
+		t.Logf("Keys in alphabetical order: %v", keysInOrder)
+
+		if !keysInOrder {
+			assert.True(t, keysInOrder, "Keys should appear in alphabetical order for deterministic output")
+		} else {
+			t.Logf("Keys are in alphabetical order - sorting implementation is working!")
+		}
+	}
 }
