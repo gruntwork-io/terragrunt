@@ -15,27 +15,36 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
         <p class="text-white w-full md:flex-1">
             Subscribe to the newsletter <span class="text-gray-1">to hear about the latest updates, features and innovations in Terragrunt</span>
         </p>
-        <form class="flex w-full md:w-[402px] items-center gap-3" action="/newsletter" method="POST">
-            <label for="email" class="sr-only">Email address</label>
-            <input
-                id="email"
-                name="email"
-                class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-gray-1"
-                type="email"
-                placeholder="Your email here"
-                required
-                aria-describedby="email-description"
-            />
-            <button
-                type="submit"
-                class="primary-button flex items-center justify-center !px-4 h-11"
-                aria-label="Subscribe to the newsletter"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
-                </svg>
-            </button>
-        </form>
+        <div class="flex w-full md:w-[402px] items-center gap-3">
+            <form id="custom-subscribe-form" class="custom-form flex w-full items-center gap-3" data-form-id="437b604f-ae08-40cf-b68f-707ae19ab6e9" data-portal-id="8376079">
+                <label for="email" class="sr-only">Email address</label>
+                <input
+                    id="email"
+                    name="email"
+                    class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-gray-1"
+                    type="email"
+                    placeholder="Your email here"
+                    required
+                    aria-describedby="email-description"
+                />
+                <button
+                    type="submit"
+                    class="primary-button flex items-center justify-center !px-4 h-11"
+                    aria-label="Subscribe to the newsletter"
+                >
+                    <span class="button-text">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
+                        </svg>
+                    </span>
+                    <span class="button-loader hidden">Loading...</span>
+                </button>
+            </form>
+            <div class="success-message hidden">
+                <div class="checkmark">✓</div>
+                <p class="text-white text-sm">Thank you for subscribing!</p>
+            </div>
+        </div>
     </div>
 
     <!-- Divider -->
@@ -93,3 +102,84 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
         </div>
     </div>
 </footer>
+
+<script src="https://js.hsforms.net/forms/v2.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const customForm = document.getElementById("custom-subscribe-form");
+    const submitButton = document.querySelector('button[type="submit"]');
+    const successMessage = document.querySelector(".success-message");
+    const buttonText = document.querySelector(".button-text");
+    const buttonLoader = document.querySelector(".button-loader");
+
+    if (customForm && submitButton && successMessage && buttonText && buttonLoader) {
+      customForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        // Show loading state
+        submitButton.classList.add("loading");
+        buttonText.classList.add("hidden");
+        buttonLoader.classList.remove("hidden");
+
+        const emailInput = customForm.querySelector('input[name="email"]') as HTMLInputElement;
+        if (!emailInput) return;
+
+        const email = emailInput.value;
+
+        // Submit to HubSpot using their API
+        const portalId = customForm.getAttribute("data-portal-id");
+        const formId = customForm.getAttribute("data-form-id");
+
+        if (!portalId || !formId) {
+          console.error("Missing portal ID or form ID");
+          return;
+        }
+
+        const data = {
+          submittedAt: Date.now(),
+          fields: [
+            {
+              name: "email",
+              value: email,
+            },
+          ],
+          context: {
+            pageUri: window.location.href,
+            pageName: document.title,
+          },
+        };
+
+        fetch(
+          `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          },
+        )
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Network response was not ok");
+            }
+            return response.json();
+          })
+          .then((result) => {
+            console.log("Success:", result);
+            // Hide form and show success message
+            customForm.classList.add("hidden");
+            successMessage.classList.remove("hidden");
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            // Reset button state on error
+            submitButton.classList.remove("loading");
+            buttonText.classList.remove("hidden");
+            buttonLoader.classList.add("hidden");
+          });
+      });
+    }
+  });
+</script>
