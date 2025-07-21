@@ -18,33 +18,33 @@ const shouldRenderSearch =
 
 let starCountDisplay = process.env.GITHUB_STARS || '8.6k';
 
-try {  
-    // Only fetch if not in environment variable  
-    if (!process.env.GITHUB_STARS) {  
-        const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt', {  
-            headers: {  
-                'User-Agent': 'Terragrunt-Docs'  
-            }  
-        });  
-        if (response.ok) {  
-            const data = await response.json();  
-            const stars = data.stargazers_count;  
-            if (typeof stars === 'number') {  
-                starCountDisplay = (stars / 1000).toFixed(1) + 'k';  
-            }  
-        } else {  
-            console.error('Failed to fetch GitHub stars:', response.status, await response.text());  
-        }  
-    }  
-} catch (error) {  
-    console.error('Error fetching GitHub stars:', error);  
+try {
+    // Only fetch if not in environment variable
+    if (!process.env.GITHUB_STARS) {
+        const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt', {
+            headers: {
+                'User-Agent': 'Terragrunt-Docs'
+            }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const stars = data.stargazers_count;
+            if (typeof stars === 'number') {
+                starCountDisplay = (stars / 1000).toFixed(1) + 'k';
+            }
+        } else {
+            console.error('Failed to fetch GitHub stars:', response.status, await response.text());
+        }
+    }
+} catch (error) {
+    console.error('Error fetching GitHub stars:', error);
 }
 ---
 <nav class="z-50 flex flex-col">
     <div class="navbar">
         <!-- Logo -->
         <a href="/" class="hover:cursor-pointer">
-            <Image 
+            <Image
                 src={TerragruntLogo}
                 alt="Terragrunt Logo"
                 height={40}
@@ -53,7 +53,7 @@ try {
         </a>
         <!-- Right Menu -->
         <div class="flex items-center gap-6">
-            <div class="hidden lg:flex items-center gap-6 border-r border-stroke-dark pr-6">   
+            <div class="hidden lg:flex items-center gap-6 border-r border-stroke-dark pr-6">
                 <!-- Socials -->
                 <div class="flex items-center gap-4 text-gray-1">
                     <a href="https://github.com/gruntwork-io/terragrunt" class="flex items-center gap-2 hover:cursor-pointer hover:text-[var(--sl-color-gray-1)] transition .25s ease-in-out" target="_blank" rel="noopener noreferrer">
@@ -82,29 +82,29 @@ try {
             </div>
             <div class="flex items-center gap-3 md:gap-3.5">
                 <!-- Buttons -->
-                <a href="#" class="hidden md:flex secondary-button">
-                    Automate your pipeline
+                <a href="https://www.gruntwork.io/platform/pipelines" class="hidden md:flex secondary-button">
+                    CI/CD for Terragrunt
                 </a>
-                <a href="#" class="flex md:hidden secondary-button !p-3">
-                    <Image 
+                <a href="https://www.gruntwork.io/platform/pipelines" class="flex md:hidden secondary-button !p-3">
+                    <Image
                         src={PipelineIcon}
                         alt="Pipeline Icon"
                         width={20}
                         height={20}
                     />
                 </a>
-                <a href="#" class="hidden md:flex primary-button">
-                    Support
+                <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex primary-button">
+                    Enterprise Support
                 </a>
                 <button class="menu-icon hover:cursor-pointer">
                     <div class="flex items-center">
-                        <svg data-slot="icon" class="text-white w-6 h-6" fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"> 
+                        <svg data-slot="icon" class="text-white w-6 h-6" fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
                         </svg>
                     </div>
                 </button>
-                <a href="#" class="flex md:hidden primary-button !p-3">
-                    <Image 
+                <a href="https://www.gruntwork.io/services/terragrunt" class="flex md:hidden primary-button !p-3">
+                    <Image
                         src={HeadphonesIcon}
                         alt="Headphones Icon"
                         width={20}
@@ -142,7 +142,7 @@ try {
 
     .searchbar {
         display: flex;
-        align-items: center;    
+        align-items: center;
         justify-content: start;
         gap: 8px;
         width: 280px;
