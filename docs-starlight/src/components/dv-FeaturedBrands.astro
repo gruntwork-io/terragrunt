@@ -1,16 +1,15 @@
 ---
 import '@styles/global.css';
 import { Image } from 'astro:assets';
+import { getCollection } from 'astro:content';
 
-import LogoBrand1 from '@assets/logo-brand-1.svg';
-import LogoBrand2 from '@assets/logo-brand-2.svg';
-import LogoBrand3 from '@assets/logo-brand-3.svg';
-import LogoBrand4 from '@assets/logo-brand-4.svg';
-import LogoBrand5 from '@assets/logo-brand-5.svg';
-import LogoBrand6 from '@assets/logo-brand-6.svg';
-import LogoBrand7 from '@assets/logo-brand-7.svg';
+// Get all brands from the content collection
+const brandsCollection = await getCollection('brands');
 
-const logos = [LogoBrand1, LogoBrand2, LogoBrand3, LogoBrand4, LogoBrand5, LogoBrand6, LogoBrand7];
+// The JSON file contains an array of brands, so we get the first entry's data
+const brands = Array.isArray(brandsCollection) ? brandsCollection : [];
+
+const sortedBrands = brands.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
 ---
 <!-- Logos Container -->
 <section class="w-full bg-[#FAFAFA] border-b-1 border-gray-3 py-6 lg:py-9">
@@ -30,8 +29,8 @@ const logos = [LogoBrand1, LogoBrand2, LogoBrand3, LogoBrand4, LogoBrand5, LogoB
 
             <!-- Brand Logos -->
             <div class="flex animate-marquee items-center justify-start gap-6 px-4 no-scrollbar">
-                {[...logos, ...logos].map((logo, i) => (
-                    <Image src={logo} alt={`Logo ${i}`} class="h-8 flex-shrink-0" />
+                {[...sortedBrands, ...sortedBrands].map((brand, i) => (
+                    <Image src={brand.data.logo} alt={brand.data.alt} class="h-8 flex-shrink-0" />
                 ))}
             </div>
         </div>
