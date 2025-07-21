@@ -2,7 +2,9 @@
 import '@styles/global.css';
 import { Image } from 'astro:assets';
 import IconLabel from '@components/dv-IconButton.astro';
-import Terminal from '@components/dv-Terminal.astro';
+
+// TODO: Restore once we have a working curl to bash script.
+// import Terminal from '@components/dv-Terminal.astro';
 
 import OpentofuIcon from '@assets/opentofu-logo.svg';
 import TerraformIcon from '@assets/terraform-logo.svg';
@@ -11,9 +13,10 @@ import HeroCompleteBackground from '@assets/hero-bg-1440.png';
 ---
 
 <section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
-    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-20">
+    <!-- <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-20">
+        TODO: Restore once we have a working curl to bash script.
         <Terminal />
-    </div>
+    </div> -->
 
     <Image
         src={MobileHeroBackground}
@@ -39,24 +42,32 @@ import HeroCompleteBackground from '@assets/hero-bg-1440.png';
         <div class="flex flex-col md:flex-row justify-center items-center w-full gap-4">
             <p class="  font-mono text-xs text-white md:pr-4">BUILT FOR:</p>
             <div class="flex gap-1">
+                <a href="https://opentofu.org" target="_blank" class="cursor-pointer">
                 <IconLabel
                     src={OpentofuIcon}
                     alt="Opentofu Icon"
                     text="OPENTOFU"
-                    eager
-                />
+                        eager
+                    />
+                </a>
+                <a href="https://developer.hashicorp.com/terraform" target="_blank" class="cursor-pointer">
                 <IconLabel
                     src={TerraformIcon}
                     alt="Terraform Icon"
                     text="TERRAFORM"
-                    eager
-                />
+                        eager
+                    />
+                </a>
             </div>
         </div>
 
         <div class="flex gap-5 justify-center items-center w-full pb-28 md:pb-52">
-            <button class="primary-button">Quick Start</button>
-            <button class="secondary-button">Read the Docs</button>
+            <a href="/docs/getting-started/quick-start">
+                <button class="primary-button">Quick Start</button>
+            </a>
+            <a href="/docs/reference/hcl">
+                <button class="secondary-button">Read the Docs</button>
+            </a>
         </div>
     </div>
 </section>
