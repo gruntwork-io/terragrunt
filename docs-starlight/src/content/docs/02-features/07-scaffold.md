@@ -11,8 +11,7 @@ Terragrunt scaffolding can generate files for you automatically using [boilerpla
 Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures an OpenTofu/Terraform module for deployment:
 
 ```bash
-
-terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--enable-shell] [--enable-hooks] [--no-include-root] [--root-file-name] [--no-dependency-prompt]
+terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-shell] [--no-hooks] [--no-include-root] [--root-file-name] [--no-dependency-prompt]
 ```
 
 Description:
@@ -70,39 +69,39 @@ Terragrunt provides security controls for potentially dangerous template feature
 
 ### Shell Functions
 
-Templates can execute shell commands using the `{{shell "command" "args"}}` syntax. This feature is **disabled by default** for security reasons.
+Templates can execute shell commands using the `{{shell "command" "args"}}` syntax. This feature is **enabled by default**.
 
-To enable shell functions:
+To disable shell functions for security reasons:
 
 ```bash
 # Via CLI flag
-terragrunt scaffold github.com/org/repo//modules/mysql --enable-shell
+terragrunt scaffold github.com/org/repo//modules/mysql --no-shell
 
 # Via catalog configuration (see below)
 ```
 
 ### Hooks
 
-Templates can define `before` and `after` hooks in their `boilerplate.yml` configuration that execute commands during scaffolding. This feature is **disabled by default** for security reasons.
+Templates can define `before` and `after` hooks in their `boilerplate.yml` configuration that execute commands during scaffolding. This feature is **enabled by default**.
 
-To enable hooks:
+To disable hooks for security reasons:
 
 ```bash
 # Via CLI flag
-terragrunt scaffold github.com/org/repo//modules/mysql --enable-hooks
+terragrunt scaffold github.com/org/repo//modules/mysql --no-hooks
 
 # Via catalog configuration (see below)
 ```
 
-**Security Warning**: Both shell functions and hooks can execute arbitrary commands on your system. Only enable these features when using trusted templates from trusted sources.
+**Security Warning**: Both shell functions and hooks can execute arbitrary commands on your system. Consider disabling these features when using untrusted templates or for enhanced security.
 
 ### Configuration Precedence
 
 When using scaffold with catalog integration, configuration follows this precedence order (highest to lowest):
 
-1. **CLI flags** - `--enable-shell` and `--enable-hooks` override all other settings
+1. **CLI flags** - `--no-shell` and `--no-hooks` override all other settings
 2. **Catalog configuration** - Settings in the `catalog` block (see [catalog documentation](/docs/features/catalog))
-3. **Default values** - Both features are disabled by default for security
+3. **Default values** - Both features are enabled by default
 
 ## Custom templates for scaffolding
 
@@ -141,15 +140,11 @@ Optional variables which can be passed to `scaffold` command:
 
 ### Convenience flags
 
-- `--enable-shell` - Enable shell functions in scaffold templates. Overrides catalog configuration.
-- `--enable-hooks` - Enable hooks in scaffold templates. Overrides catalog configuration.
+- `--no-shell` - Disable shell functions in scaffold templates. Overrides catalog configuration.
+- `--no-hooks` - Disable hooks in scaffold templates. Overrides catalog configuration.
 - `--no-include-root` - Disable inclusion of the root module in the generated `terragrunt.hcl` file (equivalent to using `--var=EnableRootInclude=false`, and will be overridden if the corresponding `var` value is set).
-<<<<<<< HEAD
 - `--root-file-name` - Set the name of the root configuration file to include in the generated `terragrunt.hcl` file (equivalent to using `--var=RootFileName=<name>`, and will be overridden if the corresponding `var` value is set).
 - `--no-dependency-prompt` - Disable dependency confirmation, but keep the interactive mode enabled (skip asking for confirmation about including dependencies defined in the boilerplate template).
-=======
-- `--root-file-name` - Set the name of the root configuration file to include in the generated `terragrunt.hcl` file (equivalent to using `--var=RootFileName=<n>`, and will be overridden if the corresponding `var` value is set).
->>>>>>> 54df8fd0 (allow overriding of boilerplate hooks and shell flags in catalog config)
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
@@ -191,14 +186,14 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 # The files external-template.txt and terragrunt.hcl will be created from that external template
 ```
 
-Scaffold with shell functions enabled (use with caution):
+Scaffold with shell functions disabled (for security):
 
 ```bash
-terragrunt scaffold github.com/org/repo//modules/mysql --enable-shell
+terragrunt scaffold github.com/org/repo//modules/mysql --no-shell
 ```
 
-Scaffold with hooks enabled (use with caution):
+Scaffold with hooks disabled (for security):
 
 ```bash
-terragrunt scaffold github.com/org/repo//modules/mysql --enable-hooks
+terragrunt scaffold github.com/org/repo//modules/mysql --no-hooks
 ```

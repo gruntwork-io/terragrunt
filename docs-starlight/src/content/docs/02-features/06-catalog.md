@@ -9,7 +9,7 @@ sidebar:
 Launch the user interface for searching and managing your module catalog.
 
 ```bash
-terragrunt catalog <repo-url> [--no-include-root] [--root-file-name] [--enable-shell] [--enable-hooks]
+terragrunt catalog <repo-url> [--no-include-root] [--root-file-name] [--no-shell] [--no-hooks]
 ```
 
 ![screenshot](../../../assets/img/screenshots/catalog-screenshot.png)
@@ -33,8 +33,8 @@ catalog {
   ]
   
   # Optional scaffold configuration - these can be overridden by CLI flags
-  enable_shell = true   # Enable shell functions in scaffold templates (default: false for security)
-  enable_hooks = false  # Enable hooks in scaffold templates (default: false for security)
+  enable_shell = false  # Disable shell functions in scaffold templates (default: true)
+  enable_hooks = false  # Disable hooks in scaffold templates (default: true)
 }
 ```
 
@@ -49,18 +49,18 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 
 The catalog configuration supports scaffold-specific settings that control the behavior when scaffolding modules:
 
-- **`enable_shell`** - Enables shell functions in boilerplate templates. When `true`, templates can execute shell commands using `{{shell "command" "args"}}` syntax.
-- **`enable_hooks`** - Enables hooks in boilerplate templates. When `true`, templates can define `before` and `after` hooks in their `boilerplate.yml` configuration.
+- **`enable_shell`** - Controls shell functions in boilerplate templates. When `false`, disables shell commands using `{{shell "command" "args"}}` syntax (enabled by default).
+- **`enable_hooks`** - Controls hooks in boilerplate templates. When `false`, disables `before` and `after` hooks in their `boilerplate.yml` configuration (enabled by default).
 
-**Security Note**: Both shell functions and hooks can execute arbitrary commands on your system. Only enable these features when using trusted templates from trusted sources.
+**Security Note**: Both shell functions and hooks can execute arbitrary commands on your system. Consider disabling these features when using untrusted templates or for enhanced security.
 
 ### Configuration Precedence
 
 Scaffold configuration follows this precedence order (highest to lowest):
 
-1. **CLI flags** - `--enable-shell` and `--enable-hooks` flags override all other settings
+1. **CLI flags** - `--no-shell` and `--no-hooks` flags override all other settings
 2. **Catalog configuration** - Settings in the `catalog` block in your `terragrunt.hcl`
-3. **Default values** - Both features are disabled by default for security
+3. **Default values** - Both features are enabled by default
 
 ## Custom templates for scaffolding
 
@@ -73,7 +73,7 @@ Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, b
 
 The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
 
-- `--enable-shell` - Enable shell functions in scaffold templates. Overrides catalog configuration.
-- `--enable-hooks` - Enable hooks in scaffold templates. Overrides catalog configuration.
+- `--no-shell` - Disable shell functions in scaffold templates. Overrides catalog configuration.
+- `--no-hooks` - Disable hooks in scaffold templates. Overrides catalog configuration.
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.

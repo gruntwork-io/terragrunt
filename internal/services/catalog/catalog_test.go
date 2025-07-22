@@ -205,34 +205,34 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name                 string
-		catalogConfig        string
-		initialShellEnabled  bool
-		initialHooksEnabled  bool
-		expectedShellEnabled bool
-		expectedHooksEnabled bool
+		name                  string
+		catalogConfig         string
+		initialShellDisabled  bool
+		initialHooksDisabled  bool
+		expectedShellDisabled bool
+		expectedHooksDisabled bool
 	}{
 		{
-			name: "enable_shell_from_catalog",
+			name: "disable_shell_from_catalog",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
-				enable_shell = true
+				enable_shell = false
 			}`,
-			initialShellEnabled:  false,
-			initialHooksEnabled:  false,
-			expectedShellEnabled: true,
-			expectedHooksEnabled: false,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: true,
+			expectedHooksDisabled: false,
 		},
 		{
-			name: "enable_hooks_from_catalog",
+			name: "disable_hooks_from_catalog",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
-				enable_hooks = true
+				enable_hooks = false
 			}`,
-			initialShellEnabled:  false,
-			initialHooksEnabled:  false,
-			expectedShellEnabled: false,
-			expectedHooksEnabled: true,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: false,
+			expectedHooksDisabled: true,
 		},
 		{
 			name: "cli_flags_take_precedence",
@@ -241,20 +241,32 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 				enable_shell = true
 				enable_hooks = true
 			}`,
-			initialShellEnabled:  true, // CLI flag already set
-			initialHooksEnabled:  false,
-			expectedShellEnabled: true, // Should stay true (CLI precedence)
-			expectedHooksEnabled: true, // Should be set from catalog
+			initialShellDisabled:  true, // CLI flag already set to disable
+			initialHooksDisabled:  false,
+			expectedShellDisabled: true,  // Should stay disabled (CLI precedence)
+			expectedHooksDisabled: false, // Should remain enabled (catalog config ignored when CLI takes precedence)
 		},
 		{
 			name: "no_scaffold_config",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
 			}`,
-			initialShellEnabled:  false,
-			initialHooksEnabled:  false,
-			expectedShellEnabled: false,
-			expectedHooksEnabled: false,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: false,
+			expectedHooksDisabled: false,
+		},
+		{
+			name: "enable_from_catalog_keeps_default",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				enable_shell = true
+				enable_hooks = true
+			}`,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: false,
+			expectedHooksDisabled: false,
 		},
 	}
 
@@ -264,8 +276,8 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 
 			opts := options.NewTerragruntOptions()
 			opts.ScaffoldRootFileName = config.RecommendedParentConfigName
-			opts.ScaffoldEnableShell = tt.initialShellEnabled
-			opts.ScaffoldEnableHooks = tt.initialHooksEnabled
+			opts.ScaffoldNoShell = tt.initialShellDisabled
+			opts.ScaffoldNoHooks = tt.initialHooksDisabled
 
 			mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 				dummyRepoDir := filepath.Join(t.TempDir(), "test-repo")
@@ -293,10 +305,10 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify scaffold configuration was applied correctly
-			assert.Equal(t, tt.expectedShellEnabled, opts.ScaffoldEnableShell,
-				"ScaffoldEnableShell should be %v", tt.expectedShellEnabled)
-			assert.Equal(t, tt.expectedHooksEnabled, opts.ScaffoldEnableHooks,
-				"ScaffoldEnableHooks should be %v", tt.expectedHooksEnabled)
+			assert.Equal(t, tt.expectedShellDisabled, opts.ScaffoldNoShell,
+				"ScaffoldNoShell should be %v", tt.expectedShellDisabled)
+			assert.Equal(t, tt.expectedHooksDisabled, opts.ScaffoldNoHooks,
+				"ScaffoldNoHooks should be %v", tt.expectedHooksDisabled)
 		})
 	}
 }

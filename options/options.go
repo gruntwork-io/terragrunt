@@ -241,10 +241,10 @@ type TerragruntOptions struct {
 	Diff bool
 	// Do not include root unit in scaffolding.
 	ScaffoldNoIncludeRoot bool
-	// Enable shell functions in scaffold templates.
-	ScaffoldEnableShell bool
-	// Enable hooks in scaffold templates.
-	ScaffoldEnableHooks bool
+	// Disable shell functions in scaffold templates.
+	ScaffoldNoShell bool
+	// Disable hooks in scaffold templates.
+	ScaffoldNoHooks bool
 	// Enable check mode, by default it's disabled.
 	Check bool
 	// Enables caching of includes during partial parsing operations.
@@ -442,8 +442,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
 		NoDependencyPrompt:         false,
-		ScaffoldEnableShell:        false,
-		ScaffoldEnableHooks:        false,
+		ScaffoldNoShell:            false,
+		ScaffoldNoHooks:            false,
 	}
 }
 

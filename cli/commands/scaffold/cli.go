@@ -18,8 +18,8 @@ import (
 const (
 	CommandName = "scaffold"
 
-	EnableShellFlagName   = "enable-shell"
-	EnableHooksFlagName   = "enable-hooks"
+	NoShellFlagName       = "no-shell"
+	NoHooksFlagName       = "no-hooks"
 	RootFileNameFlagName  = "root-file-name"
 	NoIncludeRootFlagName = "no-include-root"
 	OutputFolderFlagName  = "output-folder"
@@ -95,12 +95,18 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.ScaffoldEnableShell,
 			Usage:       "Enable shell functions in scaffold templates.",
 		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoShellFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoShellFlagName),
+			Destination: &opts.ScaffoldNoShell,
+			Usage:       "Disable shell functions in scaffold templates.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        EnableHooksFlagName,
-			EnvVars:     tgPrefix.EnvVars(EnableHooksFlagName),
-			Destination: &opts.ScaffoldEnableHooks,
-			Usage:       "Enable hooks in scaffold templates.",
+			Name:        NoHooksFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
+			Destination: &opts.ScaffoldNoHooks,
+			Usage:       "Disable hooks in scaffold templates.",
 		}),
 	}
 }

@@ -145,8 +145,8 @@ hooks:
 		disableHooks         bool
 	}{
 		{
-			name:                 "shell enabled",
-			description:          "validates shell commands execute when --enable-shell flag is used",
+			name:                 "shell enabled by default",
+			description:          "validates shell commands execute when shell is enabled by default",
 			disableShell:         false,
 			disableHooks:         true,
 			template:             shellTestTemplate,
@@ -156,7 +156,7 @@ hooks:
 		},
 		{
 			name:                 "shell disabled",
-			description:          "validates shell commands are blocked when shell execution is disabled by default",
+			description:          "validates shell commands are blocked when --no-shell flag is used",
 			disableShell:         true,
 			disableHooks:         true,
 			template:             shellTestTemplate,
@@ -165,8 +165,8 @@ hooks:
 			expectedNotInContent: []string{"SHELL_SUCCESS"},
 		},
 		{
-			name:                 "hooks enabled",
-			description:          "validates boilerplate hooks execute when --enable-hooks flag is used",
+			name:                 "hooks enabled by default",
+			description:          "validates boilerplate hooks execute when hooks are enabled by default",
 			disableShell:         true,
 			disableHooks:         false,
 			template:             hooksTestTemplate,
@@ -176,7 +176,7 @@ hooks:
 		},
 		{
 			name:                 "hooks disabled",
-			description:          "validates boilerplate hooks are skipped when hooks are disabled by default",
+			description:          "validates boilerplate hooks are skipped when --no-hooks flag is used",
 			disableShell:         true,
 			disableHooks:         true,
 			template:             hooksTestTemplate,
