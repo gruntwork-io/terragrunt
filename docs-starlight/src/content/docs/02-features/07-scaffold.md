@@ -103,6 +103,38 @@ When using scaffold with catalog integration, configuration follows this precede
 2. **Catalog configuration** - Settings in the `catalog` block (see [catalog documentation](/docs/features/catalog))
 3. **Default values** - Both features are enabled by default
 
+### Examples
+
+Using catalog configuration to disable shell functions:
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  disable_shell = true  # Disables shell functions for all scaffolding
+}
+```
+
+```bash
+# Shell functions will be disabled due to catalog config
+terragrunt scaffold github.com/gruntwork-io/terraform-aws-utilities//modules/lambda
+```
+
+Overriding catalog configuration with CLI flags:
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  disable_shell = false  # Shell functions enabled in catalog
+}
+```
+
+```bash
+# CLI flag overrides catalog config - shell functions will be disabled
+terragrunt scaffold github.com/gruntwork-io/terraform-aws-utilities//modules/lambda --no-shell
+```
+
 ## Custom templates for scaffolding
 
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via three mechanisms - listed in order of priority:

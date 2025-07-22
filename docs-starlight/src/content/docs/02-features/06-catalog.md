@@ -33,8 +33,8 @@ catalog {
   ]
   
   # Optional scaffold configuration - these can be overridden by CLI flags
-  enable_shell = false  # Disable shell functions in scaffold templates (default: true)
-  enable_hooks = false  # Disable hooks in scaffold templates (default: true)
+  disable_shell = true   # Disable shell functions in scaffold templates (default: false)
+  disable_hooks = true   # Disable hooks in scaffold templates (default: false)
 }
 ```
 
@@ -49,8 +49,8 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 
 The catalog configuration supports scaffold-specific settings that control the behavior when scaffolding modules:
 
-- **`enable_shell`** - Controls shell functions in boilerplate templates. When `false`, disables shell commands using `{{shell "command" "args"}}` syntax (enabled by default).
-- **`enable_hooks`** - Controls hooks in boilerplate templates. When `false`, disables `before` and `after` hooks in their `boilerplate.yml` configuration (enabled by default).
+- **`disable_shell`** - Controls shell functions in boilerplate templates. When `true`, disables shell commands using `{{shell "command" "args"}}` syntax (enabled by default).
+- **`disable_hooks`** - Controls hooks in boilerplate templates. When `true`, disables `before` and `after` hooks in their `boilerplate.yml` configuration (enabled by default).
 
 **Security Note**: Both shell functions and hooks can execute arbitrary commands on your system. Consider disabling these features when using untrusted templates or for enhanced security.
 
@@ -61,6 +61,39 @@ Scaffold configuration follows this precedence order (highest to lowest):
 1. **CLI flags** - `--no-shell` and `--no-hooks` flags override all other settings
 2. **Catalog configuration** - Settings in the `catalog` block in your `terragrunt.hcl`
 3. **Default values** - Both features are enabled by default
+
+### Examples
+
+Disable shell functions for all scaffolding from this catalog:
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  disable_shell = true  # Disables shell functions for security
+}
+```
+
+Disable both shell and hooks:
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  disable_shell = true
+  disable_hooks = true
+}
+```
+
+Keep default behavior (both enabled):
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  # No disable_shell or disable_hooks = features remain enabled
+}
+```
 
 ## Custom templates for scaffolding
 

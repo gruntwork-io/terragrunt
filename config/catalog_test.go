@@ -132,40 +132,40 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	}{
 		{
 			configPath: filepath.Join(basePath, "terragrunt.hcl"),
-			name:       "enable_shell_true",
+			name:       "disable_shell_true",
 			configContent: `catalog {
 				urls = ["github.com/test/repo"]
-				enable_shell = true
+				disable_shell = true
 			}`,
 			expectedConfig: &config.CatalogConfig{
-				URLs:        []string{"github.com/test/repo"},
-				EnableShell: &[]bool{true}[0],
+				URLs:         []string{"github.com/test/repo"},
+				DisableShell: &[]bool{true}[0],
 			},
 		},
 		{
 			configPath: filepath.Join(basePath, "terragrunt.hcl"),
-			name:       "enable_hooks_false",
+			name:       "disable_hooks_false",
 			configContent: `catalog {
 				urls = ["github.com/test/repo"]
-				enable_hooks = false
+				disable_hooks = false
 			}`,
 			expectedConfig: &config.CatalogConfig{
-				URLs:        []string{"github.com/test/repo"},
-				EnableHooks: &[]bool{false}[0],
+				URLs:         []string{"github.com/test/repo"},
+				DisableHooks: &[]bool{false}[0],
 			},
 		},
 		{
 			configPath: filepath.Join(basePath, "terragrunt.hcl"),
-			name:       "both_enabled",
+			name:       "both_disabled",
 			configContent: `catalog {
 				urls = ["github.com/test/repo"]
-				enable_shell = true
-				enable_hooks = true
+				disable_shell = true
+				disable_hooks = true
 			}`,
 			expectedConfig: &config.CatalogConfig{
-				URLs:        []string{"github.com/test/repo"},
-				EnableShell: &[]bool{true}[0],
-				EnableHooks: &[]bool{true}[0],
+				URLs:         []string{"github.com/test/repo"},
+				DisableShell: &[]bool{true}[0],
+				DisableHooks: &[]bool{true}[0],
 			},
 		},
 	}

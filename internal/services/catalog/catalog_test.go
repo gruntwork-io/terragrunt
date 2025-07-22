@@ -216,7 +216,7 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 			name: "disable_shell_from_catalog",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
-				enable_shell = false
+				disable_shell = true
 			}`,
 			initialShellDisabled:  false,
 			initialHooksDisabled:  false,
@@ -227,7 +227,7 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 			name: "disable_hooks_from_catalog",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
-				enable_hooks = false
+				disable_hooks = true
 			}`,
 			initialShellDisabled:  false,
 			initialHooksDisabled:  false,
@@ -238,8 +238,8 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 			name: "cli_flags_take_precedence",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
-				enable_shell = true
-				enable_hooks = true
+				disable_shell = false
+				disable_hooks = false
 			}`,
 			initialShellDisabled:  true, // CLI flag already set to disable
 			initialHooksDisabled:  false,
@@ -257,11 +257,11 @@ func TestScaffoldConfigurationApplied(t *testing.T) {
 			expectedHooksDisabled: false,
 		},
 		{
-			name: "enable_from_catalog_keeps_default",
+			name: "keep_defaults_from_catalog",
 			catalogConfig: `catalog {
 				urls = ["github.com/gruntwork-io/repo1"]
-				enable_shell = true
-				enable_hooks = true
+				disable_shell = false
+				disable_hooks = false
 			}`,
 			initialShellDisabled:  false,
 			initialHooksDisabled:  false,
