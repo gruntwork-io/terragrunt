@@ -391,7 +391,7 @@ terraform {
 
 What most folks would really prefer here is to have the state for the `ec2` unit stored in a different, but predictable, location relative to the `vpc` unit.
 
-The pattern that we've found to be most effective is to store state so that the location in the remote backend, like S3 mirrors the location of the unit on the filesystem.
+The pattern that we've found to be most effective is to store state so that the location in the remote backend (like S3) mirrors the location of the unit on the filesystem.
 
 So this filesystem layout:
 
