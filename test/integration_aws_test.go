@@ -645,9 +645,11 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	policyInBucket, err := awshelper.UnmarshalPolicy(*policy.Policy)
 	require.NoError(t, err)
 	enforceSSE := false
-	for _, statement := range policyInBucket.Statement {
-		if statement.Sid == s3backend.SidEnforcedTLSPolicy {
-			enforceSSE = true
+	if policyInBucket.Statement != nil {
+		for _, statement := range policyInBucket.Statement {
+			if statement.Sid == s3backend.SidEnforcedTLSPolicy {
+				enforceSSE = true
+			}
 		}
 	}
 	assert.True(t, enforceSSE)
