@@ -4239,7 +4239,13 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	expected := 1
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 }
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
@@ -4255,32 +4261,36 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	expected := getExpectedVersionCommandCount(t)
+	expected := 2
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
 
 	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
 
-// getExpectedVersionCommandCount returns the expected number of version commands to be invoked.
+// expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
 //
-// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled,
+// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled with OpenTofu,
 // as we need to check if the provider cache directory should be enabled.
-func getExpectedVersionCommandCount(t *testing.T) int {
+func expectExtraVersionCommandCall(t *testing.T) bool {
 	t.Helper()
 
 	if helpers.IsTerraform() {
-		return 2
+		return false
 	}
 
 	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
-		return 3
+		return true
 	}
 
 	if os.Getenv("TG_EXPERIMENT") == "auto-provider-cache-dir" {
-		return 3
+		return true
 	}
 
-	return 2
+	return false
 }
 
 func TestMixedStackConfigIgnored(t *testing.T) {
