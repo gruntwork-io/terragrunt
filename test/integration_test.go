@@ -4261,6 +4261,10 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
 
+// getExpectedVersionCommandCount returns the expected number of version commands to be invoked.
+//
+// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled,
+// as we need to check if the provider cache directory should be enabled.
 func getExpectedVersionCommandCount(t *testing.T) int {
 	t.Helper()
 
