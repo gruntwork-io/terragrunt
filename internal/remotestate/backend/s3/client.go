@@ -1437,9 +1437,31 @@ func (client *Client) DeleteTable(ctx context.Context, l log.Logger, tableName s
 	input := &dynamodb.DeleteTableInput{TableName: aws.String(tableName)}
 
 	// It is not always able to delete a table the first attempt, error: `StatusCode: 400, Attempt to change a resource which is still in use: Table tags are being updated: terragrunt_test_*`
-	_, err := client.dynamoClient.DeleteTable(ctx, input)
+	// Add retry logic to handle this race condition
+	const (
+		maxRetries = 5
+		delay      = 2 * time.Second
+	)
 
-	return err
+	for i := range maxRetries {
+		_, err := client.dynamoClient.DeleteTable(ctx, input)
+		if err == nil {
+			return nil
+		}
+
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
+			if i < maxRetries-1 {
+				l.Debugf("Table %s is still being updated (likely tags). Will retry deletion after %s (attempt %d/%d)", tableName, delay, i+1, maxRetries)
+				time.Sleep(delay)
+				continue
+			}
+		}
+
+		return err
+	}
+
+	return errors.
+		Errorf("Failed to delete table %s after %d attempts", tableName, maxRetries)
 }
 
 // Return true if the given error is the error message returned by AWS when the resource already exists and is being
