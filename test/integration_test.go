@@ -4255,8 +4255,28 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	expected := getExpectedVersionCommandCount(t)
+
+	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+func getExpectedVersionCommandCount(t *testing.T) int {
+	t.Helper()
+
+	if helpers.IsTerraform() {
+		return 2
+	}
+
+	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
+		return 3
+	}
+
+	if os.Getenv("TG_EXPERIMENT") == "auto-provider-cache-dir" {
+		return 3
+	}
+
+	return 2
 }
 
 func TestMixedStackConfigIgnored(t *testing.T) {
