@@ -132,26 +132,26 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	}{
 		{
 			configPath: filepath.Join(basePath, "terragrunt.hcl"),
-			name:       "disable_shell_true",
+			name:       "no_shell_true",
 			configContent: `catalog {
 				urls = ["github.com/test/repo"]
-				disable_shell = true
+				no_shell = true
 			}`,
 			expectedConfig: &config.CatalogConfig{
-				URLs:         []string{"github.com/test/repo"},
-				DisableShell: &[]bool{true}[0],
+				URLs:    []string{"github.com/test/repo"},
+				NoShell: &[]bool{true}[0],
 			},
 		},
 		{
 			configPath: filepath.Join(basePath, "terragrunt.hcl"),
-			name:       "disable_hooks_false",
+			name:       "no_hooks_false",
 			configContent: `catalog {
 				urls = ["github.com/test/repo"]
-				disable_hooks = false
+				no_hooks = false
 			}`,
 			expectedConfig: &config.CatalogConfig{
-				URLs:         []string{"github.com/test/repo"},
-				DisableHooks: &[]bool{false}[0],
+				URLs:    []string{"github.com/test/repo"},
+				NoHooks: &[]bool{false}[0],
 			},
 		},
 		{
@@ -159,13 +159,13 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			name:       "both_disabled",
 			configContent: `catalog {
 				urls = ["github.com/test/repo"]
-				disable_shell = true
-				disable_hooks = true
+				no_shell = true
+				no_hooks = true
 			}`,
 			expectedConfig: &config.CatalogConfig{
-				URLs:         []string{"github.com/test/repo"},
-				DisableShell: &[]bool{true}[0],
-				DisableHooks: &[]bool{true}[0],
+				URLs:    []string{"github.com/test/repo"},
+				NoShell: &[]bool{true}[0],
+				NoHooks: &[]bool{true}[0],
 			},
 		},
 	}

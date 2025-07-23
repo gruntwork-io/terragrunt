@@ -40,10 +40,10 @@ var (
 
 // CatalogConfig represents the configuration for the Terragrunt catalog.
 type CatalogConfig struct {
-	// DisableShell disables shell functions in scaffold templates (CLI flags take precedence)
-	DisableShell *bool `hcl:"disable_shell,optional" cty:"disable_shell"`
-	// DisableHooks disables hooks in scaffold templates (CLI flags take precedence)
-	DisableHooks *bool `hcl:"disable_hooks,optional" cty:"disable_hooks"`
+	// NoShell disables shell functions in scaffold templates (CLI flags take precedence)
+	NoShell *bool `hcl:"no_shell,optional" cty:"no_shell"`
+	// NoHooks disables hooks in scaffold templates (CLI flags take precedence)
+	NoHooks *bool `hcl:"no_hooks,optional" cty:"no_hooks"`
 	// DefaultTemplate is the default template URL for scaffolding
 	DefaultTemplate string `hcl:"default_template,optional" cty:"default_template"`
 	// URLs is a list of repository URLs to search for modules
@@ -51,16 +51,16 @@ type CatalogConfig struct {
 }
 
 func (cfg *CatalogConfig) String() string {
-	var disableShell, disableHooks interface{} = nil, nil
-	if cfg.DisableShell != nil {
-		disableShell = *cfg.DisableShell
+	var noShell, noHooks interface{} = nil, nil
+	if cfg.NoShell != nil {
+		noShell = *cfg.NoShell
 	}
 
-	if cfg.DisableHooks != nil {
-		disableHooks = *cfg.DisableHooks
+	if cfg.NoHooks != nil {
+		noHooks = *cfg.NoHooks
 	}
 
-	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, DisableShell = %v, DisableHooks = %v}", cfg.URLs, cfg.DefaultTemplate, disableShell, disableHooks)
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}", cfg.URLs, cfg.DefaultTemplate, noShell, noHooks)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {

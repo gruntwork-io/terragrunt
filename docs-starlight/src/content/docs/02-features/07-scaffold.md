@@ -93,11 +93,11 @@ terragrunt scaffold github.com/org/repo//modules/mysql --no-hooks
 # Via catalog configuration (see below)
 ```
 
-**Security Warning**: Both shell functions and hooks can execute arbitrary commands on your system. Consider disabling these features when using untrusted templates or for enhanced security.
+**Security Note**: Both shell functions and hooks can execute arbitrary commands on your system. Consider disabling these features for enhanced security. Do not scaffold templates you do not trust.
 
 ### Configuration Precedence
 
-When using scaffold with catalog integration, configuration follows this precedence order (highest to lowest):
+When using scaffold via the catalog integration, configuration follows this precedence order (highest to lowest):
 
 1. **CLI flags** - `--no-shell` and `--no-hooks` override all other settings
 2. **Catalog configuration** - Settings in the `catalog` block (see [catalog documentation](/docs/features/catalog))
@@ -111,7 +111,7 @@ Using catalog configuration to disable shell functions:
 # terragrunt.hcl
 catalog {
   urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
-  disable_shell = true  # Disables shell functions for all scaffolding
+  no_shell = true  # Disables shell functions for all scaffolding
 }
 ```
 
@@ -126,7 +126,7 @@ Overriding catalog configuration with CLI flags:
 # terragrunt.hcl
 catalog {
   urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
-  disable_shell = false  # Shell functions enabled in catalog
+  no_shell = false  # Shell functions enabled in catalog
 }
 ```
 

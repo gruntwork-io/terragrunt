@@ -106,12 +106,12 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 			repoURLs = catalogCfg.URLs
 
 			// Apply catalog scaffold config (CLI flags take precedence)
-			if !s.opts.ScaffoldNoShell && catalogCfg.DisableShell != nil {
-				s.opts.ScaffoldNoShell = *catalogCfg.DisableShell
+			if !s.opts.ScaffoldNoShell && catalogCfg.NoShell != nil {
+				s.opts.ScaffoldNoShell = *catalogCfg.NoShell
 			}
 
-			if !s.opts.ScaffoldNoHooks && catalogCfg.DisableHooks != nil {
-				s.opts.ScaffoldNoHooks = *catalogCfg.DisableHooks
+			if !s.opts.ScaffoldNoHooks && catalogCfg.NoHooks != nil {
+				s.opts.ScaffoldNoHooks = *catalogCfg.NoHooks
 			}
 		} else {
 			return errors.Errorf("no catalog URLs provided")
