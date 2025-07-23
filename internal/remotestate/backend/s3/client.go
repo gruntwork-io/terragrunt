@@ -776,13 +776,16 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		}
 	}
 
-	// Safely iterate over statements only if they exist
-	if policyInBucket.Statement != nil {
-		for _, statement := range policyInBucket.Statement {
-			if statement.Sid == SidRootPolicy {
-				l.Debugf("Policy for RootAccess already exists for bucket %s", bucket)
-				return nil
-			}
+	// Ensure Statement is never nil to avoid nil pointer dereference
+	if policyInBucket.Statement == nil {
+		policyInBucket.Statement = []awshelper.Statement{}
+	}
+
+	// Iterate over statements to check if root policy already exists
+	for _, statement := range policyInBucket.Statement {
+		if statement.Sid == SidRootPolicy {
+			l.Debugf("Policy for RootAccess already exists for bucket %s", bucket)
+			return nil
 		}
 	}
 
@@ -807,9 +810,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 	}
 
 	// Append the root s3 policy to the existing policy in the bucket
-	if policyInBucket.Statement != nil {
-		rootS3Policy.Statement = append(rootS3Policy.Statement, policyInBucket.Statement...)
-	}
+	rootS3Policy.Statement = append(rootS3Policy.Statement, policyInBucket.Statement...)
 
 	policy, err := awshelper.MarshalPolicy(rootS3Policy)
 	if err != nil {
@@ -848,8 +849,10 @@ func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(ctx context.Context, l l
 		if err != nil {
 			return errors.Errorf("error unmarshalling policy for bucket %s: %w", bucket, err)
 		}
-	} else {
-		// Initialize with empty statement slice to avoid nil pointer dereference
+	}
+
+	// Ensure Statement is never nil to avoid nil pointer dereference
+	if policyInBucket.Statement == nil {
 		policyInBucket.Statement = []awshelper.Statement{}
 	}
 
