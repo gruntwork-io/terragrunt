@@ -221,7 +221,6 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 		}
 
 		t.Logf("Error checking if S3 bucket %s exists: %v", bucketName, err)
-		// Continue with deletion attempt in case it's a different error
 	}
 
 	cleanS3Bucket(t, client, bucketName)
