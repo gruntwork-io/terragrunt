@@ -1455,6 +1455,7 @@ func (client *Client) DeleteTable(ctx context.Context, l log.Logger, tableName s
 			if i < maxRetries-1 {
 				l.Debugf("Table %s is still being updated (likely tags). Will retry deletion after %s (attempt %d/%d)", tableName, delay, i+1, maxRetries)
 				time.Sleep(delay)
+
 				continue
 			}
 		}
@@ -1717,6 +1718,11 @@ func (client *Client) EnableSSEForS3BucketWide(ctx context.Context, l log.Logger
 		},
 	}
 
+	// If using KMS encryption and a specific KMS key ID is configured, set it
+	if algorithm == string(types.ServerSideEncryptionAwsKms) && client.BucketSSEKMSKeyID != "" {
+		input.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID = aws.String(client.BucketSSEKMSKeyID)
+	}
+
 	_, err = client.s3Client.PutBucketEncryption(ctx, input)
 	if err != nil {
 		return errors.New(err)
@@ -1746,6 +1752,13 @@ func (client *Client) checkIfSSEForS3MatchesConfig(ctx context.Context, bucketNa
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
 			if string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm) == expectedAlgorithm {
+				if expectedAlgorithm == string(types.ServerSideEncryptionAwsKms) && client.BucketSSEKMSKeyID != "" {
+					if rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID == nil ||
+						aws.ToString(rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID) != client.BucketSSEKMSKeyID {
+						return false, nil
+					}
+				}
+
 				return true, nil
 			}
 		}
