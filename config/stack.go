@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -797,8 +798,19 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		},
 	})
 
-	for key, val := range values.AsValueMap() {
-		body.SetAttributeValue(key, val)
+	// Sort keys for deterministic output
+	valueMap := values.AsValueMap()
+
+	keys := make([]string, 0, len(valueMap))
+	for key := range valueMap {
+		keys = append(keys, key)
+	}
+
+	// Sort keys alphabetically
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		body.SetAttributeValue(key, valueMap[key])
 	}
 
 	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
