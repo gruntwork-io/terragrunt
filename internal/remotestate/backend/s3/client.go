@@ -1750,18 +1750,31 @@ func (client *Client) checkIfSSEForS3MatchesConfig(ctx context.Context, bucketNa
 	expectedAlgorithm := client.FetchEncryptionAlgorithm()
 
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
-		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm) == expectedAlgorithm {
-				if expectedAlgorithm == string(types.ServerSideEncryptionAwsKms) && client.BucketSSEKMSKeyID != "" {
-					if rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID == nil ||
-						aws.ToString(rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID) != client.BucketSSEKMSKeyID {
-						return false, nil
-					}
-				}
-
-				return true, nil
-			}
+		if rule.ApplyServerSideEncryptionByDefault == nil {
+			continue
 		}
+
+		if string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm) != expectedAlgorithm {
+			continue
+		}
+
+		if expectedAlgorithm != string(types.ServerSideEncryptionAwsKms) {
+			return true, nil
+		}
+
+		if client.BucketSSEKMSKeyID == "" {
+			return true, nil
+		}
+
+		if rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID == nil {
+			return false, nil
+		}
+
+		if aws.ToString(rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID) != client.BucketSSEKMSKeyID {
+			return false, nil
+		}
+
+		return true, nil
 	}
 
 	return false, nil
