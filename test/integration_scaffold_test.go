@@ -160,7 +160,10 @@ func TestScaffoldNoDependencyPrompt(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := t.TempDir()
+
 	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
 	localBoilerplateModuleDir := fmt.Sprintf("%s/%s//.", workingDir, testScaffoldNoDependencyPrompt)
 
 	outputFolder := tmpEnvPath + "/foo/bar"
