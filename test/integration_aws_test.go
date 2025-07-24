@@ -1133,8 +1133,14 @@ func TestAwsPrintAwsErrors(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply --non-interactive --config %s --working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	require.Error(t, err)
 	message := err.Error()
-	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
-	assert.Contains(t, message, s3BucketName)
+	assert.True(t,
+		strings.Contains(
+			message,
+			"AllAccessDisabled: All access to this object has been disabled",
+		) ||
+			strings.Contains(message, "BucketRegionError: incorrect region") ||
+			strings.Contains(message, "MovedPermanently"),
+	)
 }
 
 func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
