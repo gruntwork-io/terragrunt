@@ -1760,7 +1760,7 @@ func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, 
 		require.NotNil(t, res.Status)
 		assert.Equal(t, s3types.BucketVersioningStatusEnabled, res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
 	} else {
-		require.Nil(t, res.Status)
+		require.Empty(t, res.Status, "Versioning should be disabled for the remote state S3 bucket %s", bucketName)
 	}
 }
 
