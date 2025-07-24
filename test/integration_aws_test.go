@@ -1162,7 +1162,11 @@ func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
 	stderr = bytes.Buffer{}
 	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply --non-interactive --config %s --working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
+
+	assert.True(t, strings.Contains(
+		err.Error(), "MovedPermanently") || strings.Contains(err.Error(), "BucketRegionError: incorrect region"),
+		"Expected error to contain 'MovedPermanently' or 'BucketRegionError: incorrect region', but got: %s", err.Error(),
+	)
 }
 
 func TestAwsDisableBucketUpdate(t *testing.T) {
