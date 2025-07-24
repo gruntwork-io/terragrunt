@@ -1912,7 +1912,15 @@ func createS3Bucket(t *testing.T, awsRegion, bucketName string) {
 	t.Logf("Creating test s3 bucket %s", bucketName)
 
 	ctx := t.Context()
-	_, err := client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucketName)})
+
+	input := &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+		CreateBucketConfiguration: &s3types.CreateBucketConfiguration{
+			LocationConstraint: s3types.BucketLocationConstraint(awsRegion),
+		},
+	}
+
+	_, err := client.CreateBucket(ctx, input)
 	require.NoError(t, err, "Failed to create S3 bucket")
 }
 

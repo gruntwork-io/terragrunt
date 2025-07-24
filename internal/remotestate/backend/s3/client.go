@@ -1436,8 +1436,10 @@ func (client *Client) DeleteTable(ctx context.Context, l log.Logger, tableName s
 
 	input := &dynamodb.DeleteTableInput{TableName: aws.String(tableName)}
 
-	// It is not always able to delete a table the first attempt, error: `StatusCode: 400, Attempt to change a resource which is still in use: Table tags are being updated: terragrunt_test_*`
-	// Add retry logic to handle this race condition
+	// It is not always able to delete a table the first attempt, as we can get a 400 from tags still being updated
+	// while the table is being deleted.
+	//
+	// We retry to handle this race condition.
 	const (
 		maxRetries = 5
 		delay      = 2 * time.Second
@@ -1739,9 +1741,11 @@ func (client *Client) checkIfSSEForS3MatchesConfig(ctx context.Context, bucketNa
 		return false, errors.New(err)
 	}
 
+	expectedAlgorithm := client.FetchEncryptionAlgorithm()
+
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm) == string(types.ServerSideEncryptionAes256) {
+			if string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm) == expectedAlgorithm {
 				return true, nil
 			}
 		}
