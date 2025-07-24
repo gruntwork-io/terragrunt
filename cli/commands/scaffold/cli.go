@@ -90,12 +90,6 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "Do not prompt for confirmation to include dependencies.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        EnableShellFlagName,
-			EnvVars:     tgPrefix.EnvVars(EnableShellFlagName),
-			Destination: &opts.ScaffoldEnableShell,
-			Usage:       "Enable shell functions in scaffold templates.",
-		}),
-		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoShellFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoShellFlagName),
 			Destination: &opts.ScaffoldNoShell,
