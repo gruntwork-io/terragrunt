@@ -280,8 +280,35 @@ func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig
 }
 
 // AssumeIamRole assumes an IAM role and returns the credentials
-func AssumeIamRole(ctx context.Context, iamRoleOpts options.IAMRoleOptions, externalID string) (*types.Credentials, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+func AssumeIamRole(
+	ctx context.Context,
+	iamRoleOpts options.IAMRoleOptions,
+	externalID string,
+	opts *options.TerragruntOptions,
+) (*types.Credentials, error) {
+	// Try to get region from TerragruntOptions environment variables first
+	var region string
+	if opts != nil {
+		region = opts.Env["AWS_REGION"]
+		if region == "" {
+			region = opts.Env["AWS_DEFAULT_REGION"]
+		}
+	}
+
+	// If not found in TerragruntOptions, try system environment variables
+	if region == "" {
+		region = os.Getenv("AWS_REGION")
+		if region == "" {
+			region = os.Getenv("AWS_DEFAULT_REGION")
+		}
+	}
+
+	// If no region found in environment, fall back to us-east-1
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		return nil, errors.Errorf("Error loading AWS config: %w", err)
 	}
