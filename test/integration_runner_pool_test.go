@@ -119,12 +119,10 @@ func TestRunnerPoolFailFastDestroy(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
 
-	// --experiment runner-pool
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive  --fail-fast --working-dir "+testPath+"  -- apply")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
 
-	///--experiment runner-pool
-	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive  --fail-fast --working-dir "+testPath+"  -- destroy")
+	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- destroy")
 	// create fail.txt in unit-a to trigger a failure
 	helpers.CreateFile(t, testPath, "unit-a", "fail.txt")
 

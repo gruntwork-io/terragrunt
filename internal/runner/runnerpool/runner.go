@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -35,14 +34,13 @@ type Runner struct {
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
+func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	q, queueErr := queue.NewQueue(discovered)
 	if queueErr != nil {
 		return nil, queueErr
 	}
 
-	unitsMap := make(common.UnitsMap, len(discovered))
-	orderedUnits := make(common.Units, 0, len(discovered))
+	terragruntConfigPaths := make([]string, 0, len(discovered))
 
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
@@ -53,48 +51,23 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 		queue: q,
 	}
 
+	// extract paths from discovered configs
 	for _, cfg := range discovered {
 		configPath := config.GetDefaultConfigPath(cfg.Path)
-
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
 			l.Warnf("Skipping unit at %s due to parse error", cfg.Path)
 			continue
 		}
-
-		unitLogger, unitOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
-
-		if err != nil {
-			l.Warnf("Skipping unit at %s due to error cloning options: %s", cfg.Path, err)
-			continue // skip on error
-		}
-
-		mod := &common.Unit{
-			TerragruntOptions: unitOpts,
-			Logger:            unitLogger,
-			Path:              cfg.Path,
-			Config:            *cfg.Parsed,
-		}
-
-		orderedUnits = append(orderedUnits, mod)
-		unitsMap[cfg.Path] = mod
+		terragruntConfigPaths = append(terragruntConfigPaths, configPath)
 	}
 
-	// cross-link dependencies units based on the discovered configurations
-	for _, cfg := range discovered {
-		unit := unitsMap[cfg.Path]
-
-		for _, dependency := range cfg.Dependencies {
-			path := dependency.Path
-			if depUnit, ok := unitsMap[path]; ok {
-				unit.Dependencies = append(unit.Dependencies, depUnit)
-			} else {
-				return nil, errors.Errorf("Dependency %s for unit %s not found in discovered units", path, unit.Path)
-			}
-		}
+	unitResolver := common.NewUnitResolver(runner.Stack)
+	units, errs := unitResolver.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
+	if errs != nil {
+		return nil, errs
 	}
-
-	stack.Units = orderedUnits
+	runner.Stack.Units = units
 
 	return runner.WithOptions(opts...), nil
 }
