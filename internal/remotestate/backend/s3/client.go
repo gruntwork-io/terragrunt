@@ -844,7 +844,7 @@ func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(ctx context.Context, l l
 	}
 
 	var policyInBucket awshelper.Policy
-	if policyOutput.Policy != nil {
+	if policyOutput != nil && policyOutput.Policy != nil {
 		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
 		if err != nil {
 			return errors.Errorf("error unmarshalling policy for bucket %s: %w", bucket, err)
