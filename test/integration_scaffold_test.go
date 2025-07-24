@@ -19,6 +19,7 @@ const (
 	testScaffoldLocalModulePath    = "fixtures/scaffold/scaffold-module"
 	testScaffoldWithRootHCL        = "fixtures/scaffold/root-hcl"
 	testScaffold3rdPartyModulePath = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
+	testScaffoldNoDependencyPrompt = "fixtures/scaffold/dependency-prompt-template"
 )
 
 func TestScaffoldModule(t *testing.T) {
@@ -153,4 +154,20 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 	content, err := util.ReadFileAsString(filepath.Join(testPath, "unit", "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, `path = find_in_parent_folders("root.hcl")`)
+}
+
+func TestScaffoldNoDependencyPrompt(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	workingDir, err := os.Getwd()
+	localBoilerplateModuleDir := fmt.Sprintf("%s/%s//.", workingDir, testScaffoldNoDependencyPrompt)
+
+	outputFolder := tmpEnvPath + "/foo/bar"
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s --no-dependency-prompt %s --output-folder %s", tmpEnvPath, localBoilerplateModuleDir, outputFolder))
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "This boilerplate template has a dependency!")
+	assert.FileExists(t, outputFolder+"/base/test.hcl")
+	assert.FileExists(t, outputFolder+"/leaf/terragrunt.hcl")
+	assert.Contains(t, stderr, "Scaffolding completed")
 }
