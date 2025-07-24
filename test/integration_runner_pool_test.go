@@ -111,3 +111,21 @@ func TestRunnerPoolFailFast(t *testing.T) {
 	assert.Contains(t, stderr, "unit-b did not run due to early exit")
 	assert.Contains(t, stderr, "unit-c did not run due to early exit")
 }
+
+func TestRunnerPoolFailFastDestroy(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+	require.NoError(t, err)
+
+	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- destroy")
+	// create fail.txt in unit-a to trigger a failure
+	helpers.CreateFile(t, testPath, "unit-a", "fail.txt")
+
+	assert.Contains(t, stderr, "unit-b did not run due to early exit")
+	assert.Contains(t, stderr, "unit-c did not run due to early exit")
+}

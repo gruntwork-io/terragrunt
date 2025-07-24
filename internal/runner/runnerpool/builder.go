@@ -28,7 +28,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		return nil, err
 	}
 
-	runner, err := NewRunnerPoolStack(l, terragruntOptions, discovered, opts...)
+	runner, err := NewRunnerPoolStack(ctx, l, terragruntOptions, discovered, opts...)
 	if err != nil {
 		return nil, err
 	}
