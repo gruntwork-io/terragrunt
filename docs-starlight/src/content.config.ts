@@ -1,7 +1,7 @@
 import { defineCollection, z } from 'astro:content';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
-import { glob } from 'astro/loaders';
+import { glob, file } from 'astro/loaders';
 
 const docs = defineCollection({
 	loader: docsLoader(), schema: docsSchema(
@@ -59,4 +59,15 @@ const flags = defineCollection({
 	}),
 });
 
-export const collections = { docs, commands, flags };
+const brands = defineCollection({
+	loader: file("src/data/brands/brands.json"),
+	schema: ({ image }) => z.object({
+		id: z.string(),
+		name: z.string(),
+		logo: image(),
+		alt: z.string(),
+		order: z.number().optional(),
+	}),
+});
+
+export const collections = { docs, commands, flags, brands };
