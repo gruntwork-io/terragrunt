@@ -1,0 +1,53 @@
+name: Gopls Quickfix Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  gopls-quickfix:
+    name: Gopls Quickfix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISE_PROFILE: cicd
+
+      - name: Find Go files
+        id: gofiles
+        run: |
+          find . -type f -name '*.go' -not -path './vendor/*' > gofiles.txt
+
+      - name: Install parallel
+        run: sudo apt-get update && sudo apt-get install -y parallel
+
+      - name: Run gopls quickfixes
+        run: |
+          set -e
+          mise use -g go:golang.org/x/tools/gopls@v0.18.1
+          gopls version
+          > fixed_files.txt
+          > gopls_failures.txt
+          while IFS= read -r file; do
+            echo "START: $file"
+            if gopls codeaction -kind=quickfix -write "$file"; then
+              echo "SUCCESS: $file"
+            else
+              echo "FAILED: $file" | tee -a gopls_failures.txt
+              echo "$file" >> fixed_files.txt
+            fi
+            echo "END: $file"
+          done < gofiles.txt
+          echo "\n==== gopls failures (if any) ===="
+          cat gopls_failures.txt || true
