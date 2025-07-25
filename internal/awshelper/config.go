@@ -229,9 +229,18 @@ func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig,
 	return s3.NewFromConfig(cfg), nil
 }
 
-// CreateAwsConfig returns an AWS config object for the given config region (required), profile name (optional), and IAM role to assume
-// (optional), ensuring that the credentials are available.
-func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig, opts *options.TerragruntOptions) (aws.Config, error) {
+// CreateAwsConfig returns an AWS config object for the given:
+//
+// - config region (optional)
+// - profile name (optional)
+// - IAM role to assume (optional)
+// - credentials file (optional)
+func CreateAwsConfig(
+	ctx context.Context,
+	l log.Logger,
+	awsCfg *AwsSessionConfig,
+	opts *options.TerragruntOptions,
+) (aws.Config, error) {
 	var cfg aws.Config
 
 	var err error
