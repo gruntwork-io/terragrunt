@@ -1242,6 +1242,8 @@ The `dependency` block supports the following arguments:
   available from the target module, or if `skip_outputs` is `true`. However, it's generally recommended not to set
   `skip_outputs` if using `mock_outputs`, because `skip_outputs` means "use mocks all the time if they are set" whereas
   `mock_outputs` means "use mocks only if real outputs are not available." Use `locals` instead when `skip_outputs = true`.
+  The value of `mock_outputs_merge_strategy_with_state` defines how mocks are combined (or not) with outputs from an
+  existing state.
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.
@@ -1251,7 +1253,7 @@ The `dependency` block supports the following arguments:
 - `mock_outputs_merge_strategy_with_state` (attribute): Specifies how any existing state should be merged into the
   mocks. Valid values are
   - `no_merge` (default) - any existing state will be used as is. If the dependency does not have an existing state (it
-    hasn't been applied yet), then the mocks will be used
+    hasn't been applied yet), then the mocks will be used. If a state exists, then the mocks will not be used.
   - `shallow` - the existing state will be shallow merged into the mocks. Mocks will only be used where the output does
     not already exist in the dependency's state
   - `deep_map_only` - the existing state will be deeply merged into the mocks. If an output is a map, the mock key
