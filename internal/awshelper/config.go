@@ -46,9 +46,10 @@ type AwsSessionConfig struct {
 func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, opts *options.TerragruntOptions) (aws.Config, error) {
 	var configOptions []func(*config.LoadOptions) error
 
-	// Set region
 	if awsCfg.Region != "" {
 		configOptions = append(configOptions, config.WithRegion(awsCfg.Region))
+	} else {
+		configOptions = append(configOptions, config.WithRegion("us-east-1"))
 	}
 
 	// Set profile
@@ -217,15 +218,22 @@ func CreateAwsConfig(
 	awsCfg *AwsSessionConfig,
 	opts *options.TerragruntOptions,
 ) (aws.Config, error) {
-	var cfg aws.Config
-
-	var err error
+	var (
+		cfg aws.Config
+		err error
+	)
 
 	if awsCfg == nil {
 		// Set user agent to include terragrunt version
 		cfg, err = config.LoadDefaultConfig(ctx, config.WithAppID("terragrunt/"+version.GetVersion()))
 		if err != nil {
 			return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
+		}
+
+		if cfg.Region == "" {
+			l.Debugf("No region configured, using default region us-east-1")
+
+			cfg.Region = "us-east-1"
 		}
 
 		// Handle IAM role options if provided
@@ -266,9 +274,29 @@ func AssumeIamRole(
 	externalID string,
 	opts *options.TerragruntOptions,
 ) (*types.Credentials, error) {
+	var region string
+	if opts != nil {
+		region = opts.Env["AWS_REGION"]
+		if region == "" {
+			region = opts.Env["AWS_DEFAULT_REGION"]
+		}
+	}
+
+	if region == "" {
+		region = os.Getenv("AWS_REGION")
+		if region == "" {
+			region = os.Getenv("AWS_DEFAULT_REGION")
+		}
+	}
+
+	if region == "" {
+		region = "us-east-1"
+	}
+
 	// Set user agent to include terragrunt version
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
+		config.WithRegion(region),
 		config.WithAppID("terragrunt/"+version.GetVersion()),
 	)
 	if err != nil {
