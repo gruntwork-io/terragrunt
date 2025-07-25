@@ -19,28 +19,22 @@ func TestFindCommandWithRelativeWorkingDir(t *testing.T) {
 	// "terragrunt find --working-dir ./deploy-2" fails with "Rel: can't make <X> relative to <Y>" errors
 
 	// Create a temporary directory structure that matches the bug report
-	tmpDir, err := os.MkdirTemp("", "terragrunt-find-relative-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
-
-	// Save current directory to restore later
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(originalWd)
-
-	// Change to tmpDir to make relative paths work
-	err = os.Chdir(tmpDir)
-	require.NoError(t, err)
+	// We'll create it as a subdirectory of our current working directory so relative paths work
+	tmpDirName := "terragrunt-find-test-" + t.Name()
+	tmpDir := filepath.Join(".", tmpDirName)
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir)
+	})
 
 	// Create the directory structure as described in the bug report
-	deploy1Dir := "deploy-1"
-	deploy2Dir := "deploy-2"
+	deploy1Dir := filepath.Join(tmpDir, "deploy-1")
+	deploy2Dir := filepath.Join(tmpDir, "deploy-2")
 	require.NoError(t, os.MkdirAll(deploy1Dir, 0o755))
 	require.NoError(t, os.MkdirAll(deploy2Dir, 0o755))
 
 	// Create foo.hcl in the root (parent directory)
 	fooHclContent := `# Parent configuration file`
-	require.NoError(t, os.WriteFile("foo.hcl", []byte(fooHclContent), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo.hcl"), []byte(fooHclContent), 0o644))
 
 	// Create deploy-1/terragrunt.hcl
 	deploy1TerragruntHcl := `terraform {
@@ -72,20 +66,30 @@ dependency "dep1" {
 	require.NoError(t, os.WriteFile(filepath.Join(deploy2Dir, "main.tf"), []byte(simpleTfContent), 0o644))
 
 	// Test different relative working directory formats that should all work now
+	// These paths are relative to our current working directory
 	testCases := []struct {
 		name       string
 		workingDir string
 	}{
-		{"with dot slash", "./deploy-2"},
-		{"without dot slash", "deploy-2"},
+		{
+			name:       "relative path with dot slash",
+			workingDir: "./" + filepath.Join(tmpDirName, "deploy-2"),
+		},
+		{
+			name:       "relative path without dot slash",
+			workingDir: filepath.Join(tmpDirName, "deploy-2"),
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Test the exact command from the bug report (this was failing before our fix)
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, 
+			// No need to change working directories - we use relative paths from current directory
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 				"terragrunt find --working-dir "+tc.workingDir+" --external --include --dependencies --json")
-			
+
 			// The main fix validation: command should succeed (no more filepath.Rel errors)
 			require.NoError(t, err, "Find command should succeed with relative working directory: %s", tc.workingDir)
 			assert.Empty(t, stderr, "Should not have any error output")
@@ -116,4 +120,4 @@ dependency "dep1" {
 			assert.Contains(t, deploy2Module.Dependencies, "../deploy-1", "Should have dependency on deploy-1")
 		})
 	}
-} 
+}

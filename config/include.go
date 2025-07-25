@@ -771,6 +771,7 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 		if !filepath.IsAbs(tgInc.Path) {
 			tgInc.Path = filepath.Join(ctx.TerragruntOptions.WorkingDir, tgInc.Path)
 		}
+
 		includedPaths = append(includedPaths, tgInc.Path)
 		terragruntIncludeMap[tgInc.Name] = tgInc
 	}
