@@ -664,7 +664,7 @@ func (runner *Runner) acquireCredentials(ctx context.Context, l log.Logger, opts
 }
 
 // nolint:unparam
-func (runner *Runner) partialParseConfig(ctx context.Context, parseCtx *config.ParsingContext, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
+func (runner *Runner) partialParseConfig(_ context.Context, parseCtx *config.ParsingContext, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
 	terragruntConfig, err := config.PartialParseConfigFile( //nolint:contextcheck
 		parseCtx,
 		l,
