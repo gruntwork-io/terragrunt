@@ -49,8 +49,6 @@ func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, op
 	// Set region
 	if awsCfg.Region != "" {
 		configOptions = append(configOptions, config.WithRegion(awsCfg.Region))
-	} else {
-		configOptions = append(configOptions, config.WithRegion("us-east-1"))
 	}
 
 	// Set profile
@@ -93,8 +91,6 @@ func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, op
 	// Handle STS role assumption
 	if iamRoleOptions.RoleARN != "" {
 		cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, awsCfg.ExternalID)
-	} else if creds := getCredentialsFromEnvs(opts); creds != nil {
-		cfg.Credentials = creds
 	}
 
 	return cfg, nil
@@ -200,26 +196,6 @@ func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.
 	})
 }
 
-func getCredentialsFromEnvs(opts *options.TerragruntOptions) aws.CredentialsProviderFunc {
-	var (
-		accessKeyID     = opts.Env["AWS_ACCESS_KEY_ID"]
-		secretAccessKey = opts.Env["AWS_SECRET_ACCESS_KEY"]
-		sessionToken    = opts.Env["AWS_SESSION_TOKEN"]
-	)
-
-	if accessKeyID == "" || secretAccessKey == "" {
-		return nil
-	}
-
-	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-		return aws.Credentials{
-			AccessKeyID:     accessKeyID,
-			SecretAccessKey: secretAccessKey,
-			SessionToken:    sessionToken,
-		}, nil
-	})
-}
-
 func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.Client, error) {
 	cfg, err := CreateAwsConfig(ctx, l, config, opts)
 	if err != nil {
@@ -249,16 +225,10 @@ func CreateAwsConfig(
 		// Set user agent to include terragrunt version
 		cfg, err = config.LoadDefaultConfig(ctx, config.WithAppID("terragrunt/"+version.GetVersion()))
 		if err != nil {
-			return aws.Config{}, errors.New(err)
+			return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 		}
 
-		// Ensure a region is set - fallback to us-east-1 if none is configured
-		if cfg.Region == "" {
-			l.Debugf("No region configured, using default region us-east-1")
-
-			cfg.Region = "us-east-1"
-		}
-
+		// Handle IAM role options if provided
 		if opts != nil && opts.IAMRoleOptions.RoleARN != "" {
 			if opts.IAMRoleOptions.WebIdentityToken != "" {
 				l.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
@@ -267,15 +237,11 @@ func CreateAwsConfig(
 				l.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
 				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions, "")
 			}
-		} else if opts != nil {
-			if creds := getCredentialsFromEnvs(opts); creds != nil {
-				cfg.Credentials = creds
-			}
 		}
 	} else {
 		cfg, err = CreateAwsConfigFromConfig(ctx, awsCfg, opts)
 		if err != nil {
-			return aws.Config{}, errors.New(err)
+			return aws.Config{}, errors.Errorf("Error creating AWS config from config: %w", err)
 		}
 	}
 
@@ -300,32 +266,9 @@ func AssumeIamRole(
 	externalID string,
 	opts *options.TerragruntOptions,
 ) (*types.Credentials, error) {
-	// Try to get region from TerragruntOptions environment variables first
-	var region string
-	if opts != nil {
-		region = opts.Env["AWS_REGION"]
-		if region == "" {
-			region = opts.Env["AWS_DEFAULT_REGION"]
-		}
-	}
-
-	// If not found in TerragruntOptions, try system environment variables
-	if region == "" {
-		region = os.Getenv("AWS_REGION")
-		if region == "" {
-			region = os.Getenv("AWS_DEFAULT_REGION")
-		}
-	}
-
-	// If no region found in environment, fall back to us-east-1
-	if region == "" {
-		region = "us-east-1"
-	}
-
 	// Set user agent to include terragrunt version
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
-		config.WithRegion(region),
 		config.WithAppID("terragrunt/"+version.GetVersion()),
 	)
 	if err != nil {
@@ -358,7 +301,7 @@ func AssumeIamRole(
 
 		result, err := stsClient.AssumeRole(ctx, input)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, errors.Errorf("Error assuming role: %w", err)
 		}
 
 		return result.Credentials, nil
@@ -372,7 +315,7 @@ func AssumeIamRole(
 	} else {
 		tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, errors.Errorf("Error reading web identity token file: %w", err)
 		}
 
 		token = string(tb)
@@ -387,7 +330,7 @@ func AssumeIamRole(
 
 	result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, errors.Errorf("Error assuming role with web identity: %w", err)
 	}
 
 	return result.Credentials, nil
