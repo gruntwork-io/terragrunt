@@ -228,7 +228,7 @@ GEM
     mutex_m (0.2.0)
     net-http (0.4.1)
       uri
-    nokogiri (1.18.8)
+    nokogiri (1.18.9)
       mini_portile2 (~> 2.8.2)
       racc (~> 1.4)
     octokit (4.25.1)
@@ -274,7 +274,7 @@ DEPENDENCIES
   jekyll-sitemap (= 1.4.0)
   jekyll-toc
   mini_portile2 (= 2.8.5)
-  nokogiri (= 1.18.8)
+  nokogiri (= 1.18.9)
   wdm (~> 0.1.1)
   webrick (~> 1.8)
 
