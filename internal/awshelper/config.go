@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
+	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -61,6 +62,9 @@ func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, op
 	if len(awsCfg.CredsFilename) > 0 {
 		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
 	}
+
+	// Set user agent to include terragrunt version
+	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
 	// Load default config
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
@@ -233,7 +237,8 @@ func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig
 	var err error
 
 	if awsCfg == nil {
-		cfg, err = config.LoadDefaultConfig(ctx)
+		// Set user agent to include terragrunt version
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithAppID("terragrunt/"+version.GetVersion()))
 		if err != nil {
 			return aws.Config{}, errors.New(err)
 		}
@@ -308,7 +313,12 @@ func AssumeIamRole(
 		region = "us-east-1"
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Set user agent to include terragrunt version
+	cfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(region),
+		config.WithAppID("terragrunt/"+version.GetVersion()),
+	)
 	if err != nil {
 		return nil, errors.Errorf("Error loading AWS config: %w", err)
 	}
