@@ -4239,7 +4239,13 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	expected := 1
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 }
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
@@ -4255,8 +4261,36 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	expected := 2
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+// expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
+//
+// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled with OpenTofu,
+// as we need to check if the provider cache directory should be enabled.
+func expectExtraVersionCommandCall(t *testing.T) bool {
+	t.Helper()
+
+	if helpers.IsTerraform() {
+		return false
+	}
+
+	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
+		return true
+	}
+
+	if os.Getenv("TG_EXPERIMENT") == "auto-provider-cache-dir" {
+		return true
+	}
+
+	return false
 }
 
 func TestMixedStackConfigIgnored(t *testing.T) {
