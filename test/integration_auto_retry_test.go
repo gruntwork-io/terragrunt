@@ -138,7 +138,7 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryApplyAllRetries)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryApplyAllRetries)
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply-all -auto-approve --non-interactive --tf-forward-stdout --working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
 	s := out.String()

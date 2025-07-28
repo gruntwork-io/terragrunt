@@ -39,7 +39,7 @@ func TestStartsWith(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStartswith)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStartswith)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -72,7 +72,7 @@ func TestTimeCmp(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmp)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureTimecmp)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -119,7 +119,7 @@ func TestEndsWith(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEndswith)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureEndswith)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -152,7 +152,7 @@ func TestStrContains(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrcontains)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStrcontains)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -195,7 +195,7 @@ func TestGetRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
 	helpers.CreateGitRepo(t, rootPath)
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -224,7 +224,7 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
 
 	helpers.CreateGitRepo(t, rootPath)
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -290,7 +290,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	clusterPath := util.JoinPath(rootPath, "cluster")
 
 	helpers.CreateGitRepo(t, tmpEnvPath)
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+clusterPath)
@@ -318,7 +318,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
 	helpers.CreateGitRepo(t, tmpEnvPath)
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -347,7 +347,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	helpers.CreateGitRepo(t, tmpEnvPath)
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -383,7 +383,7 @@ func TestGetPlatform(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetPlatform)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPlatform)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}

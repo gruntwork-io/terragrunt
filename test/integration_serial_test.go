@@ -386,7 +386,7 @@ func TestPreserveEnvVarApplyAll(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "apply-all-envvar")
 
 	stdout := bytes.Buffer{}
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt apply-all -auto-approve --non-interactive --working-dir "+rootPath, &stdout, os.Stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+rootPath, &stdout, os.Stderr)
 	t.Log(stdout.String())
 
 	// Check the output of each child module to make sure the inputs were overridden by the env var
