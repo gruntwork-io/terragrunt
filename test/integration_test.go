@@ -891,7 +891,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
 
-	cmd := "terragrunt run-all plan --non-interactive --working-dir " + rootTerragruntConfigPath
+	cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootTerragruntConfigPath
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
@@ -1959,10 +1959,10 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	// Verify that run-all validate works as well.
+	// Verify that run --all validate works as well.
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt run-all validate --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all validate --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -1970,7 +1970,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt run-all validate --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all validate --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -2866,7 +2866,7 @@ func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntVersionCommand(t, "v0.23.21", "terragrunt run-all validate --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
+	err := helpers.RunTerragruntVersionCommand(t, "v0.23.21", "terragrunt run --all validate --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)

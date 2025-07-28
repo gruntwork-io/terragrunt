@@ -147,7 +147,7 @@ func TestTerragruntHookApplyAll(t *testing.T) {
 	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
 	afterOnlyPath := util.JoinPath(rootPath, "after-only")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --log-level trace --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)

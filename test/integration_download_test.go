@@ -308,13 +308,13 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --non-interactive --log-level trace --working-dir %s %s", tc.workingDir, tc.excludeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s", tc.workingDir, tc.excludeArgs), &applyAllStdout, &applyAllStderr)
 
-		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
-		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
+		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
 		if err != nil {
-			t.Fatalf("run-all apply in TestExcludeDirs failed with error: %v. Full std", err)
+			t.Fatalf("run --all apply in TestExcludeDirs failed with error: %v. Full std", err)
 		}
 
 		// Check that the excluded module output is not present
@@ -375,13 +375,13 @@ func TestIncludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --non-interactive  --log-level trace --working-dir %s %s", tc.workingDir, tc.includeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s", tc.workingDir, tc.includeArgs), &applyAllStdout, &applyAllStderr)
 
-		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
-		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
+		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
 		if err != nil {
-			t.Fatalf("run-all apply in TestIncludeDirs failed with error: %v. Full std", err)
+			t.Fatalf("run --all apply in TestIncludeDirs failed with error: %v. Full std", err)
 		}
 
 		// Check that the included module output is present
@@ -475,9 +475,9 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
 	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, "module-b")
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --queue-include-external --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
-	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --queue-include-external --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 	applyAllStdoutString := applyAllStdout.String()
 
 	if err != nil {
@@ -549,12 +549,12 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
-	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
 	if err != nil {
-		t.Fatalf("run-all apply in TestPreventDestroyDependencies failed with error: %v. Full std", err)
+		t.Fatalf("run --all apply in TestPreventDestroyDependencies failed with error: %v. Full std", err)
 	}
 
 	var (
@@ -562,9 +562,9 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		destroyAllStderr bytes.Buffer
 	)
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt run-all destroy --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run-all destroy stdout")
-	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run-all destroy stderr")
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run --all destroy stdout")
+	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run --all destroy stderr")
 
 	require.NoError(t, err)
 
