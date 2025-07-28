@@ -933,7 +933,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAwsGetCallerIdentity)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureAwsGetCallerIdentity)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -941,7 +941,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- output -no-color -json", &stdout, &stderr),
 	)
 
 	// Get values from STS
