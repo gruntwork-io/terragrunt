@@ -29,25 +29,25 @@ func TestStrictMode(t *testing.T) {
 		strictMode     bool
 	}{
 		{
-			name:           "plan-all",
+			name:           "run-all",
 			controls:       []string{},
 			strictMode:     false,
-			expectedStderr: "The `plan-all` command is deprecated and will be removed in a future version of Terragrunt. Use `terragrunt plan --all` instead.",
+			expectedStderr: "The `run-all plan` command is deprecated and will be removed in a future version of Terragrunt. Use `terragrunt plan --all` instead.",
 			expectedError:  nil,
 		},
 		{
-			name:           "plan-all with plan-all strict control",
+			name:           "run-all with deprecated-commands strict control",
 			controls:       []string{"deprecated-commands"},
 			strictMode:     false,
 			expectedStderr: "",
-			expectedError:  errors.New("The `plan-all` command is no longer supported. Use `terragrunt plan --all` instead."),
+			expectedError:  errors.New("The `run-all plan` command is no longer supported. Use `terragrunt plan --all` instead."),
 		},
 		{
-			name:           "plan-all with strict mode",
+			name:           "run-all with strict mode",
 			controls:       []string{},
 			strictMode:     true,
 			expectedStderr: "",
-			expectedError:  errors.New("The `plan-all` command is no longer supported. Use `terragrunt plan --all` instead."),
+			expectedError:  errors.New("The `run-all plan` command is no longer supported. Use `terragrunt plan --all` instead."),
 		},
 	}
 
@@ -65,7 +65,7 @@ func TestStrictMode(t *testing.T) {
 				args = " --strict-control " + control + " " + args
 			}
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan-all "+args)
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan "+args)
 
 			if tc.expectedError != nil {
 				require.Error(t, err)

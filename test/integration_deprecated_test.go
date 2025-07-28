@@ -40,43 +40,6 @@ func TestDeprecatedHclvalidateCommand_HclvalidateInvalidConfigPath(t *testing.T)
 	assert.ElementsMatch(t, expectedPaths, actualPaths)
 }
 
-func TestDeprecatedRunAllCommand_TerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureFailedTerraform)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailedTerraform)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
-
-	cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir " + rootTerragruntConfigPath
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := stdout.String()
-	errOutput := stderr.String()
-	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
-
-	assert.Contains(t, errOutput, "missingvar1")
-	assert.Contains(t, errOutput, "missingvar2")
-}
-
-func TestDeprecatedLegacyAllCommand_TerragruntStackCommandsWithPlanFile(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDisjoint))
-	require.NoError(t, err)
-	disjointEnvironmentPath := util.JoinPath(tmpEnvPath, testFixtureDisjoint)
-
-	helpers.CleanupTerraformFolder(t, disjointEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt run-all apply plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
-}
-
 // This tests terragrunt properly passes through terraform commands with sub commands
 // and any number of specified args
 func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
