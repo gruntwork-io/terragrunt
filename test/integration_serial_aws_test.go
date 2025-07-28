@@ -196,5 +196,5 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		return "", 0, err
 	}
 
-	return stdout, testStart, nil
+	return stdout, int(testStart), nil
 }
