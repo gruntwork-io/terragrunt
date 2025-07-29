@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@astrojs/partytown": "^2.1.4",
-    "@astrojs/starlight": "^0.34.5",
+    "@astrojs/starlight": "^0.35.1",
     "@astrojs/starlight-tailwind": "^4.0.1",
-    "@astrojs/vercel": "^8.2.1",
+    "@astrojs/vercel": "^8.2.3",
     "@tailwindcss/vite": "^4.1.11",
     "@zachleat/table-saw": "^1.0.6",
-    "astro": "^5.11.0",
+    "astro": "^5.12.3",
     "astro-d2": "^0.8.0",
     "gray-matter": "^4.0.3",
     "sharp": "^0.34.3",
@@ -27,7 +27,7 @@
     "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.18"
+    "@types/bun": "^1.2.19"
   },
   "overrides": {
     "estree-walker": "2.0.2"
