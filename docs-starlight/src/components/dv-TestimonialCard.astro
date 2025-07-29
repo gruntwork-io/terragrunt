@@ -27,9 +27,12 @@ const jobtitle = isDark ? "text-white" : "text-gray-1";
   <div class="flex flex-col gap-8">
     {logo &&
       <Image
-        height={24}
-        src={logo}
         alt={(alt?.trim()) || "Logo Brand"}
+        class="h-auto"
+        decoding="async"
+        loading="lazy"
+        src={logo}
+        width={120}
       />
     }
     <div class="flex flex-col gap-4">

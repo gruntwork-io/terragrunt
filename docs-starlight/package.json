@@ -7,7 +7,8 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "optimize-images": "npx imagemin src/assets/*.{png,jpg,jpeg} --out-dir=src/assets/optimized"
   },
   "dependencies": {
     "@astrojs/partytown": "^2.1.4",

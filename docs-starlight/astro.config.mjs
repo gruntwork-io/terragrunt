@@ -77,10 +77,29 @@ export default defineConfig({
       expiration: 60 * 60 * 24, // 24 hours
     },
   }),
+
   integrations: [starlight({
     title: "Terragrunt",
     customCss: ["./src/styles/global.css"],
     head: [
+      {
+        tag: 'link',
+        attrs: {
+          rel: 'preload',
+          as: 'image',
+          href: '/src/assets/hero-bg.png',
+          media: '(max-width: 768px)',
+        },
+      },
+      {
+        tag: 'link',
+        attrs: {
+          rel: 'preload',
+          as: 'image',
+          href: '/src/assets/hero-bg-1440.png',
+          media: '(min-width: 769px)',
+        },
+      },
       {
         tag: 'script',
         attrs: {
