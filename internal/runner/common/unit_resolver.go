@@ -375,7 +375,9 @@ func (r *UnitResolver) setupIncludeConfig(terragruntConfigPath string, opts *opt
 }
 
 func (r *UnitResolver) createParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *config.ParsingContext {
-	return config.NewParsingContext(ctx, l, opts).
+	parseOpts := opts.Clone()
+	parseOpts.SkipOutput = false
+	return config.NewParsingContext(ctx, l, parseOpts).
 		WithParseOption(r.Stack.ParserOptions).
 		WithDecodeList(
 			config.TerraformSource,
@@ -776,13 +778,10 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 }
 
 // ResolveUnitFromDiscoveredConfig creates a Unit from a discovered configuration.
-// This is used by the runnerpool implementation which works with pre-discovered configurations.
 func (r *UnitResolver) ResolveUnitFromDiscoveredConfig(
 	ctx context.Context,
 	l log.Logger,
-	cfg *discovery.DiscoveredConfig,
-	terragruntOptions *options.TerragruntOptions,
-) (*Unit, error) {
+	cfg *discovery.DiscoveredConfig) (*Unit, error) {
 	if cfg.Parsed == nil {
 		return nil, errors.Errorf("discovered config at %s has no parsed configuration", cfg.Path)
 	}

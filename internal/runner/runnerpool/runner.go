@@ -40,8 +40,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, queueErr
 	}
 
-	terragruntConfigPaths := make([]string, 0, len(discovered))
-
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
 	}
@@ -51,22 +49,38 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		queue: q,
 	}
 
-	// extract paths from discovered configs
+	// Create units from discovered configurations
+	unitResolver := common.NewUnitResolver(runner.Stack)
+	unitsMap := common.UnitsMap{}
+
 	for _, cfg := range discovered {
-		configPath := config.GetDefaultConfigPath(cfg.Path)
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
 			l.Warnf("Skipping unit at %s due to parse error", cfg.Path)
 			continue
 		}
-		terragruntConfigPaths = append(terragruntConfigPaths, configPath)
+
+		unit, err := unitResolver.ResolveUnitFromDiscoveredConfig(ctx, l, cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		if unit != nil {
+			unitsMap[unit.Path] = unit
+		}
 	}
 
-	unitResolver := common.NewUnitResolver(runner.Stack)
-	units, errs := unitResolver.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
-	if errs != nil {
-		return nil, errs
+	// Cross-link dependencies between units
+	if err := unitResolver.CrossLinkDependencies(discovered, unitsMap); err != nil {
+		return nil, err
 	}
+
+	// Convert UnitsMap to Units slice
+	units := make(common.Units, 0, len(unitsMap))
+	for _, unit := range unitsMap {
+		units = append(units, unit)
+	}
+
 	runner.Stack.Units = units
 
 	return runner.WithOptions(opts...), nil
