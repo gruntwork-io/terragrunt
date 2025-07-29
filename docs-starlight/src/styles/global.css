@@ -106,7 +106,7 @@ header {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0px !important;
+  padding: 0 !important;
 }
 
 * {
@@ -133,30 +133,32 @@ body {
 }
 
 .primary-button {
+  background-color: var(--color-accent-1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 0 15px 0 rgba(137, 107, 255, 0.30),
+              0 0 1px 4px rgba(52, 49, 27, 0.22),
+              0 0 1px 4px rgba(52, 49, 47, 0.22);
   color: white;
   font-family: var(--font-sans);
-  font-weight: 400;
   font-size: 14px;
-  text-decoration: none;
-  background-color: var(--color-accent-1);
+  font-weight: 400;
   padding: 10px 24px;
-  border-radius: 8px;
-  box-shadow: 0px 0px 15px 0px rgba(137, 107, 255, 0.30),
-              0px 0px 1px 4px rgba(52, 49, 27, 0.22);
+  text-decoration: none;
 }
 
 .secondary-button {
-  color: white;
-  font-family: var(--font-sans);
-  font-weight: 400;
-  font-size: 14px;
-  text-decoration: none;
   background-color: var(--color-bg-dark);
-  padding: 10px 24px;
   border: 1px solid var(--color-stroke-dark);
   border-radius: 8px;
-  box-shadow: 0px 0px 15px 0px rgba(255, 255, 255, 0.05),
-              0px 0px 1px 4px rgba(52, 49, 27, 0.22);
+  box-shadow: 0 0 15px 0 rgba(255, 255, 255, 0.05),
+              0 0 1px 4px rgba(52, 49, 27, 0.22);
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 10px 24px;
+  text-decoration: none;
 }
 
 .primary-button:hover, .secondary-button:hover {
@@ -164,13 +166,13 @@ body {
 }
 
 .primary-button:hover {
-  transition: .25s ease-in-out;
   background-color: var(--color-accent);
+  transition: .25s ease-in-out;
 }
 
 .secondary-button:hover {
-  transition: .25s ease-in-out;
   background-color: rgba(255, 255, 255, 0.05);
+  transition: .25s ease-in-out;
 }
 
 .primary-button:focus, .secondary-button:focus {
