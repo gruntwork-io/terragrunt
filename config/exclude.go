@@ -17,11 +17,12 @@ const (
 )
 
 // bool values to be used as booleans.
-var boolFlagValues = []string{"if", "exclude_dependencies"}
+var boolFlagValues = []string{"if", "exclude_dependencies", "no_run"}
 
 // ExcludeConfig configurations for hcl files.
 type ExcludeConfig struct {
 	ExcludeDependencies *bool    `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
+	NoRun               *bool    `cty:"no_run" hcl:"no_run,attr" json:"no_run"`
 	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
 	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
 }
@@ -49,12 +50,18 @@ func (e *ExcludeConfig) IsActionListed(action string) bool {
 	return false
 }
 
+// ShouldPreventRun checks if the unit should be prevented from running based on the no_run attribute and current action.
+func (e *ExcludeConfig) ShouldPreventRun(action string) bool {
+	return e.NoRun != nil && *e.NoRun && e.If && e.IsActionListed(action)
+}
+
 // Clone returns a new instance of ExcludeConfig with the same values as the original.
 func (e *ExcludeConfig) Clone() *ExcludeConfig {
 	return &ExcludeConfig{
 		If:                  e.If,
 		Actions:             e.Actions,
 		ExcludeDependencies: e.ExcludeDependencies,
+		NoRun:               e.NoRun,
 	}
 }
 
@@ -67,6 +74,7 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 	}
 
 	e.ExcludeDependencies = exclude.ExcludeDependencies
+	e.NoRun = exclude.NoRun
 }
 
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.

@@ -206,3 +206,57 @@ terraform {
 	assert.Equal(t, "~> 5.0", constraints["registry.terraform.io/hashicorp/aws"])
 	assert.Equal(t, "~> 3.0", constraints["registry.terraform.io/hashicorp/azurerm"])
 }
+
+func TestParseProviderConstraintsWithEqualsPrefix(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	testDir := t.TempDir()
+
+	// Create a test terraform file with "=" prefix in version constraints
+	terraformContent := `
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 5.100.0"
+    }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "= 4.40.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.10.0"
+    }
+  }
+}
+`
+
+	err := os.WriteFile(filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0644)
+	require.NoError(t, err)
+
+	// Test parsing with Terraform implementation
+	terraformOpts := &options.TerragruntOptions{
+		TerraformImplementation: options.TerraformImpl,
+	}
+	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
+	require.NoError(t, err)
+
+	// Verify the parsed constraints are normalized (no "=" prefix)
+	assert.Equal(t, "5.100.0", constraints["registry.terraform.io/hashicorp/aws"])
+	assert.Equal(t, "4.40.0", constraints["registry.terraform.io/cloudflare/cloudflare"])
+	assert.Equal(t, ">= 0.10.0", constraints["registry.terraform.io/hashicorp/time"])
+
+	// Test parsing with OpenTofu implementation
+	openTofuOpts := &options.TerragruntOptions{
+		TerraformImplementation: options.OpenTofuImpl,
+	}
+	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
+	require.NoError(t, err)
+
+	// Verify the parsed constraints are normalized with OpenTofu registry
+	assert.Equal(t, "5.100.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "4.40.0", constraints["registry.opentofu.org/cloudflare/cloudflare"])
+	assert.Equal(t, ">= 0.10.0", constraints["registry.opentofu.org/hashicorp/time"])
+}
