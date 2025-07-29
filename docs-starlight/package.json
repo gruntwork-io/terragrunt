@@ -23,13 +23,13 @@
     "starlight-links-validator": "^0.17.0",
     "tailwindcss": "^4.1.11"
   },
-  "patchedDependencies": {
-    "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
-  },
   "devDependencies": {
     "@types/bun": "^1.2.19"
   },
   "overrides": {
     "estree-walker": "2.0.2"
+  },
+  "patchedDependencies": {
+    "@astrojs/starlight@0.35.1": "patches/@astrojs%2Fstarlight@0.35.1.patch"
   }
 }

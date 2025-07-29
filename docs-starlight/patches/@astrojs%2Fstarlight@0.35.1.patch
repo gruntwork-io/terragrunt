@@ -1,28 +1,4 @@
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-2538170ae1618e76 b/.bun-tag-2538170ae1618e76
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-323fabb156a0a907 b/.bun-tag-323fabb156a0a907
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-3b56a907a33fee16 b/.bun-tag-3b56a907a33fee16
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-4b60784df559cef6 b/.bun-tag-4b60784df559cef6
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-517cdc68f1c60bd9 b/.bun-tag-517cdc68f1c60bd9
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-a1e18c2dc678aa2a b/.bun-tag-a1e18c2dc678aa2a
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-e77454ae7b650533 b/.bun-tag-e77454ae7b650533
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-f030ab8c37f3bf3e b/.bun-tag-f030ab8c37f3bf3e
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-fa07332e7343bccc b/.bun-tag-fa07332e7343bccc
+diff --git a/node_modules/@astrojs/starlight/.bun-tag-96642a5e7ef0db7a b/.bun-tag-96642a5e7ef0db7a
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/user-components/file-tree-icons.ts b/user-components/file-tree-icons.ts
