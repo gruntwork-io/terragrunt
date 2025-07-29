@@ -2,8 +2,6 @@ module github.com/gruntwork-io/terragrunt
 
 go 1.24.4
 
-toolchain go1.24.5
-
 require (
 	cloud.google.com/go/storage v1.55.0
 	dario.cat/mergo v1.0.2
