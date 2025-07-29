@@ -11,7 +11,6 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.6
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.5
-	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
@@ -84,8 +83,6 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
-	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
 	github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1
 	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.3.0.20250617194119-3f1d09f7d826
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta1
