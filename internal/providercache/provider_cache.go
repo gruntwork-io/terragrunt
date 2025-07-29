@@ -311,7 +311,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
-		apiURLs, err := cache.Server.DiscoveryURL(ctx, registryName)
+		apiURLs, err := cache.DiscoveryURL(ctx, registryName)
 		if err != nil {
 			return err
 		}

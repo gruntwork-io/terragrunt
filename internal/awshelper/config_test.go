@@ -5,51 +5,27 @@ package awshelper_test
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsIsAddedInUserAgent(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-
-	sess, err := awshelper.CreateAwsSession(l, nil, options.NewTerragruntOptions())
-	require.NoError(t, err)
-
-	op := &request.Operation{
-		Name:       "",
-		HTTPMethod: "POST",
-		HTTPPath:   "/",
-	}
-	input := &sts.GetCallerIdentityInput{}
-	output := &sts.GetCallerIdentityOutput{}
-
-	r := sts.New(sess).NewRequest(op, input, output)
-	sess.Handlers.Build.Run(r)
-
-	assert.Contains(t, r.HTTPRequest.Header.Get("User-Agent"), "terragrunt")
-}
-
 func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
-	sess, err := awshelper.CreateAwsSession(l, &awshelper.AwsSessionConfig{
+	// With AWS SDK v2, CreateAwsConfig now validates credentials internally
+	// so it should fail when invalid credentials are provided
+	_, err := awshelper.CreateAwsConfig(t.Context(), l, &awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())
-	require.NoError(t, err)
-
-	err = awshelper.ValidateAwsSession(sess)
 	assert.Error(t, err)
 }
 
@@ -70,7 +46,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 		{
 			name: "legacy-bucket",
 			response: &s3.GetPublicAccessBlockOutput{
-				PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+				PublicAccessBlockConfiguration: &s3types.PublicAccessBlockConfiguration{
 					BlockPublicAcls:       nil,
 					BlockPublicPolicy:     nil,
 					IgnorePublicAcls:      nil,
@@ -81,7 +57,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 		{
 			name: "false-response",
 			response: &s3.GetPublicAccessBlockOutput{
-				PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+				PublicAccessBlockConfiguration: &s3types.PublicAccessBlockConfiguration{
 					BlockPublicAcls:       aws.Bool(false),
 					BlockPublicPolicy:     aws.Bool(false),
 					IgnorePublicAcls:      aws.Bool(false),

@@ -59,6 +59,11 @@ func TestAwsS3SSEAES(t *testing.T) {
 func TestAwsS3SSECustomKey(t *testing.T) {
 	t.Parallel()
 
+	// Note: This test requires a KMS key with alias 'alias/dedicated-test-key' to exist in the AWS account.
+	// If the test fails with KMS key not found errors, you need to create the key first:
+	// aws kms create-key --description "Test key for Terragrunt integration tests"
+	// aws kms create-alias --alias-name alias/dedicated-test-key --target-key-id KEY_ID
+
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSECustomKeyFixturePath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSECustomKeyFixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
@@ -117,6 +122,11 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	t.Parallel()
 
+	// Note: This test requires a KMS key with alias 'alias/dedicated-test-key' to exist in the AWS account.
+	// If the test fails with KMS key not found errors, you need to create the key first:
+	// aws kms create-key --description "Test key for Terragrunt integration tests"
+	// aws kms create-alias --alias-name alias/dedicated-test-key --target-key-id KEY_ID
+
 	helpers.CleanupTerraformFolder(t, s3SSBasicEncryptionFixturePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -147,6 +157,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
 	require.NotNil(t, sseRule)
 	assert.Equal(t, types.ServerSideEncryptionAwsKms, sseRule.SSEAlgorithm)
+
 	assert.True(t, strings.HasSuffix(aws.ToString(sseRule.KMSMasterKeyID), "alias/dedicated-test-key"))
 }
 

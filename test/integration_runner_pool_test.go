@@ -66,7 +66,7 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	// Parse the destruction order from stdout
 	var destroyOrder []string
 	re := regexp.MustCompile(`Hello, Module ([A-Za-z]+)`)
-	for _, line := range strings.Split(stdout, "\n") {
+	for line := range strings.SplitSeq(stdout, "\n") {
 		if match := re.FindStringSubmatch(line); match != nil {
 			destroyOrder = append(destroyOrder, "module-"+strings.ToLower(match[1]))
 		}
