@@ -300,9 +300,11 @@ The `remote_state` block supports the following arguments:
 - `backend` (attribute): Specifies which remote state backend will be configured. This should be one of the
   [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
-- `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
-  have support in Terragrunt to be automatically created if the storage does not exist. Currently, `s3` and `gcs` are the
-  two backends with support for automatic creation. Defaults to `false`.
+- `disable_init` (attribute): When `true`, prevent Terragrunt from automatically creating or managing remote state 
+  resources (such as S3 buckets or DynamoDB tables), but still allow OpenTofu/Terraform to initialize its backend 
+  configuration. This is useful for CI/CD environments where you want to validate configurations without needing 
+  credentials to create backend resources. Currently, `s3` and `gcs` are the two backends with support for automatic 
+  creation. Defaults to `false`.
 
 - `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt
   modules using this `remote_state` block. See the documentation for [dependency block](#dependency) for more details.

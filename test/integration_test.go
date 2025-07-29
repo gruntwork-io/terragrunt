@@ -98,6 +98,7 @@ const (
 	testFixtureProviderCacheNetworkMirror     = "fixtures/provider-cache/network-mirror"
 	testFixtureReadConfig                     = "fixtures/read-config"
 	testFixtureRefSource                      = "fixtures/download/remote-ref"
+	testFixtureRemoteStateDisableInit         = "fixtures/remote-state-disable-init"
 	testFixtureSkip                           = "fixtures/skip/"
 	testFixtureSkipLegacyRoot                 = "fixtures/skip-legacy-root/"
 	testFixtureSkipDependencies               = "fixtures/skip-dependencies"
@@ -4304,4 +4305,30 @@ func TestMixedStackConfigIgnored(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, stderr, "Error: Unsupported block type")
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
+}
+
+// TestRemoteStateDisableInitIssue1422 tests the fix for Issue #1422
+// https://github.com/gruntwork-io/terragrunt/issues/1422
+// When disable_init=true, Terragrunt should allow Terraform backend initialization
+// while preventing Terragrunt from creating/managing remote state resources
+func TestRemoteStateDisableInitIssue1422(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteStateDisableInit)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureRemoteStateDisableInit)
+
+	// terraform init should work with disable_init=true (validates no -backend=false)
+	initStdout, initStderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --terragrunt-working-dir "+testPath)
+	require.NoError(t, err, "terragrunt init should succeed with disable_init=true")
+	require.NotContains(t, initStdout, "-backend=false", "Should not use -backend=false with disable_init=true")
+	require.NotContains(t, initStderr, "-backend=false", "Should not use -backend=false with disable_init=true")
+	
+	// validate should work (main CI use case)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt validate --terragrunt-working-dir "+testPath)
+	require.NoError(t, err, "terragrunt validate should work with disable_init=true")
+	
+	// backend configuration should be handled correctly
+	initOutput := string(initStdout) + string(initStderr)
+	require.Contains(t, initOutput, "Successfully configured the backend", "Backend should be properly configured during init")
 }
