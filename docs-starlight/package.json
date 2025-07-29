@@ -14,6 +14,8 @@
     "@astrojs/starlight": "^0.35.1",
     "@astrojs/starlight-tailwind": "^4.0.1",
     "@astrojs/vercel": "^8.2.3",
+    "@astrojs/tailwind": "^6.0.2",
+    "@tailwindcss/postcss": "^4.1.11",
     "@tailwindcss/vite": "^4.1.11",
     "@zachleat/table-saw": "^1.0.6",
     "astro": "^5.12.3",
