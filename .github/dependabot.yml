@@ -24,6 +24,8 @@ updates:
     ignore:
       - dependency-name: "github.com/charmbracelet/glamour"
         versions: ["<= 0.10.1"]
+      - dependency-name: "github.com/charmbracelet/x/ansi"
+        # https://github.com/charmbracelet/bubbletea/issues/1448#issuecomment-3105363044
 
   - package-ecosystem: "bun"
     directories:

@@ -303,8 +303,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName)}, []string{"plan"}},
 		{[]string{"plan", doubleDashed(run.InputsDebugFlagName)}, []string{"plan"}},
 		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName), "-bar", doubleDashed(global.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"plan", "-bar", "-baz"}},
-		{[]string{commands.CommandApplyAllName, "plan", "bar"}, []string{tf.CommandNameApply, "plan", "bar"}},
-		{[]string{commands.CommandDestroyAllName, "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
+		{[]string{"run", "--all", "apply", "plan", "bar"}, []string{tf.CommandNameApply, "plan", "bar"}},
+		{[]string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
 	}
 
 	for i, tc := range testCases {
@@ -335,22 +335,22 @@ func TestParseMultiStringArg(t *testing.T) {
 		expectedVals []string
 	}{
 		{
-			args:         []string{commands.CommandApplyAllName, flagName, "bar"},
+			args:         []string{"run", "--all", "apply", flagName, "bar"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"bar"},
 		},
 		{
-			args:         []string{commands.CommandApplyAllName, "--test", "bar"},
+			args:         []string{"run", "--all", "apply", "--", "--test", "bar"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"default_bar"},
 		},
 		{
-			args:         []string{commands.CommandPlanAllName, "--test", "value", flagName, "bar1", flagName, "bar2"},
+			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "bar2", "--", "--test", "value"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"bar1", "bar2"},
 		},
 		{
-			args:         []string{commands.CommandPlanAllName, "--test", "value", flagName, "bar1", flagName},
+			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "--", "--test", "value"},
 			defaultValue: []string{"default_bar"},
 			expectedErr:  argMissingValueError(run.UnitsThatIncludeFlagName),
 		},

@@ -17,7 +17,7 @@ const {
 const isDark = theme === "dark";
 
 const bgClass = isDark ? "bg-bg-dark" : "bg-white";
-const textPrimary = isDark ? "text-white" : "text-gray-2";
+const textPrimary = isDark ? "text-white" : "text-gray-1";
 const textSecondary = isDark ? "text-white" : "text-gray-2";
 const jobtitle = isDark ? "text-white" : "text-gray-1";
 
@@ -27,16 +27,16 @@ const jobtitle = isDark ? "text-white" : "text-gray-1";
   <div class="flex flex-col gap-8">
     {logo &&
       <Image
-        alt={(alt?.trim()) || "Logo Brand"}
         height={24}
         src={logo}
+        alt={(alt?.trim()) || "Logo Brand"}
       />
     }
     <div class="flex flex-col gap-4">
       <p class={`font-sand text-sm whitespace-pre-line ${textPrimary}`}>{content}</p>
       <div class="flex flex-col">
-        <p class={`font-sand text-sm ${textSecondary}`}>{author}</p>
-        <p class={`font-sand text-xs ${jobtitle}`}>{title}</p>
+          <p class={`font-sand text-sm ${textSecondary}`}>{author}</p>
+          <p class={`font-sand text-xs ${jobtitle}`}>{title}</p>
       </div>
     </div>
   </div>

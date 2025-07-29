@@ -74,26 +74,3 @@ import LogoBrand11 from '@assets/logo-brand-11.png';
   <div class="pointer-events-none absolute bottom-0 left-0 right-0 w-full h-[50px] md:h-[75px] z-10 bg-gradient-to-t from-[#FAFAFA] to-transparent"></div>
 
 </section>
-
-<script type="module" client:load>
-  const carousel = document.getElementById("carousel");
-  const indicators = document.querySelectorAll(".indicator");
-
-  const updateIndicators = () => {
-    const scrollLeft = carousel.scrollLeft;
-    const width = carousel.offsetWidth;
-    const index = Math.round(scrollLeft / width);
-
-    indicators.forEach((dot, i) => {
-      dot.classList.toggle("bg-dark-blue-1", i === index);
-      dot.classList.toggle("bg-gray-1", i !== index);
-    });
-  };
-
-  carousel?.addEventListener("scroll", () => {
-    window.requestAnimationFrame(updateIndicators);
-  });
-
-  // Initial fallback in case scroll is not triggered
-  updateIndicators();
-</script>

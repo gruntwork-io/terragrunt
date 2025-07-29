@@ -16,20 +16,20 @@ import (
 )
 
 const (
-	testFixtureProviderCacheConstraintIssue = "fixtures/provider-cache/constraint-issue"
+	testFixtureProviderCacheWeakConstraint = "fixtures/provider-cache/weak-constraint"
 )
 
-// TestTerragruntProviderCacheConstraintIssue tests that provider cache preserves
+// TestTerragruntProviderCacheWeakConstraint tests that provider cache preserves
 // module constraints instead of pinning exact versions in .terraform.lock.hcl files.
 // Reproduces and validates the fix for GitHub issue #4512.
 //
 //nolint:paralleltest,tparallel
-func TestTerragruntProviderCacheConstraintIssue(t *testing.T) {
+func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheConstraintIssue)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheConstraintIssue)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheConstraintIssue)
+	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheWeakConstraint)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheWeakConstraint)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
 	appPath := filepath.Join(rootPath, "app")
 
 	providerCacheDir := t.TempDir()

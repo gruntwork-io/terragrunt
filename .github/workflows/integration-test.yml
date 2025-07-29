@@ -103,17 +103,23 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
             run: '^TestWindows'
-          - name: Provider Cache with Latest Terraform
+          - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/provider-cache.sh
+              - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/terraform-switch-latest.sh
-          - name: Provider Cache with Tofu
+          - name: Provider Cache Server with Tofu
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/provider-cache.sh
+              - .github/scripts/setup/provider-cache-server.sh
+              - .github/scripts/setup/tofu-switch.sh
+          - name: Provider Cache Dir with Tofu
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/provider-cache-dir.sh
               - .github/scripts/setup/tofu-switch.sh
           - name: Deprecated
             os: ubuntu

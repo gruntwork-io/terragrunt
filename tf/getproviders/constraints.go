@@ -178,12 +178,12 @@ func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, b
 		if source != "" && version != "" {
 			// Normalize the source address to full registry format
 			providerAddr := normalizeProviderAddress(opts, source)
-			constraints[providerAddr] = version
+			constraints[providerAddr] = normalizeVersionConstraint(version)
 		} else if source == "" && version != "" {
 			// If only version is specified, assume it's a hashicorp provider
 			registryDomain := tf.GetDefaultRegistryDomain(opts)
 			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
-			constraints[providerAddr] = version
+			constraints[providerAddr] = normalizeVersionConstraint(version)
 		}
 	}
 
@@ -215,4 +215,17 @@ func normalizeProviderAddress(opts *options.TerragruntOptions, source string) st
 		// Fallback to original if format is unexpected
 		return source
 	}
+}
+
+// normalizeVersionConstraint normalizes version constraints by removing the "=" prefix if present
+// OpenTofu/Terraform expects constraints in normalized form without the "=" prefix
+func normalizeVersionConstraint(constraint string) string {
+	constraint = strings.TrimSpace(constraint)
+
+	// If constraint starts with "=" followed by whitespace, remove it
+	if after, ok := strings.CutPrefix(constraint, "="); ok {
+		return strings.TrimSpace(after)
+	}
+
+	return constraint
 }

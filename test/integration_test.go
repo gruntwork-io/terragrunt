@@ -891,7 +891,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
 
-	cmd := "terragrunt plan-all --non-interactive --working-dir " + rootTerragruntConfigPath
+	cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootTerragruntConfigPath
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
@@ -1959,10 +1959,10 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	// Verify that validate-all works as well.
+	// Verify that run --all validate works as well.
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all validate --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -1970,7 +1970,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all validate --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -2866,7 +2866,7 @@ func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntVersionCommand(t, "v0.23.21", "terragrunt validate-all --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
+	err := helpers.RunTerragruntVersionCommand(t, "v0.23.21", "terragrunt run --all validate --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)
@@ -4239,7 +4239,13 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	expected := 1
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 }
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
@@ -4255,8 +4261,36 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	expected := 2
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+// expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
+//
+// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled with OpenTofu,
+// as we need to check if the provider cache directory should be enabled.
+func expectExtraVersionCommandCall(t *testing.T) bool {
+	t.Helper()
+
+	if helpers.IsTerraform() {
+		return false
+	}
+
+	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
+		return true
+	}
+
+	if os.Getenv("TG_EXPERIMENT") == "auto-provider-cache-dir" {
+		return true
+	}
+
+	return false
 }
 
 func TestMixedStackConfigIgnored(t *testing.T) {

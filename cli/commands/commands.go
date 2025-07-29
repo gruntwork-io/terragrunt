@@ -209,18 +209,18 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	var err error
 
-	l, err = runCmd.PopulateTerraformVersion(ctx, l, opts)
+	l, terraformVersion, tfImplementation, err := runCmd.GetTFVersion(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
 	// Check if OpenTofu is being used
-	if opts.TerraformImplementation != options.OpenTofuImpl {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", opts.TerraformImplementation)
+	if tfImplementation != options.OpenTofuImpl {
+		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
 	}
 
 	// Check OpenTofu version > 1.10
-	if opts.TerraformVersion == nil {
+	if terraformVersion == nil {
 		return errors.New("cannot determine OpenTofu version")
 	}
 
@@ -229,8 +229,8 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 		return fmt.Errorf("failed to parse required version: %w", err)
 	}
 
-	if opts.TerraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", opts.TerraformVersion)
+	if terraformVersion.LessThan(requiredVersion) {
+		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
 	}
 
 	// Set up the provider cache directory
