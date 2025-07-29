@@ -782,10 +782,6 @@ func (r *UnitResolver) ResolveUnitFromDiscoveredConfig(
 	ctx context.Context,
 	l log.Logger,
 	cfg *discovery.DiscoveredConfig) (*Unit, error) {
-	if cfg.Parsed == nil {
-		return nil, errors.Errorf("discovered config at %s has no parsed configuration", cfg.Path)
-	}
-
 	terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
 	l, opts, err := r.cloneOptionsWithConfigPath(l, terragruntConfigPath)
 	if err != nil {
@@ -806,13 +802,23 @@ func (r *UnitResolver) ResolveUnitFromDiscoveredConfig(
 		return &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
+	includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
+
+	parseCtx := r.createParsingContext(ctx, l, opts)
+
 	if err := r.acquireCredentials(ctx, l, opts); err != nil {
+		return nil, err
+	}
+
+	// Re-parse the HCL configuration similar to partialParseConfig
+	terragruntConfig, err := r.partialParseConfig(ctx, parseCtx, l, terragruntConfigPath, includeConfig, "discovered config")
+	if err != nil {
 		return nil, err
 	}
 
 	r.Stack.TerragruntOptions.CloneReadFiles(opts.ReadFiles)
 
-	terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, cfg.Parsed)
+	terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -829,12 +835,12 @@ func (r *UnitResolver) ResolveUnitFromDiscoveredConfig(
 		return nil, err
 	}
 
-	if (cfg.Parsed.Terraform == nil || cfg.Parsed.Terraform.Source == nil || *cfg.Parsed.Terraform.Source == "") && matches == nil {
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
 		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
 
-	return &Unit{Path: unitPath, Logger: l, Config: *cfg.Parsed, TerragruntOptions: opts}, nil
+	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // CrossLinkDependencies establishes dependency relationships between units
