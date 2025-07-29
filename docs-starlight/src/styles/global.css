@@ -76,7 +76,7 @@
   --sl-color-bg-nav: #0f1731;
   --sl-color-bg-sidebar: #ffffff;
   --sl-color-bg: #ffffff;
-  
+
 	--sl-color-accent-low: #d0d3fc;
 	--sl-color-accent: #6049e8;
 	--sl-color-accent-high: #2c2669;
@@ -106,7 +106,7 @@ header {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0px !important; 
+  padding: 0px !important;
 }
 
 * {
@@ -180,4 +180,46 @@ body {
 .primary-button:focus-visible, .secondary-button:focus-visible {
   outline: 2px solid var(--color-accent-1);
   outline-offset: 2px;
+}
+
+/* Scroll animations for testimonials */
+@keyframes scrollUp {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes scrollDown {
+  0% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.scroll-up {
+  animation: scrollUp 90s linear infinite;
+}
+
+.scroll-down {
+  animation: scrollDown 90s linear infinite;
+}
+
+/* Pause animations on hover */
+.scroll-up:hover {
+  animation-play-state: paused;
+}
+
+.scroll-down:hover {
+  animation-play-state: paused;
+}
+
+/* Add background color to hovered testimonial cards */
+.scroll-up .shadow-\[0_0_0_2px_white\]:hover,
+.scroll-down .shadow-\[0_0_0_2px_white\]:hover {
+  background-color: var(--color-dark-blue-1) !important;
 }
