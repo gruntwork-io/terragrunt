@@ -23,21 +23,21 @@ const jobtitle = isDark ? "text-white" : "text-gray-1";
 
 ---
 
-<div class={` min-w-1/2 p-6 border-4 border-solid rounded-lg ${bgClass} border-[#f1f1f1] ${customClass}`}>
-    <div class="flex flex-col gap-8">
-        {logo &&
-          <Image
-            height={24}
-            src={logo}
-            alt={(alt?.trim()) || "Logo Brand"}
-          />
-        }
-        <div class="flex flex-col gap-4">
-        <p class={`font-sand text-sm whitespace-pre-line ${textPrimary}`}>{content}</p>
-        <div class="flex flex-col">
-            <p class={`font-sand text-sm ${textSecondary}`}>{author}</p>
-            <p class={`font-sand text-xs ${jobtitle}`}>{title}</p>
-        </div>
-        </div>
+<div class={`border-4 border-solid rounded-lg ${bgClass} border-[#f1f1f1] ${customClass} p-6`}>
+  <div class="flex flex-col gap-8">
+    {logo &&
+      <Image
+        height={24}
+        src={logo}
+        alt={(alt?.trim()) || "Logo Brand"}
+      />
+    }
+    <div class="flex flex-col gap-4">
+      <p class={`font-sand text-sm whitespace-pre-line ${textPrimary}`}>{content}</p>
+      <div class="flex flex-col">
+          <p class={`font-sand text-sm ${textSecondary}`}>{author}</p>
+          <p class={`font-sand text-xs ${jobtitle}`}>{title}</p>
+      </div>
     </div>
+  </div>
 </div>
