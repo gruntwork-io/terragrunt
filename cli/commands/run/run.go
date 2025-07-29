@@ -308,7 +308,12 @@ func runTerragruntWithConfig(
 	r *report.Report,
 	target *Target,
 ) error {
-	// Add extra_arguments to the command
+	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
+
+		return nil
+	}
+
 	if cfg.Terraform != nil && cfg.Terraform.ExtraArgs != nil && len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, opts, cfg)
 
