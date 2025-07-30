@@ -51,7 +51,7 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
-	crossLinkedUnits, err := r.telemetryCrosslinkDependencies(ctx, unitsMap, externalDependencies, canonicalTerragruntConfigPaths)
+	crossLinkedUnits, err := r.telemetryCrossLinkDependencies(ctx, unitsMap, externalDependencies, canonicalTerragruntConfigPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +126,8 @@ func (r *UnitResolver) telemetryResolveExternalDependencies(ctx context.Context,
 	return externalDependencies, err
 }
 
-// telemetryCrosslinkDependencies cross-links dependencies between units
-func (r *UnitResolver) telemetryCrosslinkDependencies(ctx context.Context, unitsMap, externalDependencies UnitsMap, canonicalTerragruntConfigPaths []string) (Units, error) {
+// telemetryCrossLinkDependencies cross-links dependencies between units
+func (r *UnitResolver) telemetryCrossLinkDependencies(ctx context.Context, unitsMap, externalDependencies UnitsMap, canonicalTerragruntConfigPaths []string) (Units, error) {
 	var crossLinkedUnits Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
@@ -315,7 +315,8 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 		return nil, err
 	}
 
-	terragruntConfig, err := r.partialParseConfig(ctx, parseCtx, l, terragruntConfigPath, includeConfig, howThisUnitWasFound)
+	//nolint:contextcheck
+	terragruntConfig, err := r.partialParseConfig(parseCtx, l, terragruntConfigPath, includeConfig, howThisUnitWasFound)
 	if err != nil {
 		return nil, err
 	}
@@ -346,10 +347,14 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
+// resolveUnitPath converts a Terragrunt configuration file path to its corresponding unit path.
+// Returns the canonical path of the directory containing the config file.
 func (r *UnitResolver) resolveUnitPath(terragruntConfigPath string) (string, error) {
 	return util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 }
 
+// cloneOptionsWithConfigPath creates a copy of the Terragrunt options with a new config path.
+// Returns the cloned logger, options, and any error that occurred during cloning.
 func (r *UnitResolver) cloneOptionsWithConfigPath(l log.Logger, terragruntConfigPath string) (log.Logger, *options.TerragruntOptions, error) {
 	l, opts, err := r.Stack.TerragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
 	if err != nil {
@@ -361,6 +366,8 @@ func (r *UnitResolver) cloneOptionsWithConfigPath(l log.Logger, terragruntConfig
 	return l, opts, nil
 }
 
+// setupIncludeConfig creates an include configuration for Terragrunt config inheritance.
+// Returns the include config if the path is processed, otherwise returns nil.
 func (r *UnitResolver) setupIncludeConfig(terragruntConfigPath string, opts *options.TerragruntOptions) *config.IncludeConfig {
 	var includeConfig *config.IncludeConfig
 	if r.Stack.ChildTerragruntConfig != nil && r.Stack.ChildTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
@@ -373,6 +380,8 @@ func (r *UnitResolver) setupIncludeConfig(terragruntConfigPath string, opts *opt
 	return includeConfig
 }
 
+// createParsingContext initializes a parsing context for Terragrunt configuration files.
+// Returns a configured parsing context with specific decode options for Terraform blocks.
 func (r *UnitResolver) createParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *config.ParsingContext {
 	parseOpts := opts.Clone()
 	parseOpts.SkipOutput = false
@@ -388,14 +397,17 @@ func (r *UnitResolver) createParsingContext(ctx context.Context, l log.Logger, o
 		)
 }
 
+// acquireCredentials obtains and updates environment credentials for Terraform providers.
+// Returns an error if credential acquisition fails.
 func (r *UnitResolver) acquireCredentials(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	credsGetter := creds.NewGetter()
 	return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts))
 }
 
-// nolint:unparam
-func (r *UnitResolver) partialParseConfig(ctx context.Context, parseCtx *config.ParsingContext, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
-	terragruntConfig, err := config.PartialParseConfigFile( //nolint:contextcheck
+// partialParseConfig parses a Terragrunt configuration file with limited block decoding.
+// Returns the parsed configuration or an error if parsing fails.
+func (r *UnitResolver) partialParseConfig(parseCtx *config.ParsingContext, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
+	terragruntConfig, err := config.PartialParseConfigFile(
 		parseCtx,
 		l,
 		terragruntConfigPath,
@@ -412,6 +424,8 @@ func (r *UnitResolver) partialParseConfig(ctx context.Context, parseCtx *config.
 	return terragruntConfig, nil
 }
 
+// setupDownloadDir configures the download directory for a Terragrunt unit.
+// Returns an error if the download directory setup fails.
 func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *options.TerragruntOptions, l log.Logger) error {
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(r.Stack.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
@@ -619,6 +633,8 @@ func (r *UnitResolver) flagUnitsThatAreIncluded(opts *options.TerragruntOptions,
 	return units, nil
 }
 
+// flagUnitIncludes marks a unit as included if any of its include paths match the canonical paths.
+// Returns an error if path resolution fails during the comparison.
 func (r *UnitResolver) flagUnitIncludes(unit *Unit, canonicalPaths []string) error {
 	for _, includeConfig := range unit.Config.ProcessedIncludes {
 		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unit.Path)
@@ -634,6 +650,8 @@ func (r *UnitResolver) flagUnitIncludes(unit *Unit, canonicalPaths []string) err
 	return nil
 }
 
+// flagUnitDependencies processes dependencies of a unit and flags them based on include paths.
+// Returns an error if dependency processing fails.
 func (r *UnitResolver) flagUnitDependencies(unit *Unit, canonicalPaths []string) error {
 	for _, dependency := range unit.Dependencies {
 		if dependency.FlagExcluded {
@@ -648,6 +666,8 @@ func (r *UnitResolver) flagUnitDependencies(unit *Unit, canonicalPaths []string)
 	return nil
 }
 
+// flagDependencyIncludes marks a dependency as included if any of its include paths match the canonical paths.
+// Returns an error if path resolution fails during the comparison.
 func (r *UnitResolver) flagDependencyIncludes(dependency *Unit, unitPath string, canonicalPaths []string) error {
 	for _, includeConfig := range dependency.Config.ProcessedIncludes {
 		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unitPath)
