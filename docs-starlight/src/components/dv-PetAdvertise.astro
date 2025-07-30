@@ -2,7 +2,7 @@
 import '@styles/global.css';
 import { Image } from 'astro:assets';
 
-import BackgroundPattern from '@assets/hero-bg.png';
+import BackgroundPattern from '@assets/hero-bkgnd.svg';
 import IconPipelines from '@assets/pipelines.svg';
 import IconArrowGreen from '@assets/icon-circle-arrow.svg';
 import PetTerragrunt from '@assets/pet-terragrunt.svg';
@@ -21,9 +21,9 @@ const patcherLink = 'https://www.gruntwork.io/platform/patcher';
     <!-- upsell -->
     <div class="relative bg-bg-dark overflow-hidden border-6 border-[#E6E6E6] rounded-3xl">
         <Image
-            src={BackgroundPattern}
             alt="Isometric background pattern"
-            class="absolute bottom-0 transform -translate-x-36 lg:-translate-x-10 xl:-translate-x-40 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none"
+            class="absolute bottom-0 transform -translate-x-36 lg:-translate-x-10 xl:-translate-x-40 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none opacity-40"
+            src={BackgroundPattern}
         />
         <div class="flex flex-col py-8 md:py-0 md:pt-20 md:pb-[100px] justify-center items-center z-10">
             <!-- Header Section -->
