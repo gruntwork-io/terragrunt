@@ -491,6 +491,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			excludeBody.SetAttributeValue("actions", excludeAsCty.GetAttr("actions"))
 		}
 
+		if cfg.Exclude.NoRun != nil {
+			excludeBody.SetAttributeValue("no_run", excludeAsCty.GetAttr("no_run"))
+		}
+
 		excludeBody.SetAttributeValue("if", excludeAsCty.GetAttr("if"))
 
 		rootBody.AppendBlock(excludeBlock)
