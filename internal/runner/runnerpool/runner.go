@@ -70,9 +70,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 
-	// Convert UnitsMap to Units slice
-	units := make(common.Units, 0, len(unitsMap))
-	units = append(units, unitsMap...)
+	// unitsMap is already a Units slice, so we can use it directly
+	units := unitsMap
 
 	runner.Stack.Units = units
 

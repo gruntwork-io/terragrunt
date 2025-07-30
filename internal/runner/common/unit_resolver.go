@@ -339,7 +339,7 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 		return nil, err
 	}
 
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && len(matches) == 0 {
 		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
