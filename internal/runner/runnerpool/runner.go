@@ -64,6 +64,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	// Create units from discovered configurations using the full resolution pipeline
 	unitResolver := common.NewUnitResolver(runner.Stack)
+
 	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
 	if err != nil {
 		return nil, err
@@ -71,9 +72,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	// Convert UnitsMap to Units slice
 	units := make(common.Units, 0, len(unitsMap))
-	for _, unit := range unitsMap {
-		units = append(units, unit)
-	}
+	units = append(units, unitsMap...)
 
 	runner.Stack.Units = units
 

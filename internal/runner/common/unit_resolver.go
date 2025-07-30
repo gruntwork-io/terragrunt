@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -377,6 +376,7 @@ func (r *UnitResolver) setupIncludeConfig(terragruntConfigPath string, opts *opt
 func (r *UnitResolver) createParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *config.ParsingContext {
 	parseOpts := opts.Clone()
 	parseOpts.SkipOutput = false
+
 	return config.NewParsingContext(ctx, l, parseOpts).
 		WithParseOption(r.Stack.ParserOptions).
 		WithDecodeList(
@@ -401,28 +401,6 @@ func (r *UnitResolver) partialParseConfig(ctx context.Context, parseCtx *config.
 		terragruntConfigPath,
 		includeConfig,
 	)
-	if err != nil {
-		return nil, errors.New(ProcessingUnitError{
-			UnderlyingError:     err,
-			HowThisUnitWasFound: howThisUnitWasFound,
-			UnitPath:            terragruntConfigPath,
-		})
-	}
-
-	return terragruntConfig, nil
-}
-
-// fullParseConfig performs full parsing of HCL files similar to config.ReadTerragruntConfig()
-// but within the unit resolver context. This function parses all configuration blocks and attributes.
-func (r *UnitResolver) fullParseConfig(ctx context.Context, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
-	// Create a parsing context with the specific config path
-	l, opts, err := r.Stack.TerragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Use ReadTerragruntConfig with the cloned options to ensure proper dependency resolution
-	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
 	if err != nil {
 		return nil, errors.New(ProcessingUnitError{
 			UnderlyingError:     err,
@@ -797,42 +775,4 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	}
 
 	return units
-}
-
-// CrossLinkDependencies establishes dependency relationships between units
-// based on discovered configurations. This is used by the runnerpool implementation.
-func (r *UnitResolver) CrossLinkDependencies(
-	discovered discovery.DiscoveredConfigs,
-	unitsMap UnitsMap,
-) error {
-	for _, cfg := range discovered {
-		unit, exists := unitsMap[cfg.Path]
-		if !exists {
-			continue
-		}
-
-		if err := r.linkUnitDependencies(unit, cfg.Dependencies, unitsMap); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// linkUnitDependencies links a unit to its dependencies based on discovered configurations.
-func (r *UnitResolver) linkUnitDependencies(
-	unit *Unit,
-	dependencies discovery.DiscoveredConfigs,
-	unitsMap UnitsMap,
-) error {
-	for _, dependency := range dependencies {
-		path := dependency.Path
-		if depUnit, ok := unitsMap[path]; ok {
-			unit.Dependencies = append(unit.Dependencies, depUnit)
-		} else {
-			return errors.Errorf("Dependency %s for unit %s not found in discovered units", path, unit.Path)
-		}
-	}
-
-	return nil
 }
