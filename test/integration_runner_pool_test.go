@@ -112,7 +112,7 @@ func TestRunnerPoolFailFast(t *testing.T) {
 	assert.Contains(t, stderr, "unit-c did not run due to early exit")
 }
 
-func TestRunnerPoolFailFastDestroy(t *testing.T) {
+func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
@@ -122,10 +122,10 @@ func TestRunnerPoolFailFastDestroy(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
 
-	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- destroy")
-	// create fail.txt in unit-a to trigger a failure
-	helpers.CreateFile(t, testPath, "unit-a", "fail.txt")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- destroy")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
 
-	assert.Contains(t, stderr, "unit-b did not run due to early exit")
-	assert.Contains(t, stderr, "unit-c did not run due to early exit")
 }

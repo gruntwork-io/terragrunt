@@ -412,6 +412,28 @@ func (r *UnitResolver) partialParseConfig(ctx context.Context, parseCtx *config.
 	return terragruntConfig, nil
 }
 
+// fullParseConfig performs full parsing of HCL files similar to config.ReadTerragruntConfig()
+// but within the unit resolver context. This function parses all configuration blocks and attributes.
+func (r *UnitResolver) fullParseConfig(ctx context.Context, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
+	// Create a parsing context with the specific config path
+	l, opts, err := r.Stack.TerragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use ReadTerragruntConfig with the cloned options to ensure proper dependency resolution
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	if err != nil {
+		return nil, errors.New(ProcessingUnitError{
+			UnderlyingError:     err,
+			HowThisUnitWasFound: howThisUnitWasFound,
+			UnitPath:            terragruntConfigPath,
+		})
+	}
+
+	return terragruntConfig, nil
+}
+
 func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *options.TerragruntOptions, l log.Logger) error {
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(r.Stack.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
@@ -775,72 +797,6 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	}
 
 	return units
-}
-
-// ResolveUnitFromDiscoveredConfig creates a Unit from a discovered configuration.
-func (r *UnitResolver) ResolveUnitFromDiscoveredConfig(
-	ctx context.Context,
-	l log.Logger,
-	cfg *discovery.DiscoveredConfig) (*Unit, error) {
-	terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
-	l, opts, err := r.cloneOptionsWithConfigPath(l, terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// For runnerpool, we need to ensure that dependency outputs are available during execution.
-	// The RunTerragrunt function will parse the configuration fresh and retrieve dependency outputs,
-	// but we need to ensure that the SkipOutput setting allows this to happen.
-	opts.SkipOutput = false
-
-	unitPath, err := r.resolveUnitPath(terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if collections.ListContainsElement(opts.ExcludeDirs, unitPath) {
-		return &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
-	}
-
-	includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
-
-	parseCtx := r.createParsingContext(ctx, l, opts)
-
-	if err := r.acquireCredentials(ctx, l, opts); err != nil {
-		return nil, err
-	}
-
-	// Re-parse the HCL configuration similar to partialParseConfig
-	terragruntConfig, err := r.partialParseConfig(ctx, parseCtx, l, terragruntConfigPath, includeConfig, "discovered config")
-	if err != nil {
-		return nil, err
-	}
-
-	r.Stack.TerragruntOptions.CloneReadFiles(opts.ReadFiles)
-
-	terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	opts.Source = terragruntSource
-
-	if err := r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
-		return nil, err
-	}
-
-	// Validate that the unit has an associated Terraform configuration
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
-	if err != nil {
-		return nil, err
-	}
-
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
-		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
-		return nil, nil
-	}
-
-	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // CrossLinkDependencies establishes dependency relationships between units

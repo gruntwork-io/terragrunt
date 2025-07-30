@@ -49,9 +49,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		queue: q,
 	}
 
-	// Create units from discovered configurations
-	unitResolver := common.NewUnitResolver(runner.Stack)
-	unitsMap := common.UnitsMap{}
+	unitPaths := make([]string, 0, len(discovered))
 
 	for _, cfg := range discovered {
 		if cfg.Parsed == nil {
@@ -60,18 +58,14 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue
 		}
 
-		unit, err := unitResolver.ResolveUnitFromDiscoveredConfig(ctx, l, cfg)
-		if err != nil {
-			return nil, err
-		}
-
-		if unit != nil {
-			unitsMap[unit.Path] = unit
-		}
+		terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
+		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
-	// Cross-link dependencies between units
-	if err := unitResolver.CrossLinkDependencies(discovered, unitsMap); err != nil {
+	// Create units from discovered configurations using the full resolution pipeline
+	unitResolver := common.NewUnitResolver(runner.Stack)
+	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
+	if err != nil {
 		return nil, err
 	}
 
