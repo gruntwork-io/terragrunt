@@ -1368,17 +1368,9 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 // detectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
 func detectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hclparse.File) error {
 	if detectInputsCtyUsage(file) {
-		allControls := ctx.TerragruntOptions.StrictControls
-
-		skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
-		if skipDependenciesInputs == nil {
-			return errors.New("failed to find control " + controls.SkipDependenciesInputs)
-		}
-
-		evalCtx := log.ContextWithLogger(ctx, l)
-		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
-			return err
-		}
+		// Dependency inputs (dependency.foo.inputs.bar) are now blocked by default for performance.
+		// This deprecated feature causes significant performance overhead due to recursive parsing.
+		return errors.New("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.")
 	}
 
 	if detectBareIncludeUsage(file) {
