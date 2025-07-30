@@ -73,6 +73,7 @@ export default defineConfig({
   site: "https://terragrunt-v1.gruntwork.io",
   output: "server",
   adapter: vercel({
+    imageService: true,
     isr: {
       expiration: 60 * 60 * 24, // 24 hours
     },
