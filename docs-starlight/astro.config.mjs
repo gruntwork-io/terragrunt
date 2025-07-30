@@ -8,6 +8,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 import partytown from "@astrojs/partytown";
 
+// Check if we're in Vercel environment
+const isVercel = globalThis.process?.env?.VERCEL;
+
 export const sidebar = [
   {
     label: "Getting Started",
@@ -71,13 +74,13 @@ export const sidebar = [
 // https://astro.build/config
 export default defineConfig({
   site: "https://terragrunt-v1.gruntwork.io",
-  output: "server",
-  adapter: vercel({
+  output: isVercel ? "server" : "static",
+  adapter: isVercel ? vercel({
     imageService: true,
     isr: {
       expiration: 60 * 60 * 24, // 24 hours
     },
-  }),
+  }) : undefined,
   integrations: [starlight({
     title: "Terragrunt",
     customCss: ["./src/styles/global.css"],
@@ -149,7 +152,7 @@ export default defineConfig({
     // It's recommended that we just skip generation in Vercel,
     // and generate diagrams locally:
     // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
-    skipGeneration: !!process.env['VERCEL']
+    skipGeneration: !!isVercel
   }), partytown({
     config: {
       forward: ['dataLayer.push']
