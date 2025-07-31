@@ -85,7 +85,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1
 	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.3.0.20250617194119-3f1d09f7d826
-	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta1
+	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.1
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20250616121729-19b66ab4499b
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/invopop/jsonschema v0.13.0
