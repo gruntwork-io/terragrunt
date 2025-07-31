@@ -165,7 +165,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket or DynamoDB table.
 
-**Note**: You can disable automatic remote state resource creation by setting `remote_state.disable_init = true`. This prevents Terragrunt from creating S3 buckets, DynamoDB tables, or other backend resources, but still allows OpenTofu/Terraform to initialize its backend configuration. This is particularly useful for CI/CD environments where you want to run `validate`, `fmt`, or `plan` without needing credentials to create backend infrastructure.
+**Note**: You can disable automatic remote state backend bootstrapping by setting `remote_state.disable_init = true`. This prevents Terragrunt from creating S3 buckets, DynamoDB tables, or other backend resources, but still allows OpenTofu/Terraform to initialize its backend configuration. This is particularly useful for CI/CD environments where you want to run `validate`, `fmt`, or `plan` without provisioning backend resources (or attempting to). Note that this will be the default behavior in a future version of Terragrunt, and backend bootstrapping will require explicit opt-in via the [`--backend-bootstrap`](https://terragrunt-v1.gruntwork.io/docs/reference/cli/commands/backend/bootstrap/) flag.
 
 The following example demonstrates using an environment variable to configure this option:
 
