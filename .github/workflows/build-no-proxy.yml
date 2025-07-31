@@ -46,6 +46,7 @@ jobs:
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
+          GOSUMDB: "off"
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
