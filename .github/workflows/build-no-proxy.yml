@@ -38,6 +38,10 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Clean Go cache and module cache
+        run: |
+          go clean -modcache -cache -testcache
+
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
