@@ -1494,9 +1494,10 @@ Syntax:
 
 ```hcl
 exclude {
-    if = <boolean expression>           # Boolean expression to determine exclusion.
-    actions = ["<action>", ...]         # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
-    exclude_dependencies = <boolean>    # Boolean to determine if dependencies should also be excluded.
+    if                   = <boolean>          # Boolean to determine exclusion.
+    no_run               = <boolean>          # Boolean to prevent the unit from running (even when not using `--all`).
+    actions              = ["<action>", ...]  # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
+    exclude_dependencies = <boolean>          # Boolean to determine if dependencies should also be excluded.
 }
 ```
 
@@ -1507,6 +1508,7 @@ Attributes:
 | `if`                   | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
 | `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
 | `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
+| `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for both single unit commands and `run --all` commands, but only when the current action matches the `actions` list. |
 
 Examples:
 
@@ -1541,6 +1543,16 @@ exclude {
 ```
 
 This setup is useful for scenarios where output evaluation is still needed, even if other actions like `plan` or `apply` are excluded.
+
+```hcl
+exclude {
+    if      = true
+    no_run  = true
+    actions = ["plan"]
+}
+```
+
+This configuration prevents the unit from running when `if` is `true` AND the current action is "plan". The `no_run` attribute works for both single unit commands (like `terragrunt plan`) and `run --all` commands (like `terragrunt run --all plan`), but only when the current action matches the `actions` list.
 
 Consider using this for units that are expensive to continuously update, and can be opted in when necessary.
 
