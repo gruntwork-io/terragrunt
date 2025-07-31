@@ -6,13 +6,15 @@ const fs = require('fs');
  * @param {Object} params.github - GitHub API client
  * @param {Object} params.context - GitHub Actions context
  * @param {Object} params.core - GitHub Actions core utilities
+ * @param {string} params.fixedFilesPath - Path to the fixed files list
+ * @param {string} params.outputFilePath - Path to the gopls output file
  * @returns {Promise<number>} The created issue number
  */
-module.exports = async ({ github, context, core }) => {
+module.exports = async ({ github, context, core, fixedFilesPath, outputFilePath }) => {
   try {
-    // Read the files that were fixed
-    const fixedFiles = fs.readFileSync('fixed_files.txt', 'utf8');
-    const goplsOutput = fs.readFileSync('gopls_output.txt', 'utf8');
+    // Read the files that were fixed from provided paths
+    const fixedFiles = fs.readFileSync(fixedFilesPath, 'utf8');
+    const goplsOutput = fs.readFileSync(outputFilePath, 'utf8');
 
     const issueBody = `## Gopls Quickfix Issues Found
 

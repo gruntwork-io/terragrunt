@@ -8,12 +8,12 @@ const fs = require('fs');
  * @param {Object} params.core - GitHub Actions core utilities
  * @param {Object} params.exec - GitHub Actions exec utilities
  * @param {string} params.issueNumber - The issue number to link to (optional)
+ * @param {string} params.fixedFilesPath - Path to the fixed files list
  * @returns {Promise<number>} The created PR number
  */
-module.exports = async ({ github, context, core, exec, issueNumber }) => {
+module.exports = async ({ github, context, core, exec, issueNumber, fixedFilesPath }) => {
   try {
-    // Read the files that were fixed
-    const fixedFiles = fs.readFileSync('fixed_files.txt', 'utf8');
+    const fixedFiles = fs.readFileSync(fixedFilesPath, 'utf8');
 
     // Configure git
     await exec.exec('git', ['config', '--local', 'user.email', 'action@github.com']);
