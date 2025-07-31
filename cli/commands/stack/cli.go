@@ -16,6 +16,7 @@ const (
 	JSONFormatFlagName   = "json"
 	RawFormatFlagName    = "raw"
 	NoStackValidate      = "no-stack-validate"
+	JSONValuesFlagName   = "json-values"
 
 	generateCommandName = "generate"
 	runCommandName      = "run"
@@ -82,6 +83,12 @@ func defaultFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Pr
 			Destination: &opts.NoStackValidate,
 			Hidden:      true,
 			Usage:       "Disable automatic stack validation after generation.",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        JSONValuesFlagName,
+			EnvVars:     tgPrefix.EnvVars(JSONValuesFlagName),
+			Destination: &opts.StackValuesJSON,
+			Usage:       "Write stack values files in JSON format instead of HCL.",
 		}),
 	}
 
