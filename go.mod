@@ -314,7 +314,7 @@ replace (
 
 	// Fix for x/ansi checksum mismatch
 	// See https://github.com/charmbracelet/bubbletea/issues/1448
-	github.com/charmbracelet/x/ansi v0.9.3 => github.com/charmbracelet/x/ansi v0.0.0-20250616121729-19b66ab4499b
+	github.com/charmbracelet/x/ansi v0.9.3 => github.com/charmbracelet/x/ansi v0.0.0-20250611152503-f53cdd7e01ef
 
 	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
 	// can't use terraform as a library after v0.15.3, so we pull that in here.
