@@ -4323,11 +4323,11 @@ func TestRemoteStateDisableInitIssue1422(t *testing.T) {
 	require.NoError(t, err, "terragrunt init should succeed with disable_init=true")
 	require.NotContains(t, initStdout, "-backend=false", "Should not use -backend=false with disable_init=true")
 	require.NotContains(t, initStderr, "-backend=false", "Should not use -backend=false with disable_init=true")
-	
+
 	// validate should work (main CI use case)
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt validate --terragrunt-working-dir "+testPath)
 	require.NoError(t, err, "terragrunt validate should work with disable_init=true")
-	
+
 	// backend configuration should be handled correctly
 	initOutput := string(initStdout) + string(initStderr)
 	require.Contains(t, initOutput, "Successfully configured the backend", "Backend should be properly configured during init")
