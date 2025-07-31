@@ -38,16 +38,6 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-
-      - name: Go Build Cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-no-proxy-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
-
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
