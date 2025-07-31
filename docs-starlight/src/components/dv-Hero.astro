@@ -1,23 +1,17 @@
 ---
 import '@styles/global.css';
 import { Image } from 'astro:assets';
-import IconLabel from '@components/dv-IconButton.astro';
 
-// TODO: Restore once we have a working curl to bash script.
-// import Terminal from '@components/dv-Terminal.astro';
-
-import OpentofuIcon from '@assets/opentofu-logo.svg';
-import TerraformIcon from '@assets/terraform-logo.svg';
-import MobileHeroBackground from '@assets/hero-bkgnd.svg';
 import HeroCompleteBackground from '@assets/hero-bkgnd.svg';
+import IconLabel from '@components/dv-IconButton.astro';
+import MobileHeroBackground from '@assets/hero-bkgnd.svg';
+import OpentofuIcon from '@assets/opentofu-logo.svg';
+import Terminal from '@components/dv-Terminal.astro';
+import TerraformIcon from '@assets/terraform-logo.svg';
 ---
 
 <section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
-    <!-- <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-20">
-        TODO: Restore once we have a working curl to bash script.
-        <Terminal />
-    </div> -->
-
+    <!-- Hero Background -->
     <Image
       src={MobileHeroBackground}
       alt="Isometric background pattern"
@@ -76,4 +70,10 @@ import HeroCompleteBackground from '@assets/hero-bkgnd.svg';
             </a>
         </div>
     </div>
+
+    <!-- Install Widget
+    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-20">
+      <Terminal />
+    </div>
+    -->
 </section>
