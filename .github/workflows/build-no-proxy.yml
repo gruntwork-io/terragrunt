@@ -40,6 +40,7 @@ jobs:
 
       - name: Clean Go cache and module cache
         run: |
+          go version
           go clean -modcache -cache -testcache
 
       - name: Build Terragrunt without Go proxy
