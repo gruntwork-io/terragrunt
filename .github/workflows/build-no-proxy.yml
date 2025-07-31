@@ -47,7 +47,6 @@ jobs:
         env:
           GOPROXY: direct
           GOSUMDB: off
-          GONOSUMDB: github.com/charmbracelet/x
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
