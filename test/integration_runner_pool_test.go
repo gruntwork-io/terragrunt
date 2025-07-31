@@ -111,3 +111,39 @@ func TestRunnerPoolFailFast(t *testing.T) {
 	assert.Contains(t, stderr, "unit-b did not run due to early exit")
 	assert.Contains(t, stderr, "unit-c did not run due to early exit")
 }
+
+func TestRunnerPoolDestroyFailFast(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+	require.NoError(t, err)
+
+	// create fail.txt in unit-a to trigger a failure
+	helpers.CreateFile(t, testPath, "unit-b", "fail.txt")
+	stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- destroy")
+	assert.Contains(t, stderr, "invocation failed in ./unit-b")
+	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
+}
+
+func TestRunnerPoolDestroyDependencies(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- destroy")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
+
+}

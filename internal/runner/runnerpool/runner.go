@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -35,14 +34,11 @@ type Runner struct {
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
+func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	q, queueErr := queue.NewQueue(discovered)
 	if queueErr != nil {
 		return nil, queueErr
 	}
-
-	unitsMap := make(common.UnitsMap, len(discovered))
-	orderedUnits := make(common.Units, 0, len(discovered))
 
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
@@ -53,48 +49,28 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 		queue: q,
 	}
 
-	for _, cfg := range discovered {
-		configPath := config.GetDefaultConfigPath(cfg.Path)
+	unitPaths := make([]string, 0, len(discovered))
 
+	for _, cfg := range discovered {
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
 			l.Warnf("Skipping unit at %s due to parse error", cfg.Path)
 			continue
 		}
 
-		unitLogger, unitOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
-
-		if err != nil {
-			l.Warnf("Skipping unit at %s due to error cloning options: %s", cfg.Path, err)
-			continue // skip on error
-		}
-
-		mod := &common.Unit{
-			TerragruntOptions: unitOpts,
-			Logger:            unitLogger,
-			Path:              cfg.Path,
-			Config:            *cfg.Parsed,
-		}
-
-		orderedUnits = append(orderedUnits, mod)
-		unitsMap[cfg.Path] = mod
+		terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
+		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
-	// cross-link dependencies units based on the discovered configurations
-	for _, cfg := range discovered {
-		unit := unitsMap[cfg.Path]
+	// Create units from discovered configurations using the full resolution pipeline
+	unitResolver := common.NewUnitResolver(runner.Stack)
 
-		for _, dependency := range cfg.Dependencies {
-			path := dependency.Path
-			if depUnit, ok := unitsMap[path]; ok {
-				unit.Dependencies = append(unit.Dependencies, depUnit)
-			} else {
-				return nil, errors.Errorf("Dependency %s for unit %s not found in discovered units", path, unit.Path)
-			}
-		}
+	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
+	if err != nil {
+		return nil, err
 	}
 
-	stack.Units = orderedUnits
+	runner.Stack.Units = unitsMap
 
 	return runner.WithOptions(opts...), nil
 }
@@ -135,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	taskRun := func(ctx context.Context, u *common.Unit) error {
+	task := func(ctx context.Context, u *common.Unit) error {
 		unitRunner := common.NewUnitRunner(u)
 
 		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
@@ -150,7 +126,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	controller := NewController(
 		r.queue,
 		r.Stack.Units,
-		WithRunner(taskRun),
+		WithRunner(task),
 		WithMaxConcurrency(opts.Parallelism),
 	)
 
