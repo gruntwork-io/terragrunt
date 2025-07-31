@@ -1,19 +1,24 @@
 name: Gopls Quickfix Check
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '0 2 1 * *'
+
+  workflow_dispatch:
 
 jobs:
   gopls-quickfix:
     name: Gopls Quickfix
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -33,21 +38,37 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y parallel
 
       - name: Run gopls quickfixes
+        id: gopls_run
+        run: ./.github/scripts/gopls/run.sh
+
+      - name: Check for changes
+        id: check-changes
+        run: ./.github/scripts/gopls/check-for-changes.sh
+        env:
+          HAS_FIXES: ${{ steps.gopls_run.outputs.has_fixes }}
+
+      - name: Create issue for problems found
+        id: create_issue_for_problems
+        if: steps.gopls_run.outputs.has_fixes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const createIssue = require('./.github/scripts/gopls/create-issue.js');
+            await createIssue({ github, context, core });
+
+      - name: Create pull request for fixes
+        if: steps.check-changes.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ steps.create_issue_for_problems.outputs.issue_number }}
+        with:
+          script: |
+            const createPR = require('./.github/scripts/gopls/create-pr.js');
+            const issueNumber = process.env.ISSUE_NUMBER;
+            await createPR({ github, context, core, exec, issueNumber });
+
+      - name: Success message
+        if: steps.gopls_run.outputs.has_fixes == 'false'
         run: |
-          set -e
-          mise use -g go:golang.org/x/tools/gopls@v0.18.1
-          gopls version
-          > fixed_files.txt
-          > gopls_failures.txt
-          while IFS= read -r file; do
-            echo "START: $file"
-            if gopls codeaction -kind=quickfix -write "$file"; then
-              echo "SUCCESS: $file"
-            else
-              echo "FAILED: $file" | tee -a gopls_failures.txt
-              echo "$file" >> fixed_files.txt
-            fi
-            echo "END: $file"
-          done < gofiles.txt
-          echo "\n==== gopls failures (if any) ===="
-          cat gopls_failures.txt || true
+          echo "✅ No gopls quickfix issues found!"
+          echo "All Go files are up to date with gopls recommendations."
