@@ -319,6 +319,11 @@ replace (
 	// See https://github.com/hashicorp/vault/issues/7848 for more info
 	github.com/hashicorp/vault => github.com/hashicorp/vault v1.4.2
 
+	// Fix for missing tencentcloud v3.0.82 tag
+	// See https://github.com/hashicorp/terraform/issues/29442
+	github.com/tencentcloud/tencentcloud-sdk-go => github.com/tencentcloud/tencentcloud-sdk-go v0.0.0-20190816164403-f8fa457a3c72
+
 	// TFlint introduced a BUSL license in v0.51.0, so we have to be careful not to update past this version.
 	github.com/terraform-linters/tflint => github.com/terraform-linters/tflint v0.50.3
+
 )
