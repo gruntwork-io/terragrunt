@@ -252,12 +252,17 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
-			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
-
+			// Only log unrecoverable errors when not suppressing
+			if !suppressParseErrors {
+				l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+			}
 			return errors.New(err)
 		}
 
-		l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+		// When suppressing errors, only log at debug level and don't return the error
+		if !suppressParseErrors {
+			l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+		}
 	}
 
 	c.Parsed = cfg
@@ -354,7 +359,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	if d.requiresParse {
 		for _, cfg := range cfgs {
 			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
-			if err != nil {
+			if err != nil && !d.suppressParseErrors {
 				errs = append(errs, errors.New(err))
 			}
 		}
@@ -382,10 +387,13 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			}
 
 			err := dependencyDiscovery.DiscoverAllDependencies(ctx, l, opts)
-			if err != nil {
-				l.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
-
+			if err != nil && d.suppressParseErrors {
+				// Only show warning when errors are suppressed
+				l.Warnf("Parsing errors were encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
 				l.Debugf("Errors: %w", err)
+			} else if err != nil {
+				// When not suppressing, return the error
+				return err
 			}
 
 			cfgs = dependencyDiscovery.cfgs
@@ -473,7 +481,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log
 		}
 
 		err := d.DiscoverDependencies(ctx, l, opts, cfg)
-		if err != nil {
+		if err != nil && !d.suppressParseErrors {
 			errs = append(errs, errors.New(err))
 		}
 	}
@@ -499,8 +507,13 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 	// This should only happen if we're discovering an ancestor dependency.
 	if dCfg.Parsed == nil {
 		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors)
-		if err != nil {
+		if err != nil && !d.suppressParseErrors {
 			return errors.New(err)
+		}
+		// If parsing failed and we're suppressing errors, we can't proceed with dependency discovery
+		// since we need the parsed config. Return early to avoid nil pointer issues.
+		if err != nil && d.suppressParseErrors {
+			return nil
 		}
 	}
 
