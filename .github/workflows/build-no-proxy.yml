@@ -46,11 +46,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
+          key: ${{ runner.os }}-go-no-proxy-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
+          GOSUMDB: off
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
