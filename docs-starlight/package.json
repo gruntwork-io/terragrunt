@@ -15,13 +15,11 @@
     "@astrojs/starlight-tailwind": "^4.0.1",
     "@astrojs/vercel": "^8.2.3",
     "@tailwindcss/vite": "^4.1.11",
-    "@zachleat/table-saw": "^1.0.6",
     "astro": "^5.12.3",
     "astro-d2": "^0.8.0",
     "gray-matter": "^4.0.3",
     "sharp": "^0.34.3",
-    "starlight-links-validator": "^0.17.0",
-    "tailwindcss": "^4.1.11"
+    "starlight-links-validator": "^0.17.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.19"
