@@ -177,11 +177,25 @@ terragrunt.stack.hcl
 .terragrunt-stack/
 ├── vpc/
 │   ├── terragrunt.hcl
-│   └── terragrunt.values.hcl
+│   └── terragrunt.values.hcl  # or terragrunt.values.json with --json-values
 └── database/
     ├── terragrunt.hcl
-    └── terragrunt.values.hcl
+    └── terragrunt.values.hcl  # or terragrunt.values.json with --json-values
 ```
+
+#### Values File Formats
+
+By default, Terragrunt generates values files in HCL format (`terragrunt.values.hcl`). You can also generate them in JSON format using the `--json-values` flag:
+
+```bash
+# Generate with HCL values files (default)
+terragrunt stack generate
+
+# Generate with JSON values files
+terragrunt stack generate --json-values
+```
+
+Both formats are functionally equivalent and contain the same values data. The JSON format can be useful for integration with tools that prefer JSON or for environments where JSON is the preferred configuration format. All values are sorted alphabetically in both formats for consistent, deterministic output.
 
 ### Example: Nested Stack with Reusable Patterns
 

@@ -179,10 +179,10 @@ terragrunt.stack.hcl
 .terragrunt-stack/
 ├── vpc/
 │   ├── terragrunt.hcl
-│   └── terragrunt.values.hcl
+│   └── terragrunt.values.hcl  # or terragrunt.values.json with --json-values
 └── database/
     ├── terragrunt.hcl
-    └── terragrunt.values.hcl
+    └── terragrunt.values.hcl  # or terragrunt.values.json with --json-values
 ```
 
 ### Example: Nested Stack with Reusable Patterns
