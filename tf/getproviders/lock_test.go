@@ -18,7 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, version string) getproviders.Provider {
+func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, version, constrain string) getproviders.Provider {
 	t.Helper()
 
 	packageDir := t.TempDir()
@@ -43,7 +43,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 	provider := mocks.NewMockProvider(ctrl)
 	provider.EXPECT().Address().Return(address).AnyTimes()
 	provider.EXPECT().Version().Return(version).AnyTimes()
-	provider.EXPECT().Constraints().Return("").AnyTimes()
+	provider.EXPECT().Constraints().Return(constrain).AnyTimes()
 	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
 	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
 	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
@@ -57,10 +57,14 @@ func TestMockUpdateLockfile(t *testing.T) {
 	testCases := []struct {
 		initialLockfile  string
 		expectedLockfile string
-		providers        []getproviders.Provider
+		providersFunc    func(ctrl *gomock.Controller) []getproviders.Provider
 	}{
 		{
-			providers:       []getproviders.Provider{},
+			providersFunc: func(ctrl *gomock.Controller) []getproviders.Provider {
+				return []getproviders.Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0", ""),
+				}
+			},
 			initialLockfile: ``,
 			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
@@ -75,7 +79,31 @@ provider "registry.terraform.io/hashicorp/aws" {
 `,
 		},
 		{
-			providers: []getproviders.Provider{},
+			providersFunc: func(ctrl *gomock.Controller) []getproviders.Provider {
+				return []getproviders.Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0", ">= 5.37, < 6 "),
+				}
+			},
+			initialLockfile: ``,
+			expectedLockfile: `
+provider "registry.terraform.io/hashicorp/aws" {
+  version     = "5.37.0"
+  constraints = ">= 5.37.0, < 6.0.0 "
+  hashes = [
+    "h1:SHOEBOHEif46z7Bb86YZ5evCtAeK5A4gtHdT8RU5OhA=",
+    "zh:7c810fb11d8b3ded0cb554a27c27a9d002cc644a7a57c29cae01eeea890f0398",
+    "zh:a3366f6b57b0f4b8bf8a5fecf42a834652709a97dd6db1b499c4ab186e33a41f",
+  ]
+}
+`,
+		},
+		{
+			providersFunc: func(ctrl *gomock.Controller) []getproviders.Provider {
+				return []getproviders.Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.36.0", ""),
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0", ""),
+				}
+			},
 			initialLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
@@ -130,7 +158,12 @@ provider "registry.terraform.io/hashicorp/template" {
 `,
 		},
 		{
-			providers: []getproviders.Provider{},
+			providersFunc: func(ctrl *gomock.Controller) []getproviders.Provider {
+				return []getproviders.Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0", ""),
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0", ""),
+				}
+			},
 			initialLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.36.0"
@@ -183,22 +216,7 @@ provider "registry.terraform.io/hashicorp/template" {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			switch i {
-			case 0:
-				tc.providers = []getproviders.Provider{
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
-				}
-			case 1:
-				tc.providers = []getproviders.Provider{
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.36.0"),
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
-				}
-			case 2:
-				tc.providers = []getproviders.Provider{
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
-				}
-			}
+			providers := tc.providersFunc(ctrl)
 
 			workingDir := t.TempDir()
 			lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
@@ -212,7 +230,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				require.NoError(t, err)
 			}
 
-			err := getproviders.UpdateLockfile(t.Context(), workingDir, tc.providers)
+			err := getproviders.UpdateLockfile(t.Context(), workingDir, providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)
