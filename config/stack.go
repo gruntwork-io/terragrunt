@@ -214,7 +214,7 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 
 		for _, unit := range stackFile.Units {
-			unitDir := filepath.Join(dir, StackDir, unit.Path)
+			unitDir := getUnitDir(dir, unit)
 
 			var output map[string]cty.Value
 
@@ -1026,4 +1026,13 @@ func CleanStacks(_ context.Context, l log.Logger, opts *options.TerragruntOption
 	}
 
 	return errs.ErrorOrNil()
+}
+
+// getUnitDir returns the directory path for a unit based on its no_dot_terragrunt_stack setting.
+func getUnitDir(dir string, unit *Unit) string {
+	if unit.NoStack != nil && *unit.NoStack {
+		return filepath.Join(dir, unit.Path)
+	}
+
+	return filepath.Join(dir, StackDir, unit.Path)
 }
