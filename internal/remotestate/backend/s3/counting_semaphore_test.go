@@ -2,6 +2,7 @@
 package s3_test
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -32,6 +33,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 
 	var goRoutinesExecutingSimultaneously uint32
 	var waitForAllGoRoutinesToFinish sync.WaitGroup
+	errChan := make(chan error, goroutines)
 
 	endGoRoutine := func() {
 		// Decrement the number of running goroutines. Note that decrementing an unsigned int is a bit odd.
@@ -50,7 +52,8 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(&goRoutinesExecutingSimultaneously, 1)
 
 		if totalGoRoutinesExecutingSimultaneously > uint32(permits) {
-			t.Fatalf("The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d", permits, totalGoRoutinesExecutingSimultaneously)
+			errChan <- fmt.Errorf("The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d", permits, totalGoRoutinesExecutingSimultaneously)
+			return
 		}
 
 		// Sleep for a random amount of time to represent this goroutine doing work
@@ -65,4 +68,10 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	}
 
 	waitForAllGoRoutinesToFinish.Wait()
+	close(errChan)
+
+	// Check for any errors from goroutines
+	for err := range errChan {
+		t.Fatal(err)
+	}
 }
