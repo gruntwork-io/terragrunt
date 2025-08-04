@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	testFixtureMixedConfig = "fixtures/mixed-config"
-	testFixtureFailFast    = "fixtures/fail-fast"
+	testFixtureMixedConfig            = "fixtures/mixed-config"
+	testFixtureFailFast               = "fixtures/fail-fast"
+	testFixtureRunnerPoolRemoteSource = "fixtures/runner-pool-remote-source"
 )
 
 func TestRunnerPoolDiscovery(t *testing.T) {
@@ -150,4 +151,17 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
 
+}
+
+func TestRunnerPoolRemoteSource(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunnerPoolRemoteSource)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment runner-pool --working-dir "+testPath+"  -- apply")
+	require.NoError(t, err)
+	// Verify that the output contains value produced from remote unit
+	require.Contains(t, stdout, "data = \"unit-a\"")
 }
