@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -247,6 +249,12 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 	)
+
+	if suppressParseErrors {
+		// If suppressing parse errors, we want to avoid writing diagnostics to the log.
+		parseOptions := append(parsingCtx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+		parsingCtx = parsingCtx.WithParseOption(parseOptions)
+	}
 
 	//nolint: contextcheck
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)

@@ -119,8 +119,12 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
+
+	// Verify that there are no parsing errors in the output
+	require.NotContains(t, stdout, "Error: Unsupported block type")
+	require.NotContains(t, stdout, "This object does not have an attribute named \"outputs\"")
 
 	// create fail.txt in unit-a to trigger a failure
 	helpers.CreateFile(t, testPath, "unit-b", "fail.txt")
