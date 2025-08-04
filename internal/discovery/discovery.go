@@ -260,16 +260,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
-			// Only log unrecoverable errors when not suppressing
-			if !suppressParseErrors {
-				l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
-			}
 			return errors.New(err)
-		}
-
-		// When suppressing errors, only log at debug level and don't return the error
-		if !suppressParseErrors {
-			l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 		}
 	}
 
@@ -367,7 +358,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	if d.requiresParse {
 		for _, cfg := range cfgs {
 			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
-			if err != nil && !d.suppressParseErrors {
+			if err != nil {
 				errs = append(errs, errors.New(err))
 			}
 		}
@@ -395,13 +386,8 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			}
 
 			err := dependencyDiscovery.DiscoverAllDependencies(ctx, l, opts)
-			if err != nil && d.suppressParseErrors {
-				// Only show warning when errors are suppressed
-				l.Warnf("Parsing errors were encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+			if err != nil {
 				l.Debugf("Errors: %w", err)
-			} else if err != nil {
-				// When not suppressing, return the error
-				return err
 			}
 
 			cfgs = dependencyDiscovery.cfgs
@@ -489,7 +475,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log
 		}
 
 		err := d.DiscoverDependencies(ctx, l, opts, cfg)
-		if err != nil && !d.suppressParseErrors {
+		if err != nil {
 			errs = append(errs, errors.New(err))
 		}
 	}
