@@ -118,7 +118,9 @@ func (remote *RemoteState) NeedsBootstrap(ctx context.Context, l log.Logger, opt
 // GetTFInitArgs converts the RemoteState config into the format used by the `tofu init` command.
 func (remote *RemoteState) GetTFInitArgs() []string {
 	if remote.DisableInit {
-		return []string{"-backend=false"}
+		// Don't pass -backend=false anymore; we still want Terraform to init the backend,
+		// but we don't want Terragrunt to manage bucket creation.
+		return []string{}
 	}
 
 	if remote.Generate != nil {
@@ -127,7 +129,6 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	}
 
 	config := remote.backend.GetTFInitArgs(remote.BackendConfig)
-
 	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
@@ -137,6 +138,7 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 
 	return backendConfigArgs
 }
+
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
 func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOptions) error {
