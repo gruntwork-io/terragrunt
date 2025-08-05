@@ -376,6 +376,14 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
 		for _, cfg := range cfgs {
+			// Stack configurations don't need to be parsed for discovery purposes.
+			// They don't have exclude blocks or dependencies.
+			//
+			// This might change in the future, but for now we'll just skip parsing.
+			if cfg.Type == ConfigTypeStack {
+				continue
+			}
+
 			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
 			if err != nil {
 				errs = append(errs, errors.New(err))
