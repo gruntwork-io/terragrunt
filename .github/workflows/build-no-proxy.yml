@@ -42,6 +42,18 @@ jobs:
         run: |
           echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
 
+      - name: Clean Go build cache
+        run: |
+          echo "Cleaning Go cache..."
+          go clean -modcache
+          rm -rf $(go env GOCACHE)
+
+      - name: Set Go environment variables to bypass proxy
+        run: |
+          echo "Setting GOPROXY to direct and GOSUMDB to off"
+          echo "GOPROXY=direct" >> $GITHUB_ENV
+          echo "GOSUMDB=off" >> $GITHUB_ENV
+
       - name: Go Build Cache
         uses: actions/cache@v4
         with:
@@ -51,10 +63,10 @@ jobs:
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
+          GOSUMDB: off
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          go clean -modcache
           OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
           if [ "${GOOS}" = "windows" ]; then
             OUTPUT="${OUTPUT}.exe"
