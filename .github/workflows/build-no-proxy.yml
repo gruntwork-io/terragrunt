@@ -80,7 +80,10 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/id_rsa -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
         run: |
-          go list -m github.com/charmbracelet/x/ansi
+          export GOPROXY=direct
+          export GOSUMDB=off
+          go mod tidy
+          cat go.sum | grep "github.com/charmbracelet/x/ansi"
           OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
           if [ "${GOOS}" = "windows" ]; then
             OUTPUT="${OUTPUT}.exe"
