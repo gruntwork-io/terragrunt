@@ -790,3 +790,18 @@ func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
 	assert.NotEmpty(t, traceparent.Value)
 	assert.Equal(t, envParentTrace, traceparent.Value)
 }
+
+func TestRunnerPoolTelemetry(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
+
+	telemetryOutput, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --working-dir "+rootPath+"  -- apply")
+	require.NoError(t, err)
+
+	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_creation\"")
+	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_controller\"")
+	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_task\"")
+}
