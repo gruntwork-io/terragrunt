@@ -67,7 +67,6 @@ jobs:
           echo "Forcing fresh download of dependencies"
           # Remove module cache and GOCACHE, ensuring dependencies are freshly fetched
           rm -rf $(go env GOCACHE)
-          go mod download
 
       - name: Build Terragrunt without Go proxy
         env:
