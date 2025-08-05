@@ -37,12 +37,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Clean Go build cache
-        run: |
-          echo "Cleaning Go cache..."
-          go clean -modcache
-          rm -rf $(go env GOCACHE)
-
       - name: Set Go environment variables to bypass proxy
         run: |
           echo "Setting GOPROXY to direct and GOSUMDB to off"
@@ -61,18 +55,19 @@ jobs:
           echo "Setting GOPRIVATE=* to force SSH for all dependencies"
           echo "GOPRIVATE=*" >> $GITHUB_ENV
 
-      - name: Force Fresh Dependency Fetching
-        run: |
-          echo "Forcing fresh download of dependencies"
-          go clean -modcache
-          rm -rf $(go env GOCACHE)
-
       - name: Unset any proxy environment variables
         run: |
           echo "Unsetting any proxy environment variables"
           unset HTTP_PROXY
           unset HTTPS_PROXY
           unset NO_PROXY
+
+      - name: Force Fresh Dependency Fetching
+        run: |
+          echo "Forcing fresh download of dependencies"
+          # Remove module cache and GOCACHE, ensuring dependencies are freshly fetched
+          rm -rf $(go env GOCACHE)
+          go mod download
 
       - name: Build Terragrunt without Go proxy
         env:
