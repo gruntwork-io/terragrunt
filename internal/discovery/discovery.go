@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -251,8 +252,22 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	)
 
 	if suppressParseErrors {
-		// If suppressing parse errors, we want to avoid writing diagnostics to the log.
-		parseOptions := append(parsingCtx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+		// If suppressing parse errors, we want to filter diagnostics that contain references to outputs,
+		// while leaving other diagnostics as is.
+		parseOptions := append(parsingCtx.ParserOptions, hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			filteredDiags := hcl.Diagnostics{}
+
+			for _, hclDiag := range hclDiags {
+				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), "output") ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), "output")
+
+				if !containsOutputRef {
+					filteredDiags = append(filteredDiags, hclDiag)
+				}
+			}
+
+			return filteredDiags, nil
+		}))
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
