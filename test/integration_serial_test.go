@@ -801,6 +801,7 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 	telemetryOutput, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --working-dir "+rootPath+"  -- apply")
 	require.NoError(t, err)
 
+	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_discovery\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_creation\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_controller\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_task\"")
