@@ -54,12 +54,23 @@ jobs:
           echo "GOPROXY=direct" >> $GITHUB_ENV
           echo "GOSUMDB=off" >> $GITHUB_ENV
 
+      - name: Setup SSH for Git
+        run: |
+          # Add SSH private key to SSH agent
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Add GitHub's SSH key to known hosts
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
           GOSUMDB: off
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          GIT_SSH_COMMAND: "ssh -i ~/.ssh/id_rsa -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
         run: |
           OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
           if [ "${GOOS}" = "windows" ]; then
