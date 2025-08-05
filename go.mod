@@ -9,8 +9,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/aws/aws-sdk-go-v2 v1.36.6
-	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
@@ -313,6 +311,11 @@ replace (
 	atomicgo.dev/cursor => github.com/atomicgo/cursor v0.2.0
 	atomicgo.dev/keyboard => github.com/atomicgo/keyboard v0.2.9
 	atomicgo.dev/schedule => github.com/atomicgo/schedule v0.1.0
+
+	// We're temporarily pinning to a different version of ansi, as version 0.9.3 had checksum issues.
+	// Once upstream dependencies are updated, we can remove this.
+	github.com/charmbracelet/x/ansi => github.com/charmbracelet/x/ansi v0.10.0
+
 	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
 	// can't use terraform as a library after v0.15.3, so we pull that in here.
 	github.com/hashicorp/terraform => github.com/hashicorp/terraform v0.15.3
