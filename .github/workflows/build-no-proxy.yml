@@ -35,7 +35,6 @@ jobs:
           version: 2025.4.4
           experimental: true
         env:
-          # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
@@ -56,18 +55,27 @@ jobs:
 
       - name: Setup SSH for Git
         run: |
-          # Add SSH private key to SSH agent
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-
-          # Add GitHub's SSH key to known hosts
           ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Set GOPRIVATE to force SSH for all dependencies
+        run: |
+          echo "Setting GOPRIVATE=* to force SSH for all dependencies"
+          echo "GOPRIVATE=*" >> $GITHUB_ENV
+
+      - name: Force Fresh Dependency Fetching
+        run: |
+          echo "Forcing fresh download of dependencies"
+          go clean -modcache
+          rm -rf $(go env GOCACHE)
 
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
           GOSUMDB: off
+          GOPRIVATE: "*"
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/id_rsa -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
