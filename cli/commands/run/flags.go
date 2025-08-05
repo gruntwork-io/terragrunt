@@ -664,3 +664,76 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl),
 	)
 }
+
+// NewQueueFlags creates and returns queue-related flags.
+func NewQueueFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
+
+	flags := cli.Flags{
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        QueueExcludeExternalFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
+			Destination: &opts.IgnoreExternalDependencies,
+			Usage:       "Ignore external dependencies for --all commands.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("ignore-external-dependencies"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        QueueIncludeExternalFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueIncludeExternalFlagName),
+			Destination: &opts.IncludeExternalDependencies,
+			Usage:       "Include external dependencies for --all commands without asking.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("include-external-dependencies"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.GenericFlag[int]{
+			Name:        ParallelismFlagName,
+			EnvVars:     tgPrefix.EnvVars(ParallelismFlagName),
+			Destination: &opts.Parallelism,
+			Usage:       "Parallelism for --all commands.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("parallelism"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        QueueExcludesFileFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueExcludesFileFlagName),
+			Destination: &opts.ExcludesFile,
+			Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("excludes-file"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        QueueExcludeDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueExcludeDirFlagName),
+			Destination: &opts.ExcludeDirs,
+			Usage:       "Unix-style glob of directories to exclude from the queue of Units to run.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("exclude-dir"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        QueueIncludeDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueIncludeDirFlagName),
+			Destination: &opts.IncludeDirs,
+			Usage:       "Unix-style glob of directories to include from the queue of Units to run.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("include-dir"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        QueueStrictIncludeFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueStrictIncludeFlagName),
+			Destination: &opts.StrictInclude,
+			Usage:       "Only include units matching --queue-include-dir.",
+		}),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        QueueIncludeUnitsReadingFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
+			Destination: &opts.UnitsReading,
+			Usage:       "Include units that read a specific file.",
+		}),
+	}
+
+	return flags.Sort()
+}

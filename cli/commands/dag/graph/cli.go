@@ -17,7 +17,7 @@ const (
 	CommandName = "graph"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
 	cmd := &cli.Command{
 		Name:      CommandName,
 		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language.",
@@ -26,6 +26,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *
 			return Run(ctx, l, opts)
 		},
 	}
+
+	// Add queue flags to respect TG_QUEUE_INCLUDE_EXTERNAL environment variable
+	cmd.Flags = append(cmd.Flags, run.NewQueueFlags(l, opts, prefix)...)
 
 	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
 	cmd = graph.WrapCommand(l, opts, cmd, run.Run, true)

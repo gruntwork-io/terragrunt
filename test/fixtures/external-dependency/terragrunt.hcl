@@ -1,5 +1,5 @@
 feature "dep" {
-  default = "/tmp/external"
+  default = "../external-dependencies/module-a"
 }
 
 dependencies {
