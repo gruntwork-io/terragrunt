@@ -54,12 +54,6 @@ jobs:
           echo "GOPROXY=direct" >> $GITHUB_ENV
           echo "GOSUMDB=off" >> $GITHUB_ENV
 
-      - name: Go Build Cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
-
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
