@@ -37,10 +37,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-
       - name: Clean Go build cache
         run: |
           echo "Cleaning Go cache..."
@@ -71,6 +67,13 @@ jobs:
           go clean -modcache
           rm -rf $(go env GOCACHE)
 
+      - name: Unset any proxy environment variables
+        run: |
+          echo "Unsetting any proxy environment variables"
+          unset HTTP_PROXY
+          unset HTTPS_PROXY
+          unset NO_PROXY
+
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
@@ -82,8 +85,6 @@ jobs:
         run: |
           export GOPROXY=direct
           export GOSUMDB=off
-          go mod tidy
-          cat go.sum | grep "github.com/charmbracelet/x/ansi"
           OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
           if [ "${GOOS}" = "windows" ]; then
             OUTPUT="${OUTPUT}.exe"
