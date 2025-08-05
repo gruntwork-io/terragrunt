@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -112,15 +113,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	task := func(ctx context.Context, u *common.Unit) error {
-		unitRunner := common.NewUnitRunner(u)
-
-		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
+			"terraform_command":      u.TerragruntOptions.TerraformCommand,
+			"terraform_cli_args":     u.TerragruntOptions.TerraformCliArgs,
+			"working_dir":            u.TerragruntOptions.WorkingDir,
+			"terragrunt_config_path": u.TerragruntOptions.TerragruntConfigPath,
+		}, func(childCtx context.Context) error {
+			unitRunner := common.NewUnitRunner(u)
+			return unitRunner.Run(childCtx, u.TerragruntOptions, r.Stack.Report)
+		})
 	}
+
 	r.queue.FailFast = opts.FailFast
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
 	controller := NewController(
@@ -168,7 +171,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
-func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
+func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
 		orderedUnits = append(orderedUnits, unit.Config.Path)
