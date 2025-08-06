@@ -82,7 +82,7 @@ require (
 require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1
-	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.3.0.20250617194119-3f1d09f7d826
+	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.4
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.3
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20250616121729-19b66ab4499b
 	github.com/charmbracelet/x/term v0.2.1
@@ -178,7 +178,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.9.3 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.14-0.20250505150409-97991a1f17d1 // indirect
 	github.com/charmbracelet/x/exp/golden v0.0.0-20250207160936-21c02780d27a // indirect
-	github.com/charmbracelet/x/input v0.3.5-0.20250509021451-13796e822d86 // indirect
+	github.com/charmbracelet/x/input v0.3.7 // indirect
 	github.com/charmbracelet/x/windows v0.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
@@ -314,7 +314,7 @@ replace (
 
 	// We're temporarily pinning to a different version of ansi, as version 0.9.3 had checksum issues.
 	// Once upstream dependencies are updated, we can remove this.
-	github.com/charmbracelet/x/ansi => github.com/charmbracelet/x/ansi v0.10.0
+	github.com/charmbracelet/x/ansi => github.com/charmbracelet/x/ansi v0.10.1
 
 	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
 	// can't use terraform as a library after v0.15.3, so we pull that in here.
