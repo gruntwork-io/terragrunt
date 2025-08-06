@@ -39,11 +39,18 @@
   --color-accent-2: #87E0E1;
   --color-accent-3: #BFA6F2;
   --color-bg-dark: #0F1731;
-  --color-stroke-dark: #2E375A;
+  --color-dark-blue-1: #0F0934;
   --color-gray-1: #A0A1AC;
   --color-gray-2: #6B6C7A;
   --color-gray-3: #DBDBDB;
-  --color-dark-blue-1: #0F0934;
+  --color-stroke-dark: #2E375A;
+
+  /* Component Colors */
+  --color-opacity-5: rgba(255, 255, 255, 0.05);
+  --color-opacity-10: rgba(255, 255, 255, 0.1);
+
+  /* Dialog */
+  --color-dialog-bg: oklch(0.92 0.004 286.32);
 }
 
 /* Docs Dark mode colors. */
@@ -92,13 +99,6 @@
 
   @media (width >= 768px) {
     --sl-nav-height: 84px;
-  }
-}
-
-/* Fix to site-search button area smaller on mobile */
-@media (width <= 768px) {
-  site-search > button {
-    width: 100%;
   }
 }
 
@@ -224,4 +224,124 @@ body {
 .scroll-up .shadow-\[0_0_0_2px_white\]:hover,
 .scroll-down .shadow-\[0_0_0_2px_white\]:hover {
   background-color: var(--color-dark-blue-1) !important;
+}
+
+/* Search Box */
+site-search button {
+  background-color: var(--color-opacity-5);
+  border: 1px solid var(--color-opacity-10);
+  border-radius: 6px;
+  color: var(--color-gray-2);
+  padding: 6px 12px;
+}
+
+site-search button svg {
+  color: var(--color-gray-1);
+}
+
+/* Search Dialog Box */
+site-search dialog[open] {
+  background: var(--color-dialog-bg);
+  border-radius: .5rem;
+  display: flex;
+  height: max-content;
+  margin: 4rem auto auto;
+  max-height: calc(100% - 8rem);
+  max-width: 40rem;
+  min-height: 15rem;
+  width: 90%;
+}
+
+button[data-close-modal] {
+  color: black;
+  display: none;
+}
+
+site-search .dialog-frame {
+  overflow-x: hidden;
+  padding: 1.5rem;
+}
+site-search .search-container {
+  width: 590px;
+}
+
+#starlight__search > div:nth-of-type(2) {
+  display: none;
+}
+
+site-search .pagefind-ui {
+  color: oklch(0.37 0.013 285.805);
+}
+
+site-search .pagefind-ui__drawer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.pagefind-ui__message {
+  padding: 1.5em 0;
+  height: auto;
+}
+
+#starlight__search .pagefind-ui__form:before {
+  background-color: black;
+}
+
+input.pagefind-ui__search-input {
+  background-color: white;
+  border: 1px solid oklch(0.871 0.006 286.286);
+  border-radius: 8px;
+  max-width: 590px;
+  padding-left: 50px;
+  width: -webkit-fill-available;
+}
+
+.pagefind-ui__search-clear {
+  background-color: transparent;
+  border: none;
+}
+
+.pagefind-ui__search-clear:before {
+  background-color: black;
+  content: "";
+  display: block;
+  height: 100%;
+  margin-bottom: 20px;
+  width: 100%;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E") center / 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E") center / 100% no-repeat;
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+#starlight__search .pagefind-ui__result-nested,
+.pagefind-ui__result-title,
+.pagefind-ui__result-nested {
+  background-color: transparent;
+}
+
+.pagefind-ui__result {
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.pagefind-ui__result-inner > :last-child {
+  padding: 0 0 1.5em 0;
+}
+
+.pagefind-ui__result-title {
+  padding: 0.6em 0;
+}
+
+.pagefind-ui__result-link,
+.pagefind-ui__result-excerpt {
+  margin-left: 50px;
+}
+
+/* Fix to site-search button area smaller on mobile */
+@media (width <= 768px) {
+  site-search > button {
+    width: 100%;
+  }
 }
