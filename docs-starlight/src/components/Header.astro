@@ -38,7 +38,7 @@ try {
 <div class="sl-flex justify-between items-center py-5 px-5 xl:px-20 border-b border-stroke-dark">
 	<!-- Logo -->
 	<a href="/" class="hover:cursor-pointer">
-		<Image 
+		<Image
 			src={TerragruntLogo}
 			alt="Terragrunt Logo"
 			height={40}
@@ -47,7 +47,7 @@ try {
 	</a>
 	<!-- Right Menu -->
 	<div class="flex items-center gap-6">
-		<div class="hidden lg:flex items-center gap-6 border-r border-stroke-dark pr-6">   
+		<div class="hidden lg:flex items-center gap-6 border-r border-stroke-dark pr-6">
 			<!-- Socials -->
 			<div class="flex items-center gap-4 text-gray-1">
 				<a href="https://github.com/gruntwork-io/terragrunt" class="flex items-center gap-2 hover:cursor-pointer hover:text-[var(--sl-color-gray-1)] transition .25s ease-in-out" target="_blank" rel="noopener noreferrer">
@@ -81,7 +81,7 @@ try {
 				Automate your pipeline
 			</a>
 			<a href="#" class="flex md:hidden secondary-button !p-3">
-				<Image 
+				<Image
 					src={PipelineIcon}
 					alt="Pipeline Icon"
 					width={20}
@@ -93,13 +93,13 @@ try {
 			</a>
 			<button class="menu-icon hover:cursor-pointer">
 				<div class="flex items-center">
-					<svg data-slot="icon" class="text-white w-6 h-6" fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"> 
+					<svg data-slot="icon" class="text-white w-6 h-6" fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
 					</svg>
 				</div>
 			</button>
 			<a href="#" class="flex md:hidden primary-button !p-3">
-				<Image 
+				<Image
 					src={HeadphonesIcon}
 					alt="Headphones Icon"
 					width={20}
@@ -111,7 +111,7 @@ try {
 	</div>
 </div>
 <div class="block md:hidden justify-center bg-bg-dark px-5 py-2.5 border-b border-stroke-dark">
-	<div class="flex items-center border border-white/10 bg-white/5 rounded-md px-3">
+	<div class="flex items-center">
 		{shouldRenderSearch && <Search {...Astro.props} />}
 	</div>
 </div>
@@ -120,7 +120,7 @@ try {
 <style>
     .searchbar {
         display: flex;
-        align-items: center;    
+        align-items: center;
         justify-content: start;
         gap: 8px;
         width: 280px;
