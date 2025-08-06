@@ -239,6 +239,10 @@ site-search button svg {
   color: var(--color-gray-1);
 }
 
+site-search button kbd {
+  display: none;
+}
+
 /* Search Dialog Box */
 site-search dialog[open] {
   background: var(--color-dialog-bg);
