@@ -147,3 +147,12 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
 
 }
+
+func TestRunnerPoolSourceMap(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	helpers.RunTerragrunt(t, "terragrunt run --all --experiment runner-pool --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --working-dir "+testPath+" -- apply ")
+}
