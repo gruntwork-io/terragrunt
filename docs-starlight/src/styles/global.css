@@ -1,5 +1,4 @@
 @layer base, starlight, theme, components, utilities;
-@import "tailwindcss/preflight.css" layer(base);
 @import '@astrojs/starlight-tailwind';
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
@@ -107,6 +106,16 @@ header {
   flex-direction: column;
   justify-content: center;
   padding: 0 !important;
+}
+
+.social-icon {
+  color: var(--color-gray-1) !important;
+  cursor: pointer;
+}
+
+.social-icon:hover {
+  color: var(--sl-color-gray-1) !important;
+  cursor: pointer;
 }
 
 * {
