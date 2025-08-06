@@ -494,13 +494,93 @@ func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
 	err = os.WriteFile(filepath.Join(unit1Dir, "custom1.hcl"), []byte(""), 0644)
 	require.NoError(t, err)
 
-	discoveryObj := discovery.NewDiscovery(tmpDir).WithConfigFilenames([]string{"custom1.hcl"})
+	d := discovery.NewDiscovery(tmpDir).WithConfigFilenames([]string{"custom1.hcl"})
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
-	configs, err := discoveryObj.Discover(t.Context(), logger.CreateLogger(), opts)
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	units := configs.Filter(discovery.ConfigTypeUnit).Paths()
 	assert.ElementsMatch(t, []string{unit1Dir}, units)
+}
+
+func TestDiscoveryWithStackConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	stackDir := filepath.Join(tmpDir, "stack")
+	unitDir := filepath.Join(tmpDir, "unit")
+
+	testDirs := []string{
+		stackDir,
+		unitDir,
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create a stack file with unit blocks (which would cause parsing errors if parsed as unit config)
+	stackContent := `
+unit "unit_a" {
+  source = "${get_repo_root()}/unit_a"
+  path   = "unit_a"
+}
+
+unit "unit_b" {
+  source = "${get_repo_root()}/unit_b"
+  path   = "unit_b"
+}
+`
+
+	// Create a unit file with valid unit configuration
+	unitContent := `
+terraform {
+  source = "."
+}
+
+inputs = {
+  test = "value"
+}
+`
+
+	// Create test files
+	testFiles := map[string]string{
+		filepath.Join(stackDir, "terragrunt.stack.hcl"): stackContent,
+		filepath.Join(unitDir, "terragrunt.hcl"):        unitContent,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	// Test that d with parsing enabled doesn't fail on stack files
+	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Verify that both stack and unit configurations are discovered
+	units := configs.Filter(discovery.ConfigTypeUnit)
+	stacks := configs.Filter(discovery.ConfigTypeStack)
+
+	assert.Len(t, units, 1)
+	assert.Len(t, stacks, 1)
+
+	// Verify that stack configuration is not parsed (Parsed should be nil)
+	stackConfig := stacks[0]
+	assert.Nil(t, stackConfig.Parsed, "Stack configuration should not be parsed")
+
+	// Verify that unit configuration is parsed (Parsed should not be nil)
+	unitConfig := units[0]
+	assert.NotNil(t, unitConfig.Parsed, "Unit configuration should be parsed")
 }
