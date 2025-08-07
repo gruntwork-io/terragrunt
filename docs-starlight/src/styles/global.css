@@ -149,7 +149,7 @@ body {
 
 .secondary-button {
   background-color: var(--color-bg-dark);
-  border: 1px solid var(--color-stroke-dark);
+  border: 1px solid var(--color-gray-2);
   border-radius: 8px;
   box-shadow: 0 0 15px 0 rgba(255, 255, 255, 0.05),
               0 0 1px 4px rgba(52, 49, 27, 0.22);
