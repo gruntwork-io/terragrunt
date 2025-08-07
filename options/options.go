@@ -305,6 +305,8 @@ type TerragruntOptions struct {
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
 	NoStackValidate bool
+	// StackValuesJSON writes stack values files in JSON format instead of HCL.
+	StackValuesJSON bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.

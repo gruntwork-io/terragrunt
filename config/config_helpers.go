@@ -735,7 +735,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	}
 
 	// check if file is a values file, decode as values file
-	if strings.HasSuffix(targetConfig, valuesFile) {
+	if strings.HasSuffix(targetConfig, valuesFile) || strings.HasSuffix(targetConfig, valuesFileJSON) {
 		unitValues, err := ReadValues(ctx.Context, l, ctx.TerragruntOptions, filepath.Dir(targetConfig))
 		if err != nil {
 			return cty.NilVal, errors.New(err)

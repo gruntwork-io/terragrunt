@@ -211,6 +211,14 @@ terragrunt stack generate --parallelism 4
 terragrunt stack generate --no-stack-validate
 ```
 
+- JSON Values Format: By default, values files are generated in HCL format (`terragrunt.values.hcl`). To generate values files in JSON format instead, use the `--json-values` flag:
+
+```bash
+terragrunt stack generate --json-values
+```
+
+This will generate `terragrunt.values.json` files instead of `terragrunt.values.hcl` files. The JSON format can be useful for integration with tools that prefer JSON or for environments where JSON is the preferred configuration format. Both formats are functionally equivalent and contain the same values data with sorted keys for consistent output.
+
 #### stack run
 
 The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.
