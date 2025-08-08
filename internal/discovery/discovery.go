@@ -104,6 +104,15 @@ type Discovery struct {
 
 	// includeHiddenDirs is a list of hidden directory names that should be included in discovery.
 	includeHiddenDirs []string
+
+	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
+	includeDirs []string
+
+	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
+	strictInclude bool
+
+	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
+	excludeByDefault bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -117,6 +126,8 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	discovery := &Discovery{
 		workingDir: dir,
 		hidden:     false,
+		// Include .terragrunt-stack by default, similar to the runner pool builder
+		includeHiddenDirs: []string{config.StackDir},
 	}
 
 	for _, opt := range opts {
@@ -208,6 +219,24 @@ func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
 // WithIncludeHiddenDirs sets the includeHiddenDirs field to the given list.
 func (d *Discovery) WithIncludeHiddenDirs(dirs []string) *Discovery {
 	d.includeHiddenDirs = dirs
+	return d
+}
+
+// WithIncludeDirs sets the includeDirs field to the given list.
+func (d *Discovery) WithIncludeDirs(dirs []string) *Discovery {
+	d.includeDirs = dirs
+	return d
+}
+
+// WithStrictInclude sets the strictInclude flag to true.
+func (d *Discovery) WithStrictInclude() *Discovery {
+	d.strictInclude = true
+	return d
+}
+
+// WithExcludeByDefault sets the excludeByDefault flag to true.
+func (d *Discovery) WithExcludeByDefault() *Discovery {
+	d.excludeByDefault = true
 	return d
 }
 
@@ -311,6 +340,38 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 	return false
 }
 
+// matchesIncludePatterns returns true if the path matches any of the include directory patterns.
+func (d *Discovery) matchesIncludePatterns(path string) bool {
+	if len(d.includeDirs) == 0 {
+		return true
+	}
+
+	// Get the relative path from the working directory
+	relPath, err := filepath.Rel(d.workingDir, path)
+	if err != nil {
+		// If we can't get a relative path, use the absolute path
+		relPath = path
+	}
+	relPathSlash := filepath.ToSlash(relPath)
+
+	for _, pattern := range d.includeDirs {
+		// Convert pattern to slash format
+		patternSlash := filepath.ToSlash(pattern)
+
+		// Check if the relative path matches the pattern as a glob
+		if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
+			return true
+		}
+
+		// Also check if the relative path is a subdirectory of the pattern
+		if strings.HasPrefix(relPathSlash, patternSlash+"/") {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var cfgs DiscoveredConfigs
@@ -337,6 +398,8 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		base := filepath.Base(path)
 		for _, fname := range filenames {
 			if base == fname {
+				configDir := filepath.Dir(path)
+
 				cfgType := ConfigTypeUnit
 				if fname == config.DefaultStackFile {
 					cfgType = ConfigTypeStack
@@ -344,7 +407,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 
 				cfg := &DiscoveredConfig{
 					Type: cfgType,
-					Path: filepath.Dir(path),
+					Path: configDir,
 				}
 				if d.discoveryContext != nil {
 					cfg.DiscoveryContext = d.discoveryContext
@@ -411,6 +474,14 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 			}
 
+			// Pass include patterns and strict mode to dependency discovery
+			if len(d.includeDirs) > 0 {
+				dependencyDiscovery = dependencyDiscovery.WithIncludeDirs(d.includeDirs)
+			}
+			if d.strictInclude {
+				dependencyDiscovery = dependencyDiscovery.WithStrictInclude()
+			}
+
 			err := dependencyDiscovery.DiscoverAllDependencies(ctx, l, opts)
 			if err != nil {
 				l.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
@@ -462,6 +533,8 @@ type DependencyDiscovery struct {
 	depthRemaining      int
 	discoverExternal    bool
 	suppressParseErrors bool
+	includeDirs         []string
+	strictInclude       bool
 }
 
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.
@@ -492,6 +565,45 @@ func (d *DependencyDiscovery) WithDiscoveryContext(discoveryContext *DiscoveryCo
 	d.discoveryContext = discoveryContext
 
 	return d
+}
+
+// WithIncludeDirs sets the includeDirs field to the given list.
+func (d *DependencyDiscovery) WithIncludeDirs(dirs []string) *DependencyDiscovery {
+	d.includeDirs = dirs
+	return d
+}
+
+// WithStrictInclude sets the strictInclude flag to true.
+func (d *DependencyDiscovery) WithStrictInclude() *DependencyDiscovery {
+	d.strictInclude = true
+	return d
+}
+
+// matchesIncludePatterns returns true if the path matches any of the include directory patterns.
+func (d *DependencyDiscovery) matchesIncludePatterns(path string) bool {
+	if len(d.includeDirs) == 0 {
+		return true
+	}
+
+	// Convert path to slash format for consistent matching
+	pathSlash := filepath.ToSlash(path)
+
+	for _, pattern := range d.includeDirs {
+		// Convert pattern to slash format
+		patternSlash := filepath.ToSlash(pattern)
+
+		// Check if the path matches the pattern as a glob
+		if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+			return true
+		}
+
+		// Also check if the path is a subdirectory of the pattern
+		if strings.HasPrefix(pathSlash, patternSlash+"/") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -587,6 +699,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 			if c.Path == depPath {
 				external = false
 
+				// In strict include mode, only add dependencies that match the include patterns
+				if d.strictInclude && !d.matchesIncludePatterns(depPath) {
+					continue
+				}
+
 				dCfg.Dependencies = append(dCfg.Dependencies, c)
 
 				continue
@@ -594,6 +711,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		}
 
 		if external {
+			// In strict include mode, only add external dependencies that match the include patterns
+			if d.strictInclude && !d.matchesIncludePatterns(depPath) {
+				continue
+			}
+
 			ext := &DiscoveredConfig{
 				Type:     ConfigTypeUnit,
 				Path:     depPath,
