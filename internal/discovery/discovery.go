@@ -78,6 +78,12 @@ type Discovery struct {
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
 
+	// includeHiddenDirs is a list of hidden directory names that should be included in discovery.
+	includeHiddenDirs []string
+
+	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
+	includeDirs []string
+
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
@@ -101,12 +107,6 @@ type Discovery struct {
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
-
-	// includeHiddenDirs is a list of hidden directory names that should be included in discovery.
-	includeHiddenDirs []string
-
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
 
 	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
 	strictInclude bool
@@ -418,8 +418,10 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				continue
 			}
 
-			dir := candidate
-			if !info.IsDir() {
+			var dir string
+			if info.IsDir() {
+				dir = candidate
+			} else {
 				dir = filepath.Dir(candidate)
 			}
 
