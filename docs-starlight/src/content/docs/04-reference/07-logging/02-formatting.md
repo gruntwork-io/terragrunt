@@ -140,7 +140,7 @@ time=12:33:08.513 level=debug msg=Running command: tofu --version
 
 *Unfortunately, it is not possible to display color in a Markdown document, but in the above output, `time=` is colored magenta, `level=` is colored light blue and `msg=` is colored green.*
 
-[![screenshot](/assets/img/screenshots/custom-log-format-1.jpg){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/custom-log-format-1.jpg)
+[![screenshot](../../../assets/img/screenshots/custom-log-format-1.jpg){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/custom-log-format-1.jpg)
 
 ## Options
 
