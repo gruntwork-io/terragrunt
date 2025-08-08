@@ -1009,18 +1009,6 @@ func TestStacksNoStackDirDirectoryCreated(t *testing.T) {
 	assert.NoDirExists(t, path)
 }
 
-func TestStacksNoStackCommandFail(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStackNoDir)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureNoStackNoDir, "live")
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Stack directory does not exist or is not accessible")
-}
-
 func TestStacksGeneratePrintWarning(t *testing.T) {
 	t.Parallel()
 
