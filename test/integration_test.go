@@ -3224,6 +3224,11 @@ func TestNoColor(t *testing.T) {
 func TestOutputModuleGroups(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputModuleGroups)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, testFixtureOutputModuleGroups)
@@ -3284,12 +3289,9 @@ func TestOutputModuleGroups(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				stdout bytes.Buffer
-				stderr bytes.Buffer
-			)
-			helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --working-dir %s %s", environmentPath, tc.subCommand), &stdout, &stderr)
-			output := strings.ReplaceAll(stdout.String(), " ", "")
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-module-groups --working-dir %s %s", environmentPath, tc.subCommand))
+			require.NoError(t, err)
+			output := strings.ReplaceAll(stdout, " ", "")
 			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(tc.expectedOutput, "\t", ""), " ", "")
 			assert.Contains(t, strings.TrimSpace(output), strings.TrimSpace(expectedOutput))
 		})

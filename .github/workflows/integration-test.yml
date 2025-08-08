@@ -148,6 +148,11 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/cas.sh
+          - name: Runner pool
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/runner-pool.sh
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
