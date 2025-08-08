@@ -101,6 +101,9 @@ type Discovery struct {
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
+
+	// includeHiddenDirs is a list of hidden directory names that should be included in discovery.
+	includeHiddenDirs []string
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -202,6 +205,12 @@ func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
 	return d
 }
 
+// WithIncludeHiddenDirs sets the includeHiddenDirs field to the given list.
+func (d *Discovery) WithIncludeHiddenDirs(dirs []string) *Discovery {
+	d.includeHiddenDirs = dirs
+	return d
+}
+
 // String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
 	return c.Path
@@ -280,6 +289,19 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 		hiddenPath = filepath.Join(hiddenPath, part)
 
 		if strings.HasPrefix(part, ".") {
+			// Check if this hidden directory should be included
+			shouldInclude := false
+			for _, includeDir := range d.includeHiddenDirs {
+				if part == includeDir {
+					shouldInclude = true
+					break
+				}
+			}
+
+			if shouldInclude {
+				continue
+			}
+
 			d.hiddenDirMemo = append(d.hiddenDirMemo, hiddenPath)
 
 			return true

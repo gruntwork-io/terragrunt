@@ -22,6 +22,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithConfigFilenames([]string{config.DefaultTerragruntConfigPath}).
+		WithIncludeHiddenDirs([]string{config.StackDir}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
 
 	// Wrap discovery with telemetry

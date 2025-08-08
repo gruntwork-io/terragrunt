@@ -24,6 +24,8 @@ func TestDiscovery(t *testing.T) {
 	stack1Dir := filepath.Join(tmpDir, "stack1")
 	hiddenUnitDir := filepath.Join(tmpDir, ".hidden", "hidden-unit")
 	nestedUnit4Dir := filepath.Join(tmpDir, "nested", "unit4")
+	terragruntStackDir := filepath.Join(tmpDir, ".terragrunt-stack", "stack-unit")
+	customHiddenDir := filepath.Join(tmpDir, ".custom-hidden", "custom-unit")
 
 	testDirs := []string{
 		unit1Dir,
@@ -31,6 +33,8 @@ func TestDiscovery(t *testing.T) {
 		stack1Dir,
 		hiddenUnitDir,
 		nestedUnit4Dir,
+		terragruntStackDir,
+		customHiddenDir,
 	}
 
 	for _, dir := range testDirs {
@@ -40,11 +44,13 @@ func TestDiscovery(t *testing.T) {
 
 	// Create test files
 	testFiles := map[string]string{
-		filepath.Join(unit1Dir, "terragrunt.hcl"):        "",
-		filepath.Join(unit2Dir, "terragrunt.hcl"):        "",
-		filepath.Join(stack1Dir, "terragrunt.stack.hcl"): "",
-		filepath.Join(hiddenUnitDir, "terragrunt.hcl"):   "",
-		filepath.Join(nestedUnit4Dir, "terragrunt.hcl"):  "",
+		filepath.Join(unit1Dir, "terragrunt.hcl"):           "",
+		filepath.Join(unit2Dir, "terragrunt.hcl"):           "",
+		filepath.Join(stack1Dir, "terragrunt.stack.hcl"):    "",
+		filepath.Join(hiddenUnitDir, "terragrunt.hcl"):      "",
+		filepath.Join(nestedUnit4Dir, "terragrunt.hcl"):     "",
+		filepath.Join(terragruntStackDir, "terragrunt.hcl"): "",
+		filepath.Join(customHiddenDir, "terragrunt.hcl"):    "",
 	}
 
 	for path, content := range testFiles {
@@ -62,13 +68,19 @@ func TestDiscovery(t *testing.T) {
 		{
 			name:       "basic discovery without hidden",
 			discovery:  discovery.NewDiscovery(tmpDir),
-			wantUnits:  []string{unit1Dir, unit2Dir, nestedUnit4Dir},
+			wantUnits:  []string{unit1Dir, unit2Dir, nestedUnit4Dir, terragruntStackDir},
 			wantStacks: []string{stack1Dir},
 		},
 		{
 			name:       "discovery with hidden",
 			discovery:  discovery.NewDiscovery(tmpDir).WithHidden(),
-			wantUnits:  []string{unit1Dir, unit2Dir, hiddenUnitDir, nestedUnit4Dir},
+			wantUnits:  []string{unit1Dir, unit2Dir, hiddenUnitDir, nestedUnit4Dir, terragruntStackDir},
+			wantStacks: []string{stack1Dir},
+		},
+		{
+			name:       "discovery with custom hidden dirs",
+			discovery:  discovery.NewDiscovery(tmpDir).WithIncludeHiddenDirs([]string{".terragrunt-stack", ".custom-hidden"}),
+			wantUnits:  []string{unit1Dir, unit2Dir, nestedUnit4Dir, terragruntStackDir, customHiddenDir},
 			wantStacks: []string{stack1Dir},
 		},
 	}

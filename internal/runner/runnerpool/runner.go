@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -37,6 +38,11 @@ type Runner struct {
 
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
+
+	if len(discovered) == 0 {
+		return nil, errors.New(common.ErrNoUnitsFound)
+	}
+
 	q, queueErr := queue.NewQueue(discovered)
 	if queueErr != nil {
 		return nil, queueErr
