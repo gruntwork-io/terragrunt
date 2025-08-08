@@ -38,7 +38,6 @@ type Runner struct {
 
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
-
 	if len(discovered) == 0 {
 		return nil, errors.New(common.ErrNoUnitsFound)
 	}

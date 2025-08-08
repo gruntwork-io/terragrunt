@@ -25,6 +25,23 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithIncludeHiddenDirs([]string{config.StackDir}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
 
+	// Apply include directory features based on terragrunt options
+	if len(terragruntOptions.UnitsReading) > 0 {
+		d = d.WithIncludeDirs(terragruntOptions.UnitsReading)
+	}
+
+	if len(terragruntOptions.ModulesThatInclude) > 0 {
+		d = d.WithIncludeDirs(terragruntOptions.ModulesThatInclude)
+	}
+
+	if terragruntOptions.StrictInclude {
+		d = d.WithStrictInclude()
+	}
+
+	if terragruntOptions.ExcludeByDefault {
+		d = d.WithExcludeByDefault()
+	}
+
 	// Wrap discovery with telemetry
 	var discovered discovery.DiscoveredConfigs
 

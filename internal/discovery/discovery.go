@@ -320,6 +320,7 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 		if strings.HasPrefix(part, ".") {
 			// Check if this hidden directory should be included
 			shouldInclude := false
+
 			for _, includeDir := range d.includeHiddenDirs {
 				if part == includeDir {
 					shouldInclude = true
@@ -352,6 +353,7 @@ func (d *Discovery) matchesIncludePatterns(path string) bool {
 		// If we can't get a relative path, use the absolute path
 		relPath = path
 	}
+
 	relPathSlash := filepath.ToSlash(relPath)
 
 	for _, pattern := range d.includeDirs {
@@ -367,6 +369,20 @@ func (d *Discovery) matchesIncludePatterns(path string) bool {
 		if strings.HasPrefix(relPathSlash, patternSlash+"/") {
 			return true
 		}
+
+		// Check if the pattern is a glob that matches the directory name
+		// For example, "app*" should match "app" and "app/frontend"
+		if strings.Contains(patternSlash, "*") {
+			// Split the path into components and check each level
+			pathParts := strings.Split(relPathSlash, "/")
+			for i := 0; i < len(pathParts); i++ {
+				// Check if any part of the path matches the pattern
+				testPath := strings.Join(pathParts[:i+1], "/")
+				if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+					return true
+				}
+			}
+		}
 	}
 
 	return false
@@ -380,6 +396,35 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
 		filenames = DefaultConfigFilenames
+	}
+
+	// Expand include directory patterns ahead of time so we can:
+	// 1) Allow explicit directories even when they don't match relative include patterns
+	// 2) Process directories outside of the working directory (external)
+	expandedIncludeDirs := map[string]struct{}{}
+
+	if d.excludeByDefault && len(d.includeDirs) > 0 {
+		for _, pattern := range d.includeDirs {
+			absPattern := pattern
+			if !filepath.IsAbs(pattern) {
+				absPattern = filepath.Join(d.workingDir, pattern)
+			}
+
+			// Treat include entries as explicit paths only (no glob expansion)
+			candidate := absPattern
+
+			info, err := os.Stat(candidate)
+			if err != nil {
+				continue
+			}
+
+			dir := candidate
+			if !info.IsDir() {
+				dir = filepath.Dir(candidate)
+			}
+
+			expandedIncludeDirs[filepath.Clean(dir)] = struct{}{}
+		}
 	}
 
 	processFn := func(path string, info os.FileInfo, err error) error {
@@ -399,6 +444,16 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		for _, fname := range filenames {
 			if base == fname {
 				configDir := filepath.Dir(path)
+
+				// Apply include pattern filtering during initial discovery with support for
+				// explicitly expanded include directories (even outside working dir)
+				if d.excludeByDefault {
+					if !d.matchesIncludePatterns(configDir) {
+						if _, ok := expandedIncludeDirs[configDir]; !ok {
+							return nil
+						}
+					}
+				}
 
 				cfgType := ConfigTypeUnit
 				if fname == config.DefaultStackFile {
@@ -429,6 +484,34 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 
 	if err := walkFn(d.workingDir, processFn); err != nil {
 		return cfgs, errors.New(err)
+	}
+
+	// Explicitly process expanded include directories that weren't discovered by the walk
+	// (e.g., external directories outside the working directory)
+	if len(expandedIncludeDirs) > 0 {
+		// Build a quick lookup to avoid duplicates
+		existing := make(map[string]struct{}, len(cfgs))
+		for _, c := range cfgs {
+			existing[c.Path] = struct{}{}
+		}
+
+		for dir := range expandedIncludeDirs {
+			if _, seen := existing[dir]; seen {
+				continue
+			}
+
+			for _, fname := range filenames {
+				candidate := filepath.Join(dir, fname)
+
+				info, err := os.Stat(candidate)
+				if err != nil || info.IsDir() {
+					continue
+				}
+
+				// Let processFn apply the remaining validations and append
+				_ = processFn(candidate, info, nil)
+			}
+		}
 	}
 
 	errs := []error{}
@@ -478,6 +561,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			if len(d.includeDirs) > 0 {
 				dependencyDiscovery = dependencyDiscovery.WithIncludeDirs(d.includeDirs)
 			}
+
 			if d.strictInclude {
 				dependencyDiscovery = dependencyDiscovery.WithStrictInclude()
 			}
@@ -530,10 +614,10 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 type DependencyDiscovery struct {
 	discoveryContext    *DiscoveryContext
 	cfgs                DiscoveredConfigs
+	includeDirs         []string
 	depthRemaining      int
 	discoverExternal    bool
 	suppressParseErrors bool
-	includeDirs         []string
 	strictInclude       bool
 }
 

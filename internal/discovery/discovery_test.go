@@ -628,8 +628,8 @@ func TestDiscoveryMatchesIncludePatterns(t *testing.T) {
 	tests := []struct {
 		name          string
 		includeDirs   []string
-		strictInclude bool
 		wantUnits     []string
+		strictInclude bool
 	}{
 		{
 			name:          "no include patterns - should match everything",
@@ -737,8 +737,8 @@ dependency "vpc" {
 	tests := []struct {
 		name          string
 		includeDirs   []string
-		strictInclude bool
 		wantUnits     []string
+		strictInclude bool
 	}{
 		{
 			name:          "no include patterns - should match everything",
@@ -824,8 +824,8 @@ func TestDiscoveryWithStrictIncludeMode(t *testing.T) {
 	tests := []struct {
 		name          string
 		includeDirs   []string
-		strictInclude bool
 		wantUnits     []string
+		strictInclude bool
 	}{
 		{
 			name:          "strict include mode - only app directories",
@@ -860,6 +860,194 @@ func TestDiscoveryWithStrictIncludeMode(t *testing.T) {
 			d := discovery.NewDiscovery(tmpDir).WithIncludeDirs(tt.includeDirs)
 			if tt.strictInclude {
 				d = d.WithStrictInclude()
+			}
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+			assert.ElementsMatch(t, tt.wantUnits, units)
+		})
+	}
+}
+
+func TestDiscoveryWithExcludeByDefault(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"app",
+		"app/frontend",
+		"infra",
+		"infra/vpc",
+		"shared",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files
+	testFiles := map[string]string{
+		"app/terragrunt.hcl":          "",
+		"app/frontend/terragrunt.hcl": "",
+		"infra/terragrunt.hcl":        "",
+		"infra/vpc/terragrunt.hcl":    "",
+		"shared/terragrunt.hcl":       "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name             string
+		includeDirs      []string
+		wantUnits        []string
+		excludeByDefault bool
+	}{
+		{
+			name:             "exclude by default with app pattern",
+			includeDirs:      []string{"app"},
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend")},
+		},
+		{
+			name:             "exclude by default with infra pattern",
+			includeDirs:      []string{"infra"},
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "infra"), filepath.Join(tmpDir, "infra", "vpc")},
+		},
+		{
+			name:             "exclude by default with multiple patterns",
+			includeDirs:      []string{"app", "infra"},
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend"), filepath.Join(tmpDir, "infra"), filepath.Join(tmpDir, "infra", "vpc")},
+		},
+		{
+			name:             "exclude by default with glob pattern",
+			includeDirs:      []string{"app*"},
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend")},
+		},
+		{
+			name:             "exclude by default with no patterns - should include all",
+			includeDirs:      []string{},
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend"), filepath.Join(tmpDir, "infra"), filepath.Join(tmpDir, "infra", "vpc"), filepath.Join(tmpDir, "shared")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			d := discovery.NewDiscovery(tmpDir).WithIncludeDirs(tt.includeDirs)
+			if tt.excludeByDefault {
+				d = d.WithExcludeByDefault()
+			}
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+			assert.ElementsMatch(t, tt.wantUnits, units)
+		})
+	}
+}
+
+func TestDiscoveryWithStrictIncludeAndExcludeByDefault(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"app",
+		"app/frontend",
+		"infra",
+		"infra/vpc",
+		"shared",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files
+	testFiles := map[string]string{
+		"app/terragrunt.hcl":          "",
+		"app/frontend/terragrunt.hcl": "",
+		"infra/terragrunt.hcl":        "",
+		"infra/vpc/terragrunt.hcl":    "",
+		"shared/terragrunt.hcl":       "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name             string
+		includeDirs      []string
+		wantUnits        []string
+		strictInclude    bool
+		excludeByDefault bool
+	}{
+		{
+			name:             "strict include with exclude by default - app only",
+			includeDirs:      []string{"app"},
+			strictInclude:    true,
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend")},
+		},
+		{
+			name:             "strict include with exclude by default - infra only",
+			includeDirs:      []string{"infra"},
+			strictInclude:    true,
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "infra"), filepath.Join(tmpDir, "infra", "vpc")},
+		},
+		{
+			name:             "strict include with exclude by default - multiple patterns",
+			includeDirs:      []string{"app", "infra"},
+			strictInclude:    true,
+			excludeByDefault: true,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend"), filepath.Join(tmpDir, "infra"), filepath.Join(tmpDir, "infra", "vpc")},
+		},
+		{
+			name:             "strict include without exclude by default - should include all",
+			includeDirs:      []string{"app"},
+			strictInclude:    true,
+			excludeByDefault: false,
+			wantUnits:        []string{filepath.Join(tmpDir, "app"), filepath.Join(tmpDir, "app", "frontend"), filepath.Join(tmpDir, "infra"), filepath.Join(tmpDir, "infra", "vpc"), filepath.Join(tmpDir, "shared")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			d := discovery.NewDiscovery(tmpDir).WithIncludeDirs(tt.includeDirs)
+			if tt.strictInclude {
+				d = d.WithStrictInclude()
+			}
+			if tt.excludeByDefault {
+				d = d.WithExcludeByDefault()
 			}
 
 			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
