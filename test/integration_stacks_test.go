@@ -48,6 +48,7 @@ const (
 	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
 	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
 	testFixtureStackTerragruntDir              = "fixtures/stacks/terragrunt-dir"
+	testFixtureStacksAllNoStackDir             = "fixtures/stacks/all-no-stack-dir"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -1313,4 +1314,34 @@ func TestStackTerragruntDir(t *testing.T) {
 	out, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --all --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
+}
+
+func TestStackRunAllNoStackDir(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksAllNoStackDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksAllNoStackDir)
+
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksAllNoStackDir, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	// Verify that no .terragrunt-stack directory was created since all units have no_dot_terragrunt_stack = true
+	stackDir := util.JoinPath(rootPath, ".terragrunt-stack")
+	stackDirExists := util.FileExists(stackDir)
+	t.Logf("Stack directory exists: %v", stackDirExists)
+
+	// Verify that units were generated in the same directory as terragrunt.stack.hcl
+	expectedUnits := []string{"foo", "bar"}
+	for _, unit := range expectedUnits {
+		unitPath := util.JoinPath(rootPath, unit)
+		assert.True(t, util.FileExists(unitPath), "Expected unit %s to exist in root directory", unit)
+		assert.True(t, util.FileExists(util.JoinPath(unitPath, "terragrunt.hcl")), "Expected terragrunt.hcl to exist in unit %s", unit)
+	}
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err, "Expected stack run to succeed when all units have no_dot_terragrunt_stack = true")
+
+	assert.Contains(t, stdout, "Changes to Outputs:")
+	assert.Contains(t, stdout, "+ test = \"value\"")
 }
