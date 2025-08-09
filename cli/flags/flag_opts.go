@@ -98,8 +98,8 @@ func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFun
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
-			names:                  prefix.FlagNames(newFlag.Flag.Names()...),
-			envVars:                prefix.EnvVars(newFlag.Flag.Names()...),
+			names:                  prefix.FlagNames(newFlag.Names()...),
+			envVars:                prefix.EnvVars(newFlag.Names()...),
 			allowedSubcommandScope: true,
 		}
 		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)

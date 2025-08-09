@@ -67,7 +67,7 @@ func (handler *ProxyProviderHandler) GetVersions(ctx echo.Context, provider *mod
 		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
 	}
 
-	return handler.ReverseProxy.NewRequest(ctx, reqURL)
+	return handler.NewRequest(ctx, reqURL)
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
@@ -105,7 +105,7 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 			Path:   filepath.Join(apiURLs.ProvidersV1, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
 		}
 
-		return handler.ReverseProxy.NewRequest(ctx, downloadURL)
+		return handler.NewRequest(ctx, downloadURL)
 	}
 
 	downloadURL, err := url.Parse(provider.DownloadURL)
@@ -113,7 +113,7 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 		return err
 	}
 
-	return handler.ReverseProxy.NewRequest(ctx, downloadURL)
+	return handler.NewRequest(ctx, downloadURL)
 }
 
 // modifyDownloadURLsInJSONBody modifies the response to redirect the download URLs to the local server.
