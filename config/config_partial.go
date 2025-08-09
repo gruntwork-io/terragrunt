@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -502,8 +501,12 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			allControls := ctx.TerragruntOptions.StrictControls
+			// Skip dependency inputs by default for performance.
+			// Dependency input parsing is a deprecated feature that causes significant
+			// performance overhead due to recursive parsing. Most users don't need this
+			// feature and should use dependency outputs instead.
 
+			allControls := ctx.TerragruntOptions.StrictControls
 			skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
 			if skipDependenciesInputs == nil {
 				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
@@ -511,48 +514,13 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 			skipDependenciesInputs.SuppressWarning()
 
-			if err := skipDependenciesInputs.Evaluate(ctx); err != nil {
-				l.Debugf(
-					"Skipping inputs parse from %v in dependency for better performance, due to usage of %s strict control",
-					file.ConfigPath,
-					controls.SkipDependenciesInputs,
-				)
-
-				break
-			}
-
-			decoded := terragruntInputs{}
-
-			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
-				// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
-				retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, file)
-				if err != nil {
-					return nil, err
-				}
-
-				evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
-			}
-
-			if err := file.Decode(&decoded, evalParsingContext); err != nil {
-				var diagErr hcl.Diagnostics
-				ok := errors.As(err, &diagErr)
-
-				// in case of render-json command and inputs reference error, we update the inputs with default value
-				if !ok || !isRenderJSONCommand(ctx) || !isRenderCommand(ctx) || !isAttributeAccessError(diagErr) {
-					return nil, err
-				}
-
-				l.Warnf("Failed to decode inputs %v", diagErr)
-			}
-
-			if decoded.Inputs != nil {
-				inputs, err := ctyhelper.ParseCtyValueToMap(*decoded.Inputs)
-				if err != nil {
-					return nil, err
-				}
-
-				output.Inputs = inputs
-			}
+			l.Debugf(
+				"Skipping inputs parse from %v in dependency for better performance (default behavior). "+
+					"Dependency input parsing is deprecated - use dependency outputs instead.",
+				file.ConfigPath,
+			)
+			// Skip the rest of the inputs parsing logic
+			break
 
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
