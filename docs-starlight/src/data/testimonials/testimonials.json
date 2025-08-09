@@ -1,0 +1,228 @@
+[
+  {
+    "id": "1",
+    "order": 1,
+    "author": "Felipe Fernandes",
+    "title": "Cloud Infrastructure and Devops Senior Manager",
+    "company": "Mid-size Financial Services Firm",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt has allowed us to keep our code dry, speed up our deployment times, simplify our code. If you are not using Terragrunt to deploy your infrastructure you are doing it wrong."
+  },
+  {
+    "id": "2",
+    "order": 2,
+    "author": "Tobias Widen",
+    "title": "Engineering Manager, Platform",
+    "company": "Telness Tech",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt enabled our segmentation of Terraform state so we could move fast and scale."
+  },
+  {
+    "id": "3",
+    "order": 3,
+    "author": "Joshua Ward",
+    "title": "Engineer",
+    "company": "Fortune 500 Innovation Company",
+    "logo": "",
+    "alt": "",
+    "content": "I just finished a full nested Terragrunt Stacks rewrite of our entire setup and it's so clean. This is going to do wonders for our users that aren't necessarily DevOps folks. Seriously great stuff."
+  },
+  {
+    "id": "4",
+    "order": 4,
+    "author": "Mark Prikhno",
+    "title": "DevOps Engineer",
+    "company": "eCommerce Retailer",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt has resolved some of our crucial blockers: it enabled us to use dynamic backends and dynamic providers, allowed to execute code on errors, to setup migration and emergency cleanup scripts, and to keep the code clean and consistent. Our OpenTofu modules have never looked better. Some recent changes even allowed us to leave workspaces behind.\n\nThanks to Terragrunt's smart structuring and features, our average time of deployment went down from 30 minutes to just 3.\n\nLet Terragrunt deal with all the init work. Multiple backends? Try generating them. Huge monoliths of code that take hours to deploy? Create a stack. Repetitive code? Reuse configurations via Terragrunt."
+  },
+  {
+    "id": "5",
+    "order": 5,
+    "author": "Dallas Slaughter",
+    "title": "Founding Engineer",
+    "company": "Caddi",
+    "logo": "",
+    "alt": "",
+    "content": "Gruntwork's Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand."
+  },
+  {
+    "id": "6",
+    "order": 6,
+    "author": "Yehor Fedorov",
+    "title": "Senior DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt didn't just handle complexity; it actively simplified the process of writing and managing IaC, thanks to its emphasis on modularity.\n\nTerragrunt is not just a tool for complex projects, but a game-changer in simplifying and optimizing the way we approach Infrastructure as Code.\n\nTerragrunt has become an integral part of my toolkit in the realm of cloud architecture.\n\nModularity in Terragrunt is not just a feature; it's a paradigm shift, enhancing the organization and reusability of code. This approach starkly contrasts with Terraform's methodology, where, although modules are used, the level of integration and reusability is not as inherently streamlined.",
+    "link": "https://medium.com/@yehorfedorov/simplifying-infrastructure-as-code-my-journey-from-terraform-to-terragrunt-419433cd9c92"
+  },
+  {
+    "id": "7",
+    "order": 7,
+    "author": "Shubham Tanwar",
+    "title": "",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "The integration of Terragrunt into our Infrastructure as Code workflows brought about a remarkable reduction in code complexity.\n\nPreviously, managing a large-scale infrastructure demanded around 20,000 lines of code, leading to challenges in code readability, maintainability, and increased likelihood of errors. Terragrunt's modular structure and the elimination of code repetition drastically streamlined our codebase, reducing it to a mere 2,000 lines.\n\nMoreover, the burden of handling variables was similarly alleviated, with the number of variable lines plummeting from 50,000 to a concise 3,000. This reduction not only enhances code maintainability but also minimizes the risk of errors, making the entire IAC process more efficient and developer-friendly.\n\nTerragrunt's ability to handle resource dependencies seamlessly meant that we no longer needed to painstakingly manage multiple backend.tf files. The hassle of coordinating and maintaining dependencies across different components of our infrastructure was significantly mitigated, leading to a more streamlined and error-resistant deployment process.",
+    "link": "https://medium.com/deutsche-telekom-gurgaon/terraform-to-terragrunt-migration-guide-27f65fad006d"
+  },
+  {
+    "id": "8",
+    "order": 8,
+    "author": "David Mattia",
+    "title": "Privacy Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "We've found that Terragrunt not only shortens our codebase by a few thousand lines, it also greatly simplifies our infrastructure code. We no longer need to repeat our provider, state, or dependency configurations, so the logic of our code is now focused exclusively on what it should be focusing on: the terraform resources our developers want.",
+    "link": "https://transcend.io/blog/why-we-use-terragrunt"
+  },
+  {
+    "id": "9",
+    "order": 9,
+    "author": "Gerald Akenji",
+    "title": "DevOps Cloud Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "It's safe to say it's earned a permanent spot in my DevOps toolkit. While Terraform is already a powerful tool for defining infrastructure as code, Terragrunt builds on it - especially when you're managing multiple environments like dev, staging, and prod.",
+    "link": "https://www.linkedin.com/posts/geraldakenji_terraform-sre-devops-activity-7315813745211887616-AASz/"
+  },
+  {
+    "id": "10",
+    "order": 10,
+    "author": "Petar Nikov",
+    "title": "DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt helps manage those pesky repetitive tasks you don't even realize are sucking up your time. Think of it as Terraform's cooler, more organized sibling.\n\nI spent an afternoon cleaning up a setup where each team had cooked up their own deployment scripts. A total mess! Terragrunt's module inheritance saved the day - one config to rule them all.",
+    "link": "https://www.linkedin.com/posts/petar-nikov_aws-terragrunt-terraform-activity-7320405573005406208-oP0C/"
+  },
+  {
+    "id": "11",
+    "order": 11,
+    "author": "Igor Beliakov",
+    "title": "Senior Platform Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Personally, I can't imagine a terraform setup without terragrunt anymore. I love that I can have common inputs defined in one place, with ability to generate resource name prefixes and value overrides (e.g. for subscription IDs) based on a stack's file path. With that, very few inputs need to be passed explicitly, which makes it super-easy to scale and to make changes across stacks.",
+    "link": "https://www.linkedin.com/feed/update/urn:li:activity:7273003758945488896/?commentUrn=urn%3Ali%3Acomment%3A%28activity%3A7273003758945488896%2C7273255657154260992%29&dashCommentUrn=urn%3Ali%3Afsd_comment%3A%287273255657154260992%2Curn%3Ali%3Aactivity%3A7273003758945488896%29"
+  },
+  {
+    "id": "12",
+    "order": 12,
+    "author": "Anastasia Kondratieva",
+    "title": "SRE",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "I've been using Terragrunt for a year now as the only SRE in early stages startup that required to build everything from Scratch and It truly gave me peace of mind",
+    "link": "https://x.com/AnastasiaKnt/status/1767804898937037290"
+  },
+  {
+    "id": "13",
+    "order": 13,
+    "author": "Darryl Ruggles",
+    "title": "Cloud Solutions Architect",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "If you are using Terraform to setup your infrastructure and you're not also using Terragrunt you should take a look at it.",
+    "link": "https://x.com/RDarrylR/status/1769069496956821640"
+  },
+  {
+    "id": "14",
+    "order": 14,
+    "author": "Dimeji Ojewunmi",
+    "title": "Cloud DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt is actually sweet, makes environment handling easy, DRY- Don't repeat yourself.",
+    "link": "https://x.com/Dmex_philip/status/1827709730204397594"
+  },
+  {
+    "id": "15",
+    "order": 15,
+    "author": "Chidubem Chinwuba",
+    "title": "DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt is really a cutting edge IaC technology.",
+    "link": "https://x.com/ChidubemChinwu1/status/1690765550220095488"
+  },
+  {
+    "id": "16",
+    "order": 16,
+    "author": "Samay Singh Bisht",
+    "title": "DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt shines with its 'before' and 'after' hooks, allowing you to automate repetitive tasks such as logging, monitoring setup, or even policy enforcement checks before applying changes.",
+    "link": "https://x.com/SamaySinghBisht/status/1769117329365835779"
+  },
+  {
+    "id": "17",
+    "order": 17,
+    "author": "Victor Garcia",
+    "title": "Cloud DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Terragrunt is a game-changer for handling state files and modules!",
+    "link": "https://x.com/VictorInFinOps/status/1709489917825351846"
+  },
+  {
+    "id": "18",
+    "order": 18,
+    "author": "Naveen Pantera",
+    "title": "Principal Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "When it comes to managing and deploying multiple copies of the same infrastructure to the same or different AWS account, an additional tool is needed. And that tool has the name Terragrunt.",
+    "link": "https://x.com/NaveenS16/status/1821818501189062919?ref_src=twsrc%5Etfw%7Ctwcamp%5Etweetembed%7Ctwterm%5E1821818501189062919%7Ctwgr%5E14f7cfe215dc0adb04e024435ac613bfaa779f4b%7Ctwcon%5Es1_&ref_url=https%3A%2F%2Fwww.notion.so%2Fgruntwork%2Fd-1ded8759a682805082e0f6bf329ac67f"
+  },
+  {
+    "id": "19",
+    "order": 19,
+    "author": "Peter Kay",
+    "title": "SRE",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "Using Terragrunt to organize my Terraform files using DRY standards. Highly recommend it if you're repeating your code in your project.",
+    "link": "https://x.com/kaypeter87/status/1306256022181416965?ref_src=twsrc%5Etfw%7Ctwcamp%5Etweetembed%7Ctwterm%5E1306256022181416965%7Ctwgr%5E14f7cfe215dc0adb04e024435ac613bfaa779f4b%7Ctwcon%5Es1_&ref_url=https%3A%2F%2Fwww.notion.so%2Fgruntwork%2Fd-1ded8759a682805082e0f6bf329ac67f"
+  },
+  {
+    "id": "20",
+    "order": 20,
+    "author": "Roman Bessembe",
+    "title": "Senior DevOps Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "If you're managing multiple Terraform environments and things feel brittle or duplicated—Terragrunt is not just “nice to have”, it's a game-changer.",
+    "link": "https://www.linkedin.com/posts/rbessembe_real-case-how-i-replaced-terraform-with-activity-7324014236949467138-7HMr/"
+  },
+  {
+    "id": "21",
+    "order": 21,
+    "author": "Sergei Li",
+    "title": "Staff Engineer",
+    "company": "",
+    "logo": "",
+    "alt": "",
+    "content": "I use Terragrunt—and I never look back.\n\nSome say Terragrunt is overkill.\n\nSome say it's only for “advanced use cases.”\n\nI say: if you're serious about Infrastructure as Code, it's a must-have.",
+    "link": "https://www.linkedin.com/posts/activity-7333143952302198784-1gnv/"
+  }
+]
