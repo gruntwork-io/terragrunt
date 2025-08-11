@@ -49,6 +49,7 @@ const (
 	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
 	testFixtureStackTerragruntDir              = "fixtures/stacks/terragrunt-dir"
 	testFixtureStacksAllNoStackDir             = "fixtures/stacks/all-no-stack-dir"
+	testFixtureStackNoDotTerragruntStackOutput = "fixtures/stacks/no-dot-terragrunt-stack-output"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -1332,4 +1333,25 @@ func TestStackRunAllNoStackDir(t *testing.T) {
 
 	assert.Contains(t, stdout, "Changes to Outputs:")
 	assert.Contains(t, stdout, "+ test = \"value\"")
+}
+
+func TestStackOutputWithNoDotTerragruntStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackNoDotTerragruntStackOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNoDotTerragruntStackOutput)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackNoDotTerragruntStackOutput, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	unitPath := util.JoinPath(rootPath, "app1")
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+unitPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack output --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "name = \"app1\"")
 }
