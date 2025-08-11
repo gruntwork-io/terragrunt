@@ -705,12 +705,23 @@ func partialParseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfi
 		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	return PartialParseConfigFile(
+	config, err := PartialParseConfigFile(
 		ctx,
 		l,
 		includePath,
 		includedConfig,
 	)
+	if err != nil {
+		// Convert generic config not found error to include-specific error
+		var configNotFoundError TerragruntConfigNotFoundError
+		if errors.As(err, &configNotFoundError) {
+			return nil, IncludeConfigNotFoundError{IncludePath: includePath, SourcePath: ctx.TerragruntOptions.TerragruntConfigPath}
+		}
+
+		return nil, err
+	}
+
+	return config, nil
 }
 
 // This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of

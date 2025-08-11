@@ -1896,6 +1896,10 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, DependencyFileNotFoundError{Path: configPath}
+		}
+
 		return false, errors.New(err)
 	}
 
