@@ -163,6 +163,7 @@ func New() strict.Controls {
 			Name:        TerragruntPrefixFlags,
 			Description: "Prevents deprecated flags with `terragrunt-` prefixes from being used.",
 			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        TerragruntPrefixEnvVars,

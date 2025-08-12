@@ -4,7 +4,6 @@ package run
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -135,7 +134,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName("graph-root"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("graph-root"), terragruntPrefixControl)),
 
 		// `--all` and `--graph` related flags.
 
@@ -203,9 +202,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(DownloadDirFlagName),
 			Destination: &opts.DownloadDir,
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
-		}, flags.WithDeprecatedNamesEnvVars(
-			terragruntPrefix.FlagNames("download-dir"),
-			terragruntPrefix.EnvVars("download"),
+		}, flags.WithDeprecatedEnvVars(
+			append(
+				terragruntPrefix.EnvVars("download"),
+				terragruntPrefix.EnvVars("download-dir")...,
+			),
 			terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
@@ -265,10 +266,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
 			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
 		},
-			flags.WithDeprecatedNamesEnvVars(
-				terragruntPrefix.FlagNames("iam-web-identity-token"),
-				terragruntPrefix.EnvVars("iam-assume-role-web-identity-token"),
-				terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(
+				append(
+					terragruntPrefix.EnvVars("iam-web-identity-token"),
+					terragruntPrefix.EnvVars("iam-assume-role-web-identity-token")...,
+				),
+				terragruntPrefixControl,
+			),
+		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        QueueIgnoreErrorsFlagName,
@@ -372,16 +377,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("forward-tf-stdout"), terragruntPrefixControl),
-			flags.WithDeprecatedFlag(&cli.BoolFlag{
-				Name:    terragruntPrefix.FlagName("include-module-prefix"),
-				EnvVars: terragruntPrefix.EnvVars("include-module-prefix"),
-				Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
-				Action: func(_ *cli.Context, _ bool) error {
-					l.Warnf("The --include-module-prefix flag is deprecated. Use the functionality-inverted --%s flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TFForwardStdoutFlagName)
-
-					return nil
-				},
-			}, flags.NewValue(strconv.FormatBool(false)), legacyLogsControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-module-prefix"), legacyLogsControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        QueueStrictIncludeFlagName,

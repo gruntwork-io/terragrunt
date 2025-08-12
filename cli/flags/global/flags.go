@@ -200,23 +200,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogFormatFlagName), terragruntPrefixControl),
-			flags.WithDeprecatedFlag(&cli.BoolFlag{
-				Name:        terragruntPrefix.FlagName(DeprecatedDisableLogFormattingFlagName),
-				EnvVars:     terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName),
-				Destination: &opts.DisableLogFormatting,
-				Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-			}, flags.NewValue(format.KeyValueFormatName), legacyLogsControl),
-			flags.WithDeprecatedFlag(&cli.BoolFlag{
-				Name:        terragruntPrefix.FlagName(DeprecatedJSONLogFlagName),
-				EnvVars:     terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName),
-				Destination: &opts.JSONLogFormat,
-				Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-			}, flags.NewValue(format.JSONFormatName), legacyLogsControl),
-			flags.WithDeprecatedFlag(&cli.BoolFlag{
-				Name:    terragruntPrefix.FlagName(DeprecatedTfLogJSONFlagName),
-				EnvVars: terragruntPrefix.EnvVars(DeprecatedTfLogJSONFlagName),
-				Usage:   "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
-			}, flags.NewValue(format.JSONFormatName), legacyLogsControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName), legacyLogsControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName), legacyLogsControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedTfLogJSONFlagName), legacyLogsControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:    LogCustomFormatFlagName,
