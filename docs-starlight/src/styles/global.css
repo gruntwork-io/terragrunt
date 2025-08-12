@@ -411,3 +411,11 @@ input.pagefind-ui__search-input {
   border-radius: 6px;
   color: var(--color-code-text);
 }
+
+.opensourcecard {
+  border-left: 0;
+}
+
+.opensourcecard:last-child {
+  border-right: 0;
+}
