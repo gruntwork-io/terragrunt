@@ -18,7 +18,7 @@ touch "$OUTPUT_FILE"
 while IFS= read -r file; do
     echo "START: $file" | tee -a "$OUTPUT_FILE"
 
-    if gopls codeaction -kind=quickfix -write "$file"; then
+    if gopls codeaction -kind=quickfix -write -tags="aws,gcp,ssh,sops,tofu,tflint,engine,parse,mocks,private_registry,awsgcp,awsoidc" "$file"; then
         echo "SUCCESS: $file" | tee -a "$OUTPUT_FILE"
     else
         echo "FAILED: $file" | tee -a "$FAILURES_FILE" "$OUTPUT_FILE"
