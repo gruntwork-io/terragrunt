@@ -73,7 +73,11 @@
 	--sl-color-gray-4: #4c5776;
 	--sl-color-gray-5: #2d3754;
 	--sl-color-gray-6: #1c2541;
+  --sl-color-secondary: #EBEBEB;
   --sl-color-stroke-dark: #2E375A;
+  --color-toc-accent: #BFA6F2;
+  --color-toc-background:  rgba(191, 166, 242, 0.15);
+  --color-toc-text: #EBEBEB;
 	--sl-color-white: #ffffff;
 
   @media (width >= 768px) {
@@ -101,6 +105,10 @@
 	--sl-color-gray-5: #bbc2d4;
 	--sl-color-gray-6: #e8eefc;
 	--sl-color-gray-7: #f3f6fe;
+  --sl-color-secondary: #EBEBEB;
+  --color-toc-accent: #7B5AFF;
+  --color-toc-background: #E4E9FC;
+  --color-toc-text: #777888;
 	--sl-color-white: #131824;
 
   @media (width >= 768px) {
@@ -462,4 +470,29 @@ p code {
 
 .opensourcecard:last-child {
   border-right: 0;
+}
+
+starlight-toc h2 {
+  background-color: var(--color-toc-background);
+  color: var(--color-code-text);
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  user-select: none;
+  padding: 4px 2px;
+}
+
+starlight-toc li {
+  font-family: var(--font-sans);
+}
+
+starlight-toc li a {
+  color: var(--color-toc-text);
+}
+
+starlight-toc li a[aria-current="true"],
+starlight-toc li a:hover {
+  color: var(--color-toc-accent);
+  font-weight: 500;
 }
