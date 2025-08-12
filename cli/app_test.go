@@ -382,9 +382,7 @@ func TestParseMultiStringArg(t *testing.T) {
 func TestParseMutliStringKeyValueArg(t *testing.T) {
 	t.Parallel()
 
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-
-	flagName := doubleDashed(terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName))
+	flagName := doubleDashed(awsproviderpatch.OverrideAttrFlagName)
 
 	testCases := []struct {
 		expectedErr  error
