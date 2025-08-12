@@ -122,7 +122,7 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 		matches, err := zglob.Glob(globPath)
 		if err == nil {
 			paths = append(paths, matches...)
-		} else if err.Error() == "file does not exist" && strings.Contains(globPath, stackDir) {
+		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
 			// when using the stack feature, the directory may not exist yet,
 			// as stack generation occurs after parsing the argument flags.
 			paths = append(paths, globPath)
