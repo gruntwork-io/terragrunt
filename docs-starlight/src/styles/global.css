@@ -67,6 +67,7 @@
 	--sl-color-accent: #5e46e6;
 	--sl-color-accent-high: #c0c3fa;
 	--sl-color-black: #131824;
+  --sl-color-docs-stroke: #2E375A;
 	--sl-color-gray-1: #e8eefc;
 	--sl-color-gray-2: #bbc2d4;
 	--sl-color-gray-3: #7e8bac;
@@ -98,6 +99,7 @@
   --color-code-border: #BDADFF;
   --color-code-text: #7B5AFF;
 	--sl-color-black: #ffffff;
+  --sl-color-docs-stroke: #DBDBDB;
 	--sl-color-gray-1: #1c2541;
 	--sl-color-gray-2: #2d3754;
 	--sl-color-gray-3: #4c5776;
@@ -495,4 +497,16 @@ starlight-toc li a[aria-current="true"],
 starlight-toc li a:hover {
   color: var(--color-toc-accent);
   font-weight: 500;
+}
+
+.sidebar-pane {
+  border-inline-end: 1px dashed var(--sl-color-docs-stroke);
+}
+
+.content-panel {
+  border-top: 1px dashed var(--sl-color-docs-stroke);
+}
+
+.right-sidebar {
+  border-inline-start: 1px dashed var(--sl-color-docs-stroke);
 }
