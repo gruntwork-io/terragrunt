@@ -185,6 +185,7 @@ header {
 .social-icon {
   color: var(--color-gray-1) !important;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .social-icon:hover {
