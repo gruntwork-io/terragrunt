@@ -1,15 +1,14 @@
 ---
-import '@styles/global.css';
 import config from 'virtual:starlight/user-config';
 import type { Props } from '@astrojs/starlight/props';
 import { Image } from 'astro:assets';
-
-// @ts-ignore
 import Search from 'virtual:starlight/components/Search';
 
-import TerragruntLogo from '@assets/horizontal-logo-light.svg';
-import PipelineIcon from '@assets/pipelines.svg';
 import HeadphonesIcon from '@assets/headset-icon.svg';
+import ThemeToggle from '@components/ThemeToggle.astro';
+import PipelineIcon from '@assets/pipelines.svg';
+import TerragruntLogo from '@assets/horizontal-logo-light.svg';
+import '@styles/global.css';
 
 /**
  * Render the `Search` component if Pagefind is enabled or the default search component has been overridden.
@@ -81,7 +80,6 @@ try {
                         </svg>
                     </a>
                 </div>
-
                 <!-- SearchBar -->
                 <div class="hidden lg:block w-[280px]">
                     {shouldRenderSearch && <Search {...Astro.props} />}
@@ -92,6 +90,7 @@ try {
                     </svg>
                     <input class="text-sm font-sans text-[var(--color-gray-1)]" placeholder="Search"></input>
                 </div> -->
+                <ThemeToggle />
             </div>
             <div class="flex items-center gap-3 md:gap-3.5">
                 <!-- Buttons -->
