@@ -2,6 +2,7 @@ package runnerpool
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -21,9 +22,17 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
-		WithConfigFilenames([]string{config.DefaultTerragruntConfigPath}).
 		WithIncludeHiddenDirs([]string{config.StackDir}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
+
+	// Configure discovery to look for the configured Terragrunt file name if provided,
+	// otherwise fall back to the default filename.
+	filename := config.DefaultTerragruntConfigPath
+	if terragruntOptions.TerragruntConfigPath != "" {
+		filename = filepath.Base(terragruntOptions.TerragruntConfigPath)
+	}
+
+	d = d.WithConfigFilenames([]string{filename})
 
 	// Apply include directory features based on terragrunt options
 	if len(terragruntOptions.UnitsReading) > 0 {
