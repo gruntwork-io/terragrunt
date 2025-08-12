@@ -40,6 +40,7 @@ jobs:
 
       - name: Run gopls quickfixes
         id: gopls_run
+        timeout-minutes: 30
         run: ./.github/scripts/gopls/run.sh
 
       - name: Check for changes
@@ -57,8 +58,7 @@ jobs:
         with:
           script: |
             const createIssue = require('./.github/scripts/gopls/create-issue.js');
-            const fixedFilesPath = process.env.FIXED_FILES_PATH;
-            await createIssue({ github, context, core, fixedFilesPath });
+            await createIssue({ github, context, core });
 
       - name: Create pull request for fixes
         if: steps.check-changes.outputs.has_changes == 'true'
@@ -69,9 +69,7 @@ jobs:
         with:
           script: |
             const createPR = require('./.github/scripts/gopls/create-pr.js');
-            const issueNumber = process.env.ISSUE_NUMBER;
-            const fixedFilesPath = process.env.FIXED_FILES_PATH;
-            await createPR({ github, context, core, exec, issueNumber, fixedFilesPath });
+            await createPR({ github, context, core, exec });
 
       - name: Success message
         if: steps.gopls_run.outputs.has_fixes == 'false'
