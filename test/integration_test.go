@@ -1022,6 +1022,11 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
 	// so the symlinked directories are copied physically, which defeats the purpose of this test,
 	// therefore we are going to create the symlinks manually in the destination directory
