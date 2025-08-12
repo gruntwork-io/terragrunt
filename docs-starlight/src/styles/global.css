@@ -406,7 +406,13 @@ input.pagefind-ui__search-input {
   }
 }
 
-.sl-markdown-content code {
+h1 code,
+h2 code,
+h3 code,
+h4 code,
+h5 code,
+h6 code,
+p code {
   border: 1px solid var(--color-code-border);
   border-radius: 6px;
   color: var(--color-code-text);
