@@ -273,7 +273,7 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
 }
