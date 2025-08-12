@@ -54,13 +54,11 @@ jobs:
         uses: actions/github-script@v7
         env:
           FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
-          OUTPUT_FILE_PATH: ${{ steps.gopls_run.outputs.output_file_path }}
         with:
           script: |
             const createIssue = require('./.github/scripts/gopls/create-issue.js');
             const fixedFilesPath = process.env.FIXED_FILES_PATH;
-            const outputFilePath = process.env.OUTPUT_FILE_PATH;
-            await createIssue({ github, context, core, fixedFilesPath, outputFilePath });
+            await createIssue({ github, context, core, fixedFilesPath });
 
       - name: Create pull request for fixes
         if: steps.check-changes.outputs.has_changes == 'true'
