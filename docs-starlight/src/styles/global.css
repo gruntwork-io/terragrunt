@@ -108,6 +108,24 @@
   }
 }
 
+header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+.social-icon {
+  color: var(--color-gray-1) !important;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.social-icon:hover {
+  color: var(--sl-color-gray-1) !important;
+  cursor: pointer;
+}
+
 * {
   box-sizing: border-box;
 }
