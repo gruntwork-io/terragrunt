@@ -231,7 +231,7 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+util.JoinPath(tmpEnvPath, testFixturePath))
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+util.JoinPath(tmpEnvPath, testFixturePath)+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
 }
