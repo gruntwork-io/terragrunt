@@ -455,3 +455,11 @@ p code {
 #starlight__sidebar details summary {
   padding-left: 0;
 }
+
+.opensourcecard {
+  border-left: 0;
+}
+
+.opensourcecard:last-child {
+  border-right: 0;
+}
