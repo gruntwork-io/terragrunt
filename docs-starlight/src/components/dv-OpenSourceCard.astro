@@ -5,7 +5,7 @@ import { Image } from 'astro:assets';
 const { icon, title, description, href } = Astro.props;
 ---
 
-<a href={href} 
+<a href={href}
     class="group relative flex w-full items-center border border-dashed border-[var(--color-gray-3)] px-8 py-6 bg-[#FAFAFA] hover:bg-white hover:cursor-pointer transition-colors duration-200"
     target="_blank"
     rel="noopener noreferrer"
@@ -13,12 +13,12 @@ const { icon, title, description, href } = Astro.props;
 >
     <div class="flex flex-col items-start gap-3">
         <div class="flex gap-1.5 items-center">
-            <Image 
+            <Image
                 src={icon}
                 alt={`${title} Icon`}
                 class="w-6 h-6"
             />
-            <p class="text-lg font-semibold text-[var(--color-dark-blue-1)]">{title}</p>
+                         <p class="text-lg font-semibold text-dark-blue-1">{title}</p>
         </div>
         <p class="text-sm font-sans text-[var(--color-gray-1)]">{description}</p>
     </div>

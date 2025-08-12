@@ -193,7 +193,6 @@ ol li {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  color: var(--color-dark-blue-1);
   font-weight: 400;
   margin: 0;
 }
@@ -444,13 +443,13 @@ p code {
 }
 
 #starlight__sidebar ul li {
-  margin: 0;    
+  margin: 0;
   padding-top: 0.5em;
   padding-bottom: 0.5em;
 }
 
 #starlight__sidebar ul li ul li {
-  padding-left: 1em; 
+  padding-left: 1em;
 }
 
 #starlight__sidebar details summary {
