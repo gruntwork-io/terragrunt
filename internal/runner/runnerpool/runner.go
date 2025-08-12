@@ -49,6 +49,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
+		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
 	runner := &Runner{
