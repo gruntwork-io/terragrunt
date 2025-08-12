@@ -108,6 +108,24 @@
   }
 }
 
+header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+.social-icon {
+  color: var(--color-gray-1) !important;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.social-icon:hover {
+  color: var(--sl-color-gray-1) !important;
+  cursor: pointer;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -174,6 +192,12 @@ ol li {
     scrollbar-width: none;  /* Firefox */
 }
 
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-dark-blue-1);
+  font-weight: 400;
+  margin: 0;
+}
+
 header {
   border-bottom: 1px solid var(--sl-color-stroke-dark);
   display: flex;
@@ -185,6 +209,7 @@ header {
 .social-icon {
   color: var(--color-gray-1) !important;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .social-icon:hover {
@@ -406,10 +431,30 @@ input.pagefind-ui__search-input {
   }
 }
 
-.sl-markdown-content code {
+h1 code,
+h2 code,
+h3 code,
+h4 code,
+h5 code,
+h6 code,
+p code {
   border: 1px solid var(--color-code-border);
   border-radius: 6px;
   color: var(--color-code-text);
+}
+
+#starlight__sidebar ul li {
+  margin: 0;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+}
+
+#starlight__sidebar ul li ul li {
+  padding-left: 1em;
+}
+
+#starlight__sidebar details summary {
+  padding-left: 0;
 }
 
 .opensourcecard {

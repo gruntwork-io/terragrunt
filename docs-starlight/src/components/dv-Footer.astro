@@ -2,7 +2,7 @@
 import '@styles/global.css';
 import { Image } from 'astro:assets';
 import OpenSourceCard from '@components/dv-OpenSourceCard.astro';
-import GruntworkLogo from '../assets/gruntwork-logo.svg';
+import GruntworkLogo from '@assets/gruntwork-logo.svg';
 import PatternDots from '@assets/pattern-dots.png';
 import IconTerratest from '@assets/icon-terratest.svg';
 import IconBoilerplate from '@assets/icon-boilerplate.svg';
@@ -102,7 +102,11 @@ import IconGitxargs from '@assets/icon-gitxargs.svg';
     <div class="flex flex-col md:flex-row items-start md:items-center md:justify-between py-6 px-6 bg-[#FAFAFA] mt-auto gap-3">
         <div class="flex items-center gap-2">
             <Image src={GruntworkLogo} alt="Gruntwork Logo" class="w-[30px] h-[30px]" />
-            <span class="text-sm text-gray-[#777888]">From the DevOps experts at <a href="https://gruntwork.io" class="text-accent-1 border-b border-gray-1 hover:cursor-pointer hover:text-accent transition .025s ease-in-out">Gruntwork</a></span>
+            <span class="text-sm text-gray-[#777888]">From the DevOps experts at 
+              <a href="https://gruntwork.io" class="text-accent-1 no-underline border-b border-gray-1 hover:cursor-pointer hover:text-accent transition .025s ease-in-out">
+                Gruntwork
+              </a>
+            </span>
         </div>
         <div>
             <p class="text-center text-sm text-gray-1">
