@@ -526,7 +526,7 @@ starlight-toc li a:hover {
 }
 
 .sl-markdown-content .expressive-code {
-  margin-top: 1.5em;
+  margin: 1.5em 0;
 }
 
 .sl-markdown-content aside {
