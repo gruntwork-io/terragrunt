@@ -2883,16 +2883,12 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIncludeParent)
 	tmpEnvPath = path.Join(tmpEnvPath, testFixtureIncludeParent)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 
-	out := stdout.String()
-	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Equal(t, 1, strings.Count(stdout, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(stdout, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(stdout, "common_hcl"))
 }
 
 // The tests here cannot be parallelized.
@@ -3395,13 +3391,10 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureModulePathError)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color", &stdout, &stderr)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color")
 	require.NoError(t, err)
-	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
-	assert.Contains(t, output, "finished with an error")
+	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
+	assert.Contains(t, output, "Run failed")
 	assert.Contains(t, output, "Unit ./d1", output)
 }
 

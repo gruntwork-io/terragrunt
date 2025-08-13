@@ -306,12 +306,21 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	parseOpts.SkipOutput = true
 
 	filename := config.DefaultTerragruntConfigPath
-	if opts.TerragruntConfigPath != "" {
-		filename = filepath.Base(opts.TerragruntConfigPath)
-	}
-
 	if c.Type == ConfigTypeStack {
 		filename = config.DefaultStackFile
+	}
+
+	// Respect an explicitly provided config file path, but only when it actually
+	// points to a file (not a directory) or clearly looks like a config file.
+	if opts.TerragruntConfigPath != "" {
+		if fi, err := os.Stat(opts.TerragruntConfigPath); err == nil && !fi.IsDir() {
+			filename = filepath.Base(opts.TerragruntConfigPath)
+		} else {
+			ext := strings.ToLower(filepath.Ext(opts.TerragruntConfigPath))
+			if ext == ".hcl" || ext == ".json" {
+				filename = filepath.Base(opts.TerragruntConfigPath)
+			}
+		}
 	}
 
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
