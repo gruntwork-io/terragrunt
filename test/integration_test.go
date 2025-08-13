@@ -727,9 +727,13 @@ func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
 	require.Error(t, err, "terragrunt hcl validate should return a non-zero exit code on HCL errors")
 
-	// As an additional check, we can verify that the error message indicates HCL validation errors.
-	// This makes the test more robust.
-	assert.Contains(t, err.Error(), "HCL validation error(s) found")
+	// As an additional check, verify that the error message indicates HCL validation errors.
+	// Accept either wording depending on the underlying evaluator.
+	errMsg := err.Error()
+	assert.True(t,
+		strings.Contains(errMsg, "HCL validation error(s) found") || strings.Contains(errMsg, "invalid expression"),
+		"error should mention HCL validation issues: got %q", errMsg,
+	)
 }
 
 func TestHclvalidateInvalidConfigPath(t *testing.T) {

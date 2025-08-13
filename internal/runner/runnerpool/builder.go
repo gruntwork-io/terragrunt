@@ -17,6 +17,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
+		WithOptions(opts).
 		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().

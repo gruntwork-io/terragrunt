@@ -29,6 +29,8 @@ const (
 	ConfigTypeUnit ConfigType = "unit"
 	// ConfigTypeStack is the type of Terragrunt configuration for a stack.
 	ConfigTypeStack ConfigType = "stack"
+
+	skipOutputDiagnostics = "output"
 )
 
 // ConfigType is the type of Terragrunt configuration.
@@ -116,6 +118,9 @@ type Discovery struct {
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
+
+	// parserOptions are custom HCL parser options to use when parsing during discovery
+	parserOptions []hclparse.Option
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -138,6 +143,26 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	}
 
 	return discovery
+}
+
+// parseOptionsProvider is a narrow interface used to extract parser options from
+// option values without introducing a dependency on runner or stack packages.
+type parseOptionsProvider interface {
+	GetParseOptions() ([]hclparse.Option, bool)
+}
+
+// WithOptions applies any provided options that expose parser options.
+// Accepts any option types; only those implementing GetParseOptions are used.
+func (d *Discovery) WithOptions(opts ...any) *Discovery { //nolint: revive
+	for _, opt := range opts {
+		if provider, ok := opt.(parseOptionsProvider); ok {
+			if parseOpts, ok := provider.GetParseOptions(); ok {
+				d = d.WithParserOptions(parseOpts)
+			}
+		}
+	}
+
+	return d
 }
 
 // WithHidden sets the Hidden flag to true.
@@ -243,6 +268,12 @@ func (d *Discovery) WithExcludeByDefault() *Discovery {
 	return d
 }
 
+// WithParserOptions sets custom parser options to be used when parsing configs during discovery.
+func (d *Discovery) WithParserOptions(options []hclparse.Option) *Discovery {
+	d.parserOptions = options
+	return d
+}
+
 // String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
 	return c.Path
@@ -265,7 +296,7 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 }
 
 // Parse parses the discovered configurations.
-func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool) error {
+func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool, parserOptions []hclparse.Option) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
@@ -292,6 +323,11 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		config.ExcludeBlock,
 	)
 
+	// Apply any custom parser options first
+	if len(parserOptions) > 0 {
+		parsingCtx = parsingCtx.WithParseOption(append(parsingCtx.ParserOptions, parserOptions...))
+	}
+
 	if suppressParseErrors {
 		// If suppressing parse errors, we want to filter diagnostics that contain references to outputs,
 		// while leaving other diagnostics as is.
@@ -299,8 +335,8 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 			filteredDiags := hcl.Diagnostics{}
 
 			for _, hclDiag := range hclDiags {
-				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), "output") ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), "output")
+				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics)
 
 				if !containsOutputRef {
 					filteredDiags = append(filteredDiags, hclDiag)
@@ -557,7 +593,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				continue
 			}
 
-			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
+			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 			}
@@ -583,6 +619,10 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 
 			if d.suppressParseErrors {
 				dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
+			}
+
+			if len(d.parserOptions) > 0 {
+				dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
 			}
 
 			// Pass include patterns and strict mode to dependency discovery
@@ -647,6 +687,7 @@ type DependencyDiscovery struct {
 	discoverExternal    bool
 	suppressParseErrors bool
 	strictInclude       bool
+	parserOptions       []hclparse.Option
 }
 
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.
@@ -688,6 +729,12 @@ func (d *DependencyDiscovery) WithIncludeDirs(dirs []string) *DependencyDiscover
 // WithStrictInclude sets the strictInclude flag to true.
 func (d *DependencyDiscovery) WithStrictInclude() *DependencyDiscovery {
 	d.strictInclude = true
+	return d
+}
+
+// WithParserOptions sets custom parser options to be used when parsing dependency configs during discovery.
+func (d *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *DependencyDiscovery {
+	d.parserOptions = options
 	return d
 }
 
@@ -752,7 +799,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 
 	// This should only happen if we're discovering an ancestor dependency.
 	if dCfg.Parsed == nil {
-		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors)
+		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 		if err != nil {
 			return errors.New(err)
 		}

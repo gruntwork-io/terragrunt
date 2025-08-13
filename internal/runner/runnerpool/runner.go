@@ -290,7 +290,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		opt(r)
+		opt.ApplyStack(r)
 	}
 
 	return r
