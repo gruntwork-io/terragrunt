@@ -531,5 +531,5 @@ starlight-toc li a:hover {
 
 .sl-markdown-content aside {
   border-left: 5px solid var(--sl-color-asides-border);
-  margin-top: 1.5em;
+  margin: 1.5em 0;
 }
