@@ -54,7 +54,7 @@
 
 /* Docs Dark mode colors. */
 :root {
-  --sl-nav-height: 87px;
+  --sl-nav-height: 96px;
   --sl-color-bg-nav: #0F1731;
   --sl-color-bg-sidebar: #0F1731;
   --sl-color-hairline-shade: #2E375A;
@@ -82,12 +82,15 @@
 	--sl-color-white: #ffffff;
 
   @media (width >= 768px) {
-    --sl-nav-height: 84px;
+    --sl-nav-height: 91px;
+  }
+  @media (width < 768px) {
+    --sl-nav-height: 148px;
   }
 }
 /* Docs Light mode colors. */
 :root[data-theme='light'] {
-  --sl-nav-height: 87px;
+  --sl-nav-height: 96px;
   --sl-color-bg-nav: #0F1731;
   --sl-color-bg-sidebar: #ffffff;
   --sl-color-bg: #ffffff;
@@ -118,11 +121,17 @@
   }
 }
 
-header {
-  display: flex;
+.header {
   flex-direction: column;
+  height: auto;
   justify-content: center;
   padding: 0 !important;
+}
+
+@media screen and (max-width: 767px) {
+  .main-frame {
+    padding-top: 196px;
+  }
 }
 
 .social-icon {
