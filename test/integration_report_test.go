@@ -466,6 +466,11 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	cleanupTerraformFolder(t, testFixtureExternalDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)

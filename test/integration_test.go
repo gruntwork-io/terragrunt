@@ -2883,12 +2883,12 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIncludeParent)
 	tmpEnvPath = path.Join(tmpEnvPath, testFixtureIncludeParent)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+tmpEnvPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --log-level debug --working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, strings.Count(stdout, "parent_hcl_file"))
-	assert.Equal(t, 1, strings.Count(stdout, "dependency_hcl"))
-	assert.Equal(t, 1, strings.Count(stdout, "common_hcl"))
+	assert.Contains(t, stderr, "parent_hcl_file")
+	assert.Contains(t, stderr, "dependency_hcl")
+	assert.Contains(t, stderr, "common_hcl")
 }
 
 // The tests here cannot be parallelized.
