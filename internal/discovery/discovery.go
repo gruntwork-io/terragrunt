@@ -89,6 +89,9 @@ type Discovery struct {
 	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
 	includeDirs []string
 
+	// parserOptions are custom HCL parser options to use when parsing during discovery
+	parserOptions []hclparse.Option
+
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
@@ -118,9 +121,6 @@ type Discovery struct {
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
-
-	// parserOptions are custom HCL parser options to use when parsing during discovery
-	parserOptions []hclparse.Option
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -692,11 +692,11 @@ type DependencyDiscovery struct {
 	discoveryContext    *DiscoveryContext
 	cfgs                DiscoveredConfigs
 	includeDirs         []string
+	parserOptions       []hclparse.Option
 	depthRemaining      int
 	discoverExternal    bool
 	suppressParseErrors bool
 	strictInclude       bool
-	parserOptions       []hclparse.Option
 }
 
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.

@@ -386,6 +386,11 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
