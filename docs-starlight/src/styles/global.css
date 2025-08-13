@@ -55,6 +55,7 @@
 /* Docs Dark mode colors. */
 :root {
   --sl-nav-height: 96px;
+  --sl-color-asides-border: hsl(41, 90%, 60%);
   --sl-color-bg-nav: #0F1731;
   --sl-color-bg-sidebar: #0F1731;
   --sl-color-hairline-shade: #2E375A;
@@ -91,6 +92,7 @@
 /* Docs Light mode colors. */
 :root[data-theme='light'] {
   --sl-nav-height: 96px;
+  --sl-color-asides-border: hsl(41, 90%, 60%);
   --sl-color-bg-nav: #0F1731;
   --sl-color-bg-sidebar: #ffffff;
   --sl-color-bg: #ffffff;
@@ -213,7 +215,6 @@ ol li {
 
 h1, h2, h3, h4, h5, h6 {
   font-weight: 400;
-  margin: 0;
 }
 
 header {
@@ -518,4 +519,23 @@ starlight-toc li a:hover {
 
 .right-sidebar {
   border-inline-start: 1px dashed var(--sl-color-docs-stroke);
+}
+
+.sl-markdown-content h2:not(:first-child) {
+  margin-top: 1.5em;
+}
+
+.sl-markdown-content .expressive-code {
+  margin: 1.5em 0;
+}
+
+.sl-markdown-content aside {
+  border-left: 5px solid var(--sl-color-asides-border);
+  margin: 1.5em 0;
+}
+
+article.card {
+  background-color: transparent;
+  border: 1px solid var(--sl-color-gray-5);
+  margin: 1.5em 0;
 }
