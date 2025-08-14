@@ -226,6 +226,52 @@ header {
   padding: 0 !important;
 }
 
+.navbar {
+    display: flex;
+    width: 100vw;
+    height: auto;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--color-bg-dark);
+    padding: 20px 80px;
+    border-bottom: 1px solid var(--color-stroke-dark);
+}
+
+@media (width <= 1024px) {
+    .navbar {
+        padding: 20px;
+    }
+}
+
+.searchbar {
+    display: flex;
+    align-items: center;
+    justify-content: start;
+    gap: 8px;
+    width: 280px;
+    height: 40px;
+    padding: 6px 12px;
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+}
+
+.menu-icon {
+    display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .menu-icon {
+        display: inline-flex;
+    }
+}
+
+@media (width <= 375px) {
+    .primary-button, .secondary-button {
+        padding: 10px 10px;
+    }
+}
+
 .social-icon {
   color: var(--color-gray-1) !important;
   cursor: pointer;
