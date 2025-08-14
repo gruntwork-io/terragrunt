@@ -56,6 +56,11 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		d = d.WithIncludeDirs(includeDirs)
 	}
 
+	// Apply exclude directory features based on terragrunt options
+	if len(terragruntOptions.ExcludeDirs) > 0 {
+		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
+	}
+
 	if terragruntOptions.StrictInclude {
 		d = d.WithStrictInclude()
 	}

@@ -100,6 +100,315 @@ func TestDiscovery(t *testing.T) {
 	}
 }
 
+func TestDiscoveryWithExcludeDirs(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+		"excluded",
+		"nested/excluded",
+		"nested/included",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl":           "",
+		"unit2/terragrunt.hcl":           "",
+		"unit3/terragrunt.hcl":           "",
+		"excluded/terragrunt.hcl":        "",
+		"nested/excluded/terragrunt.hcl": "",
+		"nested/included/terragrunt.hcl": "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name          string
+		excludeDirs   []string
+		wantUnits     []string
+		errorExpected bool
+	}{
+		{
+			name:        "exclude single directory",
+			excludeDirs: []string{"excluded"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude nested directory",
+			excludeDirs: []string{"nested/excluded"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude with glob pattern",
+			excludeDirs: []string{"excluded*"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude multiple patterns",
+			excludeDirs: []string{"excluded", "nested/excluded"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude with question mark pattern",
+			excludeDirs: []string{"unit?"},
+			wantUnits:   []string{filepath.Join(tmpDir, "excluded"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude with character class pattern",
+			excludeDirs: []string{"unit[12]"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "excluded"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude with exact path match",
+			excludeDirs: []string{"unit1"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "excluded"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude with parent directory pattern",
+			excludeDirs: []string{"nested"},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "excluded")},
+		},
+		{
+			name:        "exclude with empty pattern",
+			excludeDirs: []string{""},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "excluded"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "exclude with whitespace pattern",
+			excludeDirs: []string{"  excluded  "},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+		{
+			name:        "no exclude patterns",
+			excludeDirs: []string{},
+			wantUnits:   []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3"), filepath.Join(tmpDir, "excluded"), filepath.Join(tmpDir, "nested/excluded"), filepath.Join(tmpDir, "nested/included")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir)
+			if len(tt.excludeDirs) > 0 {
+				d = d.WithExcludeDirs(tt.excludeDirs)
+			}
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			if !tt.errorExpected {
+				require.NoError(t, err)
+			}
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+
+			assert.ElementsMatch(t, units, tt.wantUnits)
+		})
+	}
+}
+
+func TestMatchesExcludePatterns(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"app",
+		"app/frontend",
+		"app/backend",
+		"test",
+		"test/unit",
+		"test/integration",
+		"docs",
+		"docs/api",
+		"docs/user",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files
+	testFiles := map[string]string{
+		"app/terragrunt.hcl":              "",
+		"app/frontend/terragrunt.hcl":     "",
+		"app/backend/terragrunt.hcl":      "",
+		"test/terragrunt.hcl":             "",
+		"test/unit/terragrunt.hcl":        "",
+		"test/integration/terragrunt.hcl": "",
+		"docs/terragrunt.hcl":             "",
+		"docs/api/terragrunt.hcl":         "",
+		"docs/user/terragrunt.hcl":        "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name        string
+		excludeDirs []string
+		path        string
+		shouldMatch bool
+	}{
+		// Exact path matching
+		{
+			name:        "exact path match",
+			excludeDirs: []string{"app"},
+			path:        "app",
+			shouldMatch: true,
+		},
+		{
+			name:        "exact path match with nested",
+			excludeDirs: []string{"app/frontend"},
+			path:        "app/frontend",
+			shouldMatch: true,
+		},
+
+		// Subdirectory matching
+		{
+			name:        "parent pattern matches child",
+			excludeDirs: []string{"app"},
+			path:        "app/frontend",
+			shouldMatch: true,
+		},
+		{
+			name:        "child pattern matches parent",
+			excludeDirs: []string{"app/frontend"},
+			path:        "app",
+			shouldMatch: true,
+		},
+
+		// Glob patterns
+		{
+			name:        "glob pattern with asterisk",
+			excludeDirs: []string{"app*"},
+			path:        "app",
+			shouldMatch: true,
+		},
+		{
+			name:        "glob pattern with asterisk matches nested",
+			excludeDirs: []string{"app*"},
+			path:        "app/frontend",
+			shouldMatch: true,
+		},
+		{
+			name:        "glob pattern with asterisk matches docs",
+			excludeDirs: []string{"app*"},
+			path:        "docs",
+			shouldMatch: false,
+		},
+
+		// Question mark patterns
+		{
+			name:        "question mark pattern",
+			excludeDirs: []string{"ap?"},
+			path:        "app",
+			shouldMatch: true,
+		},
+		{
+			name:        "question mark pattern no match",
+			excludeDirs: []string{"ap?"},
+			path:        "test",
+			shouldMatch: false,
+		},
+
+		// Character class patterns
+		{
+			name:        "character class pattern",
+			excludeDirs: []string{"app[abc]"},
+			path:        "app",
+			shouldMatch: false,
+		},
+		{
+			name:        "character class pattern with range",
+			excludeDirs: []string{"test[0-9]"},
+			path:        "test",
+			shouldMatch: false,
+		},
+
+		// Edge cases
+		{
+			name:        "empty pattern",
+			excludeDirs: []string{""},
+			path:        "app",
+			shouldMatch: false,
+		},
+		{
+			name:        "whitespace pattern",
+			excludeDirs: []string{"  app  "},
+			path:        "app",
+			shouldMatch: true,
+		},
+		{
+			name:        "absolute path pattern",
+			excludeDirs: []string{filepath.Join(tmpDir, "app")},
+			path:        "app",
+			shouldMatch: true,
+		},
+		{
+			name:        "absolute path pattern with nested",
+			excludeDirs: []string{filepath.Join(tmpDir, "app/frontend")},
+			path:        "app/frontend",
+			shouldMatch: true,
+		},
+		{
+			name:        "absolute path pattern parent matches child",
+			excludeDirs: []string{filepath.Join(tmpDir, "app")},
+			path:        "app/frontend",
+			shouldMatch: true,
+		},
+		{
+			name:        "absolute path pattern child matches parent",
+			excludeDirs: []string{filepath.Join(tmpDir, "app/frontend")},
+			path:        "app",
+			shouldMatch: true,
+		},
+		{
+			name:        "no exclude patterns",
+			excludeDirs: []string{},
+			path:        "app",
+			shouldMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			d := discovery.NewDiscovery(tmpDir)
+			if len(tt.excludeDirs) > 0 {
+				d = d.WithExcludeDirs(tt.excludeDirs)
+			}
+
+			path := filepath.Join(tmpDir, tt.path)
+			matches := d.MatchesExcludePatterns(path)
+
+			assert.Equal(t, tt.shouldMatch, matches, "Path: %s, Pattern: %v", tt.path, tt.excludeDirs)
+		})
+	}
+}
+
 func TestDiscoveredConfigsSort(t *testing.T) {
 	t.Parallel()
 

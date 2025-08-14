@@ -89,6 +89,9 @@ type Discovery struct {
 	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
 	includeDirs []string
 
+	// excludeDirs is a list of directory patterns to exclude from discovery.
+	excludeDirs []string
+
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
 
@@ -256,6 +259,12 @@ func (d *Discovery) WithIncludeHiddenDirs(dirs []string) *Discovery {
 // WithIncludeDirs sets the includeDirs field to the given list.
 func (d *Discovery) WithIncludeDirs(dirs []string) *Discovery {
 	d.includeDirs = dirs
+	return d
+}
+
+// WithExcludeDirs sets the excludeDirs field to the given list.
+func (d *Discovery) WithExcludeDirs(dirs []string) *Discovery {
+	d.excludeDirs = dirs
 	return d
 }
 
@@ -468,6 +477,168 @@ func (d *Discovery) matchesIncludePatterns(path string) bool {
 	return false
 }
 
+// MatchesExcludePatterns returns true if the path matches any of the exclude directory patterns.
+func (d *Discovery) MatchesExcludePatterns(path string) bool {
+	if len(d.excludeDirs) == 0 {
+		return false
+	}
+
+	// Get the relative path from the working directory
+	relPath, err := filepath.Rel(d.workingDir, path)
+	if err != nil {
+		// If we can't get a relative path, use the absolute path
+		relPath = path
+	}
+
+	relPathSlash := filepath.ToSlash(relPath)
+
+	for _, pattern := range d.excludeDirs {
+		// Skip empty patterns
+		if strings.TrimSpace(pattern) == "" {
+			continue
+		}
+
+		// Convert pattern to slash format and clean it
+		patternSlash := filepath.ToSlash(strings.TrimSpace(pattern))
+
+		// Handle absolute path patterns
+		if filepath.IsAbs(pattern) {
+			// For absolute patterns, compare against the full path
+			pathSlash := filepath.ToSlash(path)
+
+			// Handle exact path matching first
+			if pathSlash == patternSlash {
+				return true
+			}
+
+			// Check if the path matches the pattern as a glob
+			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+				return true
+			}
+
+			// Check if the path is a subdirectory of the pattern
+			if strings.HasPrefix(pathSlash, patternSlash+"/") {
+				return true
+			}
+
+			// Check if the pattern is a subdirectory of the path
+			if strings.HasPrefix(patternSlash, pathSlash+"/") {
+				return true
+			}
+
+			// Handle glob patterns with wildcards for absolute paths
+			if strings.Contains(patternSlash, "*") {
+				pathParts := strings.Split(pathSlash, "/")
+				for i := 0; i < len(pathParts); i++ {
+					testPath := strings.Join(pathParts[:i+1], "/")
+					if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+						return true
+					}
+				}
+
+				for _, part := range pathParts {
+					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+						return true
+					}
+				}
+			}
+
+			// Handle question marks and character classes for absolute paths
+			if strings.Contains(patternSlash, "?") || (strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]")) {
+				if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+					return true
+				}
+
+				pathParts := strings.Split(pathSlash, "/")
+				for _, part := range pathParts {
+					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+						return true
+					}
+				}
+			}
+
+			continue
+		}
+
+		// Handle relative path patterns
+		// Handle exact path matching first
+		if relPathSlash == patternSlash {
+			return true
+		}
+
+		// Check if the relative path matches the pattern as a glob
+		if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
+			return true
+		}
+
+		// Check if the relative path is a subdirectory of the pattern
+		// This handles cases like pattern "app" matching "app/frontend"
+		if strings.HasPrefix(relPathSlash, patternSlash+"/") {
+			return true
+		}
+
+		// Check if the pattern is a subdirectory of the path
+		// This handles cases like pattern "app/frontend" matching "app"
+		if strings.HasPrefix(patternSlash, relPathSlash+"/") {
+			return true
+		}
+
+		// Handle glob patterns with wildcards
+		if strings.Contains(patternSlash, "*") {
+			// Split the path into components and check each level
+			pathParts := strings.Split(relPathSlash, "/")
+			for i := 0; i < len(pathParts); i++ {
+				// Check if any part of the path matches the pattern
+				testPath := strings.Join(pathParts[:i+1], "/")
+				if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+					return true
+				}
+			}
+
+			// Also check if the pattern matches any directory component
+			for _, part := range pathParts {
+				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+					return true
+				}
+			}
+		}
+
+		// Handle patterns with question marks (single character wildcards)
+		if strings.Contains(patternSlash, "?") {
+			// Check if the pattern matches the path directly
+			if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
+				return true
+			}
+
+			// Check if the pattern matches any directory component
+			pathParts := strings.Split(relPathSlash, "/")
+			for _, part := range pathParts {
+				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+					return true
+				}
+			}
+		}
+
+		// Handle character classes like [abc] or [a-z]
+		if strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]") {
+			// Check if the pattern matches the path directly
+			if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
+				return true
+			}
+
+			// Check if the pattern matches any directory component
+			pathParts := strings.Split(relPathSlash, "/")
+			for _, part := range pathParts {
+				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 // Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var cfgs DiscoveredConfigs
@@ -535,6 +706,11 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 							return nil
 						}
 					}
+				}
+
+				// Apply exclude pattern filtering - if the directory matches any exclude pattern, skip it
+				if d.MatchesExcludePatterns(configDir) {
+					return nil
 				}
 
 				cfgType := ConfigTypeUnit
@@ -648,6 +824,11 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				dependencyDiscovery = dependencyDiscovery.WithIncludeDirs(d.includeDirs)
 			}
 
+			// Pass exclude patterns to dependency discovery
+			if len(d.excludeDirs) > 0 {
+				dependencyDiscovery = dependencyDiscovery.WithExcludeDirs(d.excludeDirs)
+			}
+
 			if d.strictInclude {
 				dependencyDiscovery = dependencyDiscovery.WithStrictInclude()
 			}
@@ -701,6 +882,7 @@ type DependencyDiscovery struct {
 	discoveryContext    *DiscoveryContext
 	cfgs                DiscoveredConfigs
 	includeDirs         []string
+	excludeDirs         []string
 	parserOptions       []hclparse.Option
 	depthRemaining      int
 	discoverExternal    bool
@@ -744,6 +926,12 @@ func (d *DependencyDiscovery) WithIncludeDirs(dirs []string) *DependencyDiscover
 	return d
 }
 
+// WithExcludeDirs sets the excludeDirs field to the given list.
+func (d *DependencyDiscovery) WithExcludeDirs(dirs []string) *DependencyDiscovery {
+	d.excludeDirs = dirs
+	return d
+}
+
 // WithStrictInclude sets the strictInclude flag to true.
 func (d *DependencyDiscovery) WithStrictInclude() *DependencyDiscovery {
 	d.strictInclude = true
@@ -777,6 +965,161 @@ func (d *DependencyDiscovery) matchesIncludePatterns(path string) bool {
 		// Also check if the path is a subdirectory of the pattern
 		if strings.HasPrefix(pathSlash, patternSlash+"/") {
 			return true
+		}
+	}
+
+	return false
+}
+
+// matchesExcludePatterns returns true if the path matches any of the exclude directory patterns.
+func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
+	if len(d.excludeDirs) == 0 {
+		return false
+	}
+
+	// Convert path to slash format for consistent matching
+	pathSlash := filepath.ToSlash(path)
+
+	for _, pattern := range d.excludeDirs {
+		// Skip empty patterns
+		if strings.TrimSpace(pattern) == "" {
+			continue
+		}
+
+		// Convert pattern to slash format and clean it
+		patternSlash := filepath.ToSlash(strings.TrimSpace(pattern))
+
+		// Handle absolute path patterns
+		if filepath.IsAbs(pattern) {
+			// For absolute patterns, compare against the full path
+
+			// Handle exact path matching first
+			if pathSlash == patternSlash {
+				return true
+			}
+
+			// Check if the path matches the pattern as a glob
+			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+				return true
+			}
+
+			// Check if the path is a subdirectory of the pattern
+			if strings.HasPrefix(pathSlash, patternSlash+"/") {
+				return true
+			}
+
+			// Check if the pattern is a subdirectory of the path
+			if strings.HasPrefix(patternSlash, pathSlash+"/") {
+				return true
+			}
+
+			// Handle glob patterns with wildcards for absolute paths
+			if strings.Contains(patternSlash, "*") {
+				pathParts := strings.Split(pathSlash, "/")
+				for i := 0; i < len(pathParts); i++ {
+					testPath := strings.Join(pathParts[:i+1], "/")
+					if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+						return true
+					}
+				}
+
+				for _, part := range pathParts {
+					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+						return true
+					}
+				}
+			}
+
+			// Handle question marks and character classes for absolute paths
+			if strings.Contains(patternSlash, "?") || (strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]")) {
+				if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+					return true
+				}
+
+				pathParts := strings.Split(pathSlash, "/")
+				for _, part := range pathParts {
+					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+						return true
+					}
+				}
+			}
+
+			continue
+		}
+
+		// Handle relative path patterns
+		// Handle exact path matching first
+		if pathSlash == patternSlash {
+			return true
+		}
+
+		// Check if the path matches the pattern as a glob
+		if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+			return true
+		}
+
+		// Check if the path is a subdirectory of the pattern
+		// This handles cases like pattern "app" matching "app/frontend"
+		if strings.HasPrefix(pathSlash, patternSlash+"/") {
+			return true
+		}
+
+		// Check if the pattern is a subdirectory of the path
+		// This handles cases like pattern "app/frontend" matching "app"
+		if strings.HasPrefix(patternSlash, pathSlash+"/") {
+			return true
+		}
+
+		// Handle glob patterns with wildcards
+		if strings.Contains(patternSlash, "*") {
+			// Split the path into components and check each level
+			pathParts := strings.Split(pathSlash, "/")
+			for i := 0; i < len(pathParts); i++ {
+				// Check if any part of the path matches the pattern
+				testPath := strings.Join(pathParts[:i+1], "/")
+				if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+					return true
+				}
+			}
+
+			// Also check if the pattern matches any directory component
+			for _, part := range pathParts {
+				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+					return true
+				}
+			}
+		}
+
+		// Handle patterns with question marks (single character wildcards)
+		if strings.Contains(patternSlash, "?") {
+			// Check if the pattern matches the path directly
+			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+				return true
+			}
+
+			// Check if the pattern matches any directory component
+			pathParts := strings.Split(pathSlash, "/")
+			for _, part := range pathParts {
+				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+					return true
+				}
+			}
+		}
+
+		// Handle character classes like [abc] or [a-z]
+		if strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]") {
+			// Check if the pattern matches the path directly
+			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+				return true
+			}
+
+			// Check if the pattern matches any directory component
+			pathParts := strings.Split(pathSlash, "/")
+			for _, part := range pathParts {
+				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+					return true
+				}
+			}
 		}
 	}
 
@@ -881,6 +1224,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 					continue
 				}
 
+				// Skip dependencies that match exclude patterns
+				if d.matchesExcludePatterns(depPath) {
+					continue
+				}
+
 				dCfg.Dependencies = append(dCfg.Dependencies, c)
 
 				continue
@@ -890,6 +1238,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		if external {
 			// In strict include mode, only add external dependencies that match the include patterns
 			if d.strictInclude && !d.matchesIncludePatterns(depPath) {
+				continue
+			}
+
+			// Skip external dependencies that match exclude patterns
+			if d.matchesExcludePatterns(depPath) {
 				continue
 			}
 
