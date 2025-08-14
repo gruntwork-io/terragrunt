@@ -1,6 +1,6 @@
 ---
 import '@styles/global.css';
-import Navbar from '@components/dv-Navbar.astro';
+import Header from '@components/Header.astro';
 import Hero from '@components/dv-Hero.astro';
 import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
 import OrchestrateSection from '@components/dv-OrchestrateSection.astro';
@@ -22,8 +22,7 @@ import Testimonials from '@components/dv-Testimonials.astro';
 	</head>
     <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
 		<div class="fixed top-0 z-50">
-      <!-- @ts-ignore -->
-			<Navbar />
+			<Header showThemeToggle={false} />
 		</div>
 		<div class="absolute top-[149px] md:top-[83px] w-full">
 			<Hero />
