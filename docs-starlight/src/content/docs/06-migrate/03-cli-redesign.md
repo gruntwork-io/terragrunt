@@ -61,6 +61,65 @@ terragrunt plan --inputs-debug
 
 You can find the new flag names in the [CLI reference](/docs/reference/cli/) (including the deprecated flags they replace).
 
+### CLI Flag Migration Table
+
+Below is a comprehensive mapping of old CLI flag names to their modern counterparts:
+
+| Old Flag | New Flag |
+|----------|----------|
+| `--terragrunt-config` | `--config` |
+| `--terragrunt-working-dir` | `--working-dir` |
+| `--terragrunt-download-dir` | `--download-dir` |
+| `--terragrunt-source` | `--source` |
+| `--terragrunt-source-map` | `--source-map` |
+| `--terragrunt-source-update` | `--source-update` |
+| `--terragrunt-iam-role` | `--iam-assume-role` |
+| `--terragrunt-iam-assume-role-duration` | `--iam-assume-role-duration` |
+| `--terragrunt-iam-web-identity-token` | `--iam-assume-role-web-identity-token` |
+| `--terragrunt-ignore-dependency-errors` | `--queue-ignore-errors` |
+| `--terragrunt-excludes-file` | `--queue-excludes-file` |
+| `--terragrunt-exclude-dir` | `--queue-exclude-dir` |
+| `--terragrunt-include-dir` | `--queue-include-dir` |
+| `--terragrunt-strict-include` | `--queue-strict-include` |
+| `--terragrunt-ignore-dependency-order` | `--queue-ignore-dag-order` |
+| `--terragrunt-ignore-external-dependencies` | `--queue-exclude-external` |
+| `--terragrunt-include-external-dependencies` | `--queue-include-external` |
+| `--terragrunt-strict-validate` | `--strict-validate` |
+| `--terragrunt-parallelism` | `--parallelism` |
+| `--terragrunt-debug` | `--inputs-debug` |
+| `--terragrunt-log-level` | `--log-level` |
+| `--terragrunt-log-format` | `--log-format` |
+| `--terragrunt-log-custom-format` | `--log-custom-format` |
+| `--terragrunt-log-disable` | `--log-disable` |
+| `--terragrunt-log-show-abs-paths` | `--log-show-abs-paths` |
+| `--terragrunt-no-color` | `--no-color` |
+| `--terragrunt-check` | `--check` |
+| `--terragrunt-diff` | `--diff` |
+| `--terragrunt-hclfmt-file` | `--file` |
+| `--terragrunt-hclfmt-exclude-dir` | `--exclude-dir` |
+| `--terragrunt-hclfmt-stdin` | `--stdin` |
+| `--terragrunt-hclvalidate-json` | `--json` |
+| `--terragrunt-hclvalidate-show-config-path` | `--show-config-path` |
+| `--terragrunt-json-disable-dependent-modules` | `--disable-dependent-modules` |
+| `--terragrunt-json-out` | `--out` |
+| `--terragrunt-modules-that-include` | `--units-that-include` |
+| `--terragrunt-queue-include-units-reading` | `--queue-include-units-reading` |
+| `--terragrunt-fetch-dependency-output-from-state` | `--dependency-fetch-output-from-state` |
+| `--terragrunt-use-partial-parse-config-cache` | `--use-partial-parse-config-cache` |
+| `--terragrunt-fail-on-state-bucket-creation` | `--backend-require-bootstrap` |
+| `--terragrunt-disable-bucket-update` | `--disable-bucket-update` |
+| `--terragrunt-disable-command-validation` | `--disable-command-validation` |
+| `--terragrunt-provider-cache` | `--provider-cache` |
+| `--terragrunt-provider-cache-dir` | `--provider-cache-dir` |
+| `--terragrunt-provider-cache-hostname` | `--provider-cache-hostname` |
+| `--terragrunt-provider-cache-port` | `--provider-cache-port` |
+| `--terragrunt-provider-cache-token` | `--provider-cache-token` |
+| `--terragrunt-provider-cache-registry-names` | `--provider-cache-registry-names` |
+| `--terragrunt-out-dir` | `--out-dir` |
+| `--terragrunt-json-out-dir` | `--json-out-dir` |
+| `--terragrunt-forward-tf-stdout` | `--tf-forward-stdout` |
+| `--terragrunt-no-destroy-dependencies-check` | `--no-destroy-dependencies-check` |
+
 ### Update environment variables
 
 If you are currently using environment variables to configure Terragrunt, you will need to stop using that environment variable, and use a differently named one instead (usually the same exact environment variable with `TERRAGRUNT_` replaced with `TG_`, but not always).
