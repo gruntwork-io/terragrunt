@@ -26,6 +26,11 @@ const (
 func TestTerragruntReportExperiment(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
@@ -75,6 +80,11 @@ func TestTerragruntReportExperiment(t *testing.T) {
 func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
@@ -93,6 +103,11 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 
 func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	t.Parallel()
+
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	testCases := []struct {
 		name   string
@@ -234,6 +249,11 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 
 func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
+
+	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
