@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -368,7 +367,7 @@ unit "test" {
 	require.NoError(t, err)
 	opts.WorkingDir = tempDir
 
-	stackConfig, err := config.ReadStackConfigFile(context.Background(), l, opts, stackHclPath, nil)
+	stackConfig, err := config.ReadStackConfigFile(t.Context(), l, opts, stackHclPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
 
