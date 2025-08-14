@@ -110,7 +110,9 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 				l.Warnf("Failed to get absolute path for root working dir %s: %v", base, err)
 			}
 		}
+
 		dir = filepath.Join(base, dir)
+
 		if absDir, err := filepath.Abs(dir); err == nil {
 			dir = absDir
 		} else {
@@ -147,6 +149,13 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
+			// If external dependencies are being ignored, skip missing dependencies that are outside the working dir
+			if unit.TerragruntOptions != nil && unit.TerragruntOptions.IgnoreExternalDependencies {
+				if !util.HasPathPrefix(dependencyUnitPath, unit.TerragruntOptions.WorkingDir) {
+					continue
+				}
+			}
+
 			dependencyErr := UnrecognizedDependencyError{
 				UnitPath:              unit.Path,
 				DependencyPath:        dependencyPath,

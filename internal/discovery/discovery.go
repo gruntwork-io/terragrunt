@@ -121,6 +121,9 @@ type Discovery struct {
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
+
+	// ignoreExternalDependencies determines whether to drop dependencies that are outside the working directory.
+	ignoreExternalDependencies bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -265,6 +268,12 @@ func (d *Discovery) WithStrictInclude() *Discovery {
 // WithExcludeByDefault sets the excludeByDefault flag to true.
 func (d *Discovery) WithExcludeByDefault() *Discovery {
 	d.excludeByDefault = true
+	return d
+}
+
+// WithIgnoreExternalDependencies sets the ignoreExternalDependencies flag to true.
+func (d *Discovery) WithIgnoreExternalDependencies() *Discovery {
+	d.ignoreExternalDependencies = true
 	return d
 }
 
@@ -881,6 +890,12 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		if external {
 			// In strict include mode, only add external dependencies that match the include patterns
 			if d.strictInclude && !d.matchesIncludePatterns(depPath) {
+				continue
+			}
+
+			// Respect global ignore external dependencies when present in options
+			if opts != nil && opts.IgnoreExternalDependencies {
+				// Skip attaching external dependency entirely
 				continue
 			}
 

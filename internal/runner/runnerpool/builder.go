@@ -18,13 +18,19 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
 		WithOptions(opts).
-		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithIncludeHiddenDirs([]string{config.StackDir}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
+
+	// Only discover external dependencies when not explicitly excluded via flag/env.
+	if terragruntOptions.IgnoreExternalDependencies {
+		d = d.WithIgnoreExternalDependencies()
+	} else {
+		d = d.WithDiscoverExternalDependencies()
+	}
 
 	// Configure discovery to look for the configured Terragrunt file name if provided,
 	// otherwise fall back to the default filename.
