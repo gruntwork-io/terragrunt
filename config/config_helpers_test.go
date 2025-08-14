@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -331,6 +332,49 @@ func TestFindInParentFolders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindInParentFoldersWithStackFile(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	regionHclPath := filepath.Join(tempDir, "region.hcl")
+	regionHclContent := `locals {
+  aws_region = "us-east-1"
+}`
+	err := os.WriteFile(regionHclPath, []byte(regionHclContent), 0644)
+	require.NoError(t, err)
+
+	stackDir := filepath.Join(tempDir, "stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	stackHclPath := filepath.Join(stackDir, "terragrunt.stack.hcl")
+	stackHclContent := `locals {
+  regions_vars = read_terragrunt_config(find_in_parent_folders("region.hcl"))
+  region       = local.regions_vars.locals.aws_region
+}
+
+unit "test" {
+  source = "."
+  path   = "test"
+}`
+	err = os.WriteFile(stackHclPath, []byte(stackHclContent), 0644)
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(stackHclPath)
+	require.NoError(t, err)
+	opts.WorkingDir = tempDir
+
+	stackConfig, err := config.ReadStackConfigFile(context.Background(), l, opts, stackHclPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, stackConfig)
+
+	region, exists := stackConfig.Locals["region"]
+	require.True(t, exists, "Expected 'region' local to be parsed")
+	require.Equal(t, "us-east-1", region)
 }
 
 func TestResolveTerragruntInterpolation(t *testing.T) {
