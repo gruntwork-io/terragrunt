@@ -64,24 +64,24 @@
   --color-code-text: #BFA6F2;
   --sl-color-bg: #0F1731;
 
-	--sl-color-accent-low: #1f1d47;
-	--sl-color-accent: #5e46e6;
-	--sl-color-accent-high: #c0c3fa;
-	--sl-color-black: #131824;
+  --sl-color-accent-low: #1f1d47;
+  --sl-color-accent: #5e46e6;
+  --sl-color-accent-high: #c0c3fa;
+  --sl-color-black: #131824;
   --sl-color-docs-stroke: #2E375A;
-	--sl-color-gray-1: #e8eefc;
-	--sl-color-gray-2: #bbc2d4;
-	--sl-color-gray-3: #7e8bac;
-	--sl-color-gray-4: #4c5776;
-	--sl-color-gray-5: #2d3754;
-	--sl-color-gray-6: #1c2541;
+  --sl-color-gray-1: #e8eefc;
+  --sl-color-gray-2: #bbc2d4;
+  --sl-color-gray-3: #7e8bac;
+  --sl-color-gray-4: #4c5776;
+  --sl-color-gray-5: #2d3754;
+  --sl-color-gray-6: #1c2541;
   --sl-color-secondary: #EBEBEB;
   --sl-color-stroke-dark: #2E375A;
   --sl-text-sm: 16px;
   --color-toc-accent: #BFA6F2;
-  --color-toc-background:  rgba(191, 166, 242, 0.15);
+  --color-toc-background: rgba(191, 166, 242, 0.15);
   --color-toc-text: #EBEBEB;
-	--sl-color-white: #ffffff;
+  --sl-color-white: #ffffff;
 
   @media (width >= 768px) {
     --sl-nav-height: 91px;
@@ -98,26 +98,26 @@
   --sl-color-bg-sidebar: #ffffff;
   --sl-color-bg: #ffffff;
 
-	--sl-color-accent-low: #d0d3fc;
-	--sl-color-accent: #6049e8;
-	--sl-color-accent-high: #2c2669;
+  --sl-color-accent-low: #d0d3fc;
+  --sl-color-accent: #6049e8;
+  --sl-color-accent-high: #2c2669;
   --sl-color-bg-inline-code: #F3F2FF;
   --color-code-border: #BDADFF;
   --color-code-text: #7B5AFF;
-	--sl-color-black: #ffffff;
+  --sl-color-black: #ffffff;
   --sl-color-docs-stroke: #DBDBDB;
-	--sl-color-gray-1: #1c2541;
-	--sl-color-gray-2: #2d3754;
-	--sl-color-gray-3: #4c5776;
-	--sl-color-gray-4: #7e8bac;
-	--sl-color-gray-5: #bbc2d4;
-	--sl-color-gray-6: #e8eefc;
-	--sl-color-gray-7: #f3f6fe;
+  --sl-color-gray-1: #1c2541;
+  --sl-color-gray-2: #2d3754;
+  --sl-color-gray-3: #4c5776;
+  --sl-color-gray-4: #7e8bac;
+  --sl-color-gray-5: #bbc2d4;
+  --sl-color-gray-6: #e8eefc;
+  --sl-color-gray-7: #f3f6fe;
   --sl-color-secondary: #EBEBEB;
   --color-toc-accent: #7B5AFF;
   --color-toc-background: #E4E9FC;
   --color-toc-text: #777888;
-	--sl-color-white: #131824;
+  --sl-color-white: #131824;
 
   @media (width >= 768px) {
     --sl-nav-height: 84px;
