@@ -77,6 +77,7 @@
 	--sl-color-gray-6: #1c2541;
   --sl-color-secondary: #EBEBEB;
   --sl-color-stroke-dark: #2E375A;
+  --sl-text-sm: 16px;
   --color-toc-accent: #BFA6F2;
   --color-toc-background:  rgba(191, 166, 242, 0.15);
   --color-toc-text: #EBEBEB;
@@ -538,4 +539,9 @@ article.card {
   background-color: transparent;
   border: 1px solid var(--sl-color-gray-5);
   margin: 1.5em 0;
+}
+
+kbd {
+  font-size: var(--sl-text-sm);
+  gap: 0;
 }
