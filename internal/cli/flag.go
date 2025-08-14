@@ -121,9 +121,9 @@ func (flag *flagValueGetter) EnvSet(val string) error {
 		err = errors.New(ErrMultipleTimesSettingEnvVar)
 	}
 
-	flag.flagValue.name = flag.valueName
+	flag.name = flag.valueName
 
-	if err := flag.flagValue.value.Set(val); err != nil {
+	if err := flag.value.Set(val); err != nil {
 		return err
 	}
 
@@ -141,9 +141,9 @@ func (flag *flagValueGetter) Set(val string) error {
 		err = errors.New(ErrMultipleTimesSettingFlag)
 	}
 
-	flag.flagValue.name = flag.valueName
+	flag.name = flag.valueName
 
-	if err := flag.flagValue.value.Set(val); err != nil {
+	if err := flag.value.Set(val); err != nil {
 		return err
 	}
 
@@ -260,7 +260,7 @@ func (flag *flag) TakesValue() bool {
 // string if the flag takes no value at all.
 // Implements `cli.DocGenerationFlag.GetValue` required to generate help.
 func (flag *flag) GetValue() string {
-	return flag.FlagValue.String()
+	return flag.String()
 }
 
 // GetCategory returns the category for the flag.

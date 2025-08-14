@@ -60,7 +60,7 @@ func (file *File) Update(content []byte) error {
 // inject the label as "".
 func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 	if file.fileUpdateHandlerFunc != nil {
-		if err := file.Parser.fileUpdateHandlerFunc(file); err != nil {
+		if err := file.fileUpdateHandlerFunc(file); err != nil {
 			return err
 		}
 	}
@@ -127,5 +127,5 @@ func (file *File) JustAttributes() (Attributes, error) {
 }
 
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
-	return file.Parser.handleDiagnostics(file, diags)
+	return file.handleDiagnostics(file, diags)
 }

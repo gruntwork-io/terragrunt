@@ -347,7 +347,7 @@ func (logger *logger) clone() *logger {
 	newLogger.Logger.SetLevel(parentLogger.Level)
 	newLogger.Logger.SetFormatter(parentLogger.Formatter)
 	newLogger.Logger.ReplaceHooks(parentLogger.Hooks)
-	newLogger.Entry = newLogger.Entry.Dup()
+	newLogger.Entry = newLogger.Dup()
 
 	return &newLogger
 }
