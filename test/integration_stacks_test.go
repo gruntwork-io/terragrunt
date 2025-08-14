@@ -61,10 +61,10 @@ func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --queue-include-dir .terragrunt-stack/chicks/chick-2 --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/chicks/chick-1")
-	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/father")
-	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/mother")
-	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/chicks/chick-2")
+	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/chicks/chick-1")
+	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/father")
+	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/mother")
+	assert.Contains(t, stderr, "- Unit ./.terragrunt-stack/chicks/chick-2")
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)

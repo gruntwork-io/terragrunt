@@ -177,7 +177,7 @@ func (r *Runner) handlePlan() {
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 	for _, unit := range r.queue.Entries {
-		outStr += fmt.Sprintf("Unit %s\n", unit.Config.Path)
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Config.Path)
 	}
 
 	l.Info(outStr)
