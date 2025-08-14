@@ -55,6 +55,7 @@ type RemoteStateConfigGCS struct {
 	Path          string `mapstructure:"path"`
 	EncryptionKey string `mapstructure:"encryption_key"`
 
+	KMSEncryptionKey                   string   `mapstructure:"kms_encryption_key"`
 	ImpersonateServiceAccount          string   `mapstructure:"impersonate_service_account"`
 	ImpersonateServiceAccountDelegates []string `mapstructure:"impersonate_service_account_delegates"`
 }
