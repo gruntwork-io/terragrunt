@@ -42,12 +42,18 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	d = d.WithConfigFilenames([]string{filename})
 
 	// Apply include directory features based on terragrunt options
-	if len(terragruntOptions.UnitsReading) > 0 {
-		d = d.WithIncludeDirs(terragruntOptions.UnitsReading)
+	var includeDirs []string
+	if len(terragruntOptions.IncludeDirs) > 0 {
+		includeDirs = append(includeDirs, terragruntOptions.IncludeDirs...)
 	}
-
+	if len(terragruntOptions.UnitsReading) > 0 {
+		includeDirs = append(includeDirs, terragruntOptions.UnitsReading...)
+	}
 	if len(terragruntOptions.ModulesThatInclude) > 0 {
-		d = d.WithIncludeDirs(terragruntOptions.ModulesThatInclude)
+		includeDirs = append(includeDirs, terragruntOptions.ModulesThatInclude...)
+	}
+	if len(includeDirs) > 0 {
+		d = d.WithIncludeDirs(includeDirs)
 	}
 
 	if terragruntOptions.StrictInclude {
