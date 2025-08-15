@@ -1,7 +1,7 @@
 name: License Check
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   license-check:

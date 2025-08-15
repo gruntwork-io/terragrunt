@@ -83,6 +83,10 @@ export default defineConfig({
   }) : undefined,
   integrations: [starlight({
     title: "Terragrunt",
+    editLink: {
+      // TODO: update this once the docs live in `docs`.
+      baseUrl: "https://github.com/gruntwork-io/terragrunt/edit/main/docs-starlight",
+    },
     customCss: ["./src/styles/global.css"],
     head: [
       {

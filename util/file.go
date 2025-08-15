@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
@@ -117,9 +118,15 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 			globPath = filepath.Join(basePath, globPath)
 		}
 
+		const stackDir = "/.terragrunt-stack/"
+
 		matches, err := zglob.Glob(globPath)
 		if err == nil {
 			paths = append(paths, matches...)
+		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
+			// when using the stack feature, the directory may not exist yet,
+			// as stack generation occurs after parsing the argument flags.
+			paths = append(paths, globPath)
 		}
 	}
 
@@ -1013,4 +1020,24 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
 
 	return fullPath, nil
+}
+
+// MoveFile attempts to rename a file from source to destination, if this fails
+// due to invalid cross-device link it falls back to copying the file contents
+// and deleting the original file.
+func MoveFile(source string, destination string) error {
+	if renameErr := os.Rename(source, destination); renameErr != nil {
+		var sysErr syscall.Errno
+		if errors.As(renameErr, &sysErr) && sysErr == syscall.EXDEV {
+			if moveErr := CopyFile(source, destination); moveErr != nil {
+				return moveErr
+			}
+
+			return os.Remove(source)
+		}
+
+		return renameErr
+	}
+
+	return nil
 }
