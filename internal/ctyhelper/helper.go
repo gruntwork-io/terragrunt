@@ -53,12 +53,12 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 // escapeInterpolationPatterns recursively escapes ${...} patterns in all string values
 // within a map structure to prevent Terraform from interpreting them as variable references
 func escapeInterpolationPatterns(m map[string]any) map[string]any {
-	result := make(map[string]any)
+	result := make(map[string]any, len(m))
 
 	for k, v := range m {
 		switch val := v.(type) {
 		case string:
-			result[k] = escapeInterpolationInString(val)
+			result[k] = EscapeInterpolationInString(val)
 		case map[string]any:
 			// Recursively escape nested maps
 			result[k] = escapeInterpolationPatterns(val)
@@ -81,7 +81,7 @@ func escapeInterpolationPatternsInSlice(slice []any) []any {
 	for i, v := range slice {
 		switch val := v.(type) {
 		case string:
-			result[i] = escapeInterpolationInString(val)
+			result[i] = EscapeInterpolationInString(val)
 		case map[string]any:
 			result[i] = escapeInterpolationPatterns(val)
 		case []any:
@@ -94,10 +94,10 @@ func escapeInterpolationPatternsInSlice(slice []any) []any {
 	return result
 }
 
-// escapeInterpolationInString escapes ${...} patterns in a string in an idempotent way.
+// EscapeInterpolationInString escapes ${...} patterns in a string in an idempotent way.
 // It only escapes ${...} patterns that are not already escaped (i.e., not preceded by $).
 // This prevents double-escaping of already escaped patterns.
-func escapeInterpolationInString(s string) string {
+func EscapeInterpolationInString(s string) string {
 	if !strings.Contains(s, "${") {
 		return s
 	}
@@ -105,7 +105,8 @@ func escapeInterpolationInString(s string) string {
 	// Use a string builder for efficient string construction
 	var result strings.Builder
 
-	result.Grow(len(s)) // Pre-allocate capacity
+	// Pre-allocate with headroom to minimize reallocs when adding '$'
+	result.Grow(len(s) + strings.Count(s, "${"))
 
 	for i := 0; i < len(s); i++ {
 		char := s[i]

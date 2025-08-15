@@ -174,3 +174,41 @@ func TestParseCtyValueToMapWithInterpolationEscaping(t *testing.T) {
 		})
 	}
 }
+
+func TestEscapeInterpolationInString_IdempotentAndNonInterp(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"simple interpolation", "${foo}", "$${foo}"},
+		{"already escaped stays unchanged", "$${foo}", "$${foo}"},
+		{"multiple patterns", "${a} and ${b}", "$${a} and $${b}"},
+		{"no interpolation", "no interpolation", "no interpolation"},
+		{"non-interp dollars unchanged", "price is $5", "price is $5"},
+		{"nested sequences", "${${nested}}", "$${$${nested}}"},
+		{"mixed escaped and unescaped", "$${escaped} and ${unescaped}", "$${escaped} and $${unescaped}"},
+		{"dollar at end", "test$", "test$"},
+		{"just dollar sign", "$", "$"},
+		{"empty string", "", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := ctyhelper.EscapeInterpolationInString(tc.in)
+			if got != tc.want {
+				t.Fatalf("EscapeInterpolationInString(%q) = %q; want %q", tc.in, got, tc.want)
+			}
+
+			// Idempotency: running twice should not change the result
+			got2 := ctyhelper.EscapeInterpolationInString(got)
+			if got2 != tc.want {
+				t.Fatalf("idempotency failed for %q -> %q -> %q; want %q", tc.in, got, got2, tc.want)
+			}
+		})
+	}
+}
