@@ -5,6 +5,7 @@ package ctyhelper
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -42,7 +43,68 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 		return nil, errors.New(err)
 	}
 
-	return ctyJSONOutput.Value, nil
+	// Escape interpolation patterns in the resulting map to prevent Terraform
+	// from interpreting ${...} as variable references
+	escapedOutput := escapeInterpolationPatterns(ctyJSONOutput.Value)
+
+	return escapedOutput, nil
+}
+
+// escapeInterpolationPatterns recursively escapes ${...} patterns in all string values
+// within a map structure to prevent Terraform from interpreting them as variable references
+func escapeInterpolationPatterns(m map[string]any) map[string]any {
+	result := make(map[string]any)
+
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			if strings.Contains(val, "${") {
+				// Escape ${...} patterns by doubling the $: ${var} becomes $${var}
+				// This prevents Terraform from interpreting them as variable interpolation
+				escaped := strings.ReplaceAll(val, "${", "$${")
+				result[k] = escaped
+			} else {
+				result[k] = val
+			}
+		case map[string]any:
+			// Recursively escape nested maps
+			result[k] = escapeInterpolationPatterns(val)
+		case []any:
+			// Handle arrays that might contain strings or maps
+			result[k] = escapeInterpolationPatternsInSlice(val)
+		default:
+			// For all other types (numbers, booleans, etc.), keep as-is
+			result[k] = val
+		}
+	}
+
+	return result
+}
+
+// escapeInterpolationPatternsInSlice handles arrays that might contain strings or maps
+func escapeInterpolationPatternsInSlice(slice []any) []any {
+	result := make([]any, len(slice))
+
+	for i, v := range slice {
+		switch val := v.(type) {
+		case string:
+			if strings.Contains(val, "${") {
+				// Escape ${...} patterns by doubling the $: ${var} becomes $${var}
+				escaped := strings.ReplaceAll(val, "${", "$${")
+				result[i] = escaped
+			} else {
+				result[i] = val
+			}
+		case map[string]any:
+			result[i] = escapeInterpolationPatterns(val)
+		case []any:
+			result[i] = escapeInterpolationPatternsInSlice(val)
+		default:
+			result[i] = val
+		}
+	}
+
+	return result
 }
 
 // CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.

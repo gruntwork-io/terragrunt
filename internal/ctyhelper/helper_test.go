@@ -56,3 +56,78 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCtyValueToMapWithInterpolationEscaping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		expected map[string]any
+		input    cty.Value
+		name     string
+	}{
+		{
+			name: "map with interpolation gets escaped",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"stuff": cty.ObjectVal(map[string]cty.Value{
+					"foo": cty.StringVal("${bar}"),
+				}),
+			}),
+			expected: map[string]any{
+				"stuff": map[string]any{
+					"foo": "$${bar}",
+				},
+			},
+		},
+		{
+			name: "string with interpolation gets escaped",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"simple": cty.StringVal("${var.example}"),
+			}),
+			expected: map[string]any{
+				"simple": "$${var.example}",
+			},
+		},
+		{
+			name: "multiple interpolation patterns in same string",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"key": cty.StringVal("${var.first} and ${var.second}"),
+			}),
+			expected: map[string]any{
+				"key": "$${var.first} and $${var.second}",
+			},
+		},
+		{
+			name: "string with newlines and interpolation",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"key": cty.StringVal("${bar}\n"),
+			}),
+			expected: map[string]any{
+				"key": "$${bar}\n",
+			},
+		},
+		{
+			name: "no interpolation patterns",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"key":  cty.StringVal("normal string"),
+				"num":  cty.NumberIntVal(42),
+				"bool": cty.BoolVal(true),
+			}),
+			expected: map[string]any{
+				"key":  "normal string",
+				"num":  float64(42), // JSON unmarshaling converts numbers to float64
+				"bool": true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Test our function
+			result, err := ctyhelper.ParseCtyValueToMap(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
