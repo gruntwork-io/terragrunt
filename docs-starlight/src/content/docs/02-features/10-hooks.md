@@ -229,6 +229,12 @@ terraform {
 This configuration will cause Terragrunt to output `Will run OpenTofu` and then `Running OpenTofu` before the call
 to OpenTofu/Terraform.
 
+## Hook exit codes
+
+Hooks allow you to apply more control to the exit code returned by the applicable underlying OpenTofu/Terraform command. If any `before_hook` or `after_hook` returns a non-zero exit code, the Terragrunt command you run against the unit will return a non-zero exit code.
+
+For example, suppose you run `terragrunt apply` on a given unit that has no `before_hook`, but has a non-empty `after-hook`. Because there is no `before_hook` defined, Terragrunt will first run `tofu apply`, and let's assume that succeeds and returns an exit code of `0`. Next, Terragrunt will run your `after_hook`. If that fails and returns an exit code of `1`, the ` the entire `terragrunt apply` operation will return an exit code of `1`, even though the underlying `tofu apply` succeeded.
+
 ## Tflint hook
 
 _Before Hooks_ or _After Hooks_ natively support _tflint_, a linter for OpenTofu/Terraform code. It will validate the
