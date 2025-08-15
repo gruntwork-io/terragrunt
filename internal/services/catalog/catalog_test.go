@@ -200,3 +200,115 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
 	assert.Empty(t, modules, "Should return empty modules slice on 'no modules found' error")
 }
+
+func TestScaffoldConfigurationApplied(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                  string
+		catalogConfig         string
+		initialShellDisabled  bool
+		initialHooksDisabled  bool
+		expectedShellDisabled bool
+		expectedHooksDisabled bool
+	}{
+		{
+			name: "no_shell_from_catalog",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				no_shell = true
+			}`,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: true,
+			expectedHooksDisabled: false,
+		},
+		{
+			name: "no_hooks_from_catalog",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				no_hooks = true
+			}`,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: false,
+			expectedHooksDisabled: true,
+		},
+		{
+			name: "cli_flags_take_precedence",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				no_shell = false
+				no_hooks = false
+			}`,
+			initialShellDisabled:  true, // CLI flag already set to disable
+			initialHooksDisabled:  false,
+			expectedShellDisabled: true,  // Should stay disabled (CLI precedence)
+			expectedHooksDisabled: false, // Should remain enabled (catalog config ignored when CLI takes precedence)
+		},
+		{
+			name: "no_scaffold_config",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+			}`,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: false,
+			expectedHooksDisabled: false,
+		},
+		{
+			name: "keep_defaults_from_catalog",
+			catalogConfig: `catalog {
+				urls = ["github.com/gruntwork-io/repo1"]
+				no_shell = false
+				no_hooks = false
+			}`,
+			initialShellDisabled:  false,
+			initialHooksDisabled:  false,
+			expectedShellDisabled: false,
+			expectedHooksDisabled: false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions()
+			opts.ScaffoldRootFileName = config.RecommendedParentConfigName
+			opts.ScaffoldNoShell = tt.initialShellDisabled
+			opts.ScaffoldNoHooks = tt.initialHooksDisabled
+
+			mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
+				dummyRepoDir := filepath.Join(t.TempDir(), "test-repo")
+				os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
+				os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
+				os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+				os.WriteFile(filepath.Join(dummyRepoDir, "README.md"), []byte("# test module"), 0644)
+				os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte{}, 0644)
+				return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
+			}
+
+			tmpDir := t.TempDir()
+			rootFile := filepath.Join(tmpDir, "root.hcl")
+			err := os.WriteFile(rootFile, []byte(tt.catalogConfig), 0600)
+			require.NoError(t, err)
+
+			unitDir := filepath.Join(tmpDir, "unit")
+			os.MkdirAll(unitDir, 0755)
+			opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
+
+			svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
+			l := logger.CreateLogger()
+
+			err = svc.Load(t.Context(), l)
+			require.NoError(t, err)
+
+			// Verify scaffold configuration was applied correctly
+			assert.Equal(t, tt.expectedShellDisabled, opts.ScaffoldNoShell,
+				"ScaffoldNoShell should be %v", tt.expectedShellDisabled)
+			assert.Equal(t, tt.expectedHooksDisabled, opts.ScaffoldNoHooks,
+				"ScaffoldNoHooks should be %v", tt.expectedHooksDisabled)
+		})
+	}
+}

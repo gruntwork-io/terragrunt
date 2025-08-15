@@ -123,6 +123,53 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 	}
 
+	// Test scaffold config parsing
+	scaffoldTests := []struct {
+		name           string
+		configContent  string
+		expectedConfig *config.CatalogConfig
+		configPath     string
+	}{
+		{
+			configPath: filepath.Join(basePath, "terragrunt.hcl"),
+			name:       "no_shell_true",
+			configContent: `catalog {
+				urls = ["github.com/test/repo"]
+				no_shell = true
+			}`,
+			expectedConfig: &config.CatalogConfig{
+				URLs:    []string{"github.com/test/repo"},
+				NoShell: &[]bool{true}[0],
+			},
+		},
+		{
+			configPath: filepath.Join(basePath, "terragrunt.hcl"),
+			name:       "no_hooks_false",
+			configContent: `catalog {
+				urls = ["github.com/test/repo"]
+				no_hooks = false
+			}`,
+			expectedConfig: &config.CatalogConfig{
+				URLs:    []string{"github.com/test/repo"},
+				NoHooks: &[]bool{false}[0],
+			},
+		},
+		{
+			configPath: filepath.Join(basePath, "terragrunt.hcl"),
+			name:       "both_disabled",
+			configContent: `catalog {
+				urls = ["github.com/test/repo"]
+				no_shell = true
+				no_hooks = true
+			}`,
+			expectedConfig: &config.CatalogConfig{
+				URLs:    []string{"github.com/test/repo"},
+				NoShell: &[]bool{true}[0],
+				NoHooks: &[]bool{true}[0],
+			},
+		},
+	}
+
 	for i, tt := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
@@ -142,6 +189,26 @@ func TestCatalogParseConfigFile(t *testing.T) {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
+	}
 
+	// Test scaffold configuration parsing
+	for _, tt := range scaffoldTests {
+		t.Run("scaffold_"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, filepath.Base(tt.configPath))
+			err := os.WriteFile(configPath, []byte(tt.configContent), 0644)
+			require.NoError(t, err)
+
+			opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+			require.NoError(t, err)
+			opts.ScaffoldRootFileName = filepath.Base(tt.configPath)
+
+			l := logger.CreateLogger()
+			config, err := config.ReadCatalogConfig(t.Context(), l, opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedConfig, config)
+		})
 	}
 }
