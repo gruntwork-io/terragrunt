@@ -1,0 +1,59 @@
+---
+import { Image } from 'astro:assets';
+
+import Customers from '@assets/img/customers.png';
+import ContactForm from '@components/ContactForm.astro';
+import Footer from '@components/dv-Footer.astro';
+import GruntworkLogo from '@assets/gruntwork-logo.svg';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import PageLines from '@components/PageLines.astro';
+
+import '@styles/global.css';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Contact Terragrunt - Get in touch with the Terragrunt team for support, questions, or feedback" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Contact - Terragrunt</title>
+	</head>
+
+  <body class="flex flex-col min-h-screen bg-[#0d0622]">
+    <div class="fixed top-0 z-50">
+      <Header showThemeToggle={false} />
+    </div>
+
+    <div class="absolute top-[149px] md:top-[83px] w-full">
+      <PageContainer class="relative">
+        <div class="absolute h-[400px] w-full border-b-1 border-[#343956]"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[700px_1fr] pt-[100px] gap-12 mx-[50px]">
+
+          <!-- Left -->
+          <div class="mr-auto w-[550px]">
+            <div class="w-full px-5 md:px-0 mb-[100px]">
+              <h2 class="text-4xl text-white md:text-[42px] font-sans m-0 text-dark-blue-1 mb-[32px]">Interested in Terragrunt Scale?</h2>
+              <p class="text-sm font-sans text-gray-1">Scale your IaC estate with centralized pipelines, drift detection, and expert support. We'll start by asking about your current infrastructure needs and goals. Then we'll show you what's possible with Terragrunt Scale.</p>
+            </div>
+            <div class="max-w-[472px] mt-[250px]">
+              <h4 class="text-white font-medium! mb-[50px]">Thousands of engineers build with Terragrunt</h4>
+              <Image src={Customers} alt="Terragrunt Users" class="w-full h-auto max-w-full" />
+            </div>
+          </div>
+
+          <!-- Right -->
+          <div class="z-1">
+            <ContactForm />
+          </div>
+
+        </div>
+      </PageContainer>
+    </div>
+
+  </body>
+</html>
