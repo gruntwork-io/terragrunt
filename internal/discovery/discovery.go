@@ -392,23 +392,6 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	return nil
 }
 
-// ShouldExclude checks if the discovered configuration should be excluded based on its exclude block.
-func (c *DiscoveredConfig) ShouldExclude(terraformCommand string) bool {
-	if c.Parsed == nil || c.Parsed.Exclude == nil {
-		return false
-	}
-
-	excludeConfig := c.Parsed.Exclude
-
-	// Check if the current action is listed in the exclude block
-	if !excludeConfig.IsActionListed(terraformCommand) {
-		return false
-	}
-
-	// Check if the exclude condition is true
-	return excludeConfig.If
-}
-
 // isInHiddenDirectory returns true if the path is in a hidden directory.
 func (d *Discovery) isInHiddenDirectory(path string) bool {
 	for _, hiddenDir := range d.hiddenDirMemo {
@@ -865,11 +848,6 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			return cfgs, errors.New(err)
 		}
 
-		// Filter configurations based on exclude blocks if we have a discovery context
-		if d.discoveryContext != nil && d.discoveryContext.Cmd != "" {
-			cfgs = d.FilterByExcludeBlocks(ctx, l, cfgs, d.discoveryContext.Cmd)
-		}
-
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
 			"working_dir":  d.workingDir,
 			"config_count": len(cfgs),
@@ -897,60 +875,6 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	}
 
 	return cfgs, nil
-}
-
-// FilterByExcludeBlocks filters discovered configurations based on their exclude blocks.
-// The logic matches flagExcludedUnits() exactly.
-func (d *Discovery) FilterByExcludeBlocks(ctx context.Context, l log.Logger, cfgs DiscoveredConfigs, terraformCommand string) DiscoveredConfigs {
-	if d.discoveryContext == nil {
-		return cfgs
-	}
-
-	var filteredCfgs DiscoveredConfigs
-	excludedPaths := make(map[string]bool)
-
-	// First pass: identify configurations that should be excluded
-	for _, cfg := range cfgs {
-		excludeConfig := cfg.Parsed.Exclude
-
-		if excludeConfig == nil {
-			continue
-		}
-
-		if !excludeConfig.IsActionListed(terraformCommand) {
-			continue
-		}
-
-		if !excludeConfig.If {
-			continue
-		}
-		// if the unit should be excluded, mark it
-		l.Debugf("Configuration %s is excluded by exclude block for command %s", cfg.Path, terraformCommand)
-		excludedPaths[cfg.Path] = true
-		// if exclude_dependencies is true, mark ALL dependencies as excluded
-		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
-			l.Debugf("Excluding dependencies for configuration %s by exclude block", cfg.Path)
-			for _, dep := range cfg.Dependencies {
-				excludedPaths[dep.Path] = true
-			}
-		}
-	}
-
-	// Second pass: build the filtered list, excluding marked configurations
-	for _, cfg := range cfgs {
-		if !excludedPaths[cfg.Path] {
-			var filteredDeps DiscoveredConfigs
-			for _, dep := range cfg.Dependencies {
-				if !excludedPaths[dep.Path] {
-					filteredDeps = append(filteredDeps, dep)
-				}
-			}
-			cfg.Dependencies = filteredDeps
-			filteredCfgs = append(filteredCfgs, cfg)
-		}
-	}
-
-	return filteredCfgs
 }
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
