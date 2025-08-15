@@ -98,7 +98,9 @@ func escapeInterpolationPatternsInSlice(slice []any) []any {
 // It only escapes ${...} patterns that are not already escaped (i.e., not preceded by $).
 // This prevents double-escaping of already escaped patterns.
 func EscapeInterpolationInString(s string) string {
-	if !strings.Contains(s, "${") {
+	// Count occurrences once; fast-path when absent and use count for capacity
+	count := strings.Count(s, "${")
+	if count == 0 {
 		return s
 	}
 
@@ -106,7 +108,7 @@ func EscapeInterpolationInString(s string) string {
 	var result strings.Builder
 
 	// Pre-allocate with headroom to minimize reallocs when adding '$'
-	result.Grow(len(s) + strings.Count(s, "${"))
+	result.Grow(len(s) + count)
 
 	for i := 0; i < len(s); i++ {
 		char := s[i]

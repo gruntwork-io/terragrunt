@@ -161,6 +161,21 @@ func TestParseCtyValueToMapWithInterpolationEscaping(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "array of objects with nested strings",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"items": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{"k": cty.StringVal("${v}")}),
+					cty.ObjectVal(map[string]cty.Value{"k": cty.StringVal("$${v}")}),
+				}),
+			}),
+			expected: map[string]any{
+				"items": []any{
+					map[string]any{"k": "$${v}"},
+					map[string]any{"k": "$${v}"},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -193,6 +208,7 @@ func TestEscapeInterpolationInString_IdempotentAndNonInterp(t *testing.T) {
 		{"dollar at end", "test$", "test$"},
 		{"just dollar sign", "$", "$"},
 		{"empty string", "", ""},
+		{"triple dollar before interp", "$$${foo}", "$$${foo}"},
 	}
 
 	for _, tc := range cases {
