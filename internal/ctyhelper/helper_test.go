@@ -118,6 +118,49 @@ func TestParseCtyValueToMapWithInterpolationEscaping(t *testing.T) {
 				"bool": true,
 			},
 		},
+		{
+			name: "already escaped interpolation patterns remain unchanged",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"already_escaped": cty.StringVal("$${var.example}"),
+				"mixed":           cty.StringVal("$${escaped} and ${unescaped}"),
+			}),
+			expected: map[string]any{
+				"already_escaped": "$${var.example}",
+				"mixed":           "$${escaped} and $${unescaped}",
+			},
+		},
+		{
+			name: "nested map with already escaped patterns",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"nested": cty.ObjectVal(map[string]cty.Value{
+					"already_escaped": cty.StringVal("$${foo}"),
+					"needs_escaping":  cty.StringVal("${bar}"),
+				}),
+			}),
+			expected: map[string]any{
+				"nested": map[string]any{
+					"already_escaped": "$${foo}",
+					"needs_escaping":  "$${bar}",
+				},
+			},
+		},
+		{
+			name: "array with mixed escaped and unescaped patterns",
+			input: cty.ObjectVal(map[string]cty.Value{
+				"items": cty.ListVal([]cty.Value{
+					cty.StringVal("$${already_escaped}"),
+					cty.StringVal("${needs_escaping}"),
+					cty.StringVal("normal string"),
+				}),
+			}),
+			expected: map[string]any{
+				"items": []any{
+					"$${already_escaped}",
+					"$${needs_escaping}",
+					"normal string",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
