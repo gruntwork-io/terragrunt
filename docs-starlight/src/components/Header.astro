@@ -1,15 +1,14 @@
 ---
 import config from 'virtual:starlight/user-config';
 import type { Props } from '@astrojs/starlight/props';
-
-import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
-import Search from 'virtual:starlight/components/Search';
-import SiteTitle from 'virtual:starlight/components/SiteTitle';
-import SocialIcons from 'virtual:starlight/components/SocialIcons';
-import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
-
-import PipelinesLogo from '../assets/pipelines.svg';
 import { Image } from 'astro:assets';
+import Search from 'virtual:starlight/components/Search';
+
+import HeadphonesIcon from '@assets/headset-icon.svg';
+import PipelineIcon from '@assets/pipelines.svg';
+import TerragruntLogo from '@assets/horizontal-logo-light.svg';
+import ThemeToggle from '@components/ThemeToggle.astro';
+import '@styles/global.css';
 
 /**
  * Render the `Search` component if Pagefind is enabled or the default search component has been overridden.
@@ -17,221 +16,114 @@ import { Image } from 'astro:assets';
 const shouldRenderSearch =
 	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
 
-let starCountDisplay = '8.6k';
+interface Props {
+	showThemeToggle?: boolean;
+}
+
+const { showThemeToggle = true } = Astro.props;
+
+let starCountDisplay = process.env.GITHUB_STARS || '8.6k';
 
 try {
-	const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt');
-	if (response.ok) {
-		const data = await response.json();
-		const stars = data.stargazers_count;
-		if (typeof stars === 'number') {
-			starCountDisplay = (stars / 1000).toFixed(1) + 'k';
-		}
-	} else {
-		console.error('Failed to fetch GitHub stars:', response.status, await response.text());
-	}
+    // Only fetch if not in environment variable
+    if (!process.env.GITHUB_STARS) {
+        const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt', {
+            headers: {
+                'User-Agent': 'Terragrunt-Docs'
+            }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const stars = data.stargazers_count;
+            if (typeof stars === 'number') {
+                starCountDisplay = (stars / 1000).toFixed(1) + 'k';
+            }
+        } else {
+            console.error('Failed to fetch GitHub stars:', response.status, await response.text());
+        }
+    }
 } catch (error) {
-	console.error('Error fetching GitHub stars:', error);
+    console.error('Error fetching GitHub stars:', error);
 }
 ---
 
-<div class="header sl-flex">
-	<!-- <div class="title-wrapper sl-flex"> -->
-		<SiteTitle {...Astro.props} />
-	<!-- </div> -->
-	<div class="sl-flex print:hidden">
-		{shouldRenderSearch && <Search {...Astro.props} />}
-	</div>
-	<div class="sl-hidden md:sl-flex print:hidden right-group">
-		<div class="sl-flex social-icons">
-			<a href="https://github.com/gruntwork-io/terragrunt" class="github-stars-btn" target="_blank" rel="noopener noreferrer">
-				<span class="github-icon">
-					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-				</span>
-				<span class="github-count">{starCountDisplay}</span>
-				<span class="github-star"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.48 8.279-7.416-3.966-7.417 3.966 1.481-8.279-6.064-5.828 8.332-1.151z"/></svg></span>
-			</a>
-			<SocialIcons {...Astro.props} />
-		</div>
-		<div class="sl-hidden lg:sl-flex pipelines-pill">
-			<a href="https://www.gruntwork.io/platform/pipelines" class="pipeline-pill">
-				<span class="pipeline-icon">
-					<Image src={PipelinesLogo} width="24" height="24" class="product-icon" alt="Pipeline" />
-				</span>
-				<span class="pipeline-text">
-					<span class="pipeline-title">Automate your pipeline</span>
-					<span class="pipeline-subtitle">CI/CD built for Terragrunt</span>
-				</span>
-				<span class="pipeline-arrow">
-					<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 6l4 4-4 4" stroke="#A78BFA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-				</span>
-			</a>
-		</div>
-		<div class="sl-flex social-icons">
-			<a href="https://www.gruntwork.io/services/terragrunt" class="support-btn">
-				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 0.5rem;">
-					<path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h4v1h-7v2h6c1.66 0 3-1.34 3-3V10a9 9 0 0 0-9-9z"/>
-				</svg>
-				Support
-				<span class="support-arrow">
-					<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 6l4 4-4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-				</span>
-			</a>
-		</div>
-		<ThemeSelect {...Astro.props} />
-		<LanguageSelect {...Astro.props} />
-	</div>
+<div class="navbar">
+  <!-- Logo -->
+  <a href="/" class="hover:cursor-pointer">
+    <Image
+      alt="Terragrunt Logo"
+      class="h-auto w-[145px] md:w-[180px] xl:w-[200px]"
+      loading="eager"
+      src={TerragruntLogo}
+    />
+  </a>
+  <!-- Right Menu -->
+  <div class="flex items-center gap-6">
+    <div class="flex items-center gap-6">
+      <!-- Docs -->
+      <div class="pr-0 border-r lg:border-stroke-dark lg:px-6">
+        <a href="/docs" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]">
+          <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path opacity="0.1" d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" fill="currentColor"/>
+            <path d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M9 12H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 15H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Docs</span>
+        </a>
+      </div>
+      <!-- Socials -->
+      <div class="hidden lg:flex items-center border-r border-stroke-dark pr-6 gap-4">
+        <a href="https://github.com/gruntwork-io/terragrunt" class="social-icon flex items-center gap-2 transition .25s ease-in-out" target="_blank" rel="noopener noreferrer">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-github" viewBox="0 0 16 16">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
+          </svg>
+          <span class="text-sm font-sans">{starCountDisplay}</span>
+        </a>
+        <a href="https://discord.com/invite/YENaT9h8jh" class="social-icon flex items-center gap-2 transition .25s ease-in-out" target="_blank" rel="noopener noreferrer">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16">
+            <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
+          </svg>
+        </a>
+      </div>
+      <!-- SearchBar -->
+      <div class="hidden lg:block w-[280px]">
+        {shouldRenderSearch && <Search {...Astro.props} />}
+      </div>
+      {showThemeToggle && <ThemeToggle />}
+    </div>
+    <div class="flex items-center gap-3 md:gap-3.5">
+      <!-- Buttons -->
+      <a href="https://www.gruntwork.io/platform/pipelines" class="hidden md:flex secondary-button items-center h-[39px]">
+        CI/CD for Terragrunt
+      </a>
+      <a href="https://www.gruntwork.io/platform/pipelines" class="flex md:hidden secondary-button !p-3">
+        <Image
+          src={PipelineIcon}
+          alt="Pipeline Icon"
+          width={20}
+          height={20}
+        />
+      </a>
+      <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex primary-button items-center h-[39px]">
+        Enterprise Support
+      </a>
+      <a href="https://www.gruntwork.io/services/terragrunt" class="flex md:hidden primary-button !p-3">
+        <Image
+          src={HeadphonesIcon}
+          alt="Headphones Icon"
+          width={20}
+          height={20}
+          class={"aspect-[1/1] h-auto"}
+        />
+      </a>
+    </div>
+  </div>
 </div>
 
-<style>
-	.header {
-		gap: var(--sl-nav-gap);
-		justify-content: space-between;
-		align-items: center;
-		height: 100%;
-	}
-
-	.right-group,
-	.social-icons {
-		gap: 1rem;
-		align-items: center;
-	}
-	.social-icons::after {
-		content: '';
-		height: 2rem;
-		border-inline-end: 1px solid var(--sl-color-gray-5);
-	}
-
-	@media (min-width: 50rem) {
-		:global(:root[data-has-sidebar]) {
-			--__sidebar-pad: calc(2 * var(--sl-nav-pad-x));
-		}
-		:global(:root:not([data-has-toc])) {
-			--__toc-width: 0rem;
-		}
-		.header {
-			--__sidebar-width: max(0rem, var(--sl-content-inline-start, 0rem) - var(--sl-nav-pad-x));
-			--__main-column-fr: calc(
-				(
-						100% + var(--__sidebar-pad, 0rem) - var(--__toc-width, var(--sl-sidebar-width)) -
-							(2 * var(--__toc-width, var(--sl-nav-pad-x))) - var(--sl-content-inline-start, 0rem) -
-							var(--sl-content-width)
-					) / 2
-			);
-			display: grid;
-			grid-template-columns:
-                /* 1 (site title): runs up until the main content column's left edge or the width of the title, whichever is the largest  */
-				minmax(
-					calc(var(--__sidebar-width) + max(0rem, var(--__main-column-fr) - var(--sl-nav-gap))),
-					auto
-				)
-				/* 2 (search box): all free space that is available. */
-				1fr
-				/* 3 (right items): use the space that these need. */
-				auto;
-			align-content: center;
-		}
-	}
-
-	.pipeline-pill {
-		display: flex;
-		align-items: center;
-		/* background: rgba(167, 139, 250, 0.08); */
-		border-radius: 999px;
-		padding: 0.5rem 1.25rem 0.5rem 0.5rem;
-		gap: 0.75rem;
-		text-decoration: none;
-		transition: background 0.2s;
-	}
-	.pipeline-pill:hover {
-		background: rgba(167, 139, 250, 0.18);
-	}
-	.pipeline-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-	.pipeline-text {
-		display: flex;
-		flex-direction: column;
-		line-height: 1.1;
-	}
-	.pipeline-title {
-		font-weight: 600;
-		font-size: 1rem;
-		color: var(--sl-color-text);
-	}
-	.pipeline-subtitle {
-		font-size: 0.85rem;
-		color: var(--sl-color-gray-2);
-	}
-	.pipeline-arrow {
-		display: flex;
-		align-items: center;
-		margin-left: 0.5rem;
-	}
-	.support-btn {
-		display: flex;
-		align-items: center;
-		background: #7c3aed;
-		color: #fff;
-		border-radius: 999px;
-		padding: 0.5rem 1.5rem;
-		font-weight: 600;
-		font-size: 1rem;
-		text-decoration: none;
-		transition: background 0.2s;
-		gap: 0.5rem;
-		box-shadow: 0 1px 4px rgba(124, 58, 237, 0.08);
-	}
-	.support-btn:hover {
-		background: #5b21b6;
-	}
-	.support-arrow {
-		display: flex;
-		align-items: center;
-		margin-left: 0.25rem;
-	}
-
-	.github-stars-btn {
-		display: flex;
-		align-items: center;
-		border: 1px solid var(--sl-color-gray-5);
-		color: var(--sl-color-text);
-		border-radius: 999px;
-		padding: 0.35rem 0.75rem;
-		font-weight: 500;
-		font-size: 0.9rem;
-		text-decoration: none;
-		transition: background 0.2s, border-color 0.2s;
-		gap: 0.5rem;
-		white-space: nowrap;
-	}
-	.github-stars-btn:hover {
-		border-color: var(--sl-color-gray-4);
-		background: var(--sl-color-hover);
-	}
-	.github-icon svg {
-		width: 16px;
-		height: 16px;
-		vertical-align: middle;
-		display: flex;
-		align-items: center;
-		color: var(--sl-color-accent-high);
-	}
-	.github-count {
-		font-weight: 600;
-		vertical-align: middle;
-		display: flex;
-		align-items: center;
-		color: var(--sl-color-accent-high);
-	}
-
-	.github-star {
-		display: flex;
-		vertical-align: middle;
-		align-items: center;
-		color: var(--sl-color-accent-high);
-		transform: translateY(-1.5px);
-	}
-</style>
+<!-- Mobile Search -->
+<div class="block md:hidden justify-center bg-bg-dark px-5 py-2.5 border-b border-stroke-dark">
+  <div class="flex items-center">
+    {shouldRenderSearch && <Search {...Astro.props} />}
+  </div>
+</div>

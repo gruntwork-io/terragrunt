@@ -1,18 +1,17 @@
 import { defineCollection, z } from 'astro:content';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
-import { glob } from 'astro/loaders';
+import { glob, file } from 'astro/loaders';
 
-const docs = defineCollection({
-	loader: docsLoader(), schema: docsSchema(
-		{
-			extend: z.object({
-				banner: z.object({ content: z.string() }).default({
-					content: "🧪 The terragrunt-v1 docs are open for feedback! 🧪</br>This site will eventually replace the <a href=\"https://terragrunt.gruntwork.io\">terragrunt.io</a> site.</br>To give feedback on your experience with the new docs, click <a href=\"https://forms.gle/MxfBQ5DebeAHA6oN6\">here</a>.",
-				}),
-			}),
-		},
-	)
+const brands = defineCollection({
+	loader: file("src/data/brands/brands.json"),
+	schema: ({ image }) => z.object({
+		id: z.string(),
+		name: z.string(),
+		logo: image(),
+		alt: z.string(),
+		order: z.number().optional(),
+	}),
 });
 
 const commands = defineCollection({
@@ -47,6 +46,18 @@ const commands = defineCollection({
 	}),
 });
 
+const docs = defineCollection({
+	loader: docsLoader(), schema: docsSchema(
+		{
+			extend: z.object({
+				banner: z.object({ content: z.string() }).default({
+					content: "🧪 The terragrunt-v1 docs are open for feedback! 🧪</br>This site will eventually replace the <a href=\"https://terragrunt.gruntwork.io\">terragrunt.io</a> site.</br>To give feedback on your experience with the new docs, click <a href=\"https://forms.gle/MxfBQ5DebeAHA6oN6\">here</a>.",
+				}),
+			}),
+		},
+	)
+});
+
 const flags = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/flags" }),
 	schema: z.object({
@@ -59,4 +70,19 @@ const flags = defineCollection({
 	}),
 });
 
-export const collections = { docs, commands, flags };
+const testimonials = defineCollection({
+	loader: file("src/data/testimonials/testimonials.json"),
+	schema: ({ image }) => z.object({
+		id: z.string(),
+		order: z.number().optional(),
+		author: z.string(),
+    title: z.string().optional(),
+    company: z.string().optional(),
+		logo: image().optional(),
+		alt: z.string().optional(),
+    content: z.string(),
+    link: z.string().optional(),
+	}),
+});
+
+export const collections = { brands, commands, docs, flags, testimonials };

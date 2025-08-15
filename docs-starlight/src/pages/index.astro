@@ -1,48 +1,50 @@
 ---
-import { Image } from 'astro:assets';
-import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
-import DarkLogo from '../assets/logo-dark.svg'
-import LightLogo from '../assets/logo-light.svg'
-import GruntworkLogoBlack from '../assets/gruntwork-logo-mark-black.svg';
-import GruntworkLogoWhite from '../assets/gruntwork-logo-mark-white.svg';
+import '@styles/global.css';
+import Header from '@components/Header.astro';
+import Hero from '@components/dv-Hero.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import OrchestrateSection from '@components/dv-OrchestrateSection.astro';
+import PetAdvertise from '@components/dv-PetAdvertise.astro';
+import Footer from '@components/dv-Footer.astro';
+import ConsistencySection from '@components/dv-ConsistencySection.astro';
+import DrySection from '@components/dv-DrySection.astro';
+import Testimonials from '@components/dv-Testimonials.astro';
 ---
-
-<div class="flex flex-col min-h-screen">
-	<StarlightPage frontmatter={{
-		template: 'splash',
-		title: 'Terragrunt',
-		description: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-		pagefind: false,
-		hero: {
-			title: 'Terragrunt',
-			tagline: 'Use OpenTofu/Terraform at scale, faster and safer.',
-			image: {
-				dark: LightLogo,
-				light: DarkLogo,
-				alt: 'Terragrunt Logo',
-			},
-			actions: [
-				{
-					text: 'Quick Start',
-					icon: 'rocket',
-					link: '/docs/getting-started/quick-start/'
-				},
-				{
-					text: 'Docs',
-					icon: 'open-book',
-					link: '/docs/reference/hcl/'
-				}
-			]
-		}
-	}}>
-	</StarlightPage>
-
-	<footer class="flex items-center justify-center py-6 px-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 mt-auto">
-		<div class="flex items-center gap-[0.5em]">
-			<Image src={GruntworkLogoBlack} alt="Gruntwork Logo" class="w-6 h-6 dark:sl-hidden" />
-			<Image src={GruntworkLogoWhite} alt="Gruntwork Logo" class="w-6 h-6 light:sl-hidden" />
-			<span>&nbsp;From the DevOps experts at&nbsp;</span>
-	    </div>
-		<a href="https://gruntwork.io" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Gruntwork</a>
-	</footer>
-</div>
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Astro description" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Terragrunt</title>
+	</head>
+    <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
+		<div class="fixed top-0 z-50">
+			<Header showThemeToggle={false} />
+		</div>
+		<div class="absolute top-[149px] md:top-[83px] w-full">
+			<Hero />
+			<div class="overflow-hidden lg:px-8 xl:px-24 2xl:px-76">
+				<div class="relative flex flex-col lg:border-l-1 lg:border-r-1 lg:border-gray-3 max-w-[1312px] mx-auto w-full">
+					<div class="z-10">
+						<FeaturedBrands />
+					</div>
+					<!-- FIXME: Between 1024px - 1046px the dotted lines do not match the edge of the sections -->
+					<div class="hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed border-gray-3"></div>
+					<div class="flex flex-col gap-12 md:gap-44 z-10">
+						<OrchestrateSection />
+						<ConsistencySection />
+						<DrySection />
+						<Testimonials />
+					</div>
+					<div class="flex flex-col gap-44 z-10">
+						<PetAdvertise />
+						<Footer />
+					</div>
+				</div>
+			</div>
+		</div>
+    </body>
+</html>
