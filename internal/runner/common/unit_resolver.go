@@ -489,6 +489,11 @@ func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Log
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
 func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, l log.Logger, unitsMap, unitsAlreadyProcessed UnitsMap, recursionLevel int) (UnitsMap, error) {
+	// When ignoring external dependencies, do not attempt to resolve or include any.
+	if r.Stack.TerragruntOptions != nil && r.Stack.TerragruntOptions.IgnoreExternalDependencies {
+		return UnitsMap{}, nil
+	}
+
 	allExternalDependencies := UnitsMap{}
 	unitsToSkip := unitsMap.MergeMaps(unitsAlreadyProcessed)
 

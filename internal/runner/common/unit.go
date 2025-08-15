@@ -90,7 +90,7 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 		return ""
 	}
 
-	path, err := filepath.Rel(opts.WorkingDir, unit.Path)
+	path, err := filepath.Rel(opts.RootWorkingDir, unit.Path)
 	if err != nil {
 		l.Warnf("Failed to get relative path for %s: %v", unit.Path, err)
 		path = unit.Path
@@ -99,7 +99,20 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(opts.WorkingDir, dir)
+		// Resolve relative output folder against root working directory, not the unit working directory
+		// so that artifacts for all units are stored under a single root-level out dir structure.
+		base := opts.RootWorkingDir
+		if !filepath.IsAbs(base) {
+			// In case RootWorkingDir is somehow relative, resolve it first.
+			if absBase, err := filepath.Abs(base); err == nil {
+				base = absBase
+			} else {
+				l.Warnf("Failed to get absolute path for root working dir %s: %v", base, err)
+			}
+		}
+
+		dir = filepath.Join(base, dir)
+
 		if absDir, err := filepath.Abs(dir); err == nil {
 			dir = absDir
 		} else {
@@ -136,6 +149,13 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
+			// If external dependencies are being ignored, skip missing dependencies that are outside the working dir
+			if unit.TerragruntOptions != nil && unit.TerragruntOptions.IgnoreExternalDependencies {
+				if !util.HasPathPrefix(dependencyUnitPath, unit.TerragruntOptions.WorkingDir) {
+					continue
+				}
+			}
+
 			dependencyErr := UnrecognizedDependencyError{
 				UnitPath:              unit.Path,
 				DependencyPath:        dependencyPath,
