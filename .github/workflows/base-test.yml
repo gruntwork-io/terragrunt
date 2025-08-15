@@ -1,7 +1,7 @@
 name: Base Tests
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   test:

@@ -1,7 +1,7 @@
 name: Codespell
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   codespell:

@@ -105,7 +105,10 @@ func TestProviderCache(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
+			// Create a new context for each test case to avoid interference
+			//
+			//nolint:usetesting
+			ctx := context.Background()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
