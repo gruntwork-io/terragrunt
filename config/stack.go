@@ -74,10 +74,6 @@ type Stack struct {
 	Path         string     `hcl:"path,attr"`
 }
 
-type stackParserContext struct {
-	stackConfigFile string
-}
-
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
@@ -693,8 +689,10 @@ func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.Terr
 func ReadStackConfigFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
 	l.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
-	ctx = context.WithValue(ctx, stackParserContext{}, stackParserContext{stackConfigFile: filePath})
-	parser := NewParsingContext(ctx, l, opts)
+	stackOpts := opts.Clone()
+	stackOpts.TerragruntConfigPath = filePath
+
+	parser := NewParsingContext(ctx, l, stackOpts)
 
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {

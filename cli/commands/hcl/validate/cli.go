@@ -31,12 +31,11 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HCLValidateStrict,
 			Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 		},
-			flags.WithDeprecatedFlagName("strict-validate", terragruntPrefixControl), // `--strict-validate`
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars(
 				"strict-validate",             // `TG_STRICT_VALIDATE`
 				"hclvalidate-strict-validate", // `TG_HCLVALIDATE_STRICT_VALIDATE`
 			), terragruntPrefixControl),
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("strict-validate"), terragruntPrefixControl), // `--terragrunt-strict-validate`, `TERRAGRUNT_STRICT_VALIDATE`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-validate"), terragruntPrefixControl), // `TERRAGRUNT_STRICT_VALIDATE`
 		),
 
 		flags.NewFlag(&cli.BoolFlag{
@@ -53,7 +52,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		},
 
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-strict-validate"), terragruntPrefixControl),          // `TG_HCLVALIDATE_STRICT_VALIDATE`
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclvalidate-show-config-path"), terragruntPrefixControl), // `--terragrunt-hclvalidate-show-config-path`, `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-show-config-path"), terragruntPrefixControl), // `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
 		),
 
 		flags.NewFlag(&cli.BoolFlag{
@@ -63,7 +62,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "Format results in JSON format.",
 		},
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl),         // `TG_HCLVALIDATE_JSON`
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclvalidate-json"), terragruntPrefixControl), // `--terragrunt-hclvalidate-json`, `TERRAGRUNT_HCLVALIDATE_JSON`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl), // `TERRAGRUNT_HCLVALIDATE_JSON`
 		),
 	}
 

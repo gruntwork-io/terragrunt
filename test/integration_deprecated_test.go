@@ -29,7 +29,7 @@ func TestDeprecatedHclvalidateCommand_HclvalidateInvalidConfigPath(t *testing.T)
 		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 	}
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json --terragrunt-hclvalidate-show-config-path", rootPath))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --working-dir %s --json --show-config-path", rootPath))
 	require.Error(t, err)
 
 	var actualPaths []string
@@ -68,7 +68,7 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s", strings.Join(tc.command, " "), testFixtureExtraArgsPath)
+		cmd := fmt.Sprintf("terragrunt %s --non-interactive --log-level trace --working-dir %s", strings.Join(tc.command, " "), testFixtureExtraArgsPath)
 
 		var (
 			stdout bytes.Buffer
@@ -94,7 +94,7 @@ func TestDeprecatedTerragruntInfoCommand_TerragruntInfoError(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	// parse stdout json as InfoOutput
@@ -111,7 +111,7 @@ func TestDeprecatedRenderJsonCommand_RenderJsonDependentModulesMetadataTerraform
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --non-interactive --log-level trace --working-dir %s  --json-out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)

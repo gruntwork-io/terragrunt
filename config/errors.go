@@ -19,6 +19,15 @@ func (err IncludedConfigMissingPathError) Error() string {
 	return fmt.Sprintf("The include configuration in %s must specify a 'path' parameter", string(err))
 }
 
+type IncludeConfigNotFoundError struct {
+	IncludePath string
+	SourcePath  string
+}
+
+func (err IncludeConfigNotFoundError) Error() string {
+	return fmt.Sprintf("Include configuration not found: %s (referenced from: %s)", err.IncludePath, err.SourcePath)
+}
+
 type TooManyLevelsOfInheritanceError struct {
 	ConfigPath             string
 	FirstLevelIncludePath  string
@@ -186,6 +195,14 @@ type InvalidIncludeKeyError struct {
 
 func (err InvalidIncludeKeyError) Error() string {
 	return fmt.Sprintf("There is no include block in the current config with the label '%s'", err.name)
+}
+
+type DependencyFileNotFoundError struct {
+	Path string
+}
+
+func (err DependencyFileNotFoundError) Error() string {
+	return "Dependency file not found: " + err.Path
 }
 
 // Dependency Custom error types
