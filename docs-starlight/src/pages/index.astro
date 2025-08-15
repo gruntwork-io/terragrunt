@@ -1,17 +1,20 @@
 ---
-import '@styles/global.css';
-import Header from '@components/Header.astro';
-import Hero from '@components/dv-Hero.astro';
-import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
-import OrchestrateSection from '@components/dv-OrchestrateSection.astro';
-import PetAdvertise from '@components/dv-PetAdvertise.astro';
-import Footer from '@components/dv-Footer.astro';
 import ConsistencySection from '@components/dv-ConsistencySection.astro';
 import DrySection from '@components/dv-DrySection.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import Footer from '@components/dv-Footer.astro';
+import Header from '@components/Header.astro';
+import Hero from '@components/dv-Hero.astro';
+import OrchestrateSection from '@components/dv-OrchestrateSection.astro';
+import PageContainer from '@components/PageContainer.astro';
+import PetAdvertise from '@components/dv-PetAdvertise.astro';
 import Testimonials from '@components/dv-Testimonials.astro';
+
+import '@styles/global.css';
 ---
 <!doctype html>
 <html lang="en">
+
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="description" content="Astro description" />
@@ -20,31 +23,34 @@ import Testimonials from '@components/dv-Testimonials.astro';
 		<meta name="generator" content={Astro.generator} />
 		<title>Terragrunt</title>
 	</head>
-    <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
-		<div class="fixed top-0 z-50">
-			<Header showThemeToggle={false} />
-		</div>
-		<div class="absolute top-[149px] md:top-[83px] w-full">
-			<Hero />
-			<div class="overflow-hidden lg:px-8 xl:px-24 2xl:px-76">
-				<div class="relative flex flex-col lg:border-l-1 lg:border-r-1 lg:border-gray-3 max-w-[1312px] mx-auto w-full">
-					<div class="z-10">
-						<FeaturedBrands />
-					</div>
-					<!-- FIXME: Between 1024px - 1046px the dotted lines do not match the edge of the sections -->
-					<div class="hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed border-gray-3"></div>
-					<div class="flex flex-col gap-12 md:gap-44 z-10">
-						<OrchestrateSection />
-						<ConsistencySection />
-						<DrySection />
-						<Testimonials />
-					</div>
-					<div class="flex flex-col gap-44 z-10">
-						<PetAdvertise />
-						<Footer />
-					</div>
-				</div>
-			</div>
-		</div>
-    </body>
+
+  <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
+
+    <Header showThemeToggle={false} />
+
+    <div class="absolute top-[149px] md:top-[83px] w-full">
+      <Hero />
+
+      <PageContainer>
+        <FeaturedBrands />
+
+        <!-- FIXME: Between 1024px - 1046px the dotted lines do not match the edge of the sections -->
+        <div class="hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed border-gray-3"></div>
+
+        <div class="flex flex-col gap-12 md:gap-44 z-10">
+          <OrchestrateSection />
+          <ConsistencySection />
+          <DrySection />
+          <Testimonials />
+        </div>
+
+        <div class="flex flex-col gap-44 z-10">
+          <PetAdvertise />
+          <Footer />
+        </div>
+      </PageContainer>
+
+    </div>
+
+  </body>
 </html>
