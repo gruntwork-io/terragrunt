@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -15,10 +14,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-)
-
-const (
-	stackDir = ".terragrunt-stack"
 )
 
 // RunGenerate runs the stack command.
@@ -68,11 +63,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if err != nil {
 		return err
-	}
-
-	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
-	if _, err := os.Stat(opts.WorkingDir); os.IsNotExist(err) {
-		return errors.Errorf("Stack directory does not exist or is not accessible: %s", opts.WorkingDir)
 	}
 
 	return runall.Run(ctx, l, opts)

@@ -553,7 +553,7 @@ If real outputs only contain `vpc_id`, `dependency.outputs` will contain a real 
 
 When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack.
 
-To do this, use the [`stack output`](/docs/reference/cli/commands/stack/output) command (not the [`stack run output`](/docs/reference/cli/commands/stack/run) command).
+To do this, use the [`stack output`](/docs/reference/cli-options/#stack-output) command (not the [`stack run output`](/docs/reference/cli/commands/stack/run) command).
 
 ```bash
 $ terragrunt stack output

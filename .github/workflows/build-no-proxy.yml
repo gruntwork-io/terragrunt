@@ -1,7 +1,7 @@
 name: Build Without Go Proxy
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   build-no-proxy:

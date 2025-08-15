@@ -1,7 +1,7 @@
 name: Markdown Lint
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   markdownlint:
