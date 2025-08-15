@@ -47,15 +47,8 @@ const commands = defineCollection({
 });
 
 const docs = defineCollection({
-	loader: docsLoader(), schema: docsSchema(
-		{
-			extend: z.object({
-				banner: z.object({ content: z.string() }).default({
-					content: "🧪 The terragrunt-v1 docs are open for feedback! 🧪</br>This site will eventually replace the <a href=\"https://terragrunt.gruntwork.io\">terragrunt.io</a> site.</br>To give feedback on your experience with the new docs, click <a href=\"https://forms.gle/MxfBQ5DebeAHA6oN6\">here</a>.",
-				}),
-			}),
-		},
-	)
+	loader: docsLoader(),
+	schema: docsSchema(),
 });
 
 const flags = defineCollection({
