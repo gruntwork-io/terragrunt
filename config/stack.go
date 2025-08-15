@@ -56,22 +56,37 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
-	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool      `hcl:"no_validation,attr"`
-	Values       *cty.Value `hcl:"values,attr"`
-	Name         string     `hcl:",label"`
-	Source       string     `hcl:"source,attr"`
-	Path         string     `hcl:"path,attr"`
+	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr" cty:"no_dot_terragrunt_stack"`
+	NoValidation *bool      `hcl:"no_validation,attr" cty:"no_validation"`
+	Values       *cty.Value `hcl:"values,attr" cty:"values"`
+	Name         string     `hcl:",label" cty:"name"`
+	Source       string     `hcl:"source,attr" cty:"source"`
+	Path         string     `hcl:"path,attr" cty:"path"`
+
+
+	// Used for expansion; Currently only supported as an experimental feature.
+	Count      *cty.Value `hcl:"count,attr" cty:"count"`
+	ForEach    *cty.Value `hcl:"for_each,attr" cty:"for_each"`
+	
+	CountIndex *int      `hcl:"count_index,attr" cty:"count_index"`
+	EachKey    *string  `hcl:"each_key,attr" cty:"each_key"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool      `hcl:"no_validation,attr"`
-	Values       *cty.Value `hcl:"values,attr"`
-	Name         string     `hcl:",label"`
-	Source       string     `hcl:"source,attr"`
-	Path         string     `hcl:"path,attr"`
+	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr" cty:"no_dot_terragrunt_stack"`
+	NoValidation *bool      `hcl:"no_validation,attr" cty:"no_validation"`
+	Values       *cty.Value `hcl:"values,attr" cty:"values"`
+	Name         string     `hcl:",label" cty:"name"`
+	Source       string     `hcl:"source,attr" cty:"source"`
+	Path         string     `hcl:"path,attr" cty:"path"`
+
+	// Used for expansion; Currently only supported as an experimental feature.
+	Count      *cty.Value `hcl:"count,attr" cty:"count"`
+	ForEach    *cty.Value `hcl:"for_each,attr" cty:"for_each"`
+
+	CountIndex *int     `hcl:"count_index,attr" cty:"count_index"`
+	EachKey    *string  `hcl:"each_key,attr" cty:"each_key"`
 }
 
 // GenerateStacks generates the stack files.
@@ -356,6 +371,17 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
+// getDisplayName returns a display name for a unit or stack that includes key information for expanded blocks
+func getDisplayName(name string, eachKey *string, countIndex *int) string {
+	if eachKey != nil {
+		return fmt.Sprintf("%s[%s]", name, *eachKey)
+	}
+	if countIndex != nil {
+		return fmt.Sprintf("%s[%d]", name, *countIndex)
+	}
+	return name
+}
+
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
@@ -404,9 +430,12 @@ func generateUnits(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 				noStack:      unitCopy.NoStack != nil && *unitCopy.NoStack,
 				noValidation: unitCopy.NoValidation != nil && *unitCopy.NoValidation,
 				kind:         unitKind,
+				eachKey:      unitCopy.EachKey,
+				countIndex:   unitCopy.CountIndex,
 			}
 
-			l.Infof("Processing unit %s from %s", unitCopy.Name, sourceFile)
+			displayName := getDisplayName(unitCopy.Name, unitCopy.EachKey, unitCopy.CountIndex)
+			l.Infof("Processing unit %s from %s", displayName, sourceFile)
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
 				"stack_file":  sourceFile,
@@ -439,9 +468,12 @@ func generateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 				noValidation: stackCopy.NoValidation != nil && *stackCopy.NoValidation,
 				values:       stackCopy.Values,
 				kind:         stackKind,
+				eachKey:      stackCopy.EachKey,
+				countIndex:   stackCopy.CountIndex,
 			}
 
-			l.Infof("Processing stack %s from %s", stackCopy.Name, sourceFile)
+			displayName := getDisplayName(stackCopy.Name, stackCopy.EachKey, stackCopy.CountIndex)
+			l.Infof("Processing stack %s from %s", displayName, sourceFile)
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
 				"stack_file":   sourceFile,
@@ -477,6 +509,8 @@ type componentToProcess struct {
 	noStack      bool
 	noValidation bool
 	kind         componentKind
+	eachKey      *string
+	countIndex   *int
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -524,9 +558,10 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 		dest = filepath.Join(filepath.Dir(cmp.targetDir), cmp.path)
 	}
 
-	l.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
+	displayName := getDisplayName(cmp.name, cmp.eachKey, cmp.countIndex)
+	l.Debugf("Processing: %s (%s) to %s", displayName, source, dest)
 
-	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, displayName, cmp.sourceDir, source, dest); err != nil {
 		return errors.Errorf(
 			"Failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -537,7 +572,7 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 				"  3. Ensure you have proper permissions to read from source and write to destination\n\n"+
 				"Original error: %w",
 			kindStr,
-			cmp.name,
+			displayName,
 			source,
 			dest,
 			err,
@@ -547,13 +582,13 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 	skipValidation := false
 
 	if cmp.noStack {
-		l.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
+		l.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, displayName)
 
 		skipValidation = true
 	}
 
 	if cmp.noValidation {
-		l.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
+		l.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, displayName)
 
 		skipValidation = true
 	}
@@ -566,19 +601,19 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 			expectedFile = defaultStackFile
 		}
 
-		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+		if err := validateTargetDir(kindStr, displayName, dest, expectedFile); err != nil {
 			if opts.NoStackValidate {
 				// print warning if validation is skipped
-				l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+				l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, displayName, cmp.targetDir, kindStr, expectedFile)
 			} else {
-				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, displayName, cmp.targetDir, kindStr, expectedFile)
 			}
 		}
 	}
 
 	// generate values file
 	if err := writeValues(l, cmp.values, dest); err != nil {
-		return errors.Errorf("failed to write values %v %w", cmp.name, err)
+		return errors.Errorf("failed to write values %v %w", displayName, err)
 	}
 
 	return nil
