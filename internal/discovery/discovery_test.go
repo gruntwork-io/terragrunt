@@ -409,6 +409,512 @@ func TestMatchesExcludePatterns(t *testing.T) {
 	}
 }
 
+func TestDiscoveryWithExcludeBlocks(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+		"excluded-unit",
+		"excluded-with-deps",
+		"dependency-of-excluded",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with exclude configurations
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": `
+exclude {
+  if = true
+  actions = ["plan"]
+}`,
+		"unit2/terragrunt.hcl": `
+exclude {
+  if = false
+  actions = ["apply"]
+}`,
+		"unit3/terragrunt.hcl": `
+exclude {
+  if = true
+  actions = ["destroy"]
+}`,
+		"excluded-unit/terragrunt.hcl": `
+exclude {
+  if = true
+  actions = ["plan", "apply"]
+}`,
+		"excluded-with-deps/terragrunt.hcl": `
+dependency "dependency-of-excluded" {
+  config_path = "../dependency-of-excluded"
+}
+
+exclude {
+  if = true
+  actions = ["plan"]
+  exclude_dependencies = true
+}`,
+		"dependency-of-excluded/terragrunt.hcl": ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name              string
+		terraformCommand  string
+		wantUnits         []string
+		wantExcludedUnits []string
+	}{
+		{
+			name:             "plan command - exclude plan and apply actions",
+			terraformCommand: "plan",
+			wantUnits:        []string{filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "unit3")},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "unit1"),
+				filepath.Join(tmpDir, "excluded-unit"),
+				filepath.Join(tmpDir, "excluded-with-deps"),
+				filepath.Join(tmpDir, "dependency-of-excluded"),
+			},
+		},
+		{
+			name:             "apply command - exclude apply actions",
+			terraformCommand: "apply",
+			wantUnits:        []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit3")},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "unit2"),
+				filepath.Join(tmpDir, "excluded-unit"),
+			},
+		},
+		{
+			name:             "destroy command - exclude destroy actions",
+			terraformCommand: "destroy",
+			wantUnits:        []string{filepath.Join(tmpDir, "unit1"), filepath.Join(tmpDir, "unit2"), filepath.Join(tmpDir, "excluded-unit")},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "unit3"),
+			},
+		},
+		{
+			name:             "output command - no exclusions",
+			terraformCommand: "output",
+			wantUnits: []string{
+				filepath.Join(tmpDir, "unit1"),
+				filepath.Join(tmpDir, "unit2"),
+				filepath.Join(tmpDir, "unit3"),
+				filepath.Join(tmpDir, "excluded-unit"),
+				filepath.Join(tmpDir, "excluded-with-deps"),
+				filepath.Join(tmpDir, "dependency-of-excluded"),
+			},
+			wantExcludedUnits: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithParseExclude().
+				WithDiscoverDependencies().
+				WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: tt.terraformCommand})
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+
+			// Check that expected units are included
+			for _, expectedUnit := range tt.wantUnits {
+				assert.Contains(t, units, expectedUnit, "Expected unit %s to be included", expectedUnit)
+			}
+
+			// Check that excluded units are not included
+			for _, excludedUnit := range tt.wantExcludedUnits {
+				assert.NotContains(t, units, excludedUnit, "Expected unit %s to be excluded", excludedUnit)
+			}
+
+			// Verify the total count matches expectations
+			assert.Len(t, units, len(tt.wantUnits), "Expected %d units, got %d", len(tt.wantUnits), len(units))
+		})
+	}
+}
+
+func TestDiscoveryWithExcludeBlocksImproved(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"parent",
+		"parent/child",
+		"parent/child/grandchild",
+		"independent",
+		"excluded-parent",
+		"excluded-parent/child",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with exclude configurations
+	testFiles := map[string]string{
+		"parent/terragrunt.hcl": `
+dependency "child" {
+  config_path = "./child"
+}
+
+exclude {
+  if = true
+  actions = ["plan"]
+  exclude_dependencies = true
+}`,
+		"parent/child/terragrunt.hcl": `
+dependency "grandchild" {
+  config_path = "./grandchild"
+}
+
+exclude {
+  if = true
+  actions = ["apply"]
+}`,
+		"parent/child/grandchild/terragrunt.hcl": ``,
+		"independent/terragrunt.hcl": `
+exclude {
+  if = true
+  actions = ["plan"]
+}`,
+		"excluded-parent/terragrunt.hcl": `
+dependency "child" {
+  config_path = "./child"
+}
+
+exclude {
+  if = true
+  actions = ["plan"]
+  exclude_dependencies = true
+}`,
+		"excluded-parent/child/terragrunt.hcl": ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name              string
+		terraformCommand  string
+		wantUnits         []string
+		wantExcludedUnits []string
+		description       string
+	}{
+		{
+			name:             "plan command - exclude parent and its dependencies",
+			terraformCommand: "plan",
+			wantUnits:        []string{},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "parent"),
+				filepath.Join(tmpDir, "parent/child"),
+				filepath.Join(tmpDir, "parent/child/grandchild"),
+				filepath.Join(tmpDir, "independent"),
+				filepath.Join(tmpDir, "excluded-parent"),
+				filepath.Join(tmpDir, "excluded-parent/child"),
+			},
+			description: "Parent excludes itself and ALL dependencies for plan (regardless of their own exclude blocks), independent also excluded",
+		},
+		{
+			name:             "apply command - exclude child only",
+			terraformCommand: "apply",
+			wantUnits:        []string{filepath.Join(tmpDir, "parent"), filepath.Join(tmpDir, "parent/child/grandchild"), filepath.Join(tmpDir, "independent"), filepath.Join(tmpDir, "excluded-parent"), filepath.Join(tmpDir, "excluded-parent/child")},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "parent/child"),
+			},
+			description: "Only child excludes itself for apply, parent doesn't exclude dependencies for apply",
+		},
+		{
+			name:             "destroy command - no exclusions",
+			terraformCommand: "destroy",
+			wantUnits: []string{
+				filepath.Join(tmpDir, "parent"),
+				filepath.Join(tmpDir, "parent/child"),
+				filepath.Join(tmpDir, "parent/child/grandchild"),
+				filepath.Join(tmpDir, "independent"),
+				filepath.Join(tmpDir, "excluded-parent"),
+				filepath.Join(tmpDir, "excluded-parent/child"),
+			},
+			wantExcludedUnits: []string{},
+			description:       "No exclude blocks match destroy command",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithParseExclude().
+				WithDiscoverDependencies().
+				WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: tt.terraformCommand})
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+
+			// Check that expected units are included
+			for _, expectedUnit := range tt.wantUnits {
+				assert.Contains(t, units, expectedUnit, "Expected unit %s to be included: %s", expectedUnit, tt.description)
+			}
+
+			// Check that excluded units are not included
+			for _, excludedUnit := range tt.wantExcludedUnits {
+				assert.NotContains(t, units, excludedUnit, "Expected unit %s to be excluded: %s", excludedUnit, tt.description)
+			}
+
+			// Verify the total count matches expectations
+			assert.Len(t, units, len(tt.wantUnits), "Expected %d units, got %d: %s", len(tt.wantUnits), len(units), tt.description)
+		})
+	}
+}
+
+func TestDiscoveryWithExcludeBlocksDependencyExclusion(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"parent",
+		"parent/child",
+		"parent/child/grandchild",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with exclude configurations
+	testFiles := map[string]string{
+		"parent/terragrunt.hcl": `
+dependency "child" {
+  config_path = "./child"
+}
+
+exclude {
+  if = true
+  actions = ["plan"]
+  exclude_dependencies = true
+}`,
+		"parent/child/terragrunt.hcl": `
+dependency "grandchild" {
+  config_path = "./grandchild"
+}
+
+exclude {
+  if = false
+  actions = ["plan"]
+}`,
+		"parent/child/grandchild/terragrunt.hcl": `
+exclude {
+  if = false
+  actions = ["plan"]
+}`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name              string
+		terraformCommand  string
+		wantUnits         []string
+		wantExcludedUnits []string
+		description       string
+	}{
+		{
+			name:             "plan command - parent excludes all dependencies",
+			terraformCommand: "plan",
+			wantUnits:        []string{},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "parent"),
+				filepath.Join(tmpDir, "parent/child"),
+				filepath.Join(tmpDir, "parent/child/grandchild"),
+			},
+			description: "Parent excludes itself and ALL dependencies regardless of their own exclude blocks",
+		},
+		{
+			name:             "apply command - no exclusions",
+			terraformCommand: "apply",
+			wantUnits: []string{
+				filepath.Join(tmpDir, "parent"),
+				filepath.Join(tmpDir, "parent/child"),
+				filepath.Join(tmpDir, "parent/child/grandchild"),
+			},
+			wantExcludedUnits: []string{},
+			description:       "No exclude blocks match apply command",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithParseExclude().
+				WithDiscoverDependencies().
+				WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: tt.terraformCommand})
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+
+			// Check that expected units are included
+			for _, expectedUnit := range tt.wantUnits {
+				assert.Contains(t, units, expectedUnit, "Expected unit %s to be included: %s", expectedUnit, tt.description)
+			}
+
+			// Check that excluded units are not included
+			for _, excludedUnit := range tt.wantExcludedUnits {
+				assert.NotContains(t, units, excludedUnit, "Expected unit %s to be excluded: %s", excludedUnit, tt.description)
+			}
+
+			// Verify the total count matches expectations
+			assert.Len(t, units, len(tt.wantUnits), "Expected %d units, got %d: %s", len(tt.wantUnits), len(units), tt.description)
+		})
+	}
+}
+
+func TestDiscoveryWithExcludeBlocksIndependentDependencyExclusion(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"parent",
+		"parent/child",
+		"parent/child/grandchild",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with exclude configurations
+	testFiles := map[string]string{
+		"parent/terragrunt.hcl": `
+dependency "child" {
+  config_path = "./child"
+}
+
+exclude {
+  if = false
+  actions = ["plan"]
+  exclude_dependencies = true
+}`,
+		"parent/child/terragrunt.hcl": `
+dependency "grandchild" {
+  config_path = "./grandchild"
+}
+
+exclude {
+  if = false
+  actions = ["plan"]
+}`,
+		"parent/child/grandchild/terragrunt.hcl": `
+exclude {
+  if = false
+  actions = ["plan"]
+}`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name              string
+		terraformCommand  string
+		wantUnits         []string
+		wantExcludedUnits []string
+		description       string
+	}{
+		{
+			name:             "plan command - parent excludes dependencies but not itself",
+			terraformCommand: "plan",
+			wantUnits:        []string{filepath.Join(tmpDir, "parent")},
+			wantExcludedUnits: []string{
+				filepath.Join(tmpDir, "parent/child"),
+				filepath.Join(tmpDir, "parent/child/grandchild"),
+			},
+			description: "Parent has if=false but exclude_dependencies=true, so parent stays but dependencies are excluded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithParseExclude().
+				WithDiscoverDependencies().
+				WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: tt.terraformCommand})
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+
+			// Check that expected units are included
+			for _, expectedUnit := range tt.wantUnits {
+				assert.Contains(t, units, expectedUnit, "Expected unit %s to be included: %s", expectedUnit, tt.description)
+			}
+
+			// Check that excluded units are not included
+			for _, excludedUnit := range tt.wantExcludedUnits {
+				assert.NotContains(t, units, excludedUnit, "Expected unit %s to be excluded: %s", excludedUnit, tt.description)
+			}
+
+			// Verify the total count matches expectations
+			assert.Len(t, units, len(tt.wantUnits), "Expected %d units, got %d: %s", len(tt.wantUnits), len(units), tt.description)
+		})
+	}
+}
+
 func TestDiscoveredConfigsSort(t *testing.T) {
 	t.Parallel()
 
