@@ -300,7 +300,10 @@ func (runner *Runner) createStackForTerragruntConfigPaths(ctx context.Context, l
 // and resolve the unit that configuration file represents into a Unit struct.
 // Return the list of these Unit structs.
 func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (common.Units, error) {
-	unitResolver := common.NewUnitResolver(runner.Stack)
+	unitResolver, err := common.NewUnitResolver(runner.Stack)
+	if err != nil {
+		return nil, err
+	}
 	return unitResolver.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
 }
 

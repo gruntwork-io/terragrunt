@@ -64,7 +64,10 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	}
 
 	// Create units from discovered configurations using the full resolution pipeline
-	unitResolver := common.NewUnitResolver(runner.Stack)
+	unitResolver, err := common.NewUnitResolver(runner.Stack)
+	if err != nil {
+		return nil, err
+	}
 
 	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
 	if err != nil {

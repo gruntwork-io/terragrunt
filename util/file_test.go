@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path"
@@ -82,7 +83,7 @@ func TestCanonicalPath(t *testing.T) {
 	}
 }
 
-func TestGlobCanonicalPath(t *testing.T) {
+func TestGlobs(t *testing.T) {
 	t.Parallel()
 
 	basePath := "testdata/fixture-glob-canonical"
@@ -97,18 +98,26 @@ func TestGlobCanonicalPath(t *testing.T) {
 		paths    []string
 		expected []string
 	}{
+		{[]string{"*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
+		{[]string{"**"}, []string{expectedHelper("module-a"), expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child"), expectedHelper("module-b/module-b-child/main.tf"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
 		{[]string{"module-a", "module-b/module-b-child/.."}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
 		{[]string{"*-a", "*-b"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
 		{[]string{"module-*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
 		{[]string{"module-*/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl")}},
-		{[]string{"module-*/**/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
+		{[]string{"module-*/**.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
 	}
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
 
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := util.GlobCanonicalPath(basePath, tc.paths...)
+			compiledGlobs, err := util.CompileGlobs(basePath, tc.paths...)
+			require.NoError(t, err)
+
+			actual, err := util.GetGlobPaths(ctx, l, basePath, compiledGlobs)
 
 			slices.Sort(actual)
 

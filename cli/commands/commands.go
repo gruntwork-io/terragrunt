@@ -360,11 +360,6 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
-	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
-	if err != nil {
-		return err
-	}
-
 	if len(opts.IncludeDirs) > 0 {
 		l.Debugf("Included directories set. Excluding by default.")
 
@@ -389,17 +384,19 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
-	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
-	if err != nil {
-		return err
-	}
+	// Sort and compact opts.IncludeDirs to make them unique
+	slices.Sort(opts.IncludeDirs)
+	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	excludeDirs, err := util.GetExcludeDirsFromFile(cliCtx.Context, l, opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
+	// Sort and compact opts.ExcludeDirs to make them unique
+	slices.Sort(opts.ExcludeDirs)
+	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

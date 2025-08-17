@@ -683,7 +683,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	t.Parallel()
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.ExcludeDirs = globCanonical(t, "../../../test/fixtures/modules/module-a*")
+	opts.ExcludeDirs = globCanonical(t, "../../../test/fixtures/modules", "module-a*")
 
 	l := logger.CreateLogger()
 

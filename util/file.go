@@ -6,13 +6,17 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 
+	"github.com/charlievieth/fastwalk"
+	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"fmt"
@@ -96,49 +100,75 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return CleanPath(absPath), nil
 }
 
-// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
-	if len(globPaths) == 0 {
-		return []string{}, nil
-	}
-
-	var err error
-
-	// Ensure basePath is canonical
-	basePath, err = CanonicalPath("", basePath)
+func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
+	basePath, err := CanonicalPath("", basePath)
 	if err != nil {
 		return nil, err
 	}
-
-	var paths []string
-
+	var errs []error
+	compiledGlobs := make(map[string]glob.Glob)
 	for _, globPath := range globPaths {
-		// Ensure globPath are absolute
-		if !filepath.IsAbs(globPath) {
-			globPath = filepath.Join(basePath, globPath)
-		}
-
-		const stackDir = "/.terragrunt-stack/"
-
-		matches, err := zglob.Glob(globPath)
-		if err == nil {
-			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
-			// when using the stack feature, the directory may not exist yet,
-			// as stack generation occurs after parsing the argument flags.
-			paths = append(paths, globPath)
-		}
-	}
-
-	// Make sure all paths are canonical
-	for i := range paths {
-		paths[i], err = CanonicalPath(paths[i], basePath)
+		canGlobPath, err := CanonicalPath(globPath, basePath)
 		if err != nil {
-			return nil, err
+			errs = append(errs, fmt.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
 		}
+		compiledGlob, err := glob.Compile(canGlobPath, '/')
+		if err != nil {
+			errs = append(errs, fmt.Errorf("invalid glob pattern %q: %w", globPath, err))
+			continue
+		}
+		compiledGlobs[globPath] = compiledGlob
+	}
+	if len(errs) > 0 {
+
+		return compiledGlobs, fmt.Errorf("failed to compile some glob patterns: %v", errors.Join(errs...))
 	}
 
+	return compiledGlobs, nil
+}
+
+func GetGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGlobs map[string]glob.Glob) ([]string, error) {
+	if len(compiledGlobs) == 0 {
+		return []string{}, nil
+	}
+	basePath, err := CanonicalPath("", basePath)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	var m sync.Mutex
+	fwConfig := fastwalk.DefaultConfig.Copy()
+	fwConfig.ToSlash = true
+	fastwalk.Walk(fwConfig, basePath, func(path string, d fs.DirEntry, err error) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err != nil {
+				return err
+			}
+			for globPath, compiledGlob := range compiledGlobs {
+				l = l.WithField("glob_path", globPath)
+				if compiledGlob.Match(path) {
+					l.WithField("matched_path", path).Debug("Matched glob pattern")
+					m.Lock()
+					paths = append(paths, path)
+					m.Unlock()
+				}
+			}
+			return nil
+		}
+	})
 	return paths, nil
+}
+
+// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
+func GlobCanonicalPath(ctx context.Context, l log.Logger, basePath string, globPaths ...string) ([]string, error) {
+	compiledGlobs, err := CompileGlobs(basePath, globPaths...)
+	if err != nil {
+		return nil, err
+	}
+	return GetGlobPaths(ctx, l, basePath, compiledGlobs)
 }
 
 // CanonicalPaths returns the canonical version of the given paths, relative to the given base path. That is, if a given path is a
@@ -764,7 +794,7 @@ func GetTempDir() (string, error) {
 }
 
 // GetExcludeDirsFromFile returns a list of directories from the given filename, where each directory path starts on a new line.
-func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
+func GetExcludeDirsFromFile(ctx context.Context, l log.Logger, baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
 	if err != nil {
 		return nil, err
@@ -787,12 +817,7 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 			continue
 		}
 
-		newDirs, err := GlobCanonicalPath(baseDir, dir)
-		if err != nil {
-			return nil, err
-		}
-
-		dirs = append(dirs, newDirs...)
+		dirs = append(dirs, dir)
 	}
 
 	return dirs, nil

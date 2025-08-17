@@ -287,7 +287,7 @@ func TestExcludeDirs(t *testing.T) {
 		excludeArgs           string
 		excludedModuleOutputs []string
 	}{
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
 		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}},
 		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}},
 	}

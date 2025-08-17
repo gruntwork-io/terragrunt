@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path"
@@ -13,7 +14,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/charlievieth/fastwalk"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -1077,19 +1080,20 @@ func GetDefaultConfigPath(workingDir string) string {
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method
 func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
+	var m sync.Mutex
 	configFiles := []string{}
 
-	walkFunc := filepath.Walk
+	walkOpts := fastwalk.DefaultConfig.Copy()
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkWithSymlinks
+		walkOpts.Follow = true
 	}
 
-	err := walkFunc(rootPath, func(path string, info os.FileInfo, err error) error {
+	err := fastwalk.Walk(walkOpts, rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() {
+		if !d.IsDir() {
 			return nil
 		}
 
@@ -1105,7 +1109,9 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 			}
 
 			if !util.IsDir(configFile) && util.FileExists(configFile) {
+				m.Lock()
 				configFiles = append(configFiles, configFile)
+				m.Unlock()
 				break
 			}
 		}
