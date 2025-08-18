@@ -44,6 +44,9 @@
   --color-gray-3: #DBDBDB;
   --color-stroke-dark: #2E375A;
 
+  /* Colors Contact Form */
+  --color-contact-form-button-bg: rgba(255, 255, 255, 0.15);
+
   /* Component Colors */
   --color-opacity-5: rgba(255, 255, 255, 0.05);
   --color-opacity-10: rgba(255, 255, 255, 0.1);
@@ -90,6 +93,7 @@
     --sl-nav-height: 148px;
   }
 }
+
 /* Docs Light mode colors. */
 :root[data-theme='light'] {
   --sl-nav-height: 96px;
@@ -590,4 +594,79 @@ article.card {
 kbd {
   font-size: var(--sl-text-sm);
   gap: 0;
+}
+
+/* Contact Form */
+#contact-form,
+#book-a-call {
+  background-color: #0f0726;
+  border: 1px solid #343956;
+  border-radius: 12px;
+  height: auto;
+  min-height: 600px;
+}
+
+#contact-form {
+  padding: 20px 16px;
+}
+
+#book-a-call {
+  padding: 10px 8px;
+}
+
+#contact-form form {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 600px;
+}
+
+#contact-form label {
+  color: #d6d7db;
+  padding-left: 10px;
+}
+
+#contact-form input,
+#contact-form textarea {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+}
+
+#contact-form textarea {
+  min-height: 170px;
+}
+
+#contact-form input:focus,
+#contact-form textarea:focus {
+  outline: 1px solid #448daf;
+}
+
+#contact-form form ::placeholder {
+  font-family: var(--font-sans);
+}
+
+#form-toggle,
+#iframe-toggle {
+  background-color: transparent;
+  border: 1px dashed #343956;
+  color: #A0A1AC;
+}
+
+#form-toggle:hover,
+#iframe-toggle:hover {
+  color: #c0eaeb;
+}
+
+#form-toggle.active,
+#iframe-toggle.active {
+  background-color: var(--color-contact-form-button-bg);
+  color: white;
+}
+
+#contact-form button[type="submit"] {
+  border: 3px solid #48b7d0;
+  background-color: #49b8d0;
+  background-image: radial-gradient(circle,#87e0e1,#48b7d0);
+  color: #191c35;
 }
