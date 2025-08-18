@@ -3,12 +3,12 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/list"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
@@ -182,11 +182,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// we can initialize the viewport. The initial dimensions come in
 			// quickly, though asynchronously, which is why we wait for them
 			// here.
-			m.viewport = viewport.New(msg.Width, msg.Height-v-lipgloss.Height(m.footerView()))
+			m.viewport = viewport.New()
+			m.viewport.SetWidth(msg.Width)
+			m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
 			m.ready = true
 		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - v - lipgloss.Height(m.footerView())
+			m.viewport.SetWidth(msg.Width)
+			m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
 		}
 
 	case scaffoldFinishedMsg:
