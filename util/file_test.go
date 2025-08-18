@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path"
@@ -107,7 +106,6 @@ func TestGlobs(t *testing.T) {
 		{[]string{"module-*/**.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
 	}
 
-	ctx := context.Background()
 	l := logger.CreateLogger()
 
 	for i, tc := range testCases {
@@ -117,7 +115,7 @@ func TestGlobs(t *testing.T) {
 			compiledGlobs, err := util.CompileGlobs(basePath, tc.paths...)
 			require.NoError(t, err)
 
-			actual, err := util.GetGlobPaths(ctx, l, basePath, compiledGlobs)
+			actual, err := util.GetGlobPaths(t.Context(), l, basePath, compiledGlobs)
 
 			slices.Sort(actual)
 

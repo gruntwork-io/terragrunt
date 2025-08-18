@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -178,17 +177,6 @@ func canonical(t *testing.T, path string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return out
-}
-
-func globCanonical(t *testing.T, basePath string, glob string) []string {
-	t.Helper()
-
-	out, err := util.GlobCanonicalPath(context.Background(), logger.CreateLogger(), basePath, glob)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	return out
 }
 

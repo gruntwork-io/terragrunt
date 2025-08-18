@@ -105,23 +105,28 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 	if err != nil {
 		return nil, err
 	}
+
 	var errs []error
-	compiledGlobs := make(map[string]glob.Glob)
+
+	compiledGlobs := map[string]glob.Glob{}
+
 	for _, globPath := range globPaths {
 		canGlobPath, err := CanonicalPath(globPath, basePath)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
 		}
+
 		compiledGlob, err := glob.Compile(canGlobPath, '/')
 		if err != nil {
 			errs = append(errs, fmt.Errorf("invalid glob pattern %q: %w", globPath, err))
 			continue
 		}
+
 		compiledGlobs[globPath] = compiledGlob
 	}
-	if len(errs) > 0 {
 
-		return compiledGlobs, fmt.Errorf("failed to compile some glob patterns: %v", errors.Join(errs...))
+	if len(errs) > 0 {
+		return compiledGlobs, fmt.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
 	}
 
 	return compiledGlobs, nil
@@ -131,15 +136,19 @@ func GetGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGl
 	if len(compiledGlobs) == 0 {
 		return []string{}, nil
 	}
+
 	basePath, err := CanonicalPath("", basePath)
 	if err != nil {
 		return nil, err
 	}
+
 	var paths []string
+
 	var m sync.Mutex
+
 	fwConfig := fastwalk.DefaultConfig.Copy()
 	fwConfig.ToSlash = true
-	fastwalk.Walk(fwConfig, basePath, func(path string, d fs.DirEntry, err error) error {
+	err = fastwalk.Walk(fwConfig, basePath, func(path string, d fs.DirEntry, err error) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -147,6 +156,7 @@ func GetGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGl
 			if err != nil {
 				return err
 			}
+
 			for globPath, compiledGlob := range compiledGlobs {
 				l = l.WithField("glob_path", globPath)
 				if compiledGlob.Match(path) {
@@ -156,19 +166,12 @@ func GetGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGl
 					m.Unlock()
 				}
 			}
+
 			return nil
 		}
 	})
-	return paths, nil
-}
 
-// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(ctx context.Context, l log.Logger, basePath string, globPaths ...string) ([]string, error) {
-	compiledGlobs, err := CompileGlobs(basePath, globPaths...)
-	if err != nil {
-		return nil, err
-	}
-	return GetGlobPaths(ctx, l, basePath, compiledGlobs)
+	return paths, err
 }
 
 // CanonicalPaths returns the canonical version of the given paths, relative to the given base path. That is, if a given path is a
@@ -809,7 +812,7 @@ func GetExcludeDirsFromFile(ctx context.Context, l log.Logger, baseDir, filename
 		return nil, err
 	}
 
-	var dirs []string
+	var dirs []string //nolint: prealloc
 
 	lines := strings.SplitSeq(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	for dir := range lines {

@@ -304,6 +304,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 	if err != nil {
 		return nil, err
 	}
+
 	return unitResolver.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
 }
 
