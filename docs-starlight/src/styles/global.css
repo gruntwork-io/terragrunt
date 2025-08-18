@@ -434,6 +434,21 @@ site-search .pagefind-ui__drawer {
   flex-wrap: wrap;
 }
 
+site-search .pagefind-ui__results {
+  padding-left: 0;
+}
+
+site-search .pagefind-ui__result {
+  padding: 20px 10px;
+}
+
+/* Site Search Dark Mode */
+
+html[data-theme="dark"] site-search input,
+html[data-theme="dark"] site-search .pagefind-ui__result-link  {
+  color: rgb(19, 24, 36);
+}
+
 .pagefind-ui__message {
   padding: 1.5em 0;
   height: auto;
@@ -492,14 +507,6 @@ input.pagefind-ui__search-input:focus {
   margin-bottom: 20px;
 }
 
-.pagefind-ui__result-inner > :last-child {
-  padding: 0 0 1.5em 0;
-}
-
-.pagefind-ui__result-title {
-  padding: 0.6em 0;
-}
-
 /* Fix search result icons - same approach as text fix */
 .pagefind-ui__result svg,
 .pagefind-ui__result svg path {
@@ -508,7 +515,6 @@ input.pagefind-ui__search-input:focus {
 
 .pagefind-ui__result-link,
 .pagefind-ui__result-excerpt {
-  margin-left: 50px;
   color: black;
 }
 
@@ -620,6 +626,7 @@ article.card {
 kbd {
   font-size: var(--sl-text-sm);
   gap: 0;
+  margin: 0 0 0 auto;
 }
 
 /* Contact Form */
