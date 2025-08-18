@@ -136,7 +136,7 @@ export default defineConfig({
         tag: 'meta',
         attrs: {
           name: 'twitter:title',
-          content: 'Terragrunt | IaC Orchestrator',
+          content: 'Terragrunt',
         },
       },
       {
