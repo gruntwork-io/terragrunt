@@ -10,8 +10,6 @@ const brandsCollection = await getCollection('brands');
 const brands = Array.isArray(brandsCollection) ? brandsCollection : [];
 
 const sortedBrands = brands.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
-let LogoContainerWidth = 0;
-
 ---
 <!-- Logos Container -->
 <section class="w-full bg-[#FAFAFA] border-b border-gray-3 py-6 lg:py-9 z-1">
