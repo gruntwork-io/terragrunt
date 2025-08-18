@@ -73,7 +73,7 @@ export const sidebar = [
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://terragrunt-v1.gruntwork.io",
+  site: "https://terragrunt.gruntwork.io",
   output: isVercel ? "server" : "static",
   adapter: isVercel ? vercel({
     imageService: true,
@@ -122,7 +122,7 @@ export default defineConfig({
         tag: 'meta',
         attrs: {
           property: 'og:url',
-          content: 'https://terragrunt-v1.gruntwork.io',
+          content: 'https://terragrunt.gruntwork.io',
         },
       },
       {
