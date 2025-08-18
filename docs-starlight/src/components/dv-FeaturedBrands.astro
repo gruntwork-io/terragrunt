@@ -28,65 +28,53 @@ const sortedBrands = brands.sort((a, b) => (a.data.order || 0) - (b.data.order |
             <div class="pointer-events-none absolute right-0 top-0 h-full w-20 md:w-40 z-10 bg-gradient-to-l from-[#FAFAFA] to-transparent"></div>
 
             <!-- Brand Logos -->
-            <div class="flex animate-marquee items-center justify-start gap-6 px-4 no-scrollbar">
-                {[...sortedBrands, ...sortedBrands].map((brand, i) => (
-                    <Image src={brand.data.logo} alt={brand.data.alt} class="h-8 flex-shrink-0" />
-                ))}
+            <div id="LogoContainer" class="flex flex-row">
+                <div id="Scroller" class="flex flex-row">
+                    <div id="LogoScroll" class="flex animate-marquee items-center justify-start gap-6 no-scrollbar">
+                        {[...sortedBrands, ...sortedBrands].map((brand, i) => (
+                            <Image src={brand.data.logo} alt={brand.data.alt} class="h-8 flex-shrink-0" />
+                        ))}
+                    </div>
+                    <div id="LogoScroll" class="flex animate-marquee items-center justify-start gap-6 no-scrollbar">
+                        {[...sortedBrands, ...sortedBrands].map((brand, i) => (
+                            <Image src={brand.data.logo} alt={brand.data.alt} class="h-8 flex-shrink-0" />
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </section>
 
-<style>
-    @keyframes marquee-sm {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-172%); }
-    }
+<script>
+  const scroller = document.getElementById("Scroller");
 
-    @keyframes marquee-lg {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-140%); }
-    }
+  // select both scroll tracks
+  const logoScrolls = scroller.querySelectorAll("[id^='LogoScroll']");
+  
+  // calculate the width of one track
+  const scrollWidth = logoScrolls[0].offsetWidth;
 
-    @keyframes marquee-xl {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-159%); }
-    }
+  // total distance to scroll
+  const distance = scrollWidth;
 
-    @keyframes marquee-2xl {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-112%); }
-    }
+  // speed in pixels per second
+  const speed = 60; // adjust as needed
 
-    .animate-marquee {
-        animation: marquee-sm 20s linear infinite;
-    }
+  let start = null;
 
-    /* Tablet */
-    @media (min-width: 768px) {
-        .animate-marquee {
-            animation: marquee-sm 20s linear infinite;
-        }
-    }
+  function animate(timestamp) {
+    if (!start) start = timestamp;
+    const elapsed = timestamp - start;
 
-    /* Desktop */
-    @media (min-width: 1024px) {
-        .animate-marquee {
-            animation: marquee-lg 20s linear infinite;
-        }
-    }
+    // calculate current offset
+    const offset = -(elapsed / 1000) * speed % distance;
 
-    /* Desktop */
-    @media (min-width: 1440px) {
-        .animate-marquee {
-            animation: marquee-xl 20s linear infinite;
-        }
-    }
+    scroller.style.transform = `translateX(${offset}px)`;
 
-    /* Desktop */
-    @media (min-width: 1920px) {
-        .animate-marquee {
-            animation: marquee-2xl 20s linear infinite;
-        }
-    }
-</style>
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+
