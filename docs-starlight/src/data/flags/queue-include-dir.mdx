@@ -11,3 +11,14 @@ Specifies directories to include when running commands with [`--all`](/docs/refe
 This flag can be specified multiple times to include multiple directories. When using the `TG_QUEUE_INCLUDE_DIR` environment variable, specify the directories as a comma-separated list.
 
 To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
+
+<Aside type="note">
+Glob patterns must use unix forward slashes `/` to separate directories.
+
+The `*` wildcard indicates any character except `/` e.g. `unit-*` matches
+directories such as `unit-a`, `unit-b`.
+
+The `**` double wildcard indicates any character including `/`, this allows
+matching multiple directory depths e.g. `units/**/unit-*` matches `units/a/unit-a`
+as well as `units/b/c/unit-d`
+</Aside>

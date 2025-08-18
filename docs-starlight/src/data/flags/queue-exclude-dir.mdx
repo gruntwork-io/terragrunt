@@ -21,7 +21,13 @@ Dependencies of excluded units will still be run unless they are also explicitly
 </Aside>
 
 <Aside type="note">
-The glob curly braces expansion behaves differently when using environment variables versus command line parameters.
+Glob patterns must use unix forward slashes `/` to separate directories.
 
-Use `TG_QUEUE_EXCLUDE_DIR="foo/module,bar/module"` instead of `TG_QUEUE_EXCLUDE_DIR="{foo,bar}/module"`.
+The `*` wildcard indicates any character except `/` e.g. `unit-*` matches
+directories such as `unit-a`, `unit-b`.
+
+The `**` double wildcard indicates any character including `/`, this allows
+matching multiple directory depths e.g. `units/**/unit-*` matches `units/a/unit-a`
+as well as `units/b/c/unit-d`
+
 </Aside>

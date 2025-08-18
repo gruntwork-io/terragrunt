@@ -32,12 +32,12 @@ type UnitResolver struct {
 func NewUnitResolver(stack *Stack) (*UnitResolver, error) {
 	includeGlobs, err := util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid include dirs: %w", err)
 	}
 
 	excludeGlobs, err := util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid exclude dirs: %w", err)
 	}
 
 	return &UnitResolver{

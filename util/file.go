@@ -797,7 +797,7 @@ func GetTempDir() (string, error) {
 }
 
 // GetExcludeDirsFromFile returns a list of directories from the given filename, where each directory path starts on a new line.
-func GetExcludeDirsFromFile(ctx context.Context, l log.Logger, baseDir, filename string) ([]string, error) {
+func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
 	if err != nil {
 		return nil, err

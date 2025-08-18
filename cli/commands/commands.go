@@ -388,7 +388,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	slices.Sort(opts.IncludeDirs)
 	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(cliCtx.Context, l, opts.WorkingDir, opts.ExcludesFile)
+	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
