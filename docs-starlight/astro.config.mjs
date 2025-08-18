@@ -10,8 +10,6 @@ import starlightLinksValidator from "starlight-links-validator";
 import d2 from "astro-d2";
 import tailwindcss from "@tailwindcss/vite";
 
-
-
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
 
