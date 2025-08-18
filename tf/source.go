@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -87,26 +88,30 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 				return nil
 			})
 		} else {
-			err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+			err = filepath.WalkDir(sourceDir, func(path string, entry fs.DirEntry, err error) error {
 				if err != nil {
 					// If we've encountered an error while walking the tree, give up
 					return err
 				}
 
-				if info.IsDir() {
+				if entry.IsDir() {
+					// avoid checking files in .terragrunt-cache directory since contents is auto-generated
+					if strings.Contains(path, util.TerragruntCacheDir) {
+						return filepath.SkipDir
+					}
+					// avoid checking files in .terraform directory since contents is auto-generated
+					if entry.Name() == util.TerraformLockFile {
+						return filepath.SkipDir
+					}
 					// We don't use any info from directories to calculate our hash
 					return nil
 				}
-				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-				if strings.Contains(path, util.TerragruntCacheDir) {
-					return nil
-				}
-				// avoid checking files in .terraform directory since contents is auto-generated
-				if info.Name() == util.TerraformLockFile {
-					return nil
-				}
 
-				fileModified := info.ModTime().UnixMicro()
+				fileInfo, err := os.Stat(path)
+				if err != nil {
+					return err
+				}
+				fileModified := fileInfo.ModTime().UnixMicro()
 				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
 				sourceHash.Write([]byte(hashContents))
 
@@ -144,7 +149,7 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 		}
 	}
 
-	const ownerReadWriteGroupReadPerms = 0640
+	const ownerReadWriteGroupReadPerms = 0o640
 
 	return errors.New(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
