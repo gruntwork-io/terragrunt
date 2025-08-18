@@ -14,16 +14,16 @@
     "@astrojs/sitemap": "^3.5.0",
     "@astrojs/starlight": "^0.35.1",
     "@astrojs/starlight-tailwind": "^4.0.1",
-    "@astrojs/vercel": "^8.2.3",
-    "@tailwindcss/vite": "^4.1.11",
-    "astro": "^5.12.3",
+    "@astrojs/vercel": "^8.2.6",
+    "@tailwindcss/vite": "^4.1.12",
+    "astro": "^5.13.2",
     "astro-d2": "^0.8.0",
     "gray-matter": "^4.0.3",
     "sharp": "^0.34.3",
-    "starlight-links-validator": "^0.17.0"
+    "starlight-links-validator": "^0.17.1"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.19"
+    "@types/bun": "^1.2.20"
   },
   "overrides": {
     "estree-walker": "2.0.2"
