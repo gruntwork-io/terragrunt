@@ -73,7 +73,7 @@ export const sidebar = [
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://terragrunt-v1.gruntwork.io",
+  site: "https://terragrunt.gruntwork.io",
   output: isVercel ? "server" : "static",
   adapter: isVercel ? vercel({
     imageService: true,
@@ -83,12 +83,69 @@ export default defineConfig({
   }) : undefined,
   integrations: [starlight({
     title: "Terragrunt",
+    description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
     editLink: {
       // TODO: update this once the docs live in `docs`.
       baseUrl: "https://github.com/gruntwork-io/terragrunt/edit/main/docs-starlight",
     },
     customCss: ["./src/styles/global.css"],
     head: [
+      {
+        tag: 'meta',
+        attrs: {
+          name: 'description',
+          content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          property: 'og:title',
+          content: 'Terragrunt',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          property: 'og:description',
+          content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          property: 'og:type',
+          content: 'website',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          property: 'og:url',
+          content: 'https://terragrunt.gruntwork.io',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          name: 'twitter:card',
+          content: 'summary_large_image',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          name: 'twitter:title',
+          content: 'Terragrunt',
+        },
+      },
+      {
+        tag: 'meta',
+        attrs: {
+          name: 'twitter:description',
+          content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+        },
+      },
       {
         tag: 'script',
         attrs: {
