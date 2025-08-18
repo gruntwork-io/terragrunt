@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@astrojs/partytown": "^2.1.4",
+    "@astrojs/sitemap": "^3.5.0",
     "@astrojs/starlight": "^0.35.1",
     "@astrojs/starlight-tailwind": "^4.0.1",
     "@astrojs/vercel": "^8.2.3",
