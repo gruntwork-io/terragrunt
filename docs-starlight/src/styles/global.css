@@ -440,16 +440,26 @@ site-search .pagefind-ui__drawer {
 }
 
 #starlight__search .pagefind-ui__form:before {
-  background-color: black;
+  background-color: black !important;
 }
 
 input.pagefind-ui__search-input {
   background-color: white;
+  color: black;
   border: 1px solid oklch(0.871 0.006 286.286);
   border-radius: 8px;
   max-width: 590px;
   padding-left: 50px;
   width: -webkit-fill-available;
+}
+
+input.pagefind-ui__search-input::placeholder {
+  color: #666;
+}
+
+input.pagefind-ui__search-input:focus {
+  outline: 2px solid #448daf;
+  outline-offset: 2px;
 }
 
 .pagefind-ui__search-clear {
@@ -477,6 +487,7 @@ input.pagefind-ui__search-input {
 
 .pagefind-ui__result {
   background: white;
+  color: black;
   border-radius: 8px;
   margin-bottom: 20px;
 }
@@ -489,9 +500,24 @@ input.pagefind-ui__search-input {
   padding: 0.6em 0;
 }
 
+/* Fix search result icons - same approach as text fix */
+.pagefind-ui__result svg,
+.pagefind-ui__result svg path {
+  fill: black;
+}
+
 .pagefind-ui__result-link,
 .pagefind-ui__result-excerpt {
   margin-left: 50px;
+  color: black;
+}
+
+.pagefind-ui__result-title a {
+  color: black;
+}
+
+.pagefind-ui__result-title a:hover {
+  color: #448daf;
 }
 
 /* Fix to site-search button area smaller on mobile */
