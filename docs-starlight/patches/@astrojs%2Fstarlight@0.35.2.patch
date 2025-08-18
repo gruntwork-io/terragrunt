@@ -1,6 +1,3 @@
-diff --git a/node_modules/@astrojs/starlight/.bun-tag-96642a5e7ef0db7a b/.bun-tag-96642a5e7ef0db7a
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/user-components/file-tree-icons.ts b/user-components/file-tree-icons.ts
 index a56af50b7544ccd905d036feaf5ab2844ac80263..6c2f24aa1be763841b39a9acb247d6be5a2bf9db 100644
 --- a/user-components/file-tree-icons.ts

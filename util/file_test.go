@@ -724,3 +724,21 @@ func Test_sanitizePath(t *testing.T) {
 		})
 	}
 }
+
+func TestMoveFile(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+
+	src := filepath.Join(tempDir, "src.txt")
+	dst := filepath.Join(tempDir, "dst.txt")
+
+	require.NoError(t, os.WriteFile(src, []byte("test"), 0644))
+	require.NoError(t, util.MoveFile(src, dst))
+
+	// Verify the file was moved
+	_, err := os.Stat(src)
+	require.True(t, os.IsNotExist(err))
+	contents, err := os.ReadFile(dst)
+	require.NoError(t, err)
+	assert.Equal(t, "test", string(contents))
+}
