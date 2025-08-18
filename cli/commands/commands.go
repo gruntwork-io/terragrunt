@@ -384,19 +384,35 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
+	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
+
 	// Sort and compact opts.IncludeDirs to make them unique
 	slices.Sort(opts.IncludeDirs)
 	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	if !doubleStarEnabled {
+		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return fmt.Errorf("invalid include dirs: %w", err)
+		}
+	}
+
+	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
+	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
 	// Sort and compact opts.ExcludeDirs to make them unique
 	slices.Sort(opts.ExcludeDirs)
 	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
+
+	if !doubleStarEnabled {
+		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return fmt.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

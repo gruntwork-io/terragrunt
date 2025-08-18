@@ -23,27 +23,43 @@ import (
 
 // UnitResolver provides common functionality for resolving Terraform units from Terragrunt configuration files.
 type UnitResolver struct {
-	Stack        *Stack
-	includeGlobs map[string]glob.Glob
-	excludeGlobs map[string]glob.Glob
+	Stack             *Stack
+	includeGlobs      map[string]glob.Glob
+	excludeGlobs      map[string]glob.Glob
+	doubleStarEnabled bool
 }
 
 // NewUnitResolver creates a new UnitResolver with the given stack.
-func NewUnitResolver(stack *Stack) (*UnitResolver, error) {
-	includeGlobs, err := util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
-	if err != nil {
-		return nil, fmt.Errorf("invalid include dirs: %w", err)
-	}
+func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
+	var includeGlobs map[string]glob.Glob
 
-	excludeGlobs, err := util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
-	if err != nil {
-		return nil, fmt.Errorf("invalid exclude dirs: %w", err)
+	var excludeGlobs map[string]glob.Glob
+
+	doubleStarEnabled := false
+
+	if stack.TerragruntOptions.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(ctx) != nil {
+		var err error
+
+		doubleStarEnabled = true
+
+		includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
+
+		if err != nil {
+			return nil, fmt.Errorf("invalid include dirs: %w", err)
+		}
+
+		excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
+
+		if err != nil {
+			return nil, fmt.Errorf("invalid exclude dirs: %w", err)
+		}
 	}
 
 	return &UnitResolver{
-		Stack:        stack,
-		includeGlobs: includeGlobs,
-		excludeGlobs: excludeGlobs,
+		Stack:             stack,
+		doubleStarEnabled: doubleStarEnabled,
+		includeGlobs:      includeGlobs,
+		excludeGlobs:      excludeGlobs,
 	}, nil
 }
 
@@ -320,11 +336,24 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 
 	includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
 
-	for globPath, glob := range r.excludeGlobs {
-		if glob.Match(unitPath) {
-			l.Debugf("Unit %s is excluded by glob %s", unitPath, globPath)
-			return &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
+	excludeFn := func(l log.Logger, unitPath string) bool {
+		for globPath, glob := range r.excludeGlobs {
+			if glob.Match(unitPath) {
+				l.Debugf("Unit %s is excluded by glob %s", unitPath, globPath)
+				return true
+			}
 		}
+
+		return false
+	}
+	if !r.doubleStarEnabled {
+		excludeFn = func(l log.Logger, unitPath string) bool {
+			return collections.ListContainsElement(opts.ExcludeDirs, unitPath)
+		}
+	}
+
+	if excludeFn(l, unitPath) {
+		return &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
 	parseCtx := r.createParsingContext(ctx, l, opts)
@@ -596,13 +625,30 @@ func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.L
 		return units
 	}
 
-	for _, unit := range units {
-		unit.FlagExcluded = true
+	includeFn := func(l log.Logger, unit *Unit) bool {
 		for globPath, glob := range r.includeGlobs {
 			if glob.Match(unit.Path) {
-				unit.FlagExcluded = false
 				l.Debugf("Unit %s is included by glob %s", unit.Path, globPath)
+				return true
 			}
+		}
+
+		return false
+	}
+	if !r.doubleStarEnabled {
+		includeFn = func(l log.Logger, unit *Unit) bool {
+			if unit.FindUnitInPath(opts.IncludeDirs) {
+				return true
+			} else {
+				return false
+			}
+		}
+	}
+
+	for _, unit := range units {
+		unit.FlagExcluded = true
+		if includeFn(l, unit) {
+			unit.FlagExcluded = false
 		}
 	}
 
@@ -760,23 +806,64 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 // flagExcludedDirs iterates over a unit slice and flags all entries as excluded listed in the queue-exclude-dir CLI flag.
 func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	// If we don't have any excludes, we don't need to do anything.
-	if len(r.excludeGlobs) == 0 {
+	if (len(r.excludeGlobs) == 0 && r.doubleStarEnabled) || len(opts.ExcludeDirs) == 0 {
 		return units
 	}
 
-	for _, unit := range units {
+	excludeFn := func(l log.Logger, unit *Unit) bool {
 		for globPath, glob := range r.excludeGlobs {
 			if glob.Match(unit.Path) {
-				// Mark unit itself as excluded
-				unit.FlagExcluded = true
 				l.Debugf("Unit %s is excluded by glob %s", unit.Path, globPath)
+				return true
+			}
+		}
+
+		return false
+	}
+	if !r.doubleStarEnabled {
+		excludeFn = func(l log.Logger, unit *Unit) bool {
+			if unit.FindUnitInPath(opts.ExcludeDirs) {
+				return true
+			} else {
+				return false
+			}
+		}
+	}
+
+	for _, unit := range units {
+		if excludeFn(l, unit) {
+			// Mark unit itself as excluded
+			unit.FlagExcluded = true
+
+			if opts.Experiments.Evaluate(experiment.Report) {
+				// TODO: Make an upsert option for ends,
+				// so that I don't have to do this every time.
+				run, err := reportInstance.EnsureRun(unit.Path)
+				if err != nil {
+					l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
+					continue
+				}
+
+				if err := reportInstance.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeDir),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
+					continue
+				}
+			}
+		}
+
+		// Mark all affected dependencies as excluded
+		for _, dependency := range unit.Dependencies {
+			if excludeFn(l, dependency) {
+				dependency.FlagExcluded = true
 
 				if opts.Experiments.Evaluate(experiment.Report) {
-					// TODO: Make an upsert option for ends,
-					// so that I don't have to do this every time.
-					run, err := reportInstance.EnsureRun(unit.Path)
+					run, err := reportInstance.EnsureRun(dependency.Path)
 					if err != nil {
-						l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
+						l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
 						continue
 					}
 
@@ -785,35 +872,8 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(report.ReasonExcludeDir),
 					); err != nil {
-						l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
+						l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
 						continue
-					}
-				}
-			}
-		}
-
-		// Mark all affected dependencies as excluded
-		for _, dependency := range unit.Dependencies {
-			for globPath, glob := range r.excludeGlobs {
-				if glob.Match(dependency.Path) {
-					l.Debugf("Dependency %s is excluded by glob %s", dependency.Path, globPath)
-					dependency.FlagExcluded = true
-
-					if opts.Experiments.Evaluate(experiment.Report) {
-						run, err := reportInstance.EnsureRun(dependency.Path)
-						if err != nil {
-							l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
-							continue
-						}
-
-						if err := reportInstance.EndRun(
-							run.Path,
-							report.WithResult(report.ResultExcluded),
-							report.WithReason(report.ReasonExcludeDir),
-						); err != nil {
-							l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
-							continue
-						}
 					}
 				}
 			}

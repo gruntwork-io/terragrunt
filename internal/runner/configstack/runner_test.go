@@ -684,6 +684,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	opts.ExcludeDirs = []string{"../../../test/fixtures/modules/module-a*"}
+	opts.StrictControls.FilterByNames("double-star").Enable()
 
 	l := logger.CreateLogger()
 

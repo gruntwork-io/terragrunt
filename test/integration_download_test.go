@@ -286,10 +286,14 @@ func TestExcludeDirs(t *testing.T) {
 		workingDir            string
 		excludeArgs           string
 		excludedModuleOutputs []string
+		enableDoubleStar      bool
 	}{
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, false},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, false},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, false},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, true},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, true},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, true},
 	}
 
 	modulePaths := make(map[string]string, len(moduleNames))
@@ -308,7 +312,11 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s", tc.workingDir, tc.excludeArgs), &applyAllStdout, &applyAllStderr)
+		strictControl := ""
+		if tc.enableDoubleStar {
+			strictControl = "--strict-control double-star"
+		}
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", tc.workingDir, tc.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
