@@ -21,6 +21,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@astrojs/starlight@0.35.2": "patches/@astrojs%2Fstarlight@0.35.2.patch",
+  },
   "overrides": {
     "estree-walker": "2.0.2",
   },
