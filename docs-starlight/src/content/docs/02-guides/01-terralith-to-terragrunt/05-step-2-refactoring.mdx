@@ -6,7 +6,7 @@ sidebar:
   order: 5
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 
 One of the most important skills you can learn when managing IaC is learning how to refactor IaC. The code you write directly relates to infrastructure that delivers value to your team and wider organization, so knowing how to safely reorganize your code so that it's easier to reuse and reason about without incurring risk for the infrastructure you support is invaluable.
 
@@ -461,7 +461,11 @@ variable "force_destroy" {
 
 ```
 
-After all this refactoring, we'll want to run a `plan` to make sure we can safely apply our changes. Note that you'll need to re-initialize now that you're using modules here.
+After all this refactoring, we'll want to run a `plan` to make sure we can safely apply our changes.
+
+<Aside type="note">
+You'll need to re-initialize now that you're using modules here.
+</Aside>
 
 ```bash
 $ tofu init

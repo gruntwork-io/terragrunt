@@ -6,7 +6,7 @@ sidebar:
   order: 9
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 
 You've successfully added Terragrunt to your project, eliminating significant boilerplate from each of your `dev` and `prod` environments. While your environments are now isolated from each other, the resources *within* each environment (your S3 bucket, DynamoDB table, IAM role, and Lambda function) are still managed together in a single state file. This is essentially a smaller-scale Terralith within each environment.
 
@@ -139,7 +139,9 @@ inputs = {
 }
 ```
 
-NOTE: Unfortunately, OpenTofu doesn't have a way of specifying certain inputs as “unknown” [as of yet](https://github.com/opentofu/opentofu/issues/812), but we can work around this limitation by taking advantage of Terragrunt's ability to mock outputs from dependencies using `mock_outputs`. This allows us to plan successfully without worrying about getting errors that required variables aren't passed in.
+<Aside type="note">
+Unfortunately, OpenTofu doesn't have a way of specifying certain inputs as “unknown” [as of yet](https://github.com/opentofu/opentofu/issues/812), but we can work around this limitation by taking advantage of Terragrunt's ability to mock outputs from dependencies using `mock_outputs`. This allows us to plan successfully without worrying about getting errors that required variables aren't passed in.
+</Aside>
 
 Note that some providers like the AWS provider require these inputs to be well formed (in this case, they have to be valid AWS ARNs). In these scenarios, it can be important to provide valid looking ARNs as a consequence to satisfy provider validations. If you just passed `mock-bucket-arn` as the value of the input `s3_bucket_arn`, the AWS provider might throw an error during plans, as it expects the value to look more like `arn:aws:s3:::mock-bucket-name`, and it assumes that the user made an error.
 

@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 
 During this step we're going to take the contents of the `dist` directory, and deploy the application in AWS using OpenTofu. The content that we're going to create here is not intended to be a best-practices IaC setup, but rather what one might do if they were to naively put together the IaC for this application from scratch without knowledge of best practices, or planning for future modifications.
 
@@ -308,7 +308,9 @@ variable "force_destroy" {
 
 Also add an `.auto.tfvars` file to define values for these variables automatically. This isn't strictly required as you'll be prompted for the values of required variables interactively if you don't supply them here, but it does make your life easier.
 
-Note that you'll want to make sure that `name` is set to something globally unique, as it'll be used as part of an S3 bucket name, which might conflict with a bucket created by somebody else otherwise (a simple way to decrease your odds of a collision is to use something like the date in your bucket name).
+<Aside type="note">
+You'll want to make sure that `name` is set to something globally unique, as it'll be used as part of an S3 bucket name, which might conflict with a bucket created by somebody else otherwise (a simple way to decrease your odds of a collision is to use something like the date in your bucket name).
+</Aside>
 
 ```hcl
 # live/.auto.tfvars
@@ -377,7 +379,9 @@ terraform {
 }
 ```
 
-Note that we're using the special new ✨ lockfile-based state locking ✨ made available in OpenTofu 1.10! This is especially convenient for this guide, as it saves us from provisioning an additional DynamoDB table to handle state locking.
+<Aside type="note">
+We're using the special new ✨ lockfile-based state locking ✨ made available in OpenTofu 1.10! This is especially convenient for this guide, as it saves us from provisioning an additional DynamoDB table to handle state locking.
+</Aside>
 
 Unfortunately, OpenTofu will not provision this bucket for us automatically, so we will have to provision that manually.
 

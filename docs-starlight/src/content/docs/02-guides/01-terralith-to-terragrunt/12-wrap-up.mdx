@@ -23,19 +23,29 @@ If you'd like to continue practicing on your own, consider how you might continu
 
 - **Nested Stacks**: What if you wanted to manage both the `dev` and `prod` environments from a single, top-level file using the [Environment-based Stacks pattern](https://terragrunt.gruntwork.io/docs/features/stacks/#environment-based-stacks)? Think about how you would refactor your current setup to achieve this. Would you need to perform more state manipulation? If so, which techniques from this guide would you leverage to accomplish it safely?
 
-    tip: Review the state migration steps!
+import { Aside } from '@astrojs/starlight/components';
+
+    <Aside type="tip">
+      Review the state migration steps!
+    </Aside>
 
 - **Integrating Terragrunt Into Your Build System**: In this guide, the artifact that's deployed to Lambda is manually packaged by you before provisioning any infrastructure. Terragrunt has special tooling in [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/) to automate manual tasks like this for you on-demand as you interact with your infrastructure. How would you integrate that into the configurations you've built so far?
 
-    tip: You might find an example of this in our [example catalog](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt)!
+    <Aside type="tip">
+      You might find an example of this in our [example catalog](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt)!
+    </Aside>
 
 - **Testing Our IaC**: If you were to use this infrastructure in production, you might want the underlying patterns (and perhaps the live infrastructure) tested automatically, rather than just applying the IaC and manually verifying that it is working correctly. How would you go about doing that?
 
-    tip: You might find a helpful tool to accomplish that in [Terratest](https://terratest.gruntwork.io/)!
+    <Aside type="tip">
+      You might find a helpful tool to accomplish that in [Terratest](https://terratest.gruntwork.io/)!
+    </Aside>
 
 - **Automating Plan Assessments**: Throughout this guide, you engaged in careful manual evaluation of plans, and it was hinted early on that tools like [OPA](https://www.openpolicyagent.org/) provide a way to automatically assess the risk of plans. How would you integrate them into Terragrunt?
 
-    tip: You might find it useful to review the documentation on [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/)!
+    <Aside type="tip">
+      You might find it useful to review the documentation on [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/)!
+    </Aside>
 
 This was a simple example, but if you're struggling with a Terralith, your use-case is almost definitely more complex! Gruntwork offers support for assisting customers transition out of Terraliths into maintainable, best practices IaC codebases.
 

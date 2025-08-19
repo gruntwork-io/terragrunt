@@ -6,7 +6,7 @@ sidebar:
   order: 10
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 
 Up until relatively recently in the history of Terragrunt, the proliferation of `terragrunt.hcl` files was the trade-off platform engineers had to accept for state segmentation. Luckily, with the advent of [Terragrunt Stacks](/docs/features/stacks/), that's not the case anymore. Collections of units, like the ones you created in the last step, can be generated on-demand using `terragrunt.stack.hcl` files. This saves you from having to duplicate `terragrunt.hcl` files across your codebase.
 
@@ -16,7 +16,9 @@ In this step, you will migrate to this modern pattern. You'll start by persistin
 
 Let's start migrating to Terragrunt Stacks by persisting unit definitions in the `catalog`.
 
-Note that we copy over `.terraform.lock.hcl` files in addition to `terragrunt.hcl` files here. Persisting `.terraform.lock.hcl` files is a best practice to ensure reproducibility of units, and to maximize the performance of OpenTofu (as OpenTofu relies on the availability of this file when determining whether it can safely reuse content in the provider cache directory).
+<Aside type="tip">
+We copy over `.terraform.lock.hcl` files in addition to `terragrunt.hcl` files here. Persisting `.terraform.lock.hcl` files is a best practice to ensure reproducibility of units, and to maximize the performance of OpenTofu (as OpenTofu relies on the availability of this file when determining whether it can safely reuse content in the provider cache directory).
+</Aside>
 
 ```bash
 mkdir -p catalog/units/{ddb, iam, lambda, s3}
@@ -89,7 +91,9 @@ inputs = {
 }
 ```
 
-Note that we're not just using the `values` variable for the inputs that differ between stacks, like the `name` and `aws_region`. We can use them for any value we want to substitute in our `terragrunt.hcl` files, including the relative paths to other units (which we might want to be dynamic if we're going to refactor or add additional dependencies, etc.)
+<Aside type="note">
+We're not just using the `values` variable for the inputs that differ between stacks, like the `name` and `aws_region`. We can use them for any value we want to substitute in our `terragrunt.hcl` files, including the relative paths to other units (which we might want to be dynamic if we're going to refactor or add additional dependencies, etc.)
+</Aside>
 
 ```hcl
 # catalog/units/lambda/terragrunt.hcl

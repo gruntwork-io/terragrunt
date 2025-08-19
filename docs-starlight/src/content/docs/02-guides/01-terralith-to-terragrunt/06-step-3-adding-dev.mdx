@@ -6,7 +6,7 @@ sidebar:
   order: 6
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 
 In the last step, you engaged in the foundational work of refactoring your monolithic configuration into a set of reusable modules, still instantiated in a single root module. Now it's time to leverage those newly develop skills to create new infrastructure.
 
@@ -18,7 +18,9 @@ In this step, you'll take the infrastructure you've created so far, do one more 
 
 Let's introduce that new higher level module as a new module named `best_cat`. It will provision the `s3`, `ddb`, `lambda` and `iam` modules we added in the last step, and wire them together. This will give us a single entity that we can duplicate across environments.
 
-Note that we're basically taking all the stuff in `live` and shoving it into this new `best_cat` module.
+<Aside type="note">
+We're basically taking all the stuff in `live` and shoving it into this new `best_cat` module.
+</Aside>
 
 ```hcl
 # catalog/modules/best_cat/main.tf
@@ -330,7 +332,11 @@ We should have a project layout that looks like this now:
 
 ## Applying Updates
 
-Now we can deploy our changes. Note that we need to re-initialize here as we've added a new module.
+Now we can deploy our changes.
+
+<Aside type="note">
+We need to re-initialize here as we've added a new module.
+</Aside>
 
 ```bash
 # live
@@ -343,7 +349,9 @@ We now have our new, fresh dev environment!
 
 ![fresh-dev-environment](../../../../assets/img/guides/terralith-to-terragrunt/app-without-images.png)
 
-Note that this environment is *very* fresh, however. We don't have the static assets uploaded, and we're working with a fresh database. This guide isn't going to into the ways in which Terragrunt could integrate into your build system to do this for you automatically, but know that it *is* part of Terragrunt's feature set to handle this kind of thing. There are hints at the end of this guide to point those capabilities out and encourage your own exploration.
+<Aside type="note">
+This environment is *very* fresh. We don't have the static assets uploaded, and we're working with a fresh database. This guide isn't going to into the ways in which Terragrunt could integrate into your build system to do this for you automatically, but know that it *is* part of Terragrunt's feature set to handle this kind of thing. There are hints at the end of this guide to point those capabilities out and encourage your own exploration.
+</Aside>
 
 ## Trade-offs
 

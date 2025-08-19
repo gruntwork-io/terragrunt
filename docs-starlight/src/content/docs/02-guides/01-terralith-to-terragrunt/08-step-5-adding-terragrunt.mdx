@@ -64,7 +64,11 @@ Group 1
 ...
 ```
 
-TIP: You can also use multiple `--queue-include-dir` flags, and globs for pattern matching, as you'll see later in the guide.
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+You can also use multiple `--queue-include-dir` flags, and globs for pattern matching, as you'll see later in the guide.
+</Aside>
 
 Terragrunt is frequently adopted gradually in this manner. If you have an infrastructure problem you want addressed, you can gradually introduce more and more Terragrunt tooling to address those problems.
 
@@ -86,7 +90,9 @@ terraform {
 }
 ```
 
-NOTE: Those `//` are there on purpose. They're how `go-getter`, the library that Terragrunt uses (just like OpenTofu), indicates that it's working with a directory *within* a module source. This allows relative references like `../s3` to work within the `best_cat` module.
+<Aside type="note">
+Those `//` are there on purpose. They're how `go-getter`, the library that Terragrunt uses (just like OpenTofu), indicates that it's working with a directory *within* a module source. This allows relative references like `../s3` to work within the `best_cat` module.
+</Aside>
 
 With those changes, we can now remove the unnecessary boilerplate related to invoking the shared module.
 
@@ -486,7 +492,9 @@ moved {
 }
 ```
 
-NOTE: This is an important movement to take note of. Even though we introduced the new abstraction of the Terragrunt unit, we actually reduced indirection in OpenTofu. As we'll see again later in this guide, creating granular Terragrunt units results in simpler OpenTofu modules, reducing the complexity of each unit of infrastructure.
+<Aside type="note">
+This is an important movement to take note of. Even though we introduced the new abstraction of the Terragrunt unit, we actually reduced indirection in OpenTofu. As we'll see again later in this guide, creating granular Terragrunt units results in simpler OpenTofu modules, reducing the complexity of each unit of infrastructure.
+</Aside>
 
 We can also remove the `removed.tf` files now that we've already “forgotten” them.
 

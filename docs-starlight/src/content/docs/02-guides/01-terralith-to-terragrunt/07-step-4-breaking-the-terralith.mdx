@@ -6,7 +6,7 @@ sidebar:
   order: 7
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 
 In the previous step, you successfully duplicated your `prod` environment as a new `dev` environment by replicating your `prod` module declaration as a new `dev` module instance in your `live/main.tf` file. While this demonstrated the power of reusable modules, it also introduced significant risk: the ***Terralith***. You've tightly coupled management of both your `dev` and `prod` environments in a single state file, and you introduce risk to one whenever you attempt to make changes to another.
 
@@ -102,7 +102,9 @@ module "main" {
 }
 ```
 
-**NOTE:** these two files are now *exactly the same*. This will be important to keep in mind later.
+<Aside type="note">
+These two files are now *exactly the same*. This will be important to keep in mind later.
+</Aside>
 
 Given that we've renamed the the module, we'll also need to add `moved` blocks to handle the state moves that need to take place here. If you're not sure what we're doing here, consider reviewing earlier steps.
 
@@ -254,7 +256,9 @@ output "s3_bucket_name" {
 }
 ```
 
-**NOTE:** These two files are *also* *exactly the same*. This will be important to keep in mind later.
+<Aside type="note">
+These two files are *also exactly the same*. This will be important to keep in mind later.
+</Aside>
 
 Finally, we need to update the `.auto.tfvars` files to reflect the difference in inputs passed to variables in these two root modules.
 
@@ -278,7 +282,9 @@ name = "best-cat-2025-07-31-01-dev"
 lambda_zip_file = "../../dist/best-cat.zip"
 ```
 
-**NOTE:** These two files differ in that they have different `name` values.
+<Aside type="note">
+These two files differ in that they have different `name` values. They're not identical, but they're very similar.
+</Aside>
 
 It's time for some more state manipulation! We currently have a single state file in S3 at `s3://[your-state-bucket]/tofu.tfstate`. Our plan for splitting the state is to basically duplicate state for both the `dev` and `prod` root modules, then remove resources that we don't need from state in each of the root modules.
 
