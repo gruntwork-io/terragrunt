@@ -6,7 +6,7 @@ sidebar:
   order: 8
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { Aside, FileTree } from '@astrojs/starlight/components';
 
 In the last step, you took a massive leap forward in safety by breaking your Terralith into separate `dev` and `prod` root modules. The trade-off, however, is that you've created a significant amount of boilerplate and duplication. Your `dev` and `prod` directories are filled with nearly identical `.tf` files (if not completely identical), and managing them involves a lot of careful copy-pasting. You also can't conveniently manage multiple root modules at once. This isn't scalable and is prone to error.
 
@@ -63,12 +63,6 @@ Group 1
 
 ...
 ```
-
-import { Aside } from '@astrojs/starlight/components';
-
-<Aside type="tip">
-You can also use multiple `--queue-include-dir` flags, and globs for pattern matching, as you'll see later in the guide.
-</Aside>
 
 Terragrunt is frequently adopted gradually in this manner. If you have an infrastructure problem you want addressed, you can gradually introduce more and more Terragrunt tooling to address those problems.
 
