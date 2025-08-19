@@ -1,7 +1,7 @@
 name: Build Without Go Proxy
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   build-no-proxy:
@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2

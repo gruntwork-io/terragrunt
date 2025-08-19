@@ -39,3 +39,7 @@ updates:
     labels:
       - "javascript"
       - "dependencies"
+    ignore:
+      - dependency-name: "@astrojs/starlight"
+        # Custom patch applied - manual updates required
+        # When updating, you have to manually update the patch in the docs-starlight/package.json

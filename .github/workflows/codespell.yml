@@ -1,7 +1,7 @@
 name: Codespell
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   codespell:
@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create default packages file
         run: |

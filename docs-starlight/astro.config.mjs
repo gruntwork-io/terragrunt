@@ -1,12 +1,17 @@
 // @ts-check
 import { defineConfig } from "astro/config";
+
 import starlight from "@astrojs/starlight";
-import starlightLinksValidator from "starlight-links-validator";
+import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
+import partytown from "@astrojs/partytown";
+
+import starlightLinksValidator from "starlight-links-validator";
 import d2 from "astro-d2";
 import tailwindcss from "@tailwindcss/vite";
 
-import partytown from "@astrojs/partytown";
+// Check if we're in Vercel environment
+const isVercel = globalThis.process?.env?.VERCEL;
 
 export const sidebar = [
   {
@@ -70,84 +75,164 @@ export const sidebar = [
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://terragrunt-v1.gruntwork.io",
-  output: "server",
-  adapter: vercel({
-    isr: {
-      expiration: 60 * 60 * 24, // 24 hours
-    },
-  }),
-  integrations: [starlight({
-    title: "Terragrunt",
-    editLink: {
-      // TODO: update this once the docs live in `docs`.
-      baseUrl: "https://github.com/gruntwork-io/terragrunt/edit/main/docs-starlight",
-    },
-    customCss: ["./src/styles/global.css"],
-    head: [
-      {
-        tag: 'script',
-        attrs: {
-          src: 'https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL',
-          type: 'text/partytown',
+  site: "https://terragrunt.gruntwork.io",
+  output: isVercel ? "server" : "static",
+  adapter: isVercel
+    ? vercel({
+        imageService: true,
+        isr: {
+          expiration: 60 * 60 * 24, // 24 hours
         },
+      })
+    : undefined,
+  integrations: [
+    starlight({
+      title: "Terragrunt",
+      description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
+      editLink: {
+        // TODO: update this once the docs live in `docs`.
+        baseUrl:
+          "https://github.com/gruntwork-io/terragrunt/edit/main/docs-starlight",
       },
-      {
-        tag: 'script',
-        attrs: {
-          type: 'text/partytown',
+      customCss: ["./src/styles/global.css"],
+      head: [
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'description',
+            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+          },
         },
-        content: `
-          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer','GTM-5TTJJGTL');
-          `,
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:title',
+            content: 'Terragrunt',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:description',
+            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:type',
+            content: 'website',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:url',
+            content: 'https://terragrunt.gruntwork.io',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:card',
+            content: 'summary_large_image',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:title',
+            content: 'Terragrunt',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:description',
+            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+          },
+        },
+        {
+          tag: "script",
+          attrs: {
+            src: "https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL",
+            type: "text/partytown",
+          },
+        },
+        {
+          tag: "script",
+          attrs: {
+            type: "text/partytown",
+          },
+          content: `
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-5TTJJGTL');
+        `,
+        },
+        {
+          tag: "script",
+          attrs: {
+            type: "text/javascript",
+            id: "hs-script-loader",
+            async: true,
+            defer: true,
+            src: "//js.hs-scripts.com/8376079.js",
+          },
+        },
+      ],
+      components: {
+        Header: "./src/components/Header.astro",
+        SiteTitle: "./src/components/SiteTitle.astro",
+        SkipLink: "./src/components/SkipLink.astro",
       },
-    ],
-    components: {
-      Header: './src/components/Header.astro',
-      SiteTitle: './src/components/SiteTitle.astro',
-      SkipLink: './src/components/SkipLink.astro',
-    },
-    logo: {
-      dark: "/src/assets/horizontal-logo-light.svg",
-      light: "/src/assets/horizontal-logo-dark.svg",
-    },
-    social: [
-        { icon: "discord", label: "Discord", href: "https://discord.gg/SPu4Degs5f" },
-    ],
-    sidebar: sidebar,
-    // NOTE: We don't currently check links by default because the CLI
-    // Redesign isn't done yet. Once those pages are built out, we'll require
-    // links to be checked for all builds.
-    plugins: [
-      starlightLinksValidator({
-        exclude: [
-          // Used in the docs for OpenTelemetry
-          "http://localhost:16686/",
-          "http://localhost:9090/",
+      logo: {
+        dark: "/src/assets/horizontal-logo-light.svg",
+        light: "/src/assets/horizontal-logo-dark.svg",
+      },
+      social: [
+        {
+          icon: "discord",
+          label: "Discord",
+          href: "https://discord.gg/SPu4Degs5f",
+        },
+      ],
+      sidebar: sidebar,
+      // NOTE: We don't currently check links by default because the CLI
+      // Redesign isn't done yet. Once those pages are built out, we'll require
+      // links to be checked for all builds.
+      plugins: [
+        starlightLinksValidator({
+          exclude: [
+            // Used in the docs for OpenTelemetry
+            "http://localhost:16686/",
+            "http://localhost:9090/",
 
-          // Unfortunately, these have to be ignored, as they're
-          // referencing content that is generated outside the contents of the markdown file.
-          "/docs/reference/cli/commands/run#*",
-          "/docs/reference/cli/commands/run/#*",
-          "/docs/reference/cli/commands/list#*",
-          "/docs/reference/cli/commands/list/#*",
-        ],
-      }),
-    ],
-  }), d2({
-    // It's recommended that we just skip generation in Vercel,
-    // and generate diagrams locally:
-    // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
-    skipGeneration: !!process.env['VERCEL']
-  }), partytown({
-    config: {
-      forward: ['dataLayer.push']
-    }
-  })],
+            // Unfortunately, these have to be ignored, as they're
+            // referencing content that is generated outside the contents of the markdown file.
+            "/docs/reference/cli/commands/run#*",
+            "/docs/reference/cli/commands/run/#*",
+            "/docs/reference/cli/commands/list#*",
+            "/docs/reference/cli/commands/list/#*",
+          ],
+        }),
+      ],
+    }),
+    d2({
+      // It's recommended that we just skip generation in Vercel,
+      // and generate diagrams locally:
+      // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
+      skipGeneration: !!isVercel,
+    }),
+    partytown({
+      config: {
+        forward: ["dataLayer.push"],
+      },
+    }),
+    sitemap(),
+  ],
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
@@ -202,7 +287,8 @@ export default defineConfig({
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
 
     // Additional redirects for 404ing URLs
-    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/": "/docs/features/stacks/",
+    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/":
+      "/docs/features/stacks/",
     "/docs/getting-started/configuration/": "/docs/reference/hcl/",
     "/docs/features/before-and-after-hooks/": "/docs/features/hooks/",
     "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL

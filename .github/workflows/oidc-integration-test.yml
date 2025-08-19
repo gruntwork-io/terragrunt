@@ -5,7 +5,7 @@
 name: OIDC Integration Tests
 
 on:
-  push:
+  workflow_call:
 
 permissions:
   id-token: write
@@ -33,7 +33,7 @@ jobs:
               - .github/scripts/setup/tofu-switch.sh
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'

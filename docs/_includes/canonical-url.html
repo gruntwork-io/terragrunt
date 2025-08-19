@@ -1,1 +1,0 @@
-{% if include.url %}{% assign url = include.url %}{% else %}{% assign url = page.url %}{% endif %}{{ site.url | replace:'www.','' }}{{site.baseurl}}{{ url | replace:'index.html','' }}
