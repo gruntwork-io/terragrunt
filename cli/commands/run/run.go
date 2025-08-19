@@ -812,6 +812,7 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts); err != nil || !ok {
 		return false, err
 	}
+
 	return true, nil
 }
 
