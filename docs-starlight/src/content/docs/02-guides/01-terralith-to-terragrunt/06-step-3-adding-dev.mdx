@@ -1,0 +1,368 @@
+---
+title: "Step 3: Adding dev"
+description: Adding dev
+slug: docs/guides/terralith-to-terragrunt/step-3-adding-dev
+sidebar:
+  order: 6
+---
+
+import { FileTree } from '@astrojs/starlight/components';
+
+In the last step, you engaged in the foundational work of refactoring your monolithic configuration into a set of reusable modules, still instantiated in a single root module. Now it's time to leverage those newly develop skills to create new infrastructure.
+
+One of the main advantages gained in creating infrastructure using IaC is improved reproducibility. The naive approach to creating new infrastructure is to directly copy and paste IaC to duplicate it, but there's frequently advantage in packaging the infrastructure you're going to replicate as a new pattern in your `catalog` so that you have a single source of truth for your shared IaC patterns.
+
+In this step, you'll take the infrastructure you've created so far, do one more refactor to encapsulate it as a single reusable module, then instantiate it a second time as a second `dev` environment.
+
+## Tutorial
+
+Let's introduce that new higher level module as a new module named `best_cat`. It will provision the `s3`, `ddb`, `lambda` and `iam` modules we added in the last step, and wire them together. This will give us a single entity that we can duplicate across environments.
+
+Note that we're basically taking all the stuff in `live` and shoving it into this new `best_cat` module.
+
+```hcl
+# catalog/modules/best_cat/main.tf
+
+module "s3" {
+  source = "../s3"
+
+  name = var.name
+
+  force_destroy = var.force_destroy
+}
+
+module "ddb" {
+  source = "../ddb"
+
+  name = var.name
+}
+
+module "iam" {
+  source = "../iam"
+
+  name = var.name
+
+  aws_region = var.aws_region
+
+  s3_bucket_arn      = module.s3.arn
+  dynamodb_table_arn = module.ddb.arn
+}
+
+module "lambda" {
+  source = "../lambda"
+
+  name = var.name
+
+  aws_region = var.aws_region
+
+  s3_bucket_name      = module.s3.name
+  dynamodb_table_name = module.ddb.name
+  lambda_zip_file     = var.lambda_zip_file
+  lambda_role_arn     = module.iam.arn
+}
+```
+
+```hcl
+# catalog/modules/best_cat/outputs.tf
+
+output "lambda_function_url" {
+  description = "URL of the Lambda function"
+  value       = module.lambda.url
+}
+
+output "lambda_function_name" {
+  description = "Name of the Lambda function"
+  value       = module.lambda.name
+}
+
+output "s3_bucket_name" {
+  description = "Name of the S3 bucket for static assets"
+  value       = module.s3.name
+}
+
+output "s3_bucket_arn" {
+  description = "ARN of the S3 bucket for static assets"
+  value       = module.s3.arn
+}
+
+output "dynamodb_table_name" {
+  description = "Name of the DynamoDB table for asset metadata"
+  value       = module.ddb.name
+}
+
+output "dynamodb_table_arn" {
+  description = "ARN of the DynamoDB table for asset metadata"
+  value       = module.ddb.arn
+}
+
+output "lambda_role_arn" {
+  description = "ARN of the Lambda execution role"
+  value       = module.iam.arn
+}
+```
+
+```hcl
+# catalog/modules/best_cat/vars-optional.tf
+
+variable "aws_region" {
+  description = "AWS region for all resources"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "force_destroy" {
+  description = "Force destroy S3 buckets (only set to true for testing or cleanup of demo environments)"
+  type        = bool
+  default     = false
+}
+```
+
+```hcl
+# catalog/modules/best_cat/vars-required.tf
+
+variable "name" {
+  description = "Name used for all resources"
+  type        = string
+}
+
+variable "lambda_zip_file" {
+  description = "Path to the Lambda function zip file"
+  type        = string
+}
+```
+
+Similar to what we did before with the constituent modules, we can simply replace the content in `live` with a reference to our new `best_cat` module.
+
+```hcl
+# live/main.tf
+
+module "prod" {
+  source = "../catalog/modules/best_cat"
+
+  name = var.name
+
+  aws_region = var.aws_region
+
+  lambda_zip_file = var.lambda_zip_file
+  force_destroy   = var.force_destroy
+}
+```
+
+Once again, we get the scary `tofu plan` that tells us we would recreate all our infrastructure if we were to naively apply here:
+
+```bash
+$ tofu plan
+...
+Plan: 11 to add, 0 to change, 11 to destroy.
+...
+```
+
+Luckily, we already know how to handle this. We're going to update our `moved.tf` file to declare all the moves that need to be performed to transition the old addresses of resources to their new addresses.
+
+```hcl
+# live/moved.tf
+
+moved {
+  from = module.ddb.aws_dynamodb_table.asset_metadata
+  to   = module.prod.module.ddb.aws_dynamodb_table.asset_metadata
+}
+
+moved {
+  from = module.iam.aws_iam_policy.lambda_basic_execution
+  to   = module.prod.module.iam.aws_iam_policy.lambda_basic_execution
+}
+
+moved {
+  from = module.iam.aws_iam_policy.lambda_dynamodb
+  to   = module.prod.module.iam.aws_iam_policy.lambda_dynamodb
+}
+
+moved {
+  from = module.iam.aws_iam_policy.lambda_s3_read
+  to   = module.prod.module.iam.aws_iam_policy.lambda_s3_read
+}
+
+moved {
+  from = module.iam.aws_iam_role.lambda_role
+  to   = module.prod.module.iam.aws_iam_role.lambda_role
+}
+
+moved {
+  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
+  to   = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
+}
+
+moved {
+  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
+  to   = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
+}
+
+moved {
+  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
+  to   = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
+}
+
+moved {
+  from = module.lambda.aws_lambda_function.main
+  to   = module.prod.module.lambda.aws_lambda_function.main
+}
+
+moved {
+  from = module.lambda.aws_lambda_function_url.main
+  to   = module.prod.module.lambda.aws_lambda_function_url.main
+}
+
+moved {
+  from = module.s3.aws_s3_bucket.static_assets
+  to   = module.prod.module.s3.aws_s3_bucket.static_assets
+}
+```
+
+Our apply now successfully completes without doing anything!
+
+```hcl
+$ tofu apply
+...
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+...
+```
+
+Now the stage is set to add the additional `dev` environment. We can do that by duplicating the `prod` module, and labeling the new `module` block `dev` (you'll also want to add a little suffix to the end of the `name` input to avoid naming collisions).
+
+```hcl
+# live/main.tf
+
+module "dev" {
+  source = "../catalog/modules/best_cat"
+
+  name = "${var.name}-dev"
+
+  aws_region = var.aws_region
+
+  lambda_zip_file = var.lambda_zip_file
+  force_destroy   = var.force_destroy
+}
+
+module "prod" {
+  source = "../catalog/modules/best_cat"
+
+  name = var.name
+
+  aws_region = var.aws_region
+
+  lambda_zip_file = var.lambda_zip_file
+  force_destroy   = var.force_destroy
+}
+```
+
+We also need to expose some of the outputs of the new `dev` module, but if we just duplicated all the `prod` outputs, we'd end up with a massive wall of outputs that would be hard to parse. Luckily, we only need two outputs to be externally accessible per environment, so we can drop a bunch of outputs to streamline things.
+
+```hcl
+# live/outputs.tf
+
+output "dev_lambda_function_url" {
+  description = "URL of the Lambda function"
+  value       = module.dev.lambda_function_url
+}
+
+output "dev_s3_bucket_name" {
+  description = "Name of the S3 bucket for static assets"
+  value       = module.dev.s3_bucket_name
+}
+
+output "prod_lambda_function_url" {
+  description = "URL of the Lambda function"
+  value       = module.prod.lambda_function_url
+}
+
+output "prod_s3_bucket_name" {
+  description = "Name of the S3 bucket for static assets"
+  value       = module.prod.s3_bucket_name
+}
+```
+
+## Project Layout Check-in
+
+We should have a project layout that looks like this now:
+
+<FileTree>
+- catalog
+  - modules
+    - **best_cat**
+      - **main.tf**
+      - **outputs.tf**
+      - **vars-optional.tf**
+      - **vars-required.tf**
+    - ddb
+      - main.tf
+      - outputs.tf
+      - vars-required.tf
+      - versions.tf
+    - iam
+      - data.tf
+      - main.tf
+      - outputs.tf
+      - vars-required.tf
+      - versions.tf
+    - lambda
+      - main.tf
+      - outputs.tf
+      - vars-optional.tf
+      - vars-required.tf
+      - versions.tf
+    - s3
+      - main.tf
+      - outputs.tf
+      - vars-optional.tf
+      - vars-required.tf
+      - versions.tf
+- live
+  - backend.tf
+  - main.tf
+  - moved.tf
+  - outputs.tf
+  - providers.tf
+  - vars-optional.tf
+  - vars-required.tf
+  - versions.tf
+</FileTree>
+
+
+## Applying Updates
+
+Now we can deploy our changes. Note that we need to re-initialize here as we've added a new module.
+
+```bash
+# live
+
+tofu init
+tofu apply
+```
+
+We now have our new, fresh dev environment!
+
+![fresh-dev-environment](../../../../assets/img/guides/terralith-to-terragrunt/app-without-images.png)
+
+Note that this environment is *very* fresh, however. We don't have the static assets uploaded, and we're working with a fresh database. This guide isn't going to into the ways in which Terragrunt could integrate into your build system to do this for you automatically, but know that it *is* part of Terragrunt's feature set to handle this kind of thing. There are hints at the end of this guide to point those capabilities out and encourage your own exploration.
+
+## Trade-offs
+
+### Pros
+
+We have officially reached the stage where we're hitting **risk increase** due to our ***Terralith***! This is the configuration of IaC that a lot of infrastructure estates grow to naturally as they tack on more resources and add environments. It's a tipping point in maintainability that is best caught early, and addressed.
+
+We gained the ability to easily provision new infrastructure via reusable modules and could simply copy and paste (then season to taste) some configuration in our `live/main.tf` file. We also had a single source of truth for representing all the infrastructure that we were provisioning, in both the reusable module, and our `live` OpenTofu root module.
+
+We traded that for additional risk incurred, as every `apply` or `destroy` now has the potential to modify or destroy multiple environments, and you have to carefully avoid misconfiguration by reading plans (and trusting that they're accurate) to avoid accidentally damaging the wrong environment. Furthermore, you also have to be very careful that you only modify the resources that you intend to modify *within* a given environment when you make updates to it (are you accidentally destroying your database when attempting a tagging update for your Lambda function?). The reason for this is that all your resources are in the same state file. OpenTofu has to make one atomic change to that single state file with every update, so all the resources in state are at risk when any change is made.
+
+For your information, there are tools out there, like [OPA](https://www.openpolicyagent.org/) that enable automated reasoning about plan risk, but those tools are typically adopted by more advanced infrastructure teams, and there is typically a significant amount of overhead in authoring and maintaining the policies that assess plan risk (and driving behavior off those assessments). There are hints at the end of this guide to point those capabilities out and encourage your own exploration on this topic.
+
+Generally, the approach that teams take to structurally reduce this risk is to start to ***break down the Terralith*** into separate root modules, each with their own state. This gives teams confidence that they ***can only*** modify `dev` when they set their current working directory to the `dev` root module, and `prod` when their current working directory is the `prod` root module. When thinking through access control, this can also be convenient, as you can segment the access control that you use for one root module from another. Teams frequently configure their setups so that they need to explicitly use different credentials via role assumption, etc. when running commands in root modules related to different environments (e.g. `dev` vs `prod` ) to avoid accidental updates in the wrong environment.
+
+### Cons
+
+The downside to that approach, as we'll see in the next step, is that it *does* increase the management burden of orchestrating and maintaining your IaC, and additional tooling like Terragrunt is a good way to handle that additional orchestration burden.
+
+## Wrap Up
+
+You've successfully spun up a second, isolated development environment by reusing your new `best_cat` module. However, this is also the point where the *Terralith* design pattern starts to incur some serious drawbacks. At this stage, all your infrastructure for both your environments (`dev` and `prod`) now lives in a single state file. This introduces significant risk. A small mistake intended for `dev` could potentially damage or destroy your `prod` environment because OpenTofu sees it all as one atomic unit to manage, and you're responsible for reasoning about the generated plan to see if you should proceed with an apply. The next step is the most critical step in maturing your IaC estate (as far as this guide is concerned) as you break this monolith apart to limit the blast radius of your updates.
