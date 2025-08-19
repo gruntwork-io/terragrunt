@@ -7,6 +7,8 @@ sidebar:
 next: false
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Congratulations on making it through the Terralith to Terragrunt guide!
 
 You've successfully navigated the entire journey from a cumbersome Terralith to a clean, scalable, and maintainable IaC setup managed by Terragrunt. This process mirrors the real-world challenges many teams face as their infrastructure grows, and the skills you've developed are invaluable for managing IaC effectively at any scale.
@@ -23,10 +25,8 @@ If you'd like to continue practicing on your own, consider how you might continu
 
 - **Nested Stacks**: What if you wanted to manage both the `dev` and `prod` environments from a single, top-level file using the [Environment-based Stacks pattern](https://terragrunt.gruntwork.io/docs/features/stacks/#environment-based-stacks)? Think about how you would refactor your current setup to achieve this. Would you need to perform more state manipulation? If so, which techniques from this guide would you leverage to accomplish it safely?
 
-import { Aside } from '@astrojs/starlight/components';
-
     <Aside type="tip">
-      Review the state migration steps!
+      Review the state migration steps throughout this guide!
     </Aside>
 
 - **Integrating Terragrunt Into Your Build System**: In this guide, the artifact that's deployed to Lambda is manually packaged by you before provisioning any infrastructure. Terragrunt has special tooling in [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/) to automate manual tasks like this for you on-demand as you interact with your infrastructure. How would you integrate that into the configurations you've built so far?
