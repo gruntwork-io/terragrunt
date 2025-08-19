@@ -798,7 +798,6 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 //   - Remote state configuration is provided
 //   - The Terraform command uses state (e.g., plan, apply, destroy, output, etc.)
 //   - The remote state backend needs bootstrapping
-//
 func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
 	// If backend bootstrap is disabled, we don't need to initialize remote state
 	if !opts.BackendBootstrap {
