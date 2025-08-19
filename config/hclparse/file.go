@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 const (
@@ -63,6 +64,11 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 		if err := file.Parser.fileUpdateHandlerFunc(file); err != nil {
 			return err
 		}
+	}
+
+	// Validate for duplicate labeled blocks before decoding
+	if err := file.validateNoDuplicateBlocks(); err != nil {
+		return err
 	}
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
@@ -128,4 +134,39 @@ func (file *File) JustAttributes() (Attributes, error) {
 
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.Parser.handleDiagnostics(file, diags)
+}
+
+// validateNoDuplicateBlocks checks for duplicate labeled blocks in the HCL file.
+func (file *File) validateNoDuplicateBlocks() error {
+	// Only validate syntax bodies, skip others
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	// Track all block labels to prevent duplicates
+	allBlockLabels := make(map[string]*hcl.Block)
+
+	for _, syntaxBlock := range body.Blocks {
+		hclBlock := syntaxBlock.AsHCLBlock()
+
+		// Check for duplicate block labels (only for blocks with labels)
+		if len(hclBlock.Labels) > 0 {
+			blockKey := hclBlock.Type + "." + hclBlock.Labels[0]
+
+			if existingBlock, exists := allBlockLabels[blockKey]; exists {
+				return errors.New(&hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  fmt.Sprintf("Duplicate %s block", hclBlock.Type),
+					Detail: fmt.Sprintf("Duplicate %s block with label '%s' found. Previous block was defined at %s",
+						hclBlock.Type, hclBlock.Labels[0], existingBlock.DefRange.String()),
+					Subject: &hclBlock.DefRange,
+				})
+			}
+
+			allBlockLabels[blockKey] = hclBlock
+		}
+	}
+
+	return nil
 }

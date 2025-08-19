@@ -209,7 +209,12 @@ func handleIncludeForDependency(ctx *ParsingContext, l log.Logger, childDecodedD
 		case ShallowMerge:
 			l.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.Path)
 
-			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			mergedDependencyBlock := MergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			// Validate that merged dependencies have unique config paths
+			if err := ValidateUniqueConfigPaths(mergedDependencyBlock); err != nil {
+				return nil, err
+			}
+
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMerge:
 			l.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.Path)
@@ -316,7 +321,13 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 	}
 
 	// Dependency blocks are shallow merged by name
-	cfg.TerragruntDependencies = mergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	mergedDeps := MergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	// Validate that merged dependencies have unique config paths
+	if err := ValidateUniqueConfigPaths(mergedDeps); err != nil {
+		return err
+	}
+
+	cfg.TerragruntDependencies = mergedDeps
 
 	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 
@@ -606,9 +617,9 @@ func mergeFeatureFlags(targetFlags []*FeatureFlag, sourceFlags []*FeatureFlag) [
 	return combinedFlags
 }
 
-// Merge dependency blocks shallowly. If the source list has the same name as the target, it will override the
+// MergeDependencyBlocks merges dependency blocks shallowly. If the source list has the same name as the target, it will override the
 // dependency block in the target. Otherwise, the blocks are appended.
-func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) []Dependency {
+func MergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) []Dependency {
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.

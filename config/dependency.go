@@ -119,6 +119,30 @@ func (dep *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 	return nil
 }
 
+// ValidateUniqueConfigPaths ensures that all dependency config_path values are unique within a configuration.
+func ValidateUniqueConfigPaths(dependencies Dependencies) error {
+	configPaths := make(map[string]string) // map[config_path]dependency_name
+
+	for _, dep := range dependencies {
+		configPath := dep.ConfigPath.AsString()
+		if configPath == "" {
+			// Skip dependencies without config_path (filtered out elsewhere)
+			continue
+		}
+
+		if existingDepName, exists := configPaths[configPath]; exists {
+			return fmt.Errorf("duplicate config_path '%s' found in dependency blocks. "+
+				"Dependency '%s' and dependency '%s' both point to the same config path. "+
+				"Each dependency must have a unique config_path",
+				configPath, existingDepName, dep.Name)
+		}
+
+		configPaths[configPath] = dep.Name
+	}
+
+	return nil
+}
+
 // getMockOutputsMergeStrategy returns the MergeStrategyType following the deprecation of mock_outputs_merge_with_state
 // - If mock_outputs_merge_strategy_with_state is not null. The value of mock_outputs_merge_strategy_with_state will be returned
 // - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
@@ -209,6 +233,11 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
+
+	// Validate that dependency config paths are unique
+	if err := ValidateUniqueConfigPaths(decodedDependency.Dependencies); err != nil {
+		return nil, err
+	}
 
 	if err := checkForDependencyBlockCycles(ctx, l, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err

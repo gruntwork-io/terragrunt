@@ -388,3 +388,59 @@ dependency "ec2" {
 	require.NoError(t, err)
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
+
+func TestValidateUniqueIncludePaths(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		expectedErr string
+		includes    config.IncludeConfigs
+		expectError bool
+	}{
+		{
+			name: "unique include paths",
+			includes: config.IncludeConfigs{
+				{Name: "root", Path: "../../terragrunt.hcl"},
+				{Name: "common", Path: "../common.hcl"},
+			},
+			expectError: false,
+		},
+		{
+			name: "single include",
+			includes: config.IncludeConfigs{
+				{Name: "root", Path: "../../terragrunt.hcl"},
+			},
+			expectError: false,
+		},
+		{
+			name:        "no includes",
+			includes:    config.IncludeConfigs{},
+			expectError: false,
+		},
+		{
+			name: "duplicate include paths",
+			includes: config.IncludeConfigs{
+				{Name: "root", Path: "../../terragrunt.hcl"},
+				{Name: "backup", Path: "../../terragrunt.hcl"}, // Same path as root
+			},
+			expectError: true,
+			expectedErr: "duplicate include path '../../terragrunt.hcl' found in include blocks. Include 'root' and include 'backup' both point to the same path",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateUniqueIncludePaths(tc.includes)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

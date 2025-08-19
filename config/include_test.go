@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -417,4 +419,78 @@ func TestIncludeConfigNotFoundError(t *testing.T) {
 	assert.Equal(t, "/another/path/config.hcl", err2.IncludePath)
 	assert.Equal(t, "/different/source.hcl", err2.SourcePath)
 	assert.Contains(t, err2.Error(), "Include configuration not found: /another/path/config.hcl (referenced from: /different/source.hcl)")
+}
+
+func TestValidateUniqueConfigPaths_IncludeMerging(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		baseHcl     string
+		includeHcl  string
+		expectedErr string
+	}{
+		{
+			name: "include merging with duplicate config paths",
+			baseHcl: `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+			includeHcl: `
+dependency "network" {
+  config_path = "../vpc"  # Same path as base dependency
+}
+`,
+			expectedErr: "duplicate config_path '../vpc' found in dependency blocks. Dependency 'vpc' and dependency 'network' both point to the same config path",
+		},
+		{
+			name: "include merging with unique config paths",
+			baseHcl: `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+			includeHcl: `
+dependency "database" {
+  config_path = "../database"  # Different path - should work
+}
+`,
+			expectedErr: "", // No error expected
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Parse base dependencies
+			filename := config.DefaultTerragruntConfigPath
+			file, err := hclparse.NewParser().ParseFromString(tc.baseHcl, filename)
+			require.NoError(t, err)
+
+			baseDependency := config.TerragruntDependency{}
+			err = file.Decode(&baseDependency, &hcl.EvalContext{})
+			require.NoError(t, err)
+
+			// Parse include dependencies
+			includeFile, err := hclparse.NewParser().ParseFromString(tc.includeHcl, "include.hcl")
+			require.NoError(t, err)
+
+			includeDependency := config.TerragruntDependency{}
+			err = includeFile.Decode(&includeDependency, &hcl.EvalContext{})
+			require.NoError(t, err)
+
+			// Test shallow merge validation
+			mergedDeps := config.MergeDependencyBlocks(baseDependency.Dependencies, includeDependency.Dependencies)
+			err = config.ValidateUniqueConfigPaths(mergedDeps)
+
+			if tc.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
