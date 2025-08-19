@@ -11,11 +11,12 @@
   },
   "dependencies": {
     "@astrojs/partytown": "^2.1.4",
-    "@astrojs/starlight": "^0.35.1",
+    "@astrojs/sitemap": "^3.5.0",
+    "@astrojs/starlight": "^0.35.2",
     "@astrojs/starlight-tailwind": "^4.0.1",
-    "@astrojs/vercel": "^8.2.3",
+    "@astrojs/vercel": "^8.2.6",
     "@tailwindcss/vite": "^4.1.11",
-    "astro": "^5.12.3",
+    "astro": "^5.13.2",
     "astro-d2": "^0.8.0",
     "gray-matter": "^4.0.3",
     "sharp": "^0.34.3",
@@ -28,6 +29,6 @@
     "estree-walker": "2.0.2"
   },
   "patchedDependencies": {
-    "@astrojs/starlight@0.35.1": "patches/@astrojs%2Fstarlight@0.35.1.patch"
+    "@astrojs/starlight@0.35.2": "patches/@astrojs%2Fstarlight@0.35.2.patch"
   }
 }
