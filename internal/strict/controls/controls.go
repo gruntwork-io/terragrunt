@@ -204,8 +204,8 @@ func New() strict.Controls {
 			Name:        DoubleStar,
 			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
 			Category:    stageCategory,
-			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled."),
-			Warning:     "",
+			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
+			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 		},
 	}
 

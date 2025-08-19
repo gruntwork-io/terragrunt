@@ -15,10 +15,7 @@ To learn more about how to use this flag, see the [Stacks](/docs/features/stacks
 <Aside type="note">
 Glob patterns must use unix forward slashes `/` to separate directories.
 
-The `*` wildcard indicates any character except `/` e.g. `unit-*` matches
-directories such as `unit-a`, `unit-b`.
+Glob behavior for `**` and `**/*` will change in a future version of Terragrunt.
 
-The `**` double wildcard indicates any character including `/`, this allows
-matching multiple directory depths e.g. `units/**/unit-*` matches `units/a/unit-a`
-as well as `units/b/c/unit-d`
+See the [double-star strict control](docs/reference/strict-controls/#double-star) for full details.
 </Aside>
