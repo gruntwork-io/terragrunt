@@ -172,5 +172,8 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
-	helpers.RunTerragrunt(t, "terragrunt run --all --experiment runner-pool --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --working-dir "+testPath+" -- apply ")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment runner-pool --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.85.0 --working-dir "+testPath+" -- apply ")
+	require.NoError(t, err)
+	// Verify that source map values are used
+	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
 }
