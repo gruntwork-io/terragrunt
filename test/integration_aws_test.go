@@ -973,7 +973,6 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 // module has been destroyed.
 func TestAwsDependencyOutputOptimization(t *testing.T) {
 	t.Parallel()
-	t.Helper()
 
 	expectedOutput := `They said, "No, The answer is 42"`
 	generatedUniqueID := helpers.UniqueID()
@@ -992,7 +991,7 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --log-level trace --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply --all --log-level trace --non-interactive --working-dir "+rootPath)
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
