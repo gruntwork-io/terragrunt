@@ -114,6 +114,7 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 		canGlobPath, err := CanonicalPath(globPath, basePath)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
+			continue
 		}
 
 		compiledGlob, err := glob.Compile(canGlobPath, '/')
@@ -158,9 +159,9 @@ func GetGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGl
 			}
 
 			for globPath, compiledGlob := range compiledGlobs {
-				l = l.WithField("glob_path", globPath)
+				ll := l.WithField("glob_path", globPath)
 				if compiledGlob.Match(path) {
-					l.WithField("matched_path", path).Debug("Matched glob pattern")
+					ll.WithField("matched_path", path).Debug("Matched glob pattern")
 					m.Lock()
 					paths = append(paths, path)
 					m.Unlock()
