@@ -867,7 +867,8 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 
 	lines := strings.SplitSeq(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	for dir := range lines {
-		if dir := strings.TrimSpace(dir); dir == "" || strings.HasPrefix(dir, "#") {
+		dir = strings.TrimSpace(dir)
+		if dir == "" || strings.HasPrefix(dir, "#") {
 			continue
 		}
 
