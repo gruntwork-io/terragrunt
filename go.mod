@@ -25,7 +25,7 @@ require (
 	github.com/gruntwork-io/terragrunt-engine-go v0.0.15
 	github.com/gruntwork-io/terratest v0.50.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
-	github.com/hashicorp/go-getter v1.7.8
+	github.com/hashicorp/go-getter v1.7.9
 	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
