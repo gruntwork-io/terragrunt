@@ -325,18 +325,14 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
 		client := &getter.Client{
-			Src:  src.CanonicalSourceURL.String(),
-			Dst:  src.DownloadDir,
-			Mode: getter.ClientModeAny,
+			Src:     src.CanonicalSourceURL.String(),
+			Dst:     src.DownloadDir,
+			Mode:    getter.ClientModeAny,
+			Options: []getter.ClientOption{UpdateGetters(opts, cfg)},
 		}
 
 		// Since go-getter v1.7.9 symbolic links are disabled by default, explicitly update field
 		client.DisableSymlinks = false
-
-		// Apply custom getter options
-		if err := UpdateGetters(opts, cfg)(client); err != nil {
-			return err
-		}
 
 		return client.Get()
 	})
