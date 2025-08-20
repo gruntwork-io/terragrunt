@@ -115,7 +115,7 @@ func (flag *SliceFlag[T]) GetEnvVars() []string {
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
 func (flag *SliceFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
-		return flag.FlagValue.GetInitialTextValue()
+		return flag.GetInitialTextValue()
 	}
 
 	return flag.DefaultText
