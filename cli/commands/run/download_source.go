@@ -345,14 +345,7 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		client := &getter.Client{
-			Src:     src.CanonicalSourceURL.String(),
-			Dst:     src.DownloadDir,
-			Mode:    getter.ClientModeAny,
-			Options: []getter.ClientOption{UpdateGetters(opts, cfg), preserveSymlinksOption()},
-		}
-
-		return client.Get()
+		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg), preserveSymlinksOption())
 	})
 }
 
