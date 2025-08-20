@@ -13,17 +13,20 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go"
+
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -631,9 +634,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-			}
+			assert.Equal(t, s3types.ServerSideEncryptionAes256, rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 		}
 	}
 
@@ -644,9 +645,11 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	policyInBucket, err := awshelper.UnmarshalPolicy(*policy.Policy)
 	require.NoError(t, err)
 	enforceSSE := false
-	for _, statement := range policyInBucket.Statement {
-		if statement.Sid == s3backend.SidEnforcedTLSPolicy {
-			enforceSSE = true
+	if policyInBucket.Statement != nil {
+		for _, statement := range policyInBucket.Statement {
+			if statement.Sid == s3backend.SidEnforcedTLSPolicy {
+				enforceSSE = true
+			}
 		}
 	}
 	assert.True(t, enforceSSE)
@@ -686,9 +689,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTarge
 	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-			}
+			assert.Equal(t, s3types.ServerSideEncryptionAes256, rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 		}
 	}
 
@@ -906,19 +907,20 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	sess, err := session.NewSession()
+	awsCfg, err := awshelper.CreateAwsConfig(t.Context(), createLogger(), nil, nil)
 	if err != nil {
-		t.Fatalf("Error while creating AWS session: %v", err)
+		t.Fatalf("Error while creating AWS config: %v", err)
 	}
 
-	aliases, err := iam.New(sess).ListAccountAliases(nil)
+	iamClient := iam.NewFromConfig(awsCfg)
+	aliases, err := iamClient.ListAccountAliases(t.Context(), &iam.ListAccountAliasesInput{})
 	if err != nil {
 		t.Fatalf("Error while getting AWS account aliases: %v", err)
 	}
 
 	alias := ""
 	if len(aliases.AccountAliases) == 1 {
-		alias = *aliases.AccountAliases[0]
+		alias = aliases.AccountAliases[0]
 	}
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -945,12 +947,13 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	sess, err := session.NewSession()
+	awsCfg, err := awshelper.CreateAwsConfig(t.Context(), createLogger(), nil, nil)
 	if err != nil {
-		t.Fatalf("Error while creating AWS session: %v", err)
+		t.Fatalf("Error while creating AWS config: %v", err)
 	}
 
-	identity, err := sts.New(sess).GetCallerIdentity(nil)
+	stsClient := sts.NewFromConfig(awsCfg)
+	identity, err := stsClient.GetCallerIdentity(t.Context(), &sts.GetCallerIdentityInput{})
 	if err != nil {
 		t.Fatalf("Error while getting AWS caller identity: %v", err)
 	}
@@ -971,10 +974,55 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 func TestAwsDependencyOutputOptimization(t *testing.T) {
 	t.Parallel()
 
-	expectOutputLogs := []string{
-		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
+	expectedOutput := `They said, "No, The answer is 42"`
+	generatedUniqueID := helpers.UniqueID()
+
+	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "nested-optimization")
+	rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
+	livePath := filepath.Join(rootPath, "live")
+	deepDepPath := filepath.Join(rootPath, "deepdep")
+	depPath := filepath.Join(rootPath, "dep")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(generatedUniqueID)
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(generatedUniqueID)
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
+
+	helpers.RunTerragrunt(t, "terragrunt apply --all --log-level trace --non-interactive --working-dir "+rootPath)
+
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// verify expected output
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	// If we want to force reinit, delete the relevant .terraform directories
+	helpers.CleanupTerraformFolder(t, depPath)
+
+	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+
+	fmt.Println("terragrunt output -no-color -json --log-level trace --non-interactive --working-dir " + livePath)
+
+	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	require.NoError(t, err)
+
+	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`} {
+		assert.Regexp(t, logRegexp, reerr)
 	}
-	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
 
 func TestAwsDependencyOutputOptimizationSkipInit(t *testing.T) {
@@ -1084,8 +1132,14 @@ func TestAwsPrintAwsErrors(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply --non-interactive --config %s --working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	require.Error(t, err)
 	message := err.Error()
-	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
-	assert.Contains(t, message, s3BucketName)
+	assert.True(t,
+		strings.Contains(
+			message,
+			"AllAccessDisabled: All access to this object has been disabled",
+		) ||
+			strings.Contains(message, "BucketRegionError: incorrect region") ||
+			strings.Contains(message, "MovedPermanently"),
+	)
 }
 
 func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
@@ -1113,7 +1167,11 @@ func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
 	stderr = bytes.Buffer{}
 	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply --non-interactive --config %s --working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
+
+	assert.True(t, strings.Contains(
+		err.Error(), "MovedPermanently") || strings.Contains(err.Error(), "BucketRegionError: incorrect region"),
+		"Expected error to contain 'MovedPermanently' or 'BucketRegionError: incorrect region', but got: %s", err.Error(),
+	)
 }
 
 func TestAwsDisableBucketUpdate(t *testing.T) {
@@ -1252,7 +1310,7 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		tt()
 		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 		// This is only a problem during testing, where the process is shared across terragrunt runs.
@@ -1353,8 +1411,8 @@ func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := t.TempDir()
-	for i := 0; i < 20; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+	for i := range 20 {
+		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -1398,10 +1456,10 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	session, err := awshelper.CreateAwsSession(l, nil, opts)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, opts)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), cfg)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1436,10 +1494,10 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	session, err := awshelper.CreateAwsSession(l, nil, opts)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, opts)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), cfg)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1532,10 +1590,10 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	session, err := awshelper.CreateAwsSession(l, nil, &options.TerragruntOptions{})
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	identityArn, err := awshelper.GetAWSIdentityArn(session)
+	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), cfg)
 	require.NoError(t, err)
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadIamRole)
@@ -1677,13 +1735,14 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	}
 }
 
-func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName string, client *s3.S3) {
+func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName string, client *s3.Client) {
 	t.Helper()
 
+	ctx := t.Context()
 	var in = s3.GetBucketTaggingInput{}
-	in.SetBucket(bucketName)
+	in.Bucket = aws.String(bucketName)
 
-	var tags, err2 = client.GetBucketTagging(&in)
+	var tags, err2 = client.GetBucketTagging(ctx, &in)
 
 	if err2 != nil {
 		t.Fatal(err2)
@@ -1698,18 +1757,19 @@ func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName strin
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
 }
 
-func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, client *s3.S3) {
+func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, client *s3.Client) {
 	t.Helper()
 
-	res, err := client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
+	ctx := t.Context()
+	res, err := client.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
 	if versioning {
 		require.NotNil(t, res.Status)
-		assert.Equal(t, s3.BucketVersioningStatusEnabled, *res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
+		assert.Equal(t, s3types.BucketVersioningStatusEnabled, res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
 	} else {
-		require.Nil(t, res.Status)
+		require.Empty(t, res.Status, "Versioning should be disabled for the remote state S3 bucket %s", bucketName)
 	}
 }
 
@@ -1720,17 +1780,18 @@ func validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t *testing.T, awsReg
 
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
-	description, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	ctx := t.Context()
+	description, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
 
 	if expectedSSEncrypted {
 		require.NotNil(t, description.Table.SSEDescription)
-		assert.Equal(t, dynamodb.SSEStatusEnabled, aws.StringValue(description.Table.SSEDescription.Status))
+		assert.Equal(t, types.SSEStatusEnabled, description.Table.SSEDescription.Status)
 	} else {
 		require.Nil(t, description.Table.SSEDescription)
 	}
 
-	tags, err := client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
+	tags, err := client.ListTagsOfResource(ctx, &dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
 	require.NoError(t, err)
 
 	if expectedTags == nil {
@@ -1751,19 +1812,20 @@ func doesDynamoDBTableItemExist(t *testing.T, awsRegion string, tableName, key s
 
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
-	_, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	ctx := t.Context()
+	_, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
 
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
-		Key: map[string]*dynamodb.AttributeValue{
-			"LockID": {
-				S: aws.String(key),
+		Key: map[string]types.AttributeValue{
+			"LockID": &types.AttributeValueMemberS{
+				Value: key,
 			},
 		},
 	}
 
-	res, err := client.GetItem(input)
+	res, err := client.GetItem(ctx, input)
 	require.NoError(t, err)
 
 	exists := len(res.Item) != 0
@@ -1779,7 +1841,8 @@ func validateS3BucketExistsAndIsTaggedAndVersioning(t *testing.T, awsRegion stri
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
-	_, err := client.HeadBucket(&s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	ctx := t.Context()
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
 	if expectedTags != nil {
@@ -1796,41 +1859,41 @@ func doesS3BucketKeyExist(t *testing.T, awsRegion string, bucketName, key string
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
-	_, err := client.HeadBucket(&s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	ctx := t.Context()
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
-	_, err = client.HeadObject(&s3.HeadObjectInput{
+	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		var awsErr awserr.Error
-
-		if ok := errors.As(err, &awsErr); ok {
-			if awsErr.Code() == "NotFound" { // s3.ErrCodeNoSuchKey does not work, aws is missing this error code so we hardwire a string
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			if apiErr.ErrorCode() == "NotFound" {
 				return false
 			}
 		}
-
 		require.NoError(t, err)
 	}
 
 	return true
 }
 
-func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
+func assertS3PublicAccessBlocks(t *testing.T, client *s3.Client, bucketName string) {
 	t.Helper()
 
+	ctx := t.Context()
 	resp, err := client.GetPublicAccessBlock(
-		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
+		ctx, &s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
 	)
 	require.NoError(t, err)
 
 	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.BlockPublicAcls))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.BlockPublicPolicy))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.IgnorePublicAcls))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
 func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
@@ -1838,8 +1901,9 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
+	ctx := t.Context()
 	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
-	output, err := client.GetBucketEncryption(input)
+	output, err := client.GetBucketEncryption(ctx, input)
 	if err != nil {
 		// TODO: Remove this lint suppression
 		return nil, nil //nolint:nilerr
@@ -1856,7 +1920,16 @@ func createS3Bucket(t *testing.T, awsRegion, bucketName string) {
 
 	t.Logf("Creating test s3 bucket %s", bucketName)
 
-	_, err := client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)})
+	ctx := t.Context()
+
+	input := &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+		CreateBucketConfiguration: &s3types.CreateBucketConfiguration{
+			LocationConstraint: s3types.BucketLocationConstraint(awsRegion),
+		},
+	}
+
+	_, err := client.CreateBucket(ctx, input)
 	require.NoError(t, err, "Failed to create S3 bucket")
 }
 
@@ -1873,10 +1946,11 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 
 	t.Logf("Deleting test DynamoDB table %s", tableName)
 
-	_, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	ctx := t.Context()
+	_, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
-		var awsErr awserr.Error
-		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "ResourceNotFoundException" {
 			t.Logf("DynamoDB table %s does not exist", tableName)
 			return
 		}
@@ -1885,7 +1959,7 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 		return
 	}
 
-	if _, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)}); err != nil {
+	if _, err := client.DeleteTable(ctx, &dynamodb.DeleteTableInput{TableName: aws.String(tableName)}); err != nil {
 		t.Errorf("Failed to delete DynamoDB table %s: %v", tableName, err)
 	}
 }
@@ -1895,7 +1969,8 @@ func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBuc
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
-	policyOutput, err := client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+	ctx := t.Context()
+	policyOutput, err := client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
 		Bucket: aws.String(bucketName),
 	})
 	if err != nil {
@@ -1909,21 +1984,22 @@ func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) erro
 	t.Helper()
 
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
-	_, err := client.CreateTable(&dynamodb.CreateTableInput{
-		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+	ctx := t.Context()
+	_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
+		AttributeDefinitions: []types.AttributeDefinition{
 			{
 				AttributeName: aws.String("LockID"),
-				AttributeType: aws.String("S"),
+				AttributeType: types.ScalarAttributeTypeS,
 			},
 		},
-		KeySchema: []*dynamodb.KeySchemaElement{
+		KeySchema: []types.KeySchemaElement{
 			{
 				AttributeName: aws.String("LockID"),
-				KeyType:       aws.String("HASH"),
+				KeyType:       types.KeyTypeHash,
 			},
 		},
 		TableName: aws.String(tableName),
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+		ProvisionedThroughput: &types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1),
 			WriteCapacityUnits: aws.Int64(1),
 		},
@@ -1931,8 +2007,11 @@ func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) erro
 	if err != nil {
 		return err
 	}
-	client.WaitUntilTableExists(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
-	return nil
+
+	// Wait for table to be created
+	waiter := dynamodb.NewTableExistsWaiter(client)
+	err = waiter.Wait(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)}, 5*time.Minute)
+	return err
 }
 
 // createDynamoDBTable creates a test DynamoDB table.

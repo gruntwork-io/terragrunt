@@ -29,7 +29,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	var (
 		args = ctx.Args()
-		cmds = ctx.App.Commands
+		cmds = ctx.Commands
 	)
 
 	if l.Level() >= log.DebugLevel {
