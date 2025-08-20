@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -275,6 +276,60 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	}
 }
 
+// preserveSymlinksOption is a custom client option that ensures DisableSymlinks
+// setting is preserved during git operations
+func preserveSymlinksOption() getter.ClientOption {
+	return func(c *getter.Client) error {
+		// Create a custom git getter that preserves symlink settings
+		if c.Getters != nil {
+			if gitGetter, exists := c.Getters["git"]; exists {
+				// Replace with a wrapper that preserves symlink settings
+				c.Getters["git"] = &symlinkPreservingGitGetter{
+					original: gitGetter,
+					client:   c,
+				}
+			}
+		}
+
+		// Ensure DisableSymlinks is set to false
+		c.DisableSymlinks = false
+
+		return nil
+	}
+}
+
+// symlinkPreservingGitGetter wraps the original git getter to preserve symlink settings
+type symlinkPreservingGitGetter struct {
+	original getter.Getter
+	client   *getter.Client
+}
+
+func (g *symlinkPreservingGitGetter) Get(dst string, u *url.URL) error {
+	// Store original DisableSymlinks setting
+	originalDisableSymlinks := g.client.DisableSymlinks
+
+	// Call the original getter
+	err := g.original.Get(dst, u)
+
+	// Restore the original DisableSymlinks setting
+	g.client.DisableSymlinks = originalDisableSymlinks
+
+	return err
+}
+
+func (g *symlinkPreservingGitGetter) GetFile(dst string, u *url.URL) error {
+	return g.original.GetFile(dst, u)
+}
+
+func (g *symlinkPreservingGitGetter) ClientMode(u *url.URL) (getter.ClientMode, error) {
+	return g.original.ClientMode(u)
+}
+
+func (g *symlinkPreservingGitGetter) SetClient(c *getter.Client) {
+	g.client = c
+	g.original.SetClient(c)
+}
+
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
@@ -328,11 +383,8 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 			Src:     src.CanonicalSourceURL.String(),
 			Dst:     src.DownloadDir,
 			Mode:    getter.ClientModeAny,
-			Options: []getter.ClientOption{UpdateGetters(opts, cfg)},
+			Options: []getter.ClientOption{UpdateGetters(opts, cfg), preserveSymlinksOption()},
 		}
-
-		// Since go-getter v1.7.9 symbolic links are disabled by default, explicitly update field
-		client.DisableSymlinks = false
 
 		return client.Get()
 	})
