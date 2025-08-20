@@ -246,6 +246,9 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
+				// Since go-getter v1.7.9 symbolic links are disabled by default, we need to explicitly
+				client.DisableSymlinks = false
+
 				var includeInCopy, excludeFromCopy []string
 
 				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
@@ -327,7 +330,7 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 	})
 }
 
-// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory
+// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
 func ValidateWorkingDir(terraformSource *tf.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
