@@ -1242,8 +1242,8 @@ github.com/gruntwork-io/boilerplate v0.8.1 h1:FHP5CA86FguvgCERqf3U6ZKFxWxqW8/sp2
 github.com/gruntwork-io/boilerplate v0.8.1/go.mod h1:h7U/nXYnViGXVQilZqX498hH5PCFrmaGwp4xdhGVu8c=
 github.com/gruntwork-io/go-commons v0.17.2 h1:14dsCJ7M5Vv2X3BIPKeG9Kdy6vTMGhM8L4WZazxfTuY=
 github.com/gruntwork-io/go-commons v0.17.2/go.mod h1:zs7Q2AbUKuTarBPy19CIxJVUX/rBamfW8IwuWKniWkE=
-github.com/gruntwork-io/terragrunt-engine-go v0.0.15 h1:s9vFSIvHDSgvoZblGOtymYgFbbDJsqL50PCykbhxSeA=
-github.com/gruntwork-io/terragrunt-engine-go v0.0.15/go.mod h1:xwRmPVdxLPNxj5eNmA1iNWdIA/YuaFACQgdf6/AB5Xs=
+github.com/gruntwork-io/terragrunt-engine-go v0.0.16 h1:1i/VRCOedQIOgPkmqyXl295EKF9saOjRoo/I+zuLKpY=
+github.com/gruntwork-io/terragrunt-engine-go v0.0.16/go.mod h1:9MVqEa8tfgjqlolb9S9iiroPpDoGgoM92901ZlYbAbA=
 github.com/gruntwork-io/terratest v0.50.0 h1:AbBJ7IRCpLZ9H4HBrjeoWESITv8nLjN6/f1riMNcAsw=
 github.com/gruntwork-io/terratest v0.50.0/go.mod h1:see0lbKvAqz6rvzvN2wyfuFQQG4PWcAb2yHulF6B2q4=
 github.com/hashicorp/aws-sdk-go-base v0.6.0/go.mod h1:2fRjWDv3jJBeN6mVWFHV6hFTNeFBx2gpDLQaZNxUVAY=
