@@ -6,6 +6,10 @@ import (
 	"github.com/hashicorp/go-getter"
 )
 
+// Since go-getter v1.7.9, symbolic links are disabled by default and are automatically
+// disabled during git submodule operations. This wrapper preserves the original
+// DisableSymlinks setting to ensure symlinks remain enabled when configured.
+
 // symlinkPreservingGitGetter wraps the original git getter to preserve symlink settings
 type symlinkPreservingGitGetter struct {
 	original getter.Getter
