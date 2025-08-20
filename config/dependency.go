@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -22,8 +22,6 @@ import (
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -589,9 +587,9 @@ func getTerragruntOutput(ctx *ParsingContext, l log.Logger, dependencyConfig Dep
 }
 
 func isAwsS3NoSuchKey(err error) bool {
-	var awsErr awserr.Error
-	if errors.As(err, &awsErr) {
-		return awsErr.Code() == "NoSuchKey"
+	if err != nil {
+		errStr := err.Error()
+		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
 	}
 
 	return false
@@ -946,6 +944,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		switch backend := remoteState.BackendName; backend {
 		case s3backend.BackendName:
 			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateS3(
+				ctx,
 				l,
 				targetTGOptions,
 				remoteState,
@@ -1004,7 +1003,7 @@ func getTerragruntOutputJSONFromRemoteState(
 }
 
 // getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+func getTerragruntOutputJSONFromRemoteStateS3(ctx *ParsingContext, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
 	l.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.BackendConfig["bucket"], remoteState.BackendConfig["key"])
 
 	s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).ParseExtendedS3Config()
@@ -1014,12 +1013,14 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := awshelper.CreateS3Client(l, sessionConfig, opts)
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, sessionConfig, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := s3Client.GetObject(&s3.GetObjectInput{
+	s3Client := s3.NewFromConfig(cfg)
+
+	result, err := s3Client.GetObject(ctx.Context, &s3.GetObjectInput{
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),
 		Key:    aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["key"])),
 	})
