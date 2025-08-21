@@ -6,4 +6,4 @@ awscli = "2.27.7"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
 "go:golang.org/x/tools/gopls" = "v0.18.1"
 tflint = "0.47.0"
-terraform = ["1.5", "1.13"]
+terraform = ["1.5", "1.13.0"]
