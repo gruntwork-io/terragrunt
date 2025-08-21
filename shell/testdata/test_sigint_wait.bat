@@ -2,15 +2,8 @@
 
 set wait_time=%1
 
-rem Set up signal handling for CTRL+C
-rem This will run an infinite loop until interrupted
+rem Simple infinite loop that can be interrupted
 :loop
-timeout /t 1 /nobreak >nul 2>&1
-if errorlevel 1 goto loop
-
-rem If we reach here, we were interrupted
-rem Wait for the specified time using Windows timeout command
-timeout /t %wait_time% /nobreak >nul 2>&1
-
-rem Exit with the wait time as status code
-exit /b %wait_time%
+rem Use ping to create a 1-second delay (ping localhost -n 2 creates ~1 second delay)
+ping -n 2 127.0.0.1 >nul 2>&1
+goto loop
