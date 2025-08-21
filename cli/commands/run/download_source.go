@@ -274,6 +274,28 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	}
 }
 
+// preserveSymlinksOption is a custom client option that ensures DisableSymlinks
+// setting is preserved during git operations
+func preserveSymlinksOption() getter.ClientOption {
+	return func(c *getter.Client) error {
+		// Create a custom git getter that preserves symlink settings
+		if c.Getters != nil {
+			if gitGetter, exists := c.Getters["git"]; exists {
+				// Replace with a wrapper that preserves symlink settings
+				c.Getters["git"] = &symlinkPreservingGitGetter{
+					original: gitGetter,
+					client:   c,
+				}
+			}
+		}
+
+		// Ensure DisableSymlinks is set to false
+		c.DisableSymlinks = false
+
+		return nil
+	}
+}
+
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
@@ -323,11 +345,11 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg))
+		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg), preserveSymlinksOption())
 	})
 }
 
-// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory
+// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
 func ValidateWorkingDir(terraformSource *tf.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
