@@ -10,12 +10,6 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
-    - uses: jdx/mise-action@v2
-      with:
-        tool_versions: |
-          go 1.25.0
-        cache: true
-
     - name: Set up mise
       uses: jdx/mise-action@v2
       with:
