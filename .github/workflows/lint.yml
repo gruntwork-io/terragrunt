@@ -10,6 +10,10 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
+    - id: go-version
+      run: |
+        go version
+
     - name: Set up mise
       uses: jdx/mise-action@v2
       with:
