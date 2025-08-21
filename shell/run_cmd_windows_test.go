@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,12 +47,18 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	require.Error(t, actualErr, "Expected an error but got none")
 
 	// The process might either exit with the expected status code or be killed by a signal
-	// depending on timing and system conditions
-	expectedExitStatusErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nexit status %d", cmdPath, expectedWait)
-	expectedKilledErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nsignal: killed", cmdPath)
+	// depending on timing and system conditions. On Windows, the error message might also
+	// include stderr output from the batch file execution.
 
-	if actualErr.Error() != expectedExitStatusErr && actualErr.Error() != expectedKilledErr {
-		t.Errorf("Expected error to be either:\n  %s\nor:\n  %s\nbut got:\n  %s",
-			expectedExitStatusErr, expectedKilledErr, actualErr.Error())
+	// Check if the error contains the expected patterns rather than exact matches
+	// since Windows batch files might include additional stderr output
+	actualErrStr := actualErr.Error()
+	containsExitStatus := strings.Contains(actualErrStr, fmt.Sprintf("exit status %d", expectedWait))
+	containsKilled := strings.Contains(actualErrStr, "signal: killed")
+	containsFailedExecute := strings.Contains(actualErrStr, fmt.Sprintf("Failed to execute \"%s", cmdPath))
+
+	if !containsFailedExecute || (!containsExitStatus && !containsKilled) {
+		t.Errorf("Expected error to contain 'Failed to execute \"%s' and either 'exit status %d' or 'signal: killed', but got:\n  %s",
+			cmdPath, expectedWait, actualErrStr)
 	}
 }

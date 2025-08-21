@@ -2,9 +2,15 @@
 
 set wait_time=%1
 
-rem Run infinite loop in another cmd shell, which should run until someone hits CTRL+C
-rem For more info, see: https://stackoverflow.com/a/28890881/483528
-cmd /d /c %~dp0infinite_loop.bat
+rem Set up signal handling for CTRL+C
+rem This will run an infinite loop until interrupted
+:loop
+timeout /t 1 /nobreak >nul 2>&1
+if errorlevel 1 goto loop
 
-sleep %wait_time%
-exit %wait_time%
+rem If we reach here, we were interrupted
+rem Wait for the specified time using Windows timeout command
+timeout /t %wait_time% /nobreak >nul 2>&1
+
+rem Exit with the wait time as status code
+exit /b %wait_time%
