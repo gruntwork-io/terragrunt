@@ -164,7 +164,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 			return err
 		}
 
-		ln, err := server.Listen()
+		ln, err := server.Listen(ctx)
 		if err != nil {
 			return err
 		}

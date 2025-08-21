@@ -28,9 +28,9 @@ type Cmd struct {
 
 // Command returns the `Cmd` struct to execute the named program with
 // the given arguments.
-func Command(name string, args ...string) *Cmd {
+func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd := &Cmd{
-		Cmd:             exec.Command(name, args...),
+		Cmd:             exec.CommandContext(ctx, name, args...),
 		logger:          log.Default(),
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
