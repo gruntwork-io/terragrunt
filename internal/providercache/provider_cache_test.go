@@ -137,7 +137,7 @@ func TestProviderCache(t *testing.T) {
 				)
 
 				server := cache.NewServer(tc.opts...)
-				ln, err := server.Listen()
+				ln, err := server.Listen(t.Context())
 				if err != nil {
 					lastErr = err
 					if attempt < maxRetries {

@@ -2,9 +2,8 @@
 
 set wait_time=%1
 
-rem Run infinite loop in another cmd shell, which should run until someone hits CTRL+C
-rem For more info, see: https://stackoverflow.com/a/28890881/483528
-cmd /d /c %~dp0infinite_loop.bat
-
-sleep %wait_time%
-exit %wait_time%
+rem Simple infinite loop that can be interrupted
+:loop
+rem Use ping to create a 1-second delay (ping localhost -n 2 creates ~1 second delay)
+ping -n 2 127.0.0.1 >nul 2>&1
+goto loop

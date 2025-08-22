@@ -94,7 +94,7 @@ func Run(
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, err := createEngine(l, runOptions.TerragruntOptions)
+		terragruntEngine, client, err := createEngine(ctx, l, runOptions.TerragruntOptions)
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -482,7 +482,7 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 }
 
 // createEngine create engine for working directory
-func createEngine(l log.Logger, terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
+func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	path, err := engineDir(terragruntOptions)
 	if err != nil {
 		return nil, nil, errors.New(err)
@@ -523,7 +523,7 @@ func createEngine(l log.Logger, terragruntOptions *options.TerragruntOptions) (*
 		Output: l.Writer(),
 	})
 
-	cmd := exec.Command(localEnginePath)
+	cmd := exec.CommandContext(ctx, localEnginePath)
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{

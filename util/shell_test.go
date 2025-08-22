@@ -10,11 +10,11 @@ import (
 func TestExistingCommand(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, util.IsCommandExecutable("pwd"))
+	assert.True(t, util.IsCommandExecutable(t.Context(), "pwd"))
 }
 
 func TestNotExistingCommand(t *testing.T) {
 	t.Parallel()
 
-	assert.False(t, util.IsCommandExecutable("not-existing-command", "--version"))
+	assert.False(t, util.IsCommandExecutable(t.Context(), "not-existing-command", "--version"))
 }
