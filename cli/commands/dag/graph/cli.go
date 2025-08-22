@@ -25,6 +25,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts)
 		},
+		Flags: run.NewFlags(l, opts, nil),
 	}
 
 	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
