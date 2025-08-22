@@ -62,7 +62,7 @@ const (
 )
 
 var (
-	DefaultWrappedPath = identifyDefaultWrappedExecutable()
+	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
 
 	defaultProviderCacheRegistryNames = []string{
 		"registry.terraform.io",
@@ -672,8 +672,8 @@ func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []s
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
-func identifyDefaultWrappedExecutable() string {
-	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
+func identifyDefaultWrappedExecutable(ctx context.Context) string {
+	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
 	// fallback to Terraform if tofu is not available

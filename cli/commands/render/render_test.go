@@ -19,7 +19,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 
 	opts, _ := setupTest(t)
 	var outputBuffer bytes.Buffer
-	opts.TerragruntOptions.Writer = &outputBuffer
+	opts.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
 	opts.DisableDependentModules = true
 	opts.RenderMetadata = false
@@ -41,7 +41,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 
 	opts, _ := setupTest(t)
 	var outputBuffer bytes.Buffer
-	opts.TerragruntOptions.Writer = &outputBuffer
+	opts.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
 	opts.DisableDependentModules = true
 	opts.RenderMetadata = true
@@ -102,7 +102,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	opts.Format = render.FormatHCL
 
 	var renderedBuffer bytes.Buffer
-	opts.TerragruntOptions.Writer = &renderedBuffer
+	opts.Writer = &renderedBuffer
 
 	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
