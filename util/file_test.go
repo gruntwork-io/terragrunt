@@ -143,7 +143,10 @@ func getGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGl
 
 	var paths []string
 
-	filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 		path = filepath.ToSlash(path)
 		for globPath, compiledGlob := range compiledGlobs {
 			ll := l.WithField("glob_path", globPath)
