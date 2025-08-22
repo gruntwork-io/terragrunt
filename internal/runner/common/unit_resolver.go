@@ -31,11 +31,11 @@ type UnitResolver struct {
 
 // NewUnitResolver creates a new UnitResolver with the given stack.
 func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
-	var includeGlobs map[string]glob.Glob
-
-	var excludeGlobs map[string]glob.Glob
-
-	doubleStarEnabled := false
+	var (
+		includeGlobs      map[string]glob.Glob
+		excludeGlobs      map[string]glob.Glob
+		doubleStarEnabled = false
+	)
 
 	if stack.TerragruntOptions.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(ctx) != nil {
 		var err error
@@ -822,11 +822,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	}
 	if !r.doubleStarEnabled {
 		excludeFn = func(l log.Logger, unit *Unit) bool {
-			if unit.FindUnitInPath(opts.ExcludeDirs) {
-				return true
-			} else {
-				return false
-			}
+			return unit.FindUnitInPath(opts.ExcludeDirs)
 		}
 	}
 

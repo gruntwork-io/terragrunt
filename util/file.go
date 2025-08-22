@@ -6,16 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"io"
-	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"syscall"
 
-	"github.com/charlievieth/fastwalk"
 	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
@@ -131,48 +128,6 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 	}
 
 	return compiledGlobs, nil
-}
-
-func GetGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGlobs map[string]glob.Glob) ([]string, error) {
-	if len(compiledGlobs) == 0 {
-		return []string{}, nil
-	}
-
-	basePath, err := CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-
-	var m sync.Mutex
-
-	fwConfig := fastwalk.DefaultConfig.Copy()
-	fwConfig.ToSlash = true
-	err = fastwalk.Walk(fwConfig, basePath, func(path string, d fs.DirEntry, err error) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if err != nil {
-				return err
-			}
-
-			for globPath, compiledGlob := range compiledGlobs {
-				ll := l.WithField("glob_path", globPath)
-				if compiledGlob.Match(path) {
-					ll.WithField("matched_path", path).Debug("Matched glob pattern")
-					m.Lock()
-					paths = append(paths, path)
-					m.Unlock()
-				}
-			}
-
-			return nil
-		}
-	})
-
-	return paths, err
 }
 
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
@@ -863,10 +818,12 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 		return nil, err
 	}
 
-	var dirs []string //nolint: prealloc
+	var (
+		lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+		dirs  = make([]string, 0, len(lines))
+	)
 
-	lines := strings.SplitSeq(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	for dir := range lines {
+	for _, dir := range lines {
 		dir = strings.TrimSpace(dir)
 		if dir == "" || strings.HasPrefix(dir, "#") {
 			continue
