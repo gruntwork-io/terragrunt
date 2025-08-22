@@ -1,8 +1,8 @@
 [tools]
 go-junit-report = "2.1.0"
 pre-commit = "4.2.0"
-gcloud = "520.0.0"
-awscli = "2.27.7"
+gcloud = "535.0.0"
+awscli = "2.28.15"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
 "go:golang.org/x/tools/gopls" = "v0.20.0"
 tflint = "0.47.0"
