@@ -89,6 +89,7 @@ require (
 	github.com/aws/smithy-go v1.22.4
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
 	github.com/charmbracelet/x/term v0.2.1
+	github.com/gobwas/glob v0.2.3
 	github.com/invopop/jsonschema v0.13.0
 	github.com/wI2L/jsondiff v0.7.0
 	github.com/xeipuuv/gojsonschema v1.2.0
