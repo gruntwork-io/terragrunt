@@ -43,12 +43,12 @@
     }
 
     // Function to apply theme
-    function applyTheme(theme) {
+    function applyTheme(theme: any) {
       html.setAttribute('data-theme', theme);
     }
 
     // Function to set theme and store preference
-    function setTheme(theme) {
+    function setTheme(theme: any) {
       applyTheme(theme);
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
@@ -67,7 +67,7 @@
     }
 
     // Listen for system theme changes
-    function handleSystemThemeChange(e) {
+    function handleSystemThemeChange(e: any) {
       // Only update if user hasn't set a preference
       if (!localStorage.getItem(THEME_STORAGE_KEY)) {
         const newTheme = e.matches ? 'dark' : 'light';

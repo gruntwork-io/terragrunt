@@ -1,0 +1,55 @@
+---
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import Footer from '@components/dv-Footer.astro';
+import Header from '@components/Header.astro';
+import Hero from '@components/TSHero.astro';
+import PageContainer from '@components/PageContainer.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+import TSTerragruntDrift from '@components/TSTerragruntDrift.astro';
+import TSTerragruntPipelines from '@components/TSTerragruntPipelines.astro';
+import TSTerragruntPatcher from '@components/TSTerragruntPatcher.astro';
+
+import '@styles/global.css';
+import TSPricing from '@components/TSPricing.astro';
+import TSAccelerator from '@components/TSAccelerator.astro';
+import Testimonial from '@components/Testimonial.astro';
+---
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Astro description" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Terragrunt Scale</title>
+	</head>
+
+  <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
+
+    <Header showThemeToggle={false} />
+
+    <div class="absolute top-[149px] md:top-[83px] w-full">
+      <Hero />
+
+      <PageContainer>
+        <FeaturedBrands />
+        <SectionSpacer />
+        <TSTerragruntPipelines />
+        <SectionSpacer />
+        <TSTerragruntDrift />
+        <SectionSpacer />
+        <TSTerragruntPatcher />
+        <SectionSpacer />
+        <TSPricing />
+        <TSAccelerator />
+        <SectionSpacer />
+        <Testimonial />
+        <SectionSpacer />
+      </PageContainer>
+
+    </div>
+
+  </body>
+</html>

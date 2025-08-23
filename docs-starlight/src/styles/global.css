@@ -32,6 +32,9 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
+  /* Colors Text */
+  --color-primary: #0F0934;
+
   /* Colors Landing Page */
   --color-accent: #4F2FD0;
   --color-accent-1: #7d5DFF;
@@ -42,6 +45,7 @@
   --color-gray-1: #A0A1AC;
   --color-gray-2: #6B6C7A;
   --color-gray-3: #DBDBDB;
+  --color-gray-4: #6D6F86;
   --color-stroke-dark: #2E375A;
 
   /* Colors Contact Form */
@@ -53,6 +57,15 @@
 
   /* Dialog */
   --color-dialog-bg: oklch(0.92 0.004 286.32);
+
+  /* Colors Terragrunt Page */
+  --color-feature-container: #171e3c;
+  --color-feature-container-stroke: #7b7f94;
+  --color-surface-2: #130E2B;
+  --color-card-border: #2F3547;
+  --color-acc-text: #F48701;
+  --color-gray-border: #E2E3E6;
+  --color-primary-button-light: #FE8E03;
 }
 
 /* Docs Dark mode colors. */
@@ -302,6 +315,9 @@ header {
   text-decoration: none;
 }
 
+.primary-button.light {
+  background-color: var(--color-primary-button-light);
+}
 .secondary-button {
   background-color: var(--color-bg-dark);
   border: 1px solid var(--color-gray-2);
