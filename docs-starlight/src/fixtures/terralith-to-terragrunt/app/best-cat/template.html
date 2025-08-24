@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best Cat Voting</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🐱 Vote for the Best Cat! 🐱</h1>
+
+        <div class="images-grid" id="imagesGrid">
+            {{#if images.length}}
+                {{#each images}}
+                <div class="image-card" data-image-key="{{this.key}}">
+                    <div class="image-container">
+                        <img src="/image/{{this.key}}" alt="Cat image" loading="lazy" decoding="async">
+                    </div>
+                    <div class="voting-section">
+                        <div class="vote-count" id="votes-{{this.keyId}}">{{this.votes}}</div>
+                        <div class="vote-buttons">
+                            <button class="vote-btn up" onclick="vote('{{this.key}}', 'up')" title="Vote Up">⬆️</button>
+                            <button class="vote-btn down" onclick="vote('{{this.key}}', 'down')" title="Vote Down">⬇️</button>
+                        </div>
+
+                    </div>
+                </div>
+                {{/each}}
+            {{else}}
+                <div class="no-images">No images found. Upload some cat pictures to get started!</div>
+            {{/if}}
+        </div>
+    </div>
+
+    <script src="/script.js"></script>
+</body>
+</html>

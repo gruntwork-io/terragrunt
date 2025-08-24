@@ -1,0 +1,52 @@
+---
+title: "Wrap Up"
+description: Wrap Up
+slug: docs/guides/terralith-to-terragrunt/wrap-up
+sidebar:
+  order: 12
+next: false
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Congratulations on making it through the Terralith to Terragrunt guide!
+
+You've successfully navigated the entire journey from a cumbersome Terralith to a clean, scalable, and maintainable IaC setup managed by Terragrunt. This process mirrors the real-world challenges many teams face as their infrastructure grows, and the skills you've developed are invaluable for managing IaC effectively at any scale.
+
+Along the way, you've practiced and mastered critical techniques that will serve you well on your path to IaC mastery. You now have hands-on experience with:
+
+- **Advanced State Manipulation**: Safely refactoring your infrastructure's state without destroying and recreating critical resources. You've used OpenTofu's `moved` and `removed` blocks and `state pull` and `state push` commands to migrate state between different file system layouts and backend configurations.
+- **Modular Infrastructure Design**: Breaking down a monolithic configuration into smaller, reusable modules with clear, encapsulated APIs. You learned to structure your project with a `catalog` of components that can be consumed by your `live` infrastructure.
+- **Boilerplate Reduction with Terragrunt**: Eliminating repetitive code by using `terragrunt.hcl` to generate provider and backend configurations, define module sources, and pass inputs dynamically using functions like `get_repo_root()` and `path_relative_to_include()`.
+- **Dependency Management**: Orchestrating complex deployments across multiple, isolated state files. You learned to use Terragrunt's `dependency` blocks to pass outputs from one component as inputs to another, and how to use `mock_outputs` to enable successful planning even before dependencies have been applied.
+- **Dynamic Stack Generation**: Transitioning from manually managing individual `terragrunt.hcl` files to defining entire environments on-demand with a single `terragrunt.stack.hcl` file, making your infrastructure definitions radically simpler and easier to maintain.
+
+If you'd like to continue practicing on your own, consider how you might continue experimenting with this configuration.
+
+- **Nested Stacks**: What if you wanted to manage both the `dev` and `prod` environments from a single, top-level file using the [Environment-based Stacks pattern](https://terragrunt.gruntwork.io/docs/features/stacks/#environment-based-stacks)? Think about how you would refactor your current setup to achieve this. Would you need to perform more state manipulation? If so, which techniques from this guide would you leverage to accomplish it safely?
+
+    <Aside type="tip">
+      Review the state migration steps throughout this guide!
+    </Aside>
+
+- **Integrating Terragrunt Into Your Build System**: In this guide, the artifact that's deployed to Lambda is manually packaged by you before provisioning any infrastructure. Terragrunt has special tooling in [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/) to automate manual tasks like this for you on-demand as you interact with your infrastructure. How would you integrate that into the configurations you've built so far?
+
+    <Aside type="tip">
+      You might find an example of this in our [example catalog](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt)!
+    </Aside>
+
+- **Testing Our IaC**: If you were to use this infrastructure in production, you might want the underlying patterns (and perhaps the live infrastructure) tested automatically, rather than just applying the IaC and manually verifying that it is working correctly. How would you go about doing that?
+
+    <Aside type="tip">
+      You might find a helpful tool to accomplish that in [Terratest](https://terratest.gruntwork.io/)!
+    </Aside>
+
+- **Automating Plan Assessments**: Throughout this guide, you engaged in careful manual evaluation of plans, and it was hinted early on that tools like [OPA](https://www.openpolicyagent.org/) provide a way to automatically assess the risk of plans. How would you integrate them into Terragrunt?
+
+    <Aside type="tip">
+      You might find it useful to review the documentation on [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/)!
+    </Aside>
+
+This was a simple example, but if you're struggling with a Terralith, your use-case is almost definitely more complex! Gruntwork offers support for assisting customers transition out of Terraliths into maintainable, best practices IaC codebases.
+
+Send an email to sales@gruntwork.io for [Terragrunt Enterprise Support](https://www.gruntwork.io/services/terragrunt) for more information.

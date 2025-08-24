@@ -1,0 +1,5 @@
+[tools]
+aws = "2.27.63"
+node = "22.17.1"
+opentofu = "1.10.3"
+terragrunt = "0.83.2"
