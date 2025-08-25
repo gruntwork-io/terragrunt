@@ -18,7 +18,8 @@ import '@styles/global.css';
     <!-- upsell -->
     <div class="relative bg-white overflow-hidden border-[6px] border-[#E6E6E6] rounded-3xl p-20">
         <Image
-            alt="Isometric background pattern"
+            alt=""
++           aria-hidden="true"
             class="absolute bottom-[-80px] pointer-events-none select-none opacity-50"
             src={BackgroundPattern}
         />
@@ -35,7 +36,12 @@ import '@styles/global.css';
               <div class="flex flex-col md:flex-row items-center gap-4 mx-auto">
                 <p class="font-mono text-xs text-gray-4 md:pr-4 m-0">BUILT FOR:</p>
                 <div class="flex gap-1 uppercase text-bg-dark">
-                  <a href="#" target="_blank" class="cursor-pointer no-underline">
+                  <a
+                    class="cursor-pointer no-underline"
+                    href="#"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
                     <IconLabel
                         src={TerragruntLogo}
                         alt="Terragrunt"
@@ -44,7 +50,12 @@ import '@styles/global.css';
                         eager
                         />
                   </a>
-                  <a href="#" target="_blank" class="cursor-pointer no-underline">
+                  <a
+                    class="cursor-pointer no-underline"
+                    href="#"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
                     <IconLabel
                         src={OpentofuIcon}
                         alt="OpenTofu Icon"
@@ -53,7 +64,12 @@ import '@styles/global.css';
                         eager
                         />
                   </a>
-                  <a href="#" target="_blank" class="cursor-pointer no-underline">
+                  <a
+                    class="cursor-pointer no-underline"
+                    href="#"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <IconLabel
                         src={TerraformIcon}
                         alt="Terraform Icon"
