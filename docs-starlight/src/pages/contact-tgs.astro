@@ -27,8 +27,7 @@ import '@styles/global.css';
 
     <PageContainer borderOuter="border-[#343956]" borderInner='border-transparent'>
       <!-- Divider -->
-      <div class="absolute hidden sm:block h-[400px] w-full border-b-1 border-[#343956]"></div>
-
+      <div aria-hidden="true" class="pointer-events-none absolute hidden sm:block h-[400px] w-full border-b border-[#343956]"></div>
       <div class="grid grid-cols-1 lg:grid-cols-2 pt-[100px] lg:gap-12 mx-[50px] mt-12">
 
         <!-- Left -->
@@ -38,7 +37,7 @@ import '@styles/global.css';
             <p class="text-sm font-sans text-gray-1">Scale your IaC estate with centralized pipelines, drift detection, and expert support. We'll start by asking about your current infrastructure needs and goals. Then we'll show you what's possible with Terragrunt Scale.</p>
           </div>
           <div class="hidden lg:block max-w-[472px] mt-0 lg:mt-[250px]">
-            <h4 class="text-white font-medium! mb-[50px]">Thousands of engineers build with Terragrunt</h4>
+            <h4 class="text-white !font-medium mb-[50px]">Thousands of engineers build with Terragrunt</h4>
             <Image src={Customers} alt="Terragrunt Users" class="w-full h-auto max-w-full" />
           </div>
         </div>
