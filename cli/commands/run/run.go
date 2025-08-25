@@ -35,7 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -793,9 +792,17 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
 }
 
-// If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
-// before running the command.
+// remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
+// It returns true if:
+//   - BackendBootstrap is enabled in options
+//   - Remote state configuration is provided
+//   - The Terraform command uses state (e.g., plan, apply, destroy, output, etc.)
+//   - The remote state backend needs bootstrapping
 func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
+	// If backend bootstrap is disabled, we don't need to initialize remote state
+	if !opts.BackendBootstrap {
+		return false, nil
+	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
@@ -804,15 +811,6 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 
 	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts); err != nil || !ok {
 		return false, err
-	}
-
-	if !opts.BackendBootstrap {
-		ctx = log.ContextWithLogger(ctx, l)
-
-		strictControl := opts.StrictControls.Find(controls.RequireExplicitBootstrap)
-		if err := strictControl.Evaluate(ctx); err != nil {
-			return false, nil //nolint: nilerr
-		}
 	}
 
 	return true, nil

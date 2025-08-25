@@ -27,6 +27,7 @@ var terraformErrorsMatcher = map[string]string{
 	"(?s).*NoCredentialProviders(?s).*":                                                   "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*client: no valid credential sources(?s).*":                                     "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*exec: \"(tofu|terraform)\": executable file not found(?s).*":                   "The executables 'terraform' and 'tofu' are missing from your $PATH. Please add at least one of these to your $PATH.",
+	"(?s).*bucket must have been previously created.*":                                    "Remote state bucket not found, create it manually or rerun with --backend-bootstrap to provision automatically.",
 }
 
 // ExplainError will try to explain the error to the user, if we know how to do so.
