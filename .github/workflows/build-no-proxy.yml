@@ -32,7 +32,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
-          version: 2025.4.4
+          version: 2025.8.16
           experimental: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.

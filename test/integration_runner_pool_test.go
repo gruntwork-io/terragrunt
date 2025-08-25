@@ -165,3 +165,15 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 	// Verify that the output contains value produced from remote unit
 	require.Contains(t, stdout, "data = \"unit-a\"")
 }
+
+func TestRunnerPoolSourceMap(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment runner-pool --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.85.0 --working-dir "+testPath+" -- apply ")
+	require.NoError(t, err)
+	// Verify that source map values are used
+	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+}

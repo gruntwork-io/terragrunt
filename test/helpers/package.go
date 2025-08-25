@@ -747,7 +747,7 @@ func WrappedBinary() string {
 	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(TofuBinary, "-version") {
+		if util.IsCommandExecutable(context.Background(), TofuBinary, "-version") {
 			return TofuBinary
 		}
 
@@ -784,7 +784,7 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 		return false
 	}
 
-	output, err := exec.Command(WrappedBinary(), "-version").Output()
+	output, err := exec.CommandContext(t.Context(), WrappedBinary(), "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -801,12 +801,12 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 
 // IsOpenTofuInstalled checks if OpenTofu is installed.
 func IsOpenTofuInstalled() bool {
-	return util.IsCommandExecutable(TofuBinary, "-version")
+	return util.IsCommandExecutable(context.Background(), TofuBinary, "-version")
 }
 
 // IsTerraformInstalled checks if Terraform is installed.
 func IsTerraformInstalled() bool {
-	return util.IsCommandExecutable(TerraformBinary, "-version")
+	return util.IsCommandExecutable(context.Background(), TerraformBinary, "-version")
 }
 
 // IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
@@ -822,7 +822,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 	)
 
 	if IsTerraform() {
-		output, err := exec.Command(TerraformBinary, "-version").Output()
+		output, err := exec.CommandContext(t.Context(), TerraformBinary, "-version").Output()
 		require.NoError(t, err)
 
 		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -837,7 +837,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		return major > terraformRequiredMajor || (major == terraformRequiredMajor && minor >= terraformRequiredMinor)
 	}
 
-	output, err := exec.Command(TofuBinary, "-version").Output()
+	output, err := exec.CommandContext(t.Context(), TofuBinary, "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -1117,7 +1117,7 @@ func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 func CreateGitRepo(t *testing.T, dir string) {
 	t.Helper()
 
-	commandOutput, err := exec.Command("git", "init", dir).CombinedOutput()
+	commandOutput, err := exec.CommandContext(t.Context(), "git", "init", dir).CombinedOutput()
 	require.NoErrorf(t, err, "Error initializing git repo: %v\n%s", err, string(commandOutput))
 }
 
