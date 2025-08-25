@@ -19,27 +19,17 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
 ---
 
 <section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
-    <!-- Hero Background -->
-    <Image
-      src={MobileHeroBackground}
-      alt="Isometric background pattern"
-      class="absolute bottom-0 left-1/4 transform -translate-x-1/4 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none block md:hidden"
-      decoding="async"
-      loading="eager"
-      width={900}
-    />
-
-    <!-- Tablet or wider Image -->
+    <!-- Background Image -->
     <Image
       src={BackgroundPattern}
       alt="Isometric background pattern with terragrunt logo"
-      class="absolute bottom-[-12%] left-1/2 transform -translate-x-1/2 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none hidden md:block"
+      class="absolute bottom-[-12%] left-1/2 transform -translate-x-1/2 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none"
       decoding="async"
       loading="eager"
       width={1440}
     />
 
-    <div class="px-5 md:px-0 w-[1440px] mx-auto">
+    <div class="px-5 md:px-20 max-w-[1440px] mx-auto">
 
         <div class="max-w-[989px] flex flex-col gap-10">
           <div class="flex flex-col justify-start gap-5 w-full pt-5 pd:pt-0">
@@ -51,7 +41,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
               </p>
           </div>
 
-          <div class="flex flex-col md:flex-row items-center w-full gap-4">
+          <div class="flex flex-col sm:flex-row sm:items-center w-full gap-4">
               <p class="font-mono text-xs text-white md:pr-4 m-0">BUILT FOR:</p>
               <div class="flex gap-1 uppercase">
                   <a href="https://github.com/" target="_blank" class="bg-[var(--color-bg-dark)] cursor-pointer no-underline">
@@ -89,6 +79,15 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
 
         <ThreeColFeatures>
           <ColFeature color="purple">
+            <!-- Grunty Mobile -->
+            <div class="lg:hidden absolute top-[-155px] md:top-[-346px] h-[154px] md:h-[345px] w-[161px] md:w-[361px] right-0 z-1">
+              <Image
+                alt="Grunty"
+                class="max-w-[100%] h-auto"
+                src={Grunty2}
+              />
+            </div>
+
             <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
               <Image
                 alt="Pipelines Icon"
@@ -121,7 +120,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
           </ColFeature>
 
           <ColFeature color="green">
-            <div class="absolute top-[-346px] right-0 z-1">
+            <div class="hidden lg:block absolute top-[-346px] right-0 z-1">
               <Image
                 alt="Grunty"
                 src={Grunty2}
