@@ -162,7 +162,7 @@ jobs:
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v3
         with:
           version: 2025.8.16
           experimental: true
