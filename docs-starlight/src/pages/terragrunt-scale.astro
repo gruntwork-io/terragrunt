@@ -18,38 +18,33 @@ import Testimonial from '@components/Testimonial.astro';
 <html lang="en">
 
 	<head>
+		<title>Terragrunt Scale</title>
 		<meta charset="UTF-8" />
 		<meta name="description" content="Astro description" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Terragrunt Scale</title>
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 	</head>
 
-  <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
+  <body class="bg-[#FAFAFA]">
 
     <Header showThemeToggle={false} />
-
-    <div class="absolute top-[149px] md:top-[83px] w-full">
-      <Hero />
-
-      <PageContainer>
-        <FeaturedBrands />
-        <SectionSpacer />
-        <TSTerragruntPipelines />
-        <SectionSpacer />
-        <TSTerragruntDrift />
-        <SectionSpacer />
-        <TSTerragruntPatcher />
-        <SectionSpacer />
-        <TSPricing />
-        <TSAccelerator />
-        <SectionSpacer />
-        <Testimonial />
-        <SectionSpacer />
-      </PageContainer>
-
-    </div>
+    <Hero />
+    <PageContainer>
+      <FeaturedBrands />
+      <SectionSpacer />
+      <TSTerragruntPipelines />
+      <SectionSpacer />
+      <TSTerragruntDrift />
+      <SectionSpacer />
+      <TSTerragruntPatcher />
+      <SectionSpacer />
+      <TSPricing />
+      <TSAccelerator />
+      <SectionSpacer />
+      <Testimonial />
+      <SectionSpacer />
+    </PageContainer>
 
   </body>
 </html>

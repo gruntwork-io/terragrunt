@@ -51,7 +51,7 @@ const sortedBrands = brands.sort((a, b) => (a.data.order || 0) - (b.data.order |
 
   // select both scroll tracks
   const logoScrolls = scroller.querySelectorAll("[id^='LogoScroll']");
-  
+
   // calculate the width of one track
   const scrollWidth = logoScrolls[0].offsetWidth;
 
@@ -77,4 +77,3 @@ const sortedBrands = brands.sort((a, b) => (a.data.order || 0) - (b.data.order |
 
   requestAnimationFrame(animate);
 </script>
-
