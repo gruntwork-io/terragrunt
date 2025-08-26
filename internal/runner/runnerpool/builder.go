@@ -2,6 +2,7 @@ package runnerpool
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -16,13 +17,57 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
-		WithDiscoverExternalDependencies().
+		WithOptions(opts).
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
-		WithConfigFilenames([]string{config.DefaultTerragruntConfigPath}).
+		WithIncludeHiddenDirs([]string{config.StackDir}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
+
+	// Only discover external dependencies when not explicitly excluded via flag/env.
+	if terragruntOptions.IgnoreExternalDependencies {
+		d = d.WithIgnoreExternalDependencies()
+	} else {
+		d = d.WithDiscoverExternalDependencies()
+	}
+
+	// Configure discovery to look for the configured Terragrunt file name if provided,
+	// otherwise fall back to the default filename.
+	filename := config.DefaultTerragruntConfigPath
+	if terragruntOptions.TerragruntConfigPath != "" {
+		filename = filepath.Base(terragruntOptions.TerragruntConfigPath)
+	}
+
+	d = d.WithConfigFilenames([]string{filename})
+
+	// Apply include directory features based on terragrunt options
+	var includeDirs []string
+	if len(terragruntOptions.IncludeDirs) > 0 {
+		includeDirs = append(includeDirs, terragruntOptions.IncludeDirs...)
+	}
+	if len(terragruntOptions.UnitsReading) > 0 {
+		includeDirs = append(includeDirs, terragruntOptions.UnitsReading...)
+	}
+	if len(terragruntOptions.ModulesThatInclude) > 0 {
+		includeDirs = append(includeDirs, terragruntOptions.ModulesThatInclude...)
+	}
+	if len(includeDirs) > 0 {
+		d = d.WithIncludeDirs(includeDirs)
+	}
+
+	// Apply exclude directory features based on terragrunt options
+	if len(terragruntOptions.ExcludeDirs) > 0 {
+		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
+	}
+
+	if terragruntOptions.StrictInclude {
+		d = d.WithStrictInclude()
+	}
+
+	if terragruntOptions.ExcludeByDefault {
+		d = d.WithExcludeByDefault()
+	}
 
 	// Wrap discovery with telemetry
 	var discovered discovery.DiscoveredConfigs

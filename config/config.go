@@ -1052,16 +1052,37 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 }
 
 // GetDefaultConfigPath returns the default path to use for the Terragrunt configuration
-// that exists within the path giving preference to `terragrunt.hcl`
+// that exists within the path giving preference to `terragrunt.hcl`.
+// This wrapper preserves the original function signature and delegates to
+// GetDefaultConfigPathWithCandidates without custom candidates.
 func GetDefaultConfigPath(workingDir string) string {
+	return GetDefaultConfigPathWithCandidates(workingDir, DefaultTerragruntConfigPaths...)
+}
+
+// GetDefaultConfigPathWithCandidates returns the path to use for the Terragrunt configuration within the given directory.
+// It checks for the first existing file in the provided candidates list (in order). If no candidates are provided,
+// it falls back to DefaultTerragruntConfigPaths. If none of the candidates exist, the last candidate path is returned.
+// If workingDir is a file path, that path is returned as-is.
+func GetDefaultConfigPathWithCandidates(workingDir string, candidates ...string) string {
 	// check if a configuration file was passed as `workingDir`.
 	if !files.IsDir(workingDir) && files.FileExists(workingDir) {
 		return workingDir
 	}
 
-	var configPath string
+	var (
+		configPath string
+		toCheck    []string
+	)
 
-	for _, configPath = range DefaultTerragruntConfigPaths {
+	if len(candidates) > 0 {
+		// Use provided candidates (copy to avoid accidental modification of caller slice)
+		toCheck = append([]string(nil), candidates...)
+	} else {
+		toCheck = DefaultTerragruntConfigPaths
+	}
+
+	for _, cfg := range toCheck {
+		configPath = cfg
 		if !filepath.IsAbs(configPath) {
 			configPath = util.JoinPath(workingDir, configPath)
 		}
