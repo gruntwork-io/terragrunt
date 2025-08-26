@@ -3,7 +3,7 @@
 ---
 
 <div class="flex flex-col w-full">
-  
+
   <!-- Toggle Buttons -->
   <div class="grid grid-cols-2 gap-2 bg-[#1a1a2e] rounded-lg p-1 mb-[12px] w-full">
     <button
@@ -27,7 +27,7 @@
       <div class="flex flex-col gap-4">
         <!-- HubSpot Hidden Fields -->
         <input type="hidden" name="hs_context" value='{"hutk":"","pageUri":"","pageName":"Contact Form"}' />
-        
+
         <div>
           <label for="firstname" class="block text-sm font-medium text-gray-1 mb-2">Name<sup>*</sup></label>
           <input
@@ -112,28 +112,28 @@
     const iframeView = document.getElementById('book-a-call');
 
     function showContactForm() {
-      formToggle.classList.add('active');
-      iframeToggle.classList.remove('active');
+      formToggle?.classList.add('active');
+      iframeToggle?.classList.remove('active');
 
-      contactFormView.classList.remove('hidden');
-      contactFormView.classList.add('active');
-      
-      iframeView.classList.add('hidden');
-      iframeView.classList.remove('active');
+      contactFormView?.classList.remove('hidden');
+      contactFormView?.classList.add('active');
+
+      iframeView?.classList.add('hidden');
+      iframeView?.classList.remove('active');
     }
 
     function showIframe() {
-      formToggle.classList.remove('active');
-      iframeToggle.classList.add('active');
-      
-      contactFormView.classList.remove('active');
-      contactFormView.classList.add('hidden');
-      
-      iframeView.classList.add('active');
-      iframeView.classList.remove('hidden');
+      formToggle?.classList.remove('active');
+      iframeToggle?.classList.add('active');
+
+      contactFormView?.classList.remove('active');
+      contactFormView?.classList.add('hidden');
+
+      iframeView?.classList.add('active');
+      iframeView?.classList.remove('hidden');
     }
 
-    formToggle.addEventListener('click', showContactForm);
-    iframeToggle.addEventListener('click', showIframe);
+    formToggle?.addEventListener('click', showContactForm);
+    iframeToggle?.addEventListener('click', showIframe);
   });
 </script>

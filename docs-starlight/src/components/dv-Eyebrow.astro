@@ -1,8 +1,12 @@
 ---
 import '@styles/global.css';
-const { text = '' } = Astro.props;
----
+import { Image } from 'astro:assets';
 
-<div class="px-0.5 bg-accent/7 text-xs font-mono text-accent self-start">
-    <span>{text}</span>
+const { text = '', icon } = Astro.props;
+---
+<div class="flex flex-row items-center gap-2">
+  {icon ? <Image src={icon} alt="" class="size-[36px]" /> : null}
+  <div class="px-0.5 bg-accent/7 text-xs font-mono text-accent uppercase">
+      <span>{text}</span>
+  </div>
 </div>
