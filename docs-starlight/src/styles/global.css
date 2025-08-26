@@ -648,18 +648,11 @@ kbd {
 /* Contact Form */
 #contact-form,
 #book-a-call {
-  background-color: #0f0726;
+  background-color: var(--color-bg-dark);
   border: 1px solid #343956;
   border-radius: 12px;
   height: auto;
   min-height: 600px;
-}
-
-#contact-form {
-  padding: 20px 16px;
-}
-
-#book-a-call {
   padding: 10px 8px;
 }
 
