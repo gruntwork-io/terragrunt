@@ -42,9 +42,9 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
           </div>
 
           <div class="flex flex-col sm:flex-row sm:items-center w-full gap-4">
-              <p class="font-mono text-xs text-white md:pr-4 m-0">BUILT FOR:</p>
+              <p class="font-mono text-xs text-white md:pr-4 m-0 select-none">BUILT FOR:</p>
               <div class="flex gap-1 uppercase">
-                  <div class="bg-[var(--color-bg-dark)] cursor-pointer no-underline">
+                  <div class="bg-[var(--color-bg-dark)] select-none">
                     <IconLabel
                       src={GithubIcon}
                       alt="Github Icon"
@@ -52,7 +52,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
                       eager
                       />
                   </div>
-                  <div class="bg-[var(--color-bg-dark)] cursor-pointer no-underline">
+                  <div class="bg-[var(--color-bg-dark)] select-none">
                     <IconLabel
                       src={GitlabIcon}
                       alt="Gitlab Icon"
@@ -60,7 +60,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
                       eager
                     />
                   </div>
-                  <div class="bg-[var(--color-bg-dark)] cursor-pointer no-underline">
+                  <div class="bg-[var(--color-bg-dark)] select-none">
                     <IconLabel
                       src={TerragruntIcon}
                       alt="Terragrunt"
@@ -97,7 +97,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
                 width={20}
               />
             </div>
-            <div class="relative flex flex-col z-20">
+            <div class="relative flex flex-col z-20 select-none">
               <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Pipelines</h5>
               <p class="text-sm text-[var(--color-gray-1)] m-0">Automate your CI/CD</p>
             </div>
@@ -113,7 +113,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
                 width={20}
               />
             </div>
-            <div class="relative flex flex-col z-20">
+            <div class="relative flex flex-col z-20 select-none">
               <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Drift Detection</h5>
               <p class="text-sm text-[var(--color-gray-1)] m-0">Reconcile infrastructure Drift</p>
             </div>
@@ -137,7 +137,7 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
                 width={20}
               />
             </div>
-            <div class="relative flex flex-col z-20">
+            <div class="relative flex flex-col z-20 select-none">
               <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Patcher</h5>
               <p class="text-sm text-[var(--color-gray-1)] m-0">Keep your IaC up-to-date</p>
             </div>
