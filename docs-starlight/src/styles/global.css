@@ -32,6 +32,11 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
+  /* Colors Nav */
+  --color-nav-link: #A0A1AC;
+  --color-nav-link-hover: #e8eefc;
+
+
   /* Colors Text */
   --color-primary: #0F0934;
 
@@ -244,14 +249,19 @@ header {
 }
 
 .navbar {
-    display: flex;
-    width: 100vw;
-    height: auto;
     align-items: center;
-    justify-content: space-between;
     background-color: var(--color-bg-dark);
-    padding: 20px 80px;
     border-bottom: 1px solid var(--color-stroke-dark);
+    display: flex;
+    justify-content: space-between;
+    padding: 18px 80px;
+    width: 100vw;
+}
+
+@media (width >= 1024px) {
+    .navbar {
+        height: 92px !important;
+    }
 }
 
 @media (width <= 1024px) {
@@ -403,6 +413,7 @@ site-search button {
   border: 1px solid var(--color-opacity-10);
   border-radius: 6px;
   color: var(--color-gray-2);
+  display: flex;
   padding: 6px 12px;
 }
 
