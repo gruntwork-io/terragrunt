@@ -300,13 +300,13 @@ header {
 }
 
 .social-icon {
-  color: var(--color-gray-1) !important;
+  color: var(--color-nav-link) !important;
   cursor: pointer;
   text-decoration: none;
 }
 
 .social-icon:hover {
-  color: var(--sl-color-gray-1) !important;
+  color: var(--color-nav-link-hover) !important;
   cursor: pointer;
 }
 
