@@ -42,15 +42,25 @@ import TerraformIcon from '@assets/terraform-logo.svg';
         <div class="flex flex-col md:flex-row justify-center items-center w-full gap-4">
             <p class="  font-mono text-xs text-white md:pr-4">BUILT FOR:</p>
             <div class="flex gap-1">
-                <a href="https://opentofu.org" target="_blank" class="bg-[var(--color-bg-dark)] cursor-pointer no-underline">
-                <IconLabel
+                <a
+                  class="bg-[var(--color-bg-dark)] cursor-pointer no-underline"
+                  href="https://opentofu.org"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <IconLabel
                     src={OpentofuIcon}
                     alt="Opentofu Icon"
                     text="OPENTOFU"
-                        eager
-                    />
+                    eager
+                  />
                 </a>
-                <a href="https://developer.hashicorp.com/terraform" target="_blank" class="bg-[var(--color-bg-dark)] cursor-pointer no-underline">
+                <a
+                  class="bg-[var(--color-bg-dark)] cursor-pointer no-underline"
+                  href="https://developer.hashicorp.com/terraform"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
                 <IconLabel
                     src={TerraformIcon}
                     alt="Terraform Icon"
