@@ -103,7 +103,7 @@
     --sl-nav-height: 91px;
   }
   @media (width < 768px) {
-    --sl-nav-height: 148px;
+    --sl-nav-height: 127px;
   }
 }
 
@@ -141,16 +141,32 @@
   }
 }
 
+/* This overrides the Starlight styles */
+header {
+  border: none;
+}
+
+/* This overrides the Starlight styles */
 .header {
-  flex-direction: column;
-  height: auto;
-  justify-content: center;
   padding: 0 !important;
+}
+
+starlight-menu-button {
+  display: flex;
+  justify-content: right;
+  margin-right: 0;
+  position: absolute;
+  right: 0;
+}
+
+starlight-menu-button button {
+  top: 80px;
+  position: fixed;
 }
 
 @media screen and (max-width: 767px) {
   .main-frame {
-    padding-top: 196px;
+    padding-top: 173px;
   }
 }
 
@@ -233,31 +249,6 @@ ol li {
 
 h1, h2, h3, h4, h5, h6 {
   font-weight: 400;
-}
-
-header {
-  border-bottom: 1px solid var(--sl-color-stroke-dark);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0 !important;
-}
-
-.navbar {
-    display: flex;
-    width: 100vw;
-    height: auto;
-    align-items: center;
-    justify-content: space-between;
-    background-color: var(--color-bg-dark);
-    padding: 20px 80px;
-    border-bottom: 1px solid var(--color-stroke-dark);
-}
-
-@media (width <= 1024px) {
-    .navbar {
-        padding: 20px;
-    }
 }
 
 .searchbar {
@@ -545,7 +536,7 @@ input.pagefind-ui__search-input:focus {
 /* Fix to site-search button area smaller on mobile */
 @media (width <= 768px) {
   site-search > button {
-    width: 100%;
+    width: calc(100% - 40px);
   }
 }
 
