@@ -535,6 +535,9 @@ input.pagefind-ui__search-input:focus {
 
 /* Fix to site-search button area smaller on mobile */
 @media (width <= 768px) {
+  body.tg site-search > button {
+    width: 100%;
+  }
   site-search > button {
     width: calc(100% - 40px);
   }
