@@ -5,14 +5,18 @@ site-search button {
   border: 1px solid var(--color-opacity-10);
   border-radius: 6px;
   color: var(--color-gray-2);
-  display: flex;
   max-width: none;
   padding: 6px 12px;
+}
+
+/* Search Box NOT inside Dialog  */
+site-search>button {
+  display: flex;
   width: 100%;
 }
 
 @media (width < 800px) {
-  site-search button {
+  site-search>button {
     width: calc(100% - 40px);
   }
 }
@@ -74,4 +78,23 @@ site-search .pagefind-ui__result {
 html[data-theme="dark"] site-search input,
 html[data-theme="dark"] site-search .pagefind-ui__result-link  {
   color: rgb(19, 24, 36);
+}
+
+
+/*
+ * Starlight Overrides
+ *
+ * Context: Starlight components apply different styles based on dark/light mode state.
+ * This causes visual issues because the docs pages have dark mode support, but the homepage nav does not.
+ * This override fixes an issue on the homepage nav by styling CMD+K in a consistent way across all pages in both * modes.
+ *
+ * Future Considerations:
+ * - If homepage gains dark mode support, this override may need adjustment
+ * - Consider if a more systematic theming approach is needed long-term
+ */
+site-search button kbd {
+  background-color: transparent;
+  font-size: var(--sl-text-sm);
+  gap: 0;
+  margin: 0 0 0 auto;
 }
