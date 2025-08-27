@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -449,8 +450,8 @@ func (d *Discovery) matchesIncludePatterns(path string) bool {
 		// Convert pattern to slash format
 		patternSlash := filepath.ToSlash(pattern)
 
-		// Check if the relative path matches the pattern as a glob
-		if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
+		// Use zglob to match the pattern against the path
+		if matched, err := zglob.Match(patternSlash, relPathSlash); err == nil && matched {
 			return true
 		}
 
@@ -467,7 +468,7 @@ func (d *Discovery) matchesIncludePatterns(path string) bool {
 			for i := 0; i < len(pathParts); i++ {
 				// Check if any part of the path matches the pattern
 				testPath := strings.Join(pathParts[:i+1], "/")
-				if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+				if matched, err := zglob.Match(patternSlash, testPath); err == nil && matched {
 					return true
 				}
 			}
@@ -503,16 +504,10 @@ func (d *Discovery) MatchesExcludePatterns(path string) bool {
 
 		// Handle absolute path patterns
 		if filepath.IsAbs(pattern) {
-			// For absolute patterns, compare against the full path
 			pathSlash := filepath.ToSlash(path)
 
-			// Handle exact path matching first
-			if pathSlash == patternSlash {
-				return true
-			}
-
-			// Check if the path matches the pattern as a glob
-			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+			// Use zglob to match the pattern against the full path
+			if matched, err := zglob.Match(patternSlash, pathSlash); err == nil && matched {
 				return true
 			}
 
@@ -526,37 +521,6 @@ func (d *Discovery) MatchesExcludePatterns(path string) bool {
 				return true
 			}
 
-			// Handle glob patterns with wildcards for absolute paths
-			if strings.Contains(patternSlash, "*") {
-				pathParts := strings.Split(pathSlash, "/")
-				for i := 0; i < len(pathParts); i++ {
-					testPath := strings.Join(pathParts[:i+1], "/")
-					if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
-						return true
-					}
-				}
-
-				for _, part := range pathParts {
-					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
-						return true
-					}
-				}
-			}
-
-			// Handle question marks and character classes for absolute paths
-			if strings.Contains(patternSlash, "?") || (strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]")) {
-				if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
-					return true
-				}
-
-				pathParts := strings.Split(pathSlash, "/")
-				for _, part := range pathParts {
-					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
-						return true
-					}
-				}
-			}
-
 			continue
 		}
 
@@ -566,8 +530,8 @@ func (d *Discovery) MatchesExcludePatterns(path string) bool {
 			return true
 		}
 
-		// Check if the relative path matches the pattern as a glob
-		if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
+		// Use zglob to match the pattern against the relative path
+		if matched, err := zglob.Match(patternSlash, relPathSlash); err == nil && matched {
 			return true
 		}
 
@@ -590,14 +554,14 @@ func (d *Discovery) MatchesExcludePatterns(path string) bool {
 			for i := 0; i < len(pathParts); i++ {
 				// Check if any part of the path matches the pattern
 				testPath := strings.Join(pathParts[:i+1], "/")
-				if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+				if matched, err := zglob.Match(patternSlash, testPath); err == nil && matched {
 					return true
 				}
 			}
 
 			// Also check if the pattern matches any directory component
 			for _, part := range pathParts {
-				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+				if matched, err := zglob.Match(patternSlash, part); err == nil && matched {
 					return true
 				}
 			}
@@ -620,6 +584,7 @@ func (d *Discovery) MatchesExcludePatterns(path string) bool {
 		}
 
 		// Handle character classes like [abc] or [a-z]
+		// Use filepath.Match for character classes as zglob handles them differently
 		if strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]") {
 			// Check if the pattern matches the path directly
 			if matched, err := filepath.Match(patternSlash, relPathSlash); err == nil && matched {
@@ -957,14 +922,28 @@ func (d *DependencyDiscovery) matchesIncludePatterns(path string) bool {
 		// Convert pattern to slash format
 		patternSlash := filepath.ToSlash(pattern)
 
-		// Check if the path matches the pattern as a glob
-		if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+		// Use zglob to match the pattern against the path
+		if matched, err := zglob.Match(patternSlash, pathSlash); err == nil && matched {
 			return true
 		}
 
 		// Also check if the path is a subdirectory of the pattern
 		if strings.HasPrefix(pathSlash, patternSlash+"/") {
 			return true
+		}
+
+		// Check if the pattern is a glob that matches the directory name
+		// For example, "app*" should match "app" and "app/frontend"
+		if strings.Contains(patternSlash, "*") {
+			// Split the path into components and check each level
+			pathParts := strings.Split(pathSlash, "/")
+			for i := 0; i < len(pathParts); i++ {
+				// Check if any part of the path matches the pattern
+				testPath := strings.Join(pathParts[:i+1], "/")
+				if matched, err := zglob.Match(patternSlash, testPath); err == nil && matched {
+					return true
+				}
+			}
 		}
 	}
 
@@ -991,14 +970,8 @@ func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
 
 		// Handle absolute path patterns
 		if filepath.IsAbs(pattern) {
-			// For absolute patterns, compare against the full path
-			// Handle exact path matching first
-			if pathSlash == patternSlash {
-				return true
-			}
-
-			// Check if the path matches the pattern as a glob
-			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+			// Use zglob to match the pattern against the full path
+			if matched, err := zglob.Match(patternSlash, pathSlash); err == nil && matched {
 				return true
 			}
 
@@ -1012,37 +985,6 @@ func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
 				return true
 			}
 
-			// Handle glob patterns with wildcards for absolute paths
-			if strings.Contains(patternSlash, "*") {
-				pathParts := strings.Split(pathSlash, "/")
-				for i := 0; i < len(pathParts); i++ {
-					testPath := strings.Join(pathParts[:i+1], "/")
-					if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
-						return true
-					}
-				}
-
-				for _, part := range pathParts {
-					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
-						return true
-					}
-				}
-			}
-
-			// Handle question marks and character classes for absolute paths
-			if strings.Contains(patternSlash, "?") || (strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]")) {
-				if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
-					return true
-				}
-
-				pathParts := strings.Split(pathSlash, "/")
-				for _, part := range pathParts {
-					if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
-						return true
-					}
-				}
-			}
-
 			continue
 		}
 
@@ -1052,8 +994,8 @@ func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
 			return true
 		}
 
-		// Check if the path matches the pattern as a glob
-		if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
+		// Use zglob to match the pattern against the path
+		if matched, err := zglob.Match(patternSlash, pathSlash); err == nil && matched {
 			return true
 		}
 
@@ -1076,20 +1018,21 @@ func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
 			for i := 0; i < len(pathParts); i++ {
 				// Check if any part of the path matches the pattern
 				testPath := strings.Join(pathParts[:i+1], "/")
-				if matched, err := filepath.Match(patternSlash, testPath); err == nil && matched {
+				if matched, err := zglob.Match(patternSlash, testPath); err == nil && matched {
 					return true
 				}
 			}
 
 			// Also check if the pattern matches any directory component
 			for _, part := range pathParts {
-				if matched, err := filepath.Match(patternSlash, part); err == nil && matched {
+				if matched, err := zglob.Match(patternSlash, part); err == nil && matched {
 					return true
 				}
 			}
 		}
 
 		// Handle patterns with question marks (single character wildcards)
+		// Use filepath.Match for question marks as zglob handles them differently
 		if strings.Contains(patternSlash, "?") {
 			// Check if the pattern matches the path directly
 			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
@@ -1106,6 +1049,7 @@ func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
 		}
 
 		// Handle character classes like [abc] or [a-z]
+		// Use filepath.Match for character classes as zglob handles them differently
 		if strings.Contains(patternSlash, "[") && strings.Contains(patternSlash, "]") {
 			// Check if the pattern matches the path directly
 			if matched, err := filepath.Match(patternSlash, pathSlash); err == nil && matched {
