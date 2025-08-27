@@ -16,12 +16,15 @@ import '@styles/global.css';
 const shouldRenderSearch =
 	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
 
+// This will switch between dark and light mode.
+// Some pages do not have a dark mode, so this allows us to show or hide the switch.
 interface Props {
 	showThemeToggle?: boolean;
 }
 
 const { showThemeToggle = true } = Astro.props;
 
+// Github Stars
 let starCountDisplay = process.env.GITHUB_STARS || '8.6k';
 
 try {

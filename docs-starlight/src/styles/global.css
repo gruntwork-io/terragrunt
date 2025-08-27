@@ -32,6 +32,11 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
+  /* Colors Nav */
+  --color-nav-link: #A0A1AC;
+  --color-nav-link-hover: #e8eefc;
+
+
   /* Colors Text */
   --color-primary: #0F0934;
 
@@ -281,13 +286,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .social-icon {
-  color: var(--color-gray-1) !important;
+  color: var(--color-nav-link) !important;
   cursor: pointer;
   text-decoration: none;
 }
 
 .social-icon:hover {
-  color: var(--sl-color-gray-1) !important;
+  color: var(--color-nav-link-hover) !important;
   cursor: pointer;
 }
 
@@ -394,6 +399,7 @@ site-search button {
   border: 1px solid var(--color-opacity-10);
   border-radius: 6px;
   color: var(--color-gray-2);
+  display: flex;
   padding: 6px 12px;
 }
 
@@ -633,7 +639,19 @@ article.card {
   margin: 1.5em 0;
 }
 
+/*
+ * Starlight Overrides
+ *
+ * Context: Starlight components apply different styles based on dark/light mode state.
+ * This causes visual issues because the docs pages have dark mode support, but the homepage nav does not.
+ * This override fixes an issue on the homepage nav by styling CMD+K in a consistent way across all pages in both * modes.
+ *
+ * Future Considerations:
+ * - If homepage gains dark mode support, this override may need adjustment
+ * - Consider if a more systematic theming approach is needed long-term
+ */
 kbd {
+  background-color: transparent;
   font-size: var(--sl-text-sm);
   gap: 0;
   margin: 0 0 0 auto;
