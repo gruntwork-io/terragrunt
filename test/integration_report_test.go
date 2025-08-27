@@ -420,7 +420,7 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	// Run terragrunt with report experiment enabled and unit timing enabled
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
