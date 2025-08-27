@@ -1022,7 +1022,7 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
@@ -3225,7 +3225,7 @@ func TestNoColor(t *testing.T) {
 func TestOutputModuleGroups(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}

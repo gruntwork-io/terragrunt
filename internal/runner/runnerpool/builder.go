@@ -46,12 +46,15 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	if len(terragruntOptions.IncludeDirs) > 0 {
 		includeDirs = append(includeDirs, terragruntOptions.IncludeDirs...)
 	}
+
 	if len(terragruntOptions.UnitsReading) > 0 {
 		includeDirs = append(includeDirs, terragruntOptions.UnitsReading...)
 	}
+
 	if len(terragruntOptions.ModulesThatInclude) > 0 {
 		includeDirs = append(includeDirs, terragruntOptions.ModulesThatInclude...)
 	}
+
 	if len(includeDirs) > 0 {
 		d = d.WithIncludeDirs(includeDirs)
 	}

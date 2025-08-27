@@ -992,7 +992,6 @@ func (d *DependencyDiscovery) matchesExcludePatterns(path string) bool {
 		// Handle absolute path patterns
 		if filepath.IsAbs(pattern) {
 			// For absolute patterns, compare against the full path
-
 			// Handle exact path matching first
 			if pathSlash == patternSlash {
 				return true

@@ -267,8 +267,8 @@ func TestMatchesExcludePatterns(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		excludeDirs []string
 		path        string
+		excludeDirs []string
 		shouldMatch bool
 	}{
 		// Exact path matching

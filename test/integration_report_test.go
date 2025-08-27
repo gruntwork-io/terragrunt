@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ const (
 func TestTerragruntReportExperiment(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
@@ -80,7 +81,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
@@ -104,7 +105,7 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
@@ -250,7 +251,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
@@ -406,7 +407,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
@@ -419,7 +420,7 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	// Run terragrunt with report experiment enabled and unit timing enabled
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -491,7 +492,7 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TG_EXPERIMENT") == "runner-pool" {
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
 		t.Skip("Skipping test in runner-pool experiment")
 		return
 	}
