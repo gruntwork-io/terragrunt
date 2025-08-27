@@ -10,7 +10,7 @@ import Terminal from '@components/dv-Terminal.astro';
 import TerraformIcon from '@assets/terraform-logo.svg';
 ---
 
-<section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
+<section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden pt-[var(--sl-nav-height)] ">
     <!-- Hero Background -->
     <Image
       src={MobileHeroBackground}
@@ -31,7 +31,7 @@ import TerraformIcon from '@assets/terraform-logo.svg';
       width={1440}
     />
 
-    <div class="mt-[127px] pt-10 px-5 md:pt-5 md:px-0 relative z-20 flex flex-col items-center gap-10 w-full text-center">
+    <div class="relative flex flex-col w-full items-center text-center gap-10 pt-20 px-5 md:px-0 z-20">
         <div class="flex flex-col justify-start items-center gap-5 w-full">
             <h1 class="text-4xl md:text-6xl text-white leading-12 md:leading-18 m-0">The Open Source<br>IaC Orchestrator<br>Platform Teams Trust</h1>
             <p class="px-12 lg:px-40 md:px-0 text-lg text-[var(--color-gray-1)]">
