@@ -3,6 +3,9 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+@import "./buttons.css";
+@import "./lists.css";
+
 @font-face {
   font-family: 'Inter';
   src: url('/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
@@ -66,25 +69,30 @@
   /* Colors Terragrunt Page */
   --color-feature-container: #171e3c;
   --color-feature-container-stroke: #7b7f94;
-  --color-surface-2: #130E2B;
   --color-card-border: #2F3547;
   --color-acc-text: #F48701;
   --color-gray-border: #E2E3E6;
   --color-primary-button-light: #FE8E03;
+
+  /* Silverlight Customizations */
+  --sl-color-hairline-shade: #2E375A;
+  --sl-color-secondary: #EBEBEB;
+  --sl-text-sm: 16px;
+  --sl-color-stroke-dark: #2E375A;
+
+  /* Navigation */
+  --sl-color-bg-nav: #0F1731;
+  --sl-color-asides-border: hsl(41, 90%, 60%);
+  --sl-nav-height: 98px;
 }
 
 /* Docs Dark mode colors. */
 :root {
-  --sl-nav-height: 96px;
-  --sl-color-asides-border: hsl(41, 90%, 60%);
-  --sl-color-bg-nav: #0F1731;
+  --sl-color-bg: #0F1731;
   --sl-color-bg-sidebar: #0F1731;
-  --sl-color-hairline-shade: #2E375A;
   --sl-color-bg-inline-code: #2b2d4c;
   --color-code-border: #403f64;
   --color-code-text: #BFA6F2;
-  --sl-color-bg: #0F1731;
-
   --sl-color-accent-low: #1f1d47;
   --sl-color-accent: #5e46e6;
   --sl-color-accent-high: #c0c3fa;
@@ -96,36 +104,22 @@
   --sl-color-gray-4: #4c5776;
   --sl-color-gray-5: #2d3754;
   --sl-color-gray-6: #1c2541;
-  --sl-color-secondary: #EBEBEB;
-  --sl-color-stroke-dark: #2E375A;
-  --sl-text-sm: 16px;
   --color-toc-accent: #BFA6F2;
   --color-toc-background: rgba(191, 166, 242, 0.15);
   --color-toc-text: #EBEBEB;
   --sl-color-white: #ffffff;
-
-  @media (width >= 768px) {
-    --sl-nav-height: 91px;
-  }
-  @media (width < 768px) {
-    --sl-nav-height: 127px;
-  }
 }
 
 /* Docs Light mode colors. */
 :root[data-theme='light'] {
-  --sl-nav-height: 96px;
-  --sl-color-asides-border: hsl(41, 90%, 60%);
-  --sl-color-bg-nav: #0F1731;
-  --sl-color-bg-sidebar: #ffffff;
   --sl-color-bg: #ffffff;
-
-  --sl-color-accent-low: #d0d3fc;
-  --sl-color-accent: #6049e8;
-  --sl-color-accent-high: #2c2669;
+  --sl-color-bg-sidebar: #ffffff;
   --sl-color-bg-inline-code: #F3F2FF;
   --color-code-border: #BDADFF;
   --color-code-text: #7B5AFF;
+  --sl-color-accent-low: #d0d3fc;
+  --sl-color-accent: #6049e8;
+  --sl-color-accent-high: #2c2669;
   --sl-color-black: #ffffff;
   --sl-color-docs-stroke: #DBDBDB;
   --sl-color-gray-1: #1c2541;
@@ -134,39 +128,37 @@
   --sl-color-gray-4: #7e8bac;
   --sl-color-gray-5: #bbc2d4;
   --sl-color-gray-6: #e8eefc;
-  --sl-color-gray-7: #f3f6fe;
-  --sl-color-secondary: #EBEBEB;
   --color-toc-accent: #7B5AFF;
   --color-toc-background: #E4E9FC;
   --color-toc-text: #777888;
   --sl-color-white: #131824;
-
-  @media (width >= 768px) {
-    --sl-nav-height: 84px;
-  }
 }
 
+/* Header / Navigation */
 /* This overrides the Starlight styles */
 header {
   border: none;
 }
 
-/* This overrides the Starlight styles */
 .header {
   padding: 0 !important;
-}
-
-starlight-menu-button {
-  display: flex;
-  justify-content: right;
-  margin-right: 0;
-  position: absolute;
-  right: 0;
 }
 
 starlight-menu-button button {
   top: 80px;
   position: fixed;
+}
+
+@media (width >= 768px) {
+  :root {
+    --sl-nav-height: 98px;
+  }
+}
+
+@media (width < 768px) {
+  :root {
+    --sl-nav-height: 127px;
+  }
 }
 
 @media screen and (max-width: 767px) {
@@ -189,6 +181,7 @@ starlight-menu-button button {
 * {
   box-sizing: border-box;
 }
+
 html, body {
   overflow-x: hidden;
 }
@@ -196,49 +189,6 @@ html, body {
 body {
   margin: 0;
   padding: 0;
-}
-
-/* List styling to ensure proper rendering */
-ol {
-  list-style-type: decimal;
-  margin: 1em 0;
-  padding-left: 3em;
-}
-
-ol ol {
-  list-style-type: lower-alpha;
-  margin: 0.5em 0;
-  padding-left: 2.5em;
-}
-
-ol ol ol {
-  list-style-type: lower-roman;
-  margin: 0.5em 0;
-  padding-left: 2.5em;
-}
-
-/* Override numbering for sl-steps lists which have their own numbering */
-ol.sl-steps {
-  list-style-type: none;
-}
-
-ol.sl-steps ol {
-  list-style-type: none;
-}
-
-ol.sl-steps ol ol {
-  list-style-type: none;
-}
-
-li {
-  margin: 0.5em 0;
-  line-height: 1.6;
-}
-
-/* Ensure list items have proper spacing and alignment */
-ol li {
-  display: list-item;
-  text-align: left;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -294,103 +244,6 @@ h1, h2, h3, h4, h5, h6 {
 .social-icon:hover {
   color: var(--color-nav-link-hover) !important;
   cursor: pointer;
-}
-
-.primary-button {
-  background-color: var(--color-accent-1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  box-shadow: 0 0 15px 0 rgba(137, 107, 255, 0.30),
-              0 0 1px 4px rgba(52, 49, 27, 0.22),
-              0 0 1px 4px rgba(52, 49, 47, 0.22);
-  color: white;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 400;
-  padding: 10px 24px;
-  text-decoration: none;
-}
-
-.primary-button.light {
-  background-color: var(--color-primary-button-light);
-}
-.secondary-button {
-  background-color: var(--color-bg-dark);
-  border: 1px solid var(--color-gray-2);
-  border-radius: 8px;
-  box-shadow: 0 0 15px 0 rgba(255, 255, 255, 0.05),
-              0 0 1px 4px rgba(52, 49, 27, 0.22);
-  color: white;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 400;
-  padding: 10px 24px;
-  text-decoration: none;
-}
-
-.primary-button:hover, .secondary-button:hover {
-  cursor: pointer;
-}
-
-.primary-button:hover {
-  background-color: var(--color-accent);
-  transition: .25s ease-in-out;
-}
-
-.secondary-button:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  transition: .25s ease-in-out;
-}
-
-.primary-button:focus, .secondary-button:focus {
-  outline: 2px solid var(--color-accent-1);
-  outline-offset: 2px;
-}
-.primary-button:focus-visible, .secondary-button:focus-visible {
-  outline: 2px solid var(--color-accent-1);
-  outline-offset: 2px;
-}
-
-/* Scroll animations for testimonials */
-@keyframes scrollUp {
-  0% {
-    transform: translateY(0);
-  }
-  100% {
-    transform: translateY(-50%);
-  }
-}
-
-@keyframes scrollDown {
-  0% {
-    transform: translateY(-50%);
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-
-.scroll-up {
-  animation: scrollUp 90s linear infinite;
-}
-
-.scroll-down {
-  animation: scrollDown 90s linear infinite;
-}
-
-/* Pause animations on hover */
-.scroll-up:hover {
-  animation-play-state: paused;
-}
-
-.scroll-down:hover {
-  animation-play-state: paused;
-}
-
-/* Add background color to hovered testimonial cards */
-.scroll-up .shadow-\[0_0_0_2px_white\]:hover,
-.scroll-down .shadow-\[0_0_0_2px_white\]:hover {
-  background-color: var(--color-dark-blue-1) !important;
 }
 
 /* Search Box */
@@ -655,72 +508,4 @@ kbd {
   font-size: var(--sl-text-sm);
   gap: 0;
   margin: 0 0 0 auto;
-}
-
-/* Contact Form */
-#contact-form,
-#book-a-call {
-  background-color: var(--color-bg-dark);
-  border: 1px solid #343956;
-  border-radius: 12px;
-  height: auto;
-  min-height: 600px;
-  padding: 10px 8px;
-}
-
-#contact-form form {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 600px;
-}
-
-#contact-form label {
-  color: #d6d7db;
-  padding-left: 10px;
-}
-
-#contact-form input,
-#contact-form textarea {
-  background-color: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: #fff;
-}
-
-#contact-form textarea {
-  min-height: 170px;
-}
-
-#contact-form input:focus,
-#contact-form textarea:focus {
-  outline: 1px solid #448daf;
-}
-
-#contact-form form ::placeholder {
-  font-family: var(--font-sans);
-}
-
-#form-toggle,
-#iframe-toggle {
-  background-color: transparent;
-  border: 1px dashed #343956;
-  color: #A0A1AC;
-}
-
-#form-toggle:hover,
-#iframe-toggle:hover {
-  color: #c0eaeb;
-}
-
-#form-toggle.active,
-#iframe-toggle.active {
-  background-color: var(--color-contact-form-button-bg);
-  color: white;
-}
-
-#contact-form button[type="submit"] {
-  border: 3px solid #48b7d0;
-  background-color: #49b8d0;
-  background-image: radial-gradient(circle,#87e0e1,#48b7d0);
-  color: #191c35;
 }
