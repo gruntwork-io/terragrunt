@@ -148,7 +148,7 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/cas.sh
-          - name: Experiment mode tests
+          - name: Experiment mode
             os: ubuntu
             target: ./...
             setup_scripts:
