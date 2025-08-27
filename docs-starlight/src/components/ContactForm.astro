@@ -2,10 +2,10 @@
 // ContactForm component with toggle between contact form and iframe
 ---
 
-<div class="flex flex-col w-full">
-  
+<div class="flex flex-col w-full items-center lg:items-end">
+
   <!-- Toggle Buttons -->
-  <div class="grid grid-cols-2 gap-2 bg-[#1a1a2e] rounded-lg p-1 mb-[12px] w-full">
+  <div class="grid grid-cols-2 gap-2 bg-[#1a1a2e] rounded-lg p-1 mb-[12px] w-full max-w-md">
     <button
       id="form-toggle"
       class="active px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 bg-[var(--color-contact-form-button-bg)] text-white"
@@ -21,13 +21,13 @@
   </div>
 
   <!-- Contact Form -->
-  <div id="contact-form">
+  <div id="contact-form" class="w-full max-w-md">
     <form>
     <!-- <form action="https://forms.hubspot.com/uploads/form/v2/YOUR_PORTAL_ID/YOUR_FORM_ID" method="POST"> -->
       <div class="flex flex-col gap-4">
         <!-- HubSpot Hidden Fields -->
         <input type="hidden" name="hs_context" value='{"hutk":"","pageUri":"","pageName":"Contact Form"}' />
-        
+
         <div>
           <label for="firstname" class="block text-sm font-medium text-gray-1 mb-2">Name<sup>*</sup></label>
           <input
@@ -112,28 +112,28 @@
     const iframeView = document.getElementById('book-a-call');
 
     function showContactForm() {
-      formToggle.classList.add('active');
-      iframeToggle.classList.remove('active');
+      formToggle?.classList.add('active');
+      iframeToggle?.classList.remove('active');
 
-      contactFormView.classList.remove('hidden');
-      contactFormView.classList.add('active');
-      
-      iframeView.classList.add('hidden');
-      iframeView.classList.remove('active');
+      contactFormView?.classList.remove('hidden');
+      contactFormView?.classList.add('active');
+
+      iframeView?.classList.add('hidden');
+      iframeView?.classList.remove('active');
     }
 
     function showIframe() {
-      formToggle.classList.remove('active');
-      iframeToggle.classList.add('active');
-      
-      contactFormView.classList.remove('active');
-      contactFormView.classList.add('hidden');
-      
-      iframeView.classList.add('active');
-      iframeView.classList.remove('hidden');
+      formToggle?.classList.remove('active');
+      iframeToggle?.classList.add('active');
+
+      contactFormView?.classList.remove('active');
+      contactFormView?.classList.add('hidden');
+
+      iframeView?.classList.add('active');
+      iframeView?.classList.remove('hidden');
     }
 
-    formToggle.addEventListener('click', showContactForm);
-    iframeToggle.addEventListener('click', showIframe);
+    formToggle?.addEventListener('click', showContactForm);
+    iframeToggle?.addEventListener('click', showIframe);
   });
 </script>

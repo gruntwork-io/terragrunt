@@ -21,7 +21,9 @@ Dependencies of excluded units will still be run unless they are also explicitly
 </Aside>
 
 <Aside type="note">
-The glob curly braces expansion behaves differently when using environment variables versus command line parameters.
+Glob patterns must use Unix forward slashes `/` to separate directories, even on Windows machines.
 
-Use `TG_QUEUE_EXCLUDE_DIR="foo/module,bar/module"` instead of `TG_QUEUE_EXCLUDE_DIR="{foo,bar}/module"`.
+Glob behavior for `**` and `**/*` will change in a future version of Terragrunt.
+
+See the [double-star strict control](/docs/reference/strict-controls/#double-star) for full details.
 </Aside>

@@ -7,10 +7,12 @@ interface Props {
     alt: string;
     text: string;
     eager?: boolean;
+    darkText?: boolean;
 }
 
-const { src, alt, text, eager = false } = Astro.props as Props;
+const { src, alt, text, eager = false, darkText = false } = Astro.props as Props;
 const loadingMode = eager ? 'eager' : 'lazy';
+const textClass = darkText ? 'text-bg-dark' : 'text-white';
 ---
 
 <div class="flex border-stroke-dark border rounded-md p-1 pr-2.5 gap-1.5 items-center">
@@ -20,5 +22,5 @@ const loadingMode = eager ? 'eager' : 'lazy';
         class="w-5 h-5 rounded-sm"
         loading={loadingMode}
     />
-    <span class="text-xs font-mono text-white">{text}</span>
+    <span class={`text-xs font-mono ${textClass}`}>{text}</span>
 </div>

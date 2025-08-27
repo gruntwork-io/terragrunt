@@ -1,0 +1,32 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import Card from '@components/TSCard.astro';
+import Divider from '@components/dv-Divider.astro';
+import IconPatcherEyebrow from '@assets/icons/terragrunt-patcher-eyebrow.svg';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+    <div class="flex flex-col md:flex-row md:w-[680px] lg:w-[900px] md:pr-6 gap-4 md:gap-8">
+        <!-- Header Section -->
+        <div class="flex w-full sm:w-1/2 flex-col gap-4 md:gap-8 pb-6 md:pl-12">
+            <Eyebrow text="Terragrunt Patcher" icon={IconPatcherEyebrow} />
+            <h2 class="text-4xl md:text-[42px] font-sans m-0 text-primary max-w-[370px]"><span class="text-accent">Update</span> stacks, units, and modules automatically</h2>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col flex-1">
+            <Card title="Automatic Pull Requests" class="lg:border-l md:border-r-0">
+                <p class="text-sm font-sans text-gray-1 m-0">Get PRs for dependency updates on your chosen schedule, customized to include one or many dependency changes.</p>
+            </Card>
+            <Divider />
+            <Card title="Promotion Workflows" class="lg:border-l md:border-r-0">
+                <p class="text-sm font-sans text-gray-1 m-0">Terragrunt Patcher is aware of your environments, and can sequentially promote your updates across them.</p>
+            </Card>
+            <Divider />
+            <Card title="Update Terragrunt Stacks" class="lg:border-l md:border-r-0">
+                <p class="text-sm font-sans text-gray-1 m-0">Detect updates even for units or nested stacks within your `terragrunt.stack.hcl` files.</p>
+            </Card>
+        </div>
+    </div>
+</section>

@@ -1,7 +1,9 @@
 package util_test
 
 import (
+	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,6 +15,8 @@ import (
 
 	"slices"
 
+	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -82,7 +86,7 @@ func TestCanonicalPath(t *testing.T) {
 	}
 }
 
-func TestGlobCanonicalPath(t *testing.T) {
+func TestGlobs(t *testing.T) {
 	t.Parallel()
 
 	basePath := "testdata/fixture-glob-canonical"
@@ -97,18 +101,25 @@ func TestGlobCanonicalPath(t *testing.T) {
 		paths    []string
 		expected []string
 	}{
+		{[]string{"*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
+		{[]string{"**"}, []string{expectedHelper("module-a"), expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child"), expectedHelper("module-b/module-b-child/main.tf"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
 		{[]string{"module-a", "module-b/module-b-child/.."}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
 		{[]string{"*-a", "*-b"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
 		{[]string{"module-*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
 		{[]string{"module-*/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl")}},
-		{[]string{"module-*/**/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
+		{[]string{"module-*/**.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
 	}
+
+	l := logger.CreateLogger()
 
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := util.GlobCanonicalPath(basePath, tc.paths...)
+			compiledGlobs, err := util.CompileGlobs(basePath, tc.paths...)
+			require.NoError(t, err)
+
+			actual, err := getGlobPaths(t.Context(), l, basePath, compiledGlobs)
 
 			slices.Sort(actual)
 
@@ -118,6 +129,38 @@ func TestGlobCanonicalPath(t *testing.T) {
 			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.paths, basePath)
 		})
 	}
+}
+
+func getGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGlobs map[string]glob.Glob) ([]string, error) {
+	if len(compiledGlobs) == 0 {
+		return []string{}, nil
+	}
+
+	basePath, err := util.CanonicalPath("", basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []string
+
+	err = filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		path = filepath.ToSlash(path)
+		for globPath, compiledGlob := range compiledGlobs {
+			ll := l.WithField("glob_path", globPath)
+			if compiledGlob.Match(path) {
+				ll.WithField("matched_path", path).Debug("Matched glob pattern")
+
+				paths = append(paths, path)
+
+			}
+		}
+		return nil
+	})
+
+	return paths, err
 }
 
 func TestPathContainsHiddenFileOrFolder(t *testing.T) {

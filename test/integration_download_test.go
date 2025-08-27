@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -286,10 +287,14 @@ func TestExcludeDirs(t *testing.T) {
 		workingDir            string
 		excludeArgs           string
 		excludedModuleOutputs []string
+		enableDoubleStar      bool
 	}{
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, false},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, false},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, false},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, true},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, true},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, true},
 	}
 
 	modulePaths := make(map[string]string, len(moduleNames))
@@ -298,6 +303,14 @@ func TestExcludeDirs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+
+		opts, err := options.NewTerragruntOptionsForTest("running_module_test")
+		require.NoError(t, err)
+		doubleStarDefaultEnabled := opts.StrictControls.FilterByNames("double-star").Evaluate(t.Context()) != nil
+		if doubleStarDefaultEnabled && !tc.enableDoubleStar {
+			t.Skip("Skipping test because double-star is already enabled by default")
+		}
+
 		applyAllStdout := bytes.Buffer{}
 		applyAllStderr := bytes.Buffer{}
 
@@ -308,7 +321,11 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s", tc.workingDir, tc.excludeArgs), &applyAllStdout, &applyAllStderr)
+		strictControl := ""
+		if !doubleStarDefaultEnabled && tc.enableDoubleStar {
+			strictControl = "--strict-control double-star"
+		}
+		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", tc.workingDir, tc.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
