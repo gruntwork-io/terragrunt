@@ -227,7 +227,8 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             # print command arguments
             set -x
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee >(go-junit-report -set-exit-code > result.xml)
+            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
+            go-junit-report -set-exit-code < test_output.log > result.xml || true
           else
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
@@ -257,3 +258,18 @@ jobs:
           detailed_summary: 'true'
           include_time_in_summary: 'true'
           group_suite: 'true'
+
+      - name: Print Failed Tests (${{ matrix.integration.name }})
+        if: matrix.integration.ignore_errors && always()
+        run: |
+          echo "Failed Tests in ${{ matrix.integration.name }}"
+          if [ -f test_output.log ]; then
+            # Extract test names from FAIL lines
+            grep "FAIL:" test_output.log | sed 's/.*FAIL[[:space:]]*//' | sed 's/[[:space:]]*.*//' | sort | uniq | while read -r test; do
+              echo "- $test"
+            done || echo "No failed tests found"
+          else
+            echo "No test output found"
+          fi
+          echo ""
+        shell: bash
