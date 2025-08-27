@@ -1,0 +1,13 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import PatternDivider from '@assets/pattern-div.svg';
+---
+<div class="relative w-full h-8 border-x md:border-l border-dashed border-gray-3 lg:mt-0.5">
+    <Image 
+        src={PatternDivider}
+        alt=""
+        class="absolute inset-0 w-full h-full object-cover"
+    />  
+</div>

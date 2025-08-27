@@ -99,15 +99,12 @@ func TestTerragruntValidateInputs(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, module := range moduleDirs {
-		// capture range var within range scope so it doesn't change as the tests are spun to the background in the
-		// t.Parallel call.
-
 		name := filepath.Base(module)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			nameDashSplit := strings.Split(name, "-")
-			helpers.RunTerragruntValidateInputs(t, module, []string{"--strict-validate"}, nameDashSplit[0] == "success")
+			helpers.RunTerragruntValidateInputs(t, module, []string{"--strict"}, nameDashSplit[0] == "success")
 		})
 	}
 }
@@ -151,7 +148,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T)
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixtures/validate-inputs", "success-inputs-only")
-	args := []string{"-var=testvariable=testvalue", "--strict-validate"}
+	args := []string{"-var=testvariable=testvalue", "--strict"}
 	helpers.RunTerragruntValidateInputs(t, moduleDir, args, false)
 }
 
@@ -163,7 +160,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, moduleDir))
 	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
 
-	args := []string{"--strict-validate"}
+	args := []string{"--strict"}
 	helpers.RunTerragruntValidateInputs(t, rootPath, args, false)
 }
 

@@ -1857,9 +1857,9 @@ inputs = {
 	// assert.Equal(t, terragruntConfig.Catalog.URLs, rereadConfig.Catalog.URLs)
 
 	assert.Equal(t, terragruntConfig.RemoteState.BackendName, rereadConfig.RemoteState.BackendName)
-	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableInit, rereadConfig.RemoteState.Config.DisableInit)
-	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableDependencyOptimization, rereadConfig.RemoteState.Config.DisableDependencyOptimization)
-	assert.Equal(t, terragruntConfig.RemoteState.Config.BackendConfig, rereadConfig.RemoteState.Config.BackendConfig)
+	assert.Equal(t, terragruntConfig.RemoteState.DisableInit, rereadConfig.RemoteState.DisableInit)
+	assert.Equal(t, terragruntConfig.RemoteState.DisableDependencyOptimization, rereadConfig.RemoteState.DisableDependencyOptimization)
+	assert.Equal(t, terragruntConfig.RemoteState.BackendConfig, rereadConfig.RemoteState.BackendConfig)
 
 	// We don't test dependencies here because they require filesystem operations.
 	// assert.Equal(t, terragruntConfig.Dependencies.Paths, rereadConfig.Dependencies.Paths)

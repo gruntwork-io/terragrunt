@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -682,52 +683,75 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependencyAndConflictingNamingAndGlob(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.ExcludeDirs = globCanonical(t, "../../../test/fixtures/modules/module-a*")
+	for _, tt := range []struct {
+		name             string
+		strictDoubleStar bool
+	}{
+		{name: "strict control double-star disabled", strictDoubleStar: false},
+		{name: "strict control double-star enabled", strictDoubleStar: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			opts, err := options.NewTerragruntOptionsForTest("running_module_test")
+			require.NoError(t, err)
+			if opts.StrictControls.FilterByNames("double-star").Evaluate(t.Context()) != nil && !tt.strictDoubleStar {
+				t.Skip("Skipping test because double-star is already enabled by default")
+			}
 
-	l := logger.CreateLogger()
+			opts.ExcludeDirs = []string{"../../../test/fixtures/modules/module-a*"}
+			if tt.strictDoubleStar {
+				opts.StrictControls.FilterByNames("double-star").Enable()
+			} else {
+				var err error
+				opts.ExcludeDirs, err = util.GlobCanonicalPath(log.Default(), "", opts.ExcludeDirs...)
+				require.NoError(t, err)
+			}
 
-	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	unitA := &common.Unit{
-		Path:              canonical(t, "../../../test/fixtures/modules/module-a"),
-		Dependencies:      common.Units{},
-		TerragruntOptions: optsA,
-		Logger:            lA,
+			l := logger.CreateLogger()
+
+			lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
+			unitA := &common.Unit{
+				Path:              canonical(t, "../../../test/fixtures/modules/module-a"),
+				Dependencies:      common.Units{},
+				TerragruntOptions: optsA,
+				Logger:            lA,
+			}
+
+			lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
+			unitC := &common.Unit{
+				Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
+				Dependencies: common.Units{unitA},
+				Config: config.TerragruntConfig{
+					Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+					Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+					IsPartial:       true,
+					GenerateConfigs: make(map[string]codegen.GenerateConfig),
+				},
+				TerragruntOptions: optsC,
+				Logger:            lC,
+			}
+
+			lAbba, optsAbba := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath)
+			unitAbba := &common.Unit{
+				Path:              canonical(t, "../../../test/fixtures/modules/module-abba"),
+				Dependencies:      common.Units{},
+				TerragruntOptions: optsAbba,
+				Logger:            lAbba,
+			}
+
+			configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
+
+			stack := configstack.NewRunner(l, opts)
+			actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
+			// construct the expected list
+			unitA.FlagExcluded = true
+			unitAbba.FlagExcluded = true
+			expected := common.Units{unitA, unitC, unitAbba}
+
+			require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+			assertUnitListsEqual(t, expected, actualModules)
+		})
 	}
-
-	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	unitC := &common.Unit{
-		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: common.Units{unitA},
-		Config: config.TerragruntConfig{
-			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
-			IsPartial:       true,
-			GenerateConfigs: make(map[string]codegen.GenerateConfig),
-		},
-		TerragruntOptions: optsC,
-		Logger:            lC,
-	}
-
-	lAbba, optsAbba := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath)
-	unitAbba := &common.Unit{
-		Path:              canonical(t, "../../../test/fixtures/modules/module-abba"),
-		Dependencies:      common.Units{},
-		TerragruntOptions: optsAbba,
-		Logger:            lAbba,
-	}
-
-	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
-
-	stack := configstack.NewRunner(l, opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
-	// construct the expected list
-	unitA.FlagExcluded = true
-	unitAbba.FlagExcluded = true
-	expected := common.Units{unitA, unitC, unitAbba}
-
-	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDependency(t *testing.T) {

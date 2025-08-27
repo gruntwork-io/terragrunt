@@ -112,7 +112,7 @@ func RunCommandWithOutput(
 			l.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
 
-		cmd := exec.Command(command, args...)
+		cmd := exec.Command(ctx, command, args...)
 		cmd.Dir = commandDir
 		cmd.Stdout = cmdStdout
 		cmd.Stderr = cmdStderr

@@ -164,7 +164,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 			return err
 		}
 
-		ln, err := server.Listen()
+		ln, err := server.Listen(ctx)
 		if err != nil {
 			return err
 		}
@@ -360,11 +360,6 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
-	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
-	if err != nil {
-		return err
-	}
-
 	if len(opts.IncludeDirs) > 0 {
 		l.Debugf("Included directories set. Excluding by default.")
 
@@ -389,20 +384,38 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
-	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
+	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
+
+	// Sort and compact opts.IncludeDirs to make them unique
+	slices.Sort(opts.IncludeDirs)
+	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
+
+	if !doubleStarEnabled {
+		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return fmt.Errorf("invalid include dirs: %w", err)
+		}
+	}
+
+	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
-	if err != nil {
-		return err
-	}
+	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
+	// Sort and compact opts.ExcludeDirs to make them unique
+	slices.Sort(opts.ExcludeDirs)
+	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
+	if !doubleStarEnabled {
+		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return fmt.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
 
 	// --- Terragrunt Version
-	terragruntVersion, err := version.NewVersion(cliCtx.App.Version)
+	terragruntVersion, err := version.NewVersion(cliCtx.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {

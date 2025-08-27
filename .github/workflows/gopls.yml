@@ -16,7 +16,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
@@ -24,7 +24,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
-          version: 2025.4.4
+          version: 2025.8.16
           experimental: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

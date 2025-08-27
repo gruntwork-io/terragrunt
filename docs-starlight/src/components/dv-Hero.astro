@@ -1,0 +1,89 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import HeroCompleteBackground from '@assets/hero-bkgnd.svg';
+import IconLabel from '@components/dv-IconButton.astro';
+import MobileHeroBackground from '@assets/hero-bkgnd.svg';
+import OpentofuIcon from '@assets/opentofu-logo.svg';
+import Terminal from '@components/dv-Terminal.astro';
+import TerraformIcon from '@assets/terraform-logo.svg';
+---
+
+<section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
+    <!-- Hero Background -->
+    <Image
+      src={MobileHeroBackground}
+      alt="Isometric background pattern"
+      class="absolute bottom-0 left-1/4 transform -translate-x-1/4 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none block md:hidden"
+      decoding="async"
+      loading="eager"
+      width={900}
+    />
+
+    <!-- Tablet or wider Image -->
+    <Image
+      src={HeroCompleteBackground}
+      alt="Isometric background pattern with terragrunt logo"
+      class="absolute bottom-0 left-1/2 transform -translate-x-1/2 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none hidden md:block"
+      decoding="async"
+      loading="eager"
+      width={1440}
+    />
+
+    <div class="mt-[127px] pt-10 px-5 md:pt-5 md:px-0 relative z-20 flex flex-col items-center gap-10 w-full text-center">
+        <div class="flex flex-col justify-start items-center gap-5 w-full">
+            <h1 class="text-4xl md:text-6xl text-white leading-12 md:leading-18 m-0">The Open Source<br>IaC Orchestrator<br>Platform Teams Trust</h1>
+            <p class="px-12 lg:px-40 md:px-0 text-lg text-[var(--color-gray-1)]">
+                Organize and speed up your Infrastructure as Code, with the #1 IaC Orchestrator
+            </p>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-center items-center w-full gap-4">
+            <p class="  font-mono text-xs text-white md:pr-4">BUILT FOR:</p>
+            <div class="flex gap-1">
+                <a
+                  class="bg-[var(--color-bg-dark)] cursor-pointer no-underline"
+                  href="https://opentofu.org"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <IconLabel
+                    src={OpentofuIcon}
+                    alt="Opentofu Icon"
+                    text="OPENTOFU"
+                    eager
+                  />
+                </a>
+                <a
+                  class="bg-[var(--color-bg-dark)] cursor-pointer no-underline"
+                  href="https://developer.hashicorp.com/terraform"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                <IconLabel
+                    src={TerraformIcon}
+                    alt="Terraform Icon"
+                    text="TERRAFORM"
+                        eager
+                    />
+                </a>
+            </div>
+        </div>
+
+        <div class="flex gap-5 justify-center items-center w-full pb-28 md:pb-52">
+            <a href="/docs/getting-started/quick-start">
+                <button class="primary-button">Quick Start</button>
+            </a>
+            <a href="/docs/reference/hcl">
+                <button class="secondary-button">Read the Docs</button>
+            </a>
+        </div>
+    </div>
+
+    <!-- Install Widget
+    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-20">
+      <Terminal />
+    </div>
+    -->
+</section>

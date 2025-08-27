@@ -1,19 +1,23 @@
 name: Lint
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   lint:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
+
+    - id: go-version
+      run: |
+        go version
 
     - name: Set up mise
       uses: jdx/mise-action@v2
       with:
-        version: 2025.4.4
+        version: 2025.8.16
         experimental: true
       env:
         # Adding token here to reduce the likelihood of hitting rate limit issues.

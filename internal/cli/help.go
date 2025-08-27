@@ -23,7 +23,7 @@ var (
 
 // ShowAppHelp prints App help.
 func ShowAppHelp(ctx *Context) error {
-	tpl := ctx.App.CustomAppHelpTemplate
+	tpl := ctx.CustomAppHelpTemplate
 	if tpl == "" {
 		tpl = AppHelpTemplate
 	}
@@ -32,11 +32,11 @@ func ShowAppHelp(ctx *Context) error {
 		return errors.Errorf("app help template not defined")
 	}
 
-	if ctx.App.HelpName == "" {
-		ctx.App.HelpName = ctx.App.Name
+	if ctx.HelpName == "" {
+		ctx.HelpName = ctx.Name
 	}
 
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
+	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, map[string]any{
 		"parentCommands": parentCommands,
 		"offsetCommands": offsetCommands,
 	})
@@ -82,11 +82,11 @@ func HelpPrinterCustom(ctx *Context, tpl string, customFuncs map[string]any) {
 		maps.Copy(funcs, customFuncs)
 	}
 
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, funcs)
+	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, funcs)
 }
 
 func ShowVersion(ctx *Context) error {
-	tpl := ctx.App.CustomAppVersionTemplate
+	tpl := ctx.CustomAppVersionTemplate
 	if tpl == "" {
 		tpl = AppVersionTemplate
 	}
@@ -95,7 +95,7 @@ func ShowVersion(ctx *Context) error {
 		return errors.Errorf("app version template not defined")
 	}
 
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, nil)
 
 	return NewExitError(nil, ExitCodeSuccess)
 }

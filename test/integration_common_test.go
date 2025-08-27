@@ -363,7 +363,7 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(helpers.TofuBinary, "-version") {
+		if util.IsCommandExecutable(context.Background(), helpers.TofuBinary, "-version") {
 			return helpers.TofuBinary
 		}
 		return helpers.TerraformBinary

@@ -1,7 +1,7 @@
 [tools]
-go = "1.24.4"
+go = "1.25.0"
 opentofu = "1.10.5"
-golangci-lint = "2.1.6"
+golangci-lint = "2.4.0"
 "go:github.com/goph/licensei/cmd/licensei" = "v0.9.0"
-"go:go.uber.org/mock/mockgen" = "v0.5.2"
-"go:golang.org/x/tools/gopls" = "v0.18.1"
+"go:go.uber.org/mock/mockgen" = "v0.6.0"
+"go:golang.org/x/tools/gopls" = "v0.20.0"

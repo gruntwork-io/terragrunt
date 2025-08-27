@@ -67,7 +67,7 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	// Parse the destruction order from stdout
 	var destroyOrder []string
 	re := regexp.MustCompile(`Hello, Module ([A-Za-z]+)`)
-	for _, line := range strings.Split(stdout, "\n") {
+	for line := range strings.SplitSeq(stdout, "\n") {
 		if match := re.FindStringSubmatch(line); match != nil {
 			destroyOrder = append(destroyOrder, "module-"+strings.ToLower(match[1]))
 		}
@@ -164,4 +164,16 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 	require.NoError(t, err)
 	// Verify that the output contains value produced from remote unit
 	require.Contains(t, stdout, "data = \"unit-a\"")
+}
+
+func TestRunnerPoolSourceMap(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment runner-pool --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.85.0 --working-dir "+testPath+" -- apply ")
+	require.NoError(t, err)
+	// Verify that source map values are used
+	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
 }

@@ -146,19 +146,19 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	}
 
 	if err := cmd.Flags.RunActions(ctx); err != nil {
-		return ctx.App.handleExitCoder(ctx, err)
+		return ctx.handleExitCoder(ctx, err)
 	}
 
 	defer func() {
 		if cmd.After != nil && err == nil {
 			err = cmd.After(ctx)
-			err = ctx.App.handleExitCoder(ctx, err)
+			err = ctx.handleExitCoder(ctx, err)
 		}
 	}()
 
 	if cmd.Before != nil {
 		if err := cmd.Before(ctx); err != nil {
-			return ctx.App.handleExitCoder(ctx, err)
+			return ctx.handleExitCoder(ctx, err)
 		}
 	}
 
@@ -168,7 +168,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 
 	if cmd.Action != nil {
 		if err = cmd.Action(ctx); err != nil {
-			return ctx.App.handleExitCoder(ctx, err)
+			return ctx.handleExitCoder(ctx, err)
 		}
 	}
 
@@ -187,7 +187,7 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 			return nil
 		}
 
-		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
+		if flagErrHandler := ctx.FlagErrHandler; flagErrHandler != nil {
 			err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
 		}
 

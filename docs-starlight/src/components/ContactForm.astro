@@ -1,0 +1,139 @@
+---
+// ContactForm component with toggle between contact form and iframe
+---
+
+<div class="flex flex-col w-full items-center lg:items-end">
+
+  <!-- Toggle Buttons -->
+  <div class="grid grid-cols-2 gap-2 bg-[#1a1a2e] rounded-lg p-1 mb-[12px] w-full max-w-md">
+    <button
+      id="form-toggle"
+      class="active px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 bg-[var(--color-contact-form-button-bg)] text-white"
+    >
+      Send a Message
+    </button>
+    <button
+      id="iframe-toggle"
+      class="px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 text-gray-1 hover:text-white"
+    >
+      Book a Call
+    </button>
+  </div>
+
+  <!-- Contact Form -->
+  <div id="contact-form" class="w-full max-w-md">
+    <form>
+    <!-- <form action="https://forms.hubspot.com/uploads/form/v2/YOUR_PORTAL_ID/YOUR_FORM_ID" method="POST"> -->
+      <div class="flex flex-col gap-4">
+        <!-- HubSpot Hidden Fields -->
+        <input type="hidden" name="hs_context" value='{"hutk":"","pageUri":"","pageName":"Contact Form"}' />
+
+        <div>
+          <label for="firstname" class="block text-sm font-medium text-gray-1 mb-2">Name<sup>*</sup></label>
+          <input
+            type="text"
+            id="firstname"
+            name="firstname"
+            class="w-full px-4 py-3 rounded-lg transition-colors"
+            placeholder="Grunty McGrunterson"
+            required
+          />
+        </div>
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-1 mb-2">Email<sup>*</sup></label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            class="w-full px-4 py-3 rounded-lg transition-colors"
+            placeholder="johndoe@gmail.com"
+            required
+          />
+        </div>
+        <div>
+          <label for="phone" class="block text-sm font-medium text-gray-1 mb-2">Phone</label>
+          <input
+            type="tel"
+            id="phone"
+            name="phone"
+            class="w-full px-4 py-3 rounded-lg transition-colors"
+            placeholder="415-555-5555"
+          />
+        </div>
+        <div>
+          <label for="source" class="block text-sm font-medium text-gray-1 mb-2">How did you hear about us?<sup>*</sup></label>
+          <input
+            type="text"
+            id="source"
+            name="source"
+            class="w-full px-4 py-3 rounded-lg transition-colors"
+            placeholder=""
+            required
+          />
+        </div>
+        <div>
+          <label for="message" class="block text-sm font-medium text-gray-1 mb-2">Message<sup>*</sup></label>
+          <textarea
+            id="message"
+            name="message"
+            rows="4"
+            class="w-full px-4 py-3 rounded-lg transition-colors resize-none"
+            placeholder="How can we help?"
+            required
+          ></textarea>
+        </div>
+      </div>
+      <button
+        type="submit"
+        class="w-full px-6 py-3 bg-[#4F2FD0] text-white font-medium rounded-lg hover:bg-[#3a1f9e] transition-colors"
+      >
+        Send Message
+      </button>
+    </form>
+    <p class="text-xs text-gray-1 text-center">We generally respond the same business day!</p>
+  </div>
+
+  <!-- Book a Call (Hidden by default) -->
+  <div id="book-a-call" class="w-full max-w-md hidden">
+    <iframe
+      src="https://meetings.hubspot.com/chris-pham/book-a-demo?embed=true"
+      class="w-full min-h-[650px]"
+      scrolling="no"
+      title="Schedule Demo"
+    ></iframe>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const formToggle = document.getElementById('form-toggle');
+    const iframeToggle = document.getElementById('iframe-toggle');
+    const contactFormView = document.getElementById('contact-form');
+    const iframeView = document.getElementById('book-a-call');
+
+    function showContactForm() {
+      formToggle?.classList.add('active');
+      iframeToggle?.classList.remove('active');
+
+      contactFormView?.classList.remove('hidden');
+      contactFormView?.classList.add('active');
+
+      iframeView?.classList.add('hidden');
+      iframeView?.classList.remove('active');
+    }
+
+    function showIframe() {
+      formToggle?.classList.remove('active');
+      iframeToggle?.classList.add('active');
+
+      contactFormView?.classList.remove('active');
+      contactFormView?.classList.add('hidden');
+
+      iframeView?.classList.add('active');
+      iframeView?.classList.remove('hidden');
+    }
+
+    formToggle?.addEventListener('click', showContactForm);
+    iframeToggle?.addEventListener('click', showIframe);
+  });
+</script>

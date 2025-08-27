@@ -25,7 +25,7 @@ func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
 
 	for index := 0; index <= 255; index++ {
-		cmd := exec.Command("testdata/test_exit_code.sh", strconv.Itoa(index))
+		cmd := exec.Command(t.Context(), "testdata/test_exit_code.sh", strconv.Itoa(index))
 		err := cmd.Run()
 
 		if index == 0 {
@@ -50,7 +50,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	expectedWait := 5
 
-	cmd := exec.Command("testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+	cmd := exec.Command(t.Context(), "testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 
 	runChannel := make(chan error)
 
@@ -79,7 +79,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	expectedInterrupts := 10
 
-	cmd := exec.Command("testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
+	cmd := exec.Command(t.Context(), "testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
 
 	runChannel := make(chan error)
 
