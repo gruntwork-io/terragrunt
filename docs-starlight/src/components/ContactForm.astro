@@ -137,3 +137,72 @@
     iframeToggle?.addEventListener('click', showIframe);
   });
 </script>
+
+<style>
+  #contact-form,
+  #book-a-call {
+    background-color: var(--color-bg-dark);
+    border: 1px solid #343956;
+    border-radius: 12px;
+    height: auto;
+    min-height: 600px;
+    padding: 10px 8px;
+  }
+
+  #contact-form form {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 600px;
+  }
+
+  #contact-form label {
+    color: #d6d7db;
+    padding-left: 10px;
+  }
+
+  #contact-form input,
+  #contact-form textarea {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+  }
+
+  #contact-form textarea {
+    min-height: 170px;
+  }
+
+  #contact-form input:focus,
+  #contact-form textarea:focus {
+    outline: 1px solid #448daf;
+  }
+
+  #contact-form form ::placeholder {
+    font-family: var(--font-sans);
+  }
+
+  #form-toggle,
+  #iframe-toggle {
+    background-color: transparent;
+    border: 1px dashed #343956;
+    color: #A0A1AC;
+  }
+
+  #form-toggle:hover,
+  #iframe-toggle:hover {
+    color: #c0eaeb;
+  }
+
+  #form-toggle.active,
+  #iframe-toggle.active {
+    background-color: var(--color-contact-form-button-bg);
+    color: white;
+  }
+
+  #contact-form button[type="submit"] {
+    border: 3px solid #48b7d0;
+    background-color: #49b8d0;
+    background-image: radial-gradient(circle,#87e0e1,#48b7d0);
+    color: #191c35;
+  }
+</style>

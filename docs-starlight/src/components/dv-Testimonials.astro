@@ -1,23 +1,18 @@
 ---
-import '@styles/global.css';
+import { getCollection } from 'astro:content';
 
 import Eyebrow from '@components/dv-Eyebrow.astro';
+import TestimonialCard from '@components/dv-TestimonialCard.astro';
 
-import { getCollection } from 'astro:content';
+import '@styles/global.css';
+
 // Get all testimonials from the content collection
 const testimonialsCollection = await getCollection('testimonials');
 
 // The JSON file contains an array of testimonials, so we get the first entry's data
 const testimonials = Array.isArray(testimonialsCollection) ? testimonialsCollection : [];
-
 const sortedtestimonials = testimonials.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
 
-import TestimonialCard from '@components/dv-TestimonialCard.astro';
-
-import LogoBrand8 from '@assets/logo-brand-8.svg';
-import LogoBrand9 from '@assets/logo-brand-9.svg';
-import LogoBrand10 from '@assets/logo-brand-10.svg';
-import LogoBrand11 from '@assets/logo-brand-11.png';
 ---
 
 <section class="max-w-dvw justify-center items-center px-5 md:px-0 max-h-[80dvh] md:max-h-[90dvh] overflow-hidden relative">
@@ -74,3 +69,47 @@ import LogoBrand11 from '@assets/logo-brand-11.png';
   <div class="pointer-events-none absolute bottom-0 left-0 right-0 w-full h-[50px] md:h-[75px] z-10 bg-gradient-to-t from-[#FAFAFA] to-transparent"></div>
 
 </section>
+
+<style>
+  /* Scroll animations for testimonials */
+  @keyframes scrollUp {
+    0% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(-50%);
+    }
+  }
+
+  @keyframes scrollDown {
+    0% {
+      transform: translateY(-50%);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+
+  .scroll-up {
+    animation: scrollUp 90s linear infinite;
+  }
+
+  .scroll-down {
+    animation: scrollDown 90s linear infinite;
+  }
+
+  /* Pause animations on hover */
+  .scroll-up:hover {
+    animation-play-state: paused;
+  }
+
+  .scroll-down:hover {
+    animation-play-state: paused;
+  }
+
+  /* Add background color to hovered testimonial cards */
+  .scroll-up .shadow-\[0_0_0_2px_white\]:hover,
+  .scroll-down .shadow-\[0_0_0_2px_white\]:hover {
+    background-color: var(--color-dark-blue-1) !important;
+  }
+</style>
