@@ -1,0 +1,77 @@
+
+/* Search Box */
+site-search button {
+  background-color: var(--color-opacity-5);
+  border: 1px solid var(--color-opacity-10);
+  border-radius: 6px;
+  color: var(--color-gray-2);
+  display: flex;
+  max-width: none;
+  padding: 6px 12px;
+  width: 100%;
+}
+
+@media (width < 800px) {
+  site-search button {
+    width: calc(100% - 40px);
+  }
+}
+
+site-search button svg {
+  color: var(--color-gray-1);
+}
+
+/* Search Dialog Box */
+site-search dialog[open] {
+  background: var(--color-dialog-bg);
+  border-radius: .5rem;
+  display: flex;
+  height: max-content;
+  margin: 4rem auto auto;
+  max-height: calc(100% - 8rem);
+  max-width: 40rem;
+  min-height: 15rem;
+  width: 90%;
+}
+
+button[data-close-modal] {
+  color: black;
+  display: none;
+}
+
+site-search .dialog-frame {
+  overflow-x: hidden;
+  padding: 1.5rem;
+}
+site-search .search-container {
+  width: 590px;
+}
+
+#starlight__search > div:nth-of-type(2) {
+  display: none;
+}
+
+site-search .pagefind-ui {
+  color: oklch(0.37 0.013 285.805);
+}
+
+site-search .pagefind-ui__drawer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+site-search .pagefind-ui__results {
+  padding-left: 0;
+}
+
+site-search .pagefind-ui__result {
+  padding: 20px 10px;
+}
+
+/* Site Search Dark Mode */
+
+html[data-theme="dark"] site-search input,
+html[data-theme="dark"] site-search .pagefind-ui__result-link  {
+  color: rgb(19, 24, 36);
+}

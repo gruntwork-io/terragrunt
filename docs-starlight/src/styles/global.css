@@ -6,6 +6,9 @@
 @import "./buttons.css";
 @import "./lists.css";
 
+/* Silverlight Fixes */
+@import "./silverlight-search.css";
+
 @font-face {
   font-family: 'Inter';
   src: url('/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
@@ -79,11 +82,12 @@
   --sl-color-secondary: #EBEBEB;
   --sl-text-sm: 16px;
   --sl-color-stroke-dark: #2E375A;
+  --sl-z-index-toc: 10;
 
   /* Navigation */
   --sl-color-bg-nav: #0F1731;
   --sl-color-asides-border: hsl(41, 90%, 60%);
-  --sl-nav-height: 98px;
+  --sl-nav-height: 90px;
 }
 
 /* Docs Dark mode colors. */
@@ -134,10 +138,24 @@
   --sl-color-white: #131824;
 }
 
+@media (width < 768px) {
+  :root {
+    --sl-nav-height: 125px;
+  }
+}
+
+@media (1024px > width >= 768px) {
+  :root {
+    --sl-nav-height: 148px;
+  }
+}
+
 /* Header / Navigation */
 /* This overrides the Starlight styles */
 header {
+  background-color: transparent;
   border: none;
+  height: var(--sl-nav-height);
 }
 
 .header {
@@ -145,26 +163,24 @@ header {
 }
 
 starlight-menu-button button {
-  top: 80px;
+  top: 100px;
   position: fixed;
 }
 
-@media (width >= 768px) {
-  :root {
-    --sl-nav-height: 98px;
+@media (max-width: 767px) {
+  starlight-menu-button button {
+    top: 80px;
   }
 }
 
-@media (width < 768px) {
-  :root {
-    --sl-nav-height: 127px;
-  }
+mobile-starlight-toc {
+  display: block;
 }
 
-@media screen and (max-width: 767px) {
-  .main-frame {
-    padding-top: 173px;
-  }
+mobile-starlight-toc nav {
+  left: 0;
+  position: relative;
+  top: 0;
 }
 
 .social-icon {
@@ -235,6 +251,11 @@ h1, h2, h3, h4, h5, h6 {
     }
 }
 
+.main-frame {
+  margin-top: var(--sl-nav-height);
+  padding-top: 0;
+}
+
 .social-icon {
   color: var(--color-nav-link) !important;
   cursor: pointer;
@@ -244,75 +265,6 @@ h1, h2, h3, h4, h5, h6 {
 .social-icon:hover {
   color: var(--color-nav-link-hover) !important;
   cursor: pointer;
-}
-
-/* Search Box */
-site-search button {
-  background-color: var(--color-opacity-5);
-  border: 1px solid var(--color-opacity-10);
-  border-radius: 6px;
-  color: var(--color-gray-2);
-  display: flex;
-  padding: 6px 12px;
-}
-
-site-search button svg {
-  color: var(--color-gray-1);
-}
-
-/* Search Dialog Box */
-site-search dialog[open] {
-  background: var(--color-dialog-bg);
-  border-radius: .5rem;
-  display: flex;
-  height: max-content;
-  margin: 4rem auto auto;
-  max-height: calc(100% - 8rem);
-  max-width: 40rem;
-  min-height: 15rem;
-  width: 90%;
-}
-
-button[data-close-modal] {
-  color: black;
-  display: none;
-}
-
-site-search .dialog-frame {
-  overflow-x: hidden;
-  padding: 1.5rem;
-}
-site-search .search-container {
-  width: 590px;
-}
-
-#starlight__search > div:nth-of-type(2) {
-  display: none;
-}
-
-site-search .pagefind-ui {
-  color: oklch(0.37 0.013 285.805);
-}
-
-site-search .pagefind-ui__drawer {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-site-search .pagefind-ui__results {
-  padding-left: 0;
-}
-
-site-search .pagefind-ui__result {
-  padding: 20px 10px;
-}
-
-/* Site Search Dark Mode */
-
-html[data-theme="dark"] site-search input,
-html[data-theme="dark"] site-search .pagefind-ui__result-link  {
-  color: rgb(19, 24, 36);
 }
 
 .pagefind-ui__message {

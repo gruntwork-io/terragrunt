@@ -137,13 +137,10 @@ try {
         </div>
       </div>
     </div>
-
-    <!-- Mobile Search -->
-    <div class="block w-full md:hidden justify-center bg-bg-dark px-5 py-2.5">
-      <div class="flex items-center">
-        {shouldRenderSearch && <Search {...Astro.props} />}
-      </div>
-    </div>
   </div>
+</div>
 
+<!-- Mobile Search -->
+<div class="absolute bottom-0 w-full lg:hidden justify-center bg-bg-dark px-5 py-2.5">
+  {shouldRenderSearch && <Search {...Astro.props} />}
 </div>
