@@ -9,7 +9,7 @@ sidebar:
 Launch the user interface for searching and managing your module catalog.
 
 ```bash
-terragrunt catalog <repo-url> [--no-include-root] [--root-file-name]
+terragrunt catalog <repo-url> [--no-include-root] [--root-file-name] [--no-shell] [--no-hooks]
 ```
 
 ![screenshot](../../../assets/img/screenshots/catalog-screenshot.png)
@@ -31,6 +31,10 @@ catalog {
     "github.com/gruntwork-io/terraform-aws-lambda", # url to remote repository
     "http://github.com/gruntwork-io/terraform-aws-lambda", # same as above
   ]
+  
+  # Optional scaffold configuration - these can be overridden by CLI flags
+  no_shell = true   # Disable shell functions in scaffold templates (default: false)
+  no_hooks = true   # Disable hooks in scaffold templates (default: false)
 }
 ```
 
@@ -40,6 +44,56 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
 1. See the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`](/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
+
+## Scaffold Configuration
+
+The catalog configuration supports scaffold-specific settings that control the behavior when scaffolding modules:
+
+- **`no_shell`** - Controls shell functions in boilerplate templates. When `true`, disables shell commands using `{{shell "command" "args"}}` syntax (enabled by default).
+- **`no_hooks`** - Controls hooks in boilerplate templates. When `true`, disables `before` and `after` hooks in their `boilerplate.yml` configuration (enabled by default).
+
+**Security Note**: Both shell functions and hooks can execute arbitrary commands on your system. Consider disabling these features for enhanced security. Do not scaffold templates you do not trust.
+
+### Configuration Precedence
+
+When using scaffold via the catalog integration, configuration follows this precedence order (highest to lowest):
+
+1. **CLI flags** - `--no-shell` and `--no-hooks` flags override all other settings
+2. **Catalog configuration** - Settings in the `catalog` block in your `terragrunt.hcl`
+3. **Default values** - Both features are enabled by default
+
+### Examples
+
+Disable shell functions for all scaffolding from this catalog:
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  no_shell = true  # Disables shell functions for security
+}
+```
+
+Disable both shell and hooks:
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  no_shell = true
+  no_hooks = true
+}
+```
+
+Keep default behavior (both enabled):
+
+```hcl
+# terragrunt.hcl
+catalog {
+  urls = ["github.com/gruntwork-io/terraform-aws-utilities"]
+  # Without specifying `no_shell` or `no_hooks` features remain enabled
+}
+```
 
 ## Custom templates for scaffolding
 
@@ -52,5 +106,7 @@ Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, b
 
 The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
 
+- `--no-shell` - Disable shell functions in scaffold templates. Overrides catalog configuration.
+- `--no-hooks` - Disable hooks in scaffold templates. Overrides catalog configuration.
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
