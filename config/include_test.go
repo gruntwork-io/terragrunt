@@ -158,6 +158,30 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
 		},
+		{
+			// child-only lists survive when parent has Terraform but no lists
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc1", "child.inc2"}, ExcludeFromCopy: &[]string{"child.exc1"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"child.inc1", "child.inc2"}, ExcludeFromCopy: &[]string{"child.exc1"}}},
+		},
+		{
+			// parent-only lists remain when child has empty Terraform block
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc1"}, ExcludeFromCopy: &[]string{"parent.exc1"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc1"}, ExcludeFromCopy: &[]string{"parent.exc1"}}},
+		},
+		{
+			// both set -> shallow merge keeps child lists (no concatenation in shallow)
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc"}, ExcludeFromCopy: &[]string{"parent.exc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
+		},
+		{
+			// parent Terraform present but lists nil -> child lists must NOT be dropped
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -335,6 +359,42 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
 			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
 			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
+		},
+		{
+			name:     "terraform parent only lists",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc1"}, ExcludeFromCopy: &[]string{"parent.exc1"}}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc1"}, ExcludeFromCopy: &[]string{"parent.exc1"}}},
+		},
+		{
+			name:     "terraform child only lists",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc1"}, ExcludeFromCopy: &[]string{"child.exc1"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"child.inc1"}, ExcludeFromCopy: &[]string{"child.exc1"}}},
+		},
+		{
+			name:     "terraform concatenate include/exclude lists",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc1", "parent.inc2"}, ExcludeFromCopy: &[]string{"parent.exc1"}}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc1"}, ExcludeFromCopy: &[]string{"child.exc1", "child.exc2"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc1", "parent.inc2", "child.inc1"}, ExcludeFromCopy: &[]string{"parent.exc1", "child.exc1", "child.exc2"}}},
+		},
+		{
+			name:     "terraform parent nil does not clobber child lists",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
+		},
+		{
+			name:     "terraform parent empty slice treated as present (concat no-op + child)",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{}}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child"}}},
+		},
+		{
+			name:     "terraform duplicates preserved (no dedupe at merge layer)",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"a", "b"}}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"b", "c"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"a", "b", "b", "c"}}},
 		},
 	}
 
