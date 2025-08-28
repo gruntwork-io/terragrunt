@@ -307,6 +307,14 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
 			}
 
+			if sourceConfig.Terraform.IncludeInCopy != nil {
+				cfg.Terraform.IncludeInCopy = sourceConfig.Terraform.IncludeInCopy
+			}
+
+			if sourceConfig.Terraform.ExcludeFromCopy != nil {
+				cfg.Terraform.ExcludeFromCopy = sourceConfig.Terraform.ExcludeFromCopy
+			}
+
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
 			mergeHooks(l, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
