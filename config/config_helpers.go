@@ -633,15 +633,15 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 
-	l.Debugf("TRACE: Invoking get_aws_account_id()...")
-
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
+	// session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
 	if err != nil {
-		l.Errorf("get_aws_account_id(): failed to create AWS session: %v", err)
+		l.Errorf("get_aws_account_id(): failed to create AWS config: %v", err)
 		return "", err
 	}
 
-	accountID, err := awshelper.GetAWSAccountID(session)
+	accountID, err := awshelper.GetAWSAccountID(ctx.Context, awsConfig)
+	// accountID, err := awshelper.GetAWSAccountID(session)
 	if err == nil {
 		l.Errorf("get_aws_account_id(): error retriving accound ID: %v", err)
 		return accountID, nil
