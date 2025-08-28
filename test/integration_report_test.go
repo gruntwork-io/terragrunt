@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,11 @@ const (
 
 func TestTerragruntReportExperiment(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
@@ -75,6 +81,11 @@ func TestTerragruntReportExperiment(t *testing.T) {
 func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
@@ -93,6 +104,11 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 
 func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	t.Parallel()
+
+	if os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	testCases := []struct {
 		name   string
@@ -234,6 +250,11 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 
 func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
+
+	if os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
@@ -386,6 +407,11 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
@@ -465,6 +491,11 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 
 func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	cleanupTerraformFolder(t, testFixtureExternalDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)

@@ -6,25 +6,68 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 )
 
-// Option is a function that modifies a Stack.
-type Option func(StackRunner)
+// ParseOptionsSetter is a minimal interface for types that can accept parser options.
+// Both stack runners and discovery implement SetParseOptions with this signature.
+type ParseOptionsSetter interface {
+	SetParseOptions(parserOptions []hclparse.Option)
+}
+
+// Option applies configuration to the StackRunner.
+type Option interface {
+	ApplyStack(stack StackRunner)
+}
+
+type optionImpl struct {
+	applyStack      func(StackRunner)
+	parserOptions   []hclparse.Option
+	hasParseOptions bool
+}
+
+func (o optionImpl) ApplyStack(stack StackRunner) {
+	if o.applyStack != nil {
+		o.applyStack(stack)
+	}
+}
+
+// ParseOptionsProvider allows extracting parser options from an Option without applying it to a stack.
+type ParseOptionsProvider interface {
+	GetParseOptions() ([]hclparse.Option, bool)
+}
+
+// GetParseOptions returns parser options when the option was created by WithParseOptions.
+func (o optionImpl) GetParseOptions() ([]hclparse.Option, bool) {
+	if o.hasParseOptions {
+		return o.parserOptions, true
+	}
+
+	return nil, false
+}
 
 // WithChildTerragruntConfig sets the TerragruntConfig on any Stack implementation.
-func WithChildTerragruntConfig(config *config.TerragruntConfig) Option {
-	return func(stack StackRunner) {
-		stack.SetTerragruntConfig(config)
+func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
+	return optionImpl{
+		applyStack: func(stack StackRunner) {
+			stack.SetTerragruntConfig(cfg)
+		},
 	}
 }
 
-// WithParseOptions sets the parserOptions on any Stack implementation.
+// WithParseOptions sets custom HCL parser options on both discovery and stack.
 func WithParseOptions(parserOptions []hclparse.Option) Option {
-	return func(stack StackRunner) {
-		stack.SetParseOptions(parserOptions)
+	return optionImpl{
+		applyStack: func(stack StackRunner) {
+			stack.SetParseOptions(parserOptions)
+		},
+		parserOptions:   parserOptions,
+		hasParseOptions: true,
 	}
 }
 
-func WithReport(report *report.Report) Option {
-	return func(stack StackRunner) {
-		stack.SetReport(report)
+// WithReport attaches a report collector to the stack only.
+func WithReport(r *report.Report) Option {
+	return optionImpl{
+		applyStack: func(stack StackRunner) {
+			stack.SetReport(r)
+		},
 	}
 }
