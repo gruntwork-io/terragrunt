@@ -634,14 +634,12 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 
 	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
-	// session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		l.Errorf("get_aws_account_id(): failed to create AWS config: %v", err)
 		return "", err
 	}
 
 	accountID, err := awshelper.GetAWSAccountID(ctx.Context, awsConfig)
-	// accountID, err := awshelper.GetAWSAccountID(session)
 	if err == nil {
 		l.Errorf("get_aws_account_id(): error retriving accound ID: %v", err)
 		return accountID, nil
