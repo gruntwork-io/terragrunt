@@ -1,0 +1,5 @@
+.terraform
+.terragrunt-cache
+.terragrunt-stack
+node_modules
+.auto.tfvars
