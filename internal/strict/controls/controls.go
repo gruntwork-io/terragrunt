@@ -35,7 +35,8 @@ const (
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL = "root-terragrunt-hcl"
 
-	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
+	// SkipDependenciesInputs is the control related to the deprecated dependency inputs feature.
+	// Dependency inputs are now disabled by default for performance.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
@@ -68,9 +69,9 @@ func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
 		Name:        SkipDependenciesInputs,
-		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
+		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
 		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
-		Warning:     "Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+		Warning:     "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
 		Category:    stageCategory,
 	}
 
