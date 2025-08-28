@@ -1,9 +1,5 @@
 
 /* Search Box */
-.search-container {
-  width: 100%;
-}
-
 @media (width < 800px) {
   site-search>button {
     width: calc(100% - 40px);
@@ -24,8 +20,6 @@ site-search>button {
   display: flex;
   width: 100%;
 }
-
-
 
 site-search button svg {
   color: var(--color-gray-1);
@@ -54,10 +48,6 @@ site-search .dialog-frame {
   padding: 1.5rem;
 }
 
-site-search .search-container {
-  /* width: 590px; */
-}
-
 #starlight__search > div:nth-of-type(2) {
   display: none;
 }
@@ -81,7 +71,6 @@ site-search .pagefind-ui__result {
 }
 
 /* Site Search Dark Mode */
-
 html[data-theme="dark"] site-search input,
 html[data-theme="dark"] site-search .pagefind-ui__result-link  {
   color: rgb(19, 24, 36);
