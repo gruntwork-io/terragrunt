@@ -4,6 +4,7 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 @import "./buttons.css";
+@import "./contactform.css";
 @import "./lists.css";
 
 /* Starlight Fixes */
