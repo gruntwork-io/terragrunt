@@ -69,6 +69,12 @@ type Dependency struct {
 
 	Inputs *cty.Value `cty:"inputs"`
 	Name   string     `hcl:",label" cty:"name"`
+
+	ForEach *cty.Value `hcl:"for_each,attr" cty:"for_each"`
+	Count   *cty.Value `hcl:"count,attr" cty:"count"`
+
+	CountIndex   *int    `cty:"index"`
+	EachKey     *string `cty:"key"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
@@ -207,7 +213,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
-
+	
 	if err := checkForDependencyBlockCycles(ctx, l, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
 	}
@@ -396,6 +402,25 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, l log.Logger, 
 	return tgConfig.Dependencies.Paths, nil
 }
 
+// getDependencyExpansionInfo determines if a dependency is expanded and returns expansion metadata.
+// Since count and for_each are mutually exclusive, this function consolidates the logic for both.
+//
+// Returns:
+//   - key: The string key to use in the nested map (each.key for for_each, stringified index for count)
+//   - expansionType: A string describing the expansion type ("for_each" or "count") for logging
+//   - isExpanded: Boolean indicating whether this dependency uses expansion
+func getDependencyExpansionInfo(dep Dependency) (key string, expansionType string, isExpanded bool) {
+	if dep.ForEach != nil && dep.EachKey != nil {
+		return *dep.EachKey, "for_each", true
+	}
+	
+	if dep.Count != nil && dep.CountIndex != nil {
+		return fmt.Sprintf("%d", *dep.CountIndex), "count", true
+	}
+	
+	return "", "", false
+}
+
 // Encode the list of dependency blocks into a single cty.Value object that maps the dependency block name to the
 // encoded dependency mapping. The encoded dependency mapping should have the attributes:
 //   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
@@ -403,6 +428,8 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, l log.Logger, 
 //
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyConfigs []Dependency) (*cty.Value, error) {
+	l.Debugf("Processing %d dependency configurations", len(dependencyConfigs))
+	
 	paths := []string{}
 
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
@@ -411,7 +438,13 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 	lock := sync.Mutex{}
 	dependencyErrGroup, _ := errgroup.WithContext(ctx)
 
-	for _, dependencyConfig := range dependencyConfigs {
+	lenDependencyConfigs := len(dependencyConfigs)
+	for i, dependencyConfig := range dependencyConfigs {
+		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
+		
+		l.Tracef("Processing dependency %d/%d: %s (CountIndex: %v, EachKey: %v)", 
+			i+1, lenDependencyConfigs, dependencyConfig.Name, dependencyConfig.CountIndex, dependencyConfig.EachKey)
+
 		dependencyErrGroup.Go(func() error {
 			// Loose struct to hold the attributes of the dependency. This includes:
 			// - outputs: The module outputs of the target config
@@ -419,6 +452,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, l); err != nil {
+				l.Debugf("Failed to set rendered outputs for dependency '%s': %v", dependencyConfig.Name, err)
 				return err
 			}
 
@@ -428,10 +462,12 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 				lock.Unlock()
 
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+				l.Tracef("Added outputs for dependency '%s'", dependencyConfig.Name)
 			}
 
 			if dependencyConfig.Inputs != nil {
 				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
+				l.Tracef("Added inputs for dependency '%s'", dependencyConfig.Name)
 			}
 
 			// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
@@ -439,6 +475,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 			dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
 			if err != nil {
 				err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+				l.Debugf("Failed to encode dependency '%s' to cty.Value: %v", dependencyConfig.Name, err)
 				return err
 			}
 
@@ -447,20 +484,52 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 			defer lock.Unlock()
 
 			// Finally, feed the encoded dependency into the higher order map under the block name
-			dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+			if key, expansionType, isExpanded := getDependencyExpansionInfo(dependencyConfig); isExpanded {
+				l.Tracef("Processing %s dependency '%s' with key '%s'", expansionType, dependencyConfig.Name, key)
+				
+				// Create or update nested map for expanded dependency
+				if _, ok := dependencyMap[dependencyConfig.Name]; !ok {
+					// Create a new map with the expansion key
+					newMap := map[string]cty.Value{key: dependencyEncodingMapEncoded}
+					dependencyMap[dependencyConfig.Name], err = gocty.ToCtyValue(newMap, generateTypeFromValuesMap(newMap))
+					if err != nil {
+						l.Debugf("Failed to create new map for %s dependency '%s': %v", expansionType, dependencyConfig.Name, err)
+						return err
+					}
+					l.Tracef("Created new map for %s dependency '%s' with key '%s'", expansionType, dependencyConfig.Name, key)
+				} else {
+					// Convert existing value to map, add new key, and convert back
+					existingMap := dependencyMap[dependencyConfig.Name].AsValueMap()
+					existingMap[key] = dependencyEncodingMapEncoded
+					dependencyMap[dependencyConfig.Name], err = gocty.ToCtyValue(existingMap, generateTypeFromValuesMap(existingMap))
+					if err != nil {
+						l.Debugf("Failed to update existing map for %s dependency '%s': %v", expansionType, dependencyConfig.Name, err)
+						return err
+					}
+					l.Tracef("Updated existing map for %s dependency '%s' with key '%s'", expansionType, dependencyConfig.Name, key)
+				}
+			} else {
+				// Handle regular (non-expanded) dependency
+				l.Tracef("Processing regular dependency '%s'", dependencyConfig.Name)
+				dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+			}
 
 			return nil
 		})
 	}
 
 	if err := dependencyErrGroup.Wait(); err != nil {
+		l.Debugf("Error in dependency processing: %v", err)
 		return nil, err
 	}
+
+	l.Debugf("Successfully processed all dependencies, final dependencyMap has %d entries", len(dependencyMap))
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution ctx
 	convertedOutput, err := gocty.ToCtyValue(dependencyMap, generateTypeFromValuesMap(dependencyMap))
 	if err != nil {
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+		l.Debugf("Failed to convert final dependencyMap to cty.Value: %v", err)
 	}
 
 	return &convertedOutput, errors.New(err)
