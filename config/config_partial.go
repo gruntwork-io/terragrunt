@@ -149,6 +149,11 @@ func DecodeBaseBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.File, in
 		errs = errs.Append(err)
 	}
 
+	// Validate that all include paths are unique
+	if err := ValidateUniqueIncludePaths(terragruntIncludeList); err != nil {
+		errs = errs.Append(err)
+	}
+
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
 		errs = errs.Append(err)
@@ -458,6 +463,11 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
 
+			// Validate that dependency config paths are unique
+			if err := ValidateUniqueConfigPaths(decoded.Dependencies); err != nil {
+				return nil, err
+			}
+
 			output.TerragruntDependencies = decoded.Dependencies
 			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
@@ -745,4 +755,27 @@ type InvalidPartialBlockName struct {
 
 func (err InvalidPartialBlockName) Error() string {
 	return fmt.Sprintf("Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.sectionCode)
+}
+
+// ValidateUniqueIncludePaths ensures that all include paths are unique within a configuration.
+func ValidateUniqueIncludePaths(includes IncludeConfigs) error {
+	includePaths := make(map[string]string) // map[path]include_name
+
+	for _, inc := range includes {
+		if inc.Path == "" {
+			// Skip includes without path (shouldn't happen but be defensive)
+			continue
+		}
+
+		if existingIncludeName, exists := includePaths[inc.Path]; exists {
+			return fmt.Errorf("duplicate include path '%s' found in include blocks. "+
+				"Include '%s' and include '%s' both point to the same path. "+
+				"Each include must have a unique path",
+				inc.Path, existingIncludeName, inc.Name)
+		}
+
+		includePaths[inc.Path] = inc.Name
+	}
+
+	return nil
 }

@@ -150,3 +150,119 @@ dependency "vpc" {
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Len(t, decoded.Dependencies, 2)
 }
+
+func TestValidateUniqueConfigPaths_Success(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		hclCode string
+	}{
+		{
+			name: "unique config paths",
+			hclCode: `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "database" {
+  config_path = "../database"
+}
+`,
+		},
+		{
+			name: "single dependency",
+			hclCode: `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+		},
+		{
+			name: "no dependencies",
+			hclCode: `
+locals {
+  vpc_id = "vpc-123"
+}
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			filename := config.DefaultTerragruntConfigPath
+			file, err := hclparse.NewParser().ParseFromString(test.hclCode, filename)
+			require.NoError(t, err)
+
+			decoded := config.TerragruntDependency{}
+			err = file.Decode(&decoded, &hcl.EvalContext{})
+			require.NoError(t, err)
+
+			// Also test the validation function directly
+			err = config.ValidateUniqueConfigPaths(decoded.Dependencies)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateUniqueConfigPaths_Failure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		hclCode     string
+		expectedErr string
+	}{
+		{
+			name: "duplicate config paths",
+			hclCode: `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+}
+`,
+			expectedErr: "duplicate config_path '../vpc' found in dependency blocks. Dependency 'vpc' and dependency 'network' both point to the same config path",
+		},
+		{
+			name: "multiple duplicates",
+			hclCode: `
+dependency "app1" {
+  config_path = "../app"
+}
+
+dependency "app2" {
+  config_path = "../app"
+}
+
+dependency "app3" {
+  config_path = "../app"
+}
+`,
+			expectedErr: "duplicate config_path '../app' found in dependency blocks. Dependency 'app1' and dependency 'app2' both point to the same config path",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			filename := config.DefaultTerragruntConfigPath
+			file, err := hclparse.NewParser().ParseFromString(test.hclCode, filename)
+			require.NoError(t, err)
+
+			decoded := config.TerragruntDependency{}
+			err = file.Decode(&decoded, &hcl.EvalContext{})
+			require.NoError(t, err)
+
+			// Test the validation function directly
+			err = config.ValidateUniqueConfigPaths(decoded.Dependencies)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), test.expectedErr)
+		})
+	}
+}
