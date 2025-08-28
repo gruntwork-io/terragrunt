@@ -1,5 +1,15 @@
 
 /* Search Box */
+.search-container {
+  width: 100%;
+}
+
+@media (width < 800px) {
+  site-search>button {
+    width: calc(100% - 40px);
+  }
+}
+
 site-search button {
   background-color: var(--color-opacity-5);
   border: 1px solid var(--color-opacity-10);
@@ -15,11 +25,7 @@ site-search>button {
   width: 100%;
 }
 
-@media (width < 800px) {
-  site-search>button {
-    width: calc(100% - 40px);
-  }
-}
+
 
 site-search button svg {
   color: var(--color-gray-1);
@@ -47,8 +53,9 @@ site-search .dialog-frame {
   overflow-x: hidden;
   padding: 1.5rem;
 }
+
 site-search .search-container {
-  width: 590px;
+  /* width: 590px; */
 }
 
 #starlight__search > div:nth-of-type(2) {
@@ -97,4 +104,92 @@ site-search button kbd {
   font-size: var(--sl-text-sm);
   gap: 0;
   margin: 0 0 0 auto;
+}
+
+.pagefind-ui__message {
+  padding: 1.5em 0;
+  height: auto;
+}
+
+#starlight__search .pagefind-ui__form:before {
+  background-color: black !important;
+}
+
+input.pagefind-ui__search-input {
+  background-color: white;
+  color: black;
+  border: 1px solid oklch(0.871 0.006 286.286);
+  border-radius: 8px;
+  max-width: 590px;
+  padding-left: 50px;
+  width: -webkit-fill-available;
+}
+
+input.pagefind-ui__search-input::placeholder {
+  color: #666;
+}
+
+input.pagefind-ui__search-input:focus {
+  outline: 2px solid #448daf;
+  outline-offset: 2px;
+}
+
+.pagefind-ui__search-clear {
+  background-color: transparent;
+  border: none;
+  right: 0;
+}
+
+.pagefind-ui__search-clear:before {
+  background-color: black;
+  content: "";
+  display: block;
+  height: 100%;
+  margin-bottom: 20px;
+  width: 100%;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E") center / 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E") center / 100% no-repeat;
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+#starlight__search .pagefind-ui__result-nested,
+.pagefind-ui__result-title,
+.pagefind-ui__result-nested {
+  background-color: transparent;
+}
+
+.pagefind-ui__result {
+  background: white;
+  color: black;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+/* Fix search result icons - same approach as text fix */
+.pagefind-ui__result svg,
+.pagefind-ui__result svg path {
+  fill: black;
+}
+
+.pagefind-ui__result-link,
+.pagefind-ui__result-excerpt {
+  color: black;
+}
+
+.pagefind-ui__result-title a {
+  color: black;
+}
+
+.pagefind-ui__result-title a:hover {
+  color: #448daf;
+}
+
+/* Fix to site-search button area smaller on mobile */
+@media (width <= 768px) {
+  body.tg site-search > button {
+    width: 100%;
+  }
+  site-search > button {
+    width: calc(100% - 40px);
+  }
 }
