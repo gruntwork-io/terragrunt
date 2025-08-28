@@ -93,10 +93,24 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 		}
 	}
 
+	s3Client := s3.NewFromConfig(cfg)
+	if awsConfig.CustomS3Endpoint != "" {
+		s3Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(awsConfig.CustomS3Endpoint)
+		})
+	}
+
+	dynamoDBClient := dynamodb.NewFromConfig(cfg)
+	if awsConfig.CustomDynamoDBEndpoint != "" {
+		dynamoDBClient = dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			o.BaseEndpoint = aws.String(awsConfig.CustomDynamoDBEndpoint)
+		})
+	}
+
 	client := &Client{
 		ExtendedRemoteStateConfigS3:  config,
-		s3Client:                     s3.NewFromConfig(cfg),
-		dynamoClient:                 dynamodb.NewFromConfig(cfg),
+		s3Client:                     s3Client,
+		dynamoClient:                 dynamoDBClient,
 		awsConfig:                    cfg,
 		failIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 	}

@@ -3,7 +3,6 @@ package awshelper
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -251,17 +250,6 @@ func CreateAwsConfig(
 		if err != nil {
 			return aws.Config{}, errors.Errorf("Error creating AWS config from config: %w", err)
 		}
-	}
-
-	// Validate credentials
-	if err = ValidateAwsConfig(ctx, cfg); err != nil {
-		// construct dynamic error message based on the configuration
-		msg := "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)"
-		if awsCfg != nil && len(awsCfg.CredsFilename) > 0 {
-			msg = fmt.Sprintf("Error finding AWS credentials in file '%s' (did you set the correct file name and/or profile?)", awsCfg.CredsFilename)
-		}
-
-		return aws.Config{}, errors.Errorf("%s: %w", msg, err)
 	}
 
 	return cfg, nil
