@@ -263,19 +263,17 @@ jobs:
           group_suite: 'true'
 
       - name: Print Failed Tests (${{ matrix.integration.name }})
-        if: matrix.integration.ignore_errors && always()
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
           if [ -f test_output.log ]; then
-            # Show raw FAIL lines first for debugging
-            echo "Raw FAIL lines:"
-            grep "FAIL:" test_output.log || echo "No FAIL lines found"
-            echo ""
-            # Try to extract test names
-            echo "Extracted test names:"
-            grep "FAIL:" test_output.log | while read -r line; do
-              echo "Processing: $line"
-            done || echo "No failed tests found"
+            failed_count=$(grep -c "FAIL:" test_output.log || echo "0")
+            echo "Failed tests count: $failed_count"
+            if [ "$failed_count" -gt 0 ]; then
+              echo "Failed test names:"
+              grep "FAIL:" test_output.log | sed 's/.*FAIL:[[:space:]]*//'
+            else
+              echo "No failed tests found"
+            fi
           else
             echo "No test output found"
           fi
