@@ -177,6 +177,12 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
 		},
 		{
+			// child explicitly empties lists -> overrides and clears parent
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{}, ExcludeFromCopy: &[]string{}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{"parent.inc"}, ExcludeFromCopy: &[]string{"parent.exc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo"), IncludeInCopy: &[]string{}, ExcludeFromCopy: &[]string{}}},
+		},
+		{
 			// parent Terraform present but lists nil -> child lists must NOT be dropped
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"child.inc"}, ExcludeFromCopy: &[]string{"child.exc"}}},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
