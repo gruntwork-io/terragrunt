@@ -92,7 +92,7 @@ Terragrunt stores the current state of infrastructure in one or more OpenTofu/Te
 
 State is an extremely important concept in the context of OpenTofu/Terraform, and it's helpful to read the relevant documentation there to understand what Terragrunt does to it.
 
-Terragrunt has myriad capabilities that are designed to make working with state easier, including automatically provisioning state backend resources, managing unit interaction with external state, and segmenting state.
+Terragrunt has myriad capabilities that are designed to make working with state easier, including tooling to bootstrap state backend resources on demand, managing unit interaction with external state, and segmenting state.
 
 The most common way in which state is segmented in Terragrunt projects is to take advantage of filesystem directory structures. Most Terragrunt projects are configured to store state in remote backends like S3 with keys that correspond to the relative path to the unit directory within a project, relative to the root `terragrunt.hcl` file.
 
