@@ -171,6 +171,32 @@ Throw an error when using a bare include.
 
 **Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/docs/migrate/bare-include/).
 
+### double-star
+
+Opts in to a breaking change to `**` and `**/*` behavior in [queue-exclude-dir](/docs/reference/cli/commands/run#queue-exclude-dir)
+and [queue-include-dir](/docs/reference/cli/commands/run#queue-include-dir).
+
+Without the strict control enabled, to match units in all subdirectories a glob pattern must end in `**/*`.
+With the strict control enabled, the pattern `**/*` will match all subdirectories with a depth of at least one
+as indicated by the `/` character. The glob pattern `**` will now match all subdirectories regardless of depth.
+
+With the following directory layout, glob behavior for * characters with the strict control enabled is:
+
+```
+└── units
+    ├── subdir1
+    │   └── subdir2
+    │       └── unit-c
+    ├── unit-a
+    └── unit-b
+```
+
+The `*` wildcard indicates any character except `/` e.g. `units/*` matches unit-a
+and unit-b.
+
+The `**` double wildcard indicates any character including `/`, this allows
+matching multiple directory depths e.g. `units/**` matches unit-a, unit-b, and unit-c.
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.

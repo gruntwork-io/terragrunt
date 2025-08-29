@@ -847,10 +847,6 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 			name: "starlight",
 			file: filepath.Join("..", "..", "docs-starlight", "public", "schemas", "run", "report", "v1", "schema.json"),
 		},
-		{
-			name: "jekyll",
-			file: filepath.Join("..", "..", "docs", "schemas", "run", "report", "v1", "schema.json"),
-		},
 	}
 
 	for _, tt := range tests {

@@ -166,7 +166,7 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 }
 
 // jsonStringsEqual compares two JSON strings for equivalence, ignoring the order of nested arrays.
-func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...interface{}) bool {
+func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) bool {
 	t.Helper()
 
 	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())

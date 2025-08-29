@@ -16,41 +16,35 @@ import '@styles/global.css';
 <html lang="en">
 
 	<head>
+		<title>Terragrunt</title>
 		<meta charset="UTF-8" />
 		<meta name="description" content="Astro description" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Terragrunt</title>
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 	</head>
 
-  <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
+  <body class="tg bg-[#FAFAFA]">
 
     <Header showThemeToggle={false} />
+    <Hero />
 
-    <div class="absolute top-[149px] md:top-[83px] w-full">
-      <Hero />
+    <PageContainer>
+      <FeaturedBrands />
 
-      <PageContainer>
-        <FeaturedBrands />
+      <div class="flex flex-col gap-12 md:gap-38 z-10">
+        <OrchestrateSection />
+        <ConsistencySection />
+        <DrySection />
+        <Testimonials />
+      </div>
 
-        <!-- FIXME: Between 1024px - 1046px the dotted lines do not match the edge of the sections -->
-        <div class="hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed border-gray-3"></div>
+      <div class="flex flex-col gap-44 z-10">
+        <PetAdvertise />
+        <Footer />
+      </div>
+    </PageContainer>
 
-        <div class="flex flex-col gap-12 md:gap-38 z-10">
-          <OrchestrateSection />
-          <ConsistencySection />
-          <DrySection />
-          <Testimonials />
-        </div>
-
-        <div class="flex flex-col gap-44 z-10">
-          <PetAdvertise />
-          <Footer />
-        </div>
-      </PageContainer>
-
-    </div>
 
   </body>
 </html>

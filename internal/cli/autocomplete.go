@@ -70,13 +70,13 @@ func defaultComplete(ctx *Context) error {
 
 	if strings.HasPrefix(arg, "-") {
 		if cmd := ctx.Command; cmd != nil {
-			return printFlagSuggestions(arg, cmd.Flags, ctx.App.Writer)
+			return printFlagSuggestions(arg, cmd.Flags, ctx.Writer)
 		}
 
-		return printFlagSuggestions(arg, ctx.App.Flags, ctx.App.Writer)
+		return printFlagSuggestions(arg, ctx.Flags, ctx.Writer)
 	}
 
-	return printCommandSuggestions(arg, ctx.Command.Subcommands, ctx.App.Writer)
+	return printCommandSuggestions(arg, ctx.Command.Subcommands, ctx.Writer)
 }
 
 func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) error {

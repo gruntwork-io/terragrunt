@@ -8,10 +8,10 @@ const {
 } = Astro.props;
 ---
 
-<div class={`p-6 bg-white border-dashed border border-gray-3 ${customClass}`}>
+<div class={`p-6 bg-white border border-dashed border-gray-3 ${customClass}`}>
   <div class="flex flex-col gap-4">
     {title && (
-      <p class={`font-sans ${titleSize} text-dark-blue-1 font-medium`}>
+      <p class={`font-sans ${titleSize} text-dark-blue-1 font-medium m-0`}>
         {title}
       </p>
     )}
