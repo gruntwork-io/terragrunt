@@ -25,7 +25,7 @@ const (
 	testFixtureRemoteDownloadPath                     = "fixtures/download/remote"
 	testFixtureInvalidRemoteDownloadPath              = "fixtures/download/remote-invalid"
 	testFixtureInvalidRemoteDownloadPathWithRetries   = "fixtures/download/remote-invalid-with-retries"
-	testFixtureOverrideDonwloadPath                   = "fixtures/download/override"
+	testFixtureOverrideDownloadPath                   = "fixtures/download/override"
 	testFixtureLocalRelativeDownloadPath              = "fixtures/download/local-relative"
 	testFixtureRemoteRelativeDownloadPath             = "fixtures/download/remote-relative"
 	testFixtureRemoteRelativeDownloadPathWithSlash    = "fixtures/download/remote-relative-with-slash"
@@ -223,12 +223,12 @@ func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 func TestRemoteDownloadOverride(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureOverrideDonwloadPath)
+	helpers.CleanupTerraformFolder(t, testFixtureOverrideDownloadPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDonwloadPath, "../hello-world"))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDownloadPath, "../hello-world"))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDonwloadPath, "../hello-world"))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDownloadPath, "../hello-world"))
 }
 
 func TestRemoteWithModuleInRoot(t *testing.T) {
