@@ -287,7 +287,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --backend-bootstrap --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, false, nil)
@@ -322,7 +322,7 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --backend-bootstrap --log-level debug --working-dir "+rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+" --backend-bootstrap apply")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+" --backend-bootstrap apply")
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
@@ -488,7 +488,7 @@ func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --backend-bootstrap --working-dir "+rootPath, &stdout, &stderr)
 	output := stdout.String()
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
