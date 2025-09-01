@@ -113,12 +113,12 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --backend-bootstrap --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
 	require.NoError(t, err)
 
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --backend-bootstrap --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Run failed")
 
