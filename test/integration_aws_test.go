@@ -139,49 +139,6 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	}
 }
 
-func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Backend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Backend)
-
-	testID := strings.ToLower(helpers.UniqueID())
-
-	s3BucketName := "terragrunt-test-bucket-" + testID
-	dynamoDBName := "terragrunt-test-dynamodb-" + testID
-
-	defer func() {
-		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
-	}()
-
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath+" apply")
-	require.NoError(t, err)
-
-	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
-	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
-
-	assert.Contains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
-
-	t.Logf("Validating that the warning is not shown if the backend is not being bootstrapped automatically.")
-
-	// Remove the `.terragrunt-cache` directory in each of `unit1` and `unit2`
-	// to simulate that the backend was already bootstrapped.
-	helpers.RemoveFolder(t, util.JoinPath(rootPath, "unit1", ".terragrunt-cache"))
-	helpers.RemoveFolder(t, util.JoinPath(rootPath, "unit2", ".terragrunt-cache"))
-
-	// Users should only see the warning if the backend is actually being
-	// bootstrapped automatically.
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" apply")
-	require.NoError(t, err)
-
-	assert.NotContains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
-}
-
 func TestAwsDualLockingBackend(t *testing.T) {
 	t.Parallel()
 
@@ -620,7 +577,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 		"remote_terragrunt.hcl",
 	)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt validate --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, examplePath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt validate --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, examplePath))
 
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
@@ -805,7 +762,8 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 		stderr bytes.Buffer
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	helpers.RunTerragruntCommand(t, "terragrunt run --all output app2_text --queue-ignore-errors --non-interactive --backend-bootstrap --working-dir "+environmentPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all output app2_text --queue-ignore-errors --non-interactive --backend-bootstrap --working-dir "+environmentPath, &stdout, &stderr)
+	require.NoError(t, err)
 	output := stdout.String()
 
 	helpers.LogBufferContentsLineByLine(t, stdout, "run --all output stdout")
