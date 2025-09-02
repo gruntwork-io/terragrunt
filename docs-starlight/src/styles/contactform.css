@@ -88,3 +88,13 @@
   padding: 10px 12px;
   width: 100%;
 }
+
+div.submitted-message {
+  color: white;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+  justify-content: center;
+  min-height: 600px;
+  text-align: center;
+}
