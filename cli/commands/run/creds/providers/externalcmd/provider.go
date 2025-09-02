@@ -153,6 +153,7 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.Terra
 		"AWS_ACCESS_KEY_ID":     creds.Envs["AWS_ACCESS_KEY_ID"],
 		"AWS_SECRET_ACCESS_KEY": creds.Envs["AWS_SECRET_ACCESS_KEY"],
 		"AWS_SESSION_TOKEN":     creds.Envs["AWS_SESSION_TOKEN"],
+		"AWS_SECURITY_TOKEN":    creds.Envs["AWS_SESSION_TOKEN"],
 	}
 
 	return envs
@@ -178,6 +179,7 @@ func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, opts *options
 		"AWS_ACCESS_KEY_ID":     creds.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": creds.SecretAccessKey,
 		"AWS_SESSION_TOKEN":     creds.SessionToken,
+		"AWS_SECURITY_TOKEN":    creds.SessionToken,
 	}
 
 	return envs

@@ -55,6 +55,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 			"AWS_ACCESS_KEY_ID":     aws.ToString(resp.AccessKeyId),
 			"AWS_SECRET_ACCESS_KEY": aws.ToString(resp.SecretAccessKey),
 			"AWS_SESSION_TOKEN":     aws.ToString(resp.SessionToken),
+			"AWS_SECURITY_TOKEN":    aws.ToString(resp.SessionToken),
 		},
 	}
 
