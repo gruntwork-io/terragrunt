@@ -1,7 +1,6 @@
 package flags
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -40,10 +39,6 @@ func WithDeprecatedMovedFlag(deprecatedFlag cli.Flag, commandName string, regCon
 		flag := &DeprecatedFlag{
 			Flag:  deprecatedFlag,
 			names: slices.Clone(deprecatedNames),
-		}
-
-		for i, name := range flag.names {
-			flag.names[i] = fmt.Sprintf("%s --%s", commandName, name)
 		}
 
 		newFlag.Flag = flag
