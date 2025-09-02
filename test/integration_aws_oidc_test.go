@@ -1,5 +1,10 @@
 //go:build awsoidc
 
+// These tests aren't hooked up to CI right now, as
+// we'll soon be moving to a new CI system (GitHub Actions)
+// and we don't want to add complexity to the migration by handling
+// both CircleCI and GitHub Actions at the same time.
+
 package test_test
 
 import (
@@ -33,7 +38,7 @@ const (
 	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
 )
 
-func TestAWSOIDCAssumeRoleWebIdentityFile(t *testing.T) {
+func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 
@@ -87,7 +92,7 @@ func TestAWSOIDCAssumeRoleWebIdentityFile(t *testing.T) {
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
-func TestAWSOIDCAssumeRoleWebIdentityFlag(t *testing.T) {
+func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 
@@ -114,7 +119,7 @@ func TestAWSOIDCAssumeRoleWebIdentityFlag(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+tmp+" --iam-assume-role "+roleARN+" --iam-assume-role-web-identity-token "+token)
 }
 
-func TestAWSOIDCReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
+func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 
