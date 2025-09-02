@@ -19,15 +19,23 @@ export const sidebar = [
     autogenerate: { directory: "01-getting-started" },
   },
   {
-    label: "Features",
-    autogenerate: { directory: "02-features", collapsed: true },
+    label: "Guides",
+    items: [
+      {
+        label: "Terralith to Terragrunt",
+        autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
+      },
+    ],
+    collapsed: true,
   },
   {
-    label: "Community",
-    autogenerate: { directory: "03-community", collapsed: true },
+    label: "Features",
+    autogenerate: { directory: "03-features", collapsed: true },
+    collapsed: true,
   },
   {
     label: "Reference",
+    collapsed: true,
     items: [
       {
         label: "HCL",
@@ -64,12 +72,19 @@ export const sidebar = [
     ],
   },
   {
+    label: "Community",
+    autogenerate: { directory: "05-community", collapsed: true },
+    collapsed: true,
+  },
+  {
     label: "Troubleshooting",
-    autogenerate: { directory: "05-troubleshooting", collapsed: true },
+    autogenerate: { directory: "06-troubleshooting", collapsed: true },
+    collapsed: true,
   },
   {
     label: "Migrate",
-    autogenerate: { directory: "06-migrate", collapsed: true },
+    autogenerate: { directory: "07-migrate", collapsed: true },
+    collapsed: true,
   },
 ];
 
@@ -200,9 +215,6 @@ export default defineConfig({
         },
       ],
       sidebar: sidebar,
-      // NOTE: We don't currently check links by default because the CLI
-      // Redesign isn't done yet. Once those pages are built out, we'll require
-      // links to be checked for all builds.
       plugins: [
         starlightLinksValidator({
           exclude: [
