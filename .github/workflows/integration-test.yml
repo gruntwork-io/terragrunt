@@ -81,6 +81,13 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
+          - name: AWS OIDC
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
+            tags: aws
+            run: '^TestAWSOIDC'
           - name: AWSGCP
             os: ubuntu
             target: ./...
