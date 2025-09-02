@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -36,6 +38,10 @@ type Runner struct {
 
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
+	if len(discovered) == 0 {
+		return nil, errors.New(common.ErrNoUnitsFound)
+	}
+
 	q, queueErr := queue.NewQueue(discovered)
 	if queueErr != nil {
 		return nil, queueErr
@@ -43,6 +49,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
+		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
 	runner := &Runner{
@@ -165,7 +172,7 @@ func (r *Runner) handlePlan() {
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 	for _, unit := range r.queue.Entries {
-		outStr += fmt.Sprintf("Unit %s\n", unit.Config.Path)
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Config.Path)
 	}
 
 	l.Info(outStr)
@@ -227,19 +234,18 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
-		unit.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
-		copy(unit.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
+		unit.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
 
 		planFile := unit.PlanFile(l, opts)
 		if planFile != "" {
 			l.Debugf("Using output file %s for unit %s", planFile, unit.TerragruntOptions.TerragruntConfigPath)
 
-			if unit.TerragruntOptions.TerraformCommand == "plan" {
+			if unit.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
 				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
-			} else {
-				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
+				continue
 			}
+			unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
 		}
 	}
 }
