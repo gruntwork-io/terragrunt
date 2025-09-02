@@ -22,74 +22,8 @@
 
   <!-- Contact Form -->
   <div id="contact-form" class="w-full max-w-md">
-    <form>
-    <!-- <form action="https://forms.hubspot.com/uploads/form/v2/YOUR_PORTAL_ID/YOUR_FORM_ID" method="POST"> -->
-      <div class="flex flex-col gap-4">
-        <!-- HubSpot Hidden Fields -->
-        <input type="hidden" name="hs_context" value='{"hutk":"","pageUri":"","pageName":"Contact Form"}' />
-
-        <div>
-          <label for="firstname" class="block text-sm font-medium text-gray-1 mb-2">Name<sup>*</sup></label>
-          <input
-            type="text"
-            id="firstname"
-            name="firstname"
-            class="w-full px-4 py-3 rounded-lg transition-colors"
-            placeholder="Grunty McGrunterson"
-            required
-          />
-        </div>
-        <div>
-          <label for="email" class="block text-sm font-medium text-gray-1 mb-2">Email<sup>*</sup></label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            class="w-full px-4 py-3 rounded-lg transition-colors"
-            placeholder="johndoe@gmail.com"
-            required
-          />
-        </div>
-        <div>
-          <label for="phone" class="block text-sm font-medium text-gray-1 mb-2">Phone</label>
-          <input
-            type="tel"
-            id="phone"
-            name="phone"
-            class="w-full px-4 py-3 rounded-lg transition-colors"
-            placeholder="415-555-5555"
-          />
-        </div>
-        <div>
-          <label for="source" class="block text-sm font-medium text-gray-1 mb-2">How did you hear about us?<sup>*</sup></label>
-          <input
-            type="text"
-            id="source"
-            name="source"
-            class="w-full px-4 py-3 rounded-lg transition-colors"
-            placeholder=""
-            required
-          />
-        </div>
-        <div>
-          <label for="message" class="block text-sm font-medium text-gray-1 mb-2">Message<sup>*</sup></label>
-          <textarea
-            id="message"
-            name="message"
-            rows="4"
-            class="w-full px-4 py-3 rounded-lg transition-colors resize-none"
-            placeholder="How can we help?"
-            required
-          ></textarea>
-        </div>
-      </div>
-      <button
-        type="submit"
-        class="w-full px-6 py-3 bg-[#4F2FD0] text-white font-medium rounded-lg hover:bg-[#3a1f9e] transition-colors"
-      >
-        Send Message
-      </button>
-    </form>
+    <!-- HubSpot Form will be embedded here -->
+    <div id="hs-form" class="w-full h-full py-2"></div>
     <p class="text-xs text-gray-1 text-center">We generally respond the same business day!</p>
   </div>
 
@@ -110,6 +44,16 @@
     const iframeToggle = document.getElementById('iframe-toggle');
     const contactFormView = document.getElementById('contact-form');
     const iframeView = document.getElementById('book-a-call');
+
+    if (typeof hbspt !== 'undefined' && contactFormView) {
+      hbspt.forms.create({
+        portalId: "8376079",
+        formId: "6e91923f-df87-4925-a8d1-72b50c2ee655",
+        region: "na1",
+        target: '#hs-form',
+        cssClass: 'hs-form w-full h-full'
+      });
+    }
 
     function showContactForm() {
       formToggle?.classList.add('active');
@@ -138,71 +82,4 @@
   });
 </script>
 
-<style>
-  #contact-form,
-  #book-a-call {
-    background-color: var(--color-bg-dark);
-    border: 1px solid #343956;
-    border-radius: 12px;
-    height: auto;
-    min-height: 600px;
-    padding: 10px 8px;
-  }
-
-  #contact-form form {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    min-height: 600px;
-  }
-
-  #contact-form label {
-    color: #d6d7db;
-    padding-left: 10px;
-  }
-
-  #contact-form input,
-  #contact-form textarea {
-    background-color: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: #fff;
-  }
-
-  #contact-form textarea {
-    min-height: 170px;
-  }
-
-  #contact-form input:focus,
-  #contact-form textarea:focus {
-    outline: 1px solid #448daf;
-  }
-
-  #contact-form form ::placeholder {
-    font-family: var(--font-sans);
-  }
-
-  #form-toggle,
-  #iframe-toggle {
-    background-color: transparent;
-    border: 1px dashed #343956;
-    color: #A0A1AC;
-  }
-
-  #form-toggle:hover,
-  #iframe-toggle:hover {
-    color: #c0eaeb;
-  }
-
-  #form-toggle.active,
-  #iframe-toggle.active {
-    background-color: var(--color-contact-form-button-bg);
-    color: white;
-  }
-
-  #contact-form button[type="submit"] {
-    border: 3px solid #48b7d0;
-    background-color: #49b8d0;
-    background-image: radial-gradient(circle,#87e0e1,#48b7d0);
-    color: #191c35;
-  }
-</style>
+<script charset="utf-8" type="text/javascript" src="//js.hsforms.net/forms/embed/v2.js"></script>
