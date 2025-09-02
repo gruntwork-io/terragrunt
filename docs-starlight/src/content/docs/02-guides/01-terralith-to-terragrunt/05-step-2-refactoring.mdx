@@ -478,7 +478,7 @@ Plan: 11 to add, 0 to change, 11 to destroy.
 
 Oh no! After all our refactors, we've introduced changes that would *completely destroy* all of the infrastructure we've created so far!
 
-Take a breath, and relax. This is a common scenario that you need to become comfortable with as you learn how to refactor and adjust IaC for scalability and maintainability. You leveraged the built-in protections of plans to give you a dry-run of your infrastructure updates, and can reason about why OpenTofu is trying to do what it's doing here to avoid catastrophe.
+This is a common scenario that you need to become comfortable with as you learn how to refactor and adjust IaC for scalability and maintainability. You leveraged the built-in protections of plans to give you a dry-run of your infrastructure updates, and can reason about why OpenTofu is trying to do what it's doing here to avoid catastrophe.
 
 We, as authors of the IaC, know that all we've done in this step is move some files into different directories, but as far as OpenTofu is concerned, we've deleted resources at addresses like the following:
 
