@@ -1,0 +1,7 @@
+# Example configuration file - copy to terraform.tfvars and update values
+
+# Required: Name used for all resources (must be unique)
+name = "best-cat-2025-07-31-01-dev"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../../../../dist/best-cat.zip"
