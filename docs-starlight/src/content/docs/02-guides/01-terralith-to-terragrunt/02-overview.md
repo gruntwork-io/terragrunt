@@ -31,6 +31,6 @@ If you would like to manually install all the development dependencies for this 
 - [NodeJS](https://nodejs.org/en/download)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
-We will build this project from the ground up, but if you get lost at any point or want to skip ahead, you can find the completed project (as of each step) [here](https://github.com/gruntwork-io-team/terralith-to-terragrunt-blog-demo).
+We will build this project from the ground up, but if you get lost at any point or want to skip ahead, you can find the completed project (as of each step) [here](https://github.com/gruntwork-io/terragrunt/tree/main/docs-starlight/src/fixtures/terralith-to-terragrunt).
 
 Note that the content shown in code fences in this project will always be displayed in totality, so you can either copy them directly into the filename that's labeled at the top of the code fence for a file, or run the command directly in your terminal for commands. If a command starts with a `$`, the intent of the code fence is to demonstrate expected output, so you aren't expected to copy and paste it directly into your terminal.
