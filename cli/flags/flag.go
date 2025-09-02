@@ -40,10 +40,6 @@ func NewFlag(new cli.Flag, opts ...Option) *Flag {
 	return flag
 }
 
-func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn RegisterStrictControlsFunc, opts ...Option) *Flag {
-	return NewFlag(nil, append(opts, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))...)
-}
-
 // TakesValue implements `github.com/urfave/cli.DocGenerationFlag` required to generate help.
 // TakesValue returns `true` for all flags except boolean ones that are `false` or `true` inverted.
 func (newFlag *Flag) TakesValue() bool {

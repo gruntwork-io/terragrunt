@@ -2,15 +2,10 @@
 package global
 
 import (
-	"context"
 	"fmt"
 
-	"slices"
-
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/help"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -19,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -81,58 +75,6 @@ const (
 	DeprecatedJSONLogFlagName              = "json-log"
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
-
-// experimentalCommands is a list of experimental commands for which the deprecated messages about moved global flags should not be displayed unless the `cli-redesign` experiment is enabled.
-var experimentalCommands = []string{
-	run.CommandName,
-}
-
-// NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
-func NewFlagsWithDeprecatedMovedFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := NewFlags(l, opts, nil)
-
-	// Since the flags we take from the command may already have deprecated flags,
-	// and we create new strict controls each time we call `commands.New` which will then be evaluated,
-	// we need to clear `Strict Controls` to avoid them being displayed and causing duplicate warnings, for example, log output:
-	//
-	// WARN The global `--no-auto-init` flag has moved to the `run` command and will not be accessible as a global flag in a future version of Terragrunt. Use `run --no-auto-init` instead.
-	// WARN The `--no-auto-init` flag is deprecated and will be removed in a future version of Terragrunt. Use `--no-auto-init` instead.
-	cmdOpts := opts.Clone()
-	cmdOpts.StrictControls = nil
-
-	commands := commands.New(l, cmdOpts)
-
-	var seen []string
-
-	for _, cmd := range commands {
-		for _, flag := range cmd.Flags {
-			flagName := util.FirstElement(util.RemoveEmptyElements(flag.Names()))
-
-			if slices.Contains(seen, flagName) {
-				continue
-			}
-
-			// Disable strcit control evaluation of moves global flags for the experimental `run` command if the `cli-redesign` experiment is not enabled.
-			evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
-				if slices.Contains(experimentalCommands, cmd.Name) {
-					return evalFn(ctx)
-				}
-
-				return nil
-			}
-
-			seen = append(seen, flagName)
-			globalFlags = append(globalFlags, flags.NewMovedFlag(
-				flag,
-				cmd.Name,
-				flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name),
-				flags.WithEvaluateWrapper(evaluateWrapper),
-			))
-		}
-	}
-
-	return globalFlags
-}
 
 // NewFlags creates and returns global flags common for all commands.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
