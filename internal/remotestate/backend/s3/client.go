@@ -93,11 +93,9 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 		}
 	}
 
-	s3Client := s3.NewFromConfig(cfg)
-	if awsConfig.CustomS3Endpoint != "" {
-		s3Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(awsConfig.CustomS3Endpoint)
-		})
+	s3Client, err := awshelper.CreateS3Client(ctx, l, awsConfig, opts)
+	if err != nil {
+		return nil, errors.New(err)
 	}
 
 	dynamoDBClient := dynamodb.NewFromConfig(cfg)

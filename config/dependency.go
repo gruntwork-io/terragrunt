@@ -1013,12 +1013,10 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx *ParsingContext, l log.Logger,
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, sessionConfig, opts)
+	s3Client, err := awshelper.CreateS3Client(ctx, l, sessionConfig, opts)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
-
-	s3Client := s3.NewFromConfig(cfg)
 
 	result, err := s3Client.GetObject(ctx.Context, &s3.GetObjectInput{
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),

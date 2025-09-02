@@ -202,7 +202,20 @@ func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig,
 		return nil, errors.New(err)
 	}
 
-	return s3.NewFromConfig(cfg), nil
+	var customFN []func(*s3.Options)
+	if config.CustomS3Endpoint != "" {
+		customFN = append(customFN, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(config.CustomS3Endpoint)
+		})
+	}
+
+	if config.S3ForcePathStyle {
+		customFN = append(customFN, func(o *s3.Options) {
+			o.UsePathStyle = true
+		})
+	}
+
+	return s3.NewFromConfig(cfg, customFN...), nil
 }
 
 // CreateAwsConfig returns an AWS config object for the given:
