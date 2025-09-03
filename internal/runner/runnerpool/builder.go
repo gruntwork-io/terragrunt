@@ -24,6 +24,31 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithConfigFilenames([]string{config.DefaultTerragruntConfigPath}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
 
+	// Pass parser options
+	parserOptions := config.DefaultParserOptions(l, terragruntOptions)
+	d = d.WithParserOptions(parserOptions)
+
+	// Pass include/exclude directory filters
+	if len(terragruntOptions.IncludeDirs) > 0 {
+		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
+	}
+	if len(terragruntOptions.ExcludeDirs) > 0 {
+		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
+	}
+
+	// Pass include behavior flags
+	if terragruntOptions.StrictInclude {
+		d = d.WithStrictInclude()
+	}
+	if terragruntOptions.ExcludeByDefault {
+		d = d.WithExcludeByDefault()
+	}
+
+	// Pass dependency behavior flags
+	if terragruntOptions.IgnoreExternalDependencies {
+		d = d.WithIgnoreExternalDependencies()
+	}
+
 	// Wrap discovery with telemetry
 	var discovered discovery.DiscoveredConfigs
 
