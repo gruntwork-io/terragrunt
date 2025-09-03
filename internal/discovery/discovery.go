@@ -397,6 +397,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			if !filepath.IsAbs(p) {
 				p = filepath.Join(d.workingDir, p)
 			}
+
 			includePatterns = append(includePatterns, util.CleanPath(p))
 		}
 	}
@@ -406,6 +407,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			if !filepath.IsAbs(p) {
 				p = filepath.Join(d.workingDir, p)
 			}
+
 			excludePatterns = append(excludePatterns, util.CleanPath(p))
 		}
 	}
@@ -421,6 +423,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 
 		// Apply include/exclude filters by directory path first
 		dir := filepath.Dir(path)
+
 		canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
 		if canErr == nil {
 			for _, pattern := range excludePatterns {
@@ -438,11 +441,13 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			// Enforce include patterns only when strictInclude or excludeByDefault are set
 			if d.strictInclude || d.excludeByDefault {
 				included := false
+
 				for _, pattern := range includePatterns {
 					matched, matchErr := zglob.Match(pattern, canonicalDir)
 					if matchErr != nil {
 						l.Debugf("error matching include glob %s against %s: %v", pattern, canonicalDir, matchErr)
 					}
+
 					if matched {
 						included = true
 						break
@@ -459,18 +464,21 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		if !d.hidden && d.isInHiddenDirectory(path) {
 			// If the directory is hidden, allow it only if it matches an include pattern
 			allowHidden := false
+
 			if canErr == nil {
 				// Always allow .terragrunt-stack contents
 				cleanDir := util.CleanPath(canonicalDir)
 				if strings.Contains(cleanDir, "/"+config.StackDir+"/") || strings.HasSuffix(cleanDir, "/"+config.StackDir) {
 					allowHidden = true
 				}
+
 				if !allowHidden {
 					for _, pattern := range includePatterns {
 						matched, matchErr := zglob.Match(pattern, canonicalDir)
 						if matchErr != nil {
 							l.Debugf("error matching include glob %s against %s: %v", pattern, canonicalDir, matchErr)
 						}
+
 						if matched {
 							allowHidden = true
 							break
@@ -478,6 +486,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 					}
 				}
 			}
+
 			if !allowHidden {
 				return nil
 			}
@@ -617,11 +626,11 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 type DependencyDiscovery struct {
 	discoveryContext    *DiscoveryContext
 	cfgs                DiscoveredConfigs
+	parserOptions       []hclparse.Option
 	depthRemaining      int
 	discoverExternal    bool
 	suppressParseErrors bool
 	ignoreExternal      bool
-	parserOptions       []hclparse.Option
 }
 
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.

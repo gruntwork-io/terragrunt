@@ -70,5 +70,6 @@ func IsExperimentMode(t *testing.T) bool {
 	t.Helper()
 	// Enable only on explicit true
 	val := strings.TrimSpace(os.Getenv("TG_EXPERIMENT_MODE"))
+
 	return strings.EqualFold(val, "true")
 }

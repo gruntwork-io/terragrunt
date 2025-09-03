@@ -32,6 +32,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	if len(terragruntOptions.IncludeDirs) > 0 {
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
+
 	if len(terragruntOptions.ExcludeDirs) > 0 {
 		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
 	}
@@ -40,6 +41,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	if terragruntOptions.StrictInclude {
 		d = d.WithStrictInclude()
 	}
+
 	if terragruntOptions.ExcludeByDefault {
 		d = d.WithExcludeByDefault()
 	}
