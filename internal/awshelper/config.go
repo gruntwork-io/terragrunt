@@ -135,8 +135,6 @@ func CreateAwsConfig(
 				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
 			}
 		}
-	} else {
-		l.Debugf("Skipping role assumption as credentials are already available from auth provider command")
 	}
 
 	return cfg, nil
