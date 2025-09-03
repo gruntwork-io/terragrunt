@@ -171,13 +171,13 @@ export default defineConfig({
           tag: "script",
           attrs: {
             src: "https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL",
-            type: "text/javascript",
+            type: "text/partytown",
           },
         },
         {
           tag: "script",
           attrs: {
-            type: "text/javascript",
+            type: "text/partytown",
           },
           content: `
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
