@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -29,6 +30,9 @@ const (
 	ConfigTypeUnit ConfigType = "unit"
 	// ConfigTypeStack is the type of Terragrunt configuration for a stack.
 	ConfigTypeStack ConfigType = "stack"
+
+	// skipOutputDiagnostics is a string used to identify diagnostics that reference outputs.
+	skipOutputDiagnostics = "output"
 )
 
 // ConfigType is the type of Terragrunt configuration.
@@ -81,6 +85,24 @@ type Discovery struct {
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
 
+	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
+	includeDirs []string
+
+	// excludeDirs is a list of directory patterns to exclude from discovery.
+	excludeDirs []string
+
+	// parserOptions are custom HCL parser options to use when parsing during discovery
+	parserOptions []hclparse.Option
+
+	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
+	strictInclude bool
+
+	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
+	excludeByDefault bool
+
+	// ignoreExternalDependencies determines whether to drop dependencies that are outside the working directory.
+	ignoreExternalDependencies bool
+
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
@@ -117,6 +139,10 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	discovery := &Discovery{
 		workingDir: dir,
 		hidden:     false,
+		includeDirs: []string{
+			config.StackDir,
+			filepath.Join(config.StackDir, "**"),
+		},
 	}
 
 	for _, opt := range opts {
@@ -205,6 +231,42 @@ func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
 	return d
 }
 
+// WithIncludeDirs sets include directory glob patterns used for filtering during discovery.
+func (d *Discovery) WithIncludeDirs(dirs []string) *Discovery {
+	d.includeDirs = dirs
+	return d
+}
+
+// WithExcludeDirs sets exclude directory glob patterns used for filtering during discovery.
+func (d *Discovery) WithExcludeDirs(dirs []string) *Discovery {
+	d.excludeDirs = dirs
+	return d
+}
+
+// WithParserOptions sets custom HCL parser options to use when parsing during discovery.
+func (d *Discovery) WithParserOptions(options []hclparse.Option) *Discovery {
+	d.parserOptions = options
+	return d
+}
+
+// WithStrictInclude enables strict include mode.
+func (d *Discovery) WithStrictInclude() *Discovery {
+	d.strictInclude = true
+	return d
+}
+
+// WithExcludeByDefault enables exclude-by-default behavior.
+func (d *Discovery) WithExcludeByDefault() *Discovery {
+	d.excludeByDefault = true
+	return d
+}
+
+// WithIgnoreExternalDependencies drops dependencies outside of the working directory.
+func (d *Discovery) WithIgnoreExternalDependencies() *Discovery {
+	d.ignoreExternalDependencies = true
+	return d
+}
+
 // String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
 	return c.Path
@@ -227,7 +289,7 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 }
 
 // Parse parses the discovered configurations.
-func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool) error {
+func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool, parserOptions []hclparse.Option) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
@@ -251,6 +313,11 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		config.ExcludeBlock,
 	)
 
+	// Apply custom parser options if provided via discovery
+	if len(parserOptions) > 0 {
+		parsingCtx = parsingCtx.WithParseOption(parserOptions)
+	}
+
 	if suppressParseErrors {
 		// If suppressing parse errors, we want to filter diagnostics that contain references to outputs,
 		// while leaving other diagnostics as is.
@@ -258,8 +325,8 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 			filteredDiags := hcl.Diagnostics{}
 
 			for _, hclDiag := range hclDiags {
-				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), "output") ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), "output")
+				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics)
 
 				if !containsOutputRef {
 					filteredDiags = append(filteredDiags, hclDiag)
@@ -322,6 +389,27 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		filenames = DefaultConfigFilenames
 	}
 
+	// Prepare include/exclude glob patterns (canonicalized) for zglob.Match
+	var includePatterns, excludePatterns []string
+
+	if len(d.includeDirs) > 0 {
+		for _, p := range d.includeDirs {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(d.workingDir, p)
+			}
+			includePatterns = append(includePatterns, util.CleanPath(p))
+		}
+	}
+
+	if len(d.excludeDirs) > 0 {
+		for _, p := range d.excludeDirs {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(d.workingDir, p)
+			}
+			excludePatterns = append(excludePatterns, util.CleanPath(p))
+		}
+	}
+
 	processFn := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return errors.New(err)
@@ -331,8 +419,68 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			return nil
 		}
 
+		// Apply include/exclude filters by directory path first
+		dir := filepath.Dir(path)
+		canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
+		if canErr == nil {
+			for _, pattern := range excludePatterns {
+				matched, matchErr := zglob.Match(pattern, canonicalDir)
+				if matchErr != nil {
+					l.Debugf("error matching exclude glob %s against %s: %v", pattern, canonicalDir, matchErr)
+				}
+
+				if matched {
+					l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern)
+					return nil
+				}
+			}
+
+			// Enforce include patterns only when strictInclude or excludeByDefault are set
+			if d.strictInclude || d.excludeByDefault {
+				included := false
+				for _, pattern := range includePatterns {
+					matched, matchErr := zglob.Match(pattern, canonicalDir)
+					if matchErr != nil {
+						l.Debugf("error matching include glob %s against %s: %v", pattern, canonicalDir, matchErr)
+					}
+					if matched {
+						included = true
+						break
+					}
+				}
+
+				if !included {
+					return nil
+				}
+			}
+		}
+
+		// Now enforce hidden directory check if still applicable
 		if !d.hidden && d.isInHiddenDirectory(path) {
-			return nil
+			// If the directory is hidden, allow it only if it matches an include pattern
+			allowHidden := false
+			if canErr == nil {
+				// Always allow .terragrunt-stack contents
+				cleanDir := util.CleanPath(canonicalDir)
+				if strings.Contains(cleanDir, "/"+config.StackDir+"/") || strings.HasSuffix(cleanDir, "/"+config.StackDir) {
+					allowHidden = true
+				}
+				if !allowHidden {
+					for _, pattern := range includePatterns {
+						matched, matchErr := zglob.Match(pattern, canonicalDir)
+						if matchErr != nil {
+							l.Debugf("error matching include glob %s against %s: %v", pattern, canonicalDir, matchErr)
+						}
+						if matched {
+							allowHidden = true
+							break
+						}
+					}
+				}
+			}
+			if !allowHidden {
+				return nil
+			}
 		}
 
 		base := filepath.Base(path)
@@ -384,7 +532,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				continue
 			}
 
-			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
+			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 			}
@@ -408,8 +556,17 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
 			}
 
+			if d.ignoreExternalDependencies {
+				dependencyDiscovery = dependencyDiscovery.WithIgnoreExternal()
+			}
+
 			if d.suppressParseErrors {
 				dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
+			}
+
+			// pass parser options
+			if len(d.parserOptions) > 0 {
+				dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
 			}
 
 			err := dependencyDiscovery.DiscoverAllDependencies(ctx, l, opts)
@@ -463,6 +620,8 @@ type DependencyDiscovery struct {
 	depthRemaining      int
 	discoverExternal    bool
 	suppressParseErrors bool
+	ignoreExternal      bool
+	parserOptions       []hclparse.Option
 }
 
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.
@@ -486,6 +645,18 @@ func (d *DependencyDiscovery) WithSuppressParseErrors() *DependencyDiscovery {
 func (d *DependencyDiscovery) WithDiscoverExternalDependencies() *DependencyDiscovery {
 	d.discoverExternal = true
 
+	return d
+}
+
+// WithIgnoreExternal drops dependencies outside the working directory.
+func (d *DependencyDiscovery) WithIgnoreExternal() *DependencyDiscovery {
+	d.ignoreExternal = true
+	return d
+}
+
+// WithParserOptions sets custom HCL parser options for dependency discovery.
+func (d *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *DependencyDiscovery {
+	d.parserOptions = options
 	return d
 }
 
@@ -529,7 +700,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 
 	// This should only happen if we're discovering an ancestor dependency.
 	if dCfg.Parsed == nil {
-		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors)
+		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 		if err != nil {
 			return errors.New(err)
 		}
@@ -595,6 +766,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		}
 
 		if external {
+			// Skip external if requested
+			if d.ignoreExternal {
+				continue
+			}
+
 			ext := &DiscoveredConfig{
 				Type:     ConfigTypeUnit,
 				Path:     depPath,
