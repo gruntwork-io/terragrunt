@@ -102,6 +102,7 @@ func CreateAwsConfig(
 
 	if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
+
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
 	} else if awsCfg != nil && awsCfg.CredsFilename != "" {
 		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
