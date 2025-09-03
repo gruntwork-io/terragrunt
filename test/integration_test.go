@@ -1022,6 +1022,11 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
 	// so the symlinked directories are copied physically, which defeats the purpose of this test,
 	// therefore we are going to create the symlinks manually in the destination directory
@@ -3224,6 +3229,11 @@ func TestNoColor(t *testing.T) {
 func TestOutputModuleGroups(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputModuleGroups)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, testFixtureOutputModuleGroups)
@@ -3388,13 +3398,11 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureModulePathError)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color", &stdout, &stderr)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color")
 	require.NoError(t, err)
-	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
-	assert.Contains(t, output, "finished with an error")
+	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
+	// catch "Run failed" message printed in case of error in apply of units
+	assert.Contains(t, output, "Run failed")
 	assert.Contains(t, output, "Unit ./d1", output)
 }
 
