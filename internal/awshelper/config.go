@@ -121,17 +121,22 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
-	if iamRoleOptions.RoleARN != "" {
-		if iamRoleOptions.WebIdentityToken != "" {
-			l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
+	envCreds := createCredentialsFromEnv(opts)
+	if envCreds == nil {
+		iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
+		if iamRoleOptions.RoleARN != "" {
+			if iamRoleOptions.WebIdentityToken != "" {
+				l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
 
-			cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
-		} else {
-			l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
+				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
+			} else {
+				l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
 
-			cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
+				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
+			}
 		}
+	} else {
+		l.Debugf("Skipping role assumption as credentials are already available from auth provider command")
 	}
 
 	return cfg, nil
