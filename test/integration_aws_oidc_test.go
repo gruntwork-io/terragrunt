@@ -162,15 +162,15 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	require.NotEmpty(t, role)
 
-	// defer func() {
-	// 	helpers.DeleteS3Bucket(
-	// 		t,
-	// 		helpers.TerraformRemoteStateS3Region,
-	// 		s3BucketName,
-	// 		options.WithIAMRoleARN(role),
-	// 		options.WithIAMWebIdentityToken(token),
-	// 	)
-	// }()
+	defer func() {
+		helpers.DeleteS3Bucket(
+			t,
+			helpers.TerraformRemoteStateS3Region,
+			s3BucketName,
+			options.WithIAMRoleARN(role),
+			options.WithIAMWebIdentityToken(token),
+		)
+	}()
 
 	helpers.CopyAndFillMapPlaceholders(t, tmpTerragruntConfigFile, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__": s3BucketName,
