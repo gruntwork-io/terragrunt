@@ -162,6 +162,7 @@ func CreateAwsConfig(
 
 		if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
 			l.Debugf("Using AWS credentials from auth provider command")
+
 			configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
 		}
 
@@ -182,6 +183,7 @@ func CreateAwsConfig(
 
 		if cfg.Region == "" {
 			l.Debugf("No region configured, using default region us-east-1")
+
 			cfg.Region = "us-east-1"
 		}
 
