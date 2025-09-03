@@ -171,16 +171,16 @@ export default defineConfig({
           tag: "script",
           attrs: {
             src: "https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL",
-            type: "text/partytown",
+            type: "text/javascript",
           },
         },
         {
           tag: "script",
           attrs: {
-            type: "text/partytown",
+            type: "text/javascript",
           },
           content: `
-        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
           new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
           j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
