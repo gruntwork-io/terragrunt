@@ -55,7 +55,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
-	cleanupTerraformFolder(t, tmpEnvPath)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
 
 	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
@@ -127,12 +127,52 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 
 	t.Setenv("OIDC_TOKEN", token)
 
-	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
 	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
 	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, oidcPath, mockAuthCmd))
+}
+
+func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
+	// t.Parallel() cannot be used together with t.Setenv()
+	// t.Parallel()
+
+	token := fetchGitHubOIDCToken(t)
+
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
+
+	t.Setenv("OIDC_TOKEN", token)
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	remoteStateOIDCPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-w-oidc")
+	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
+
+	// Create a temporary terragrunt config with actual values
+	tmpTerragruntConfigFile := util.JoinPath(remoteStateOIDCPath, "terragrunt.hcl")
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
+	require.NotEmpty(t, role)
+
+	defer func() {
+		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(role), options.WithIAMWebIdentityToken(token))
+	}()
+
+	helpers.CopyAndFillMapPlaceholders(t, tmpTerragruntConfigFile, tmpTerragruntConfigFile, map[string]string{
+		"__FILL_IN_BUCKET_NAME__": s3BucketName,
+		"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+	})
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --non-interactive --log-level trace --working-dir %s --auth-provider-cmd %s -- apply -auto-approve", remoteStateOIDCPath, mockAuthCmd))
+	require.NoError(t, err)
 }
 
 // oidcTokenResponse defines the structure of the JSON response from GitHub's OIDC token endpoint.
