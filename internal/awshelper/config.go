@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -115,87 +116,6 @@ func (f tokenFetcher) FetchToken(ctx context.Context) ([]byte, error) {
 	return token, nil
 }
 
-func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
-	roleSessionName := iamRoleOptions.AssumeRoleSessionName
-	if roleSessionName == "" {
-		// Set a unique session name in the same way it is done in the SDK
-		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	}
-
-	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-		stsClient := sts.NewFromConfig(cfg)
-
-		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
-		if err != nil {
-			return aws.Credentials{}, err
-		}
-
-		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
-		if iamRoleOptions.AssumeRoleDuration > 0 {
-			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
-		}
-
-		input := &sts.AssumeRoleWithWebIdentityInput{
-			RoleArn:          aws.String(iamRoleOptions.RoleARN),
-			RoleSessionName:  aws.String(roleSessionName),
-			WebIdentityToken: aws.String(string(token)),
-			DurationSeconds:  aws.Int32(int32(duration.Seconds())),
-		}
-
-		result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
-		if err != nil {
-			return aws.Credentials{}, err
-		}
-
-		return aws.Credentials{
-			AccessKeyID:     aws.ToString(result.Credentials.AccessKeyId),
-			SecretAccessKey: aws.ToString(result.Credentials.SecretAccessKey),
-			SessionToken:    aws.ToString(result.Credentials.SessionToken),
-			CanExpire:       true,
-			Expires:         aws.ToTime(result.Credentials.Expiration),
-		}, nil
-	})
-}
-
-func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
-	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-		stsClient := sts.NewFromConfig(cfg)
-
-		roleSessionName := iamRoleOptions.AssumeRoleSessionName
-		if roleSessionName == "" {
-			roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-		}
-
-		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
-		if iamRoleOptions.AssumeRoleDuration > 0 {
-			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
-		}
-
-		input := &sts.AssumeRoleInput{
-			RoleArn:         aws.String(iamRoleOptions.RoleARN),
-			RoleSessionName: aws.String(roleSessionName),
-			DurationSeconds: aws.Int32(int32(duration.Seconds())),
-		}
-
-		if externalID != "" {
-			input.ExternalId = aws.String(externalID)
-		}
-
-		result, err := stsClient.AssumeRole(ctx, input)
-		if err != nil {
-			return aws.Credentials{}, err
-		}
-
-		return aws.Credentials{
-			AccessKeyID:     aws.ToString(result.Credentials.AccessKeyId),
-			SecretAccessKey: aws.ToString(result.Credentials.SecretAccessKey),
-			SessionToken:    aws.ToString(result.Credentials.SessionToken),
-			CanExpire:       true,
-			Expires:         aws.ToTime(result.Credentials.Expiration),
-		}, nil
-	})
-}
-
 func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.Client, error) {
 	cfg, err := CreateAwsConfig(ctx, l, config, opts)
 	if err != nil {
@@ -236,15 +156,32 @@ func CreateAwsConfig(
 	)
 
 	if awsCfg == nil {
-		// Set user agent to include terragrunt version
-		cfg, err = config.LoadDefaultConfig(ctx, config.WithAppID("terragrunt/"+version.GetVersion()))
+		var configOptions []func(*config.LoadOptions) error
+
+		configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
+
+		if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
+			l.Debugf("Using AWS credentials from auth provider command")
+			configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
+		}
+
+		if opts != nil && opts.Env != nil {
+			if region := opts.Env["AWS_REGION"]; region != "" {
+				l.Debugf("Using AWS region from auth provider command: %s", region)
+				configOptions = append(configOptions, config.WithRegion(region))
+			} else if region := opts.Env["AWS_DEFAULT_REGION"]; region != "" {
+				l.Debugf("Using AWS default region from auth provider command: %s", region)
+				configOptions = append(configOptions, config.WithRegion(region))
+			}
+		}
+
+		cfg, err = config.LoadDefaultConfig(ctx, configOptions...)
 		if err != nil {
 			return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 		}
 
 		if cfg.Region == "" {
 			l.Debugf("No region configured, using default region us-east-1")
-
 			cfg.Region = "us-east-1"
 		}
 
@@ -457,4 +394,103 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 		aws.ToBool(config.BlockPublicPolicy) &&
 		aws.ToBool(config.IgnorePublicAcls) &&
 		aws.ToBool(config.RestrictPublicBuckets), nil
+}
+
+func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
+	roleSessionName := iamRoleOptions.AssumeRoleSessionName
+	if roleSessionName == "" {
+		// Set a unique session name in the same way it is done in the SDK
+		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	}
+
+	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+		stsClient := sts.NewFromConfig(cfg)
+
+		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+
+		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
+		if iamRoleOptions.AssumeRoleDuration > 0 {
+			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
+		}
+
+		input := &sts.AssumeRoleWithWebIdentityInput{
+			RoleArn:          aws.String(iamRoleOptions.RoleARN),
+			RoleSessionName:  aws.String(roleSessionName),
+			WebIdentityToken: aws.String(string(token)),
+			DurationSeconds:  aws.Int32(int32(duration.Seconds())),
+		}
+
+		result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+
+		return aws.Credentials{
+			AccessKeyID:     aws.ToString(result.Credentials.AccessKeyId),
+			SecretAccessKey: aws.ToString(result.Credentials.SecretAccessKey),
+			SessionToken:    aws.ToString(result.Credentials.SessionToken),
+			CanExpire:       true,
+			Expires:         aws.ToTime(result.Credentials.Expiration),
+		}, nil
+	})
+}
+
+func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
+	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+		stsClient := sts.NewFromConfig(cfg)
+
+		roleSessionName := iamRoleOptions.AssumeRoleSessionName
+		if roleSessionName == "" {
+			roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+		}
+
+		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
+		if iamRoleOptions.AssumeRoleDuration > 0 {
+			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
+		}
+
+		input := &sts.AssumeRoleInput{
+			RoleArn:         aws.String(iamRoleOptions.RoleARN),
+			RoleSessionName: aws.String(roleSessionName),
+			DurationSeconds: aws.Int32(int32(duration.Seconds())),
+		}
+
+		if externalID != "" {
+			input.ExternalId = aws.String(externalID)
+		}
+
+		result, err := stsClient.AssumeRole(ctx, input)
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+
+		return aws.Credentials{
+			AccessKeyID:     aws.ToString(result.Credentials.AccessKeyId),
+			SecretAccessKey: aws.ToString(result.Credentials.SecretAccessKey),
+			SessionToken:    aws.ToString(result.Credentials.SessionToken),
+			CanExpire:       true,
+			Expires:         aws.ToTime(result.Credentials.Expiration),
+		}, nil
+	})
+}
+
+// createCredentialsFromEnv creates AWS credentials from environment variables in opts.Env
+func createCredentialsFromEnv(opts *options.TerragruntOptions) aws.CredentialsProvider {
+	if opts == nil || opts.Env == nil {
+		return nil
+	}
+
+	accessKeyID := opts.Env["AWS_ACCESS_KEY_ID"]
+	secretAccessKey := opts.Env["AWS_SECRET_ACCESS_KEY"]
+	sessionToken := opts.Env["AWS_SESSION_TOKEN"]
+
+	// If we don't have at least access key and secret key, return nil
+	if accessKeyID == "" || secretAccessKey == "" {
+		return nil
+	}
+
+	return credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, sessionToken)
 }
