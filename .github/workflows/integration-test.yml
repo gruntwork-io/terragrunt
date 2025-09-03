@@ -266,9 +266,8 @@ jobs:
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
           if [[ -f test_output.log ]]; then
-            # Count only test failure lines and avoid duplicate "0" outputs
-            failed_count=$(grep -E '^--- FAIL:' test_output.log | wc -l | tr -d '[:space:]')
-            failed_count=${failed_count:-0}
+            # Count only test failure lines in a way that is safe with -e -o pipefail
+            failed_count=$(grep -E -c '^--- FAIL:' test_output.log || echo 0)
             echo "Failed tests count: $failed_count"
             if [[ "${failed_count}" -gt 0 ]]; then
               echo "Failed test names:"
