@@ -265,12 +265,14 @@ jobs:
       - name: Print Failed Tests (${{ matrix.integration.name }})
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
-          if [ -f test_output.log ]; then
-            failed_count=$(grep -c "FAIL:" test_output.log || echo "0")
+          if [[ -f test_output.log ]]; then
+            # Count only test failure lines and avoid duplicate "0" outputs
+            failed_count=$(grep -E '^--- FAIL:' test_output.log | wc -l | tr -d '[:space:]')
+            failed_count=${failed_count:-0}
             echo "Failed tests count: $failed_count"
-            if [ "$failed_count" -gt 0 ]; then
+            if [[ "${failed_count}" -gt 0 ]]; then
               echo "Failed test names:"
-              grep "FAIL:" test_output.log | sed 's/.*FAIL:[[:space:]]*//'
+              grep -E '^--- FAIL:' test_output.log | sed 's/.*FAIL:[[:space:]]*//'
             else
               echo "No failed tests found"
             fi
