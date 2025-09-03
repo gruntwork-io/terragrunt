@@ -41,62 +41,6 @@ type AwsSessionConfig struct {
 	DisableComputeChecksums bool
 }
 
-// CreateAwsConfigFromConfig returns an AWS config object for the given config region (required), profile name (optional), and IAM role to assume
-// (optional), ensuring that the credentials are available.
-func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, opts *options.TerragruntOptions) (aws.Config, error) {
-	var configOptions []func(*config.LoadOptions) error
-
-	if awsCfg.Region != "" {
-		configOptions = append(configOptions, config.WithRegion(awsCfg.Region))
-	} else {
-		configOptions = append(configOptions, config.WithRegion("us-east-1"))
-	}
-
-	// Set profile
-	if awsCfg.Profile != "" {
-		configOptions = append(configOptions, config.WithSharedConfigProfile(awsCfg.Profile))
-	}
-
-	// Set custom credentials file
-	if len(awsCfg.CredsFilename) > 0 {
-		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
-	}
-
-	// Set user agent to include terragrunt version
-	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
-
-	// Load default config
-	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
-	if err != nil {
-		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
-	}
-
-	// Handle IAM role options
-	iamRoleOptions := opts.IAMRoleOptions
-	if awsCfg.RoleArn != "" {
-		iamRoleOptions = options.MergeIAMRoleOptions(
-			iamRoleOptions,
-			options.IAMRoleOptions{
-				RoleARN:               awsCfg.RoleArn,
-				AssumeRoleSessionName: awsCfg.SessionName,
-			},
-		)
-	}
-
-	// Handle web identity credentials
-	if iamRoleOptions.WebIdentityToken != "" && iamRoleOptions.RoleARN != "" {
-		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
-		return cfg, nil
-	}
-
-	// Handle STS role assumption
-	if iamRoleOptions.RoleARN != "" {
-		cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, awsCfg.ExternalID)
-	}
-
-	return cfg, nil
-}
-
 type tokenFetcher string
 
 // FetchToken implements the token fetcher interface.
@@ -144,67 +88,106 @@ func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig,
 // - profile name (optional)
 // - IAM role to assume (optional)
 // - credentials file (optional)
+//
+// Configuration precedence: environment variables > awsCfg > defaults
 func CreateAwsConfig(
 	ctx context.Context,
 	l log.Logger,
 	awsCfg *AwsSessionConfig,
 	opts *options.TerragruntOptions,
 ) (aws.Config, error) {
-	var (
-		cfg aws.Config
-		err error
-	)
+	var configOptions []func(*config.LoadOptions) error
 
-	if awsCfg == nil {
-		var configOptions []func(*config.LoadOptions) error
+	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
-		configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
+	if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
+		l.Debugf("Using AWS credentials from auth provider command")
+		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
+	} else if awsCfg != nil && awsCfg.CredsFilename != "" {
+		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
+	}
 
-		if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
-			l.Debugf("Using AWS credentials from auth provider command")
+	region := getRegionFromEnv(opts)
+	if region == "" && awsCfg != nil && awsCfg.Region != "" {
+		region = awsCfg.Region
+	}
 
-			configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
-		}
+	if region == "" {
+		region = "us-east-1"
+	}
 
-		if opts != nil && opts.Env != nil {
-			if region := opts.Env["AWS_REGION"]; region != "" {
-				l.Debugf("Using AWS region from auth provider command: %s", region)
-				configOptions = append(configOptions, config.WithRegion(region))
-			} else if region := opts.Env["AWS_DEFAULT_REGION"]; region != "" {
-				l.Debugf("Using AWS default region from auth provider command: %s", region)
-				configOptions = append(configOptions, config.WithRegion(region))
-			}
-		}
+	configOptions = append(configOptions, config.WithRegion(region))
 
-		cfg, err = config.LoadDefaultConfig(ctx, configOptions...)
-		if err != nil {
-			return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
-		}
+	if awsCfg != nil && awsCfg.Profile != "" {
+		configOptions = append(configOptions, config.WithSharedConfigProfile(awsCfg.Profile))
+	}
 
-		if cfg.Region == "" {
-			l.Debugf("No region configured, using default region us-east-1")
+	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
+	if err != nil {
+		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
+	}
 
-			cfg.Region = "us-east-1"
-		}
+	iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
+	if iamRoleOptions.RoleARN != "" {
+		if iamRoleOptions.WebIdentityToken != "" {
+			l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
 
-		// Handle IAM role options if provided
-		if opts != nil && opts.IAMRoleOptions.RoleARN != "" {
-			if opts.IAMRoleOptions.WebIdentityToken != "" {
-				l.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
-				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions)
-			} else {
-				l.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
-				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions, "")
-			}
-		}
-	} else {
-		cfg, err = CreateAwsConfigFromConfig(ctx, awsCfg, opts)
-		if err != nil {
-			return aws.Config{}, errors.Errorf("Error creating AWS config from config: %w", err)
+			cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
+		} else {
+			l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
+
+			cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
 		}
 	}
 
 	return cfg, nil
+}
+
+// getRegionFromEnv extracts region from environment variables in opts
+func getRegionFromEnv(opts *options.TerragruntOptions) string {
+	if opts != nil && opts.Env != nil {
+		if region := opts.Env["AWS_REGION"]; region != "" {
+			return region
+		}
+
+		if region := opts.Env["AWS_DEFAULT_REGION"]; region != "" {
+			return region
+		}
+	}
+
+	return ""
+}
+
+// getMergedIAMRoleOptions merges IAM role options from awsCfg and opts
+func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, opts *options.TerragruntOptions) options.IAMRoleOptions {
+	iamRoleOptions := options.IAMRoleOptions{}
+
+	// Start with opts IAM role options if available
+	if opts != nil {
+		iamRoleOptions = opts.IAMRoleOptions
+	}
+
+	// Merge in awsCfg role options if available
+	if awsCfg != nil && awsCfg.RoleArn != "" {
+		iamRoleOptions = options.MergeIAMRoleOptions(
+			iamRoleOptions,
+			options.IAMRoleOptions{
+				RoleARN:               awsCfg.RoleArn,
+				AssumeRoleSessionName: awsCfg.SessionName,
+			},
+		)
+	}
+
+	return iamRoleOptions
+}
+
+// getExternalID returns the external ID from awsCfg if available
+func getExternalID(awsCfg *AwsSessionConfig) string {
+	if awsCfg != nil {
+		return awsCfg.ExternalID
+	}
+
+	return ""
 }
 
 // AssumeIamRole assumes an IAM role and returns the credentials
