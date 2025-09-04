@@ -106,18 +106,24 @@ func CreateAwsConfig(
 
 	configOptions = append(configOptions, config.WithRegion(region))
 
-	// Prefer static credentials from opts.Env
-	if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
+	// Derive credentials/role from opts; if none, proactively run auth-provider-cmd to populate opts before config load
+	envCreds := createCredentialsFromEnv(opts)
+	role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
+
+	if envCreds == nil && role.RoleARN == "" && opts != nil && opts.AuthProviderCmd != "" {
+		if err := runAuthProviderCmdIntoOpts(ctx, l, opts); err == nil {
+			// refresh
+			envCreds = createCredentialsFromEnv(opts)
+			role = options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
+		}
+	}
+
+	if envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
-	} else {
-		// Try to derive role from opts/env and use web identity provider pre-config to avoid default chain/IMDS
-		mergedRole := getMergedIAMRoleOptions(awsCfg, opts)
-		mergedRole = options.MergeIAMRoleOptions(mergedRole, getIAMRoleOptionsFromEnv(opts))
-		if mergedRole.RoleARN != "" && mergedRole.WebIdentityToken != "" {
-			l.Debugf("Configuring web identity assume-role provider for %s", mergedRole.RoleARN)
-			configOptions = append(configOptions, config.WithCredentialsProvider(newWebIdentityProvider(region, mergedRole)))
-		}
+	} else if role.RoleARN != "" && role.WebIdentityToken != "" {
+		l.Debugf("Configuring web identity assume-role provider for %s", role.RoleARN)
+		configOptions = append(configOptions, config.WithCredentialsProvider(newWebIdentityProvider(region, role)))
 	}
 
 	if awsCfg != nil && awsCfg.CredsFilename != "" {
@@ -133,20 +139,12 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	// If still no provider on cfg and we now have role or env creds via auth-provider-cmd, set cfg.Credentials explicitly
+	// If still no provider on cfg, set explicitly from env creds or role
 	if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
-		// Attempt to acquire creds via auth-provider-cmd
-		if opts != nil && opts.AuthProviderCmd != "" {
-			if errRun := runAuthProviderCmdIntoOpts(ctx, l, opts); errRun == nil {
-				if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
-					cfg.Credentials = envCreds
-				} else {
-					role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
-					if role.RoleARN != "" && role.WebIdentityToken != "" {
-						cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, role)
-					}
-				}
-			}
+		if envCreds != nil {
+			cfg.Credentials = envCreds
+		} else if role.RoleARN != "" && role.WebIdentityToken != "" {
+			cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, role)
 		}
 	}
 
