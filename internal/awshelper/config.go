@@ -282,12 +282,14 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 		SecretAccessKey string `json:"SECRET_ACCESS_KEY"`
 		SessionToken    string `json:"SESSION_TOKEN"`
 	}
+
 	type awsRole struct {
 		RoleARN          string `json:"roleARN"`
 		RoleSessionName  string `json:"roleSessionName"`
 		WebIdentityToken string `json:"webIdentityToken"`
 		Duration         int64  `json:"duration"`
 	}
+
 	var resp struct {
 		AWSCredentials *awsCreds         `json:"awsCredentials"`
 		AWSRole        *awsRole          `json:"awsRole"`
@@ -302,6 +304,7 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 		if opts.Env == nil {
 			opts.Env = make(map[string]string)
 		}
+
 		for k, v := range resp.Envs {
 			opts.Env[k] = v
 		}
@@ -312,11 +315,13 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 			if opts.Env == nil {
 				opts.Env = make(map[string]string)
 			}
+
 			opts.Env["AWS_ACCESS_KEY_ID"] = resp.AWSCredentials.AccessKeyID
 			opts.Env["AWS_SECRET_ACCESS_KEY"] = resp.AWSCredentials.SecretAccessKey
 			opts.Env["AWS_SESSION_TOKEN"] = resp.AWSCredentials.SessionToken
 			opts.Env["AWS_SECURITY_TOKEN"] = resp.AWSCredentials.SessionToken
 		}
+
 		return nil
 	}
 
@@ -325,9 +330,11 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 		if resp.AWSRole.RoleSessionName != "" {
 			opts.IAMRoleOptions.AssumeRoleSessionName = resp.AWSRole.RoleSessionName
 		}
+
 		if resp.AWSRole.Duration > 0 {
 			opts.IAMRoleOptions.AssumeRoleDuration = resp.AWSRole.Duration
 		}
+
 		if resp.AWSRole.WebIdentityToken != "" {
 			opts.IAMRoleOptions.WebIdentityToken = resp.AWSRole.WebIdentityToken
 		}
