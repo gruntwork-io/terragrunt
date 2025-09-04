@@ -107,13 +107,45 @@ func CreateAwsConfig(
 	configOptions = append(configOptions, config.WithRegion(region))
 
 	// Always attempt to obtain credentials from auth-provider-cmd if configured so role/envs are available for provider selection
-	if opts != nil && opts.AuthProviderCmd != "" {
-		_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
+	if opts != nil {
+		providerCmd := opts.AuthProviderCmd
+		if providerCmd == "" {
+			// Fallback to env if flag hasn't been parsed into this options instance
+			if v := os.Getenv("TG_AUTH_PROVIDER_CMD"); v != "" {
+				providerCmd = v
+			} else if v := os.Getenv("TERRAGRUNT_AUTH_PROVIDER_CMD"); v != "" {
+				providerCmd = v
+			}
+			if providerCmd != "" {
+				l.Debugf("Auth provider detected from env. Executing: %q", providerCmd)
+				// temporary set to run provider
+				opts.AuthProviderCmd = providerCmd
+				_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
+				l.Debugf("Auth provider execution finished")
+				// do not restore; keeping it helps downstream flows
+			} else {
+				if opts.AuthProviderCmd != "" {
+					l.Debugf("Auth provider detected from opts. Executing: %q", opts.AuthProviderCmd)
+					_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
+					l.Debugf("Auth provider execution finished")
+				}
+			}
+		} else {
+			l.Debugf("Auth provider detected from opts. Executing: %q", opts.AuthProviderCmd)
+			_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
+			l.Debugf("Auth provider execution finished")
+		}
 	}
 
 	// Derive credentials/role from opts after potential provider run
 	envCreds := createCredentialsFromEnv(opts)
 	role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
+	l.Debugf("CreateAwsConfig: envCreds_present=%t role_present=%t role_arn=%q web_identity=%t",
+		envCreds != nil,
+		role.RoleARN != "",
+		role.RoleARN,
+		role.WebIdentityToken != "",
+	)
 
 	if envCreds != nil {
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
@@ -254,12 +286,15 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 		args = parts[1:]
 	}
 
+	l.Debugf("Executing auth provider command: %q args_count=%d", command, len(args))
 	out, err := shell.RunCommandWithOutput(ctx, l, opts, "", true, false, command, args...)
 	if err != nil {
+		l.Debugf("Auth provider command %q failed: %v", command, err)
 		return err
 	}
 
 	stdout := strings.TrimSpace(out.Stdout.String())
+	l.Debugf("Auth provider command %q returned bytes=%d", command, len(stdout))
 	if stdout == "" {
 		return errors.Errorf("command %s completed successfully, but the response does not contain JSON string", command)
 	}
@@ -307,6 +342,7 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 			opts.Env["AWS_SECRET_ACCESS_KEY"] = resp.AWSCredentials.SecretAccessKey
 			opts.Env["AWS_SESSION_TOKEN"] = resp.AWSCredentials.SessionToken
 			opts.Env["AWS_SECURITY_TOKEN"] = resp.AWSCredentials.SessionToken
+			l.Debugf("Auth provider populated static AWS credentials")
 		}
 
 		return nil
@@ -325,6 +361,13 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 		if resp.AWSRole.WebIdentityToken != "" {
 			opts.IAMRoleOptions.WebIdentityToken = resp.AWSRole.WebIdentityToken
 		}
+
+		l.Debugf("Auth provider populated role assume: role_arn=%q web_identity=%t session_name=%q duration=%d",
+			opts.IAMRoleOptions.RoleARN,
+			opts.IAMRoleOptions.WebIdentityToken != "",
+			opts.IAMRoleOptions.AssumeRoleSessionName,
+			opts.IAMRoleOptions.AssumeRoleDuration,
+		)
 	}
 
 	return nil
