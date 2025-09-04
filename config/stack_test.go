@@ -342,8 +342,8 @@ func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
 	foundFiles := findStackFiles(t, liveDir)
 	require.NotEmpty(t, foundFiles, "Expected to find generated stack files")
 
-	logger := logger.CreateLogger()
-	topology := config.BuildStackTopology(logger, foundFiles, liveDir)
+	l := logger.CreateLogger()
+	topology := config.BuildStackTopology(l, foundFiles, liveDir)
 	require.NotEmpty(t, topology, "Expected non-empty topology")
 
 	levelCounts := make(map[int]int)
@@ -360,6 +360,10 @@ func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
 	assert.Equal(t, 9, levelCounts[2], "Level 2 should have exactly 9 stack files")
 
 	verifyGeneratedUnits(t, stackDir)
+
+	// Run one more time just to be sure things don't break when running in a dirty directory
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
+	require.NoError(t, err)
 }
 
 // setupNestedStackFixture creates a test fixture similar to testing-nested-stacks
