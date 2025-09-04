@@ -310,8 +310,14 @@ p code {
   border-right: 0;
 }
 
+/* Main pane */
+
 .main-pane .sl-container {
   margin-inline: 0;
+}
+
+.main-pane .code {
+  font-size: calc(14 / 16 * 1rem);
 }
 
 starlight-toc h2 {
