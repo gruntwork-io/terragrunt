@@ -24,6 +24,7 @@ func NewGetter() *Getter {
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, authProviders ...providers.Provider) error {
 	log.Debugf("ObtainAndUpdateEnvIfNecessary %v", authProviders)
 	for _, provider := range authProviders {
+		log.Debugf("ObtainAndUpdateEnvIfNecessary Checking provider %s", provider.Name())
 		creds, err := provider.GetCredentials(ctx, l)
 		if err != nil {
 			return err
@@ -32,6 +33,8 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 		if creds == nil {
 			continue
 		}
+
+		log.Debugf("ObtainAndUpdateEnvIfNecessary creds %v", creds)
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {

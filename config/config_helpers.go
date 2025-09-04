@@ -647,7 +647,8 @@ func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
 		return "", err
 	}
-	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
+	ctx.TerragruntOptions = opts
+	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, opts)
 	if err != nil {
 		return "", err
 	}
