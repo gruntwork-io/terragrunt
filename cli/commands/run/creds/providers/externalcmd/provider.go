@@ -37,7 +37,7 @@ func (provider *Provider) Name() string {
 // GetCredentials implements providers.GetCredentials
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
 	command := provider.terragruntOptions.AuthProviderCmd
-	log.Debugf("GetCredentials called for %s provider command %s", provider.Name(), command)
+	l.Debugf("GetCredentials called for %s provider command %s", provider.Name(), command)
 	if command == "" {
 		return nil, nil
 	}
