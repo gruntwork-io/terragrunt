@@ -23,6 +23,7 @@ type Provider struct {
 
 // NewProvider returns a new Provider instance.
 func NewProvider(l log.Logger, opts *options.TerragruntOptions) providers.Provider {
+	log.Debugf("Creating new external command provider with command: %s", opts.AuthProviderCmd)
 	return &Provider{
 		terragruntOptions: opts,
 	}

@@ -22,6 +22,7 @@ func NewGetter() *Getter {
 
 // ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to `opts.Env`.
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, authProviders ...providers.Provider) error {
+	log.Debugf("ObtainAndUpdateEnvIfNecessary %v", authProviders)
 	for _, provider := range authProviders {
 		creds, err := provider.GetCredentials(ctx, l)
 		if err != nil {
