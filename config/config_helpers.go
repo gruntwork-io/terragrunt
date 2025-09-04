@@ -641,6 +641,12 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 	l.Debugf("getAWSAccountID : CreateAwsConfig")
+
+	opts := ctx.TerragruntOptions
+	// Acquire credentials (auth-provider-cmd) early for all commands so HCL evaluation has creds available
+	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return "", err
+	}
 	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err

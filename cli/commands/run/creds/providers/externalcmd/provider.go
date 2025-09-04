@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"runtime/debug"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
@@ -38,7 +37,6 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
 	command := provider.terragruntOptions.AuthProviderCmd
 	log.Debugf("GetCredentials called for %s provider command %s", provider.Name(), command)
-	debug.PrintStack()
 	if command == "" {
 		return nil, nil
 	}
