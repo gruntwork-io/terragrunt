@@ -45,7 +45,7 @@ type tokenFetcher string
 
 // FetchToken implements the token fetcher interface.
 // Supports providing a token value or the path to a token on disk
-func (f tokenFetcher) FetchToken(ctx context.Context) ([]byte, error) {
+func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 	// Check if token is a raw value
 	if _, err := os.Stat(string(f)); err != nil {
 		// TODO: See if this lint error should be ignored
@@ -385,7 +385,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	}
 
-	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 
 		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
@@ -417,11 +417,11 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 			CanExpire:       true,
 			Expires:         aws.ToTime(result.Credentials.Expiration),
 		}, nil
-	})
+	}
 }
 
 func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
-	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 
 		roleSessionName := iamRoleOptions.AssumeRoleSessionName
@@ -456,7 +456,7 @@ func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.
 			CanExpire:       true,
 			Expires:         aws.ToTime(result.Credentials.Expiration),
 		}, nil
-	})
+	}
 }
 
 // createCredentialsFromEnv creates AWS credentials from environment variables in opts.Env
