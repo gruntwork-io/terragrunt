@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -77,6 +78,7 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 
 	names := make(map[string]bool, len(slice))
 	paths := make(map[string]bool, len(slice))
+	nameKeyCombos := make(map[string]bool, len(slice))
 
 	for i, element := range slice {
 		if element == nil {
@@ -102,9 +104,36 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 			validationErrors = validationErrors.Append(errors.Errorf("%s '%s' has empty path", elementType, name))
 		}
 
-		// Check for duplicates
-		if names[name] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate %s name found: '%s'", elementType, name))
+		// Get the key/index for expanded blocks
+		var key string
+		switch v := element.(type) {
+		case *Unit:
+			if v.EachKey != nil {
+				key = *v.EachKey
+			} else if v.CountIndex != nil {
+				key = fmt.Sprintf("%d", *v.CountIndex)
+			}
+		case *Stack:
+			if v.EachKey != nil {
+				key = *v.EachKey
+			} else if v.CountIndex != nil {
+				key = fmt.Sprintf("%d", *v.CountIndex)
+			}
+		}
+
+		// Create a unique identifier combining name and key
+		nameKeyCombo := name
+		if key != "" {
+			nameKeyCombo = fmt.Sprintf("%s[%s]", name, key)
+		}
+
+		// Check for duplicates using name+key combination
+		if nameKeyCombos[nameKeyCombo] {
+			if key != "" {
+				validationErrors = validationErrors.Append(errors.Errorf("duplicate %s name+key found: '%s'", elementType, nameKeyCombo))
+			} else {
+				validationErrors = validationErrors.Append(errors.Errorf("duplicate %s name found: '%s'", elementType, name))
+			}
 		}
 
 		if paths[path] {
@@ -118,6 +147,10 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 
 		if path != "" {
 			paths[path] = true
+		}
+
+		if nameKeyCombo != "" {
+			nameKeyCombos[nameKeyCombo] = true
 		}
 	}
 

@@ -387,7 +387,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 	// Handle dependency blocks
 	for _, dep := range cfg.TerragruntDependencies {
-		depBlock := hclwrite.NewBlock("dependency", []string{dep.Name})
+		depBlock := hclwrite.NewBlock("dependency", []string{getDisplayName(dep.Name, dep.EachKey, dep.CountIndex)})
 		depBody := depBlock.Body()
 		depAsCty := cfgAsCty.GetAttr("dependency").GetAttr(dep.Name)
 		depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
