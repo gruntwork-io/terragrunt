@@ -141,6 +141,13 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
+	// Force credentials provider on the final config to avoid default chain/IMDS during calls like GetCallerIdentity
+	if envCreds != nil {
+		cfg.Credentials = envCreds
+	} else if role.RoleARN != "" && role.WebIdentityToken != "" {
+		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, role)
+	}
+
 	return cfg, nil
 }
 
