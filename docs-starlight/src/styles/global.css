@@ -282,15 +282,23 @@ p code {
 
 #starlight__sidebar ul li {
   margin: 0;
-  padding-top: 0.5em;
-  padding-bottom: 0.5em;
 }
 
 #starlight__sidebar ul li ul li {
   padding-left: 1em;
 }
 
-#starlight__sidebar details summary {
+#starlight__sidebar ul li a {
+  font-size: calc(16 / 16 * 1rem);
+}
+
+#starlight__sidebar details  {
+  padding-left: 0;
+  margin-bottom: 10px;
+}
+
+#starlight__sidebar summary {
+  margin-top: 5px;
   padding-left: 0;
 }
 
