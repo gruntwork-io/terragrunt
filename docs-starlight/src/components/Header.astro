@@ -51,7 +51,20 @@ try {
 }
 ---
 
-<div class="navbar fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
+// This component is inheriting `data-theme="dark"` or `data-theme="light"` from the root element.
+// But the problem is that based on the design, we always want this header to behave as if it's in dark mode.
+// But that's tricky because dark mode colors are set in the CSS "theme" layer, which is then inherited by this component,
+// and this component can't change those variables directly.
+//
+// To solve this, we override the one variable causing us trouble.
+
+<style>
+.header-dark-theme {
+  --sl-color-gray-1: #e8eefc;
+}
+</style>
+
+<div class="navbar header-dark-theme fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
   <div class="flex flex-row justify-between px-5 py-2.5 md:py-6">
     <!-- Logo -->
     <a href="/" class="flex flex-row items-center hover:cursor-pointer">
