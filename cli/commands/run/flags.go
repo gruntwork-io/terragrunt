@@ -497,6 +497,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(AuthProviderCmdFlagName),
 			Destination: &opts.AuthProviderCmd,
 			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
+			Action: func(ctx *cli.Context, value string) error {
+				fmt.Printf("AuthProviderCmdFlagName: %q", value)
+				opts.AuthProviderCmd = value
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("auth-provider-cmd"), terragruntPrefixControl)),
 
