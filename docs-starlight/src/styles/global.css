@@ -321,6 +321,10 @@ p code {
   margin-bottom: 1.5rem;
 }
 
+.main-pane starlight-file-tree {
+  margin-bottom: 1.8rem;
+}
+
 .main-pane .code {
   font-size: calc(14 / 16 * 1rem);
 }
