@@ -109,6 +109,8 @@ func CreateAwsConfig(
 	// Derive credentials/role from opts; if none, proactively run auth-provider-cmd to populate opts before config load
 	envCreds := createCredentialsFromEnv(opts)
 	role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
+	l.Debugf("MergeIAMRoleOptions : %+v", role)
+	l.Debugf("envCreds : %+v", envCreds)
 
 	if envCreds == nil && role.RoleARN == "" && opts != nil && opts.AuthProviderCmd != "" {
 		if err := runAuthProviderCmdIntoOpts(ctx, l, opts); err == nil {
@@ -137,15 +139,6 @@ func CreateAwsConfig(
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
 	if err != nil {
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
-	}
-
-	// If still no provider on cfg, set explicitly from env creds or role
-	if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
-		if envCreds != nil {
-			cfg.Credentials = envCreds
-		} else if role.RoleARN != "" && role.WebIdentityToken != "" {
-			cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, role)
-		}
 	}
 
 	return cfg, nil

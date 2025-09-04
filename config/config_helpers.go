@@ -632,11 +632,13 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
+	l.Debugf("getAWSAccountID : CreateAwsConfig")
 	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
+	l.Debugf("getAWSAccountID: GetAWSAccountID")
 	accountID, err := awshelper.GetAWSAccountID(ctx.Context, awsConfig)
 	if err == nil {
 		return accountID, nil
