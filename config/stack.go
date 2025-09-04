@@ -111,10 +111,15 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 
 	generatedFiles := make(map[string]bool)
 
-	dependencyGraph := buildStackTopology(l, foundFiles, opts.WorkingDir)
+	stackTrees := BuildStackTopology(l, foundFiles, opts.WorkingDir)
 
-	for level := 0; ; level++ {
-		levelNodes := getNodesAtLevel(dependencyGraph, level)
+	const maxLevel = 1024
+	for level := range maxLevel {
+		if level == maxLevel-1 {
+			return errors.Errorf("Cycle detected: maximum level (%d) exceeded", maxLevel)
+		}
+
+		levelNodes := getNodesAtLevel(stackTrees, level)
 		if len(levelNodes) == 0 {
 			break
 		}
@@ -123,7 +128,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 			return err
 		}
 
-		if err := discoverAndAddNewNodes(l, opts, dependencyGraph, generatedFiles, level+1); err != nil {
+		if err := discoverAndAddNewNodes(l, opts, stackTrees, generatedFiles, level+1); err != nil {
 			return err
 		}
 	}
@@ -171,8 +176,8 @@ func discoverAndAddNewNodes(l log.Logger, opts *options.TerragruntOptions, depen
 	return nil
 }
 
-// buildStackTopology creates a topological tree based on directory hierarchy.
-func buildStackTopology(l log.Logger, stackFiles []string, workingDir string) map[string]*StackNode {
+// BuildStackTopology creates a topological tree based on directory hierarchy.
+func BuildStackTopology(l log.Logger, stackFiles []string, workingDir string) map[string]*StackNode {
 	nodes := make(map[string]*StackNode)
 
 	for _, file := range stackFiles {

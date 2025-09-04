@@ -233,7 +233,7 @@ unit "test_unit" {
 `
 
 	// Create the stack file
-	stackFilePath := filepath.Join(tmpDir, "terragrunt.stack.hcl")
+	stackFilePath := filepath.Join(tmpDir, config.DefaultStackFile)
 	err := os.WriteFile(stackFilePath, []byte(stackConfig), 0644)
 	require.NoError(t, err)
 
@@ -247,7 +247,7 @@ terraform {
 	source = "."
 }
 `
-	unitConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
+	unitConfigPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
 	err = os.WriteFile(unitConfigPath, []byte(unitConfig), 0644)
 	require.NoError(t, err)
 
@@ -323,4 +323,170 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 	} else {
 		t.Logf("Keys are in alphabetical order - sorting implementation is working!")
 	}
+}
+
+func TestStackGenerationWithNestedTopology(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	setupNestedStackFixture(t, tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
+	require.NoError(t, err)
+
+	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
+	require.DirExists(t, stackDir)
+
+	foundFiles := findStackFiles(t, liveDir)
+	require.NotEmpty(t, foundFiles, "Expected to find generated stack files")
+
+	logger := logger.CreateLogger()
+	topology := config.BuildStackTopology(logger, foundFiles, liveDir)
+	require.NotEmpty(t, topology, "Expected non-empty topology")
+
+	levelCounts := make(map[int]int)
+	for _, node := range topology {
+		levelCounts[node.Level]++
+	}
+
+	t.Logf("Topology levels found: %v", levelCounts)
+
+	assert.Len(t, levelCounts, 3, "Expected levels in nested topology")
+
+	assert.Equal(t, 1, levelCounts[0], "Level 0 should have exactly 1 stack file")
+	assert.Equal(t, 3, levelCounts[1], "Level 1 should have exactly 3 stack files")
+	assert.Equal(t, 9, levelCounts[2], "Level 2 should have exactly 9 stack files")
+
+	verifyGeneratedUnits(t, stackDir)
+}
+
+// setupNestedStackFixture creates a test fixture similar to testing-nested-stacks
+func setupNestedStackFixture(t *testing.T, tmpDir string) {
+	t.Helper()
+
+	liveDir := filepath.Join(tmpDir, "live")
+	stacksDir := filepath.Join(tmpDir, "stacks")
+	unitsDir := filepath.Join(tmpDir, "units")
+
+	require.NoError(t, os.MkdirAll(liveDir, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(stacksDir, "foo"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(stacksDir, "final"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(unitsDir, "final"), 0755))
+
+	liveStackConfig := `stack "foo" {
+  source = "../stacks/foo"
+  path   = "foo"
+}
+
+stack "foo2" {
+  source = "../stacks/foo"
+  path   = "foo2"
+}
+
+stack "foo3" {
+  source = "../stacks/foo"
+  path   = "foo3"
+}
+`
+	liveStackPath := filepath.Join(liveDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(liveStackPath, []byte(liveStackConfig), 0644))
+
+	fooStackConfig := `locals {
+  final_stack = find_in_parent_folders("stacks/final")
+}
+
+stack "final" {
+  source = local.final_stack
+  path   = "final"
+}
+
+stack "final2" {
+  source = local.final_stack
+  path   = "final2"
+}
+
+stack "final3" {
+  source = local.final_stack
+  path   = "final3"
+}
+`
+	fooStackPath := filepath.Join(stacksDir, "foo", config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(fooStackPath, []byte(fooStackConfig), 0644))
+
+	finalStackConfig := `locals {
+  final_unit = find_in_parent_folders("units/final")
+}
+
+unit "final" {
+  source = local.final_unit
+  path   = "final"
+}
+`
+	finalStackPath := filepath.Join(stacksDir, "final", config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(finalStackPath, []byte(finalStackConfig), 0644))
+
+	finalUnitPath := filepath.Join(unitsDir, "final", config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(finalUnitPath, []byte(``), 0644))
+
+	finalMainTfPath := filepath.Join(unitsDir, "final", "main.tf")
+	require.NoError(t, os.WriteFile(finalMainTfPath, []byte(``), 0644))
+}
+
+// verifyGeneratedUnits checks that some units were generated correctly
+func verifyGeneratedUnits(t *testing.T, stackDir string) {
+	t.Helper()
+
+	var (
+		unitDirs  []string
+		stackDirs []string
+	)
+
+	err := filepath.WalkDir(stackDir, func(path string, info os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && info.Name() == "terragrunt.hcl" {
+			unitDir := filepath.Dir(path)
+			unitDirs = append(unitDirs, unitDir)
+		}
+
+		if !info.IsDir() && info.Name() == "terragrunt.stack.hcl" {
+			stackDir := filepath.Dir(path)
+			stackDirs = append(stackDirs, stackDir)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	require.Len(t, unitDirs, 9, "Expected exactly 9 generated units")
+	require.Len(t, stackDirs, 12, "Expected exactly 12 generated stacks")
+}
+
+// findStackFiles recursively finds all terragrunt.stack.hcl files in a directory
+func findStackFiles(t *testing.T, dir string) []string {
+	t.Helper()
+
+	var stackFiles []string
+	err := filepath.WalkDir(dir, func(path string, info os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(path, "terragrunt.stack.hcl") {
+			stackFiles = append(stackFiles, path)
+		}
+
+		return nil
+	})
+
+	require.NoError(t, err)
+	return stackFiles
 }
