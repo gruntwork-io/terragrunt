@@ -177,7 +177,7 @@ explicitly redefined in the current's module `terragrunt.hcl` file.
 
 The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume before invoking OpenTofu/Terraform.
 
-The precedence is as follows: `--iam-role` command line option → `TG_IAM_ASSUME_ROLE` env variable →
+The precedence is as follows: `--iam-assume-role` command line option → `TG_IAM_ASSUME_ROLE` env variable →
 `iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included
 `terragrunt.hcl`.
 
@@ -222,7 +222,7 @@ The precedence is as follows: `--iam-assume-role-session-name` command line opti
 
 The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
 
-The precedence is as follows: `--iam-web-identity-token` command line option → `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+The precedence is as follows: `--iam-assume-role-web-identity-token` command line option → `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
