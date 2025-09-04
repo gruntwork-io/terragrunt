@@ -3,6 +3,7 @@ package awshelper
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 const (
@@ -121,21 +123,33 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
+	// If no static env creds are present, try to obtain creds/role from:
+	// 1) auth-provider-cmd (if configured)
+	// 2) IAM role options merged from env + config/CLI
+	// Then set an explicit credentials provider on cfg to avoid falling back to IMDS.
 	envCreds := createCredentialsFromEnv(opts)
 	if envCreds == nil {
-		// Derive IAM role options from environment variables if present, then merge with CLI/config options.
-		envIAMRole := getIAMRoleOptionsFromEnv(opts)
+		// Merge role options from env and config
+		mergedRole := options.MergeIAMRoleOptions(getIAMRoleOptionsFromEnv(opts), getMergedIAMRoleOptions(awsCfg, opts))
 
-		iamRoleOptions := options.MergeIAMRoleOptions(envIAMRole, getMergedIAMRoleOptions(awsCfg, opts))
-		if iamRoleOptions.RoleARN != "" {
-			if iamRoleOptions.WebIdentityToken != "" {
-				l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
+		// If still nothing and auth-provider-cmd is set, run it now to populate opts.Env or opts.IAMRoleOptions
+		if mergedRole.RoleARN == "" && opts != nil && opts.AuthProviderCmd != "" {
+			if err := runAuthProviderCmdIntoOpts(ctx, l, opts); err == nil {
+				// Refresh env creds and merged role after auth provider
+				envCreds = createCredentialsFromEnv(opts)
+				mergedRole = options.MergeIAMRoleOptions(getIAMRoleOptionsFromEnv(opts), getMergedIAMRoleOptions(awsCfg, opts))
+			}
+		}
 
-				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
+		if envCreds != nil {
+			cfg.Credentials = envCreds
+		} else if mergedRole.RoleARN != "" {
+			if mergedRole.WebIdentityToken != "" {
+				l.Debugf("Assuming role %s using WebIdentity token", mergedRole.RoleARN)
+				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, mergedRole)
 			} else {
-				l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
-
-				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
+				l.Debugf("Assuming role %s", mergedRole.RoleARN)
+				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedRole, getExternalID(awsCfg))
 			}
 		}
 	}
@@ -233,6 +247,93 @@ func getIAMRoleOptionsFromEnv(opts *options.TerragruntOptions) options.IAMRoleOp
 	}
 
 	return iamRole
+}
+
+// runAuthProviderCmdIntoOpts executes opts.AuthProviderCmd and merges returned credentials/envs into opts.
+// It supports the same JSON schema documented for auth-provider-cmd.
+func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	cmd := strings.TrimSpace(opts.AuthProviderCmd)
+	if cmd == "" {
+		return nil
+	}
+
+	var (
+		command = cmd
+		args    []string
+	)
+
+	if parts := strings.Fields(cmd); len(parts) > 1 {
+		command = parts[0]
+		args = parts[1:]
+	}
+
+	out, err := shell.RunCommandWithOutput(ctx, l, opts, "", true, false, command, args...)
+	if err != nil {
+		return err
+	}
+
+	stdout := strings.TrimSpace(out.Stdout.String())
+	if stdout == "" {
+		return errors.Errorf("command %s completed successfully, but the response does not contain JSON string", command)
+	}
+
+	type awsCreds struct {
+		AccessKeyID     string `json:"ACCESS_KEY_ID"`
+		SecretAccessKey string `json:"SECRET_ACCESS_KEY"`
+		SessionToken    string `json:"SESSION_TOKEN"`
+	}
+	type awsRole struct {
+		RoleARN          string `json:"roleARN"`
+		RoleSessionName  string `json:"roleSessionName"`
+		WebIdentityToken string `json:"webIdentityToken"`
+		Duration         int64  `json:"duration"`
+	}
+	var resp struct {
+		AWSCredentials *awsCreds         `json:"awsCredentials"`
+		AWSRole        *awsRole          `json:"awsRole"`
+		Envs           map[string]string `json:"envs"`
+	}
+
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		return errors.Errorf("command %s returned a response with invalid JSON format", command)
+	}
+
+	if resp.Envs != nil {
+		if opts.Env == nil {
+			opts.Env = make(map[string]string)
+		}
+		for k, v := range resp.Envs {
+			opts.Env[k] = v
+		}
+	}
+
+	if resp.AWSCredentials != nil {
+		if resp.AWSCredentials.AccessKeyID != "" && resp.AWSCredentials.SecretAccessKey != "" {
+			if opts.Env == nil {
+				opts.Env = make(map[string]string)
+			}
+			opts.Env["AWS_ACCESS_KEY_ID"] = resp.AWSCredentials.AccessKeyID
+			opts.Env["AWS_SECRET_ACCESS_KEY"] = resp.AWSCredentials.SecretAccessKey
+			opts.Env["AWS_SESSION_TOKEN"] = resp.AWSCredentials.SessionToken
+			opts.Env["AWS_SECURITY_TOKEN"] = resp.AWSCredentials.SessionToken
+		}
+		return nil
+	}
+
+	if resp.AWSRole != nil && resp.AWSRole.RoleARN != "" {
+		opts.IAMRoleOptions.RoleARN = resp.AWSRole.RoleARN
+		if resp.AWSRole.RoleSessionName != "" {
+			opts.IAMRoleOptions.AssumeRoleSessionName = resp.AWSRole.RoleSessionName
+		}
+		if resp.AWSRole.Duration > 0 {
+			opts.IAMRoleOptions.AssumeRoleDuration = resp.AWSRole.Duration
+		}
+		if resp.AWSRole.WebIdentityToken != "" {
+			opts.IAMRoleOptions.WebIdentityToken = resp.AWSRole.WebIdentityToken
+		}
+	}
+
+	return nil
 }
 
 // AssumeIamRole assumes an IAM role and returns the credentials
