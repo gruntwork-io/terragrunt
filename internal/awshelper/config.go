@@ -106,25 +106,18 @@ func CreateAwsConfig(
 
 	configOptions = append(configOptions, config.WithRegion(region))
 
-	// Derive credentials/role from opts; if none, proactively run auth-provider-cmd to populate opts before config load
-	envCreds := createCredentialsFromEnv(opts)
-	role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
-	l.Debugf("MergeIAMRoleOptions : %+v", role)
-	l.Debugf("envCreds : %+v", envCreds)
-
-	if envCreds == nil && role.RoleARN == "" && opts != nil && opts.AuthProviderCmd != "" {
-		if err := runAuthProviderCmdIntoOpts(ctx, l, opts); err == nil {
-			// refresh
-			envCreds = createCredentialsFromEnv(opts)
-			role = options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
-		}
+	// Always attempt to obtain credentials from auth-provider-cmd if configured so role/envs are available for provider selection
+	if opts != nil && opts.AuthProviderCmd != "" {
+		_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
 	}
 
+	// Derive credentials/role from opts after potential provider run
+	envCreds := createCredentialsFromEnv(opts)
+	role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
+
 	if envCreds != nil {
-		l.Debugf("Using AWS credentials from auth provider command")
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
 	} else if role.RoleARN != "" && role.WebIdentityToken != "" {
-		l.Debugf("Configuring web identity assume-role provider for %s", role.RoleARN)
 		configOptions = append(configOptions, config.WithCredentialsProvider(newWebIdentityProvider(region, role)))
 	}
 
