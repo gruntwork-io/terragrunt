@@ -32,13 +32,9 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 			return err
 		}
 
-		l.Debugf("ObtainAndUpdateEnvIfNecessary creds 1 %v", creds)
-
 		if creds == nil {
 			continue
 		}
-
-		l.Debugf("ObtainAndUpdateEnvIfNecessary creds 2 %v", creds)
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {

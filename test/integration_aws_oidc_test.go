@@ -143,7 +143,12 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	token := fetchGitHubOIDCToken(t)
 
 	// These tests need to be run without the static key + secret
-	// used by most AWS tests here.
+	// used by most AWS tests here
+
+	// save credetials to restore later
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	os.Unsetenv("AWS_ACCESS_KEY_ID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
@@ -164,6 +169,10 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	require.NotEmpty(t, role)
 
 	defer func() {
+		// set credentials back to original to do removal
+		t.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
+		t.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
+
 		helpers.DeleteS3Bucket(
 			t,
 			helpers.TerraformRemoteStateS3Region,
