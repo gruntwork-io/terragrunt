@@ -325,7 +325,7 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 	}
 }
 
-func TestStackGenerationWithNestedTopology(t *testing.T) {
+func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
