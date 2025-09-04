@@ -121,38 +121,39 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	envCreds := createCredentialsFromEnv(opts)
-	if envCreds == nil {
-		iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
-		if iamRoleOptions.RoleARN != "" {
-			if iamRoleOptions.WebIdentityToken != "" {
-				l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
-
-				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
-			} else {
-				l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
-
-				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
-			}
-		}
+	if createCredentialsFromEnv(opts) != nil {
+		return cfg, nil
 	}
+
+	iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
+	if iamRoleOptions.RoleARN == "" {
+		return cfg, nil
+	}
+
+	if iamRoleOptions.WebIdentityToken != "" {
+		l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
+		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
+
+		return cfg, nil
+	}
+
+	l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
+	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
 
 	return cfg, nil
 }
 
 // getRegionFromEnv extracts region from environment variables in opts
 func getRegionFromEnv(opts *options.TerragruntOptions) string {
-	if opts != nil && opts.Env != nil {
-		if region := opts.Env["AWS_REGION"]; region != "" {
-			return region
-		}
-
-		if region := opts.Env["AWS_DEFAULT_REGION"]; region != "" {
-			return region
-		}
+	if opts == nil || opts.Env == nil {
+		return ""
 	}
 
-	return ""
+	if region := opts.Env["AWS_REGION"]; region != "" {
+		return region
+	}
+
+	return opts.Env["AWS_DEFAULT_REGION"]
 }
 
 // getMergedIAMRoleOptions merges IAM role options from awsCfg and opts
@@ -180,11 +181,11 @@ func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, opts *options.TerragruntO
 
 // getExternalID returns the external ID from awsCfg if available
 func getExternalID(awsCfg *AwsSessionConfig) string {
-	if awsCfg != nil {
-		return awsCfg.ExternalID
+	if awsCfg == nil {
+		return ""
 	}
 
-	return ""
+	return awsCfg.ExternalID
 }
 
 // AssumeIamRole assumes an IAM role and returns the credentials
@@ -194,19 +195,13 @@ func AssumeIamRole(
 	externalID string,
 	opts *options.TerragruntOptions,
 ) (*types.Credentials, error) {
-	var region string
-	if opts != nil {
-		region = opts.Env["AWS_REGION"]
-		if region == "" {
-			region = opts.Env["AWS_DEFAULT_REGION"]
-		}
+	region := getRegionFromEnv(opts)
+	if region == "" {
+		region = os.Getenv("AWS_REGION")
 	}
 
 	if region == "" {
-		region = os.Getenv("AWS_REGION")
-		if region == "" {
-			region = os.Getenv("AWS_DEFAULT_REGION")
-		}
+		region = os.Getenv("AWS_DEFAULT_REGION")
 	}
 
 	if region == "" {
@@ -235,50 +230,42 @@ func AssumeIamRole(
 		duration = time.Duration(iamRoleOpts.AssumeRoleDuration) * time.Second
 	}
 
-	if iamRoleOpts.WebIdentityToken == "" {
-		// Use regular sts AssumeRole
-		input := &sts.AssumeRoleInput{
-			RoleArn:         aws.String(iamRoleOpts.RoleARN),
-			RoleSessionName: aws.String(roleSessionName),
-			DurationSeconds: aws.Int32(int32(duration.Seconds())),
-		}
-
-		if externalID != "" {
-			input.ExternalId = aws.String(externalID)
-		}
-
-		result, err := stsClient.AssumeRole(ctx, input)
+	if iamRoleOpts.WebIdentityToken != "" {
+		// Use sts AssumeRoleWithWebIdentity
+		tb, err := tokenFetcher(iamRoleOpts.WebIdentityToken).FetchToken(ctx)
 		if err != nil {
-			return nil, errors.Errorf("Error assuming role: %w", err)
+			return nil, errors.Errorf("Error reading web identity token file: %w", err)
+		}
+
+		input := &sts.AssumeRoleWithWebIdentityInput{
+			RoleArn:          aws.String(iamRoleOpts.RoleARN),
+			RoleSessionName:  aws.String(roleSessionName),
+			WebIdentityToken: aws.String(string(tb)),
+			DurationSeconds:  aws.Int32(int32(duration.Seconds())),
+		}
+
+		result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
+		if err != nil {
+			return nil, errors.Errorf("Error assuming role with web identity: %w", err)
 		}
 
 		return result.Credentials, nil
 	}
 
-	// Use sts AssumeRoleWithWebIdentity
-	var token string
-	// Check if value is a raw token or a path to a file with a token
-	if _, err := os.Stat(iamRoleOpts.WebIdentityToken); err != nil {
-		token = iamRoleOpts.WebIdentityToken
-	} else {
-		tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
-		if err != nil {
-			return nil, errors.Errorf("Error reading web identity token file: %w", err)
-		}
-
-		token = string(tb)
+	// Use regular sts AssumeRole
+	input := &sts.AssumeRoleInput{
+		RoleArn:         aws.String(iamRoleOpts.RoleARN),
+		RoleSessionName: aws.String(roleSessionName),
+		DurationSeconds: aws.Int32(int32(duration.Seconds())),
 	}
 
-	input := &sts.AssumeRoleWithWebIdentityInput{
-		RoleArn:          aws.String(iamRoleOpts.RoleARN),
-		RoleSessionName:  aws.String(roleSessionName),
-		WebIdentityToken: aws.String(token),
-		DurationSeconds:  aws.Int32(int32(duration.Seconds())),
+	if externalID != "" {
+		input.ExternalId = aws.String(externalID)
 	}
 
-	result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
+	result, err := stsClient.AssumeRole(ctx, input)
 	if err != nil {
-		return nil, errors.Errorf("Error assuming role with web identity: %w", err)
+		return nil, errors.Errorf("Error assuming role: %w", err)
 	}
 
 	return result.Credentials, nil
