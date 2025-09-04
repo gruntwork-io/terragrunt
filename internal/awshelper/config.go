@@ -125,6 +125,7 @@ func CreateAwsConfig(
 	if envCreds == nil {
 		// Derive IAM role options from environment variables if present, then merge with CLI/config options.
 		envIAMRole := getIAMRoleOptionsFromEnv(opts)
+
 		iamRoleOptions := options.MergeIAMRoleOptions(envIAMRole, getMergedIAMRoleOptions(awsCfg, opts))
 		if iamRoleOptions.RoleARN != "" {
 			if iamRoleOptions.WebIdentityToken != "" {
