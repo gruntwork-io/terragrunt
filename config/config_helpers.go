@@ -645,8 +645,12 @@ func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 	opts := ctx.TerragruntOptions
 	// Acquire credentials (auth-provider-cmd) early for all commands so HCL evaluation has creds available
 	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		l.Debugf("getAWSAccountID : error creds.NewGetter().ObtainAndUpdateEnvIfNecessary")
+
 		return "", err
 	}
+	l.Debugf("getAWSAccountID: CreateAwsConfig ctx")
+
 	ctx.TerragruntOptions = opts
 	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, opts)
 	if err != nil {
