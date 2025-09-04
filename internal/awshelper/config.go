@@ -107,37 +107,6 @@ func CreateAwsConfig(
 
 	configOptions = append(configOptions, config.WithRegion(region))
 
-	// Always attempt to obtain credentials from auth-provider-cmd if configured so role/envs are available for provider selection
-	if opts != nil {
-		providerCmd := opts.AuthProviderCmd
-		if providerCmd == "" {
-			// Fallback to env if flag hasn't been parsed into this options instance
-			if v := os.Getenv("TG_AUTH_PROVIDER_CMD"); v != "" {
-				providerCmd = v
-			} else if v := os.Getenv("TERRAGRUNT_AUTH_PROVIDER_CMD"); v != "" {
-				providerCmd = v
-			}
-			if providerCmd != "" {
-				l.Debugf("Auth provider detected from env. Executing: %q", providerCmd)
-				// temporary set to run provider
-				opts.AuthProviderCmd = providerCmd
-				_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
-				l.Debugf("Auth provider execution finished")
-				// do not restore; keeping it helps downstream flows
-			} else {
-				if opts.AuthProviderCmd != "" {
-					l.Debugf("Auth provider detected from opts. Executing: %q", opts.AuthProviderCmd)
-					_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
-					l.Debugf("Auth provider execution finished")
-				}
-			}
-		} else {
-			l.Debugf("Auth provider detected from opts. Executing: %q", opts.AuthProviderCmd)
-			_ = runAuthProviderCmdIntoOpts(ctx, l, opts)
-			l.Debugf("Auth provider execution finished")
-		}
-	}
-
 	// Derive credentials/role from opts after potential provider run
 	envCreds := createCredentialsFromEnv(opts)
 	role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
