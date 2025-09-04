@@ -178,12 +178,13 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 		"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
 	})
 
+	t.Setenv("TG_AUTH_PROVIDER_CMD", mockAuthCmd)
+
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt --non-interactive --log-level trace --working-dir %s --auth-provider-cmd %s -- apply -auto-approve",
+			"terragrunt --non-interactive --log-level trace --working-dir %s -- apply -auto-approve",
 			remoteStateOIDCPath,
-			mockAuthCmd,
 		),
 	)
 	require.NoError(t, err)
