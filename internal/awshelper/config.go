@@ -123,7 +123,9 @@ func CreateAwsConfig(
 
 	envCreds := createCredentialsFromEnv(opts)
 	if envCreds == nil {
-		iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
+		// Derive IAM role options from environment variables if present, then merge with CLI/config options.
+		envIAMRole := getIAMRoleOptionsFromEnv(opts)
+		iamRoleOptions := options.MergeIAMRoleOptions(envIAMRole, getMergedIAMRoleOptions(awsCfg, opts))
 		if iamRoleOptions.RoleARN != "" {
 			if iamRoleOptions.WebIdentityToken != "" {
 				l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
@@ -185,6 +187,51 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 	}
 
 	return ""
+}
+
+// getIAMRoleOptionsFromEnv extracts IAM role options from opts.Env if present.
+// Recognizes variables commonly used for web identity role assumption:
+// - AWS_ROLE_ARN
+// - AWS_WEB_IDENTITY_TOKEN_FILE or AWS_WEB_IDENTITY_TOKEN (raw token)
+// - AWS_ROLE_SESSION_NAME (optional)
+// - AWS_ROLE_DURATION or AWS_ROLE_DURATION_SECONDS (optional)
+func getIAMRoleOptionsFromEnv(opts *options.TerragruntOptions) options.IAMRoleOptions {
+	var iamRole options.IAMRoleOptions
+
+	if opts == nil || opts.Env == nil {
+		return iamRole
+	}
+
+	roleARN := opts.Env["AWS_ROLE_ARN"]
+	if roleARN == "" {
+		return iamRole
+	}
+
+	iamRole.RoleARN = roleARN
+
+	if tokenFile := opts.Env["AWS_WEB_IDENTITY_TOKEN_FILE"]; tokenFile != "" {
+		iamRole.WebIdentityToken = tokenFile
+	} else if token := opts.Env["AWS_WEB_IDENTITY_TOKEN"]; token != "" {
+		iamRole.WebIdentityToken = token
+	}
+
+	if session := opts.Env["AWS_ROLE_SESSION_NAME"]; session != "" {
+		iamRole.AssumeRoleSessionName = session
+	}
+
+	if dur := opts.Env["AWS_ROLE_DURATION"]; dur != "" {
+		if v, err := strconv.ParseInt(dur, 10, 64); err == nil {
+			iamRole.AssumeRoleDuration = v
+		}
+	}
+
+	if dur := opts.Env["AWS_ROLE_DURATION_SECONDS"]; dur != "" && iamRole.AssumeRoleDuration == 0 {
+		if v, err := strconv.ParseInt(dur, 10, 64); err == nil {
+			iamRole.AssumeRoleDuration = v
+		}
+	}
+
+	return iamRole
 }
 
 // AssumeIamRole assumes an IAM role and returns the credentials
