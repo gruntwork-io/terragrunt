@@ -432,6 +432,19 @@ func AssumeIamRole(
 		DurationSeconds:  aws.Int32(int32(duration.Seconds())),
 	}
 
+	// Build STS config using region derived from opts and use anonymous credentials to avoid IMDS/default chain
+	stsAnonCfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(region),
+		config.WithAppID("terragrunt/"+version.GetVersion()),
+	)
+	if err != nil {
+		return nil, errors.Errorf("Error loading AWS config: %w", err)
+	}
+
+	stsAnonCfg.Credentials = aws.AnonymousCredentials{}
+	stsClient = sts.NewFromConfig(stsAnonCfg)
+
 	result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
 	if err != nil {
 		return nil, errors.Errorf("Error assuming role with web identity: %w", err)
@@ -542,7 +555,9 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 	}
 
 	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-		stsClient := sts.NewFromConfig(cfg)
+		stsCfg := cfg
+		stsCfg.Credentials = aws.AnonymousCredentials{}
+		stsClient := sts.NewFromConfig(stsCfg)
 
 		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
 		if err != nil {
