@@ -1,14 +1,14 @@
-@layer base, starlight, theme, components, utilities;
+@layer base, starlight.base, starlight.reset, starlight.core, starlight.content, starlight.components, starlight.utils, theme, components, utilities;
 @import '@astrojs/starlight-tailwind';
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-@import "./buttons.css";
-@import "./contactform.css";
-@import "./lists.css";
+@import "./buttons.css" layer(components);
+@import "./contactform.css" layer(components);
+@import "./lists.css" layer(components);
 
 /* Starlight Fixes */
-@import "./starlight-search.css";
+@import "./starlight-search.css" layer(components);
 
 @font-face {
   font-family: 'Inter';
@@ -308,6 +308,10 @@ p code {
 
 .opensourcecard:last-child {
   border-right: 0;
+}
+
+.main-pane .sl-container {
+  margin-inline: 0;
 }
 
 starlight-toc h2 {
