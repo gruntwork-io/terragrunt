@@ -22,10 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
-
 	// Acquire creds using the same provider used in run path
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
-	externalcmd "github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 )
 
 const (
@@ -110,11 +107,6 @@ func CreateAwsConfig(
 	}
 
 	configOptions = append(configOptions, config.WithRegion(region))
-
-	// Proactively acquire credentials using the external auth provider (auth-provider-cmd) if configured
-	if opts != nil {
-		_ = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts))
-	}
 
 	// Derive credentials/role from opts after potential provider run
 	envCreds := createCredentialsFromEnv(opts)

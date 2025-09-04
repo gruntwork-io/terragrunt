@@ -31,6 +31,8 @@ import (
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
+	externalcmd "github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
@@ -149,6 +151,11 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 	defer cancel()
 
 	errGroup, ctx := errgroup.WithContext(ctx)
+
+	// Acquire credentials (auth-provider-cmd) early for all commands so HCL evaluation has creds available
+	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return err
+	}
 
 	// Handle auto provider cache dir experiment
 	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) && !opts.NoAutoProviderCacheDir {
