@@ -26,15 +26,19 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 	for _, provider := range authProviders {
 		l.Debugf("ObtainAndUpdateEnvIfNecessary Checking provider %s", provider.Name())
 		creds, err := provider.GetCredentials(ctx, l)
+		l.Debugf("ObtainAndUpdateEnvIfNecessary err %v", err)
+
 		if err != nil {
 			return err
 		}
+
+		l.Debugf("ObtainAndUpdateEnvIfNecessary creds 1 %v", creds)
 
 		if creds == nil {
 			continue
 		}
 
-		l.Debugf("ObtainAndUpdateEnvIfNecessary creds %v", creds)
+		l.Debugf("ObtainAndUpdateEnvIfNecessary creds 2 %v", creds)
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
