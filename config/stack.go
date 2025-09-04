@@ -590,30 +590,7 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
 func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
-	if isLocal(l, sourceDir, src) {
-		// check if src is absolute path, if not, join with sourceDir
-		var localSrc string
-
-		if filepath.IsAbs(src) {
-			localSrc = src
-		} else {
-			localSrc = filepath.Join(sourceDir, src)
-		}
-
-		localSrc, err := filepath.Abs(localSrc)
-
-		if err != nil {
-			l.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
-			// fallback to original source
-			localSrc = src
-		}
-
-		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
-			return true
-		}); err != nil {
-			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
-		}
-	} else {
+	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 			return errors.Errorf("Failed to create directory %s for %s %w", dest, identifier, err)
 		}
@@ -621,6 +598,39 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
 			return errors.Errorf("Failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
+
+		return nil
+	}
+
+	// check if src is absolute path, if not, join with sourceDir
+	var localSrc string
+
+	if filepath.IsAbs(src) {
+		localSrc = src
+	} else {
+		localSrc = filepath.Join(sourceDir, src)
+	}
+
+	localSrc, err := filepath.Abs(localSrc)
+
+	if err != nil {
+		l.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
+		// fallback to original source
+		localSrc = src
+	}
+
+	driftResult, err := util.CopyFolderContentsWithDriftDetection(l, localSrc, dest, manifestName, func(absolutePath string) bool {
+		return true
+	})
+	if err != nil {
+		return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
+	}
+
+	if len(driftResult.ChangedFiles) > 0 {
+		l.Debugf("Regenerated %d changed files in %s", len(driftResult.ChangedFiles), dest)
+	}
+	if len(driftResult.OrphanedFiles) > 0 {
+		l.Debugf("Removed %d orphaned files in %s", len(driftResult.OrphanedFiles), dest)
 	}
 
 	return nil

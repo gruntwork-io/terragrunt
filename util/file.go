@@ -160,10 +160,10 @@ func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]st
 
 		const stackDir = "/.terragrunt-stack/"
 
-		matches, err := zglob.Glob(globPath)
-		if err == nil {
+		matches, globErr := zglob.Glob(globPath)
+		if globErr == nil {
 			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
+		} else if errors.Is(globErr, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
 			// when using the stack feature, the directory may not exist yet,
 			// as stack generation occurs after parsing the argument flags.
 			paths = append(paths, globPath)
@@ -410,6 +410,61 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 		}
 	}(manifest)
 
+	err := copyFolderContents(logger, source, destination, manifestFile, filter, manifest)
+	return err
+}
+
+// CopyFolderContentsWithDriftDetection copies files with intelligent drift handling - only regenerates what's changed
+func CopyFolderContentsWithDriftDetection(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) (*DriftRemediationResult, error) {
+	const ownerReadWriteExecutePerms = 0700
+	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+		return nil, errors.New(err)
+	}
+
+	manifest := NewFileManifest(logger, destination, manifestFile)
+
+	driftResult, err := manifest.DetectDrift()
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	if !driftResult.RequiresRegen() {
+		logger.Debugf("No generation needed, skipping generation for %s", destination)
+		return driftResult, nil
+	}
+
+	if createErr := manifest.Create(); createErr != nil {
+		return nil, errors.New(createErr)
+	}
+
+	defer func(manifest *fileManifest) {
+		closeErr := manifest.Close()
+		if closeErr != nil {
+			logger.Warnf("Error closing manifest file: %v", closeErr)
+		}
+	}(manifest)
+
+	errs := []error{}
+
+	for _, file := range driftResult.OrphanedFiles {
+		if removeErr := os.Remove(file); removeErr != nil && !os.IsNotExist(removeErr) {
+			errs = append(errs, errors.New(removeErr))
+		}
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	if err = copyFolderContents(logger, source, destination, manifestFile, filter, manifest); err != nil {
+		return nil, err
+	}
+
+	return driftResult, nil
+}
+
+// copyFolderContents contains the core file copying logic shared by both functions
+func copyFolderContents(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool, manifest *fileManifest) error {
 	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
@@ -440,28 +495,30 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 				return errors.New(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
+			if err := copyFolderContents(logger, file, dest, manifestFile, filter, manifest); err != nil {
 				return err
 			}
 
 			if err := manifest.AddDirectory(dest); err != nil {
 				return err
 			}
-		} else {
-			parentDir := filepath.Dir(dest)
 
-			const ownerReadWriteExecutePerms = 0700
-			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
-				return errors.New(err)
-			}
+			continue
+		}
 
-			if err := CopyFile(file, dest); err != nil {
-				return err
-			}
+		parentDir := filepath.Dir(dest)
 
-			if err := manifest.AddFile(dest); err != nil {
-				return err
-			}
+		const ownerReadWriteExecutePerms = 0700
+		if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+			return errors.New(err)
+		}
+
+		if err := CopyFile(file, dest); err != nil {
+			return err
+		}
+
+		if err := manifest.AddFile(dest); err != nil {
+			return err
 		}
 	}
 
@@ -621,37 +678,220 @@ type fileManifestEntry struct {
 	IsDir      bool
 }
 
-// Clean will recursively remove all files specified in the manifest
-func (manifest *fileManifest) Clean() error {
-	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+// ManifestData holds the decoded manifest entries and metadata
+type ManifestData struct {
+	Entries      []fileManifestEntry
+	TrackedFiles map[string]fileManifestEntry
 }
 
-// CleanWithChangeDetection will check for file changes before cleaning and optionally warn about them
-func (manifest *fileManifest) CleanWithChangeDetection(warnOnChanges bool) error {
-	if warnOnChanges {
-		changedFiles, err := manifest.CheckForChanges()
-		if err != nil {
-			manifest.logger.Warnf("Failed to check for file changes: %v", err)
-		} else if len(changedFiles) > 0 {
-			manifest.logger.Warnf("Detected %d changed files that will be overwritten:", len(changedFiles))
-			for _, change := range changedFiles {
-				switch change.ChangeType {
-				case FileModified:
-					manifest.logger.Warnf("  - %s (modified, checksum changed)", change.Path)
-				case FileDeleted:
-					manifest.logger.Warnf("  - %s (deleted)", change.Path)
-				case FileChecksumFailed:
-					manifest.logger.Warnf("  - %s (checksum calculation failed: %s)", change.Path, change.ErrorDetails)
-				}
+// Clean will recursively remove all files specified in the manifest
+func (f *fileManifest) Clean() error {
+	return f.clean(filepath.Join(f.ManifestFolder, f.ManifestFile))
+}
+
+// DriftRemediationResult represents the result of drift remediation
+type DriftRemediationResult struct {
+	ChangedFiles  []FileChangedInfo
+	OrphanedFiles []string
+	FreshGen      bool
+}
+
+// RequiresRegen returns true if the result indicates that files need to be (re)generated.
+func (r *DriftRemediationResult) RequiresRegen() bool {
+	return r.FreshGen ||
+		len(r.ChangedFiles) > 0 ||
+		len(r.OrphanedFiles) > 0
+}
+
+// DetectDrift handles drift by reporting on what needs to be regenerated and what needs to be removed.
+func (f *fileManifest) DetectDrift() (*DriftRemediationResult, error) {
+	result := &DriftRemediationResult{
+		ChangedFiles:  []FileChangedInfo{},
+		OrphanedFiles: []string{},
+	}
+
+	if !FileExists(filepath.Join(f.ManifestFolder, f.ManifestFile)) {
+		result.FreshGen = true
+
+		return result, nil
+	}
+
+	manifestData, err := f.ReadManifestData()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read manifest data: %w", err)
+	}
+
+	changedFiles, err := manifestData.detectChanges()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for changes: %w", err)
+	}
+
+	result.ChangedFiles = changedFiles
+	if len(changedFiles) > 0 {
+		f.logger.Debugf("Detected %d changed files that need regeneration", len(changedFiles))
+	}
+
+	// Only remove orphans if we're inside a .terragrunt-stack directory
+	if !f.isInStackDirectory() {
+		return result, nil
+	}
+
+	orphanedFiles, err := manifestData.detectOrphans(f.ManifestFolder, f.ManifestFile)
+	if err != nil {
+		f.logger.Warnf("Failed to detect orphaned files: %v", err)
+
+		// We don't want to fail the operation if we can't detect orphaned files.
+		// We'll just skip orphan removal.
+		return result, nil
+	}
+
+	result.OrphanedFiles = orphanedFiles
+	if len(orphanedFiles) > 0 {
+		f.logger.Debugf("Found %d orphaned files that need removal", len(orphanedFiles))
+	}
+
+	return result, nil
+}
+
+// detectChanges checks for changes using pre-decoded manifest data
+func (m *ManifestData) detectChanges() ([]FileChangedInfo, error) {
+	var changedFiles []FileChangedInfo
+
+	// Check each entry for changes
+	for _, manifestEntry := range m.Entries {
+		// Skip directories - they don't have checksums to verify
+		if manifestEntry.IsDir {
+			continue
+		}
+
+		// Check if file still exists
+		if !FileExists(manifestEntry.Path) {
+			changedFiles = append(changedFiles, FileChangedInfo{
+				Path:         manifestEntry.Path,
+				ExpectedHash: manifestEntry.Checksum,
+				ActualHash:   "",
+				HashScheme:   manifestEntry.HashScheme,
+				ChangeType:   FileDeleted,
+				ErrorDetails: "File no longer exists",
+			})
+			continue
+		}
+
+		// Calculate current checksum if we have an expected one
+		if manifestEntry.Checksum != "" && manifestEntry.HashScheme == "sha256" {
+			currentChecksum, err := calculateSHA256(manifestEntry.Path)
+			if err != nil {
+				changedFiles = append(changedFiles, FileChangedInfo{
+					Path:         manifestEntry.Path,
+					ExpectedHash: manifestEntry.Checksum,
+					ActualHash:   "",
+					HashScheme:   manifestEntry.HashScheme,
+					ChangeType:   FileChecksumFailed,
+					ErrorDetails: fmt.Sprintf("Failed to calculate current checksum: %v", err),
+				})
+				continue
+			}
+
+			// Compare checksums
+			if currentChecksum != manifestEntry.Checksum {
+				changedFiles = append(changedFiles, FileChangedInfo{
+					Path:         manifestEntry.Path,
+					ExpectedHash: manifestEntry.Checksum,
+					ActualHash:   currentChecksum,
+					HashScheme:   manifestEntry.HashScheme,
+					ChangeType:   FileModified,
+					ErrorDetails: "",
+				})
 			}
 		}
 	}
 
-	return manifest.Clean()
+	return changedFiles, nil
 }
 
+// detectOrphans finds orphaned files using pre-decoded manifest data
+func (m *ManifestData) detectOrphans(manifestFolder, manifestFile string) ([]string, error) {
+	manifestPath := filepath.Join(manifestFolder, manifestFile)
+	var orphanedFiles []string
+
+	err := filepath.WalkDir(manifestFolder, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the manifest file itself and directories
+		if path == manifestPath || d.IsDir() {
+			return nil
+		}
+
+		// If file isn't tracked in manifest, it's orphaned
+		if _, tracked := m.TrackedFiles[path]; !tracked {
+			orphanedFiles = append(orphanedFiles, path)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return orphanedFiles, nil
+}
+
+// isInStackDirectory checks if the manifest folder is within a .terragrunt-stack directory
+func (f *fileManifest) isInStackDirectory() bool {
+	// Get the absolute path to check
+	absPath, err := filepath.Abs(f.ManifestFolder)
+	if err != nil {
+		// If we can't get absolute path, assume we're not in a stack directory
+		return false
+	}
+
+	parentDir := filepath.Dir(absPath)
+	return filepath.Base(parentDir) == ".terragrunt-stack"
+}
+
+// // ShouldRegenerateFile determines if a file needs regeneration based on source changes
+// func ShouldRegenerateFile(logger log.Logger, sourcePath, destPath, manifestFile string) (bool, error) {
+// 	manifestDir := filepath.Dir(destPath)
+// 	manifest := NewFileManifest(logger, manifestDir, manifestFile)
+
+// 	if !FileExists(destPath) {
+// 		return true, nil
+// 	}
+
+// 	if !FileExists(sourcePath) {
+// 		return false, nil
+// 	}
+
+// 	driftResult, err := manifest.DetectDrift()
+// 	if err != nil {
+// 		logger.Debugf("Failed to check drift, assuming regeneration needed: %v", err)
+// 		return true, nil
+// 	}
+
+// 	for _, change := range driftResult.ChangedFiles {
+// 		if change.Path == destPath {
+// 			return true, nil
+// 		}
+// 	}
+
+// 	sourceInfo, err := os.Stat(sourcePath)
+// 	if err != nil {
+// 		return false, err
+// 	}
+
+// 	destInfo, err := os.Stat(destPath)
+// 	if err != nil {
+// 		return true, nil
+// 	}
+
+// 	return sourceInfo.ModTime().After(destInfo.ModTime()), nil
+// }
+
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(manifestPath string) error {
+func (f *fileManifest) clean(manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
@@ -664,12 +904,12 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 	// cleaning manifest file
 	defer func(name string) {
-		if err := file.Close(); err != nil {
-			manifest.logger.Warnf("Error closing file %s: %v", name, err)
+		if closeErr := file.Close(); closeErr != nil {
+			f.logger.Warnf("Error closing file %s: %v", name, closeErr)
 		}
 
-		if err := os.Remove(name); err != nil {
-			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
+		if removeErr := os.Remove(name); removeErr != nil {
+			f.logger.Warnf("Error removing manifest file %s: %v", name, removeErr)
 		}
 	}(manifestPath)
 
@@ -689,7 +929,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+			if err := f.clean(filepath.Join(manifestEntry.Path, f.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
 		} else {
@@ -703,30 +943,30 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 }
 
 // Create will create the manifest file
-func (manifest *fileManifest) Create() error {
+func (f *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0644
 
-	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
+	fileHandle, err := os.OpenFile(filepath.Join(f.ManifestFolder, f.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
 		return err
 	}
 
-	manifest.fileHandle = fileHandle
-	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
+	f.fileHandle = fileHandle
+	f.encoder = gob.NewEncoder(f.fileHandle)
 
 	return nil
 }
 
 // AddFile will add the file path to the manifest file with its SHA256 checksum. Please make sure to run Create() before using this
-func (manifest *fileManifest) AddFile(path string) error {
+func (f *fileManifest) AddFile(path string) error {
 	checksum, err := calculateSHA256(path)
 	if err != nil {
-		manifest.logger.Warnf("Failed to calculate checksum for file %s: %v", path, err)
+		f.logger.Warnf("Failed to calculate checksum for file %s: %v", path, err)
 
 		checksum = ""
 	}
 
-	return manifest.encoder.Encode(fileManifestEntry{
+	return f.encoder.Encode(fileManifestEntry{
 		Path:       path,
 		IsDir:      false,
 		Checksum:   checksum,
@@ -735,8 +975,8 @@ func (manifest *fileManifest) AddFile(path string) error {
 }
 
 // AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
-func (manifest *fileManifest) AddDirectory(path string) error {
-	return manifest.encoder.Encode(fileManifestEntry{
+func (f *fileManifest) AddDirectory(path string) error {
+	return f.encoder.Encode(fileManifestEntry{
 		Path:       path,
 		IsDir:      true,
 		Checksum:   "",
@@ -744,13 +984,47 @@ func (manifest *fileManifest) AddDirectory(path string) error {
 	})
 }
 
-// Close closes the manifest file handle
-func (manifest *fileManifest) Close() error {
-	return manifest.fileHandle.Close()
-}
-
+// NewFileManifest creates a new fileManifest
 func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
 	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+}
+
+// Close closes the manifest file handle
+func (f *fileManifest) Close() error {
+	return f.fileHandle.Close()
+}
+
+// ReadManifestData decodes the manifest file and returns all the data within it
+func (f *fileManifest) ReadManifestData() (*ManifestData, error) {
+	manifestPath := filepath.Join(f.ManifestFolder, f.ManifestFile)
+
+	data := &ManifestData{
+		Entries:      []fileManifestEntry{},
+		TrackedFiles: make(map[string]fileManifestEntry),
+	}
+
+	file, err := os.Open(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	decoder := gob.NewDecoder(file)
+	for {
+		var entry fileManifestEntry
+		err = decoder.Decode(&entry)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, err
+		}
+
+		data.Entries = append(data.Entries, entry)
+		data.TrackedFiles[entry.Path] = entry
+	}
+
+	return data, nil
 }
 
 // calculateSHA256 calculates the SHA256 checksum of a file
@@ -803,88 +1077,6 @@ type FileChangedInfo struct {
 	HashScheme   string
 	ChangeType   FileChangeType
 	ErrorDetails string
-}
-
-// CheckForChanges reads the manifest and checks if any tracked files have changed
-// Returns a slice of FileChangedInfo for files that have changed or errors encountered
-func (manifest *fileManifest) CheckForChanges() ([]FileChangedInfo, error) {
-	manifestPath := filepath.Join(manifest.ManifestFolder, manifest.ManifestFile)
-
-	// if manifest file doesn't exist, no changes to check
-	if !FileExists(manifestPath) {
-		return nil, nil
-	}
-
-	file, err := os.Open(manifestPath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var changedFiles []FileChangedInfo
-	decoder := gob.NewDecoder(file)
-
-	// decode paths one by one
-	for {
-		var manifestEntry fileManifestEntry
-
-		err = decoder.Decode(&manifestEntry)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			} else {
-				return changedFiles, err
-			}
-		}
-
-		// Skip directories - they don't have checksums to verify
-		if manifestEntry.IsDir {
-			continue
-		}
-
-		// Check if file still exists
-		if !FileExists(manifestEntry.Path) {
-			changedFiles = append(changedFiles, FileChangedInfo{
-				Path:         manifestEntry.Path,
-				ExpectedHash: manifestEntry.Checksum,
-				ActualHash:   "",
-				HashScheme:   manifestEntry.HashScheme,
-				ChangeType:   FileDeleted,
-				ErrorDetails: "File no longer exists",
-			})
-			continue
-		}
-
-		// Calculate current checksum if we have an expected one
-		if manifestEntry.Checksum != "" && manifestEntry.HashScheme == "sha256" {
-			currentChecksum, err := calculateSHA256(manifestEntry.Path)
-			if err != nil {
-				changedFiles = append(changedFiles, FileChangedInfo{
-					Path:         manifestEntry.Path,
-					ExpectedHash: manifestEntry.Checksum,
-					ActualHash:   "",
-					HashScheme:   manifestEntry.HashScheme,
-					ChangeType:   FileChecksumFailed,
-					ErrorDetails: fmt.Sprintf("Failed to calculate current checksum: %v", err),
-				})
-				continue
-			}
-
-			// Compare checksums
-			if currentChecksum != manifestEntry.Checksum {
-				changedFiles = append(changedFiles, FileChangedInfo{
-					Path:         manifestEntry.Path,
-					ExpectedHash: manifestEntry.Checksum,
-					ActualHash:   currentChecksum,
-					HashScheme:   manifestEntry.HashScheme,
-					ChangeType:   FileModified,
-					ErrorDetails: "",
-				})
-			}
-		}
-	}
-
-	return changedFiles, nil
 }
 
 // Custom errors

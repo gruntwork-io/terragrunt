@@ -786,76 +786,110 @@ func TestMoveFile(t *testing.T) {
 	assert.Equal(t, "test", string(contents))
 }
 
-func TestFileManifestChecksum(t *testing.T) {
+func TestDriftDetectionCopy(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
 	l := logger.CreateLogger()
 
-	// Create test files
-	testFile1 := filepath.Join(tmpDir, "test1.txt")
-	testFile2 := filepath.Join(tmpDir, "test2.txt")
-	testContent1 := "Hello, World!"
-	testContent2 := "Terragrunt rocks!"
+	// Create source directory with test files
+	sourceDir := filepath.Join(tmpDir, "source")
+	// Use .terragrunt-stack directory structure to enable orphan removal
+	destDir := filepath.Join(tmpDir, ".terragrunt-stack", "unit")
+	require.NoError(t, os.MkdirAll(sourceDir, 0755))
 
-	require.NoError(t, os.WriteFile(testFile1, []byte(testContent1), 0644))
-	require.NoError(t, os.WriteFile(testFile2, []byte(testContent2), 0644))
+	sourceFile1 := filepath.Join(sourceDir, "file1.txt")
+	sourceFile2 := filepath.Join(sourceDir, "file2.txt")
+	require.NoError(t, os.WriteFile(sourceFile1, []byte("content1"), 0644))
+	require.NoError(t, os.WriteFile(sourceFile2, []byte("content2"), 0644))
 
-	// Create manifest
-	manifestDir := filepath.Join(tmpDir, "manifest")
-	require.NoError(t, os.MkdirAll(manifestDir, 0755))
-
-	manifest := util.NewFileManifest(l, manifestDir, ".test-manifest")
-	require.NoError(t, manifest.Create())
-
-	// Add files to manifest
-	require.NoError(t, manifest.AddFile(testFile1))
-	require.NoError(t, manifest.AddFile(testFile2))
-	require.NoError(t, manifest.Close())
-
-	// Check for changes (should be none initially)
-	manifest = util.NewFileManifest(l, manifestDir, ".test-manifest")
-	changes, err := manifest.CheckForChanges()
+	// First copy - should copy everything
+	driftResult, err := util.CopyFolderContentsWithDriftDetection(l, sourceDir, destDir, ".test-manifest", func(path string) bool {
+		return true
+	})
 	require.NoError(t, err)
-	assert.Empty(t, changes, "No changes should be detected initially")
+	assert.True(t, driftResult.RequiresRegen(), "First copy should require regeneration")
+	assert.Empty(t, driftResult.ChangedFiles, "No changed files on first copy")
 
-	// Modify one file
-	modifiedContent := "Modified content!"
-	require.NoError(t, os.WriteFile(testFile1, []byte(modifiedContent), 0644))
+	// Verify files were copied
+	destFile1 := filepath.Join(destDir, "file1.txt")
+	destFile2 := filepath.Join(destDir, "file2.txt")
+	assert.True(t, util.FileExists(destFile1))
+	assert.True(t, util.FileExists(destFile2))
 
-	// Check for changes again
-	changes, err = manifest.CheckForChanges()
+	// Second copy - should detect no changes
+	driftResult, err = util.CopyFolderContentsWithDriftDetection(l, sourceDir, destDir, ".test-manifest", func(path string) bool {
+		return true
+	})
 	require.NoError(t, err)
-	require.Len(t, changes, 1, "Should detect one modified file")
+	assert.False(t, driftResult.RequiresRegen(), "Second copy should not require regeneration")
+	assert.Empty(t, driftResult.ChangedFiles, "No changed files on unchanged copy")
 
-	change := changes[0]
-	assert.Equal(t, testFile1, change.Path)
-	assert.Equal(t, util.FileModified, change.ChangeType)
-	assert.Equal(t, "sha256", change.HashScheme)
-	assert.NotEmpty(t, change.ExpectedHash)
-	assert.NotEmpty(t, change.ActualHash)
-	assert.NotEqual(t, change.ExpectedHash, change.ActualHash)
+	// Modify a destination file to simulate user changes
+	require.NoError(t, os.WriteFile(destFile1, []byte("modified by user"), 0644))
 
-	// Delete a file
-	require.NoError(t, os.Remove(testFile2))
-
-	// Check for changes
-	changes, err = manifest.CheckForChanges()
+	// Third copy - should detect drift and regenerate
+	driftResult, err = util.CopyFolderContentsWithDriftDetection(l, sourceDir, destDir, ".test-manifest", func(path string) bool {
+		return true
+	})
 	require.NoError(t, err)
-	require.Len(t, changes, 2, "Should detect one modified and one deleted file")
+	assert.True(t, driftResult.RequiresRegen(), "Third copy should require regeneration due to drift")
+	assert.Len(t, driftResult.ChangedFiles, 1, "Should detect one changed file")
+	assert.Equal(t, destFile1, driftResult.ChangedFiles[0].Path)
+	assert.Equal(t, util.FileModified, driftResult.ChangedFiles[0].ChangeType)
 
-	// Find the deleted file change
-	var deletedChange util.FileChangedInfo
-	var foundDeleted bool
-	for _, change := range changes {
-		if change.Path == testFile2 {
-			deletedChange = change
-			foundDeleted = true
-			break
-		}
-	}
-	require.True(t, foundDeleted, "Should find deleted file change")
-	assert.Equal(t, util.FileDeleted, deletedChange.ChangeType)
-	assert.NotEmpty(t, deletedChange.ExpectedHash)
-	assert.Empty(t, deletedChange.ActualHash)
+	// Verify the file was regenerated (should have original content again)
+	content, err := os.ReadFile(destFile1)
+	require.NoError(t, err)
+	assert.Equal(t, "content1", string(content), "File should be regenerated with original content")
+
+	// Add an orphaned file (not in source)
+	orphanFile := filepath.Join(destDir, "orphan.txt")
+	require.NoError(t, os.WriteFile(orphanFile, []byte("orphan"), 0644))
+
+	// Fourth copy - should detect and remove orphaned file
+	driftResult, err = util.CopyFolderContentsWithDriftDetection(l, sourceDir, destDir, ".test-manifest", func(path string) bool {
+		return true
+	})
+	require.NoError(t, err)
+	assert.True(t, driftResult.RequiresRegen(), "Fourth copy should require regeneration due to orphaned files")
+	assert.Len(t, driftResult.OrphanedFiles, 1, "Should detect one orphaned file")
+	assert.Contains(t, driftResult.OrphanedFiles, orphanFile)
+	assert.False(t, util.FileExists(orphanFile), "Orphaned file should be removed")
+}
+
+func TestDriftDetectionNoOrphanRemovalOutsideStack(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	l := logger.CreateLogger()
+
+	// Create source directory with test files
+	sourceDir := filepath.Join(tmpDir, "source")
+	// Use regular directory (NOT .terragrunt-stack) to test orphan removal is skipped
+	destDir := filepath.Join(tmpDir, "regular-dest")
+	require.NoError(t, os.MkdirAll(sourceDir, 0755))
+
+	sourceFile := filepath.Join(sourceDir, "file.txt")
+	require.NoError(t, os.WriteFile(sourceFile, []byte("content"), 0644))
+
+	// First copy - should copy everything
+	driftResult, err := util.CopyFolderContentsWithDriftDetection(l, sourceDir, destDir, ".test-manifest", func(path string) bool {
+		return true
+	})
+	require.NoError(t, err)
+	assert.True(t, driftResult.RequiresRegen(), "First copy should require regeneration")
+
+	// Add an orphaned file (not in source)
+	orphanFile := filepath.Join(destDir, "orphan.txt")
+	require.NoError(t, os.WriteFile(orphanFile, []byte("orphan"), 0644))
+
+	// Second copy - should NOT remove orphaned file outside .terragrunt-stack
+	driftResult, err = util.CopyFolderContentsWithDriftDetection(l, sourceDir, destDir, ".test-manifest", func(path string) bool {
+		return true
+	})
+	require.NoError(t, err)
+	assert.False(t, driftResult.RequiresRegen(), "Second copy should not require regeneration")
+	assert.Empty(t, driftResult.OrphanedFiles, "Should not detect orphaned files outside .terragrunt-stack")
+	assert.True(t, util.FileExists(orphanFile), "Orphaned file should NOT be removed outside .terragrunt-stack")
 }
