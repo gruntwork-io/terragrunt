@@ -359,6 +359,7 @@
 
   starlight-toc li {
     font-family: var(--font-sans);
+    margin: 0.1rem;
   }
 
   starlight-toc li a {
