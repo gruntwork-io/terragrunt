@@ -95,14 +95,6 @@ func CreateAwsConfig(
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
-	if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
-		l.Debugf("Using AWS credentials from auth provider command")
-
-		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
-	} else if awsCfg != nil && awsCfg.CredsFilename != "" {
-		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
-	}
-
 	region := getRegionFromEnv(opts)
 	if region == "" && awsCfg != nil && awsCfg.Region != "" {
 		region = awsCfg.Region
@@ -114,6 +106,24 @@ func CreateAwsConfig(
 
 	configOptions = append(configOptions, config.WithRegion(region))
 
+	// Prefer static credentials from opts.Env
+	if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
+		l.Debugf("Using AWS credentials from auth provider command")
+		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
+	} else {
+		// Try to derive role from opts/env and use web identity provider pre-config to avoid default chain/IMDS
+		mergedRole := getMergedIAMRoleOptions(awsCfg, opts)
+		mergedRole = options.MergeIAMRoleOptions(mergedRole, getIAMRoleOptionsFromEnv(opts))
+		if mergedRole.RoleARN != "" && mergedRole.WebIdentityToken != "" {
+			l.Debugf("Configuring web identity assume-role provider for %s", mergedRole.RoleARN)
+			configOptions = append(configOptions, config.WithCredentialsProvider(newWebIdentityProvider(region, mergedRole)))
+		}
+	}
+
+	if awsCfg != nil && awsCfg.CredsFilename != "" {
+		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
+	}
+
 	if awsCfg != nil && awsCfg.Profile != "" {
 		configOptions = append(configOptions, config.WithSharedConfigProfile(awsCfg.Profile))
 	}
@@ -123,33 +133,19 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	// If no static env creds are present, try to obtain creds/role from:
-	// 1) auth-provider-cmd (if configured)
-	// 2) IAM role options merged from env + config/CLI
-	// Then set an explicit credentials provider on cfg to avoid falling back to IMDS.
-	envCreds := createCredentialsFromEnv(opts)
-	if envCreds == nil {
-		// Merge role options from env and config
-		mergedRole := options.MergeIAMRoleOptions(getIAMRoleOptionsFromEnv(opts), getMergedIAMRoleOptions(awsCfg, opts))
-
-		// If still nothing and auth-provider-cmd is set, run it now to populate opts.Env or opts.IAMRoleOptions
-		if mergedRole.RoleARN == "" && opts != nil && opts.AuthProviderCmd != "" {
-			if err := runAuthProviderCmdIntoOpts(ctx, l, opts); err == nil {
-				// Refresh env creds and merged role after auth provider
-				envCreds = createCredentialsFromEnv(opts)
-				mergedRole = options.MergeIAMRoleOptions(getIAMRoleOptionsFromEnv(opts), getMergedIAMRoleOptions(awsCfg, opts))
-			}
-		}
-
-		if envCreds != nil {
-			cfg.Credentials = envCreds
-		} else if mergedRole.RoleARN != "" {
-			if mergedRole.WebIdentityToken != "" {
-				l.Debugf("Assuming role %s using WebIdentity token", mergedRole.RoleARN)
-				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, mergedRole)
-			} else {
-				l.Debugf("Assuming role %s", mergedRole.RoleARN)
-				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedRole, getExternalID(awsCfg))
+	// If still no provider on cfg and we now have role or env creds via auth-provider-cmd, set cfg.Credentials explicitly
+	if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
+		// Attempt to acquire creds via auth-provider-cmd
+		if opts != nil && opts.AuthProviderCmd != "" {
+			if errRun := runAuthProviderCmdIntoOpts(ctx, l, opts); errRun == nil {
+				if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
+					cfg.Credentials = envCreds
+				} else {
+					role := options.MergeIAMRoleOptions(getMergedIAMRoleOptions(awsCfg, opts), getIAMRoleOptionsFromEnv(opts))
+					if role.RoleARN != "" && role.WebIdentityToken != "" {
+						cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, role)
+					}
+				}
 			}
 		}
 	}
@@ -646,4 +642,51 @@ func createCredentialsFromEnv(opts *options.TerragruntOptions) aws.CredentialsPr
 	}
 
 	return credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, sessionToken)
+}
+
+// newWebIdentityProvider returns a credentials provider that calls AssumeRoleWithWebIdentity using the given region and role.
+func newWebIdentityProvider(region string, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProvider {
+	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+		stsCfg, err := config.LoadDefaultConfig(
+			ctx,
+			config.WithRegion(region),
+			config.WithAppID("terragrunt/"+version.GetVersion()),
+		)
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+
+		stsCfg.Credentials = aws.AnonymousCredentials{}
+		stsClient := sts.NewFromConfig(stsCfg)
+
+		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+
+		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
+		if iamRoleOptions.AssumeRoleDuration > 0 {
+			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
+		}
+
+		input := &sts.AssumeRoleWithWebIdentityInput{
+			RoleArn:          aws.String(iamRoleOptions.RoleARN),
+			RoleSessionName:  aws.String(iamRoleOptions.AssumeRoleSessionName),
+			WebIdentityToken: aws.String(string(token)),
+			DurationSeconds:  aws.Int32(int32(duration.Seconds())),
+		}
+
+		result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+
+		return aws.Credentials{
+			AccessKeyID:     aws.ToString(result.Credentials.AccessKeyId),
+			SecretAccessKey: aws.ToString(result.Credentials.SecretAccessKey),
+			SessionToken:    aws.ToString(result.Credentials.SessionToken),
+			CanExpire:       true,
+			Expires:         aws.ToTime(result.Credentials.Expiration),
+		}, nil
+	})
 }
