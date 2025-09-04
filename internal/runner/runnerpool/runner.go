@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -24,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -35,6 +38,10 @@ type Runner struct {
 
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
+	if len(discovered) == 0 {
+		return nil, errors.New(common.ErrNoUnitsFound)
+	}
+
 	q, queueErr := queue.NewQueue(discovered)
 	if queueErr != nil {
 		return nil, queueErr
@@ -42,6 +49,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
+		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
 	runner := &Runner{
@@ -63,7 +71,10 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	}
 
 	// Create units from discovered configurations using the full resolution pipeline
-	unitResolver := common.NewUnitResolver(runner.Stack)
+	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
+	if err != nil {
+		return nil, err
+	}
 
 	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
 	if err != nil {
@@ -112,15 +123,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	task := func(ctx context.Context, u *common.Unit) error {
-		unitRunner := common.NewUnitRunner(u)
-
-		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
+			"terraform_command":      u.TerragruntOptions.TerraformCommand,
+			"terraform_cli_args":     u.TerragruntOptions.TerraformCliArgs,
+			"working_dir":            u.TerragruntOptions.WorkingDir,
+			"terragrunt_config_path": u.TerragruntOptions.TerragruntConfigPath,
+		}, func(childCtx context.Context) error {
+			unitRunner := common.NewUnitRunner(u)
+			return unitRunner.Run(childCtx, u.TerragruntOptions, r.Stack.Report)
+		})
 	}
+
 	r.queue.FailFast = opts.FailFast
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
 	controller := NewController(
@@ -159,7 +172,7 @@ func (r *Runner) handlePlan() {
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 	for _, unit := range r.queue.Entries {
-		outStr += fmt.Sprintf("Unit %s\n", unit.Config.Path)
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Config.Path)
 	}
 
 	l.Info(outStr)
@@ -168,7 +181,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
-func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
+func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
 		orderedUnits = append(orderedUnits, unit.Config.Path)
@@ -221,19 +234,19 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
-		unit.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
-		copy(unit.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
+		unit.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
 
 		planFile := unit.PlanFile(l, opts)
 		if planFile != "" {
 			l.Debugf("Using output file %s for unit %s", planFile, unit.TerragruntOptions.TerragruntConfigPath)
 
-			if unit.TerragruntOptions.TerraformCommand == "plan" {
+			if unit.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
 				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
-			} else {
-				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
+				continue
 			}
+
+			unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
 		}
 	}
 }

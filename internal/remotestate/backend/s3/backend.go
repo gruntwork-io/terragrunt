@@ -40,7 +40,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return false, err
 	}
 
-	client, err := NewClient(l, extS3Cfg, opts)
+	client, err := NewClient(ctx, l, extS3Cfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -87,7 +87,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return nil
 	}
 
-	client, err := NewClient(l, extS3Cfg, opts)
+	client, err := NewClient(ctx, l, extS3Cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 	var bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
 
-	client, err := NewClient(l, extS3Cfg, opts)
+	client, err := NewClient(ctx, l, extS3Cfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -167,7 +167,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		dstTableKey   = path.Join(dstBucketName, dstBucketKey+stateIDSuffix)
 	)
 
-	client, err := NewClient(l, srcExtS3Cfg, opts)
+	client, err := NewClient(ctx, l, srcExtS3Cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
 	)
 
-	client, err := NewClient(l, extS3Cfg, opts)
+	client, err := NewClient(ctx, l, extS3Cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 		return err
 	}
 
-	client, err := NewClient(l, extS3Cfg, opts)
+	client, err := NewClient(ctx, l, extS3Cfg, opts)
 	if err != nil {
 		return err
 	}

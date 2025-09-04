@@ -13,7 +13,7 @@ import (
 func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
 	t.Helper()
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		err := DeleteS3Bucket(t, awsRegion, bucketName)
 		if err == nil {
 			return

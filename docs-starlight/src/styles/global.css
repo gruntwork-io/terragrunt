@@ -1,40 +1,359 @@
 @layer base, starlight, theme, components, utilities;
-
 @import '@astrojs/starlight-tailwind';
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 
-@theme {
-  /* Your preferred text font. Starlight uses a system font stack by default. */
-  --font-sans: 'Atkinson Hyperlegible';
-  /* Your preferred code font. Starlight uses system monospace fonts by default. */
-  --font-mono: 'IBM Plex Mono';
-  /* Your preferred accent color. Indigo is closest to Starlight’s defaults. */
-  --color-accent-50: var(--color-indigo-50);
-  --color-accent-100: var(--color-indigo-100);
-  --color-accent-200: var(--color-indigo-200);
-  --color-accent-300: var(--color-indigo-300);
-  --color-accent-400: var(--color-indigo-400);
-  --color-accent-500: var(--color-indigo-500);
-  --color-accent-600: var(--color-indigo-600);
-  --color-accent-700: var(--color-indigo-700);
-  --color-accent-800: var(--color-indigo-800);
-  --color-accent-900: var(--color-indigo-900);
-  --color-accent-950: var(--color-indigo-950);
-  /* Your preferred gray scale. Zinc is closest to Starlight’s defaults. */
-  --color-gray-50: var(--color-zinc-50);
-  --color-gray-100: var(--color-zinc-100);
-  --color-gray-200: var(--color-zinc-200);
-  --color-gray-300: var(--color-zinc-300);
-  --color-gray-400: var(--color-zinc-400);
-  --color-gray-500: var(--color-zinc-500);
-  --color-gray-600: var(--color-zinc-600);
-  --color-gray-700: var(--color-zinc-700);
-  --color-gray-800: var(--color-zinc-800);
-  --color-gray-900: var(--color-zinc-900);
-  --color-gray-950: var(--color-zinc-950);
+@import "./buttons.css";
+@import "./contactform.css";
+@import "./lists.css";
+
+/* Starlight Fixes */
+@import "./starlight-search.css";
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Italic-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  /* Fonts */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+
+  /* Colors Nav */
+  --color-nav-link: #A0A1AC;
+  --color-nav-link-hover: #e8eefc;
+
+
+  /* Colors Text */
+  --color-primary: #0F0934;
+
+  /* Colors Landing Page */
+  --color-accent: #4F2FD0;
+  --color-accent-1: #7d5DFF;
+  --color-accent-2: #87E0E1;
+  --color-accent-3: #BFA6F2;
+  --color-bg-dark: #0F1731;
+  --color-dark-blue-1: #0F0934;
+  --color-gray-1: #A0A1AC;
+  --color-gray-2: #6B6C7A;
+  --color-gray-3: #DBDBDB;
+  --color-gray-4: #6D6F86;
+  --color-stroke-dark: #2E375A;
+
+  /* Colors Contact Form */
+  --color-contact-form-button-bg: rgba(255, 255, 255, 0.15);
+
+  /* Component Colors */
+  --color-opacity-5: rgba(255, 255, 255, 0.05);
+  --color-opacity-10: rgba(255, 255, 255, 0.1);
+
+  /* Dialog */
+  --color-dialog-bg: oklch(0.92 0.004 286.32);
+
+  /* Colors Terragrunt Page */
+  --color-feature-container: #171e3c;
+  --color-feature-container-stroke: #7b7f94;
+  --color-card-border: #2F3547;
+  --color-acc-text: #F48701;
+  --color-gray-border: #E2E3E6;
+  --color-primary-button-light: #FE8E03;
+
+  /* Silverlight Customizations */
+  --sl-color-hairline-shade: #2E375A;
+  --sl-color-secondary: #EBEBEB;
+  --sl-text-sm: 16px;
+  --sl-color-stroke-dark: #2E375A;
+  --sl-z-index-toc: 10;
+
+  /* Navigation */
+  --sl-color-bg-nav: #0F1731;
+  --sl-color-asides-border: hsl(41, 90%, 60%);
+  --sl-nav-height: 90px;
+}
+
+/* Docs Dark mode colors. */
 :root {
-  --sl-nav-height: 5rem;
+  --sl-color-bg: #0F1731;
+  --sl-color-bg-sidebar: #0F1731;
+  --sl-color-bg-inline-code: #2b2d4c;
+  --color-code-border: #403f64;
+  --color-code-text: #BFA6F2;
+  --sl-color-accent-low: #1f1d47;
+  --sl-color-accent: #5e46e6;
+  --sl-color-accent-high: #c0c3fa;
+  --sl-color-black: #131824;
+  --sl-color-docs-stroke: #2E375A;
+  --sl-color-gray-1: #e8eefc;
+  --sl-color-gray-2: #bbc2d4;
+  --sl-color-gray-3: #7e8bac;
+  --sl-color-gray-4: #4c5776;
+  --sl-color-gray-5: #2d3754;
+  --sl-color-gray-6: #1c2541;
+  --color-toc-accent: #BFA6F2;
+  --color-toc-background: rgba(191, 166, 242, 0.15);
+  --color-toc-text: #EBEBEB;
+  --sl-color-white: #ffffff;
+}
+
+/* Docs Light mode colors. */
+:root[data-theme='light'] {
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-sidebar: #ffffff;
+  --sl-color-bg-inline-code: #F3F2FF;
+  --color-code-border: #BDADFF;
+  --color-code-text: #7B5AFF;
+  --sl-color-accent-low: #d0d3fc;
+  --sl-color-accent: #6049e8;
+  --sl-color-accent-high: #2c2669;
+  --sl-color-black: #ffffff;
+  --sl-color-docs-stroke: #DBDBDB;
+  --sl-color-gray-1: #1c2541;
+  --sl-color-gray-2: #2d3754;
+  --sl-color-gray-3: #4c5776;
+  --sl-color-gray-4: #7e8bac;
+  --sl-color-gray-5: #bbc2d4;
+  --sl-color-gray-6: #e8eefc;
+  --color-toc-accent: #7B5AFF;
+  --color-toc-background: #E4E9FC;
+  --color-toc-text: #777888;
+  --sl-color-white: #131824;
+}
+
+@media (width < 768px) {
+  :root {
+    --sl-nav-height: 125px;
+  }
+}
+
+@media (1024px > width >= 768px) {
+  :root {
+    --sl-nav-height: 148px;
+  }
+}
+
+/* Header / Navigation */
+/* This overrides the Starlight styles */
+header {
+  background-color: transparent;
+  border: none;
+  height: var(--sl-nav-height);
+}
+
+.header {
+  padding: 0 !important;
+}
+
+starlight-menu-button button {
+  top: 100px;
+  position: fixed;
+}
+
+@media (max-width: 767px) {
+  starlight-menu-button button {
+    top: 80px;
+  }
+}
+
+mobile-starlight-toc {
+  display: block;
+}
+
+mobile-starlight-toc nav {
+  left: 0;
+  position: relative;
+  top: 0;
+}
+
+.social-icon {
+  color: var(--color-gray-1) !important;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.social-icon:hover {
+  color: var(--sl-color-gray-1) !important;
+  cursor: pointer;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 400;
+}
+
+.searchbar {
+    display: flex;
+    align-items: center;
+    justify-content: start;
+    gap: 8px;
+    width: 280px;
+    height: 40px;
+    padding: 6px 12px;
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+}
+
+.menu-icon {
+    display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .menu-icon {
+        display: inline-flex;
+    }
+}
+
+@media (width <= 375px) {
+    .primary-button, .secondary-button {
+        padding: 10px 10px;
+    }
+}
+
+.main-frame {
+  margin-top: var(--sl-nav-height);
+  padding-top: 0;
+}
+
+.social-icon {
+  color: var(--color-nav-link) !important;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.social-icon:hover {
+  color: var(--color-nav-link-hover) !important;
+  cursor: pointer;
+}
+
+h1 code,
+h2 code,
+h3 code,
+h4 code,
+h5 code,
+h6 code,
+p code {
+  border: 1px solid var(--color-code-border);
+  border-radius: 6px;
+  color: var(--color-code-text);
+}
+
+#starlight__sidebar ul li {
+  margin: 0;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+}
+
+#starlight__sidebar ul li ul li {
+  padding-left: 1em;
+}
+
+#starlight__sidebar details summary {
+  padding-left: 0;
+}
+
+.opensourcecard {
+  border-left: 0;
+}
+
+.opensourcecard:last-child {
+  border-right: 0;
+}
+
+starlight-toc h2 {
+  background-color: var(--color-toc-background);
+  color: var(--color-code-text);
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  user-select: none;
+  padding: 4px 2px;
+}
+
+starlight-toc li {
+  font-family: var(--font-sans);
+}
+
+starlight-toc li a {
+  color: var(--color-toc-text);
+}
+
+starlight-toc li a[aria-current="true"],
+starlight-toc li a:hover {
+  color: var(--color-toc-accent);
+  font-weight: 500;
+}
+
+.sidebar-pane {
+  border-inline-end: 1px dashed var(--sl-color-docs-stroke);
+}
+
+.content-panel {
+  border-top: 1px dashed var(--sl-color-docs-stroke);
+}
+
+.right-sidebar {
+  border-inline-start: 1px dashed var(--sl-color-docs-stroke);
+}
+
+.sl-markdown-content h2:not(:first-child) {
+  margin-top: 1.5em;
+}
+
+.sl-markdown-content .expressive-code {
+  margin: 1.5em 0;
+}
+
+.sl-markdown-content aside {
+  border-left: 5px solid var(--sl-color-asides-border);
+  margin: 1.5em 0;
+}
+
+article.card {
+  background-color: transparent;
+  border: 1px solid var(--sl-color-gray-5);
+  margin: 1.5em 0;
 }

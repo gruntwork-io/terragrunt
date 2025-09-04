@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	testFixtureMixedConfig = "fixtures/mixed-config"
-	testFixtureFailFast    = "fixtures/fail-fast"
+	testFixtureMixedConfig            = "fixtures/mixed-config"
+	testFixtureFailFast               = "fixtures/fail-fast"
+	testFixtureRunnerPoolRemoteSource = "fixtures/runner-pool-remote-source"
 )
 
 func TestRunnerPoolDiscovery(t *testing.T) {
@@ -66,7 +67,7 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	// Parse the destruction order from stdout
 	var destroyOrder []string
 	re := regexp.MustCompile(`Hello, Module ([A-Za-z]+)`)
-	for _, line := range strings.Split(stdout, "\n") {
+	for line := range strings.SplitSeq(stdout, "\n") {
 		if match := re.FindStringSubmatch(line); match != nil {
 			destroyOrder = append(destroyOrder, "module-"+strings.ToLower(match[1]))
 		}
@@ -119,8 +120,12 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
+
+	// Verify that there are no parsing errors in the output
+	require.NotContains(t, stdout, "Error: Unsupported block type")
+	require.NotContains(t, stdout, "This object does not have an attribute named \"outputs\"")
 
 	// create fail.txt in unit-a to trigger a failure
 	helpers.CreateFile(t, testPath, "unit-b", "fail.txt")
@@ -146,4 +151,29 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
 
+}
+
+func TestRunnerPoolRemoteSource(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunnerPoolRemoteSource)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment runner-pool --working-dir "+testPath+"  -- apply")
+	require.NoError(t, err)
+	// Verify that the output contains value produced from remote unit
+	require.Contains(t, stdout, "data = \"unit-a\"")
+}
+
+func TestRunnerPoolSourceMap(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment runner-pool --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.85.0 --working-dir "+testPath+" -- apply ")
+	require.NoError(t, err)
+	// Verify that source map values are used
+	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
 }

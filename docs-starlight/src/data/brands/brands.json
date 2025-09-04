@@ -1,0 +1,51 @@
+[
+  {
+    "id": "opentext",
+    "name": "OpenText",
+    "logo": "../../assets/logo-brand-opentext.svg",
+    "alt": "OpenText Logo",
+    "order": 1
+  },
+  {
+    "id": "vodafone",
+    "name": "Vodafone",
+    "logo": "../../assets/logo-brand-vodafone.svg",
+    "alt": "Vodafone Logo",
+    "order": 2
+  },
+  {
+    "id": "nelnet",
+    "name": "Nelnet",
+    "logo": "../../assets/logo-brand-nelnet.svg",
+    "alt": "Nelnet Logo",
+    "order": 3
+  },
+  {
+    "id": "fanatics",
+    "name": "Fanatics",
+    "logo": "../../assets/logo-brand-fanatics.svg",
+    "alt": "Fanatics Logo",
+    "order": 4
+  },
+  {
+    "id": "toyota",
+    "name": "Toyota",
+    "logo": "../../assets/logo-brand-toyota.svg",
+    "alt": "Toyota Logo",
+    "order": 5
+  },
+  {
+    "id": "clari",
+    "name": "Clari",
+    "logo": "../../assets/logo-brand-clari.svg",
+    "alt": "Clari Logo",
+    "order": 6
+  },
+  {
+    "id": "cargurus",
+    "name": "CarGurus",
+    "logo": "../../assets/logo-brand-cargurus.svg",
+    "alt": "CarGurus Logo",
+    "order": 7
+  }
+]

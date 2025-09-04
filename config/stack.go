@@ -74,10 +74,6 @@ type Stack struct {
 	Path         string     `hcl:"path,attr"`
 }
 
-type stackParserContext struct {
-	stackConfigFile string
-}
-
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
@@ -214,7 +210,7 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 
 		for _, unit := range stackFile.Units {
-			unitDir := filepath.Join(dir, StackDir, unit.Path)
+			unitDir := getUnitDir(dir, unit)
 
 			var output map[string]cty.Value
 
@@ -693,8 +689,10 @@ func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.Terr
 func ReadStackConfigFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
 	l.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
-	ctx = context.WithValue(ctx, stackParserContext{}, stackParserContext{stackConfigFile: filePath})
-	parser := NewParsingContext(ctx, l, opts)
+	stackOpts := opts.Clone()
+	stackOpts.TerragruntConfigPath = filePath
+
+	parser := NewParsingContext(ctx, l, stackOpts)
 
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
@@ -1026,4 +1024,13 @@ func CleanStacks(_ context.Context, l log.Logger, opts *options.TerragruntOption
 	}
 
 	return errs.ErrorOrNil()
+}
+
+// getUnitDir returns the directory path for a unit based on its no_dot_terragrunt_stack setting.
+func getUnitDir(dir string, unit *Unit) string {
+	if unit.NoStack != nil && *unit.NoStack {
+		return filepath.Join(dir, unit.Path)
+	}
+
+	return filepath.Join(dir, StackDir, unit.Path)
 }

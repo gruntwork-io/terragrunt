@@ -95,7 +95,20 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 		return PartialParseConfigFile(ctx, l, includePath, includedConfig)
 	}
 
-	return ParseConfigFile(ctx, l, includePath, includedConfig)
+	config, err := ParseConfigFile(ctx, l, includePath, includedConfig)
+	if err != nil {
+		var configNotFoundError TerragruntConfigNotFoundError
+		if errors.As(err, &configNotFoundError) {
+			return nil, IncludeConfigNotFoundError{
+				IncludePath: includePath,
+				SourcePath:  ctx.TerragruntOptions.TerragruntConfigPath,
+			}
+		}
+
+		return nil, err
+	}
+
+	return config, nil
 }
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the

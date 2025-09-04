@@ -322,7 +322,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    - Stores downloaded modules and providers
    - Stores generated files (in this case, the `hi.txt` file will be created under `.terragrunt-cache/[HASH]/[HASH]/hi.txt` rather than directly in the `foo` or `bar` directories)
 
-   With this configuration, the `hi.txt` files will be created directly in the `foo` and `bar` directories instead of the `.terragrunt-cache` directory. 
+   With this configuration, the `hi.txt` files will be created directly in the `foo` and `bar` directories instead of the `.terragrunt-cache` directory.
 
    The `.terragrunt-cache` directory is typically added to `.gitignore` files, similar to the `.terraform` directory that OpenTofu generates. You can safely delete this folder at any time, and Terragrunt will recreate it as necessary.
 

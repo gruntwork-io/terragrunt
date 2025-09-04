@@ -23,8 +23,8 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
 
-	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -272,9 +272,6 @@ func getPathToRepoRoot(ctx *ParsingContext, l log.Logger) (string, error) {
 // GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
 	path := ctx.TerragruntOptions.TerragruntConfigPath
-	if val, ok := ctx.Context.Value(stackParserContext{}).(stackParserContext); ok {
-		path = val.stackConfigFile
-	}
 
 	terragruntConfigFileAbsPath, err := filepath.Abs(path)
 	if err != nil {
@@ -620,12 +617,12 @@ func getDefaultRetryableErrors(ctx *ParsingContext, l log.Logger) ([]string, err
 
 // Return the AWS account alias
 func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	accountAlias, err := awshelper.GetAWSAccountAlias(session)
+	accountAlias, err := awshelper.GetAWSAccountAlias(ctx.Context, awsConfig)
 	if err == nil {
 		return accountAlias, nil
 	}
@@ -635,12 +632,12 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	accountID, err := awshelper.GetAWSAccountID(session)
+	accountID, err := awshelper.GetAWSAccountID(ctx.Context, awsConfig)
 	if err == nil {
 		return accountID, nil
 	}
@@ -650,12 +647,12 @@ func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	identityARN, err := awshelper.GetAWSIdentityArn(ctx.Context, awsConfig)
 	if err == nil {
 		return identityARN, nil
 	}
@@ -665,12 +662,12 @@ func getAWSCallerIdentityARN(ctx *ParsingContext, l log.Logger) (string, error) 
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	userID, err := awshelper.GetAWSUserID(session)
+	userID, err := awshelper.GetAWSUserID(ctx.Context, awsConfig)
 	if err == nil {
 		return userID, nil
 	}

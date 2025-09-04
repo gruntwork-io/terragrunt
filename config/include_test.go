@@ -386,3 +386,35 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 		t.Errorf("Expected %d fields, got %d", expectedFields, len(targetConfig.FieldsMetadata))
 	}
 }
+
+func TestDependencyFileNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	// Test that DependencyFileNotFoundError is properly defined and formatted
+	err := config.DependencyFileNotFoundError{Path: "/test/path/terragrunt.hcl"}
+
+	assert.Equal(t, "/test/path/terragrunt.hcl", err.Path)
+	assert.Contains(t, err.Error(), "Dependency file not found: /test/path/terragrunt.hcl")
+
+	// Test with a different path
+	err2 := config.DependencyFileNotFoundError{Path: "/another/path/config.hcl"}
+	assert.Equal(t, "/another/path/config.hcl", err2.Path)
+	assert.Contains(t, err2.Error(), "Dependency file not found: /another/path/config.hcl")
+}
+
+func TestIncludeConfigNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	// Test that IncludeConfigNotFoundError is properly defined and formatted
+	err := config.IncludeConfigNotFoundError{IncludePath: "/test/path/terragrunt.hcl", SourcePath: "/source/config.hcl"}
+
+	assert.Equal(t, "/test/path/terragrunt.hcl", err.IncludePath)
+	assert.Equal(t, "/source/config.hcl", err.SourcePath)
+	assert.Contains(t, err.Error(), "Include configuration not found: /test/path/terragrunt.hcl (referenced from: /source/config.hcl)")
+
+	// Test with a different path
+	err2 := config.IncludeConfigNotFoundError{IncludePath: "/another/path/config.hcl", SourcePath: "/different/source.hcl"}
+	assert.Equal(t, "/another/path/config.hcl", err2.IncludePath)
+	assert.Equal(t, "/different/source.hcl", err2.SourcePath)
+	assert.Contains(t, err2.Error(), "Include configuration not found: /another/path/config.hcl (referenced from: /different/source.hcl)")
+}

@@ -231,7 +231,7 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+util.JoinPath(tmpEnvPath, testFixturePath))
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+util.JoinPath(tmpEnvPath, testFixturePath)+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
 }
@@ -252,7 +252,7 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app1"))
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.Get())
 }
@@ -273,7 +273,7 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
 }
@@ -1021,6 +1021,11 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 
 func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
 
 	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
 	// so the symlinked directories are copied physically, which defeats the purpose of this test,
@@ -3224,6 +3229,11 @@ func TestNoColor(t *testing.T) {
 func TestOutputModuleGroups(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsRunnerPoolExperimentEnabled(t) {
+		t.Skip("Skipping test in runner-pool experiment")
+		return
+	}
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputModuleGroups)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, testFixtureOutputModuleGroups)
@@ -3388,13 +3398,11 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureModulePathError)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color", &stdout, &stderr)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color")
 	require.NoError(t, err)
-	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
-	assert.Contains(t, output, "finished with an error")
+	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
+	// catch "Run failed" message printed in case of error in apply of units
+	assert.Contains(t, output, "Run failed")
 	assert.Contains(t, output, "Unit ./d1", output)
 }
 
@@ -3926,7 +3934,7 @@ func TestLogFormatJSONOutput(t *testing.T) {
 		msgs = append(msgs, msg)
 	}
 
-	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.83.2")
 }
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {

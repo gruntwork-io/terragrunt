@@ -1,0 +1,54 @@
+.primary-button {
+  background-color: var(--color-accent-1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 0 15px 0 rgba(137, 107, 255, 0.30),
+              0 0 1px 4px rgba(52, 49, 27, 0.22),
+              0 0 1px 4px rgba(52, 49, 47, 0.22);
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 10px 24px;
+  text-decoration: none;
+}
+
+.primary-button.light {
+  background-color: var(--color-primary-button-light);
+}
+.secondary-button {
+  background-color: var(--color-bg-dark);
+  border: 1px solid var(--color-gray-2);
+  border-radius: 8px;
+  box-shadow: 0 0 15px 0 rgba(255, 255, 255, 0.05),
+              0 0 1px 4px rgba(52, 49, 27, 0.22);
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 10px 24px;
+  text-decoration: none;
+}
+
+.primary-button:hover, .secondary-button:hover {
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background-color: var(--color-accent);
+  transition: .25s ease-in-out;
+}
+
+.secondary-button:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  transition: .25s ease-in-out;
+}
+
+.primary-button:focus, .secondary-button:focus {
+  outline: 2px solid var(--color-accent-1);
+  outline-offset: 2px;
+}
+.primary-button:focus-visible, .secondary-button:focus-visible {
+  outline: 2px solid var(--color-accent-1);
+  outline-offset: 2px;
+}

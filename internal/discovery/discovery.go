@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -248,6 +251,26 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		config.ExcludeBlock,
 	)
 
+	if suppressParseErrors {
+		// If suppressing parse errors, we want to filter diagnostics that contain references to outputs,
+		// while leaving other diagnostics as is.
+		parseOptions := append(parsingCtx.ParserOptions, hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			filteredDiags := hcl.Diagnostics{}
+
+			for _, hclDiag := range hclDiags {
+				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), "output") ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), "output")
+
+				if !containsOutputRef {
+					filteredDiags = append(filteredDiags, hclDiag)
+				}
+			}
+
+			return filteredDiags, nil
+		}))
+		parsingCtx = parsingCtx.WithParseOption(parseOptions)
+	}
+
 	//nolint: contextcheck
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
@@ -353,6 +376,14 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
 		for _, cfg := range cfgs {
+			// Stack configurations don't need to be parsed for discovery purposes.
+			// They don't have exclude blocks or dependencies.
+			//
+			// This might change in the future, but for now we'll just skip parsing.
+			if cfg.Type == ConfigTypeStack {
+				continue
+			}
+
 			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
 			if err != nil {
 				errs = append(errs, errors.New(err))

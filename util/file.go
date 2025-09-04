@@ -11,7 +11,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
+	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"fmt"
@@ -95,8 +97,41 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return CleanPath(absPath), nil
 }
 
+func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
+	basePath, err := CanonicalPath("", basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var errs []error
+
+	compiledGlobs := map[string]glob.Glob{}
+
+	for _, globPath := range globPaths {
+		canGlobPath, err := CanonicalPath(globPath, basePath)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
+			continue
+		}
+
+		compiledGlob, err := glob.Compile(canGlobPath, '/')
+		if err != nil {
+			errs = append(errs, fmt.Errorf("invalid glob pattern %q: %w", globPath, err))
+			continue
+		}
+
+		compiledGlobs[globPath] = compiledGlob
+	}
+
+	if len(errs) > 0 {
+		return compiledGlobs, fmt.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
+	}
+
+	return compiledGlobs, nil
+}
+
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
+func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]string, error) {
 	if len(globPaths) == 0 {
 		return []string{}, nil
 	}
@@ -112,14 +147,25 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 	var paths []string
 
 	for _, globPath := range globPaths {
+		// Log a warning if globPath uses the old glob pattern
+		if strings.HasSuffix(globPath, "**/*") {
+			l.Warn("Glob behavior will change in a future version of Terragrunt. `**/*` will match all files in a directory and its subdirectories with a depth of at least one. Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
+		}
+
 		// Ensure globPath are absolute
 		if !filepath.IsAbs(globPath) {
 			globPath = filepath.Join(basePath, globPath)
 		}
 
+		const stackDir = "/.terragrunt-stack/"
+
 		matches, err := zglob.Glob(globPath)
 		if err == nil {
 			paths = append(paths, matches...)
+		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
+			// when using the stack feature, the directory may not exist yet,
+			// as stack generation occurs after parsing the argument flags.
+			paths = append(paths, globPath)
 		}
 	}
 
@@ -772,20 +818,18 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 		return nil, err
 	}
 
-	var dirs []string
+	var (
+		lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+		dirs  = make([]string, 0, len(lines))
+	)
 
-	lines := strings.SplitSeq(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	for dir := range lines {
-		if dir := strings.TrimSpace(dir); dir == "" || strings.HasPrefix(dir, "#") {
+	for _, dir := range lines {
+		dir = strings.TrimSpace(dir)
+		if dir == "" || strings.HasPrefix(dir, "#") {
 			continue
 		}
 
-		newDirs, err := GlobCanonicalPath(baseDir, dir)
-		if err != nil {
-			return nil, err
-		}
-
-		dirs = append(dirs, newDirs...)
+		dirs = append(dirs, dir)
 	}
 
 	return dirs, nil
@@ -1013,4 +1057,24 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
 
 	return fullPath, nil
+}
+
+// MoveFile attempts to rename a file from source to destination, if this fails
+// due to invalid cross-device link it falls back to copying the file contents
+// and deleting the original file.
+func MoveFile(source string, destination string) error {
+	if renameErr := os.Rename(source, destination); renameErr != nil {
+		var sysErr syscall.Errno
+		if errors.As(renameErr, &sysErr) && sysErr == syscall.EXDEV {
+			if moveErr := CopyFile(source, destination); moveErr != nil {
+				return moveErr
+			}
+
+			return os.Remove(source)
+		}
+
+		return renameErr
+	}
+
+	return nil
 }
