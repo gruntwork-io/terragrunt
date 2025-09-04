@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"io"
 	"net/url"
 	"os"
@@ -611,15 +612,42 @@ type fileManifest struct {
 
 // fileManifestEntry represents an entry in the fileManifest.
 // It uses a struct with IsDir flag so that we won't have to call Stat on every
-// file to determine if it's a directory or a file
+// file to determine if it's a directory or a file. For files, it also tracks
+// checksums to detect changes after initial generation.
 type fileManifestEntry struct {
-	Path  string
-	IsDir bool
+	Path       string
+	Checksum   string
+	HashScheme string
+	IsDir      bool
 }
 
 // Clean will recursively remove all files specified in the manifest
 func (manifest *fileManifest) Clean() error {
 	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+}
+
+// CleanWithChangeDetection will check for file changes before cleaning and optionally warn about them
+func (manifest *fileManifest) CleanWithChangeDetection(warnOnChanges bool) error {
+	if warnOnChanges {
+		changedFiles, err := manifest.CheckForChanges()
+		if err != nil {
+			manifest.logger.Warnf("Failed to check for file changes: %v", err)
+		} else if len(changedFiles) > 0 {
+			manifest.logger.Warnf("Detected %d changed files that will be overwritten:", len(changedFiles))
+			for _, change := range changedFiles {
+				switch change.ChangeType {
+				case FileModified:
+					manifest.logger.Warnf("  - %s (modified, checksum changed)", change.Path)
+				case FileDeleted:
+					manifest.logger.Warnf("  - %s (deleted)", change.Path)
+				case FileChecksumFailed:
+					manifest.logger.Warnf("  - %s (checksum calculation failed: %s)", change.Path, change.ErrorDetails)
+				}
+			}
+		}
+	}
+
+	return manifest.Clean()
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
@@ -689,14 +717,31 @@ func (manifest *fileManifest) Create() error {
 	return nil
 }
 
-// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
+// AddFile will add the file path to the manifest file with its SHA256 checksum. Please make sure to run Create() before using this
 func (manifest *fileManifest) AddFile(path string) error {
-	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
+	checksum, err := calculateSHA256(path)
+	if err != nil {
+		manifest.logger.Warnf("Failed to calculate checksum for file %s: %v", path, err)
+
+		checksum = ""
+	}
+
+	return manifest.encoder.Encode(fileManifestEntry{
+		Path:       path,
+		IsDir:      false,
+		Checksum:   checksum,
+		HashScheme: "sha256",
+	})
 }
 
 // AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
 func (manifest *fileManifest) AddDirectory(path string) error {
-	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
+	return manifest.encoder.Encode(fileManifestEntry{
+		Path:       path,
+		IsDir:      true,
+		Checksum:   "",
+		HashScheme: "",
+	})
 }
 
 // Close closes the manifest file handle
@@ -706,6 +751,140 @@ func (manifest *fileManifest) Close() error {
 
 func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
 	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+}
+
+// calculateSHA256 calculates the SHA256 checksum of a file
+func calculateSHA256(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// FileChangeType represents the type of change detected in a file
+type FileChangeType byte
+
+const (
+	// FileModified indicates the file content has changed
+	FileModified FileChangeType = iota
+	// FileDeleted indicates the file no longer exists
+	FileDeleted
+	// FileChecksumFailed indicates an error occurred while calculating checksum
+	FileChecksumFailed
+)
+
+// String returns the string representation of the FileChangeType
+func (fct FileChangeType) String() string {
+	switch fct {
+	case FileModified:
+		return "modified"
+	case FileDeleted:
+		return "deleted"
+	case FileChecksumFailed:
+		return "checksum_failed"
+	default:
+		return "unknown"
+	}
+}
+
+// FileChangedInfo represents information about a file that has changed
+type FileChangedInfo struct {
+	Path         string
+	ExpectedHash string
+	ActualHash   string
+	HashScheme   string
+	ChangeType   FileChangeType
+	ErrorDetails string
+}
+
+// CheckForChanges reads the manifest and checks if any tracked files have changed
+// Returns a slice of FileChangedInfo for files that have changed or errors encountered
+func (manifest *fileManifest) CheckForChanges() ([]FileChangedInfo, error) {
+	manifestPath := filepath.Join(manifest.ManifestFolder, manifest.ManifestFile)
+
+	// if manifest file doesn't exist, no changes to check
+	if !FileExists(manifestPath) {
+		return nil, nil
+	}
+
+	file, err := os.Open(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var changedFiles []FileChangedInfo
+	decoder := gob.NewDecoder(file)
+
+	// decode paths one by one
+	for {
+		var manifestEntry fileManifestEntry
+
+		err = decoder.Decode(&manifestEntry)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			} else {
+				return changedFiles, err
+			}
+		}
+
+		// Skip directories - they don't have checksums to verify
+		if manifestEntry.IsDir {
+			continue
+		}
+
+		// Check if file still exists
+		if !FileExists(manifestEntry.Path) {
+			changedFiles = append(changedFiles, FileChangedInfo{
+				Path:         manifestEntry.Path,
+				ExpectedHash: manifestEntry.Checksum,
+				ActualHash:   "",
+				HashScheme:   manifestEntry.HashScheme,
+				ChangeType:   FileDeleted,
+				ErrorDetails: "File no longer exists",
+			})
+			continue
+		}
+
+		// Calculate current checksum if we have an expected one
+		if manifestEntry.Checksum != "" && manifestEntry.HashScheme == "sha256" {
+			currentChecksum, err := calculateSHA256(manifestEntry.Path)
+			if err != nil {
+				changedFiles = append(changedFiles, FileChangedInfo{
+					Path:         manifestEntry.Path,
+					ExpectedHash: manifestEntry.Checksum,
+					ActualHash:   "",
+					HashScheme:   manifestEntry.HashScheme,
+					ChangeType:   FileChecksumFailed,
+					ErrorDetails: fmt.Sprintf("Failed to calculate current checksum: %v", err),
+				})
+				continue
+			}
+
+			// Compare checksums
+			if currentChecksum != manifestEntry.Checksum {
+				changedFiles = append(changedFiles, FileChangedInfo{
+					Path:         manifestEntry.Path,
+					ExpectedHash: manifestEntry.Checksum,
+					ActualHash:   currentChecksum,
+					HashScheme:   manifestEntry.HashScheme,
+					ChangeType:   FileModified,
+					ErrorDetails: "",
+				})
+			}
+		}
+	}
+
+	return changedFiles, nil
 }
 
 // Custom errors

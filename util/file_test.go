@@ -785,3 +785,77 @@ func TestMoveFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test", string(contents))
 }
+
+func TestFileManifestChecksum(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	l := logger.CreateLogger()
+
+	// Create test files
+	testFile1 := filepath.Join(tmpDir, "test1.txt")
+	testFile2 := filepath.Join(tmpDir, "test2.txt")
+	testContent1 := "Hello, World!"
+	testContent2 := "Terragrunt rocks!"
+
+	require.NoError(t, os.WriteFile(testFile1, []byte(testContent1), 0644))
+	require.NoError(t, os.WriteFile(testFile2, []byte(testContent2), 0644))
+
+	// Create manifest
+	manifestDir := filepath.Join(tmpDir, "manifest")
+	require.NoError(t, os.MkdirAll(manifestDir, 0755))
+
+	manifest := util.NewFileManifest(l, manifestDir, ".test-manifest")
+	require.NoError(t, manifest.Create())
+
+	// Add files to manifest
+	require.NoError(t, manifest.AddFile(testFile1))
+	require.NoError(t, manifest.AddFile(testFile2))
+	require.NoError(t, manifest.Close())
+
+	// Check for changes (should be none initially)
+	manifest = util.NewFileManifest(l, manifestDir, ".test-manifest")
+	changes, err := manifest.CheckForChanges()
+	require.NoError(t, err)
+	assert.Empty(t, changes, "No changes should be detected initially")
+
+	// Modify one file
+	modifiedContent := "Modified content!"
+	require.NoError(t, os.WriteFile(testFile1, []byte(modifiedContent), 0644))
+
+	// Check for changes again
+	changes, err = manifest.CheckForChanges()
+	require.NoError(t, err)
+	require.Len(t, changes, 1, "Should detect one modified file")
+
+	change := changes[0]
+	assert.Equal(t, testFile1, change.Path)
+	assert.Equal(t, util.FileModified, change.ChangeType)
+	assert.Equal(t, "sha256", change.HashScheme)
+	assert.NotEmpty(t, change.ExpectedHash)
+	assert.NotEmpty(t, change.ActualHash)
+	assert.NotEqual(t, change.ExpectedHash, change.ActualHash)
+
+	// Delete a file
+	require.NoError(t, os.Remove(testFile2))
+
+	// Check for changes
+	changes, err = manifest.CheckForChanges()
+	require.NoError(t, err)
+	require.Len(t, changes, 2, "Should detect one modified and one deleted file")
+
+	// Find the deleted file change
+	var deletedChange util.FileChangedInfo
+	var foundDeleted bool
+	for _, change := range changes {
+		if change.Path == testFile2 {
+			deletedChange = change
+			foundDeleted = true
+			break
+		}
+	}
+	require.True(t, foundDeleted, "Should find deleted file change")
+	assert.Equal(t, util.FileDeleted, deletedChange.ChangeType)
+	assert.NotEmpty(t, deletedChange.ExpectedHash)
+	assert.Empty(t, deletedChange.ActualHash)
+}
