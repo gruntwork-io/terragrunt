@@ -498,7 +498,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.AuthProviderCmd,
 			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
 			Action: func(ctx *cli.Context, value string) error {
-				fmt.Printf("AuthProviderCmdFlagName: %q", value)
+
+				fmt.Printf("AuthProviderCmdFlagName value: %q", value)
 				opts.AuthProviderCmd = value
 				return nil
 			},

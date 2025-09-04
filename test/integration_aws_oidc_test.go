@@ -192,7 +192,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt --working-dir %s --auth-provider-cmd %s --non-interactive --log-level trace -- apply -auto-approve",
+			"terragrunt --working-dir %s --auth-provider-cmd=%s --non-interactive --log-level trace -- apply -auto-approve",
 			remoteStateOIDCPath,
 			mockAuthCmd,
 		),
