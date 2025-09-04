@@ -302,6 +302,15 @@ p code {
   padding-left: 0;
 }
 
+#starlight__sidebar details details details {
+  margin-bottom: 0;
+}
+
+#starlight__sidebar details details details summary {
+  margin-top: 0;
+  padding: 0.3em var(--sl-sidebar-item-padding-inline);
+}
+
 .opensourcecard {
   border-left: 0;
 }
