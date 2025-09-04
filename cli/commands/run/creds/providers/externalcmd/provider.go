@@ -50,6 +50,10 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}
 
 	output, err := shell.RunCommandWithOutput(ctx, l, provider.terragruntOptions, "", true, false, command, args...)
+	l.Debugf("GetCredentials output %v", output)
+
+	l.Debugf("GetCredentials output str %v", output.Stdout.String())
+
 	if err != nil {
 		return nil, err
 	}
