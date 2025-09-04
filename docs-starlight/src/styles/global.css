@@ -112,7 +112,7 @@
   --color-toc-accent: #BFA6F2;
   --color-toc-background: rgba(191, 166, 242, 0.15);
   --color-toc-text: #EBEBEB;
-  --sl-color-white: #ffffff;
+  --sl-color-white: #ffffff;  
 }
 
 /* Docs Light mode colors. */
@@ -139,15 +139,47 @@
   --sl-color-white: #131824;
 }
 
-@media (width < 768px) {
-  :root {
-    --sl-nav-height: 125px;
+@layer base {
+  * {
+    box-sizing: border-box;
   }
-}
 
-@media (1024px > width >= 768px) {
-  :root {
-    --sl-nav-height: 148px;
+  html, body {
+    overflow-x: hidden;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+  } 
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+  }
+
+  @media (width <= 375px) {
+    .primary-button, .secondary-button {
+        padding: 10px 10px;
+    }
+  }
+
+  @media (width < 768px) {
+    :root {
+      --sl-nav-height: 125px;
+    }
+  }
+
+  @media (1024px > width >= 768px) {
+    :root {
+      --sl-nav-height: 148px;
+    }
   }
 }
 
@@ -156,7 +188,14 @@
 */
 @layer components {
 
-  /* Header / Navigation */
+  /* Baseline styles
+  These should really be in the base layer, but for now we want them to apply at this layer.
+  */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 400;
+  }
+  
+  /* Header */
   header {
     background-color: transparent;
     border: none;
@@ -178,16 +217,6 @@
     }
   }
 
-  mobile-starlight-toc {
-    display: block;
-  }
-
-  mobile-starlight-toc nav {
-    left: 0;
-    position: relative;
-    top: 0;
-  }
-
   .social-icon {
     color: var(--color-gray-1) !important;
     cursor: pointer;
@@ -199,45 +228,17 @@
     cursor: pointer;
   }
 
-  * {
-    box-sizing: border-box;
-  }
-
-  html, body {
-    overflow-x: hidden;
-  }
-
-  body {
-    margin: 0;
-    padding: 0;
-  }
-
-  /* Hide scrollbar for Chrome, Safari and Opera */
-  .no-scrollbar::-webkit-scrollbar {
-      display: none;
-  }
-
-  /* Hide scrollbar for IE, Edge and Firefox */
-  .no-scrollbar {
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-weight: 400;
-  }
-
   .searchbar {
-      display: flex;
-      align-items: center;
-      justify-content: start;
-      gap: 8px;
-      width: 280px;
-      height: 40px;
-      padding: 6px 12px;
-      background-color: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: start;
+    gap: 8px;
+    width: 280px;
+    height: 40px;
+    padding: 6px 12px;
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
   }
 
   .menu-icon {
@@ -250,10 +251,42 @@
       }
   }
 
-  @media (width <= 375px) {
-      .primary-button, .secondary-button {
-          padding: 10px 10px;
-      }
+  /* Table of contens (right-hand side in-page guide) */
+
+  mobile-starlight-toc {
+    display: block;
+  }
+
+  mobile-starlight-toc nav {
+    left: 0;
+    position: relative;
+    top: 0;
+  }
+
+  starlight-toc h2 {
+    background-color: var(--color-toc-background);
+    color: var(--color-code-text);
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    user-select: none;
+    padding: 4px 2px;
+  }
+
+  starlight-toc li {
+    font-family: var(--font-sans);
+    margin: 0.1rem;
+  }
+
+  starlight-toc li a {
+    color: var(--color-toc-text);
+  }
+
+  starlight-toc li a[aria-current="true"],
+  starlight-toc li a:hover {
+    color: var(--color-toc-accent);
+    font-weight: 500;
   }
 
   .main-frame {
@@ -270,6 +303,21 @@
   .social-icon:hover {
     color: var(--color-nav-link-hover) !important;
     cursor: pointer;
+  }
+
+  /* Main body */
+
+  .sl-markdown-content h2:not(:first-child) {
+    margin-top: 1.5em;
+  }
+
+  .sl-markdown-content .expressive-code {
+    margin: 1.5em 0;
+  }
+
+  .sl-markdown-content aside {
+    border-left: 5px solid var(--sl-color-asides-border);
+    margin: 1.5em 0;
   }
 
   h1 code,
@@ -319,6 +367,7 @@
     padding: 0.3em var(--sl-sidebar-item-padding-inline);
   }
 
+  /* Open Source Cards *//
   .opensourcecard {
     border-left: 0;
   }
@@ -346,31 +395,7 @@
     font-size: calc(14 / 16 * 1rem);
   }
 
-  starlight-toc h2 {
-    background-color: var(--color-toc-background);
-    color: var(--color-code-text);
-    display: inline-block;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    text-transform: uppercase;
-    user-select: none;
-    padding: 4px 2px;
-  }
-
-  starlight-toc li {
-    font-family: var(--font-sans);
-    margin: 0.1rem;
-  }
-
-  starlight-toc li a {
-    color: var(--color-toc-text);
-  }
-
-  starlight-toc li a[aria-current="true"],
-  starlight-toc li a:hover {
-    color: var(--color-toc-accent);
-    font-weight: 500;
-  }
+  /* Sidebar */
 
   .sidebar-pane {
     border-inline-end: 1px dashed var(--sl-color-docs-stroke);
@@ -384,18 +409,7 @@
     border-inline-start: 1px dashed var(--sl-color-docs-stroke);
   }
 
-  .sl-markdown-content h2:not(:first-child) {
-    margin-top: 1.5em;
-  }
-
-  .sl-markdown-content .expressive-code {
-    margin: 1.5em 0;
-  }
-
-  .sl-markdown-content aside {
-    border-left: 5px solid var(--sl-color-asides-border);
-    margin: 1.5em 0;
-  }
+  /* Cards */
 
   article.card {
     background-color: transparent;
