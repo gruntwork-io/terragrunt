@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
+	goenv "github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -287,7 +288,18 @@ func runAuthProviderCmdIntoOpts(ctx context.Context, l log.Logger, opts *options
 	}
 
 	l.Debugf("Executing auth provider command: %q args_count=%d", command, len(args))
-	out, err := shell.RunCommandWithOutput(ctx, l, opts, "", true, false, command, args...)
+
+	// Merge process environment with opts.Env so the provider can see variables like OIDC_TOKEN
+	mergedEnv := goenv.Parse(os.Environ())
+	if opts.Env != nil {
+		for k, v := range opts.Env {
+			mergedEnv[k] = v
+		}
+	}
+	mergedOpts := opts.Clone()
+	mergedOpts.Env = mergedEnv
+
+	out, err := shell.RunCommandWithOutput(ctx, l, mergedOpts, "", true, false, command, args...)
 	if err != nil {
 		l.Debugf("Auth provider command %q failed: %v", command, err)
 		return err
