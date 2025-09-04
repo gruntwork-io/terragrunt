@@ -15,6 +15,8 @@ import (
 
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -196,6 +198,12 @@ func createTerragruntEvalContext(ctx *ParsingContext, l log.Logger, configPath s
 
 	evalCtx := &hcl.EvalContext{
 		Functions: functions,
+	}
+
+	opts := ctx.TerragruntOptions
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return evalCtx, err
 	}
 
 	evalCtx.Variables = map[string]cty.Value{}
@@ -649,6 +657,7 @@ func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx *ParsingContext, l log.Logger) (string, error) {
+
 	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
