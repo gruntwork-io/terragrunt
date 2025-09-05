@@ -42,6 +42,7 @@ func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 	defer wp.Stop()
 
 	var counter int32
+
 	for range 5 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
@@ -72,7 +73,9 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 			if i%2 == 0 {
 				return errors.New("mock error")
 			}
+
 			atomic.AddInt32(&successCount, 1)
+
 			return nil
 		})
 	}
@@ -119,6 +122,7 @@ func TestStopAndRestart(t *testing.T) {
 			return nil
 		})
 	}
+
 	errs := wp.Wait()
 	require.NoError(t, errs)
 
@@ -129,11 +133,14 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 
 	wp := worker.NewWorkerPool(4)
+
 	t.Cleanup(func() { wp.Stop() })
+
 	var totalCount int32
 
 	t.Run("parallelTaskSubmit1", func(t *testing.T) {
 		t.Parallel()
+
 		localWp := worker.NewWorkerPool(4) // Create a new worker pool per subtest
 		defer localWp.Stop()
 
@@ -143,12 +150,14 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 				return nil
 			})
 		}
+
 		err := localWp.Wait()
 		require.NoError(t, err)
 	})
 
 	t.Run("parallelTaskSubmit2", func(t *testing.T) {
 		t.Parallel()
+
 		localWp := worker.NewWorkerPool(4) // Create another fresh worker pool
 		defer localWp.Stop()
 
@@ -158,6 +167,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 				return nil
 			})
 		}
+
 		err := localWp.Wait()
 		require.NoError(t, err)
 	})
@@ -165,6 +175,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 func TestValidateParallelSubmits(t *testing.T) {
 	t.Parallel()
+
 	wp := worker.NewWorkerPool(1)
 	defer wp.Stop()
 

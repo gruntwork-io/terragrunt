@@ -148,10 +148,10 @@ func DownloadTerraformSourceIfNecessary(
 	}
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
+
 	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, func(_ context.Context) error {
 		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
 	})
-
 	if downloadErr != nil {
 		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
@@ -214,7 +214,6 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 	}
 
 	previousVersion, err := readVersionFile(terraformSource)
-
 	if err != nil {
 		return false, err
 	}

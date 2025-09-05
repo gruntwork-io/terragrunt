@@ -180,6 +180,7 @@ func TestStacksBasic(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		if !info.IsDir() && info.Name() == "test.txt" {
 			txtFiles = append(txtFiles, filePath)
 		}
@@ -206,6 +207,7 @@ func TestStacksNoGenerate(t *testing.T) {
 	// clean .terragrunt-stack contents
 	entries, err := os.ReadDir(path)
 	require.NoError(t, err)
+
 	for _, entry := range entries {
 		err := os.RemoveAll(filepath.Join(path, entry.Name()))
 		require.NoError(t, err)
@@ -270,6 +272,7 @@ func TestStacksApplyRemote(t *testing.T) {
 	assert.Contains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
+
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 }
@@ -352,6 +355,7 @@ func TestStackOutputs(t *testing.T) {
 	parser := hclparse.NewParser()
 	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
+
 	attr, _ := hcl.Body.JustAttributes()
 	assert.Len(t, attr, 4)
 }
@@ -399,6 +403,7 @@ func TestStackOutputsIndex(t *testing.T) {
 	parser := hclparse.NewParser()
 	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
+
 	attr, _ := hcl.Body.JustAttributes()
 	assert.Len(t, attr, 1)
 }
@@ -416,6 +421,7 @@ func TestStackOutputsJson(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -435,6 +441,7 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -489,6 +496,7 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -548,6 +556,7 @@ func TestStacksUnitValuesOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -602,6 +611,7 @@ func TestNestedStackOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -710,6 +720,7 @@ func TestStackValuesOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]map[string]map[string]string
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -841,6 +852,7 @@ func TestStackOutputWithDependency(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -887,6 +899,7 @@ func TestStacksSourceMap(t *testing.T) {
 	// prepare local path to do override of source url
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+
 	localTmpTest := filepath.Join(localTmpEnvPath, "test", "fixtures")
 	if err := os.MkdirAll(localTmpTest, 0755); err != nil {
 		assert.NoError(t, err)
@@ -934,6 +947,7 @@ func TestStacksSourceMapModule(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
@@ -1105,6 +1119,7 @@ func TestStacksReadFiles(t *testing.T) {
 	parser := hclparse.NewParser()
 	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
+
 	attr, _ := hcl.Body.JustAttributes()
 	assert.Len(t, attr, 3)
 
@@ -1150,6 +1165,7 @@ func TestStacksReadFiles(t *testing.T) {
 						for field, expectedValue := range expectedValues {
 							attrVal := objVal.GetAttr(field)
 							assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
+
 							if !attrVal.IsNull() {
 								assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
 							}
@@ -1157,6 +1173,7 @@ func TestStacksReadFiles(t *testing.T) {
 
 						stackSource := objVal.GetAttr("stack_source")
 						assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
+
 						if !stackSource.IsNull() {
 							assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
 						}
@@ -1221,6 +1238,7 @@ func TestStackValidation(t *testing.T) {
 // validateNoStackDirs check if the directories outside of stack are created and contain test files
 func validateNoStackDirs(t *testing.T, rootPath string) {
 	t.Helper()
+
 	stackConfig := util.JoinPath(rootPath, "stack-config")
 	assert.DirExists(t, stackConfig)
 
@@ -1316,6 +1334,7 @@ func validateStackDir(t *testing.T, path string) {
 	require.NoError(t, err, "Failed to read directory contents")
 
 	hasSubdirectories := false
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			hasSubdirectories = true

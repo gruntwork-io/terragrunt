@@ -401,7 +401,6 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 
 func getEnvironmentVariable(ctx *ParsingContext, l log.Logger, parameters []string) (string, error) {
 	parameterMap, err := parseGetEnvParameters(parameters)
-
 	if err != nil {
 		return "", errors.New(err)
 	}

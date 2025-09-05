@@ -384,11 +384,11 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				"unit_path":   unit.Path,
 			}, func(ctx context.Context) error {
 				var outputErr error
+
 				output, outputErr = unit.ReadOutputs(ctx, l, opts, unitDir)
 
 				return outputErr
 			})
-
 			if telemetryErr != nil {
 				return cty.NilVal, errors.New(telemetryErr)
 			}
@@ -447,14 +447,13 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// Convert finalMap into a cty.ObjectVal
 	result := make(map[string]cty.Value)
-	nestedOutputs, err := nestUnitOutputs(unitOutputs)
 
+	nestedOutputs, err := nestUnitOutputs(unitOutputs)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to nest unit outputs: %w", err)
 	}
 
 	ctyResult, err := goTypeToCty(nestedOutputs)
-
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to convert unit output to cty value: %s %w", result, err)
 	}
@@ -534,7 +533,6 @@ func generateStackFile(ctx context.Context, l log.Logger, opts *options.Terragru
 	}
 
 	stackFile, err := ReadStackConfigFile(ctx, l, opts, stackFilePath, values)
-
 	if err != nil {
 		return errors.Errorf("Failed to read stack file %s in %s %w", stackFilePath, stackSourceDir, err)
 	}
@@ -646,7 +644,6 @@ func generateComponent(ctx context.Context, l log.Logger, opts *options.Terragru
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
-
 	if err != nil {
 		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
 	}
@@ -763,7 +760,6 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 		}
 
 		localSrc, err := filepath.Abs(localSrc)
-
 		if err != nil {
 			l.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
 			// fallback to original source
@@ -831,13 +827,11 @@ func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.Terr
 	parserCtx := NewParsingContext(ctx, l, opts)
 
 	jsonBytes, err := getOutputJSONWithCaching(parserCtx, l, configPath) //nolint: contextcheck
-
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
-
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -994,14 +988,13 @@ func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
 	parser := NewParsingContext(ctx, l, opts)
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 	//nolint:contextcheck
 	evalParsingContext, err := createTerragruntEvalContext(parser, l, file.ConfigPath)
-
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -1020,7 +1013,6 @@ func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 // processLocals processes the locals block in the stack file.
 func processLocals(l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
-
 	if err != nil {
 		return errors.New(err)
 	}
@@ -1034,7 +1026,6 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 	}
 
 	attrs, err := localsBlock[0].JustAttributes()
-
 	if err != nil {
 		return errors.New(err)
 	}
@@ -1050,6 +1041,7 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 		}
 
 		var evalErr error
+
 		attrs, evaluatedLocals, evaluated, evalErr = attemptEvaluateLocals(
 			parser,
 			l,
@@ -1057,7 +1049,6 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 			attrs,
 			evaluatedLocals,
 		)
-
 		if evalErr != nil {
 			l.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
 
@@ -1066,7 +1057,6 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 	}
 
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
-
 	if err != nil {
 		return errors.New(err)
 	}
@@ -1180,7 +1170,6 @@ func CleanStacks(_ context.Context, l log.Logger, opts *options.TerragruntOption
 
 		return nil
 	}
-
 	if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
 		errs = errs.Append(walkErr)
 	}

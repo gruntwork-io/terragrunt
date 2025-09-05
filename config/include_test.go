@@ -349,6 +349,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			if tc.expected.TerragruntDependencies == nil {
 				tc.expected.TerragruntDependencies = config.Dependencies{}
 			}
+
 			assert.Equal(t, tc.expected, tc.target)
 		})
 	}
@@ -367,12 +368,15 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	targetConfig := &config.TerragruntConfig{}
 
 	var wg sync.WaitGroup
+
 	numGoroutines := 666
 
 	wg.Add(numGoroutines)
+
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
+
 			config.CopyFieldsMetadata(sourceConfig, targetConfig)
 		}()
 	}

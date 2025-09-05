@@ -32,8 +32,10 @@ var (
 
 func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
+
 	prefix := "."
 	terraformPath := "testdata/test_outputs.sh"
+
 	prefixedOutput := []string{}
 	for _, line := range FullOutput {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
@@ -43,7 +45,6 @@ func TestCommandOutputPrefix(t *testing.T) {
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TFPath = terraformPath
-
 	}, func(l log.Logger) log.Logger {
 		l.SetOptions(log.WithFormatter(logFormatter))
 		return l.WithField(placeholders.WorkDirKeyName, prefix)
@@ -63,6 +64,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
 	// order
 	var allOutputBuffer BufferWithLocking
+
 	terragruntOptions.Writer = &allOutputBuffer
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
@@ -94,6 +96,7 @@ func assertOutputs(
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
 		assert.Len(t, allOutputs, len(expectedAllOutputs))
+
 		for i := range allOutputs {
 			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}
@@ -117,6 +120,7 @@ type BufferWithLocking struct {
 func (s *BufferWithLocking) Write(p []byte) (n int, err error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
 	return s.buffer.Write(p)
 }
 
@@ -125,5 +129,6 @@ func (s *BufferWithLocking) Write(p []byte) (n int, err error) {
 func (s *BufferWithLocking) String() string {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
 	return s.buffer.String()
 }

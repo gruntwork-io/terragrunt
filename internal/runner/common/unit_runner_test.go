@@ -30,6 +30,7 @@ func newMockUnit() *common.Unit {
 
 func TestNewUnitRunner(t *testing.T) {
 	t.Parallel()
+
 	unit := newMockUnit()
 	runner := common.NewUnitRunner(unit)
 	assert.Equal(t, unit, runner.Unit)

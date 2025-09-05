@@ -1524,6 +1524,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, l log.Logger, file *hclpa
 
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
 		var diagErr hcl.Diagnostics
+
 		ok := errors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
@@ -2105,7 +2106,6 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 	}
 
 	compiled, err := regexp.Compile(p)
-
 	if err != nil {
 		return nil, err
 	}

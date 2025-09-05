@@ -573,6 +573,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Options must be inserted after command but before the other args
 	// command is either 1 word or 2 words
 	var args []string
+
 	args = append(args, opts.TerraformCliArgs[:commandLength]...)
 	args = append(args, restArgs...)
 	args = append(args, opts.TerraformCliArgs[commandLength:]...)
@@ -814,8 +815,8 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
-	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 
+	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 	if err != nil {
 		return err
 	}

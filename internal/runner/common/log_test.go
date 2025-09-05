@@ -14,6 +14,7 @@ import (
 
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
+
 	var hook = common.NewForceLogLevelHook(log.ErrorLevel)
 
 	stdout := bytes.Buffer{}
@@ -33,14 +34,17 @@ func TestLogReductionHook(t *testing.T) {
 
 	out := stdout.String()
 
-	var firstLogEntry = ""
-	var secondLogEntry = ""
+	var (
+		firstLogEntry  = ""
+		secondLogEntry = ""
+	)
 
 	for line := range strings.SplitSeq(out, "\n") {
 		if strings.Contains(line, "tomato") {
 			firstLogEntry = line
 			continue
 		}
+
 		if strings.Contains(line, "potato") {
 			secondLogEntry = line
 			continue
@@ -49,5 +53,4 @@ func TestLogReductionHook(t *testing.T) {
 	// check that both entries got logged with error level
 	assert.Contains(t, firstLogEntry, "level=error")
 	assert.Contains(t, secondLogEntry, "level=error")
-
 }

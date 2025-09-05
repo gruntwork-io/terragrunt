@@ -154,6 +154,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	testConfigStructInfo := structs.New(testConfig)
 	testConfigFields := testConfigStructInfo.Names()
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
+
 	for _, field := range testConfigFields {
 		mapKey, isConverted := terragruntConfigStructFieldToMapKey(t, field)
 		if isConverted {
@@ -162,6 +163,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			checked[mapKey] = true
 		}
 	}
+
 	for key := range ctyMap {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
@@ -198,6 +200,7 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 	testConfigStructInfo := structs.New(testConfig)
 	testConfigFields := testConfigStructInfo.Names()
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
+
 	for _, field := range testConfigFields {
 		mapKey, isConverted := remoteStateStructFieldToMapKey(t, field)
 		if isConverted {
@@ -206,11 +209,11 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 			checked[mapKey] = true
 		}
 	}
+
 	for key := range ctyMap {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
 	}
-
 }
 
 // This test makes sure that all the fields in TerraformConfig exist in ctyTerraformConfig.
@@ -220,6 +223,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
 	terraformConfigFields := terraformConfigStructInfo.Names()
 	sort.Strings(terraformConfigFields)
+
 	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})
 	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
 	sort.Strings(ctyTerraformConfigFields)

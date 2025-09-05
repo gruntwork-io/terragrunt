@@ -38,13 +38,16 @@ func discoveryFromUnits(units []*common.Unit) []*discovery.DiscoveredConfig {
 	// Second pass: wire dependencies
 	for i, u := range units {
 		var deps []*discovery.DiscoveredConfig
+
 		for _, dep := range u.Dependencies {
 			if depCfg, ok := unitMap[dep]; ok {
 				deps = append(deps, depCfg)
 			}
 		}
+
 		discovered[i].Dependencies = deps
 	}
+
 	return discovered
 }
 
@@ -71,6 +74,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
@@ -97,6 +101,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 
 	q, err := queue.NewQueue(discoveryFromUnits(units))
 	require.NoError(t, err)
+
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
@@ -119,11 +124,13 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		if u.Path == "A" {
 			return errors.New("unit A failed")
 		}
+
 		return nil
 	}
 
 	q, err := queue.NewQueue(discoveryFromUnits(units))
 	require.NoError(t, err)
+
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
@@ -133,6 +140,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
+
 	for _, want := range []string{"unit A failed", "unit B did not run due to early exit", "unit C did not run due to early exit"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
@@ -152,22 +160,26 @@ func buildComplexUnits() []*common.Unit {
 	unitC := mockUnit("C", unitA)
 	unitD := mockUnit("D", unitB)
 	unitE := mockUnit("E", unitB)
+
 	return []*common.Unit{unitA, unitB, unitC, unitD, unitE}
 }
 
 func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	t.Parallel()
+
 	units := buildComplexUnits()
 
 	runner := func(ctx context.Context, u *common.Unit) error {
 		if u.Path == "B" {
 			return errors.New("unit B failed")
 		}
+
 		return nil
 	}
 
 	q, err := queue.NewQueue(discoveryFromUnits(units))
 	require.NoError(t, err)
+
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
@@ -176,6 +188,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
+
 	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
@@ -183,17 +196,20 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 
 func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 	t.Parallel()
+
 	units := buildComplexUnits()
 
 	runner := func(ctx context.Context, u *common.Unit) error {
 		if u.Path == "A" {
 			return errors.New("unit A failed")
 		}
+
 		return nil
 	}
 
 	q, err := queue.NewQueue(discoveryFromUnits(units))
 	require.NoError(t, err)
+
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
@@ -203,6 +219,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
+
 	for _, want := range []string{
 		"unit A failed",
 		"unit B did not run due to early exit",
@@ -216,17 +233,20 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 
 func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	t.Parallel()
+
 	units := buildComplexUnits()
 
 	runner := func(ctx context.Context, u *common.Unit) error {
 		if u.Path == "B" {
 			return errors.New("unit B failed")
 		}
+
 		return nil
 	}
 
 	q, err := queue.NewQueue(discoveryFromUnits(units))
 	require.NoError(t, err)
+
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
@@ -236,6 +256,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
+
 	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}

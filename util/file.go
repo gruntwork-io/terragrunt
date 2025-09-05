@@ -917,7 +917,6 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 			}
 		}),
 	)
-
 	if err != nil {
 		err = errors.New(err)
 	}

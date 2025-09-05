@@ -590,6 +590,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
+
 	defer zipFile.Close()
 
 	zipWriter := zip.NewWriter(zipFile)

@@ -19,10 +19,12 @@ var mockOptions *options.TerragruntOptions
 
 func TestMain(m *testing.M) {
 	var err error
+
 	mockOptions, err = options.NewTerragruntOptionsForTest("running_unit_test")
 	if err != nil {
 		panic("Failed to initialize mockOptions: " + err.Error())
 	}
+
 	os.Exit(m.Run())
 }
 
@@ -43,6 +45,7 @@ func newTestDependencyController(unit *common.Unit) *configstack.DependencyContr
 	ctrl.NotifyWhenDone = []*configstack.DependencyController{}
 	ctrl.Runner.Status = common.Waiting
 	ctrl.Runner.Err = nil
+
 	return ctrl
 }
 

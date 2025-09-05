@@ -101,12 +101,14 @@ func TestPrefixWriter(t *testing.T) {
 			t.Parallel()
 
 			var b bytes.Buffer
+
 			pw := util.PrefixedWriter(&b, tc.prefix)
 			for _, input := range tc.values {
 				written, err := pw.Write([]byte(input))
 				require.NoError(t, err)
 				assert.Len(t, input, written)
 			}
+
 			assert.Equal(t, tc.expected, b.String())
 		})
 	}

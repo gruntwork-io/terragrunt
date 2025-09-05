@@ -53,6 +53,7 @@ func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
 func (c *Cache[V]) Put(ctx context.Context, key string, value V) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
+
 	telemetry.TelemeterFromContext(ctx).Count(ctx, c.Name+"_cache_put", 1)
 
 	keyHash := sha256.Sum256([]byte(key))
@@ -86,6 +87,7 @@ func NewExpiringCache[V any](name string) *ExpiringCache[V] {
 func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
+
 	item, found := c.Cache[key]
 	telemetry.TelemeterFromContext(ctx).Count(ctx, c.Name+"_cache_get", 1)
 
