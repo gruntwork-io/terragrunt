@@ -1,4 +1,4 @@
-@layer base, starlight.base, starlight.reset, starlight.core, starlight.content, starlight.components, starlight.utils, theme, components, utilities;
+@layer base, starlight, theme, components, utilities;
 @import '@astrojs/starlight-tailwind';
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
@@ -78,7 +78,7 @@
   --color-gray-border: #E2E3E6;
   --color-primary-button-light: #FE8E03;
 
-  /* Silverlight Customizations */
+  /* Starlight Customizations */
   --sl-color-hairline-shade: #2E375A;
   --sl-color-secondary: #EBEBEB;
   --sl-text-sm: 16px;
@@ -139,91 +139,84 @@
   --sl-color-white: #131824;
 }
 
-@media (width < 768px) {
-  :root {
-    --sl-nav-height: 125px;
+@layer base {
+  * {
+    box-sizing: border-box;
   }
-}
 
-@media (1024px > width >= 768px) {
-  :root {
-    --sl-nav-height: 148px;
+  html, body {
+    overflow-x: hidden;
   }
-}
 
-/* Header / Navigation */
-/* This overrides the Starlight styles */
-header {
-  background-color: transparent;
-  border: none;
-  height: var(--sl-nav-height);
-}
+  body {
+    margin: 0;
+    padding: 0;
+  } 
 
-.header {
-  padding: 0 !important;
-}
-
-starlight-menu-button button {
-  top: 100px;
-  position: fixed;
-}
-
-@media (max-width: 767px) {
-  starlight-menu-button button {
-    top: 80px;
-  }
-}
-
-mobile-starlight-toc {
-  display: block;
-}
-
-mobile-starlight-toc nav {
-  left: 0;
-  position: relative;
-  top: 0;
-}
-
-.social-icon {
-  color: var(--color-gray-1) !important;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.social-icon:hover {
-  color: var(--sl-color-gray-1) !important;
-  cursor: pointer;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html, body {
-  overflow-x: hidden;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-}
-
-/* Hide scrollbar for Chrome, Safari and Opera */
-.no-scrollbar::-webkit-scrollbar {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+  }
+
+  @media (width <= 375px) {
+    .primary-button, .secondary-button {
+        padding: 10px 10px;
+    }
+  }
 }
 
-/* Hide scrollbar for IE, Edge and Firefox */
-.no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-}
+/* Handle all CSS overrides in a single layer to make it easier to manage and update.
+   TODO: Better organize the CSS here and split into appropriate layers as needed.
+*/
+@layer components {
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 400;
-}
+  /* Baseline styles
+  These should really be in the base layer, but for now we want them to apply at this layer.
+  */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 400;
+  }
+  
+  /* Header */
+  header {
+    background-color: transparent;
+    border: none;
+    height: var(--sl-nav-height);
+  }
 
-.searchbar {
+  .header {
+    padding: 0 !important;
+  }
+
+  starlight-menu-button button {
+    top: 100px;
+    position: fixed;
+  }
+
+  @media (max-width: 767px) {
+    starlight-menu-button button {
+      top: 80px;
+    }
+  }
+
+  .social-icon {
+    color: var(--color-gray-1) !important;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .social-icon:hover {
+    color: var(--sl-color-gray-1) !important;
+    cursor: pointer;
+  }
+
+  .searchbar {
     display: flex;
     align-items: center;
     justify-content: start;
@@ -234,162 +227,198 @@ h1, h2, h3, h4, h5, h6 {
     background-color: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 6px;
+  }
+
+  .menu-icon {
+      display: none;
+  }
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+      .menu-icon {
+          display: inline-flex;
+      }
+  }
+
+  /* Table of contents (right-hand side in-page guide) */
+
+  mobile-starlight-toc {
+    display: block;
+  }
+
+  mobile-starlight-toc nav {
+    left: 0;
+    position: relative;
+    top: 0;
+  }
+
+  starlight-toc h2 {
+    background-color: var(--color-toc-background);
+    color: var(--color-code-text);
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    user-select: none;
+    padding: 4px 2px;
+  }
+
+  starlight-toc li {
+    font-family: var(--font-sans);
+    margin: 0.2rem;
+  }
+
+  starlight-toc li a {
+    color: var(--color-toc-text);
+  }
+
+  starlight-toc li a[aria-current="true"],
+  starlight-toc li a:hover {
+    color: var(--color-toc-accent);
+    font-weight: 500;
+  }
+
+  .main-frame {
+    margin-top: var(--sl-nav-height);
+    padding-top: 0;
+  }
+
+  .social-icon {
+    color: var(--color-nav-link) !important;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .social-icon:hover {
+    color: var(--color-nav-link-hover) !important;
+    cursor: pointer;
+  }
+
+  /* Main body */
+
+  .sl-markdown-content h2:not(:first-child) {
+    margin-top: 1.5em;
+  }
+
+  .sl-markdown-content .expressive-code {
+    margin: 1.5em 0;
+  }
+
+  .sl-markdown-content aside {
+    border-left: 5px solid var(--sl-color-asides-border);
+    margin: 1.5em 0;
+  }
+
+  h1 code,
+  h2 code,
+  h3 code,
+  h4 code,
+  h5 code,
+  h6 code,
+  p code {
+    border: 1px solid var(--color-code-border);
+    border-radius: 6px;
+    color: var(--color-code-text);
+  }
+
+  #starlight__sidebar ul li {
+    margin: 0;
+  }
+
+  #starlight__sidebar ul li ul li {
+    padding-left: 1em;
+  }
+
+  #starlight__sidebar details  {
+    padding-left: 0;
+    margin-bottom: 10px;
+  }
+
+  #starlight__sidebar summary {
+    margin-top: 5px;
+    padding-left: 0;
+  }
+
+  #starlight__sidebar details details details {
+    margin-bottom: 0;
+  }
+
+  #starlight__sidebar details details details summary {
+    margin-top: 0;
+    padding: 0.3em var(--sl-sidebar-item-padding-inline);
+  }
+
+  /* Open Source Cards */
+  .opensourcecard {
+    border-left: 0;
+  }
+
+  .opensourcecard:last-child {
+    border-right: 0;
+  }
+
+  /* Main pane */
+
+  .main-pane .sl-container {
+    margin-inline: 0;
+  }
+
+  .main-pane p {
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .main-pane starlight-file-tree {
+    margin-bottom: 1.8rem;
+  }
+
+  .main-pane .code {
+    font-size: calc(14 / 16 * 1rem);
+  }
+
+  /* Sidebar */
+
+  .sidebar-pane {
+    border-inline-end: 1px dashed var(--sl-color-docs-stroke);
+  }
+
+  .content-panel {
+    border-top: 1px dashed var(--sl-color-docs-stroke);
+  }
+
+  .right-sidebar {
+    border-inline-start: 1px dashed var(--sl-color-docs-stroke);
+  }
+
+  /* Cards */
+
+  article.card {
+    background-color: transparent;
+    border: 1px solid var(--sl-color-gray-5);
+    margin: 1.5em 0;
+  }
+
+  /* Global link styling - apply Starlight's link styles everywhere except in sl-markdown-content */
+  a:not(.sl-markdown-content a, .primary-button, .secondary-button) {
+    color: var(--color-accent-1);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent-1);
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  }
+  
+  a:not(.sl-markdown-content a, .primary-button, .secondary-button):hover {
+    color: var(--sl-color-accent);
+    text-decoration-color: var(--sl-color-accent);
+  }
 }
 
-.menu-icon {
-    display: none;
+@media (width < 768px) {
+  :root {
+    --sl-nav-height: 125px;
+  }
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
-    .menu-icon {
-        display: inline-flex;
-    }
-}
-
-@media (width <= 375px) {
-    .primary-button, .secondary-button {
-        padding: 10px 10px;
-    }
-}
-
-.main-frame {
-  margin-top: var(--sl-nav-height);
-  padding-top: 0;
-}
-
-.social-icon {
-  color: var(--color-nav-link) !important;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.social-icon:hover {
-  color: var(--color-nav-link-hover) !important;
-  cursor: pointer;
-}
-
-h1 code,
-h2 code,
-h3 code,
-h4 code,
-h5 code,
-h6 code,
-p code {
-  border: 1px solid var(--color-code-border);
-  border-radius: 6px;
-  color: var(--color-code-text);
-}
-
-#starlight__sidebar ul li {
-  margin: 0;
-}
-
-#starlight__sidebar ul li ul li {
-  padding-left: 1em;
-}
-
-#starlight__sidebar ul li a {
-  font-size: calc(16 / 16 * 1rem);
-}
-
-#starlight__sidebar details  {
-  padding-left: 0;
-  margin-bottom: 10px;
-}
-
-#starlight__sidebar summary {
-  margin-top: 5px;
-  padding-left: 0;
-}
-
-#starlight__sidebar details details details {
-  margin-bottom: 0;
-}
-
-#starlight__sidebar details details details summary {
-  margin-top: 0;
-  padding: 0.3em var(--sl-sidebar-item-padding-inline);
-}
-
-.opensourcecard {
-  border-left: 0;
-}
-
-.opensourcecard:last-child {
-  border-right: 0;
-}
-
-/* Main pane */
-
-.main-pane .sl-container {
-  margin-inline: 0;
-}
-
-.main-pane p {
-  line-height: 1.6;
-  margin-bottom: 1.5rem;
-}
-
-.main-pane starlight-file-tree {
-  margin-bottom: 1.8rem;
-}
-
-.main-pane .code {
-  font-size: calc(14 / 16 * 1rem);
-}
-
-starlight-toc h2 {
-  background-color: var(--color-toc-background);
-  color: var(--color-code-text);
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  text-transform: uppercase;
-  user-select: none;
-  padding: 4px 2px;
-}
-
-starlight-toc li {
-  font-family: var(--font-sans);
-}
-
-starlight-toc li a {
-  color: var(--color-toc-text);
-}
-
-starlight-toc li a[aria-current="true"],
-starlight-toc li a:hover {
-  color: var(--color-toc-accent);
-  font-weight: 500;
-}
-
-.sidebar-pane {
-  border-inline-end: 1px dashed var(--sl-color-docs-stroke);
-}
-
-.content-panel {
-  border-top: 1px dashed var(--sl-color-docs-stroke);
-}
-
-.right-sidebar {
-  border-inline-start: 1px dashed var(--sl-color-docs-stroke);
-}
-
-.sl-markdown-content h2:not(:first-child) {
-  margin-top: 1.5em;
-}
-
-.sl-markdown-content .expressive-code {
-  margin: 1.5em 0;
-}
-
-.sl-markdown-content aside {
-  border-left: 5px solid var(--sl-color-asides-border);
-  margin: 1.5em 0;
-}
-
-article.card {
-  background-color: transparent;
-  border: 1px solid var(--sl-color-gray-5);
-  margin: 1.5em 0;
+@media (1024px > width >= 768px) {
+  :root {
+    --sl-nav-height: 148px;
+  }
 }
