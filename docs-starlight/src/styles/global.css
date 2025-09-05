@@ -396,6 +396,19 @@
     border: 1px solid var(--sl-color-gray-5);
     margin: 1.5em 0;
   }
+
+  /* Global link styling - apply Starlight's link styles everywhere except in sl-markdown-content */
+  a:not(.sl-markdown-content a, .primary-button, .secondary-button) {
+    color: var(--color-accent-1);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent-1);
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  }
+  
+  a:not(.sl-markdown-content a, .primary-button, .secondary-button):hover {
+    color: var(--sl-color-accent);
+    text-decoration-color: var(--sl-color-accent);
+  }
 }
 
 @media (width < 768px) {
