@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-mise use -g go:golang.org/x/tools/gopls@v0.18.1
-
 gopls version
 
 TEMP_DIR=$(mktemp -d)
