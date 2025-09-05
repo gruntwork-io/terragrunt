@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/mattn/go-zglob"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -79,7 +78,7 @@ type TerraformModule struct {
 // configuration. To be more specific, it only returns the source files downloaded for module "xxx" { ... } blocks into
 // the .terraform/modules folder; it does NOT return Terraform files for the top-level (AKA "root") module.
 //
-// NOTE: this method only supports *.tf files right now. Terraform code defined in *.json files is not currently
+// NOTE: this method supports *.tf and *.tofu files. Terraform/OpenTofu code defined in *.json files is not currently
 // supported.
 func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, error) {
 	// Terraform downloads modules into the .terraform/modules folder. Unfortunately, it downloads not only the module
@@ -114,15 +113,12 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 				moduleAbsPath = util.JoinPath(opts.WorkingDir, moduleAbsPath)
 			}
 
-			// Ideally, we'd use a builtin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
-			// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
-			// So we use a third-party library.
-			matches, err := zglob.Glob(moduleAbsPath + "/**/*.tf")
+			moduleFiles, err := util.FindTFFiles(moduleAbsPath)
 			if err != nil {
 				return nil, errors.New(err)
 			}
 
-			terraformFiles = append(terraformFiles, matches...)
+			terraformFiles = append(terraformFiles, moduleFiles...)
 		}
 	}
 
