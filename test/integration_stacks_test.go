@@ -117,10 +117,10 @@ func TestNestedStacksGenerate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that logs contain stack generation messages
-	assert.Contains(t, stderr, "Generating stack from ./terragrunt.stack.hcl")
-	assert.Contains(t, stderr, "Generating stack from ./.terragrunt-stack/prod/terragrunt.stack.hcl")
-	assert.Contains(t, stderr, "Processing unit prod-api from ./.terragrunt-stack/prod/terragrunt.stack.hcl")
-	assert.Contains(t, stderr, "Processing stack prod from ./terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Generating stack prod from ./terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Generating stack dev from ./terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Generating unit prod-api from ./.terragrunt-stack/prod/terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Generating unit dev-web from ./.terragrunt-stack/dev/terragrunt.stack.hcl")
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -907,8 +907,8 @@ func TestStacksSourceMap(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Processing unit app1")
-	assert.Contains(t, stderr, "Processing unit app2")
+	assert.Contains(t, stderr, "Generating unit app1")
+	assert.Contains(t, stderr, "Generating unit app2")
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -920,8 +920,8 @@ func TestStacksSourceMap(t *testing.T) {
 	assert.NotContains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
 	assert.NotContains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
 
-	assert.Contains(t, stderr, "Processing unit app1")
-	assert.Contains(t, stderr, "Processing unit app2")
+	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app1")
+	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app2")
 }
 
 func TestStacksSourceMapModule(t *testing.T) {
