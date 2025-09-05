@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-import { FileTree } from '@astrojs/starlight/components'
+import { Aside, FileTree } from '@astrojs/starlight/components'
 
 ## Migrating from the `terragrunt-infrastructure-live-example` repository
 
@@ -93,7 +93,7 @@ To do this, you'll need to:
     ## non-prod/us-east-1/stateful-ec2-asg-service/terragrunt.stack.hcl
 
    unit "service" {
-     source = "git::git@github.com:acme/infrastructure-catalog.git//units/ec2-asg-stateful-service"
+     source = "git::git@github.com:acme/infrastructure-catalog.git//units/ec2-asg-stateful-service?ref=v1.0.0"
      path   = "service"
 
      no_dot_terragrunt_stack = true
@@ -102,7 +102,7 @@ To do this, you'll need to:
    }
 
    unit "db" {
-     source = "git::git@github.com:acme/infrastructure-catalog.git//units/mysql"
+     source = "git::git@github.com:acme/infrastructure-catalog.git//units/mysql?ref=v1.0.0"
      path   = "db"
 
      no_dot_terragrunt_stack = true
@@ -111,7 +111,7 @@ To do this, you'll need to:
    }
 
    unit "asg-sg" {
-     source = "git::git@github.com:acme/infrastructure-catalog.git//units/security-group"
+     source = "git::git@github.com:acme/infrastructure-catalog.git//units/security-group?ref=v1.0.0"
      path   = "sgs/asg"
 
      no_dot_terragrunt_stack = true
@@ -268,7 +268,7 @@ Then reference that `terragrunt.hcl` file in your `terragrunt.stack.hcl` files, 
 ## non-prod/us-east-1/terragrunt.stack.hcl
 
 unit "mysql" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/mysql"
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/mysql?ref=v1.0.0"
   path   = "mysql"
 
   ## As discussed above, this prevents Terragrunt from automatically generating the units into a `.terragrunt-stack` directory.
@@ -287,7 +287,15 @@ unit "mysql" {
 
 Now, all your unit configurations can be found directly in the `terragrunt.hcl` file in the `infrastructure-catalog` repository, without having to bounce around between different included or referenced files, and you have an explicit interface for the values that can be set externally, via the `values` attribute.
 
-Different environments can pin different versions of the unit, and that allows for easy atomic updates (and rollbacks) of both OpenTofu/Terraform module versions and Terragrunt unit configurations if needed.
+Different environments can pin different versions of the unit, and that allows for easy atomic updates (and rollbacks) of both OpenTofu/Terraform module versions _and_ Terragrunt unit configurations if needed.
+
+<Aside type="tip">
+
+This is one of the main reasons why we recommend using Terragrunt Stacks over the old `_envcommon` directory pattern.
+
+In the old `_envcommon` directory pattern, there was no simple way to version the shared configuration referenced by all units in your `live` repository. All units always referenced the same version of the shared configuration in `_envcommon`. Now that you're using Terragrunt Stacks, you can use Git tags to version the shared configuration you reference in your `terragrunt.stack.hcl` files, and different environments can pin the version of the shared configuration they want to use.
+
+</Aside>
 
 ### Step 6: Update your CI/CD pipeline
 
