@@ -38,6 +38,9 @@ const (
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 
+	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
+	RequireExplicitBootstrap = "require-explicit-bootstrap"
+
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
@@ -71,6 +74,15 @@ func New() strict.Controls {
 		Category:    stageCategory,
 	}
 
+	requireExplicitBootstrapControl := &Control{
+		Name:        RequireExplicitBootstrap,
+		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
+		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
+		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
+		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -93,9 +105,11 @@ func New() strict.Controls {
 			Category:    lifecycleCategory,
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
+				requireExplicitBootstrapControl,
 			},
 		},
 		skipDependenciesInputsControl,
+		requireExplicitBootstrapControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
