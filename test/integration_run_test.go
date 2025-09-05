@@ -34,13 +34,16 @@ func TestRunStacksGenerate(t *testing.T) {
 
 	// Collect all test.txt files in the stack directory to verify correct generation
 	var txtFiles []string
+
 	err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if !info.IsDir() && info.Name() == "test.txt" {
 			txtFiles = append(txtFiles, filePath)
 		}
+
 		return nil
 	})
 
@@ -181,5 +184,4 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 			assert.Contains(t, stderr, "using cache key for version files: "+tt.expect)
 		})
 	}
-
 }

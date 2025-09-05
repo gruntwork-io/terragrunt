@@ -244,7 +244,6 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot))
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
-
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -258,21 +257,20 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 	}
 	// query tag from https://api.github.com/repos/{owner}/{repo}/releases/latest
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-
 	if err != nil {
 		return "", errors.New(err)
 	}
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
 
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
 	defer resp.Body.Close() //nolint:errcheck
-	body, err := io.ReadAll(resp.Body)
 
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -721,7 +719,6 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 		Meta:       meta,
 		EnvVars:    runOptions.TerragruntOptions.Env,
 	})
-
 	if err != nil {
 		return errors.New(err)
 	}
@@ -913,6 +910,7 @@ func detectFileType(l log.Logger, filePath string) (string, error) {
 	}()
 
 	const headerSize = 4 // 4 bytes are enough for common formats
+
 	header := make([]byte, headerSize)
 
 	if _, err := file.Read(header); err != nil {

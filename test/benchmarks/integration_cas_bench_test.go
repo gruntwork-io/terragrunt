@@ -161,7 +161,6 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 						b,
 						args...,
 					)
-
 				}
 
 				b.StopTimer()

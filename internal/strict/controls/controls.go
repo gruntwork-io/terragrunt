@@ -80,6 +80,7 @@ func New() strict.Controls {
 		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
 		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
 	}
 
 	controls := strict.Controls{

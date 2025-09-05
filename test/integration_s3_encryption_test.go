@@ -136,17 +136,17 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
-	output := fmt.Sprintf(stdout, stderr)
+	output := stdout + stderr
 
 	// verify that bucket encryption message is not printed
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
 	tmpTerragruntConfigPath = helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
-	output = fmt.Sprintf(stdout, stderr)
+	output = stdout + stderr
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
 	// verify that encryption key is not reverted
@@ -180,7 +180,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, applyCommand(tmpTerragruntConfigPath, testPath))
 	require.NoError(t, err)
-	output := fmt.Sprintf(stdout, stderr)
+	output := stdout + stderr
 	// check that warning is printed
 	assert.Contains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 
@@ -196,7 +196,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	// check that second warning is not printed
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, applyCommand(tmpTerragruntConfigPath, testPath))
 	require.NoError(t, err)
-	output = fmt.Sprintf(stdout, stderr)
+	output = stdout + stderr
 	assert.NotContains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 }
 
@@ -210,7 +210,7 @@ func TestAwsSkipBackend(t *testing.T) {
 	// The bucket and table name here are intentionally invalid.
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSEAESFixturePath, "N/A", "N/A", config.DefaultTerragruntConfigPath)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --backend-bootstrap --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false")
 	require.Error(t, err)
 
 	lockFile := util.JoinPath(testPath, ".terraform.lock.hcl")
@@ -223,5 +223,5 @@ func TestAwsSkipBackend(t *testing.T) {
 }
 
 func applyCommand(configPath, fixturePath string) string {
-	return fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", configPath, fixturePath)
+	return fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", configPath, fixturePath)
 }

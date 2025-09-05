@@ -176,7 +176,6 @@ func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
 	}
 
 	rawJSON, err := ctyjson.Marshal(outputs, outputs.Type())
-
 	if err != nil {
 		return errors.New(err)
 	}

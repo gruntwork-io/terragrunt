@@ -290,6 +290,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 
 		for _, dependency := range config.Dependencies.Paths {
 			var content = ValueWithMetadata{}
+
 			content.Value = gostringToCty(dependency)
 
 			metadata, found := config.GetMapFieldMetadata(MetadataDependencies, dependency)
@@ -322,6 +323,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			}
 
 			var content = ValueWithMetadata{}
+
 			content.Value = ctyValue
 
 			metadata, found := config.GetMapFieldMetadata(MetadataDependency, block.Name)
@@ -361,6 +363,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			}
 
 			var content = ValueWithMetadata{}
+
 			content.Value = ctyValue
 
 			metadata, found := config.GetMapFieldMetadata(MetadataGenerateConfigs, key)

@@ -37,7 +37,6 @@ func TestAction(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

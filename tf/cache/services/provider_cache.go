@@ -410,6 +410,7 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 	}
 
 	service.logger.Debugf("Sending provider %s to warm up channel", provider)
+
 	select {
 	case service.providerCacheWarmUpCh <- cache:
 		service.logger.Debugf("Successfully sent provider %s to warm up channel", provider)
@@ -501,6 +502,7 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	defer service.cacheReadyMu.RUnlock()
 
 	service.logger.Debugf("Starting provider caching for: %s", cache.Provider)
+
 	cache.started <- struct{}{}
 
 	// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.

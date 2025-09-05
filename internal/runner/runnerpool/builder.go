@@ -59,11 +59,11 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		"terraform_command": terragruntOptions.TerraformCommand,
 	}, func(childCtx context.Context) error {
 		var discoveryErr error
+
 		discovered, discoveryErr = d.Discover(childCtx, l, terragruntOptions)
 
 		return discoveryErr
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +76,11 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		"terraform_command":  terragruntOptions.TerraformCommand,
 	}, func(childCtx context.Context) error {
 		var runnerErr error
+
 		runner, runnerErr = NewRunnerPoolStack(childCtx, l, terragruntOptions, discovered, opts...)
 
 		return runnerErr
 	})
-
 	if err != nil {
 		return nil, err
 	}

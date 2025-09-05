@@ -317,8 +317,8 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, l log.Logger, configPath
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
-		l, dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, l, dependencyPath)
 
+		l, dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -424,7 +424,9 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
+
 				paths = append(paths, dependencyConfig.ConfigPath.AsString())
+
 				lock.Unlock()
 
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
@@ -609,8 +611,10 @@ func isRenderCommand(ctx *ParsingContext) bool {
 func getOutputJSONWithCaching(ctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
 	// Acquire synchronization lock to ensure only one instance of output is called per config.
 	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
+
 	actualLock.Lock()
 
 	// This debug log is useful for validating if the locking mechanism is working. If the locking mechanism is working,
@@ -1022,7 +1026,6 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx *ParsingContext, l log.Logger,
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),
 		Key:    aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["key"])),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1091,6 +1094,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, l log.Logger, w
 func runTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
+
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 
 	newOpts := *ctx.TerragruntOptions

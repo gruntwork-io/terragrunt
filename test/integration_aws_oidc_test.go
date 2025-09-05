@@ -44,9 +44,6 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 
 	token := fetchGitHubOIDCToken(t)
 
-	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
 	// These tests need to be run without the static key + secret
 	// used by most AWS tests here.
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
@@ -69,10 +66,13 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
 
 	defer func() {
-		t.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
-		t.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
-
-		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(role), options.WithIAMWebIdentityToken(token))
+		helpers.DeleteS3Bucket(
+			t,
+			helpers.TerraformRemoteStateS3Region,
+			s3BucketName,
+			options.WithIAMRoleARN(role),
+			options.WithIAMWebIdentityToken(token),
+		)
 	}()
 
 	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
@@ -85,7 +85,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --backend-bootstrap --log-level trace --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
@@ -141,10 +141,6 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 
 	token := fetchGitHubOIDCToken(t)
 
-	// save credentials to restore later
-	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
 	// These tests need to be run without the static key + secret
 	// used by most AWS tests here.
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
@@ -167,10 +163,6 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	require.NotEmpty(t, role)
 
 	defer func() {
-		// set credentials back to original to do removal
-		t.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
-		t.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
-
 		helpers.DeleteS3Bucket(
 			t,
 			helpers.TerraformRemoteStateS3Region,
@@ -188,7 +180,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt apply --working-dir %s --auth-provider-cmd %s --non-interactive --log-level trace",
+			"terragrunt apply --working-dir %s --auth-provider-cmd %s --non-interactive --backend-bootstrap --log-level trace",
 			remoteStateOIDCPath,
 			mockAuthCmd,
 		),

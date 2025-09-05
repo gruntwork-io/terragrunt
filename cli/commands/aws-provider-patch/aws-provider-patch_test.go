@@ -316,6 +316,7 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
+
 			actualTerraformCode, actualCodeWasUpdated, err := awsproviderpatch.PatchAwsProviderInTerraformCode(tc.originalTerraformCode, "test.tf", tc.attributesToOverride)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedCodeWasUpdated, actualCodeWasUpdated)

@@ -114,10 +114,6 @@ Skipping dependency inputs is a performance optimization. For more details on pe
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
 
-### require-explicit-bootstrap
-
-Require explicit usage of `--backend-bootstrap` to automatically bootstrap backend resources.
-
 ### root-terragrunt-hcl
 
 Throw an error when users try to reference a root `terragrunt.hcl` file using `find_in_parent_folders`.
@@ -250,6 +246,14 @@ The following strict controls have been completed and are no longer needed:
 - [destroy-all](#destroy-all)
 - [output-all](#output-all)
 - [validate-all](#validate-all)
+
+### require-explicit-bootstrap
+
+**Status**: Completed - Backend provisioning is no longer performed automatically by default.
+
+Terragrunt now requires explicit opt-in to bootstrap backend infrastructure. Use `terragrunt backend bootstrap` or pass `--backend-bootstrap` to a `run` command (e.g., `terragrunt run apply --backend-bootstrap`) to provision or update backend resources referenced by the [`remote_state`](/docs/reference/hcl/blocks/#remote_state) block.
+
+This strict control is no longer necessary because the default behavior already requires explicit bootstrapping.
 
 ### legacy-all
 

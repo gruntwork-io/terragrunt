@@ -320,6 +320,7 @@ func TestParseTerraformStateInvalid(t *testing.T) {
 	require.Error(t, err)
 
 	var jsonSyntaxError *json.SyntaxError
+
 	ok := errors.As(err, &jsonSyntaxError)
 	assert.True(t, ok)
 }

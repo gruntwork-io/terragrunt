@@ -107,6 +107,7 @@ func testParseTerraformVersion(t *testing.T, versionString string, expectedVersi
 	t.Helper()
 
 	actualVersion, actualErr := run.ParseTerraformVersion(versionString)
+
 	if expectedErr == nil {
 		expected, err := version.NewVersion(expectedVersion)
 		if err != nil {

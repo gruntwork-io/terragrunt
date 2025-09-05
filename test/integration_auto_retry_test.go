@@ -123,6 +123,7 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 
 func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 	t.Setenv("TG_NO_AUTO_RETRY", "true")
+
 	out := new(bytes.Buffer)
 	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryRerun)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryRerun)
@@ -141,6 +142,7 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --tf-forward-stdout --working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
+
 	s := out.String()
 	assert.Contains(t, s, "app1 output")
 	assert.Contains(t, s, "app2 output")

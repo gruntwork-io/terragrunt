@@ -250,6 +250,7 @@ func (runner *Runner) GetUnitRunGraph(terraformCommand string) ([]common.Units, 
 
 	// Set maxDepth for the graph so that we don't get stuck in an infinite loop.
 	const maxDepth = 1000
+
 	groups := unitRunGraph.toTerraformUnitGroups(maxDepth)
 
 	return groups, nil
@@ -288,7 +289,6 @@ func (runner *Runner) createStackForTerragruntConfigPaths(ctx context.Context, l
 
 		return nil
 	})
-
 	if err != nil {
 		return errors.New(err)
 	}

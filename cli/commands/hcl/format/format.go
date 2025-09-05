@@ -109,7 +109,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
 	contents, err := io.ReadAll(os.Stdin)
-
 	if err != nil {
 		l.Errorf("Error reading from stdin: %s", err)
 

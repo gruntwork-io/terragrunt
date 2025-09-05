@@ -47,6 +47,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	defer func() {
 		outputLocks.Lock(runner.Unit.Path)
 		defer outputLocks.Unlock(runner.Unit.Path)
+
 		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 

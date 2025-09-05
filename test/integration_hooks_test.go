@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -111,6 +111,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --log-level trace", rootPath), &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "apply stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "apply stderr")
+
 	output := stdout.String()
 
 	if err != nil {
@@ -134,6 +135,7 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)
+
 	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
 	require.NoError(t, afterErr)
 }
@@ -151,6 +153,7 @@ func TestTerragruntHookApplyAll(t *testing.T) {
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)
+
 	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
 	require.NoError(t, afterErr)
 }
@@ -262,7 +265,6 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 	assert.Contains(t, output, "pattern_matching_hook")
 	assert.Contains(t, output, "catch_all_matching_hook")
 	assert.NotContains(t, output, "not_matching_hook")
-
 }
 
 func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
@@ -328,7 +330,6 @@ func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath, &stdout, &stderr)
-
 	if err != nil {
 		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
 	} else {
@@ -349,7 +350,6 @@ func TestTerragruntEmptyCommandListHook(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath, &stdout, &stderr)
-
 	if err != nil {
 		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
 	} else {
@@ -382,7 +382,6 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 	}
 
 	assert.Contains(t, output, homePath)
-
 }
 
 func TestTerragruntInfo(t *testing.T) {
@@ -401,6 +400,7 @@ func TestTerragruntInfo(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 
 	var dat print.InfoOutput
+
 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	require.NoError(t, errUnmarshal)
 

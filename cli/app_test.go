@@ -277,6 +277,7 @@ func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath strin
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
 	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
+
 	return opts
 }
 
@@ -285,6 +286,7 @@ func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, working
 
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.SourceMap = sourceMap
+
 	return opts
 }
 
@@ -308,6 +310,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
+
 			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -513,6 +516,7 @@ func TestTerragruntHelp(t *testing.T) {
 			require.NoError(t, err, tc)
 
 			assert.Contains(t, output.String(), tc.expected)
+
 			if tc.notExpected != "" {
 				assert.NotContains(t, output.String(), tc.notExpected)
 			}
@@ -571,6 +575,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
+
 	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
 	app.Commands = append(
 		commands.NewDeprecatedCommands(l, opts),
@@ -583,6 +588,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.ExitErrHandler = cli.ExitErrHandler
 
 	err := app.Run(append([]string{"--"}, args...))
+
 	return opts, err
 }
 

@@ -188,6 +188,7 @@ func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
+
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
