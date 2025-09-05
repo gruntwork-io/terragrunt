@@ -78,7 +78,7 @@
   --color-gray-border: #E2E3E6;
   --color-primary-button-light: #FE8E03;
 
-  /* Silverlight Customizations */
+  /* Starlight Customizations */
   --sl-color-hairline-shade: #2E375A;
   --sl-color-secondary: #EBEBEB;
   --sl-text-sm: 16px;
@@ -112,7 +112,7 @@
   --color-toc-accent: #BFA6F2;
   --color-toc-background: rgba(191, 166, 242, 0.15);
   --color-toc-text: #EBEBEB;
-  --sl-color-white: #ffffff;  
+  --sl-color-white: #ffffff;
 }
 
 /* Docs Light mode colors. */
@@ -239,7 +239,7 @@
       }
   }
 
-  /* Table of contens (right-hand side in-page guide) */
+  /* Table of contents (right-hand side in-page guide) */
 
   mobile-starlight-toc {
     display: block;
@@ -264,7 +264,7 @@
 
   starlight-toc li {
     font-family: var(--font-sans);
-    margin: 0.1rem;
+    margin: 0.2rem;
   }
 
   starlight-toc li a {
