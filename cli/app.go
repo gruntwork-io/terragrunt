@@ -55,7 +55,7 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(l, opts)
+	app.Flags = global.NewFlags(l, opts, nil)
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
