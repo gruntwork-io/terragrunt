@@ -169,18 +169,6 @@
         padding: 10px 10px;
     }
   }
-
-  @media (width < 768px) {
-    :root {
-      --sl-nav-height: 125px;
-    }
-  }
-
-  @media (1024px > width >= 768px) {
-    :root {
-      --sl-nav-height: 148px;
-    }
-  }
 }
 
 /* Handle all CSS overrides in a single layer to make it easier to manage and update.
@@ -340,12 +328,14 @@
     padding-left: 1em;
   }
 
-  #starlight__sidebar ul li a {
-    font-size: calc(14 / 16 * 1rem);
-  }
+  @media (min-width: theme('screens.sm')) {
+    #starlight__sidebar ul li a {
+      font-size: calc(14 / 16 * 1rem);
+    }
 
-  #starlight__sidebar .large {
-    font-size: calc(14 / 16 * 1rem);
+    #starlight__sidebar .large {
+      font-size: calc(14 / 16 * 1rem);
+    }
   }
 
   #starlight__sidebar details  {
@@ -367,7 +357,7 @@
     padding: 0.3em var(--sl-sidebar-item-padding-inline);
   }
 
-  /* Open Source Cards *//
+  /* Open Source Cards */
   .opensourcecard {
     border-left: 0;
   }
@@ -415,5 +405,17 @@
     background-color: transparent;
     border: 1px solid var(--sl-color-gray-5);
     margin: 1.5em 0;
+  }
+}
+
+@media (width < 768px) {
+  :root {
+    --sl-nav-height: 125px;
+  }
+}
+
+@media (1024px > width >= 768px) {
+  :root {
+    --sl-nav-height: 148px;
   }
 }
