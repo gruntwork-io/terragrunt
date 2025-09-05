@@ -328,16 +328,6 @@
     padding-left: 1em;
   }
 
-  @media (min-width: theme('screens.sm')) {
-    #starlight__sidebar ul li a {
-      font-size: calc(14 / 16 * 1rem);
-    }
-
-    #starlight__sidebar .large {
-      font-size: calc(14 / 16 * 1rem);
-    }
-  }
-
   #starlight__sidebar details  {
     padding-left: 0;
     margin-bottom: 10px;
