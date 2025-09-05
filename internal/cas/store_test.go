@@ -132,10 +132,14 @@ func TestStore_LockConcurrency(t *testing.T) {
 	go func() {
 		lock, err := store.AcquireLock(testHash)
 		assert.NoError(t, err)
+
 		acquired <- true
+
 		time.Sleep(100 * time.Millisecond) // Hold lock briefly
+
 		err = lock.Unlock()
 		assert.NoError(t, err)
+
 		done <- true
 	}()
 
@@ -153,6 +157,7 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 		err = lock.Unlock()
 		assert.NoError(t, err)
+
 		done <- true
 	}()
 

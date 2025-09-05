@@ -186,6 +186,7 @@ func TestWriteValuesSortsKeys(t *testing.T) {
 
 	// Run multiple generations to test for deterministic behavior
 	const numIterations = 5
+
 	generationContents := make([]string, 0, numIterations)
 
 	for iteration := range numIterations {
@@ -271,6 +272,7 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 
 	// Check if all generations produced identical output
 	allIdentical := true
+
 	for i := 1; i < len(generationContents); i++ {
 		if generationContents[i] != generationContents[0] {
 			allIdentical = false
@@ -281,9 +283,11 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 
 	if !allIdentical {
 		t.Logf("Non-deterministic behavior detected! Generations produced different output:")
+
 		for i, content := range generationContents {
 			t.Logf("Generation %d:\n%s\n", i+1, content)
 		}
+
 		assert.True(t, allIdentical, "Stack generation should be deterministic - all runs should produce identical values files")
 
 		return
@@ -307,6 +311,7 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 
 	// Check if positions are in ascending order (alphabetical)
 	keysInOrder := true
+
 	for i := 1; i < len(positions); i++ {
 		if positions[i] < positions[i-1] {
 			keysInOrder = false
@@ -475,6 +480,7 @@ func findStackFiles(t *testing.T, dir string) []string {
 	t.Helper()
 
 	var stackFiles []string
+
 	err := filepath.WalkDir(dir, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -492,5 +498,6 @@ func findStackFiles(t *testing.T, dir string) []string {
 	})
 
 	require.NoError(t, err)
+
 	return stackFiles
 }

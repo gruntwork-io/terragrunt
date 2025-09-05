@@ -220,7 +220,6 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 			}
 
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -230,7 +229,6 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	}
 
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
-
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -535,6 +533,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
+
 				ok := errors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
@@ -593,8 +592,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
-			err := file.Decode(&decoded, evalParsingContext)
 
+			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
@@ -624,8 +623,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 		case ErrorsBlock:
 			decoded := terragruntErrors{}
-			err := file.Decode(&decoded, evalParsingContext)
 
+			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}

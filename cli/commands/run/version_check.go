@@ -72,8 +72,8 @@ func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOption
 		// update feature flags for evaluation
 		for _, flag := range partialTerragruntConfig.FeatureFlags {
 			flagName := flag.Name
-			defaultValue, err := flag.DefaultAsString()
 
+			defaultValue, err := flag.DefaultAsString()
 			if err != nil {
 				return l, err
 			}

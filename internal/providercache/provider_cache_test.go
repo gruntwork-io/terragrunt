@@ -32,6 +32,7 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 
 	file, err := os.Create(filepath.Join(cacheDir, relativePath))
 	require.NoError(t, err)
+
 	defer file.Close()
 
 	err = file.Sync()
@@ -109,6 +110,7 @@ func TestProviderCache(t *testing.T) {
 			//
 			// It's a pain, but it's not worth the time to fix it.
 			maxRetries := 3
+
 			var lastErr error
 
 			for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -120,6 +122,7 @@ func TestProviderCache(t *testing.T) {
 				//
 				//nolint:usetesting
 				ctx := context.Background()
+
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
@@ -137,12 +140,15 @@ func TestProviderCache(t *testing.T) {
 				)
 
 				server := cache.NewServer(tc.opts...)
+
 				ln, err := server.Listen(t.Context())
 				if err != nil {
 					lastErr = err
+
 					if attempt < maxRetries {
 						continue
 					}
+
 					require.NoError(t, err)
 				}
 				defer ln.Close()
@@ -161,28 +167,35 @@ func TestProviderCache(t *testing.T) {
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
 				if err != nil {
 					lastErr = err
+
 					if attempt < maxRetries {
 						continue
 					}
+
 					require.NoError(t, err)
 				}
+
 				req.Header.Set("Authorization", "Bearer "+token)
 
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
 					lastErr = err
+
 					if attempt < maxRetries {
 						continue
 					}
+
 					require.NoError(t, err)
 				}
 				defer resp.Body.Close()
 
 				if resp.StatusCode != tc.expectedStatusCode {
 					lastErr = fmt.Errorf("expected status code %d, got %d", tc.expectedStatusCode, resp.StatusCode)
+
 					if attempt < maxRetries {
 						continue
 					}
+
 					assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
 				}
 
@@ -190,16 +203,21 @@ func TestProviderCache(t *testing.T) {
 					body, err := io.ReadAll(resp.Body)
 					if err != nil {
 						lastErr = err
+
 						if attempt < maxRetries {
 							continue
 						}
+
 						require.NoError(t, err)
 					}
+
 					if !tc.expectedBodyReg.MatchString(string(body)) {
 						lastErr = fmt.Errorf("body did not match expected regex: %s", tc.expectedBodyReg.String())
+
 						if attempt < maxRetries {
 							continue
 						}
+
 						assert.Regexp(t, tc.expectedBodyReg, string(body))
 					}
 				}
@@ -210,9 +228,11 @@ func TestProviderCache(t *testing.T) {
 					_, err = providerService.WaitForCacheReady("")
 					if err != nil {
 						lastErr = err
+
 						if attempt < maxRetries {
 							continue
 						}
+
 						require.NoError(t, err)
 					}
 				}
@@ -220,6 +240,7 @@ func TestProviderCache(t *testing.T) {
 				if tc.expectedCachePath != "" {
 					if !assert.FileExists(t, filepath.Join(providerCacheDir, tc.expectedCachePath)) {
 						lastErr = fmt.Errorf("expected cache file does not exist: %s", tc.expectedCachePath)
+
 						if attempt < maxRetries {
 							continue
 						}
@@ -227,12 +248,15 @@ func TestProviderCache(t *testing.T) {
 				}
 
 				cancel()
+
 				err = errGroup.Wait()
 				if err != nil {
 					lastErr = err
+
 					if attempt < maxRetries {
 						continue
 					}
+
 					require.NoError(t, err)
 				}
 

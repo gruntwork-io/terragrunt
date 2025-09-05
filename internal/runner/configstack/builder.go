@@ -26,7 +26,6 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

@@ -73,6 +73,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			Branch: "nonexistent-branch",
 		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.Error(t, err)
+
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
 		assert.ErrorIs(t, wrappedErr.Err, cas.ErrNoMatchingReference)
@@ -91,6 +92,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
+
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
 		assert.ErrorIs(t, wrappedErr.Err, cas.ErrCommandSpawn)
@@ -130,6 +132,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 		// Verify the tree object is stored
 		store := cas.NewStore(storePath)
+
 		require.NoError(t, err)
 		assert.False(t, store.NeedsWrite(commitHash), "Tree object should be stored")
 

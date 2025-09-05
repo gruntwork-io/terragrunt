@@ -94,6 +94,7 @@ func TestGlobs(t *testing.T) {
 	expectedHelper := func(path string) string {
 		basePath, err := filepath.Abs(basePath)
 		require.NoError(t, err)
+
 		return filepath.ToSlash(filepath.Join(basePath, path))
 	}
 
@@ -147,16 +148,18 @@ func getGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGl
 		if err != nil {
 			return err
 		}
+
 		path = filepath.ToSlash(path)
+
 		for globPath, compiledGlob := range compiledGlobs {
 			ll := l.WithField("glob_path", globPath)
 			if compiledGlob.Match(path) {
 				ll.WithField("matched_path", path).Debug("Matched glob pattern")
 
 				paths = append(paths, path)
-
 			}
 		}
+
 		return nil
 	})
 
@@ -235,6 +238,7 @@ func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
 	files := []string{"file1", "file2"}
+
 	var testfiles = make([]string, 0, len(files))
 
 	// create temp dir
@@ -256,6 +260,7 @@ func TestFileManifest(t *testing.T) {
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+
 	for _, file := range testfiles {
 		require.NoError(t, manifest.AddFile(file))
 	}
@@ -321,6 +326,7 @@ func TestContainsPath(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
+
 			actual := util.ContainsPath(tc.path, tc.subpath)
 			assert.Equal(t, tc.expected, actual, "For path %s and subpath %s", tc.path, tc.subpath)
 		})
@@ -385,6 +391,7 @@ func TestIncludeInCopy(t *testing.T) {
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
+
 	for _, tc := range testCases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
@@ -394,7 +401,6 @@ func TestIncludeInCopy(t *testing.T) {
 	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, nil))
 
 	for i, tc := range testCases {
-
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
@@ -433,6 +439,7 @@ func TestExcludeFromCopy(t *testing.T) {
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
+
 	for _, tc := range testCases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
@@ -475,6 +482,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
+
 	for _, tc := range testCases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
@@ -498,6 +506,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 
 func TestEmptyDir(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		path        string
 		expectEmpty bool
@@ -540,10 +549,12 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "d", "a")))
 
 	var paths []string
+
 	err = util.WalkWithSymlinks(tempDir, func(path string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		relPath, err := filepath.Rel(tempDir, path)
 		if err != nil {
 			t.Fatal(err)
@@ -583,6 +594,7 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 
 			continue
 		}
+
 		if paths[expectedPath] != expectedPaths[expectedPath] {
 			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
 		}
@@ -616,10 +628,12 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "d", "link-to-a")))
 
 	var paths []string
+
 	err = util.WalkWithSymlinks(tempDir, func(path string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		relPath, err := filepath.Rel(tempDir, path)
 		if err != nil {
 			t.Fatal(err)
@@ -666,6 +680,7 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 
 			continue
 		}
+
 		if paths[expectedPath] != expectedPaths[expectedPath] {
 			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
 		}

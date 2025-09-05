@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.24"
+  go: "1.25"
   issues-exit-code: 1
   tests: true
 output:
@@ -53,7 +53,7 @@ linters:
     - unparam
     - usetesting
     - wastedassign
-    - wsl
+    - wsl_v5
     - zerologlint
   disable:
     - depguard
@@ -102,6 +102,9 @@ linters:
         - -ST1001
     unparam:
       check-exported: false
+    wsl_v5:
+      allow-whole-block: false
+      branch-max-lines: 2
   exclusions:
     generated: lax
     rules:

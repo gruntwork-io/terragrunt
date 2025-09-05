@@ -10,6 +10,7 @@ import (
 
 func TestValidateStackConfig(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		config  *config.StackConfigFile
@@ -292,6 +293,7 @@ func TestValidateStackConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := config.ValidateStackConfig(tt.config)
 			if tt.wantErr != "" {
 				assert.Contains(t, err.Error(), tt.wantErr)

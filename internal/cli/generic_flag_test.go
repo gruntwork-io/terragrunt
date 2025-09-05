@@ -170,6 +170,7 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 		if val, ok := envs[key]; ok {
 			return []string{val}
 		}
+
 		return nil
 	}
 
@@ -184,8 +185,10 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 	if expectedErr != nil {
 		require.Error(t, err)
 		require.ErrorContains(t, expectedErr, err.Error())
+
 		return
 	}
+
 	require.NoError(t, err)
 
 	actualValue = (flag.Value().Get()).(T)

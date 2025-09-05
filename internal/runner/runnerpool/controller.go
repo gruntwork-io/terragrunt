@@ -114,6 +114,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				// log debug which entry is running
 				l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
 				e.Status = queue.StatusRunning
+
 				sem <- struct{}{}
 
 				wg.Add(1)
@@ -122,6 +123,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					defer func() {
 						<-sem
 						wg.Done()
+
 						select {
 						case dr.readyCh <- struct{}{}:
 						default:

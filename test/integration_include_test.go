@@ -34,6 +34,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []string{}
+
 	for _, finfo := range files {
 		if finfo.IsDir() {
 			testCases = append(testCases, finfo.Name())
@@ -117,9 +118,11 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 		if strings.Contains(line, "alpha") {
 			assert.Contains(t, line, "prefix=a")
 		}
+
 		if strings.Contains(line, "beta") {
 			assert.Contains(t, line, "prefix=b")
 		}
+
 		if strings.Contains(line, "charlie") {
 			assert.Contains(t, line, "prefix=c")
 		}
@@ -171,6 +174,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []string{}
+
 	for _, finfo := range files {
 		if finfo.IsDir() && filepath.Base(finfo.Name()) != "modules" {
 			testCases = append(testCases, finfo.Name())

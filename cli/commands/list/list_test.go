@@ -345,6 +345,7 @@ dependency "unit3" {
 				return i
 			}
 		}
+
 		return -1
 	}
 
@@ -458,6 +459,7 @@ dependency "C" {
 				return i
 			}
 		}
+
 		return -1
 	}
 

@@ -54,6 +54,7 @@ func (ctrl *DependencyController) runUnitWhenReady(ctx context.Context, opts *op
 	})
 
 	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
+
 	defer func() {
 		<-semaphore // Remove one from the buffered channel
 	}()
@@ -85,7 +86,6 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 
 		if opts.Experiments.Evaluate(experiment.Report) {
 			run, err := r.EnsureRun(ctrl.Runner.Unit.Path)
-
 			if err != nil {
 				ctrl.Runner.Unit.Logger.Errorf("Error ensuring run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 				return err

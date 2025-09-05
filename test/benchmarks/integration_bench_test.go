@@ -127,7 +127,6 @@ terraform {
 
 	b.Run("1 units", func(b *testing.B) {
 		for b.Loop() {
-
 			helpers.Plan(b, tmpDir)
 		}
 	})

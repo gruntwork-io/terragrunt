@@ -441,6 +441,7 @@ dependency "B" {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Close the write end of the pipe

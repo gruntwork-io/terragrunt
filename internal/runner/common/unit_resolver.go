@@ -43,13 +43,11 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 		doubleStarEnabled = true
 
 		includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
-
 		if err != nil {
 			return nil, fmt.Errorf("invalid include dirs: %w", err)
 		}
 
 		excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
-
 		if err != nil {
 			return nil, fmt.Errorf("invalid exclude dirs: %w", err)
 		}
@@ -281,7 +279,6 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 
 			return nil
 		})
-
 		if err != nil {
 			return unitsMap, err
 		}
