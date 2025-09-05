@@ -171,11 +171,15 @@ func UniqueID() string {
 }
 
 // CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.Client {
+func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.TerragruntOptionsFunc) *s3.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
 	require.NoError(t, err, "Error creating mockOptions")
+
+	for _, opt := range opts {
+		opt(mockOptions)
+	}
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
@@ -208,7 +212,7 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
 	t.Helper()
 
-	client := CreateS3ClientForTest(t, awsRegion)
+	client := CreateS3ClientForTest(t, awsRegion, opts...)
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
