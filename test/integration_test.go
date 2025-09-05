@@ -3081,6 +3081,45 @@ func TestLogFailingDependencies(t *testing.T) {
 	assert.Contains(t, output, fmt.Sprintf("%s invocation failed in %s", wrappedBinary(), getPathRelativeTo(t, testdataDir, path)))
 }
 
+func TestDependencyInputsBlockedByDefault(t *testing.T) {
+	t.Parallel()
+
+	// Test that using dependency.foo.inputs syntax results in an error by default
+	tmpDir := t.TempDir()
+
+	// Create a terragrunt.hcl that uses the deprecated dependency.foo.inputs syntax
+	dependencyConfig := `
+dependency "dep" {
+  config_path = "../dep" 
+}
+
+inputs = {
+  # This should fail - dependency inputs are now blocked by default
+  value = dependency.dep.inputs.some_value
+}
+`
+
+	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(dependencyConfig), 0644))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	// Try to parse this config - it should fail with an error about dependency inputs
+	err := helpers.RunTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt validate --non-interactive --working-dir %s", tmpDir),
+		&stdout,
+		&stderr,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Reading inputs from dependencies is no longer supported")
+	assert.Contains(t, err.Error(), "use outputs")
+}
+
 func TestDependenciesOptimisation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependenciesOptimisation)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation)

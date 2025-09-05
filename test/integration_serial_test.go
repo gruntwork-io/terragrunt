@@ -238,9 +238,10 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 
 		var (
 			appDir  string
-			appDirs = []string{"c", "b", "a"}
+			appDirs = []string{"c", "b"}
 		)
 
+		// Apply apps c and b first (they don't use dependency inputs)
 		for _, app := range appDirs {
 			appDir = filepath.Join(tc.rootPath, app)
 
@@ -248,31 +249,21 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 			config.ClearOutputCache()
 		}
 
-		if tc.downloadDir != "" {
-			entries, err := os.ReadDir(tc.downloadDir)
-			require.NoError(t, err)
-			assert.Len(t, entries, len(appDirs))
-		}
+		// Now try to validate app 'a', which uses dependency inputs (deprecated feature)
+		// This should now fail since dependency inputs are blocked by default for performance
+		appADir := filepath.Join(tc.rootPath, "a")
 
-		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)
-
-		expectedOutpus := map[string]string{
-			"bar": "parent-bar",
-			"baz": "b-baz",
-			"foo": "c-foo",
-		}
-
-		output := stdout.String()
-		for key, value := range expectedOutpus {
-			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-		}
-
-		// Check that we're getting a warning for usage of deprecated functionality.
-		assert.Contains(
+		err := helpers.RunTerragruntCommand(
 			t,
-			stderr.String(),
-			"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+			fmt.Sprintf("terragrunt validate --non-interactive --working-dir %s --download-dir=%s", appADir, tc.downloadDir),
+			&stdout,
+			&stderr,
 		)
+
+		// We expect this to fail with an error about dependency inputs not being supported
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Reading inputs from dependencies is no longer supported")
+		assert.Contains(t, err.Error(), "use outputs")
 	}
 }
 
