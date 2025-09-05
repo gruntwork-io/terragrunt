@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: main
+          # ref: main
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -49,27 +49,27 @@ jobs:
         env:
           HAS_FIXES: ${{ steps.gopls_run.outputs.has_fixes }}
 
-      - name: Create issue for problems found
-        id: create_issue_for_problems
-        if: steps.gopls_run.outputs.has_fixes == 'true'
-        uses: actions/github-script@v7
-        env:
-          FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
-        with:
-          script: |
-            const createIssue = require('./.github/scripts/gopls/create-issue.js');
-            await createIssue({ github, context, core });
+      # - name: Create issue for problems found
+      #   id: create_issue_for_problems
+      #   if: steps.gopls_run.outputs.has_fixes == 'true'
+      #   uses: actions/github-script@v7
+      #   env:
+      #     FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
+      #   with:
+      #     script: |
+      #       const createIssue = require('./.github/scripts/gopls/create-issue.js');
+      #       await createIssue({ github, context, core });
 
-      - name: Create pull request for fixes
-        if: steps.check-changes.outputs.has_changes == 'true'
-        uses: actions/github-script@v7
-        env:
-          ISSUE_NUMBER: ${{ steps.create_issue_for_problems.outputs.issue_number }}
-          FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
-        with:
-          script: |
-            const createPR = require('./.github/scripts/gopls/create-pr.js');
-            await createPR({ github, context, core, exec });
+      # - name: Create pull request for fixes
+      #   if: steps.check-changes.outputs.has_changes == 'true'
+      #   uses: actions/github-script@v7
+      #   env:
+      #     ISSUE_NUMBER: ${{ steps.create_issue_for_problems.outputs.issue_number }}
+      #     FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
+      #   with:
+      #     script: |
+      #       const createPR = require('./.github/scripts/gopls/create-pr.js');
+      #       await createPR({ github, context, core, exec });
 
       - name: Success message
         if: steps.gopls_run.outputs.has_fixes == 'false'
