@@ -11,6 +11,21 @@ const fs = require('fs');
 module.exports = async ({ github, context, core }) => {
   try {
     const { FIXED_FILES_PATH } = process.env;
+
+    // Debug: Log environment variables
+    console.log('Environment variables:', { FIXED_FILES_PATH });
+    console.log('All env vars:', Object.keys(process.env).filter(k => k.includes('FIXED')));
+
+    // Validate that FIXED_FILES_PATH is defined
+    if (!FIXED_FILES_PATH) {
+      throw new Error('FIXED_FILES_PATH environment variable is not set');
+    }
+
+    // Check if file exists before reading
+    if (!fs.existsSync(FIXED_FILES_PATH)) {
+      throw new Error(`Fixed files path does not exist: ${FIXED_FILES_PATH}`);
+    }
+
     // Read the files that were fixed from provided paths
     const fixedFiles = fs.readFileSync(FIXED_FILES_PATH, 'utf8');
 

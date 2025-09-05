@@ -18,11 +18,29 @@ touch "$OUTPUT_FILE"
 while IFS= read -r file; do
     echo "START: $file" | tee -a "$OUTPUT_FILE"
 
+    # Get file modification time before running gopls
+    if [[ -f "$file" ]]; then
+        before_mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo "0")
+    else
+        before_mtime="0"
+    fi
+
     if gopls codeaction -kind=quickfix -write -tags="aws,gcp,ssh,sops,tofu,tflint,engine,parse,mocks,private_registry,awsgcp,awsoidc" "$file"; then
-        echo "SUCCESS: $file" | tee -a "$OUTPUT_FILE"
+        # Check if file was actually modified (has fixes applied)
+        if [[ -f "$file" ]]; then
+            after_mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo "0")
+        else
+            after_mtime="0"
+        fi
+
+        if [[ "$after_mtime" != "$before_mtime" ]]; then
+            echo "SUCCESS: $file (fixes applied)" | tee -a "$OUTPUT_FILE"
+            echo "$file" >> "$FIXED_FILES"
+        else
+            echo "SUCCESS: $file (no fixes needed)" | tee -a "$OUTPUT_FILE"
+        fi
     else
         echo "FAILED: $file" | tee -a "$FAILURES_FILE" "$OUTPUT_FILE"
-        echo "$file" >> "$FIXED_FILES"
     fi
 
     echo "END: $file" | tee -a "$OUTPUT_FILE"
