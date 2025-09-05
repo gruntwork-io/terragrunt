@@ -3,10 +3,8 @@ package common
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/go-commons/collections"
@@ -357,7 +355,7 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 
 	parseCtx := r.createParsingContext(ctx, l, opts)
 
-	if err := r.acquireCredentials(ctx, l, opts); err != nil {
+	if err = r.acquireCredentials(ctx, l, opts); err != nil {
 		return nil, err
 	}
 
@@ -376,29 +374,11 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 
 	opts.Source = terragruntSource
 
-	if err := r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
+	if err = r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
 		return nil, err
 	}
 
-	hasFiles := false
-	configDir := filepath.Dir(terragruntConfigPath)
-	err = filepath.WalkDir(configDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		if strings.HasSuffix(path, ".tf") || strings.HasSuffix(path, ".tofu") {
-			hasFiles = true
-
-			return filepath.SkipAll
-		}
-
-		return nil
-	})
+	hasFiles, err := util.DirContainsTFFiles(filepath.Dir(terragruntConfigPath))
 	if err != nil {
 		return nil, err
 	}
