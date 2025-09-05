@@ -3,6 +3,7 @@
 package awshelper_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -75,4 +76,46 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 			assert.False(t, response)
 		})
 	}
+}
+
+func TestCreateAwsConfigWithAuthProviderEnv(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx := context.Background()
+
+	opts := &options.TerragruntOptions{
+		Env: map[string]string{
+			"AWS_ACCESS_KEY_ID":     "test-access-key",
+			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+			"AWS_SESSION_TOKEN":     "test-session-token",
+			"AWS_REGION":            "us-west-2",
+		},
+	}
+
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "us-west-2", cfg.Region)
+
+	assert.NotNil(t, cfg.Credentials)
+}
+
+func TestCreateAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx := context.Background()
+
+	opts := &options.TerragruntOptions{
+		Env: map[string]string{
+			"AWS_ACCESS_KEY_ID":     "test-access-key",
+			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+			"AWS_DEFAULT_REGION":    "eu-west-1",
+		},
+	}
+
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "eu-west-1", cfg.Region)
+	assert.NotNil(t, cfg.Credentials)
 }
