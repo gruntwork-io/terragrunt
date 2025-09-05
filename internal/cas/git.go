@@ -75,6 +75,7 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	cmd := g.prepareCommand(ctx, "ls-remote", args...)
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -140,6 +141,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	cmd := g.prepareCommand(ctx, "clone", args...)
 
 	var stderr bytes.Buffer
+
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -202,6 +204,7 @@ func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, 
 	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -228,6 +231,7 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string)
 	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

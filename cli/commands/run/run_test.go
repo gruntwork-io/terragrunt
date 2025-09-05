@@ -71,6 +71,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
+
 			opts.Env = tc.envVarsInOpts
 
 			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
@@ -85,6 +86,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 func TestTerragruntTerraformCodeCheck(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		description string
 		workingDir  string
@@ -138,7 +140,9 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
+
 			opts.WorkingDir = tc.workingDir
+
 			err = run.CheckFolderContainsTerraformCode(opts)
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
@@ -324,8 +328,10 @@ func TestToTerraformEnvVars(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
+
 			opts, err := options.NewTerragruntOptionsForTest("")
 			require.NoError(t, err)
+
 			l := logger.CreateLogger()
 			actual, err := run.ToTerraformEnvVars(l, opts, tc.vars)
 			require.NoError(t, err)
@@ -449,7 +455,6 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 
 		assert.Equal(t, tc.expectedArgs, out)
 	}
-
 }
 
 var defaultLogLevel = log.DebugLevel
@@ -458,6 +463,7 @@ func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) 
 	t.Helper()
 
 	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
+
 	return o
 }
 
@@ -510,6 +516,7 @@ func TestShouldCopyLockFile(t *testing.T) {
 		terraformConfig *config.TerraformConfig
 		args            []string
 	}
+
 	tests := []struct {
 		name string
 		args args

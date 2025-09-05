@@ -221,6 +221,7 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 			if tc.reverse {
 				f = util.RemoveDuplicatesFromListKeepLast[[]string]
 			}
+
 			assert.Equal(t, tc.expected, f(tc.list), "For list %v", tc.list)
 			t.Logf("%v passed", tc.list)
 		})
@@ -279,7 +280,9 @@ func TestMapToSlice(t *testing.T) {
 
 	t.Run("Empty Map", func(t *testing.T) {
 		t.Parallel()
+
 		m := make(map[string]*int)
+
 		result := util.MapToSlice(m)
 		if len(result) != 0 {
 			t.Errorf("Expected empty slice, got %v", result)
@@ -288,8 +291,10 @@ func TestMapToSlice(t *testing.T) {
 
 	t.Run("Single Element Map", func(t *testing.T) {
 		t.Parallel()
+
 		val := 42
 		m := map[string]*int{"key1": &val}
+
 		result := util.MapToSlice(m)
 		if len(result) != 1 || result[0] != &val {
 			t.Errorf("Expected slice with one element %v, got %v", &val, result)

@@ -65,7 +65,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
-
 	if err != nil {
 		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
@@ -103,6 +102,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"config_count": len(cfgs),
 	}, func(ctx context.Context) error {
 		var convErr error
+
 		foundCfgs, convErr = discoveredToFound(cfgs, opts)
 
 		return convErr

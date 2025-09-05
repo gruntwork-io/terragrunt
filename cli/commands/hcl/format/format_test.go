@@ -50,7 +50,6 @@ func TestHCLFmt(t *testing.T) {
 		}
 		for _, dir := range dirs {
 			// Capture range variable into for block so it doesn't change while looping
-
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
@@ -91,7 +90,6 @@ func TestHCLFmt(t *testing.T) {
 			assert.Equal(t, original, actual)
 		})
 	})
-
 }
 
 func TestHCLFmtErrors(t *testing.T) {
@@ -113,7 +111,6 @@ func TestHCLFmtErrors(t *testing.T) {
 	}
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -162,7 +159,6 @@ func TestHCLFmtCheck(t *testing.T) {
 
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -207,7 +203,6 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -246,6 +241,7 @@ func TestHCLFmtFile(t *testing.T) {
 	t.Run("formatted", func(t *testing.T) {
 		t.Run(tgOptions.HclFile, func(t *testing.T) {
 			t.Parallel()
+
 			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
 			formatted, err := os.ReadFile(tgHclPath)
 			require.NoError(t, err)
@@ -264,9 +260,9 @@ func TestHCLFmtFile(t *testing.T) {
 	// test that none of the other files were formatted
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
+
 			testingPath := filepath.Join(tmpPath, dir)
 			actual, err := os.ReadFile(testingPath)
 			require.NoError(t, err)
@@ -282,16 +278,21 @@ func TestHCLFmtStdin(t *testing.T) {
 	realStdout := os.Stdout
 
 	tempStdoutFile, err := os.CreateTemp(t.TempDir(), "stdout.hcl")
+
 	defer func() {
 		_ = tempStdoutFile.Close()
 	}()
+
 	require.NoError(t, err)
 
 	os.Stdout = tempStdoutFile
+
 	defer func() { os.Stdout = realStdout }()
 
 	os.Stdin, err = os.Open("../../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
+
 	defer func() { os.Stdin = realStdin }()
+
 	require.NoError(t, err)
 
 	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-stdin/expected.hcl")
@@ -315,6 +316,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
+
 	require.NoError(t, err)
 
 	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-heredoc/expected.hcl")

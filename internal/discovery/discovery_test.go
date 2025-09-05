@@ -264,6 +264,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Sort the configs and their dependencies to ensure consistent ordering
@@ -461,6 +462,7 @@ exclude {
 				return cfg
 			}
 		}
+
 		return nil
 	}
 
@@ -479,6 +481,7 @@ exclude {
 
 	unit3 := findConfig("unit3")
 	require.NotNil(t, unit3)
+
 	if unit3.Parsed != nil {
 		assert.Nil(t, unit3.Parsed.Exclude)
 	}
@@ -704,12 +707,14 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 
 	// Find app config and assert it only has internal deps
 	var appCfg *discovery.DiscoveredConfig
+
 	for _, c := range cfgs {
 		if c.Path == appDir {
 			appCfg = c
 			break
 		}
 	}
+
 	require.NotNil(t, appCfg)
 	depPaths := appCfg.Dependencies.Paths()
 	assert.Contains(t, depPaths, dbDir)

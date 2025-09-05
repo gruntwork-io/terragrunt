@@ -78,6 +78,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 	// ensure that only one goroutine can initialize bucket
 	mu := backend.GetBucketMutex(bucketName)
+
 	mu.Lock()
 	defer mu.Unlock()
 

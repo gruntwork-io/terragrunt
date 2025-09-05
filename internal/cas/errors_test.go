@@ -10,6 +10,7 @@ import (
 
 func TestErrorString(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  cas.Error
@@ -37,6 +38,7 @@ func TestErrorString(t *testing.T) {
 
 func TestWrappedError(t *testing.T) {
 	t.Parallel()
+
 	baseErr := errors.New("base error")
 	tests := []struct {
 		name    string

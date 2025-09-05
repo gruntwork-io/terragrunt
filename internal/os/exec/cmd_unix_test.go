@@ -33,6 +33,7 @@ func TestExitCodeUnix(t *testing.T) {
 		} else {
 			require.Error(t, err)
 		}
+
 		retCode, err := util.GetExitCode(err)
 		require.NoError(t, err)
 		assert.Equal(t, index, retCode)
@@ -60,6 +61,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	time.Sleep(time.Second)
 	start := time.Now()
+
 	cmd.Process.Signal(os.Interrupt)
 
 	err := <-runChannel
@@ -90,15 +92,20 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	time.Sleep(time.Second)
 
 	interruptAndWaitForProcess := func() (int, error) {
-		var interrupts int
-		var err error
+		var (
+			interrupts int
+			err        error
+		)
+
 		for {
 			time.Sleep(500 * time.Millisecond)
+
 			select {
 			case err = <-runChannel:
 				return interrupts, err
 			default:
 				cmd.Process.Signal(os.Interrupt)
+
 				interrupts++
 			}
 		}

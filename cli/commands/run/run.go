@@ -216,7 +216,6 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, terragruntConfig, r)
 			return err
 		})
-
 		if err != nil {
 			return target.runErrorCallback(l, opts, terragruntConfig, err)
 		}
@@ -268,8 +267,10 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
+
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
+
 	actualLock.Lock()
 
 	for _, config := range cfg.GenerateConfigs {
@@ -451,6 +452,7 @@ func ShouldCopyLockFile(args cli.Args, terraformConfig *config.TerraformConfig) 
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func RunActionWithHooks(ctx context.Context, l log.Logger, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
 	var allErrors *errors.MultiError
+
 	beforeHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = allErrors.Append(beforeHookErrors)
 
@@ -516,6 +518,7 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.Terr
 						}
 					}
 				}
+
 				select {
 				case <-time.After(opts.RetrySleepInterval):
 					// try again
@@ -584,7 +587,6 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}

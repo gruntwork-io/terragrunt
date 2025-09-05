@@ -90,6 +90,7 @@ func TestExecCommandTfPath(t *testing.T) {
 
 			downloadDirPath := util.JoinPath(rootPath, ".terragrunt-cache")
 			scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmdTfPath, "./script.sh")
+
 			tfPath := ""
 			if tc.tfPath != "" {
 				tfPath = "--tf-path " + util.JoinPath(tmpEnvPath, testFixtureExecCmdTfPath, tc.tfPath)

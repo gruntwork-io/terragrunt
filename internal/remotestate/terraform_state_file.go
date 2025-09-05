@@ -70,13 +70,11 @@ func ParseTerraformStateFileFromLocation(backend string, config backend.Config, 
 // ParseTerraformStateFile parses the Terraform .tfstate file located at the specified path.
 func ParseTerraformStateFile(path string) (*TerraformState, error) {
 	bytes, err := os.ReadFile(path)
-
 	if err != nil {
 		return nil, errors.New(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}
 
 	state, err := ParseTerraformState(bytes)
-
 	if err != nil {
 		return nil, errors.New(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}

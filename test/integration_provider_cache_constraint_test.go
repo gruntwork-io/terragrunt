@@ -135,6 +135,7 @@ func extractConstraintsFromLockFile(t *testing.T, appPath string, providerName s
 			}
 		}
 	}
+
 	require.NotNil(t, providerBlock, "Provider block should exist in lock file")
 
 	// Get the constraints attribute
@@ -142,5 +143,6 @@ func extractConstraintsFromLockFile(t *testing.T, appPath string, providerName s
 	require.NotNil(t, constraintsAttr, "Constraints attribute should exist")
 
 	constraintsValue := strings.Trim(string(constraintsAttr.Expr().BuildTokens(nil).Bytes()), ` "`)
+
 	return constraintsValue
 }

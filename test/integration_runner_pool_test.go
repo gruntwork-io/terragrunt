@@ -66,12 +66,14 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 
 	// Parse the destruction order from stdout
 	var destroyOrder []string
+
 	re := regexp.MustCompile(`Hello, Module ([A-Za-z]+)`)
 	for line := range strings.SplitSeq(stdout, "\n") {
 		if match := re.FindStringSubmatch(line); match != nil {
 			destroyOrder = append(destroyOrder, "module-"+strings.ToLower(match[1]))
 		}
 	}
+
 	t.Logf("Actual destroy order: %v", destroyOrder)
 
 	index := make(map[string]int)
@@ -150,7 +152,6 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
-
 }
 
 func TestRunnerPoolRemoteSource(t *testing.T) {

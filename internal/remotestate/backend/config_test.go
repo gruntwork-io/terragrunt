@@ -10,6 +10,7 @@ import (
 
 func TestConfig_IsEqual(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct { //nolint: govet
 		name            string
 		existingBackend backend.Config

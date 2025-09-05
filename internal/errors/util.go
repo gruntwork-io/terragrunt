@@ -105,7 +105,6 @@ func UnwrapErrors(err error) []error {
 	for _, err := range UnwrapMultiErrors(err) {
 		for {
 			errs = append(errs, err)
-
 			if err = errors.Unwrap(err); err == nil {
 				break
 			}

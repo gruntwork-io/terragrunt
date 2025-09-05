@@ -37,6 +37,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 	writeDummyTerragruntConfigs(t, tempFolder, filePaths)
 
 	envFolder := filepath.ToSlash(util.JoinPath(tempFolder + "/stage"))
+
 	terragruntOptions, err := options.NewTerragruntOptionsWithConfigPath(envFolder)
 	if err != nil {
 		t.Fatalf("Failed when calling method under test: %s\n", err.Error())
@@ -46,6 +47,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	runner, err := configstack.Build(t.Context(), logger.CreateLogger(), terragruntOptions)
 	require.NoError(t, err)
+
 	stack := runner.GetStack()
 
 	var unitsPaths = make([]string, 0, len(stack.Units))
@@ -111,7 +113,6 @@ func TestGetUnitRunGraphDestroyOrder(t *testing.T) {
 		},
 		runGraph,
 	)
-
 }
 
 func createTestRunner() *configstack.Runner {
@@ -122,7 +123,6 @@ func createTestRunner() *configstack.Runner {
 	// - mysql; depends on vpc
 	// - redis; depends on vpc
 	// - myapp; depends on mysql and redis
-
 	l := logger.CreateLogger()
 
 	basePath := "/stage/mystack"
@@ -184,6 +184,7 @@ func writeDummyTerragruntConfigs(t *testing.T, tmpFolder string, paths []string)
 	t.Helper()
 
 	contents := []byte("terraform {\nsource = \"test\"\n}\n")
+
 	for _, path := range paths {
 		absPath := util.JoinPath(tmpFolder, path)
 
@@ -692,8 +693,10 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			opts, err := options.NewTerragruntOptionsForTest("running_module_test")
 			require.NoError(t, err)
+
 			if opts.StrictControls.FilterByNames("double-star").Evaluate(t.Context()) != nil && !tt.strictDoubleStar {
 				t.Skip("Skipping test because double-star is already enabled by default")
 			}
@@ -703,6 +706,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 				opts.StrictControls.FilterByNames("double-star").Enable()
 			} else {
 				var err error
+
 				opts.ExcludeDirs, err = util.GlobCanonicalPath(log.Default(), "", opts.ExcludeDirs...)
 				require.NoError(t, err)
 			}
@@ -1273,6 +1277,7 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	require.Error(t, actualErr)
 
 	var processingUnitError common.ProcessingUnitError
+
 	ok := errors.As(actualErr, &processingUnitError)
 	require.True(t, ok)
 

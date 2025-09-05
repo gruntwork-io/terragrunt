@@ -61,12 +61,15 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	modules, err := repo.FindModules(ctx)
 	require.NoError(t, err)
+
 	var auroraModule *module.Module
+
 	for _, m := range modules {
 		if m.Title() == "Terraform Fake AWS Aurora Module" {
 			auroraModule = m
 		}
 	}
+
 	assert.NotNil(t, auroraModule)
 
 	testPath := t.TempDir()
@@ -100,12 +103,15 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	modules, err := repo.FindModules(ctx)
 	require.NoError(t, err)
+
 	var auroraModule *module.Module
+
 	for _, m := range modules {
 		if m.Title() == "Terraform Fake AWS Aurora Module" {
 			auroraModule = m
 		}
 	}
+
 	assert.NotNil(t, auroraModule)
 
 	testPath := t.TempDir()

@@ -37,8 +37,8 @@ func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig
 		Result:      &b.Data,
 		ErrorUnused: true,
 	}
-	decoder, err := mapstructure.NewDecoder(decoderConfig)
 
+	decoder, err := mapstructure.NewDecoder(decoderConfig)
 	if err != nil {
 		return errors.Errorf("failed to create decoder: %w", err)
 	}
@@ -52,8 +52,8 @@ func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig
 
 func (b *GenericRemoteEncryptionKeyProvider[T]) ToMap() (map[string]any, error) {
 	var result map[string]any
-	err := mapstructure.Decode(b.Data, &result)
 
+	err := mapstructure.Decode(b.Data, &result)
 	if err != nil {
 		return nil, errors.Errorf("failed to decode struct to map: %w", err)
 	}

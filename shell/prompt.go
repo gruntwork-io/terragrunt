@@ -47,6 +47,7 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, opts *
 			errCh <- errors.New(err)
 			return
 		}
+
 		inputCh <- strings.TrimSpace(input)
 	}()
 

@@ -78,6 +78,7 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 		if err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
 			t.Fatalf("Failed to properly fail command: %v.", cmd)
 		}
+
 		output := stdout.String()
 		errOutput := stderr.String()
 		assert.True(t, strings.Contains(errOutput, tc.expected) || strings.Contains(output, tc.expected))
@@ -99,6 +100,7 @@ func TestDeprecatedTerragruntInfoCommand_TerragruntInfoError(t *testing.T) {
 
 	// parse stdout json as InfoOutput
 	var output print.InfoOutput
+
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	require.NoError(t, err)
 }
