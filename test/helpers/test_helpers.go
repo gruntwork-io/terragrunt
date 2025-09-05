@@ -68,6 +68,8 @@ func IsRunnerPoolExperimentEnabled(t *testing.T) bool {
 // IsExperimentMode returns true if the TG_EXPERIMENT_MODE environment variable is set.
 func IsExperimentMode(t *testing.T) bool {
 	t.Helper()
-	// check if TG_EXPERIMENT_MODE is set in env
-	return os.Getenv("TG_EXPERIMENT_MODE") != ""
+	// Enable only on explicit true
+	val := strings.TrimSpace(os.Getenv("TG_EXPERIMENT_MODE"))
+
+	return strings.EqualFold(val, "true")
 }
