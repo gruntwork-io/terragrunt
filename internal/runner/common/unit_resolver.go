@@ -3,8 +3,10 @@ package common
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/go-commons/collections"
@@ -378,12 +380,30 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 		return nil, err
 	}
 
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
+	hasFiles := false
+	configDir := filepath.Dir(terragruntConfigPath)
+	err = filepath.WalkDir(configDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(path, ".tf") || strings.HasSuffix(path, ".tofu") {
+			hasFiles = true
+
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && len(matches) == 0 {
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
 		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
