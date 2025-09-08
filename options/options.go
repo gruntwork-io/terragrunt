@@ -328,6 +328,10 @@ type TerragruntOptions struct {
 	FailFast bool
 	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
 	NoDependencyPrompt bool
+	// NoShell disables shell commands when using boilerplate templates in catalog and scaffold commands.
+	NoShell bool
+	// NoHooks disables hooks when using boilerplate templates in catalog and scaffold commands.
+	NoHooks bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -436,6 +440,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
 		NoDependencyPrompt:         false,
+		NoShell:                    false,
+		NoHooks:                    false,
 	}
 }
 

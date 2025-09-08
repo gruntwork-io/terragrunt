@@ -1,0 +1,17 @@
+---
+name: no-shell
+description: "Disable shell commands when using boilerplate templates in the catalog."
+type: bool
+env:
+  - TG_NO_SHELL
+---
+
+When enabled, Terragrunt will disable shell commands when processing boilerplate templates during catalog operations.
+
+This is useful for security reasons when you want to prevent templates from executing arbitrary shell commands on your system.
+
+Examples:
+
+```bash
+terragrunt catalog --no-shell
+```

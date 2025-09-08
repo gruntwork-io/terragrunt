@@ -6,6 +6,8 @@ sidebar:
   order: 6
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Launch the user interface for searching and managing your module catalog.
 
 ```bash
@@ -31,6 +33,8 @@ catalog {
     "github.com/gruntwork-io/terraform-aws-lambda", # url to remote repository
     "http://github.com/gruntwork-io/terraform-aws-lambda", # same as above
   ]
+  no_shell = true  # Optional: disable shell commands in boilerplate templates for security
+  no_hooks = true  # Optional: disable hooks in boilerplate templates for security
 }
 ```
 
@@ -40,6 +44,30 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
 1. See the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`](/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
+
+## Security Configuration
+
+The `catalog` block supports security-related configuration options:
+
+- `no_shell` (bool): When set to `true`, disables shell command execution in boilerplate templates during scaffolding. This is useful for organizations that want to prevent the use of shell commands in templates for security reasons.
+- `no_hooks` (bool): When set to `true`, disables hook execution in boilerplate templates during scaffolding. This is useful for organizations that want to prevent the use of hooks in templates for security reasons.
+
+<Aside type="caution">
+
+Do not use catalog/scaffold to scaffold untrusted templates. IaC configurations are inherently powerful, as they
+can run arbitrary code on your system, so make sure to only use trusted templates you have reviewed and approved.
+
+</Aside>
+
+These configuration values can be overridden by their corresponding CLI flags:
+
+```bash
+terragrunt catalog --no-shell --no-hooks
+
+terragrunt scaffold module-url --no-shell
+```
+
+**Priority order**: CLI flags > catalog configuration > defaults (both default to `false`, allowing `shell` and `hooks` to be used by default)
 
 ## Custom templates for scaffolding
 

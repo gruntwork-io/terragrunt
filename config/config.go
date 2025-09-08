@@ -578,6 +578,14 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			catalogBody.SetAttributeValue("urls", catalogAsCty.GetAttr("urls"))
 		}
 
+		if cfg.Catalog.NoShell != nil {
+			catalogBody.SetAttributeValue("no_shell", catalogAsCty.GetAttr("no_shell"))
+		}
+
+		if cfg.Catalog.NoHooks != nil {
+			catalogBody.SetAttributeValue("no_hooks", catalogAsCty.GetAttr("no_hooks"))
+		}
+
 		rootBody.AppendBlock(catalogBlock)
 	}
 

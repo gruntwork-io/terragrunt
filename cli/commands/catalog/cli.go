@@ -18,6 +18,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	return scaffold.NewFlags(opts, prefix).Filter(
 		scaffold.RootFileNameFlagName,
 		scaffold.NoIncludeRootFlagName,
+		scaffold.NoShellFlagName,
+		scaffold.NoHooksFlagName,
 	)
 }
 
