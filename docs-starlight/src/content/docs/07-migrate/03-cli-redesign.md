@@ -120,6 +120,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-source`                             | `--source`                                                |
 | `--terragrunt-strict-include`                     | `--queue-strict-include`                                  |
 | `--terragrunt-strict-validate`                    | `--strict-validate`                                       |
+| `--terragrunt-tfpath`                             | `--tf-path`                                               |
 | `--terragrunt-use-partial-parse-config-cache`     | `--use-partial-parse-config-cache`                        |
 | `--terragrunt-working-dir`                        | `--working-dir`                                           |
 | `--terragrunt-non-interactive`                    | `--non-interactive`                                       |
