@@ -118,7 +118,12 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 				return nil, errors.New(err)
 			}
 
-			terraformFiles = append(terraformFiles, moduleFiles...)
+			// Filter out JSON files (.tf.json, .tofu.json, or any .json) as hclwrite cannot parse JSON
+			for _, file := range moduleFiles {
+				if !strings.HasSuffix(file, ".json") {
+					terraformFiles = append(terraformFiles, file)
+				}
+			}
 		}
 	}
 
