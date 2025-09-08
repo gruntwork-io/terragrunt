@@ -107,6 +107,9 @@ const (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
+	// Apply catalog configuration settings, with CLI flags taking precedence
+	applyCatalogConfigToScaffold(ctx, l, opts)
+
 	// download remote repo to local
 	var dirsToClean []string
 	// clean all temp dirs
@@ -201,8 +204,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		OnMissingKey:            boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig:         boilerplate_options.DefaultMissingConfigAction,
 		Vars:                    vars,
-		NoShell:                 true,
-		NoHooks:                 true,
+		NoShell:                 opts.NoShell,
+		NoHooks:                 opts.NoHooks,
 		NonInteractive:          opts.NonInteractive,
 		DisableDependencyPrompt: opts.NoDependencyPrompt,
 		TemplateFolder:          boilerplateDir,
@@ -222,6 +225,36 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	l.Info("Scaffolding completed")
 
 	return nil
+}
+
+// applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
+// CLI flags take precedence over config file settings.
+func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) {
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, opts)
+	if err != nil {
+		// Don't fail if catalog config can't be read - it's optional
+		l.Debugf("Could not read catalog config for scaffold: %v", err)
+		return
+	}
+
+	if catalogCfg == nil {
+		return
+	}
+
+	// Apply config settings only if CLI flags weren't explicitly set
+	// Since both NoShell and NoHooks default to false, we apply the config value
+	// only if it's true (enabling the restriction)
+	if catalogCfg.NoShell != nil && *catalogCfg.NoShell && !opts.NoShell {
+		l.Debugf("Applying catalog config: no_shell = true")
+
+		opts.NoShell = true
+	}
+
+	if catalogCfg.NoHooks != nil && *catalogCfg.NoHooks && !opts.NoHooks {
+		l.Debugf("Applying catalog config: no_hooks = true")
+
+		opts.NoHooks = true
+	}
 }
 
 // generateDefaultTemplate - write default template to provided dir

@@ -24,6 +24,8 @@ const (
 	VarFlagName           = "var"
 	VarFileFlagName       = "var-file"
 	NoDependencyPrompt    = "no-dependency-prompt"
+	NoShellFlagName       = "no-shell"
+	NoHooksFlagName       = "no-hooks"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -86,6 +88,20 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(NoDependencyPrompt),
 			Destination: &opts.NoDependencyPrompt,
 			Usage:       "Do not prompt for confirmation to include dependencies.",
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoShellFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoShellFlagName),
+			Destination: &opts.NoShell,
+			Usage:       "Disable shell commands when using boilerplate templates.",
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoHooksFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
+			Destination: &opts.NoHooks,
+			Usage:       "Disable hooks when using boilerplate templates.",
 		}),
 	}
 }
