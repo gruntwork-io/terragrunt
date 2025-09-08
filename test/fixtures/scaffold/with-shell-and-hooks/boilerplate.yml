@@ -1,0 +1,13 @@
+variables:
+  - name: TestVariable
+    description: A test variable
+    type: string
+    default: "test-value"
+
+hooks:
+  before:
+    - command: echo "BEFORE_HOOK_EXECUTED"
+      description: "Test hook before rendering"
+  after:
+    - command: echo "AFTER_HOOK_EXECUTED"
+      description: "Test hook after rendering"
