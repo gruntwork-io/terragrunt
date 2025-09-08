@@ -563,8 +563,8 @@ github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0/go.mod h1:8NvIoxWQoOIhqOTXgf
 github.com/grpc-ecosystem/grpc-gateway v1.8.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t/GYV9WGTSLVdBhOQFDY=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 h1:8Tjv8EJ+pM1xP8mK6egEbD1OgnVTyacbefKhmbLhIhU=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2/go.mod h1:pkJQ2tZHJ0aFOVEEot6oZmaVEZcRme73eIFmhiVuRWs=
-github.com/gruntwork-io/boilerplate v0.8.1 h1:FHP5CA86FguvgCERqf3U6ZKFxWxqW8/sp226sUCuiy0=
-github.com/gruntwork-io/boilerplate v0.8.1/go.mod h1:h7U/nXYnViGXVQilZqX498hH5PCFrmaGwp4xdhGVu8c=
+github.com/gruntwork-io/boilerplate v0.10.0 h1:q64OAkkREVGCR0sfbq0z88H378L/IDFYoZ8Ohn+WJRM=
+github.com/gruntwork-io/boilerplate v0.10.0/go.mod h1:h7U/nXYnViGXVQilZqX498hH5PCFrmaGwp4xdhGVu8c=
 github.com/gruntwork-io/go-commons v0.17.2 h1:14dsCJ7M5Vv2X3BIPKeG9Kdy6vTMGhM8L4WZazxfTuY=
 github.com/gruntwork-io/go-commons v0.17.2/go.mod h1:zs7Q2AbUKuTarBPy19CIxJVUX/rBamfW8IwuWKniWkE=
 github.com/gruntwork-io/terragrunt-engine-go v0.0.16 h1:1i/VRCOedQIOgPkmqyXl295EKF9saOjRoo/I+zuLKpY=
