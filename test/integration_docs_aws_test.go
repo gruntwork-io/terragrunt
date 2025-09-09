@@ -1,14 +1,20 @@
-//go:build aws
+// FIXME: Add this back
+
+// //go:build aws
 
 package test_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -140,5 +146,125 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 		require.NoError(t, err)
+	})
+}
+
+// We don't run these subtests in parallel because each subtest builds on the previous one.
+//
+//nolint:paralleltest
+func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
+
+	t.Run("setup", func(t *testing.T) {
+		// Create a temporary workspace for the test
+		tmpDir := t.TempDir()
+
+		helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
+
+		repoPath := filepath.Join(tmpDir, "terralith-to-terragrunt")
+
+		helpers.ExecWithTestLogger(t, repoPath, "git", "init")
+
+		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "terragrunt@0.83.2")
+		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "opentofu@1.10.3")
+		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "aws@2.27.63")
+		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "node@22.17.1")
+
+		miseTomlPath := util.JoinPath(repoPath, "mise.toml")
+		require.FileExists(t, miseTomlPath)
+		miseToml, err := os.ReadFile(miseTomlPath)
+		require.NoError(t, err)
+
+		assert.Equal(t, string(miseToml), `[tools]
+aws = "2.27.63"
+node = "22.17.1"
+opentofu = "1.10.3"
+terragrunt = "0.83.2"
+`)
+
+		helpers.ExecWithTestLogger(t, repoPath, "mkdir", "-p", "app/best-cat")
+
+		bestCatPath := filepath.Join(repoPath, "app", "best-cat")
+
+		helpers.CopyFile(
+			t, filepath.Join(
+				fixturePath,
+				"app",
+				"best-cat",
+				"package.json",
+			), filepath.Join(bestCatPath, "package.json"),
+		)
+
+		helpers.CopyFile(
+			t, filepath.Join(
+				fixturePath,
+				"app",
+				"best-cat",
+				"index.js",
+			), filepath.Join(bestCatPath, "index.js"),
+		)
+
+		helpers.CopyFile(
+			t, filepath.Join(
+				fixturePath,
+				"app",
+				"best-cat",
+				"template.html",
+			), filepath.Join(bestCatPath, "template.html"),
+		)
+
+		helpers.CopyFile(
+			t, filepath.Join(
+				fixturePath,
+				"app",
+				"best-cat",
+				"styles.css",
+			), filepath.Join(bestCatPath, "styles.css"),
+		)
+
+		helpers.CopyFile(
+			t, filepath.Join(
+				fixturePath,
+				"app",
+				"best-cat",
+				"script.js",
+			), filepath.Join(bestCatPath, "script.js"),
+		)
+
+		helpers.CopyFile(
+			t, filepath.Join(
+				fixturePath,
+				"app",
+				"best-cat",
+				"package-lock.json",
+			), filepath.Join(bestCatPath, "package-lock.json"),
+		)
+
+		helpers.ExecWithTestLogger(t, repoPath, "mkdir", "dist")
+
+		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "i")
+		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "run", "package")
+
+		// Create some fake files in the dist directory to mock assets.
+		distDir := filepath.Join(repoPath, "dist")
+
+		require.NoError(t, os.Mkdir(filepath.Join(distDir, "static"), 0755))
+
+		for i := range 10 {
+			require.NoError(
+				t,
+				os.WriteFile(
+					filepath.Join(
+						distDir,
+						"static", fmt.Sprintf("%d-cat.png", i+1)),
+					[]byte(""),
+					0644,
+				),
+			)
+		}
+
+		t.Log("Setup complete")
 	})
 }
