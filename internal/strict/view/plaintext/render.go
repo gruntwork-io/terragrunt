@@ -31,7 +31,6 @@ func (render *Render) List(controls strict.Controls) (string, error) {
 	result, err := render.executeTemplate(listTemplate, map[string]any{
 		"controls": controls,
 	}, nil)
-
 	if err != nil {
 		return "", errors.Errorf("failed to render controls list: %w", err)
 	}

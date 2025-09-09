@@ -21,6 +21,7 @@ func (lockfile *Lockfile) Unlock() error {
 	if lockfile.Flock == nil {
 		return nil
 	}
+
 	if err := lockfile.Flock.Unlock(); err != nil {
 		return errors.New(err)
 	}

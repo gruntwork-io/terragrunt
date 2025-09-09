@@ -112,7 +112,7 @@ Variables loaded in OpenTofu/Terraform will consequently use the following prece
 
 The terragrunt `download_dir` string option can be used to override the default download directory.
 
-The precedence is as follows: `--download-dir` command line option → `TG_DOWNLOAD` env variable →
+The precedence is as follows: `--download-dir` command line option → `TG_DOWNLOAD_DIR` env variable →
 `download_dir` attribute of the `terragrunt.hcl` file in the module directory → `download_dir` attribute of the included
 `terragrunt.hcl`.
 
@@ -226,7 +226,7 @@ The precedence is as follows: `--iam-web-identity-token` command line option →
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
-The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines wihthout static AWS credentials.
+The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines without static AWS credentials.
 
 ### Git Provider Configuration
 

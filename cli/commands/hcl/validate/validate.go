@@ -67,6 +67,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 					diags = append(diags, newDiag)
 				}
 			}
+
 			return nil, nil
 		}),
 	}

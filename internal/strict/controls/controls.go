@@ -50,6 +50,10 @@ const (
 
 	// BareInclude is the control that prevents the use of the `include` block without a label.
 	BareInclude = "bare-include"
+
+	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
+	// and will log a warning when using **/*
+	DoubleStar = "double-star"
 )
 
 //nolint:lll
@@ -76,6 +80,7 @@ func New() strict.Controls {
 		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
 		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
 	}
 
 	controls := strict.Controls{
@@ -163,6 +168,7 @@ func New() strict.Controls {
 			Name:        TerragruntPrefixFlags,
 			Description: "Prevents deprecated flags with `terragrunt-` prefixes from being used.",
 			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        TerragruntPrefixEnvVars,
@@ -193,6 +199,14 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
 			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
+		},
+
+		&Control{
+			Name:        DoubleStar,
+			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
+			Category:    stageCategory,
+			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
+			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 		},
 	}
 

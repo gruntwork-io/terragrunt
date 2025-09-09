@@ -59,6 +59,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 		refsDir := filepath.Join(gitDir, "refs")
 		headsDir := filepath.Join(refsDir, "heads")
 		remotesDir := filepath.Join(refsDir, "remotes", "origin")
+
 		os.MkdirAll(headsDir, 0755)
 		os.MkdirAll(remotesDir, 0755)
 

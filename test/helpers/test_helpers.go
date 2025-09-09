@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,4 +57,19 @@ func CreateFile(t *testing.T, paths ...string) {
 
 	err = f.Close()
 	require.NoError(t, err)
+}
+
+// IsRunnerPoolExperimentEnabled returns true if either TG_EXPERIMENT_MODE is set or TG_EXPERIMENT is set to "runner-pool".
+func IsRunnerPoolExperimentEnabled(t *testing.T) bool {
+	t.Helper()
+	return IsExperimentMode(t) || os.Getenv("TG_EXPERIMENT") == experiment.RunnerPool
+}
+
+// IsExperimentMode returns true if the TG_EXPERIMENT_MODE environment variable is set.
+func IsExperimentMode(t *testing.T) bool {
+	t.Helper()
+	// Enable only on explicit true
+	val := strings.TrimSpace(os.Getenv("TG_EXPERIMENT_MODE"))
+
+	return strings.EqualFold(val, "true")
 }

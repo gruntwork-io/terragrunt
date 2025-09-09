@@ -37,8 +37,6 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Skip("Skipping test on Windows")
 	}
 
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-
 	workingDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +77,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"apply", doubleDashed(terragruntPrefix.FlagName("include-external-dependencies"))},
+			args:            []string{"apply", doubleDashed(run.QueueIncludeExternalFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply"}, false, "", false, true, defaultLogLevel, false),
 		},
 
@@ -109,12 +107,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("ignore-external-dependencies"))},
+			args:            []string{"plan", doubleDashed(run.QueueExcludeExternalFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, false),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("iam-role")), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
+			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleFlagName), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
 			expectedOptions: mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 		},
 
@@ -129,7 +127,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("iam-web-identity-token")), "web-identity-token"},
+			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleWebIdentityTokenFlagName), "web-identity-token"},
 			expectedOptions: mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "web-identity-token"),
 		},
 
@@ -279,6 +277,7 @@ func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath strin
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
 	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
+
 	return opts
 }
 
@@ -287,6 +286,7 @@ func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, working
 
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.SourceMap = sourceMap
+
 	return opts
 }
 
@@ -310,6 +310,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
+
 			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -382,9 +383,7 @@ func TestParseMultiStringArg(t *testing.T) {
 func TestParseMutliStringKeyValueArg(t *testing.T) {
 	t.Parallel()
 
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-
-	flagName := doubleDashed(terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName))
+	flagName := doubleDashed(awsproviderpatch.OverrideAttrFlagName)
 
 	testCases := []struct {
 		expectedErr  error
@@ -517,6 +516,7 @@ func TestTerragruntHelp(t *testing.T) {
 			require.NoError(t, err, tc)
 
 			assert.Contains(t, output.String(), tc.expected)
+
 			if tc.notExpected != "" {
 				assert.NotContains(t, output.String(), tc.notExpected)
 			}
@@ -575,6 +575,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
+
 	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
 	app.Commands = append(
 		commands.NewDeprecatedCommands(l, opts),
@@ -587,6 +588,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.ExitErrHandler = cli.ExitErrHandler
 
 	err := app.Run(append([]string{"--"}, args...))
+
 	return opts, err
 }
 

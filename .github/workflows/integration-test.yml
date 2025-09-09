@@ -1,7 +1,7 @@
 name: Integration Tests
 
 on:
-  push:
+  workflow_call:
 
 jobs:
   test:
@@ -148,9 +148,15 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/cas.sh
+          - name: Experiment mode
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/experiment-mode.sh
+            ignore_errors: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -164,7 +170,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
-          version: 2025.4.4
+          version: 2025.8.16
           experimental: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -221,11 +227,14 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             # print command arguments
             set -x
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee >(go-junit-report -set-exit-code > result.xml)
+            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
+            # Generate XML report from test output
+            go-junit-report < test_output.log > result.xml
           else
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
         shell: bash
+        continue-on-error: ${{ matrix.integration.ignore_errors || false }}
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -236,11 +245,13 @@ jobs:
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
 
-      - name: Upload Report (${{ matrix.integration.name }})
+      - name: Upload Test Results (${{ matrix.integration.name }})
         uses: actions/upload-artifact@v4
         with:
-          name: test-report-${{ matrix.integration.name }}
-          path: result.xml
+          name: test-results-${{ matrix.integration.name }}
+          path: |
+            test_output.log
+            result.xml
 
       - name: Display Test Results (${{ matrix.integration.name }})
         uses: mikepenz/action-junit-report@v5
@@ -250,3 +261,22 @@ jobs:
           detailed_summary: 'true'
           include_time_in_summary: 'true'
           group_suite: 'true'
+
+      - name: Print Failed Tests (${{ matrix.integration.name }})
+        run: |
+          echo "Failed Tests in ${{ matrix.integration.name }}"
+          if [[ -f test_output.log ]]; then
+            # Count only test failure lines in a way that is safe with -e -o pipefail
+            failed_count=$(grep -E -c '^--- FAIL:' test_output.log || echo 0)
+            echo "Failed tests count: $failed_count"
+            if [[ "${failed_count}" -gt 0 ]]; then
+              echo "Failed test names:"
+              grep -E '^--- FAIL:' test_output.log | sed 's/.*FAIL:[[:space:]]*//'
+            else
+              echo "No failed tests found"
+            fi
+          else
+            echo "No test output found"
+          fi
+          echo ""
+        shell: bash

@@ -36,6 +36,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
+
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "--version")
 	terragruntOptions.Writer = stdout
 	terragruntOptions.ErrWriter = stderr
@@ -64,6 +65,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 func TestLastReleaseTag(t *testing.T) {
 	t.Parallel()
+
 	var tags = []string{
 		"refs/tags/v0.0.1",
 		"refs/tags/v0.0.2",
@@ -73,6 +75,7 @@ func TestLastReleaseTag(t *testing.T) {
 		"refs/tags/v20.1.2",
 		"refs/tags/v0.5.1",
 	}
+
 	lastTag := shell.LastReleaseTag(tags)
 	assert.NotEmpty(t, lastTag)
 	assert.Equal(t, "v20.1.2", lastTag)
@@ -85,8 +88,10 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	c := cache.ContextCache[string](ctx, cache.RunCmdCacheContextKey)
 	assert.NotNil(t, c)
 	assert.Empty(t, c.Cache)
+
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	l := logger.CreateLogger()
 	path := "."
 	path1, err := shell.GitTopLevelDir(ctx, l, terragruntOptions, path)

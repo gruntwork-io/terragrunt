@@ -1,0 +1,112 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+---
+<div class="flex flex-col w-[460px] bg-[#05112E] rounded-t-lg border-t border-x border-stroke-dark shadow-[2px_-4px_12px_rgba(255,255,255,0.05)]">
+  <!-- Header -->
+  <div class="relative flex items-center justify-center border-b border-stroke-dark px-3 py-1">
+    <div class="absolute left-3 flex gap-1.5">
+      <div class="w-2.5 h-2.5 rounded-full bg-[#FF5E57]"></div>
+      <div class="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]"></div>
+      <div class="w-2.5 h-2.5 rounded-full bg-[#28C840]"></div>
+    </div>
+    <p class="font-mono font-bold text-white text-xs">Install</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 px-1.5 pt-1.5">
+    <div id="tab-macos" class="tab transition duration-[250ms] ease-in-out active-tab">MacOS/Linux</div>
+    <div id="tab-windows" class="tab transition duration-[250ms] ease-in-out">Windows</div>
+    <a
+      class="flex items-center bg-[#05112E] px-3 py-1 text-white/60 text-xs gap-2 hover:cursor-pointer hover:text-white transition duration-[250ms] ease-in-out"
+      href="/docs/getting-started/install/"
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      <p>More options</p>
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
+        <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
+      </svg>
+    </a>
+  </div>
+
+  <!-- Command -->
+  <div class="flex items-center justify-start bg-white/5 px-6 py-2.5 relative">
+    <p id="command-text" class="font-mono text-xs text-white">
+      curl -fsSL <span class="text-accent-2">https://terragrunt.io/install</span> | bash
+    </p>
+    <button class="absolute right-3 text-white/60 hover:cursor-pointer hover:text-white" id="copyBtn">
+      <span class="icon-copy">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-copy" viewBox="0 0 16 16">
+          <path fill-rule="evenodd" d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1z"/>
+        </svg>
+      </span>
+      <span class="icon-check hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check2" viewBox="0 0 16 16">
+          <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0"/>
+        </svg>
+      </span>
+    </button>
+  </div>
+</div>
+
+<style>
+  .tab {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+    font-size: 0.75rem;
+    font-family: sans-serif;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+  }
+
+  .active-tab {
+    border-bottom: 1px solid #05112E;
+    color: white;
+  }
+
+  .tab:hover {
+    color: white;
+  }
+</style>
+
+<script type="module" client:load>
+  const macTab = document.getElementById("tab-macos");
+  const winTab = document.getElementById("tab-windows");
+  const commandText = document.getElementById("command-text");
+  const copyBtn = document.getElementById("copyBtn");
+  const copyIcon = copyBtn.querySelector(".icon-copy");
+  const checkIcon = copyBtn.querySelector(".icon-check");
+
+  let currentCommand = "curl -fsSL https://terragrunt.io/install | bash";
+  let winCommand = "powershell -c terragrunt.io/install.ps1 | iex";
+
+  macTab.addEventListener("click", () => {
+    macTab.classList.add("active-tab");
+    winTab.classList.remove("active-tab");
+    commandText.innerHTML =
+      'curl -fsSL <span class="text-accent-2">https://terragrunt.io/install</span> | bash';
+    currentCommand = "curl -fsSL https://terragrunt.io/install | bash";
+  });
+
+  winTab.addEventListener("click", () => {
+    winTab.classList.add("active-tab");
+    macTab.classList.remove("active-tab");
+    commandText.innerHTML =
+      'powershell -c <span class="text-accent-2">https://terragrunt.io/install.ps1</span> | iex';
+    currentCommand = "powershell -c https://terragrunt.io/install.ps1 | iex";
+  });
+
+  copyBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(currentCommand).then(() => {
+      copyIcon.classList.add("hidden");
+      checkIcon.classList.remove("hidden");
+      setTimeout(() => {
+        copyIcon.classList.remove("hidden");
+        checkIcon.classList.add("hidden");
+      }, 2000);
+    });
+  });
+</script>

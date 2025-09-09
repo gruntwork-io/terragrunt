@@ -117,7 +117,7 @@ func (newFlag *Flag) Apply(set *flag.FlagSet) error {
 			continue
 		}
 
-		if err := deprecated.Flag.Apply(set); err != nil {
+		if err := deprecated.Apply(set); err != nil {
 			return err
 		}
 	}

@@ -74,7 +74,6 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return "", nil, err
 	}

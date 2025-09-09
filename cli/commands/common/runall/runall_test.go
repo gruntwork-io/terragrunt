@@ -24,6 +24,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 	require.Error(t, err)
 
 	var missingCommand runall.MissingCommand
+
 	ok := errors.As(err, &missingCommand)
 	fmt.Println(err, errors.Unwrap(err))
 	assert.True(t, ok)

@@ -255,6 +255,7 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 			if curWalkStep == 2 {
 				return filepath.SkipDir
 			}
+
 			curWalkStep++
 
 			return nil
@@ -274,6 +275,7 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --working-dir "+appPath, &stdout, &stderr)
 	require.NoError(t, err)
+
 	output := stdout.String()
 	assert.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
 	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
@@ -285,6 +287,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
 	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixturePathRelativeFromInclude))
 	require.NoError(t, err)
+
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePathRelativeFromInclude, "lives/dev")
 	basePath := util.JoinPath(rootPath, "base")
 	clusterPath := util.JoinPath(rootPath, "cluster")

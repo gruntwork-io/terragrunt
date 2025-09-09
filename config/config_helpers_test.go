@@ -155,6 +155,7 @@ func TestRunCommand(t *testing.T) {
 	}
 
 	homeDir := os.Getenv("HOME")
+
 	testCases := []struct {
 		expectedErr       error
 		terragruntOptions *options.TerragruntOptions
@@ -202,12 +203,12 @@ func TestRunCommand(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-
 		t.Run(tc.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+
 			actualOutput, actualErr := config.RunCommand(ctx, l, tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
@@ -314,12 +315,12 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+
 			actualPath, actualErr := config.FindInParentFolders(ctx, l, tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
@@ -331,6 +332,50 @@ func TestFindInParentFolders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindInParentFoldersWithStackFile(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	regionHclPath := filepath.Join(tempDir, "region.hcl")
+	regionHclContent := `locals {
+  aws_region = "us-east-1"
+}`
+	err := os.WriteFile(regionHclPath, []byte(regionHclContent), 0644)
+	require.NoError(t, err)
+
+	stackDir := filepath.Join(tempDir, "stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	stackHclPath := filepath.Join(stackDir, "terragrunt.stack.hcl")
+	stackHclContent := `locals {
+  regions_vars = read_terragrunt_config(find_in_parent_folders("region.hcl"))
+  region       = local.regions_vars.locals.aws_region
+}
+
+unit "test" {
+  source = "."
+  path   = "test"
+}`
+	err = os.WriteFile(stackHclPath, []byte(stackHclContent), 0644)
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(stackHclPath)
+	require.NoError(t, err)
+
+	opts.WorkingDir = tempDir
+
+	stackConfig, err := config.ReadStackConfigFile(t.Context(), l, opts, stackHclPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, stackConfig)
+
+	region, exists := stackConfig.Locals["region"]
+	require.True(t, exists, "Expected 'region' local to be parsed")
+	require.Equal(t, "us-east-1", region)
 }
 
 func TestResolveTerragruntInterpolation(t *testing.T) {
@@ -383,12 +428,12 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	for _, tc := range testCases {
 		// The following is necessary to make sure tc's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-
 		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+
 			actualOut, actualErr := config.ParseConfigString(ctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
 			if tc.expectedErr != "" {
 				require.Error(t, actualErr)
@@ -487,6 +532,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+
 			actualOut, actualErr := config.ParseConfigString(ctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
 			if tc.expectedErr != "" {
 				require.Error(t, actualErr)
@@ -531,7 +577,6 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 	for _, tc := range testCases {
 		// The following is necessary to make sure tc's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-
 		t.Run(tc.str, func(t *testing.T) {
 			t.Parallel()
 
@@ -567,6 +612,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 		if len(cliArgs) == 0 {
 			expectedFooInput = nil
 		}
+
 		tc := struct {
 			str               string
 			include           *config.IncludeConfig
@@ -619,6 +665,7 @@ func toStringSlice(t *testing.T, value any) []string {
 	for _, item := range asInterfaceSlice {
 		asStr, isStr := item.(string)
 		assert.True(t, isStr)
+
 		out = append(out, asStr)
 	}
 
@@ -627,6 +674,7 @@ func toStringSlice(t *testing.T, value any) []string {
 
 func TestGetTerragruntDirAbsPath(t *testing.T) {
 	t.Parallel()
+
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", filepath.VolumeName(workingDir)+"/foo/bar")
@@ -634,8 +682,10 @@ func TestGetTerragruntDirAbsPath(t *testing.T) {
 
 func TestGetTerragruntDirRelPath(t *testing.T) {
 	t.Parallel()
+
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
+
 	workingDir = filepath.ToSlash(workingDir)
 
 	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", workingDir+"/foo/bar")
@@ -662,6 +712,7 @@ func terragruntOptionsForTest(t *testing.T, configPath string) *options.Terragru
 	if err != nil {
 		t.Fatalf("Failed to create TerragruntOptions: %v", err)
 	}
+
 	return opts
 }
 
@@ -670,6 +721,7 @@ func terragruntOptionsForTestWithMaxFolders(t *testing.T, configPath string, max
 
 	opts := terragruntOptionsForTest(t, configPath)
 	opts.MaxFoldersToCheck = maxFoldersToCheck
+
 	return opts
 }
 
@@ -678,6 +730,7 @@ func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[st
 
 	opts := terragruntOptionsForTest(t, configPath)
 	opts.Env = env
+
 	return opts
 }
 
@@ -686,6 +739,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 
 	currentDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
+
 	parentDir := filepath.ToSlash(filepath.Dir(currentDir))
 
 	testCases := []struct {
@@ -791,7 +845,6 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 
@@ -874,6 +927,7 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 		converted, err := config.TerraformOutputJSONToCtyValueMap(mockTargetConfig, []byte(tc.input))
 		require.NoError(t, err)
 		assert.Equal(t, getKeys(converted), getKeys(tc.expected))
+
 		for k, v := range converted {
 			assert.True(t, v.Equals(tc.expected[k]).True())
 		}
@@ -1165,6 +1219,7 @@ func TestTimeCmp(t *testing.T) {
 
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, tc.config)
+
 			actual, err := config.TimeCmp(ctx, l, tc.args)
 			if tc.err != "" {
 				require.EqualError(t, err, tc.err)
@@ -1213,6 +1268,7 @@ func TestStrContains(t *testing.T) {
 
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, tc.config)
+
 			actual, err := config.StrContains(ctx, tc.args)
 			if tc.err != "" {
 				require.EqualError(t, err, tc.err)
@@ -1252,6 +1308,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 func mockConfigWithSource(sourceURL string) *config.TerragruntConfig {
 	cfg := config.TerragruntConfig{IsPartial: true}
 	cfg.Terraform = &config.TerraformConfig{Source: &sourceURL}
+
 	return &cfg
 }
 
@@ -1261,6 +1318,7 @@ func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	for k := range valueMap {
 		keys[k] = true
 	}
+
 	return keys
 }
 
@@ -1268,12 +1326,15 @@ func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, par
 	if len(includeMap) == 0 {
 		return nil
 	}
+
 	currentList := make([]config.IncludeConfig, len(includeMap))
+
 	i := 0
 	for _, val := range includeMap {
 		currentList[i] = val
 		i++
 	}
+
 	trackInclude := &config.TrackInclude{
 		CurrentList: currentList,
 		CurrentMap:  includeMap,
@@ -1281,6 +1342,7 @@ func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, par
 	if len(params) == 0 {
 		trackInclude.Original = &currentList[0]
 	}
+
 	return trackInclude
 }
 
@@ -1329,6 +1391,7 @@ func TestConstraintCheck(t *testing.T) {
 			l := logger.CreateLogger()
 
 			ctx := config.NewParsingContext(t.Context(), l, tc.config)
+
 			actual, err := config.ConstraintCheck(ctx, tc.args)
 			if tc.err != "" {
 				require.EqualError(t, err, tc.err)
