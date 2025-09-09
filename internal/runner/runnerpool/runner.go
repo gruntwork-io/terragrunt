@@ -42,6 +42,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, common.ErrNoUnitsFound
 	}
 
+	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
 		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
@@ -51,8 +52,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		Stack: &stack,
 	}
 
+	// Collect all terragrunt.hcl paths for resolution.
 	unitPaths := make([]string, 0, len(discovered))
-
 	for _, cfg := range discovered {
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
@@ -64,7 +65,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
-	// Create units from discovered configurations using the full resolution pipeline
+	// Resolve units (this applies include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
 		return nil, err
@@ -77,43 +78,11 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	runner.Stack.Units = unitsMap
 
-	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies
-	allowed := make(map[string]struct{}, len(unitsMap))
-	for _, u := range unitsMap {
-		if !u.FlagExcluded {
-			allowed[u.Path] = struct{}{}
-		}
-	}
-	if len(allowed) == 0 {
+	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
+	// This ensures excluded units are not shown in lists or scheduled at all.
+	filtered := filterDiscoveredUnits(discovered, unitsMap)
+	if len(filtered) == 0 {
 		return nil, common.ErrNoUnitsFound
-	}
-
-	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
-	for _, cfg := range discovered {
-		if _, ok := allowed[cfg.Path]; !ok {
-			continue
-		}
-
-		// shallow copy with pruned dependencies
-		copyCfg := &discovery.DiscoveredConfig{
-			Parsed:           cfg.Parsed,
-			DiscoveryContext: cfg.DiscoveryContext,
-			Type:             cfg.Type,
-			Path:             cfg.Path,
-			External:         cfg.External,
-		}
-
-		if cfg.Dependencies != nil {
-			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
-			for _, dep := range cfg.Dependencies {
-				if _, ok := allowed[dep.Path]; ok {
-					deps = append(deps, dep)
-				}
-			}
-			copyCfg.Dependencies = deps
-		}
-
-		filtered = append(filtered, copyCfg)
 	}
 
 	q, queueErr := queue.NewQueue(filtered)
@@ -162,27 +131,22 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	// Pre-mark excluded units as succeeded and emit report entries (align behavior with configstack runner)
-	if r.queue != nil {
+	// Emit report entries for excluded units (if experiment enabled). Queue already excludes them.
+	if r.queue != nil && opts.Experiments.Evaluate(experiment.Report) && r.Stack.Report != nil {
 		for _, u := range r.Stack.Units {
 			if u.FlagExcluded {
-				if entry := r.queue.EntryByPath(u.Path); entry != nil {
-					entry.Status = queue.StatusSucceeded
+				run, err := r.Stack.Report.EnsureRun(u.Path)
+				if err != nil {
+					l.Errorf("Error ensuring run for unit %s: %v", u.Path, err)
+					continue
 				}
 
-				if opts.Experiments.Evaluate(experiment.Report) && r.Stack.Report != nil {
-					run, err := r.Stack.Report.EnsureRun(u.Path)
-					if err != nil {
-						l.Errorf("Error ensuring run for unit %s: %v", u.Path, err)
-					} else {
-						if err := r.Stack.Report.EndRun(
-							run.Path,
-							report.WithResult(report.ResultExcluded),
-							report.WithReason(report.ReasonExcludeBlock),
-						); err != nil {
-							l.Errorf("Error ending run for unit %s: %v", u.Path, err)
-						}
-					}
+				if err := r.Stack.Report.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeBlock),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", u.Path, err)
 				}
 			}
 		}
@@ -345,6 +309,62 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 			)
 		}
 	}
+}
+
+// filterDiscoveredUnits removes configs for units flagged as excluded and prunes dependencies
+// that point to excluded units. This keeps the execution queue and any user-facing listings
+// free from units not intended to run.
+//
+// Inputs:
+//   - discovered: raw discovery results (paths and dependency edges)
+//   - units: resolved units (slice), where exclude rules have already been applied
+//
+// Behavior:
+//   - A config is included only if there's a corresponding unit and its FlagExcluded is false.
+//   - For each included config, its Dependencies list is filtered to only include included configs.
+//   - The function returns a new slice with shallow-copied entries so the original discovery
+//     results remain unchanged.
+func filterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.Units) discovery.DiscoveredConfigs {
+	// Build allowlist from non-excluded unit paths
+	allowed := make(map[string]struct{}, len(units))
+	for _, u := range units {
+		if !u.FlagExcluded {
+			allowed[u.Path] = struct{}{}
+		}
+	}
+
+	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
+
+	for _, cfg := range discovered {
+		if _, ok := allowed[cfg.Path]; !ok {
+			// Drop configs that map to excluded/missing units
+			continue
+		}
+
+		// Shallow copy to avoid mutating original discovery graph
+		copyCfg := &discovery.DiscoveredConfig{
+			Parsed:           cfg.Parsed,
+			DiscoveryContext: cfg.DiscoveryContext,
+			Type:             cfg.Type,
+			Path:             cfg.Path,
+			External:         cfg.External,
+		}
+
+		if cfg.Dependencies != nil {
+			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
+			for _, dep := range cfg.Dependencies {
+				if _, ok := allowed[dep.Path]; ok {
+					deps = append(deps, dep)
+				}
+			}
+
+			copyCfg.Dependencies = deps
+		}
+
+		filtered = append(filtered, copyCfg)
+	}
+
+	return filtered
 }
 
 // WithOptions updates the stack with the provided options.
