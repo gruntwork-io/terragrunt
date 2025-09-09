@@ -1,4 +1,4 @@
-// //go:build tofu
+//go:build tofu
 
 package awsproviderpatch_test
 
