@@ -81,9 +81,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
 	// This ensures excluded units are not shown in lists or scheduled at all.
 	filtered := filterDiscoveredUnits(discovered, unitsMap)
-	if len(filtered) == 0 {
-		return nil, common.ErrNoUnitsFound
-	}
 
 	q, queueErr := queue.NewQueue(filtered)
 	if queueErr != nil {
