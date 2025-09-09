@@ -1,4 +1,4 @@
-//go:build tofu
+// //go:build tofu
 
 package awsproviderpatch_test
 
@@ -223,12 +223,14 @@ func TestFindAllTerraformFilesIncludesTofuFiles(t *testing.T) {
 
 	opts, err := options.NewTerragruntOptionsForTest("test.hcl")
 	require.NoError(t, err)
+
 	opts.WorkingDir = tmpDir
 
 	allFiles, err := util.FindTFFiles(tmpDir)
 	require.NoError(t, err)
 
 	var files []string
+
 	for _, file := range allFiles {
 		if !strings.HasSuffix(file, ".json") {
 			files = append(files, file)
@@ -243,12 +245,13 @@ func TestFindAllTerraformFilesIncludesTofuFiles(t *testing.T) {
 	}
 
 	assert.Len(t, files, len(expectedFiles))
+
 	for _, expectedFile := range expectedFiles {
 		assert.Contains(t, files, expectedFile, "Expected file %s not found in results", expectedFile)
 	}
 
 	for _, file := range files {
-		assert.False(t, filepath.Ext(file) == ".json", "JSON file %s should be excluded", file)
+		assert.NotEqual(t, filepath.Ext(file), ".json", "JSON file %s should be excluded", file)
 	}
 }
 
@@ -304,18 +307,18 @@ func TestTofuFileExtensionRecognition(t *testing.T) {
 		description      string
 		shouldBeIncluded bool
 	}{
-		{"main.tf", true, "Standard Terraform file"},
-		{"main.tofu", true, "OpenTofu file"},
-		{"variables.tf.json", true, "Terraform JSON file (recognized but filtered out during processing)"},
-		{"variables.tofu.json", true, "OpenTofu JSON file (recognized but filtered out during processing)"},
-		{"outputs.tf", true, "Terraform outputs file"},
-		{"outputs.tofu", true, "OpenTofu outputs file"},
-		{"providers.tf", true, "Terraform providers file"},
-		{"providers.tofu", true, "OpenTofu providers file"},
-		{"terraform.tfvars", false, "Terraform variables file (not a configuration file)"},
-		{"terragrunt.hcl", false, "Terragrunt configuration file"},
-		{"README.md", false, "Documentation file"},
-		{"script.sh", false, "Shell script"},
+		{filename: "main.tf", shouldBeIncluded: true, description: "Standard Terraform file"},
+		{filename: "main.tofu", shouldBeIncluded: true, description: "OpenTofu file"},
+		{filename: "variables.tf.json", shouldBeIncluded: true, description: "Terraform JSON file (recognized but filtered out during processing)"},
+		{filename: "variables.tofu.json", shouldBeIncluded: true, description: "OpenTofu JSON file (recognized but filtered out during processing)"},
+		{filename: "outputs.tf", shouldBeIncluded: true, description: "Terraform outputs file"},
+		{filename: "outputs.tofu", shouldBeIncluded: true, description: "OpenTofu outputs file"},
+		{filename: "providers.tf", shouldBeIncluded: true, description: "Terraform providers file"},
+		{filename: "providers.tofu", shouldBeIncluded: true, description: "OpenTofu providers file"},
+		{filename: "terraform.tfvars", shouldBeIncluded: false, description: "Terraform variables file (not a configuration file)"},
+		{filename: "terragrunt.hcl", shouldBeIncluded: false, description: "Terragrunt configuration file"},
+		{filename: "README.md", shouldBeIncluded: false, description: "Documentation file"},
+		{filename: "script.sh", shouldBeIncluded: false, description: "Shell script"},
 	}
 
 	for _, tc := range testCases {
