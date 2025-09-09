@@ -182,8 +182,8 @@ func TestExcludeNoRunRunAll(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "normal-unit")
-	assert.NotContains(t, stderr, "no-run-unit")
+	assert.Contains(t, stderr, "Unit ./normal-unit")
+	assert.NotContains(t, stderr, "Unit ./no-run-unit")
 }
 
 func TestExcludeNoRunConditional(t *testing.T) {

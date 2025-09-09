@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -41,11 +42,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, common.ErrNoUnitsFound
 	}
 
-	q, queueErr := queue.NewQueue(discovered)
-	if queueErr != nil {
-		return nil, queueErr
-	}
-
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
 		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
@@ -53,7 +49,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	runner := &Runner{
 		Stack: &stack,
-		queue: q,
 	}
 
 	unitPaths := make([]string, 0, len(discovered))
@@ -81,6 +76,52 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	}
 
 	runner.Stack.Units = unitsMap
+
+	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies
+	allowed := make(map[string]struct{}, len(unitsMap))
+	for _, u := range unitsMap {
+		if !u.FlagExcluded {
+			allowed[u.Path] = struct{}{}
+		}
+	}
+	if len(allowed) == 0 {
+		return nil, common.ErrNoUnitsFound
+	}
+
+	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
+	for _, cfg := range discovered {
+		if _, ok := allowed[cfg.Path]; !ok {
+			continue
+		}
+
+		// shallow copy with pruned dependencies
+		copyCfg := &discovery.DiscoveredConfig{
+			Parsed:           cfg.Parsed,
+			DiscoveryContext: cfg.DiscoveryContext,
+			Type:             cfg.Type,
+			Path:             cfg.Path,
+			External:         cfg.External,
+		}
+
+		if cfg.Dependencies != nil {
+			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
+			for _, dep := range cfg.Dependencies {
+				if _, ok := allowed[dep.Path]; ok {
+					deps = append(deps, dep)
+				}
+			}
+			copyCfg.Dependencies = deps
+		}
+
+		filtered = append(filtered, copyCfg)
+	}
+
+	q, queueErr := queue.NewQueue(filtered)
+	if queueErr != nil {
+		return nil, queueErr
+	}
+
+	runner.queue = q
 
 	return runner.WithOptions(opts...), nil
 }
@@ -119,6 +160,32 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	if planDefer {
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
+	}
+
+	// Pre-mark excluded units as succeeded and emit report entries (align behavior with configstack runner)
+	if r.queue != nil {
+		for _, u := range r.Stack.Units {
+			if u.FlagExcluded {
+				if entry := r.queue.EntryByPath(u.Path); entry != nil {
+					entry.Status = queue.StatusSucceeded
+				}
+
+				if opts.Experiments.Evaluate(experiment.Report) && r.Stack.Report != nil {
+					run, err := r.Stack.Report.EnsureRun(u.Path)
+					if err != nil {
+						l.Errorf("Error ensuring run for unit %s: %v", u.Path, err)
+					} else {
+						if err := r.Stack.Report.EndRun(
+							run.Path,
+							report.WithResult(report.ResultExcluded),
+							report.WithReason(report.ReasonExcludeBlock),
+						); err != nil {
+							l.Errorf("Error ending run for unit %s: %v", u.Path, err)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	task := func(ctx context.Context, u *common.Unit) error {
