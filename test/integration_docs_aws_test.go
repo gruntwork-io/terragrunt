@@ -157,14 +157,13 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 
 	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
 
+	// Create a temporary workspace for the test
+	tmpDir := t.TempDir()
+	helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
+
+	repoPath := filepath.Join(tmpDir, "terralith-to-terragrunt")
+
 	t.Run("setup", func(t *testing.T) {
-		// Create a temporary workspace for the test
-		tmpDir := t.TempDir()
-
-		helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
-
-		repoPath := filepath.Join(tmpDir, "terralith-to-terragrunt")
-
 		helpers.ExecWithTestLogger(t, repoPath, "git", "init")
 
 		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "terragrunt@0.83.2")
