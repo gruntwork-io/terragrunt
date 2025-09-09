@@ -338,14 +338,9 @@ func filterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 			continue
 		}
 
-		// Shallow copy to avoid mutating original discovery graph
-		copyCfg := &discovery.DiscoveredConfig{
-			Parsed:           cfg.Parsed,
-			DiscoveryContext: cfg.DiscoveryContext,
-			Type:             cfg.Type,
-			Path:             cfg.Path,
-			External:         cfg.External,
-		}
+		// Shallow copy unit struct to avoid field drift as values update
+		copyVal := *cfg
+		copyCfg := &copyVal
 
 		if cfg.Dependencies != nil {
 			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
