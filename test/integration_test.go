@@ -580,9 +580,6 @@ func TestLogRawModuleOutput(t *testing.T) {
 func TestTerragruntExcludesFile(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludesFile, ".terragrunt-excludes")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureExcludesFile)
-
 	testCases := []struct {
 		flags          string
 		expectedOutput []string
@@ -600,6 +597,9 @@ func TestTerragruntExcludesFile(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludesFile, ".terragrunt-excludes")
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureExcludesFile)
 
 			helpers.CleanupTerraformFolder(t, testFixtureExcludesFile)
 
