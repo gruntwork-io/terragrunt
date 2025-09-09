@@ -39,7 +39,7 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
-		expectedConstraints := "~> 4.0"
+		expectedConstraints := "~> 4.0.0"
 		assert.Equal(t, expectedConstraints, constraintsValue, "Initial lock file should preserve module's required_providers constraints")
 	})
 
@@ -75,7 +75,7 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 		// Verify the lock file constraints are updated to match the module
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
-		expectedConstraints := "~> 4.40"
+		expectedConstraints := "~> 4.40.0"
 		assert.Equal(t, expectedConstraints, constraintsValue, "Constraints should be updated to match the module's required_providers")
 	})
 
@@ -96,7 +96,7 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
-		expectedConstraints := "~> 4.40"
+		expectedConstraints := "~> 4.40.0"
 		assert.Equal(t, expectedConstraints, constraintsValue, "Fresh lock file should use module's required_providers constraints")
 	})
 }
