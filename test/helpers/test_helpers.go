@@ -1,7 +1,10 @@
 package helpers
 
 import (
+	"bytes"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -72,4 +75,62 @@ func IsExperimentMode(t *testing.T) bool {
 	val := strings.TrimSpace(os.Getenv("TG_EXPERIMENT_MODE"))
 
 	return strings.EqualFold(val, "true")
+}
+
+// ExecWithTestLogger executes a command and logs the output to the test logger.
+func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
+	t.Helper()
+
+	ctx := t.Context()
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Dir = dir
+
+	var stdout, stderr bytes.Buffer
+
+	prefix := strings.Join(append([]string{command}, args...), " ")
+
+	stdoutLogger := &testLogger{t: t, prefix: prefix + " stdout"}
+	stderrLogger := &testLogger{t: t, prefix: prefix + " stderr"}
+
+	cmd.Stdout = io.MultiWriter(&stdout, stdoutLogger)
+	cmd.Stderr = io.MultiWriter(&stderr, stderrLogger)
+
+	err := cmd.Run()
+	if err != nil {
+		t.Logf("Command failed: %s %v", command, args)
+		t.Logf("Full stdout:\n%s", stdout.String())
+		t.Logf("Full stderr:\n%s", stderr.String())
+	}
+
+	require.NoError(t, err)
+}
+
+type testLogger struct {
+	t      *testing.T
+	prefix string
+	buffer bytes.Buffer
+}
+
+func (tl *testLogger) Write(p []byte) (n int, err error) {
+	n = len(p)
+	tl.buffer.Write(p)
+
+	for {
+		line, err := tl.buffer.ReadBytes('\n')
+		if err != nil {
+			tl.buffer.Write(line)
+			break
+		}
+
+		if len(line) > 0 && line[len(line)-1] == '\n' {
+			line = line[:len(line)-1]
+		}
+
+		if len(line) > 0 {
+			tl.t.Logf("[%s] %s", tl.prefix, string(line))
+		}
+	}
+
+	//nolint:nilerr
+	return n, nil
 }
