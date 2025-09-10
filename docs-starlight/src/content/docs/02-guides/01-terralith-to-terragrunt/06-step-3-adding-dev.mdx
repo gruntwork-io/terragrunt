@@ -6,7 +6,7 @@ sidebar:
   order: 6
 ---
 
-import { FileTree, Aside } from '@astrojs/starlight/components';
+import { Code, FileTree, Aside } from '@astrojs/starlight/components';
 
 In the last step, you engaged in the foundational work of refactoring your monolithic configuration into a set of reusable modules, still instantiated in a single root module. Now it's time to leverage those newly develop skills to create new infrastructure.
 
@@ -22,133 +22,27 @@ Let's introduce that new higher level module as a new module named `best_cat`. I
 We're basically taking all the stuff in `live` and shoving it into this new `best_cat` module.
 </Aside>
 
-```hcl
-# catalog/modules/best_cat/main.tf
+import bestCatMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/main.tf?raw';
 
-module "s3" {
-  source = "../s3"
+<Code title="catalog/modules/best_cat/main.tf" lang="hcl" code={bestCatMainTf} />
 
-  name = var.name
+import bestCatOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/outputs.tf?raw';
 
-  force_destroy = var.force_destroy
-}
+<Code title="catalog/modules/best_cat/outputs.tf" lang="hcl" code={bestCatOutputsTf} />
 
-module "ddb" {
-  source = "../ddb"
+import bestCatVarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/vars-optional.tf?raw';
 
-  name = var.name
-}
+<Code title="catalog/modules/best_cat/vars-optional.tf" lang="hcl" code={bestCatVarsOptionalTf} />
 
-module "iam" {
-  source = "../iam"
+import bestCatVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/vars-required.tf?raw';
 
-  name = var.name
-
-  aws_region = var.aws_region
-
-  s3_bucket_arn      = module.s3.arn
-  dynamodb_table_arn = module.ddb.arn
-}
-
-module "lambda" {
-  source = "../lambda"
-
-  name = var.name
-
-  aws_region = var.aws_region
-
-  s3_bucket_name      = module.s3.name
-  dynamodb_table_name = module.ddb.name
-  lambda_zip_file     = var.lambda_zip_file
-  lambda_role_arn     = module.iam.arn
-}
-```
-
-```hcl
-# catalog/modules/best_cat/outputs.tf
-
-output "lambda_function_url" {
-  description = "URL of the Lambda function"
-  value       = module.lambda.url
-}
-
-output "lambda_function_name" {
-  description = "Name of the Lambda function"
-  value       = module.lambda.name
-}
-
-output "s3_bucket_name" {
-  description = "Name of the S3 bucket for static assets"
-  value       = module.s3.name
-}
-
-output "s3_bucket_arn" {
-  description = "ARN of the S3 bucket for static assets"
-  value       = module.s3.arn
-}
-
-output "dynamodb_table_name" {
-  description = "Name of the DynamoDB table for asset metadata"
-  value       = module.ddb.name
-}
-
-output "dynamodb_table_arn" {
-  description = "ARN of the DynamoDB table for asset metadata"
-  value       = module.ddb.arn
-}
-
-output "lambda_role_arn" {
-  description = "ARN of the Lambda execution role"
-  value       = module.iam.arn
-}
-```
-
-```hcl
-# catalog/modules/best_cat/vars-optional.tf
-
-variable "aws_region" {
-  description = "AWS region for all resources"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "force_destroy" {
-  description = "Force destroy S3 buckets (only set to true for testing or cleanup of demo environments)"
-  type        = bool
-  default     = false
-}
-```
-
-```hcl
-# catalog/modules/best_cat/vars-required.tf
-
-variable "name" {
-  description = "Name used for all resources"
-  type        = string
-}
-
-variable "lambda_zip_file" {
-  description = "Path to the Lambda function zip file"
-  type        = string
-}
-```
+<Code title="catalog/modules/best_cat/vars-required.tf" lang="hcl" code={bestCatVarsRequiredTf} />
 
 Similar to what we did before with the constituent modules, we can simply replace the content in `live` with a reference to our new `best_cat` module.
 
-```hcl
-# live/main.tf
+import prodMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/main.tf?raw';
 
-module "prod" {
-  source = "../catalog/modules/best_cat"
-
-  name = var.name
-
-  aws_region = var.aws_region
-
-  lambda_zip_file = var.lambda_zip_file
-  force_destroy   = var.force_destroy
-}
-```
+<Code title="live/main.tf" lang="hcl" code={prodMainTf} />
 
 Once again, we get the scary `tofu plan` that tells us we would recreate all our infrastructure if we were to naively apply here:
 
@@ -161,64 +55,9 @@ Plan: 11 to add, 0 to change, 11 to destroy.
 
 Luckily, we already know how to handle this. We're going to update our `moved.tf` file to declare all the moves that need to be performed to transition the old addresses of resources to their new addresses.
 
-```hcl
-# live/moved.tf
+import movedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/moved.tf?raw';
 
-moved {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  to   = module.prod.module.ddb.aws_dynamodb_table.asset_metadata
-}
-
-moved {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  to   = module.prod.module.iam.aws_iam_policy.lambda_basic_execution
-}
-
-moved {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  to   = module.prod.module.iam.aws_iam_policy.lambda_dynamodb
-}
-
-moved {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  to   = module.prod.module.iam.aws_iam_policy.lambda_s3_read
-}
-
-moved {
-  from = module.iam.aws_iam_role.lambda_role
-  to   = module.prod.module.iam.aws_iam_role.lambda_role
-}
-
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-}
-
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  to   = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-}
-
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  to   = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-}
-
-moved {
-  from = module.lambda.aws_lambda_function.main
-  to   = module.prod.module.lambda.aws_lambda_function.main
-}
-
-moved {
-  from = module.lambda.aws_lambda_function_url.main
-  to   = module.prod.module.lambda.aws_lambda_function_url.main
-}
-
-moved {
-  from = module.s3.aws_s3_bucket.static_assets
-  to   = module.prod.module.s3.aws_s3_bucket.static_assets
-}
-```
+<Code title="live/moved.tf" lang="hcl" code={movedTf} />
 
 Our apply now successfully completes without doing anything!
 
@@ -231,57 +70,15 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
 
 Now the stage is set to add the additional `dev` environment. We can do that by duplicating the `prod` module, and labeling the new `module` block `dev` (you'll also want to add a little suffix to the end of the `name` input to avoid naming collisions).
 
-```hcl
-# live/main.tf
+import mainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/main.tf?raw';
 
-module "dev" {
-  source = "../catalog/modules/best_cat"
-
-  name = "${var.name}-dev"
-
-  aws_region = var.aws_region
-
-  lambda_zip_file = var.lambda_zip_file
-  force_destroy   = var.force_destroy
-}
-
-module "prod" {
-  source = "../catalog/modules/best_cat"
-
-  name = var.name
-
-  aws_region = var.aws_region
-
-  lambda_zip_file = var.lambda_zip_file
-  force_destroy   = var.force_destroy
-}
-```
+<Code title="live/main.tf" lang="hcl" code={mainTf} />
 
 We also need to expose some of the outputs of the new `dev` module, but if we just duplicated all the `prod` outputs, we'd end up with a massive wall of outputs that would be hard to parse. Luckily, we only need two outputs to be externally accessible per environment, so we can drop a bunch of outputs to streamline things.
 
-```hcl
-# live/outputs.tf
+import outputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/outputs.tf?raw';
 
-output "dev_lambda_function_url" {
-  description = "URL of the Lambda function"
-  value       = module.dev.lambda_function_url
-}
-
-output "dev_s3_bucket_name" {
-  description = "Name of the S3 bucket for static assets"
-  value       = module.dev.s3_bucket_name
-}
-
-output "prod_lambda_function_url" {
-  description = "URL of the Lambda function"
-  value       = module.prod.lambda_function_url
-}
-
-output "prod_s3_bucket_name" {
-  description = "Name of the S3 bucket for static assets"
-  value       = module.prod.s3_bucket_name
-}
-```
+<Code title="live/outputs.tf" lang="hcl" code={outputsTf} />
 
 ## Project Layout Check-in
 
