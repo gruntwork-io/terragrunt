@@ -732,12 +732,181 @@ force_destroy = true
 	}()
 
 	func() {
+		t.Log("Running step 5 - Adding Terragrunt")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				// Cleanup both dev and prod environments if we get here.
+				if _, err := os.Stat(devDir); err == nil {
+					helpers.ExecWithTestLogger(t, devDir, "terragrunt", "destroy", "-auto-approve")
+				}
+
+				if _, err := os.Stat(prodDir); err == nil {
+					helpers.ExecWithTestLogger(t, prodDir, "terragrunt", "destroy", "-auto-approve")
+				}
+			}
+		}()
+
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-5-adding-terragrunt")
+
+		require.NoError(t, os.WriteFile(filepath.Join(devDir, "terragrunt.hcl"), []byte(""), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(prodDir, "terragrunt.hcl"), []byte(""), 0644))
+
+		_, stderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+
+		// This version of Terragrunt uses the new "Module" term instead of "Unit"
+		assert.Contains(t, stderr, "Module ./dev")
+		assert.Contains(t, stderr, "Module ./prod")
+
+		oldFiles := []string{"main.tf", "outputs.tf", "vars-required.tf", "vars-optional.tf", "versions.tf"}
+		for _, file := range oldFiles {
+			require.NoError(t, os.Remove(filepath.Join(devDir, file)))
+			require.NoError(t, os.Remove(filepath.Join(prodDir, file)))
+		}
+
+		require.NoError(t, os.Remove(filepath.Join(devDir, ".auto.tfvars")))
+		require.NoError(t, os.Remove(filepath.Join(prodDir, ".auto.tfvars")))
+
+		require.NoError(t, os.Remove(filepath.Join(devDir, "backend.tf")))
+		require.NoError(t, os.Remove(filepath.Join(prodDir, "backend.tf")))
+		require.NoError(t, os.Remove(filepath.Join(devDir, "providers.tf")))
+		require.NoError(t, os.Remove(filepath.Join(prodDir, "providers.tf")))
+
+		require.NoError(t, os.Remove(filepath.Join(devDir, "removed.tf")))
+		require.NoError(t, os.Remove(filepath.Join(prodDir, "removed.tf")))
+
+		rootHclContent := fmt.Sprintf(`remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket       = "%s"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+generate "providers" {
+  path      = "providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "%s"
+}
+EOF
+}
+`, stateBucketName, region, region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(liveDir, "root.hcl"),
+			[]byte(rootHclContent),
+			0644,
+		))
+
+		// Create dev terragrunt.hcl
+		devTerragruntContent := fmt.Sprintf(`include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+  name            = "%s-dev"
+  lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+
+  force_destroy = true
+}
+`, name)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(devDir, "terragrunt.hcl"),
+			[]byte(devTerragruntContent),
+			0644,
+		))
+
+		// Create prod terragrunt.hcl
+		prodTerragruntContent := fmt.Sprintf(`include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+  name            = "%s"
+  lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+
+  force_destroy = true
+}
+`, name)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(prodDir, "terragrunt.hcl"),
+			[]byte(prodTerragruntContent),
+			0644,
+		))
+
+		helpers.CopyFile(
+			t,
+			filepath.Join(fixtureStepPath, "live", "dev", "moved.tf"),
+			filepath.Join(devDir, "moved.tf"),
+		)
+
+		helpers.CopyFile(
+			t,
+			filepath.Join(fixtureStepPath, "live", "prod", "moved.tf"),
+			filepath.Join(prodDir, "moved.tf"),
+		)
+
+		devPlanOutput, _ := helpers.ExecAndCaptureOutput(t, devDir, "terragrunt", "plan")
+		assert.Contains(t, devPlanOutput, "0 to add, 1 to change, 0 to destroy")
+
+		prodPlanOutput, _ := helpers.ExecAndCaptureOutput(t, prodDir, "terragrunt", "plan")
+		assert.Contains(t, prodPlanOutput, "0 to add, 1 to change, 0 to destroy")
+
+		helpers.ExecWithTestLogger(t, devDir, "terragrunt", "apply", "-auto-approve")
+		helpers.ExecWithTestLogger(t, prodDir, "terragrunt", "apply", "-auto-approve")
+
+		runAllPlanStdout, runAllPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan")
+		assert.Contains(t, runAllPlanStderr, "Module ./dev")
+		assert.Contains(t, runAllPlanStderr, "Module ./prod")
+		assert.Contains(t, runAllPlanStdout, "found no differences, so no changes are needed.")
+
+		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
+		assert.Contains(t, devOnlyPlanStderr, "Module ./dev")
+		assert.NotContains(t, devOnlyPlanStderr, "Module ./prod")
+		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
+
+		devOutputStdout, _ := helpers.ExecAndCaptureOutput(t, devDir, "terragrunt", "output")
+		prodOutputStdout, _ := helpers.ExecAndCaptureOutput(t, prodDir, "terragrunt", "output")
+
+		assert.Contains(t, devOutputStdout, "lambda_function_url")
+		assert.Contains(t, devOutputStdout, "s3_bucket_name")
+		assert.Contains(t, prodOutputStdout, "lambda_function_url")
+		assert.Contains(t, prodOutputStdout, "s3_bucket_name")
+
+		t.Log("Step 5 - Adding Terragrunt completed successfully")
+		pass = true
+	}()
+
+	func() {
 		t.Log("Cleanup")
 
 		devDir := filepath.Join(liveDir, "dev")
 		prodDir := filepath.Join(liveDir, "prod")
 
-		helpers.ExecWithTestLogger(t, devDir, "tofu", "destroy", "-auto-approve")
-		helpers.ExecWithTestLogger(t, prodDir, "tofu", "destroy", "-auto-approve")
+		helpers.ExecWithTestLogger(t, devDir, "terragrunt", "destroy", "-auto-approve")
+		helpers.ExecWithTestLogger(t, prodDir, "terragrunt", "destroy", "-auto-approve")
 	}()
 }
