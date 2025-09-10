@@ -18,27 +18,15 @@ Breaking down your Terralith so that you have multiple root modules is fairly si
 
 First, let's create a top-level directory for `prod` in `live`.
 
-```bash
-# live
-
-mkdir prod
-```
+<Code title="live" lang="bash" frame="terminal" code={`mkdir prod`} />
 
 Next, let's move everything into the `prod` directory (If you're not comfortable with using the `find` command here, you can just drag the content into the `prod` directory).
 
-```bash
-# live/prod
-
-find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \;
-```
+<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \;`} />
 
 To complete our new multi-environment setup, let's duplicate that `prod` directory to a new `dev` directory.
 
-```bash
-# live/prod
-
-cp -R prod dev
-```
+<Code title="live" lang="bash" frame="terminal" code={`cp -R prod dev`} />
 
 We need to edit the contents of the `dev` and `prod` directories to make some key adjustments. First, we'll want to make sure that the `backend.tf` files are updated to use new keys so that the two root modules don't conflict with each other.
 
@@ -117,10 +105,7 @@ It's time for some more state manipulation! We currently have a single state fil
 
 In addition to having the state in S3, we also have a local copy of state in each root module. Running the `tofu init -migrate-state` command with the `.terraform` directory populated by copy of state from the previous configuration of the project will copy state to the new location in each new root module.
 
-```bash
-# live/dev
-
-$ tofu init -migrate-state
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu init -migrate-state
 
 Initializing the backend...
 Backend configuration changed!
@@ -138,12 +123,9 @@ Do you want to copy existing state to the new backend?
 
 Successfully configured the backend "s3"! OpenTofu will automatically
 use this backend unless the backend configuration changes.
-```
+`} />
 
-```bash
-# live/prod
-
-$ tofu init -migrate-state
+<Code title="live/prod" lang="bash" frame="terminal" code={`$ tofu init -migrate-state
 
 Initializing the backend...
 Backend configuration changed!
@@ -161,7 +143,7 @@ Do you want to copy existing state to the new backend?
 
 Successfully configured the backend "s3"! OpenTofu will automatically
 use this backend unless the backend configuration changes.
-```
+`} />
 
 We now have the state in `s3://[your-state-bucket]/tofu.tfstate` copied to both:
 
@@ -210,34 +192,25 @@ At this stage, we should have a `live` directory that looks like the following (
 
 We should now see that we're simply going to forget the removed resources instead of destroying them.
 
-```bash
-# live/dev
-
-$ tofu plan
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu plan
 ...
 Plan: 0 to add, 1 to change, 0 to destroy, 11 to forget.
 ...
-```
+`} />
 
 Let's apply both `dev` and `prod` to finalize the moves and removals.
 
-```bash
-# live/dev
-
-$ tofu apply
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed, 11 forgotten.
 ...
-```
+`} />
 
-```bash
-# live/prod
-
-$ tofu apply
+<Code title="live/prod" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed, 11 forgotten.
 ...
-```
+`} />
 
 ## Trade-offs
 
