@@ -809,7 +809,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 
 	ctx.TerragruntOptions.Engine = engineOpts
 
-	if isInit {
+	// Do not fetch from init-ed folder if user has explicitly asked to fetch from state.
+	if isInit && !ctx.TerragruntOptions.FetchDependencyOutputFromState {
 		return getTerragruntOutputJSONFromInitFolder(ctx, l, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
 	}
 
