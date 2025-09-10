@@ -165,6 +165,8 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	distStaticDir := filepath.Join(repoDir, "dist", "static")
 	catalogDir := filepath.Join(repoDir, "catalog")
 	catalogModulesDir := filepath.Join(catalogDir, "modules")
+	devDir := filepath.Join(liveDir, "dev")
+	prodDir := filepath.Join(liveDir, "prod")
 
 	// Generate unique identifier for the test run
 	uniqueID := strings.ToLower(helpers.UniqueID())
@@ -553,9 +555,189 @@ force_destroy = true
 	}()
 
 	func() {
+		t.Log("Running step 4 - Breaking the Terralith")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				// Cleanup both dev and prod environments if we get here.
+				if _, err := os.Stat(devDir); err == nil {
+					helpers.ExecWithTestLogger(t, devDir, "tofu", "destroy", "-auto-approve")
+				}
+
+				if _, err := os.Stat(prodDir); err == nil {
+					helpers.ExecWithTestLogger(t, prodDir, "tofu", "destroy", "-auto-approve")
+				}
+			}
+		}()
+
+		helpers.ExecWithTestLogger(t, liveDir, "mkdir", "prod")
+
+		// Get list of files/directories to move (everything except the newly created prod directory)
+		entries, err := os.ReadDir(liveDir)
+		require.NoError(t, err)
+
+		for _, entry := range entries {
+			if entry.Name() != "prod" {
+				oldPath := filepath.Join(liveDir, entry.Name())
+				newPath := filepath.Join(prodDir, entry.Name())
+				require.NoError(t, os.Rename(oldPath, newPath))
+			}
+		}
+
+		helpers.ExecWithTestLogger(t, liveDir, "cp", "-R", "prod", "dev")
+
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-4-breaking-the-terralith")
+
+		devBackendPath := filepath.Join(devDir, "backend.tf")
+		devBackendContent := fmt.Sprintf(`terraform {
+  backend "s3" {
+    bucket       = "%s"
+    key          = "dev/tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+`, stateBucketName, region)
+		require.NoError(t, os.WriteFile(devBackendPath, []byte(devBackendContent), 0644))
+
+		prodBackendPath := filepath.Join(prodDir, "backend.tf")
+		prodBackendContent := fmt.Sprintf(`terraform {
+  backend "s3" {
+    bucket       = "%s"
+    key          = "prod/tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+`, stateBucketName, region)
+		require.NoError(t, os.WriteFile(prodBackendPath, []byte(prodBackendContent), 0644))
+
+		devMainSourcePath := filepath.Join(fixtureStepPath, "live", "dev")
+		prodMainSourcePath := filepath.Join(fixtureStepPath, "live", "prod")
+
+		// Files to copy/update in both directories
+		envFiles := []string{
+			"main.tf",
+			"moved.tf",
+			"outputs.tf",
+			"removed.tf",
+		}
+
+		// Copy files to dev environment
+		for _, file := range envFiles {
+			helpers.CopyFile(
+				t,
+				filepath.Join(devMainSourcePath, file),
+				filepath.Join(devDir, file),
+			)
+		}
+
+		// Copy files to prod environment
+		for _, file := range envFiles {
+			helpers.CopyFile(
+				t,
+				filepath.Join(prodMainSourcePath, file),
+				filepath.Join(prodDir, file),
+			)
+		}
+
+		devTfvarsContent := fmt.Sprintf(`# Required: Name used for all resources (must be unique)
+name = "%s-dev"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../../dist/best-cat.zip"
+
+# AWS region
+aws_region = "%s"
+
+force_destroy = true
+`, name, region)
+
+		prodTfvarsContent := fmt.Sprintf(`# Required: Name used for all resources (must be unique)
+name = "%s"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../../dist/best-cat.zip"
+
+# AWS region
+aws_region = "%s"
+
+force_destroy = true
+`, name, region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(devDir, ".auto.tfvars"),
+			[]byte(devTfvarsContent),
+			0644,
+		))
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(prodDir, ".auto.tfvars"),
+			[]byte(prodTfvarsContent),
+			0644,
+		))
+
+		helpers.ExecWithTestLogger(
+			t, liveDir, "cp", "-R",
+			filepath.Join("prod", ".terraform"),
+			filepath.Join("dev", ".terraform"),
+		)
+
+		// We can't use non-interactive mode here, so we just pipe in "yes" to the prompts.
+		helpers.ExecWithTestLogger(t, devDir, "bash", "-c", "echo 'yes' | tofu init -migrate-state")
+		helpers.ExecWithTestLogger(t, prodDir, "bash", "-c", "echo 'yes' | tofu init -migrate-state")
+
+		devPlanOutput, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "plan")
+		assert.Contains(t, devPlanOutput, "0 to add")
+		assert.Contains(t, devPlanOutput, "1 to change")
+		assert.Contains(t, devPlanOutput, "0 to destroy")
+		assert.Contains(t, devPlanOutput, "11 to forget")
+
+		helpers.ExecWithTestLogger(t, devDir, "tofu", "apply", "-auto-approve")
+
+		prodPlanOutput, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "plan")
+		assert.Contains(t, prodPlanOutput, "0 to add")
+		assert.Contains(t, prodPlanOutput, "1 to change")
+		assert.Contains(t, prodPlanOutput, "0 to destroy")
+		assert.Contains(t, prodPlanOutput, "11 to forget")
+
+		helpers.ExecWithTestLogger(t, prodDir, "tofu", "apply", "-auto-approve")
+
+		devOutputStdout, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "output")
+		prodOutputStdout, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "output")
+
+		assert.Contains(t, devOutputStdout, "lambda_function_url")
+		assert.Contains(t, devOutputStdout, "s3_bucket_name")
+		assert.Contains(t, prodOutputStdout, "lambda_function_url")
+		assert.Contains(t, prodOutputStdout, "s3_bucket_name")
+
+		devFunctionURL, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "output", "-raw", "lambda_function_url")
+		prodFunctionURL, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "output", "-raw", "lambda_function_url")
+
+		assert.NotEqual(t, strings.TrimSpace(devFunctionURL), strings.TrimSpace(prodFunctionURL))
+
+		devBucketName, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "output", "-raw", "s3_bucket_name")
+		prodBucketName, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "output", "-raw", "s3_bucket_name")
+
+		assert.NotEqual(t, strings.TrimSpace(devBucketName), strings.TrimSpace(prodBucketName))
+
+		t.Log("Step 4 - Breaking the Terralith completed successfully")
+		pass = true
+	}()
+
+	func() {
 		t.Log("Cleanup")
 
-		// Always cleanup the infrastructure at the end
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+		devDir := filepath.Join(liveDir, "dev")
+		prodDir := filepath.Join(liveDir, "prod")
+
+		helpers.ExecWithTestLogger(t, devDir, "tofu", "destroy", "-auto-approve")
+		helpers.ExecWithTestLogger(t, prodDir, "tofu", "destroy", "-auto-approve")
 	}()
 }
