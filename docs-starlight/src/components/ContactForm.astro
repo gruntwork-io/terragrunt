@@ -45,6 +45,7 @@
     const iframeView = document.getElementById('book-a-call');
 
     if (typeof hbspt !== 'undefined' && contactFormView) {
+      // Form is called "Terragrunt Scale - Send a Message" in HubSpot
       hbspt.forms.create({
         portalId: "8376079",
         formId: "6e91923f-df87-4925-a8d1-72b50c2ee655",
@@ -52,15 +53,15 @@
         target: '#hs-form',
         cssClass: 'hs-form w-full h-full',
 
-        onFormReady: function($form: any) {
+        onFormReady: function(form: any) {
             function setWebsiteField() {
             var currentPageUrl = window.location.href;
-            $form.find('input[name="landing_page_url"]').val(currentPageUrl);
+            form.find('input[name="landing_page_url"]').val(currentPageUrl);
           }
 
           var intervalId = setInterval(setWebsiteField, 500);
 
-          $form.on('submit', function() {
+          form.on('submit', function() {
             clearInterval(intervalId);
             setWebsiteField();
           });
