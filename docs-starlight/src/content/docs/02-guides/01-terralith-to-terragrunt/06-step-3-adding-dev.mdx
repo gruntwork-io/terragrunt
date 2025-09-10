@@ -46,12 +46,12 @@ import prodMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough
 
 Once again, we get the scary `tofu plan` that tells us we would recreate all our infrastructure if we were to naively apply here:
 
-```bash
-$ tofu plan
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu plan
 ...
 Plan: 11 to add, 0 to change, 11 to destroy.
 ...
-```
+`} />
+
 
 Luckily, we already know how to handle this. We're going to update our `moved.tf` file to declare all the moves that need to be performed to transition the old addresses of resources to their new addresses.
 
@@ -61,12 +61,11 @@ import movedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/st
 
 Our apply now successfully completes without doing anything!
 
-```hcl
-$ tofu apply
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
 ...
-```
+`} />
 
 Now the stage is set to add the additional `dev` environment. We can do that by duplicating the `prod` module, and labeling the new `module` block `dev` (you'll also want to add a little suffix to the end of the `name` input to avoid naming collisions).
 
@@ -135,12 +134,9 @@ Now we can deploy our changes.
 We need to re-initialize here as we've added a new module.
 </Aside>
 
-```bash
-# live
-
-tofu init
+<Code title="live" lang="bash" frame="terminal" code={`tofu init
 tofu apply
-```
+`} />
 
 We now have our new, fresh dev environment!
 

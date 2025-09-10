@@ -125,14 +125,12 @@ After all this refactoring, we'll want to run a `plan` to make sure we can safel
 You'll need to re-initialize now that you're using modules here.
 </Aside>
 
-```bash
-$ tofu init
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu init
 $ tofu plan
 ...
-
 Plan: 11 to add, 0 to change, 11 to destroy.
 ...
-```
+`} />
 
 Oh no! After all our refactors, we've introduced changes that would *completely destroy* all of the infrastructure we've created so far!
 
@@ -248,10 +246,7 @@ You should have a filesystem layout that look like the following for your IaC no
 
 You can now run `tofu apply` with no changes (don't worry, you'll get a chance to confirm you want to proceed before you have to commit to anything).
 
-```bash
-# live
-
-$ tofu apply
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Plan: 0 to add, 0 to change, 0 to destroy.
 ...
@@ -261,7 +256,7 @@ Do you want to perform these actions?
   Only 'yes' will be accepted to approve.
 
   Enter a value:
-```
+`} />
 
 ## Trade-Offs
 
