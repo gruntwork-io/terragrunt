@@ -139,7 +139,7 @@ func (tl *testLogger) Write(p []byte) (n int, err error) {
 func ExecAndCaptureOutput(t *testing.T, dir, command string, args ...string) (string, string) {
 	t.Helper()
 
-	cmd := exec.Command(command, args...)
+	cmd := exec.CommandContext(t.Context(), command, args...)
 	cmd.Dir = dir
 
 	var stdout, stderr bytes.Buffer

@@ -149,9 +149,6 @@ func TestAwsDocsOverview(t *testing.T) {
 	})
 }
 
-// We don't run these subtests in parallel because each subtest builds on the previous one.
-//
-//nolint:paralleltest
 func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	t.Parallel()
 
@@ -162,10 +159,12 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
 
 	// Determine the paths used throughout the steps.
-	repoPath := filepath.Join(tmpDir, "terralith-to-terragrunt")
-	liveDir := filepath.Join(repoPath, "live")
-	distDir := filepath.Join(repoPath, "dist")
-	distStaticDir := filepath.Join(repoPath, "dist", "static")
+	repoDir := filepath.Join(tmpDir, "terralith-to-terragrunt")
+	liveDir := filepath.Join(repoDir, "live")
+	distDir := filepath.Join(repoDir, "dist")
+	distStaticDir := filepath.Join(repoDir, "dist", "static")
+	catalogDir := filepath.Join(repoDir, "catalog")
+	catalogModulesDir := filepath.Join(catalogDir, "modules")
 
 	// Generate unique identifier for the test run
 	uniqueID := strings.ToLower(helpers.UniqueID())
@@ -186,29 +185,31 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	// Defer cleanup of state bucket
 	defer helpers.DeleteS3Bucket(t, region, stateBucketName)
 
-	t.Run("setup", func(st *testing.T) {
-		helpers.ExecWithTestLogger(st, repoPath, "git", "init")
+	func() {
+		t.Log("Running step 0 - Setup")
 
-		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "terragrunt@0.83.2")
-		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "opentofu@1.10.3")
-		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "aws@2.27.63")
-		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "node@22.17.1")
+		helpers.ExecWithTestLogger(t, repoDir, "git", "init")
 
-		miseTomlPath := util.JoinPath(repoPath, "mise.toml")
-		require.FileExists(st, miseTomlPath)
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "terragrunt@0.83.2")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "opentofu@1.10.3")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "aws@2.27.63")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "node@22.17.1")
+
+		miseTomlPath := util.JoinPath(repoDir, "mise.toml")
+		require.FileExists(t, miseTomlPath)
 		miseToml, err := os.ReadFile(miseTomlPath)
-		require.NoError(st, err)
+		require.NoError(t, err)
 
-		assert.Equal(st, string(miseToml), `[tools]
+		assert.Equal(t, string(miseToml), `[tools]
 aws = "2.27.63"
 node = "22.17.1"
 opentofu = "1.10.3"
 terragrunt = "0.83.2"
 `)
 
-		helpers.ExecWithTestLogger(st, repoPath, "mkdir", "-p", "app/best-cat")
+		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "-p", "app/best-cat")
 
-		bestCatPath := filepath.Join(repoPath, "app", "best-cat")
+		bestCatPath := filepath.Join(repoDir, "app", "best-cat")
 
 		// Copy all the best-cat application files
 		bestCatFiles := []string{
@@ -222,22 +223,22 @@ terragrunt = "0.83.2"
 
 		for _, file := range bestCatFiles {
 			helpers.CopyFile(
-				st,
+				t,
 				filepath.Join(fixturePath, "app", "best-cat", file),
 				filepath.Join(bestCatPath, file),
 			)
 		}
 
-		helpers.ExecWithTestLogger(st, repoPath, "mkdir", "dist")
+		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "dist")
 
-		helpers.ExecWithTestLogger(st, bestCatPath, "npm", "i")
-		helpers.ExecWithTestLogger(st, bestCatPath, "npm", "run", "package")
+		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "i")
+		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "run", "package")
 
-		require.NoError(st, os.Mkdir(filepath.Join(distDir, "static"), 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(distDir, "static"), 0755))
 
 		for i := range 10 {
 			require.NoError(
-				st,
+				t,
 				os.WriteFile(
 					filepath.Join(
 						distDir,
@@ -248,12 +249,24 @@ terragrunt = "0.83.2"
 			)
 		}
 
-		st.Log("Setup complete")
-	})
+		t.Log("Setup complete")
+	}()
 
-	t.Run("step-1-starting-the-terralith", func(st *testing.T) {
+	func() {
+		t.Log("Running step 1 - Starting the Terralith")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+			}
+		}()
+
 		// Create the live directory
-		helpers.ExecWithTestLogger(st, repoPath, "mkdir", "live")
+		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "live")
 
 		// Copy all the OpenTofu files from fixtures
 		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-1-starting-the-terralith", "live")
@@ -276,7 +289,7 @@ terragrunt = "0.83.2"
 		// Copy each file from fixture to live directory
 		for _, file := range terraformFiles {
 			helpers.CopyFile(
-				st,
+				t,
 				filepath.Join(fixtureStepPath, file),
 				filepath.Join(liveDir, file),
 			)
@@ -296,7 +309,7 @@ aws_region = "%s"
 force_destroy = true
 `, name, region)
 
-		require.NoError(st, os.WriteFile(
+		require.NoError(t, os.WriteFile(
 			filepath.Join(liveDir, ".auto.tfvars"),
 			[]byte(tfvarsContent),
 			0644,
@@ -314,39 +327,143 @@ force_destroy = true
 }
 `, stateBucketName, region)
 
-		require.NoError(st, os.WriteFile(
+		require.NoError(t, os.WriteFile(
 			filepath.Join(liveDir, "backend.tf"),
 			[]byte(backendContent),
 			0644,
 		))
 
-		// Always cleanup the infrastructure in-case something goes wrong.
-		// We'll re-apply it at the beginning of the next step.
-		defer helpers.ExecWithTestLogger(st, liveDir, "tofu", "destroy", "-auto-approve")
-
 		// Initialize and apply the Terraform configuration
-		helpers.ExecWithTestLogger(st, liveDir, "tofu", "init")
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "init")
 
-		helpers.ExecWithTestLogger(st, liveDir, "tofu", "apply", "-auto-approve")
+		// Apply the Terraform configuration
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
 
 		// Verify the apply was successful by checking outputs
-		stdout, _ := helpers.ExecAndCaptureOutput(st, liveDir, "tofu", "output")
+		stdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output")
 
 		// Check that key outputs exist
-		assert.Contains(st, stdout, "lambda_function_url")
-		assert.Contains(st, stdout, "s3_bucket_name")
-		assert.Contains(st, stdout, "dynamodb_table_name")
+		assert.Contains(t, stdout, "lambda_function_url")
+		assert.Contains(t, stdout, "s3_bucket_name")
+		assert.Contains(t, stdout, "dynamodb_table_name")
 
 		// Get the S3 bucket name from output for asset upload test
-		bucketNameOutput, _ := helpers.ExecAndCaptureOutput(st, liveDir, "tofu", "output", "-raw", "s3_bucket_name")
+		bucketNameOutput, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "s3_bucket_name")
 
 		actualBucketName := strings.TrimSpace(bucketNameOutput)
 
-		require.NotEmpty(st, actualBucketName)
+		require.NotEmpty(t, actualBucketName)
 
-		// Verify the bucket was created and upload test assets using the AWS CLI (as mentioned in the guide)
-		helpers.ExecWithTestLogger(st, distStaticDir, "aws", "s3", "sync", ".", fmt.Sprintf("s3://%s/", actualBucketName))
+		helpers.ExecWithTestLogger(
+			t,
+			distStaticDir,
+			"aws", "s3", "sync", ".", fmt.Sprintf("s3://%s/", actualBucketName),
+		)
 
-		st.Log("Step 1 - Starting the Terralith completed successfully")
-	})
+		t.Log("Step 1 - Starting the Terralith completed successfully")
+		pass = true
+	}()
+
+	func() {
+		t.Log("Running step 2 - Refactoring")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+			}
+		}()
+
+		// Create the catalog directory structure
+		helpers.ExecWithTestLogger(t, repoDir, "bash", "-c", "mkdir -p catalog/modules/{s3,lambda,iam,ddb}")
+
+		// Remove the old individual .tf files that will be moved to modules
+		oldFiles := []string{"ddb.tf", "iam.tf", "data.tf", "lambda.tf", "s3.tf"}
+		for _, file := range oldFiles {
+			filePath := filepath.Join(liveDir, file)
+			require.NoError(t, os.Remove(filePath))
+		}
+
+		// Path to step 2 fixtures
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-2-refactoring")
+
+		// Copy all module files from fixtures to the catalog directory
+		modules := []string{"s3", "lambda", "iam", "ddb"}
+		for _, module := range modules {
+			moduleSourcePath := filepath.Join(fixtureStepPath, "catalog", "modules", module)
+			moduleDestPath := filepath.Join(catalogModulesDir, module)
+
+			// List of files that may exist in each module
+			moduleFiles := []string{
+				"main.tf",
+				"outputs.tf",
+				"vars-required.tf",
+				"vars-optional.tf",
+				"versions.tf",
+				"data.tf",
+			}
+
+			for _, file := range moduleFiles {
+				sourceFile := filepath.Join(moduleSourcePath, file)
+				destFile := filepath.Join(moduleDestPath, file)
+
+				// Only copy if the source file exists
+				if _, err := os.Stat(sourceFile); err == nil {
+					helpers.CopyFile(t, sourceFile, destFile)
+				}
+			}
+		}
+
+		// Update the live directory with refactored files
+		liveSourcePath := filepath.Join(fixtureStepPath, "live")
+
+		// Files to copy/update in the live directory
+		liveFiles := []string{
+			"main.tf",
+			"moved.tf",
+			"outputs.tf",
+			"vars-optional.tf",
+		}
+
+		for _, file := range liveFiles {
+			helpers.CopyFile(
+				t,
+				filepath.Join(liveSourcePath, file),
+				filepath.Join(liveDir, file),
+			)
+		}
+
+		// Re-initialize since we're now using modules
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "init")
+
+		// Run plan to verify the refactoring - should show 0 changes due to moved blocks
+		stdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "plan")
+
+		// Verify that the plan shows no changes (the moved blocks should handle state migration)
+		assert.Contains(t, stdout, "0 to add, 0 to change, 0 to destroy")
+
+		// Apply the configuration to ensure everything works
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
+
+		// Verify outputs still work after refactoring
+		outputStdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output")
+
+		// Check that key outputs still exist after refactoring
+		assert.Contains(t, outputStdout, "lambda_function_url")
+		assert.Contains(t, outputStdout, "s3_bucket_name")
+		assert.Contains(t, outputStdout, "dynamodb_table_name")
+
+		t.Log("Step 2 - Refactoring completed successfully")
+		pass = true
+	}()
+
+	func() {
+		t.Log("Cleanup")
+
+		// Always cleanup the infrastructure at the end
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+	}()
 }
