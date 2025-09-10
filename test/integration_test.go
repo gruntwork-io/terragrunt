@@ -4392,6 +4392,6 @@ func TestRemoteStateDisableInitIssue1422(t *testing.T) {
 	require.NoError(t, err, "terragrunt validate should work with disable_init=true")
 
 	// backend configuration should be handled correctly
-	initOutput := string(initStdout) + string(initStderr)
+	initOutput := initStdout + initStderr
 	require.Contains(t, initOutput, "Successfully configured the backend", "Backend should be properly configured during init")
 }

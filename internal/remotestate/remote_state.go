@@ -121,7 +121,6 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	// DisableInit only prevents Terragrunt from creating/managing remote state resources,
 	// not from initializing the Terraform backend itself.
 	// This allows commands like `validate` to work in CI without needing backend access.
-
 	if remote.Generate != nil {
 		// When in generate mode, we don't need to use `-backend-config` to initialize the remote state backend.
 		return []string{}
