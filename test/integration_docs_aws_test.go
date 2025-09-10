@@ -1,6 +1,4 @@
-// FIXME: Add this back
-
-// //go:build aws
+//go:build aws
 
 package test_test
 
