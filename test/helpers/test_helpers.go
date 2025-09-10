@@ -134,3 +134,24 @@ func (tl *testLogger) Write(p []byte) (n int, err error) {
 	//nolint:nilerr
 	return n, nil
 }
+
+// ExecAndCaptureOutput executes a command and captures the stdout and stderr.
+func ExecAndCaptureOutput(t *testing.T, dir, command string, args ...string) (string, string) {
+	t.Helper()
+
+	cmd := exec.Command(command, args...)
+	cmd.Dir = dir
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	err = cmd.Wait()
+	require.NoError(t, err)
+
+	return stdout.String(), stderr.String()
+}
