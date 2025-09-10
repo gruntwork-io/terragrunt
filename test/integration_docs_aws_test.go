@@ -901,12 +901,164 @@ inputs = {
 	}()
 
 	func() {
+		t.Log("Running step 6 - Breaking the Terralith Further")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				// Cleanup all component units if we get here.
+				helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
+			}
+		}()
+
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-6-breaking-the-terralith-further")
+
+		// Create directories for each component in both environments
+		components := []string{"s3", "ddb", "iam", "lambda"}
+		environments := []string{"dev", "prod"}
+
+		for _, env := range environments {
+			for _, component := range components {
+				componentDir := filepath.Join(liveDir, env, component)
+				require.NoError(t, os.MkdirAll(componentDir, 0755))
+			}
+		}
+
+		// Copy terragrunt.hcl files from fixtures for each component
+		for _, env := range environments {
+			for _, component := range components {
+				sourceFile := filepath.Join(fixtureStepPath, "live", env, component, "terragrunt.hcl")
+				destFile := filepath.Join(liveDir, env, component, "terragrunt.hcl")
+
+				// Read the source file and replace the hardcoded name with our test name
+				sourceContent, err := os.ReadFile(sourceFile)
+				require.NoError(t, err)
+
+				// Replace the hardcoded name in the fixture with our test-specific name
+				nameToUse := name
+				if env == "dev" {
+					nameToUse = name + "-dev"
+				}
+
+				content := strings.ReplaceAll(string(sourceContent), "best-cat-2025-07-31-01", name)
+				content = strings.ReplaceAll(content, name+"-dev", nameToUse)
+				content = strings.ReplaceAll(content, name, nameToUse)
+
+				require.NoError(t, os.WriteFile(destFile, []byte(content), 0644))
+			}
+		}
+
+		// Migrate state from existing units to new component units
+		// First, pull state from existing dev and prod units
+		for _, env := range environments {
+			envDir := filepath.Join(liveDir, env)
+
+			tmpDir := t.TempDir()
+			tempStateFile := filepath.Join(tmpDir, "tofu-"+env+".tfstate")
+
+			// Pull state from existing environment unit
+			stateContent, _ := helpers.ExecAndCaptureOutput(t, envDir, "terragrunt", "state", "pull")
+			require.NoError(t, os.WriteFile(tempStateFile, []byte(stateContent), 0644))
+
+			for _, component := range components {
+				componentDir := filepath.Join(envDir, component)
+				helpers.ExecWithTestLogger(t, componentDir, "terragrunt", "state", "push", tempStateFile)
+			}
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(liveDir, "dev", "s3", "terragrunt.hcl"), fmt.Appendf(nil, `include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "${find_in_parent_folders("catalog/modules")}//s3"
+}
+
+inputs = {
+  name = "%s-dev"
+  force_destroy = true
+}
+`, name), 0644))
+
+		require.NoError(t, os.WriteFile(filepath.Join(liveDir, "prod", "s3", "terragrunt.hcl"), fmt.Appendf(nil, `include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "${find_in_parent_folders("catalog/modules")}//s3"
+}
+
+inputs = {
+  name = "%s"
+  force_destroy = true
+}
+`, name), 0644))
+
+		// Remove the old terragrunt.hcl and moved.tf files from the environment root directories
+		for _, env := range environments {
+			envDir := filepath.Join(liveDir, env)
+			require.NoError(t, os.Remove(filepath.Join(envDir, "terragrunt.hcl")))
+			require.NoError(t, os.Remove(filepath.Join(envDir, "moved.tf")))
+		}
+
+		// Copy moved.tf and removed.tf files for state transitions
+		for _, env := range environments {
+			for _, component := range components {
+				sourceMovedFile := filepath.Join(fixtureStepPath, "live", env, component, "moved.tf")
+				destMovedFile := filepath.Join(liveDir, env, component, "moved.tf")
+				helpers.CopyFile(t, sourceMovedFile, destMovedFile)
+
+				sourceRemovedFile := filepath.Join(fixtureStepPath, "live", env, component, "removed.tf")
+				destRemovedFile := filepath.Join(liveDir, env, component, "removed.tf")
+				helpers.CopyFile(t, sourceRemovedFile, destRemovedFile)
+			}
+		}
+
+		// Verify plans show no destroys across all components
+		_, planStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+
+		// The plan output should show modules for all components
+		for _, env := range environments {
+			for _, component := range components {
+				expectedModulePath := fmt.Sprintf("Module ./%s/%s", env, component)
+				assert.Contains(t, planStderr, expectedModulePath)
+			}
+		}
+
+		// Apply all changes to complete the migration
+		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
+
+		// Verify outputs still work after breaking down into components
+		// Check a few key components to ensure they're working
+		devS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "s3"), "terragrunt", "output")
+		prodS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "s3"), "terragrunt", "output")
+
+		assert.Contains(t, devS3Output, "name")
+		assert.Contains(t, prodS3Output, "name")
+
+		devLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "output")
+		prodLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "output")
+
+		assert.Contains(t, devLambdaOutput, "url")
+		assert.Contains(t, prodLambdaOutput, "url")
+
+		// Verify dependency resolution works by running a plan on lambda (which depends on other components)
+		devLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "plan")
+		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
+
+		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "plan")
+		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
+
+		t.Log("Step 6 - Breaking the Terralith Further completed successfully")
+		pass = true
+	}()
+
+	func() {
 		t.Log("Cleanup")
 
-		devDir := filepath.Join(liveDir, "dev")
-		prodDir := filepath.Join(liveDir, "prod")
-
-		helpers.ExecWithTestLogger(t, devDir, "terragrunt", "destroy", "-auto-approve")
-		helpers.ExecWithTestLogger(t, prodDir, "terragrunt", "destroy", "-auto-approve")
+		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
 	}()
 }
