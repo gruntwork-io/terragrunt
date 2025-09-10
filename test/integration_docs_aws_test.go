@@ -461,6 +461,98 @@ force_destroy = true
 	}()
 
 	func() {
+		t.Log("Running step 3 - Adding dev")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+			}
+		}()
+
+		// Path to step 3 fixtures
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-3-adding-dev")
+
+		// Create the best_cat module directory
+		bestCatModulePath := filepath.Join(catalogModulesDir, "best_cat")
+		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "-p", bestCatModulePath)
+
+		// Copy the best_cat module files
+		bestCatSourcePath := filepath.Join(fixtureStepPath, "catalog", "modules", "best_cat")
+		bestCatFiles := []string{
+			"main.tf",
+			"outputs.tf",
+			"vars-optional.tf",
+			"vars-required.tf",
+		}
+
+		for _, file := range bestCatFiles {
+			helpers.CopyFile(
+				t,
+				filepath.Join(bestCatSourcePath, file),
+				filepath.Join(bestCatModulePath, file),
+			)
+		}
+
+		// Update the live directory with step 3 files
+		liveSourcePath := filepath.Join(fixtureStepPath, "live")
+
+		// Files to copy/update in the live directory for step 3
+		liveFiles := []string{
+			"main.tf",
+			"moved.tf",
+			"outputs.tf",
+		}
+
+		for _, file := range liveFiles {
+			helpers.CopyFile(
+				t,
+				filepath.Join(liveSourcePath, file),
+				filepath.Join(liveDir, file),
+			)
+		}
+
+		// Re-initialize since we're now using the new best_cat module
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "init")
+
+		// Run plan to verify the refactoring - should show only new dev resources due to moved blocks
+		stdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "plan")
+
+		// Verify that the plan shows the expected new dev resources (11 new resources for dev environment)
+		assert.Contains(t, stdout, "11 to add")
+		assert.Contains(t, stdout, "0 to change")
+		assert.Contains(t, stdout, "0 to destroy")
+
+		// Apply the configuration to create the dev environment
+		helpers.ExecWithTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
+
+		// Verify outputs for both dev and prod environments
+		outputStdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output")
+
+		// Check that both dev and prod outputs exist
+		assert.Contains(t, outputStdout, "dev_lambda_function_url")
+		assert.Contains(t, outputStdout, "dev_s3_bucket_name")
+		assert.Contains(t, outputStdout, "prod_lambda_function_url")
+		assert.Contains(t, outputStdout, "prod_s3_bucket_name")
+
+		// Verify that we can get the function URLs for both environments
+		devFunctionURL, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "dev_lambda_function_url")
+		prodFunctionURL, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "prod_lambda_function_url")
+
+		require.NotEmpty(t, strings.TrimSpace(devFunctionURL))
+		require.NotEmpty(t, strings.TrimSpace(prodFunctionURL))
+
+		// Verify the URLs are different (confirming we have two separate environments)
+		assert.NotEqual(t, strings.TrimSpace(devFunctionURL), strings.TrimSpace(prodFunctionURL))
+
+		t.Log("Step 3 - Adding dev completed successfully")
+		pass = true
+	}()
+
+	func() {
 		t.Log("Cleanup")
 
 		// Always cleanup the infrastructure at the end
