@@ -161,99 +161,83 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	tmpDir := t.TempDir()
 	helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
 
+	// Determine the paths used throughout the steps.
 	repoPath := filepath.Join(tmpDir, "terralith-to-terragrunt")
+	liveDir := filepath.Join(repoPath, "live")
+	distDir := filepath.Join(repoPath, "dist")
+	distStaticDir := filepath.Join(repoPath, "dist", "static")
 
-	t.Run("setup", func(t *testing.T) {
-		helpers.ExecWithTestLogger(t, repoPath, "git", "init")
+	// Generate unique identifier for the test run
+	uniqueID := strings.ToLower(helpers.UniqueID())
 
-		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "terragrunt@0.83.2")
-		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "opentofu@1.10.3")
-		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "aws@2.27.63")
-		helpers.ExecWithTestLogger(t, repoPath, "mise", "use", "node@22.17.1")
+	stateBucketName := "terragrunt-terralith-tfstate-" + uniqueID
+	name := "terragrunt-terralith-project-" + uniqueID
+
+	region := "us-east-1"
+
+	// Create the backend S3 bucket manually using AWS CLI (as mentioned in the guide)
+	//
+	// Do it early so we can be sure it's going to be cleaned up at the end.
+	helpers.ExecWithTestLogger(t, tmpDir, "aws", "s3api", "create-bucket",
+		"--bucket", stateBucketName, "--region", region)
+	helpers.ExecWithTestLogger(t, tmpDir, "aws", "s3api", "put-bucket-versioning",
+		"--bucket", stateBucketName, "--versioning-configuration", "Status=Enabled")
+
+	// Defer cleanup of state bucket
+	defer helpers.DeleteS3Bucket(t, region, stateBucketName)
+
+	t.Run("setup", func(st *testing.T) {
+		helpers.ExecWithTestLogger(st, repoPath, "git", "init")
+
+		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "terragrunt@0.83.2")
+		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "opentofu@1.10.3")
+		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "aws@2.27.63")
+		helpers.ExecWithTestLogger(st, repoPath, "mise", "use", "node@22.17.1")
 
 		miseTomlPath := util.JoinPath(repoPath, "mise.toml")
-		require.FileExists(t, miseTomlPath)
+		require.FileExists(st, miseTomlPath)
 		miseToml, err := os.ReadFile(miseTomlPath)
-		require.NoError(t, err)
+		require.NoError(st, err)
 
-		assert.Equal(t, string(miseToml), `[tools]
+		assert.Equal(st, string(miseToml), `[tools]
 aws = "2.27.63"
 node = "22.17.1"
 opentofu = "1.10.3"
 terragrunt = "0.83.2"
 `)
 
-		helpers.ExecWithTestLogger(t, repoPath, "mkdir", "-p", "app/best-cat")
+		helpers.ExecWithTestLogger(st, repoPath, "mkdir", "-p", "app/best-cat")
 
 		bestCatPath := filepath.Join(repoPath, "app", "best-cat")
 
-		helpers.CopyFile(
-			t, filepath.Join(
-				fixturePath,
-				"app",
-				"best-cat",
-				"package.json",
-			), filepath.Join(bestCatPath, "package.json"),
-		)
+		// Copy all the best-cat application files
+		bestCatFiles := []string{
+			"package.json",
+			"index.js",
+			"template.html",
+			"styles.css",
+			"script.js",
+			"package-lock.json",
+		}
 
-		helpers.CopyFile(
-			t, filepath.Join(
-				fixturePath,
-				"app",
-				"best-cat",
-				"index.js",
-			), filepath.Join(bestCatPath, "index.js"),
-		)
+		for _, file := range bestCatFiles {
+			helpers.CopyFile(
+				st,
+				filepath.Join(fixturePath, "app", "best-cat", file),
+				filepath.Join(bestCatPath, file),
+			)
+		}
 
-		helpers.CopyFile(
-			t, filepath.Join(
-				fixturePath,
-				"app",
-				"best-cat",
-				"template.html",
-			), filepath.Join(bestCatPath, "template.html"),
-		)
+		helpers.ExecWithTestLogger(st, repoPath, "mkdir", "dist")
 
-		helpers.CopyFile(
-			t, filepath.Join(
-				fixturePath,
-				"app",
-				"best-cat",
-				"styles.css",
-			), filepath.Join(bestCatPath, "styles.css"),
-		)
+		helpers.ExecWithTestLogger(st, bestCatPath, "npm", "i")
+		helpers.ExecWithTestLogger(st, bestCatPath, "npm", "run", "package")
 
-		helpers.CopyFile(
-			t, filepath.Join(
-				fixturePath,
-				"app",
-				"best-cat",
-				"script.js",
-			), filepath.Join(bestCatPath, "script.js"),
-		)
-
-		helpers.CopyFile(
-			t, filepath.Join(
-				fixturePath,
-				"app",
-				"best-cat",
-				"package-lock.json",
-			), filepath.Join(bestCatPath, "package-lock.json"),
-		)
-
-		helpers.ExecWithTestLogger(t, repoPath, "mkdir", "dist")
-
-		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "i")
-		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "run", "package")
-
-		// Create some fake files in the dist directory to mock assets.
-		distDir := filepath.Join(repoPath, "dist")
-
-		require.NoError(t, os.Mkdir(filepath.Join(distDir, "static"), 0755))
+		require.NoError(st, os.Mkdir(filepath.Join(distDir, "static"), 0755))
 
 		for i := range 10 {
 			require.NoError(
-				t,
+				st,
 				os.WriteFile(
 					filepath.Join(
 						distDir,
@@ -264,6 +248,105 @@ terragrunt = "0.83.2"
 			)
 		}
 
-		t.Log("Setup complete")
+		st.Log("Setup complete")
+	})
+
+	t.Run("step-1-starting-the-terralith", func(st *testing.T) {
+		// Create the live directory
+		helpers.ExecWithTestLogger(st, repoPath, "mkdir", "live")
+
+		// Copy all the OpenTofu files from fixtures
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-1-starting-the-terralith", "live")
+
+		// List of files to copy
+		terraformFiles := []string{
+			"providers.tf",
+			"versions.tf",
+			"data.tf",
+			"ddb.tf",
+			"s3.tf",
+			"iam.tf",
+			"lambda.tf",
+			"vars-required.tf",
+			"vars-optional.tf",
+			"outputs.tf",
+			"backend.tf",
+		}
+
+		// Copy each file from fixture to live directory
+		for _, file := range terraformFiles {
+			helpers.CopyFile(
+				st,
+				filepath.Join(fixtureStepPath, file),
+				filepath.Join(liveDir, file),
+			)
+		}
+
+		// Create the .auto.tfvars file with test-specific values.
+		// We set force_destroy to true to avoid errors when destroying the infrastructure.
+		tfvarsContent := fmt.Sprintf(`# Required: Name used for all resources (must be unique)
+name = "%s"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../dist/best-cat.zip"
+
+# AWS region
+aws_region = "%s"
+
+force_destroy = true
+`, name, region)
+
+		require.NoError(st, os.WriteFile(
+			filepath.Join(liveDir, ".auto.tfvars"),
+			[]byte(tfvarsContent),
+			0644,
+		))
+
+		// Update backend.tf with unique bucket name
+		backendContent := fmt.Sprintf(`terraform {
+  backend "s3" {
+    bucket       = "%s"
+    key          = "tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+`, stateBucketName, region)
+
+		require.NoError(st, os.WriteFile(
+			filepath.Join(liveDir, "backend.tf"),
+			[]byte(backendContent),
+			0644,
+		))
+
+		// Always cleanup the infrastructure in-case something goes wrong.
+		// We'll re-apply it at the beginning of the next step.
+		defer helpers.ExecWithTestLogger(st, liveDir, "tofu", "destroy", "-auto-approve")
+
+		// Initialize and apply the Terraform configuration
+		helpers.ExecWithTestLogger(st, liveDir, "tofu", "init")
+
+		helpers.ExecWithTestLogger(st, liveDir, "tofu", "apply", "-auto-approve")
+
+		// Verify the apply was successful by checking outputs
+		stdout, _ := helpers.ExecAndCaptureOutput(st, liveDir, "tofu", "output")
+
+		// Check that key outputs exist
+		assert.Contains(st, stdout, "lambda_function_url")
+		assert.Contains(st, stdout, "s3_bucket_name")
+		assert.Contains(st, stdout, "dynamodb_table_name")
+
+		// Get the S3 bucket name from output for asset upload test
+		bucketNameOutput, _ := helpers.ExecAndCaptureOutput(st, liveDir, "tofu", "output", "-raw", "s3_bucket_name")
+
+		actualBucketName := strings.TrimSpace(bucketNameOutput)
+
+		require.NotEmpty(st, actualBucketName)
+
+		// Verify the bucket was created and upload test assets using the AWS CLI (as mentioned in the guide)
+		helpers.ExecWithTestLogger(st, distStaticDir, "aws", "s3", "sync", ".", fmt.Sprintf("s3://%s/", actualBucketName))
+
+		st.Log("Step 1 - Starting the Terralith completed successfully")
 	})
 }
