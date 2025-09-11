@@ -5,10 +5,10 @@ import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
 import partytown from "@astrojs/partytown";
+import tailwindcss from "@tailwindcss/vite";
 
 import starlightLinksValidator from "starlight-links-validator";
 import d2 from "astro-d2";
-import tailwindcss from "@tailwindcss/vite";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -167,36 +167,6 @@ export default defineConfig({
             content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
           },
         },
-        {
-          tag: "script",
-          attrs: {
-            src: "https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL",
-            type: "text/javascript",
-          },
-        },
-        {
-          tag: "script",
-          attrs: {
-            type: "text/javascript",
-          },
-          content: `
-          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-          })(window,document,'script','dataLayer','GTM-5TTJJGTL');
-        `,
-        },
-        {
-          tag: "script",
-          attrs: {
-            type: "text/javascript",
-            id: "hs-script-loader",
-            async: true,
-            defer: true,
-            src: "https://js.hs-scripts.com/8376079.js",
-          },
-        },
       ],
       components: {
         Header: "./src/components/Header.astro",
@@ -209,9 +179,9 @@ export default defineConfig({
       },
       social: [
         {
+          href: "https://discord.gg/SPu4Degs5f",
           icon: "discord",
           label: "Discord",
-          href: "https://discord.gg/SPu4Degs5f",
         },
       ],
       sidebar: sidebar,
@@ -222,8 +192,8 @@ export default defineConfig({
             "http://localhost:16686/",
             "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're
-            // referencing content that is generated outside the contents of the markdown file.
+            // Unfortunately, these have to be ignored, as they're referencing content
+            // that is generated outside the contents of the markdown file.
             "/docs/reference/cli/commands/run#*",
             "/docs/reference/cli/commands/run/#*",
             "/docs/reference/cli/commands/list#*",
@@ -240,7 +210,14 @@ export default defineConfig({
     }),
     partytown({
       config: {
-        forward: ["dataLayer.push"],
+        debug: false,
+        logCalls: false,
+        logGetters: false,
+        logSetters: false,
+        logImageRequests: false,
+        logScriptExecution: false,
+        logStackTraces: false,
+        forward: ['dataLayer.push'],
       },
     }),
     sitemap(),
