@@ -1173,7 +1173,7 @@ inputs = {
 		}
 
 		// Apply the stack configuration to ensure everything works
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
 		require.NoError(t, err)
 
 		// Verify outputs still work after migrating to stacks
