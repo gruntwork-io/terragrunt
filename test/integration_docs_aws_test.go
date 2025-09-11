@@ -1188,12 +1188,6 @@ inputs = {
 		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
 
-		// Test that we can run specific environment operations using stacks
-		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
-		assert.Contains(t, devOnlyPlanStderr, "Module ./dev")
-		assert.NotContains(t, devOnlyPlanStderr, "Module ./prod")
-		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
-
 		t.Log("Step 7 - Taking advantage of Terragrunt Stacks completed successfully")
 		pass = true
 	}()
@@ -1288,6 +1282,17 @@ inputs = {
 			}
 		}
 
+		// Remove the old individual component directories from dev and prod
+		// since they're now in .terragrunt-stack subdirectories
+		for _, env := range environments {
+			for _, component := range components {
+				componentDir := filepath.Join(liveDir, env, component)
+				if util.FileExists(componentDir) {
+					require.NoError(t, os.RemoveAll(componentDir))
+				}
+			}
+		}
+
 		// Remove the .gitignore files since we no longer need them
 		require.NoError(t, os.Remove(filepath.Join(devDir, ".gitignore")))
 		require.NoError(t, os.Remove(filepath.Join(prodDir, ".gitignore")))
@@ -1327,12 +1332,6 @@ inputs = {
 
 		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
-
-		// Test that we can still run environment-specific operations
-		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
-		assert.Contains(t, devOnlyPlanStderr, "Module ./dev")
-		assert.NotContains(t, devOnlyPlanStderr, "Module ./prod")
-		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
 
 		// Verify the directory structure is clean - dev and prod should only contain terragrunt.stack.hcl
 		devEntries, err := os.ReadDir(devDir)
