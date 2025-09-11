@@ -140,8 +140,8 @@ type DiscoveryOption func(*Discovery)
 
 // CompiledPattern holds a precompiled glob pattern along with the original pattern string.
 type CompiledPattern struct {
-	Original string
 	Compiled interface{ Match(name string) bool }
+	Original string
 }
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
@@ -643,6 +643,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				l.Debugf("Cycle: %w", cycleErr)
 
 				var removeErr error
+
 				cfgs, removeErr = cfgs.RemoveCycles()
 				if removeErr != nil {
 					errs = append(errs, errors.New(removeErr))
