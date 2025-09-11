@@ -4,6 +4,7 @@ package discovery
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -412,7 +413,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		}
 	}
 
-	processFn := func(path string, info os.FileInfo, err error) error {
+	processFn := func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return errors.New(err)
 		}
@@ -517,9 +518,9 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		return nil
 	}
 
-	walkFn := filepath.Walk
+	walkFn := filepath.WalkDir
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkWithSymlinks
+		walkFn = util.WalkDirWithSymlinks
 	}
 
 	if err := walkFn(d.workingDir, processFn); err != nil {
