@@ -1,6 +1,5 @@
 ---
 import config from 'virtual:starlight/user-config';
-import type { Props } from '@astrojs/starlight/props';
 import { Image } from 'astro:assets';
 import Search from 'virtual:starlight/components/Search';
 
@@ -61,9 +60,9 @@ try {
 -->
 
 <style>
-.header-dark-theme {
-  --sl-color-gray-1: #e8eefc;
-}
+  .header-dark-theme {
+    --sl-color-gray-1: #e8eefc;
+  }
 </style>
 
 <div class="navbar header-dark-theme fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
@@ -155,3 +154,7 @@ try {
 </div>
 
 <script src="https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL" type="text/javascript"></script>
+<script type="text/javascript">
+  (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5TTJJGTL')
+</script>
+<script type="text/javascript" src="https://js.hs-scripts.com/8376079.js" async defer></script>
