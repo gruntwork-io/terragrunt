@@ -171,13 +171,13 @@ export default defineConfig({
           tag: "script",
           attrs: {
             src: "https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL",
-            type: "text/partytown",
+            type: "text/javascript",
           },
         },
         {
           tag: "script",
           attrs: {
-            type: "text/partytown",
+            type: "text/javascript",
           },
           content: `
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -194,7 +194,7 @@ export default defineConfig({
             id: "hs-script-loader",
             async: true,
             defer: true,
-            src: "//js.hs-scripts.com/8376079.js",
+            src: "https://js.hs-scripts.com/8376079.js",
           },
         },
       ],
@@ -248,8 +248,7 @@ export default defineConfig({
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
-    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/":
-      "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
+    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/": "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
 
     // Redirects to external sites.
     "/contact/": "https://gruntwork.io/contact",
@@ -260,8 +259,7 @@ export default defineConfig({
     "/docs/reference/configuration/": "/docs/reference/hcl/",
     "/docs/reference/cli-options/": "/docs/reference/cli/",
     "/docs/reference/built-in-functions/": "/docs/reference/hcl/functions/",
-    "/docs/reference/config-blocks-and-attributes/":
-      "/docs/reference/hcl/blocks/",
+    "/docs/reference/config-blocks-and-attributes/": "/docs/reference/hcl/blocks/",
     "/docs/reference/strict-mode/": "/docs/reference/strict-controls/",
     "/docs/reference/log-formatting/": "/docs/reference/logging/formatting/",
     "/docs/features/aws-authentication/": "/docs/features/authentication/",
@@ -283,24 +281,18 @@ export default defineConfig({
     "/docs/features/inputs/": "/docs/features/units/",
     "/docs/features/locals/": "/docs/features/units/",
     "/docs/features/keep-your-terraform-code-dry/": "/docs/features/units/",
-    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/":
-      "/docs/features/stacks/",
-    "/docs/features/keep-your-terragrunt-architecture-dry/":
-      "/docs/features/includes/",
-    "/docs/features/keep-your-remote-state-configuration-dry/":
-      "/docs/features/state-backend/",
-    "/docs/features/keep-your-cli-flags-dry/":
-      "/docs/features/extra-arguments/",
+    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/": "/docs/features/stacks/",
+    "/docs/features/keep-your-terragrunt-architecture-dry/": "/docs/features/includes/",
+    "/docs/features/keep-your-remote-state-configuration-dry/": "/docs/features/state-backend/",
+    "/docs/features/keep-your-cli-flags-dry/": "/docs/features/extra-arguments/",
     "/docs/features/aws-auth/": "/docs/features/aws-authentication/",
-    "/docs/features/work-with-multiple-aws-accounts/":
-      "/docs/features/aws-authentication/",
+    "/docs/features/work-with-multiple-aws-accounts/": "/docs/features/aws-authentication/",
     "/docs/features/auto-retry/": "/docs/features/runtime-control/",
     "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
 
     // Additional redirects for 404ing URLs
-    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/":
-      "/docs/features/stacks/",
+    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/": "/docs/features/stacks/",
     "/docs/getting-started/configuration/": "/docs/reference/hcl/",
     "/docs/features/before-and-after-hooks/": "/docs/features/hooks/",
     "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL
