@@ -54,6 +54,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	// Collect all terragrunt.hcl paths for resolution.
 	unitPaths := make([]string, 0, len(discovered))
+	configPath := filepath.Base(terragruntOptions.TerragruntConfigPath)
+
 	for _, cfg := range discovered {
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
@@ -61,7 +63,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue
 		}
 
-		terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
+		terragruntConfigPath := filepath.Join(cfg.Path, configPath)
 		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
