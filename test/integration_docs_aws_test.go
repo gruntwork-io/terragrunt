@@ -740,11 +740,13 @@ force_destroy = true
 			if !pass {
 				// Cleanup both dev and prod environments if we get here.
 				if _, err := os.Stat(devDir); err == nil {
-					helpers.ExecWithTestLogger(t, devDir, "terragrunt", "destroy", "-auto-approve")
+					_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+devDir)
+					require.NoError(t, err)
 				}
 
 				if _, err := os.Stat(prodDir); err == nil {
-					helpers.ExecWithTestLogger(t, prodDir, "terragrunt", "destroy", "-auto-approve")
+					_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+prodDir)
+					require.NoError(t, err)
 				}
 			}
 		}()
@@ -873,8 +875,10 @@ inputs = {
 		prodPlanOutput, _ := helpers.ExecAndCaptureOutput(t, prodDir, "terragrunt", "plan")
 		assert.Contains(t, prodPlanOutput, "0 to add, 1 to change, 0 to destroy")
 
-		helpers.ExecWithTestLogger(t, devDir, "terragrunt", "apply", "-auto-approve")
-		helpers.ExecWithTestLogger(t, prodDir, "terragrunt", "apply", "-auto-approve")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+devDir)
+		require.NoError(t, err)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+prodDir)
+		require.NoError(t, err)
 
 		runAllPlanStdout, runAllPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan")
 		assert.Contains(t, runAllPlanStderr, "Module ./dev")
@@ -908,7 +912,8 @@ inputs = {
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
-				helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
+				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
+				require.NoError(t, err)
 			}
 		}()
 
@@ -963,7 +968,8 @@ inputs = {
 
 			for _, component := range components {
 				componentDir := filepath.Join(envDir, component)
-				helpers.ExecWithTestLogger(t, componentDir, "terragrunt", "state", "push", tempStateFile)
+				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt state push "+tempStateFile+" --working-dir "+componentDir)
+				require.NoError(t, err)
 			}
 		}
 
@@ -1027,7 +1033,8 @@ inputs = {
 		}
 
 		// Apply all changes to complete the migration
-		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
+		require.NoError(t, err)
 
 		// Verify outputs still work after breaking down into components
 		// Check a few key components to ensure they're working
@@ -1064,7 +1071,8 @@ inputs = {
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
-				helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
+				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
+				require.NoError(t, err)
 			}
 		}()
 
@@ -1165,7 +1173,8 @@ inputs = {
 		}
 
 		// Apply the stack configuration to ensure everything works
-		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
+		require.NoError(t, err)
 
 		// Verify outputs still work after migrating to stacks
 		// Check a few key components to ensure they're working
@@ -1202,7 +1211,8 @@ inputs = {
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
-				helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
+				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
+				require.NoError(t, err)
 			}
 		}()
 
@@ -1210,7 +1220,8 @@ inputs = {
 		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-8-refactoring-state-with-terragrunt-stacks")
 
 		// First, generate the current stack to ensure everything is present
-		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "stack", "generate")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
+		require.NoError(t, err)
 
 		// Update the terragrunt.stack.hcl files to remove no_dot_terragrunt_stack attribute
 		// Read dev stack template and replace the hardcoded name
@@ -1244,7 +1255,8 @@ inputs = {
 		))
 
 		// Generate the new stack structure with .terragrunt-stack directories
-		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "stack", "generate")
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
+		require.NoError(t, err)
 
 		// Verify that .terragrunt-stack directories are created
 		components := []string{"ddb", "iam", "lambda", "s3"}
@@ -1278,7 +1290,8 @@ inputs = {
 				require.NoError(t, os.WriteFile(tempStateFile, []byte(stateContent), 0644))
 
 				// Push state to new location
-				helpers.ExecWithTestLogger(t, newUnitDir, "terragrunt", "state", "push", tempStateFile)
+				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt state push "+tempStateFile+" --working-dir "+newUnitDir)
+				require.NoError(t, err)
 			}
 		}
 
@@ -1310,7 +1323,8 @@ inputs = {
 		}
 
 		// Apply to ensure everything works with the new structure
-		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
+		require.NoError(t, err)
 
 		// Verify outputs still work after state migration
 		// Check a few key components to ensure they're working
@@ -1361,6 +1375,7 @@ inputs = {
 	func() {
 		t.Log("Cleanup")
 
-		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
+		require.NoError(t, err)
 	}()
 }
