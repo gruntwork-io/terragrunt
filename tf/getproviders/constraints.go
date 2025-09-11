@@ -1,6 +1,7 @@
 package getproviders
 
 import (
+	"maps"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,9 +52,7 @@ func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string
 		}
 
 		// Merge constraints from this file
-		for addr, constraint := range fileConstraints {
-			constraints[addr] = constraint
-		}
+		maps.Copy(constraints, fileConstraints)
 	}
 
 	return constraints, nil
@@ -95,9 +94,7 @@ func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename 
 			providerConstraints := parseProvidersFromRequiredProvidersBlock(opts, nestedBlock)
 
 			// Merge constraints from this required_providers block
-			for addr, constraint := range providerConstraints {
-				constraints[addr] = constraint
-			}
+			maps.Copy(constraints, providerConstraints)
 		}
 	}
 

@@ -736,7 +736,7 @@ func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *o
 	})
 
 	// Start parser workers
-	for i := 0; i < d.numWorkers; i++ {
+	for range d.numWorkers {
 		g.Go(func() error {
 			return d.parseWorker(ctx, l, opts, configChan, errorChan)
 		})

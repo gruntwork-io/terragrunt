@@ -1238,7 +1238,7 @@ func extractSopsErrors(err error) *errors.MultiError {
 	// using reflection extract GroupResults from getDataKeyError
 	// may not be compatible with future versions
 	errValue := reflect.ValueOf(err)
-	if errValue.Kind() == reflect.Ptr {
+	if errValue.Kind() == reflect.Pointer {
 		errValue = errValue.Elem()
 	}
 
