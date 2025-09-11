@@ -141,12 +141,22 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		{
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
-			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
+			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 		},
 		{
 			&config.TerragruntConfig{},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
+		},
+		{
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session2"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+		},
+		{
+			&config.TerragruntConfig{},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},

@@ -274,7 +274,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/urfave/cli v1.22.16 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
