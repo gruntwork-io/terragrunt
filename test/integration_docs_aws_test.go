@@ -1199,6 +1199,167 @@ inputs = {
 	}()
 
 	func() {
+		t.Log("Running step 8 - Refactoring state with Terragrunt Stacks")
+
+		// We do a check like this to make sure we properly clean up infrastructure only when we fail.
+		//
+		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
+		pass := false
+		defer func() {
+			if !pass {
+				// Cleanup all component units if we get here.
+				helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
+			}
+		}()
+
+		// Path to step 8 fixtures
+		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-8-refactoring-state-with-terragrunt-stacks")
+
+		// First, generate the current stack to ensure everything is present
+		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "stack", "generate")
+
+		// Update the terragrunt.stack.hcl files to remove no_dot_terragrunt_stack attribute
+		// Read dev stack template and replace the hardcoded name
+		devStackSourceFile := filepath.Join(fixtureStepPath, "live", "dev", "terragrunt.stack.hcl")
+		devStackContent, err := os.ReadFile(devStackSourceFile)
+		require.NoError(t, err)
+
+		// Replace the hardcoded name with our test-specific name
+		customizedDevStackContent := strings.ReplaceAll(string(devStackContent), "best-cat-2025-07-31-01-dev", name+"-dev")
+		customizedDevStackContent = strings.ReplaceAll(customizedDevStackContent, "us-east-1", region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(devDir, "terragrunt.stack.hcl"),
+			[]byte(customizedDevStackContent),
+			0644,
+		))
+
+		// Read prod stack template and replace the hardcoded name
+		prodStackSourceFile := filepath.Join(fixtureStepPath, "live", "prod", "terragrunt.stack.hcl")
+		prodStackContent, err := os.ReadFile(prodStackSourceFile)
+		require.NoError(t, err)
+
+		// Replace the hardcoded name with our test-specific name
+		customizedProdStackContent := strings.ReplaceAll(string(prodStackContent), "best-cat-2025-07-31-01", name)
+		customizedProdStackContent = strings.ReplaceAll(customizedProdStackContent, "us-east-1", region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(prodDir, "terragrunt.stack.hcl"),
+			[]byte(customizedProdStackContent),
+			0644,
+		))
+
+		// Generate the new stack structure with .terragrunt-stack directories
+		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "stack", "generate")
+
+		// Verify that .terragrunt-stack directories are created
+		components := []string{"ddb", "iam", "lambda", "s3"}
+		environments := []string{"dev", "prod"}
+
+		for _, env := range environments {
+			terragruntStackDir := filepath.Join(liveDir, env, ".terragrunt-stack")
+			require.DirExists(t, terragruntStackDir)
+
+			for _, component := range components {
+				componentDir := filepath.Join(terragruntStackDir, component)
+				require.DirExists(t, componentDir)
+
+				// Verify terragrunt.hcl exists in the .terragrunt-stack location
+				terragruntHclPath := filepath.Join(componentDir, "terragrunt.hcl")
+				require.FileExists(t, terragruntHclPath)
+			}
+		}
+
+		// Migrate state from old unit paths to new .terragrunt-stack paths
+		tmpDir := t.TempDir()
+		tempStateFile := filepath.Join(tmpDir, "tofu.tfstate")
+
+		for _, env := range environments {
+			for _, component := range components {
+				oldUnitDir := filepath.Join(liveDir, env, component)
+				newUnitDir := filepath.Join(liveDir, env, ".terragrunt-stack", component)
+
+				// Pull state from old location
+				stateContent, _ := helpers.ExecAndCaptureOutput(t, oldUnitDir, "terragrunt", "state", "pull")
+				require.NoError(t, os.WriteFile(tempStateFile, []byte(stateContent), 0644))
+
+				// Push state to new location
+				helpers.ExecWithTestLogger(t, newUnitDir, "terragrunt", "state", "push", tempStateFile)
+			}
+		}
+
+		// Remove the .gitignore files since we no longer need them
+		require.NoError(t, os.Remove(filepath.Join(devDir, ".gitignore")))
+		require.NoError(t, os.Remove(filepath.Join(prodDir, ".gitignore")))
+
+		// Verify that the migration was successful by running a plan
+		// The plan should show no changes since we migrated state properly
+		_, planStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+
+		// The plan output should show modules for all components in .terragrunt-stack directories
+		for _, env := range environments {
+			for _, component := range components {
+				expectedModulePath := fmt.Sprintf("Module ./%s/.terragrunt-stack/%s", env, component)
+				assert.Contains(t, planStderr, expectedModulePath)
+			}
+		}
+
+		// Apply to ensure everything works with the new structure
+		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
+
+		// Verify outputs still work after state migration
+		// Check a few key components to ensure they're working
+		devS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "s3"), "terragrunt", "output")
+		prodS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "s3"), "terragrunt", "output")
+
+		assert.Contains(t, devS3Output, "name")
+		assert.Contains(t, prodS3Output, "name")
+
+		devLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "lambda"), "terragrunt", "output")
+		prodLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "output")
+
+		assert.Contains(t, devLambdaOutput, "url")
+		assert.Contains(t, prodLambdaOutput, "url")
+
+		// Verify dependency resolution still works correctly with the new structure
+		devLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
+		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
+
+		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
+		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
+
+		// Test that we can still run environment-specific operations
+		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
+		assert.Contains(t, devOnlyPlanStderr, "Module ./dev")
+		assert.NotContains(t, devOnlyPlanStderr, "Module ./prod")
+		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
+
+		// Verify the directory structure is clean - dev and prod should only contain terragrunt.stack.hcl
+		devEntries, err := os.ReadDir(devDir)
+		require.NoError(t, err)
+		devFileNames := make([]string, 0, len(devEntries))
+		for _, entry := range devEntries {
+			if !strings.HasPrefix(entry.Name(), ".") { // Ignore hidden files/dirs like .terragrunt-stack
+				devFileNames = append(devFileNames, entry.Name())
+			}
+		}
+		assert.Equal(t, []string{"terragrunt.stack.hcl"}, devFileNames)
+
+		prodEntries, err := os.ReadDir(prodDir)
+		require.NoError(t, err)
+		prodFileNames := make([]string, 0, len(prodEntries))
+		for _, entry := range prodEntries {
+			if !strings.HasPrefix(entry.Name(), ".") { // Ignore hidden files/dirs like .terragrunt-stack
+				prodFileNames = append(prodFileNames, entry.Name())
+			}
+		}
+		assert.Equal(t, []string{"terragrunt.stack.hcl"}, prodFileNames)
+
+		t.Log("Step 8 - Refactoring state with Terragrunt Stacks completed successfully")
+		pass = true
+	}()
+
+	func() {
 		t.Log("Cleanup")
 
 		helpers.ExecWithTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "destroy")
