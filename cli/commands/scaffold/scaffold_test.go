@@ -19,6 +19,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newTestBoilerplateOptions creates a BoilerplateOptions for testing
+func newTestBoilerplateOptions(templateFolder, outputFolder string, vars map[string]any, noShell, noHooks bool) *boilerplateoptions.BoilerplateOptions {
+	return &boilerplateoptions.BoilerplateOptions{
+		TemplateFolder:          templateFolder,
+		OutputFolder:            outputFolder,
+		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
+		Vars:                    vars,
+		ShellCommandAnswers:     map[string]bool{},
+		NoShell:                 noShell,
+		NoHooks:                 noHooks,
+		NonInteractive:          true,
+		DisableDependencyPrompt: false,
+	}
+}
+
 func TestDefaultTemplateVariables(t *testing.T) {
 	t.Parallel()
 
@@ -64,17 +80,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(scaffold.DefaultBoilerplateConfig), 0644)
 	require.NoError(t, err)
 
-	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
-		Vars:                    vars,
-		NoShell:                 true,
-		NoHooks:                 true,
-		NonInteractive:          true,
-		DisableDependencyPrompt: false,
-		TemplateFolder:          templateDir,
-	}
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
 
 	emptyDep := variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
@@ -469,17 +475,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoShell=true
-	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
-		Vars:                    map[string]any{},
-		NoShell:                 true, // Disable shell functions
-		NoHooks:                 false,
-		NonInteractive:          true,
-		DisableDependencyPrompt: false,
-		TemplateFolder:          templateDir,
-	}
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
 
 	// Process the template
 	emptyDep := variables.Dependency{}
@@ -531,23 +527,13 @@ variables:
 	templateContent := `# Test template with shell function
 test_var = "{{ .TestVar }}"
 # This shell function SHOULD execute when NoShell=false
-shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
+shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 `
 	err = os.WriteFile(util.JoinPath(templateDir, "test.txt"), []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoShell=false
-	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
-		Vars:                    map[string]any{},
-		NoShell:                 false, // Enable shell functions
-		NoHooks:                 false,
-		NonInteractive:          true,
-		DisableDependencyPrompt: false,
-		TemplateFolder:          templateDir,
-	}
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
 	emptyDep := variables.Dependency{}
@@ -592,10 +578,14 @@ variables:
 
 hooks:
   before:
-    - command: echo "BEFORE_HOOK_EXECUTED" > ` + outputDir + `/hook_output.txt
+    - command: touch
+      args:
+        - ` + outputDir + `/before_hook_not_executed.txt
       description: "Test hook that should NOT execute"
   after:
-    - command: echo "AFTER_HOOK_EXECUTED" >> ` + outputDir + `/hook_output.txt
+    - command: touch
+      args:
+        - ` + outputDir + `/after_hook_not_executed.txt
       description: "Test hook that should NOT execute"
 `
 	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
@@ -609,17 +599,7 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoHooks=true
-	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
-		Vars:                    map[string]any{},
-		NoShell:                 false,
-		NoHooks:                 true, // Disable hooks
-		NonInteractive:          true,
-		DisableDependencyPrompt: false,
-		TemplateFolder:          templateDir,
-	}
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
 
 	// Process the template
 	emptyDep := variables.Dependency{}
@@ -634,9 +614,11 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
-	// Verify that hooks did NOT execute (hook_output.txt should not exist)
-	hookOutputFile := util.JoinPath(outputDir, "hook_output.txt")
-	assert.NoFileExists(t, hookOutputFile, "Hook output file should not exist when NoHooks=true")
+	// Verify that hooks did NOT execute (hook files should not exist)
+	beforeHookFile := util.JoinPath(outputDir, "before_hook_not_executed.txt")
+	afterHookFile := util.JoinPath(outputDir, "after_hook_not_executed.txt")
+	assert.NoFileExists(t, beforeHookFile, "Before hook file should not exist when NoHooks=true")
+	assert.NoFileExists(t, afterHookFile, "After hook file should not exist when NoHooks=true")
 }
 
 // TestBoilerplateHooksEnabled tests that NoHooks=false allows hooks to execute
@@ -663,10 +645,14 @@ variables:
 
 hooks:
   before:
-    - command: echo "BEFORE_HOOK_EXECUTED" > ` + outputDir + `/hook_output.txt
+    - command: touch
+      args:
+        - ` + outputDir + `/before_hook_executed.txt
       description: "Test hook that SHOULD execute"
   after:
-    - command: echo "AFTER_HOOK_EXECUTED" >> ` + outputDir + `/hook_output.txt
+    - command: touch
+      args:
+        - ` + outputDir + `/after_hook_executed.txt
       description: "Test hook that SHOULD execute"
 `
 	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
@@ -680,17 +666,7 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoHooks=false
-	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
-		Vars:                    map[string]any{},
-		NoShell:                 false,
-		NoHooks:                 false, // Enable hooks
-		NonInteractive:          true,
-		DisableDependencyPrompt: false,
-		TemplateFolder:          templateDir,
-	}
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
 	emptyDep := variables.Dependency{}
@@ -705,14 +681,11 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
-	// Verify that hooks DID execute (hook_output.txt should exist with content)
-	hookOutputFile := util.JoinPath(outputDir, "hook_output.txt")
-	require.FileExists(t, hookOutputFile, "Hook output file should exist when NoHooks=false")
-
-	hookContent, err := util.ReadFileAsString(hookOutputFile)
-	require.NoError(t, err)
-	assert.Contains(t, hookContent, "BEFORE_HOOK_EXECUTED", "Before hook should execute when NoHooks=false")
-	assert.Contains(t, hookContent, "AFTER_HOOK_EXECUTED", "After hook should execute when NoHooks=false")
+	// Verify that hooks DID execute (before and after hook files should exist)
+	beforeHookFile := util.JoinPath(outputDir, "before_hook_executed.txt")
+	afterHookFile := util.JoinPath(outputDir, "after_hook_executed.txt")
+	require.FileExists(t, beforeHookFile, "Before hook file should exist when NoHooks=false")
+	require.FileExists(t, afterHookFile, "After hook file should exist when NoHooks=false")
 }
 
 // TestBoilerplateBothFlagsDisabled tests that both NoShell=true and NoHooks=true work together
@@ -754,17 +727,7 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with both NoShell=true and NoHooks=true
-	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
-		Vars:                    map[string]any{},
-		NoShell:                 true, // Disable shell functions
-		NoHooks:                 true, // Disable hooks
-		NonInteractive:          true,
-		DisableDependencyPrompt: false,
-		TemplateFolder:          templateDir,
-	}
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
 
 	// Process the template
 	emptyDep := variables.Dependency{}

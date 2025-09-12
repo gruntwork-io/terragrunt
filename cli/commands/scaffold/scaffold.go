@@ -106,6 +106,22 @@ const (
 	rootFileName      = "RootFileName"
 )
 
+// NewBoilerplateOptions creates a new BoilerplateOptions struct
+func NewBoilerplateOptions(templateFolder, outputFolder string, vars map[string]any, terragruntOpts *options.TerragruntOptions) *boilerplate_options.BoilerplateOptions {
+	return &boilerplate_options.BoilerplateOptions{
+		TemplateFolder:          templateFolder,
+		OutputFolder:            outputFolder,
+		OnMissingKey:            boilerplate_options.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplate_options.DefaultMissingConfigAction,
+		Vars:                    vars,
+		ShellCommandAnswers:     map[string]bool{},
+		NoShell:                 terragruntOpts.NoShell,
+		NoHooks:                 terragruntOpts.NoHooks,
+		NonInteractive:          terragruntOpts.NonInteractive,
+		DisableDependencyPrompt: terragruntOpts.NoDependencyPrompt,
+	}
+}
+
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
 	// Apply catalog configuration settings, with CLI flags taking precedence
 	applyCatalogConfigToScaffold(ctx, l, opts)
@@ -199,17 +215,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	}
 
 	l.Infof("Running boilerplate generation to %s", outputDir)
-	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
-		OutputFolder:            outputDir,
-		OnMissingKey:            boilerplate_options.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplate_options.DefaultMissingConfigAction,
-		Vars:                    vars,
-		NoShell:                 opts.NoShell,
-		NoHooks:                 opts.NoHooks,
-		NonInteractive:          opts.NonInteractive,
-		DisableDependencyPrompt: opts.NoDependencyPrompt,
-		TemplateFolder:          boilerplateDir,
-	}
+	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
 
 	emptyDep := variables.Dependency{}
 	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
