@@ -1,4 +1,4 @@
-//go:build tofu
+//go:build aws && tofu
 
 package test_test
 
