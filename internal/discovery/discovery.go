@@ -298,6 +298,8 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
+	// If a specific path is provided in opts, use that filename.
+	// Otherwise, use the default based on the config type.
 	filename := config.DefaultTerragruntConfigPath
 	if opts.TerragruntConfigPath != "" {
 		filename = filepath.Base(opts.TerragruntConfigPath)
