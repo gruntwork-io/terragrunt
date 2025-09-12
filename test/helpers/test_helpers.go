@@ -135,6 +135,17 @@ func (tl *testLogger) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// ExecWithMiseAndTestLogger executes a command using mise and logs the output to the test logger.
+func ExecWithMiseAndTestLogger(t *testing.T, dir, command string, args ...string) {
+	t.Helper()
+
+	tool := determineToolName(command)
+
+	args = append([]string{"x", tool, "--", command}, args...)
+
+	ExecWithTestLogger(t, dir, "mise", args...)
+}
+
 // ExecAndCaptureOutput executes a command and captures the stdout and stderr.
 func ExecAndCaptureOutput(t *testing.T, dir, command string, args ...string) (string, string) {
 	t.Helper()
@@ -154,4 +165,28 @@ func ExecAndCaptureOutput(t *testing.T, dir, command string, args ...string) (st
 	require.NoError(t, err)
 
 	return stdout.String(), stderr.String()
+}
+
+// ExecWithMiseAndCaptureOutput executes a command using mise and captures the stdout and stderr.
+// This is useful for commands that are being tested as installed via mise, as it doesn't depend
+// on the PATH being set correctly.
+func ExecWithMiseAndCaptureOutput(t *testing.T, dir, command string, args ...string) (string, string) {
+	t.Helper()
+
+	tool := determineToolName(command)
+
+	args = append([]string{"x", tool, "--", command}, args...)
+
+	return ExecAndCaptureOutput(t, dir, "mise", args...)
+}
+
+// determineToolName determines the tool name to use for the given command.
+func determineToolName(command string) string {
+	switch command {
+	case "tofu":
+		return "opentofu"
+	case "npm":
+		return "node"
+	}
+	return command
 }

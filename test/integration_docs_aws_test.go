@@ -1,4 +1,4 @@
-//go:build aws
+// //go:build aws
 
 package test_test
 
@@ -206,6 +206,23 @@ node = "22.17.1"
 opentofu = "1.10.3"
 terragrunt = "0.83.2"
 `)
+
+		// Run a dummy command to check if the tools are installed
+		stdout, stderr := helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "terragrunt", "--version")
+		require.Empty(t, stderr)
+		require.Contains(t, stdout, "terragrunt")
+
+		stdout, stderr = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "tofu", "--version")
+		require.Empty(t, stderr)
+		require.Contains(t, stdout, "OpenTofu")
+
+		stdout, stderr = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "aws", "--version")
+		require.Empty(t, stderr)
+		require.Contains(t, stdout, "aws")
+
+		stdout, stderr = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "node", "--version")
+		require.Empty(t, stderr)
+		require.Contains(t, stdout, "v22.17.1")
 
 		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "-p", "app/best-cat")
 
