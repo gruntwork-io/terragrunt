@@ -174,14 +174,6 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 
 	region := "us-east-1"
 
-	// Create the backend S3 bucket manually using AWS CLI (as mentioned in the guide)
-	//
-	// Do it early so we can be sure it's going to be cleaned up at the end.
-	helpers.ExecWithTestLogger(t, tmpDir, "aws", "s3api", "create-bucket",
-		"--bucket", stateBucketName, "--region", region)
-	helpers.ExecWithTestLogger(t, tmpDir, "aws", "s3api", "put-bucket-versioning",
-		"--bucket", stateBucketName, "--versioning-configuration", "Status=Enabled")
-
 	// Defer cleanup of state bucket
 	defer helpers.DeleteS3Bucket(t, region, stateBucketName)
 
@@ -224,6 +216,14 @@ terragrunt = "0.83.2"
 		require.Empty(t, stderr)
 		require.Contains(t, stdout, "v22.17.1")
 
+		// Create the backend S3 bucket manually using AWS CLI (as mentioned in the guide)
+		//
+		// Do it earlier than it is in the guide so we can be sure it's going to be cleaned up properly at the end.
+		helpers.ExecWithMiseAndTestLogger(t, tmpDir, "aws", "s3api", "create-bucket",
+			"--bucket", stateBucketName, "--region", region)
+		helpers.ExecWithMiseAndTestLogger(t, tmpDir, "aws", "s3api", "put-bucket-versioning",
+			"--bucket", stateBucketName, "--versioning-configuration", "Status=Enabled")
+
 		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "-p", "app/best-cat")
 
 		bestCatPath := filepath.Join(repoDir, "app", "best-cat")
@@ -248,8 +248,8 @@ terragrunt = "0.83.2"
 
 		helpers.ExecWithTestLogger(t, repoDir, "mkdir", "dist")
 
-		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "i")
-		helpers.ExecWithTestLogger(t, bestCatPath, "npm", "run", "package")
+		helpers.ExecWithMiseAndTestLogger(t, bestCatPath, "npm", "i")
+		helpers.ExecWithMiseAndTestLogger(t, bestCatPath, "npm", "run", "package")
 
 		require.NoError(t, os.Mkdir(filepath.Join(distDir, "static"), 0755))
 
@@ -278,7 +278,7 @@ terragrunt = "0.83.2"
 		pass := false
 		defer func() {
 			if !pass {
-				helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+				helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
 			}
 		}()
 
@@ -351,13 +351,13 @@ force_destroy = true
 		))
 
 		// Initialize and apply the Terraform configuration
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "init")
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "init")
 
 		// Apply the Terraform configuration
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
 
 		// Verify the apply was successful by checking outputs
-		stdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output")
+		stdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "output")
 
 		// Check that key outputs exist
 		assert.Contains(t, stdout, "lambda_function_url")
@@ -365,13 +365,13 @@ force_destroy = true
 		assert.Contains(t, stdout, "dynamodb_table_name")
 
 		// Get the S3 bucket name from output for asset upload test
-		bucketNameOutput, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "s3_bucket_name")
+		bucketNameOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "s3_bucket_name")
 
 		actualBucketName := strings.TrimSpace(bucketNameOutput)
 
 		require.NotEmpty(t, actualBucketName)
 
-		helpers.ExecWithTestLogger(
+		helpers.ExecWithMiseAndTestLogger(
 			t,
 			distStaticDir,
 			"aws", "s3", "sync", ".", fmt.Sprintf("s3://%s/", actualBucketName),
@@ -390,7 +390,7 @@ force_destroy = true
 		pass := false
 		defer func() {
 			if !pass {
-				helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+				helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
 			}
 		}()
 
@@ -454,19 +454,19 @@ force_destroy = true
 		}
 
 		// Re-initialize since we're now using modules
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "init")
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "init")
 
 		// Run plan to verify the refactoring - should show 0 changes due to moved blocks
-		stdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "plan")
+		stdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "plan")
 
 		// Verify that the plan shows no changes (the moved blocks should handle state migration)
 		assert.Contains(t, stdout, "0 to add, 0 to change, 0 to destroy")
 
 		// Apply the configuration to ensure everything works
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
 
 		// Verify outputs still work after refactoring
-		outputStdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output")
+		outputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "output")
 
 		// Check that key outputs still exist after refactoring
 		assert.Contains(t, outputStdout, "lambda_function_url")
@@ -486,7 +486,7 @@ force_destroy = true
 		pass := false
 		defer func() {
 			if !pass {
-				helpers.ExecWithTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
+				helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
 			}
 		}()
 
@@ -533,10 +533,10 @@ force_destroy = true
 		}
 
 		// Re-initialize since we're now using the new best_cat module
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "init")
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "init")
 
 		// Run plan to verify the refactoring - should show only new dev resources due to moved blocks
-		stdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "plan")
+		stdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "plan")
 
 		// Verify that the plan shows the expected new dev resources (11 new resources for dev environment)
 		assert.Contains(t, stdout, "11 to add")
@@ -544,10 +544,10 @@ force_destroy = true
 		assert.Contains(t, stdout, "0 to destroy")
 
 		// Apply the configuration to create the dev environment
-		helpers.ExecWithTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "apply", "-auto-approve")
 
 		// Verify outputs for both dev and prod environments
-		outputStdout, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output")
+		outputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "output")
 
 		// Check that both dev and prod outputs exist
 		assert.Contains(t, outputStdout, "dev_lambda_function_url")
@@ -556,8 +556,8 @@ force_destroy = true
 		assert.Contains(t, outputStdout, "prod_s3_bucket_name")
 
 		// Verify that we can get the function URLs for both environments
-		devFunctionURL, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "dev_lambda_function_url")
-		prodFunctionURL, _ := helpers.ExecAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "prod_lambda_function_url")
+		devFunctionURL, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "dev_lambda_function_url")
+		prodFunctionURL, _ := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "tofu", "output", "-raw", "prod_lambda_function_url")
 
 		require.NotEmpty(t, strings.TrimSpace(devFunctionURL))
 		require.NotEmpty(t, strings.TrimSpace(prodFunctionURL))
@@ -580,11 +580,11 @@ force_destroy = true
 			if !pass {
 				// Cleanup both dev and prod environments if we get here.
 				if _, err := os.Stat(devDir); err == nil {
-					helpers.ExecWithTestLogger(t, devDir, "tofu", "destroy", "-auto-approve")
+					helpers.ExecWithMiseAndTestLogger(t, devDir, "tofu", "destroy", "-auto-approve")
 				}
 
 				if _, err := os.Stat(prodDir); err == nil {
-					helpers.ExecWithTestLogger(t, prodDir, "tofu", "destroy", "-auto-approve")
+					helpers.ExecWithMiseAndTestLogger(t, prodDir, "tofu", "destroy", "-auto-approve")
 				}
 			}
 		}()
@@ -705,40 +705,40 @@ force_destroy = true
 		)
 
 		// We can't use non-interactive mode here, so we just pipe in "yes" to the prompts.
-		helpers.ExecWithTestLogger(t, devDir, "bash", "-c", "echo 'yes' | tofu init -migrate-state")
-		helpers.ExecWithTestLogger(t, prodDir, "bash", "-c", "echo 'yes' | tofu init -migrate-state")
+		helpers.ExecWithMiseAndTestLogger(t, devDir, "bash", "-c", "echo 'yes' | tofu init -migrate-state")
+		helpers.ExecWithMiseAndTestLogger(t, prodDir, "bash", "-c", "echo 'yes' | tofu init -migrate-state")
 
-		devPlanOutput, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "plan")
+		devPlanOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "tofu", "plan")
 		assert.Contains(t, devPlanOutput, "0 to add")
 		assert.Contains(t, devPlanOutput, "1 to change")
 		assert.Contains(t, devPlanOutput, "0 to destroy")
 		assert.Contains(t, devPlanOutput, "11 to forget")
 
-		helpers.ExecWithTestLogger(t, devDir, "tofu", "apply", "-auto-approve")
+		helpers.ExecWithMiseAndTestLogger(t, devDir, "tofu", "apply", "-auto-approve")
 
-		prodPlanOutput, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "plan")
+		prodPlanOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, prodDir, "tofu", "plan")
 		assert.Contains(t, prodPlanOutput, "0 to add")
 		assert.Contains(t, prodPlanOutput, "1 to change")
 		assert.Contains(t, prodPlanOutput, "0 to destroy")
 		assert.Contains(t, prodPlanOutput, "11 to forget")
 
-		helpers.ExecWithTestLogger(t, prodDir, "tofu", "apply", "-auto-approve")
+		helpers.ExecWithMiseAndTestLogger(t, prodDir, "tofu", "apply", "-auto-approve")
 
-		devOutputStdout, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "output")
-		prodOutputStdout, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "output")
+		devOutputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "tofu", "output")
+		prodOutputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, prodDir, "tofu", "output")
 
 		assert.Contains(t, devOutputStdout, "lambda_function_url")
 		assert.Contains(t, devOutputStdout, "s3_bucket_name")
 		assert.Contains(t, prodOutputStdout, "lambda_function_url")
 		assert.Contains(t, prodOutputStdout, "s3_bucket_name")
 
-		devFunctionURL, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "output", "-raw", "lambda_function_url")
-		prodFunctionURL, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "output", "-raw", "lambda_function_url")
+		devFunctionURL, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "tofu", "output", "-raw", "lambda_function_url")
+		prodFunctionURL, _ := helpers.ExecWithMiseAndCaptureOutput(t, prodDir, "tofu", "output", "-raw", "lambda_function_url")
 
 		assert.NotEqual(t, strings.TrimSpace(devFunctionURL), strings.TrimSpace(prodFunctionURL))
 
-		devBucketName, _ := helpers.ExecAndCaptureOutput(t, devDir, "tofu", "output", "-raw", "s3_bucket_name")
-		prodBucketName, _ := helpers.ExecAndCaptureOutput(t, prodDir, "tofu", "output", "-raw", "s3_bucket_name")
+		devBucketName, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "tofu", "output", "-raw", "s3_bucket_name")
+		prodBucketName, _ := helpers.ExecWithMiseAndCaptureOutput(t, prodDir, "tofu", "output", "-raw", "s3_bucket_name")
 
 		assert.NotEqual(t, strings.TrimSpace(devBucketName), strings.TrimSpace(prodBucketName))
 
@@ -757,13 +757,11 @@ force_destroy = true
 			if !pass {
 				// Cleanup both dev and prod environments if we get here.
 				if _, err := os.Stat(devDir); err == nil {
-					_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+devDir)
-					require.NoError(t, err)
+					helpers.ExecWithMiseAndTestLogger(t, devDir, "terragrunt", "destroy", "-auto-approve", "--non-interactive")
 				}
 
 				if _, err := os.Stat(prodDir); err == nil {
-					_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+prodDir)
-					require.NoError(t, err)
+					helpers.ExecWithMiseAndTestLogger(t, prodDir, "terragrunt", "destroy", "-auto-approve", "--non-interactive")
 				}
 			}
 		}()
@@ -773,7 +771,7 @@ force_destroy = true
 		require.NoError(t, os.WriteFile(filepath.Join(devDir, "terragrunt.hcl"), []byte(""), 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(prodDir, "terragrunt.hcl"), []byte(""), 0644))
 
-		_, stderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+		_, stderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
 
 		// This version of Terragrunt uses the new "Module" term instead of "Unit"
 		assert.Contains(t, stderr, "Module ./dev")
@@ -886,29 +884,27 @@ inputs = {
 			filepath.Join(prodDir, "moved.tf"),
 		)
 
-		devPlanOutput, _ := helpers.ExecAndCaptureOutput(t, devDir, "terragrunt", "plan")
+		devPlanOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "terragrunt", "plan")
 		assert.Contains(t, devPlanOutput, "0 to add, 1 to change, 0 to destroy")
 
-		prodPlanOutput, _ := helpers.ExecAndCaptureOutput(t, prodDir, "terragrunt", "plan")
+		prodPlanOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, prodDir, "terragrunt", "plan")
 		assert.Contains(t, prodPlanOutput, "0 to add, 1 to change, 0 to destroy")
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+devDir)
-		require.NoError(t, err)
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+prodDir)
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(t, devDir, "terragrunt", "apply", "-auto-approve", "--non-interactive")
+		helpers.ExecWithMiseAndTestLogger(t, prodDir, "terragrunt", "apply", "-auto-approve", "--non-interactive")
 
-		runAllPlanStdout, runAllPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan")
+		runAllPlanStdout, runAllPlanStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan")
 		assert.Contains(t, runAllPlanStderr, "Module ./dev")
 		assert.Contains(t, runAllPlanStderr, "Module ./prod")
 		assert.Contains(t, runAllPlanStdout, "found no differences, so no changes are needed.")
 
-		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
+		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
 		assert.Contains(t, devOnlyPlanStderr, "Module ./dev")
 		assert.NotContains(t, devOnlyPlanStderr, "Module ./prod")
 		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
 
-		devOutputStdout, _ := helpers.ExecAndCaptureOutput(t, devDir, "terragrunt", "output")
-		prodOutputStdout, _ := helpers.ExecAndCaptureOutput(t, prodDir, "terragrunt", "output")
+		devOutputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "terragrunt", "output")
+		prodOutputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, prodDir, "terragrunt", "output")
 
 		assert.Contains(t, devOutputStdout, "lambda_function_url")
 		assert.Contains(t, devOutputStdout, "s3_bucket_name")
@@ -929,8 +925,7 @@ inputs = {
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
-				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
-				require.NoError(t, err)
+				helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "--", "destroy", "-auto-approve")
 			}
 		}()
 
@@ -980,13 +975,12 @@ inputs = {
 			tempStateFile := filepath.Join(tmpDir, "tofu-"+env+".tfstate")
 
 			// Pull state from existing environment unit
-			stateContent, _ := helpers.ExecAndCaptureOutput(t, envDir, "terragrunt", "state", "pull")
+			stateContent, _ := helpers.ExecWithMiseAndCaptureOutput(t, envDir, "terragrunt", "state", "pull")
 			require.NoError(t, os.WriteFile(tempStateFile, []byte(stateContent), 0644))
 
 			for _, component := range components {
 				componentDir := filepath.Join(envDir, component)
-				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt state push "+tempStateFile+" --working-dir "+componentDir)
-				require.NoError(t, err)
+				helpers.ExecWithMiseAndTestLogger(t, componentDir, "terragrunt", "state", "push", tempStateFile)
 			}
 		}
 
@@ -1039,7 +1033,7 @@ inputs = {
 		}
 
 		// Verify plans show no destroys across all components
-		_, planStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+		_, planStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
 
 		// The plan output should show modules for all components
 		for _, env := range environments {
@@ -1050,28 +1044,27 @@ inputs = {
 		}
 
 		// Apply all changes to complete the migration
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
 
 		// Verify outputs still work after breaking down into components
 		// Check a few key components to ensure they're working
-		devS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "s3"), "terragrunt", "output")
-		prodS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "s3"), "terragrunt", "output")
+		devS3Output, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", "s3"), "terragrunt", "output")
+		prodS3Output, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", "s3"), "terragrunt", "output")
 
 		assert.Contains(t, devS3Output, "name")
 		assert.Contains(t, prodS3Output, "name")
 
-		devLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "output")
-		prodLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "output")
+		devLambdaOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "output")
+		prodLambdaOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "output")
 
 		assert.Contains(t, devLambdaOutput, "url")
 		assert.Contains(t, prodLambdaOutput, "url")
 
 		// Verify dependency resolution works by running a plan on lambda (which depends on other components)
-		devLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "plan")
+		devLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
 
-		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "plan")
+		prodLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
 
 		t.Log("Step 6 - Breaking the Terralith Further completed successfully")
@@ -1088,8 +1081,7 @@ inputs = {
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
-				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
-				require.NoError(t, err)
+				helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "--", "destroy", "-auto-approve")
 			}
 		}()
 
@@ -1179,7 +1171,7 @@ inputs = {
 		}
 
 		// Test that terragrunt run --all plan works with the new stack configuration
-		_, planStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+		_, planStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
 
 		// The plan output should show modules for all components generated from stacks
 		for _, env := range environments {
@@ -1190,28 +1182,27 @@ inputs = {
 		}
 
 		// Apply the stack configuration to ensure everything works
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
 
 		// Verify outputs still work after migrating to stacks
 		// Check a few key components to ensure they're working
-		devS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "s3"), "terragrunt", "output")
-		prodS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "s3"), "terragrunt", "output")
+		devS3Output, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", "s3"), "terragrunt", "output")
+		prodS3Output, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", "s3"), "terragrunt", "output")
 
 		assert.Contains(t, devS3Output, "name")
 		assert.Contains(t, prodS3Output, "name")
 
-		devLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "output")
-		prodLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "output")
+		devLambdaOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "output")
+		prodLambdaOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "output")
 
 		assert.Contains(t, devLambdaOutput, "url")
 		assert.Contains(t, prodLambdaOutput, "url")
 
 		// Verify dependency resolution still works correctly with stacks
-		devLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "plan")
+		devLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
 
-		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "plan")
+		prodLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
 
 		t.Log("Step 7 - Taking advantage of Terragrunt Stacks completed successfully")
@@ -1228,8 +1219,7 @@ inputs = {
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
-				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
-				require.NoError(t, err)
+				helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "run", "--all", "--non-interactive", "--", "destroy", "-auto-approve")
 			}
 		}()
 
@@ -1237,8 +1227,7 @@ inputs = {
 		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-8-refactoring-state-with-terragrunt-stacks")
 
 		// First, generate the current stack to ensure everything is present
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "stack", "generate")
 
 		// Update the terragrunt.stack.hcl files to remove no_dot_terragrunt_stack attribute
 		// Read dev stack template and replace the hardcoded name
@@ -1272,8 +1261,7 @@ inputs = {
 		))
 
 		// Generate the new stack structure with .terragrunt-stack directories
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "stack", "generate")
 
 		// Verify that .terragrunt-stack directories are created
 		components := []string{"ddb", "iam", "lambda", "s3"}
@@ -1303,12 +1291,11 @@ inputs = {
 				newUnitDir := filepath.Join(liveDir, env, ".terragrunt-stack", component)
 
 				// Pull state from old location
-				stateContent, _ := helpers.ExecAndCaptureOutput(t, oldUnitDir, "terragrunt", "state", "pull")
+				stateContent, _ := helpers.ExecWithMiseAndCaptureOutput(t, oldUnitDir, "terragrunt", "state", "pull")
 				require.NoError(t, os.WriteFile(tempStateFile, []byte(stateContent), 0644))
 
 				// Push state to new location
-				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt state push "+tempStateFile+" --working-dir "+newUnitDir)
-				require.NoError(t, err)
+				helpers.ExecWithMiseAndTestLogger(t, newUnitDir, "terragrunt", "state", "push", tempStateFile)
 			}
 		}
 
@@ -1329,7 +1316,7 @@ inputs = {
 
 		// Verify that the migration was successful by running a plan
 		// The plan should show no changes since we migrated state properly
-		_, planStderr := helpers.ExecAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
+		_, planStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
 
 		// The plan output should show modules for all components in .terragrunt-stack directories
 		for _, env := range environments {
@@ -1340,28 +1327,27 @@ inputs = {
 		}
 
 		// Apply to ensure everything works with the new structure
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+liveDir)
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "run", "--all", "apply", "--non-interactive")
 
 		// Verify outputs still work after state migration
 		// Check a few key components to ensure they're working
-		devS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "s3"), "terragrunt", "output")
-		prodS3Output, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "s3"), "terragrunt", "output")
+		devS3Output, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "s3"), "terragrunt", "output")
+		prodS3Output, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "s3"), "terragrunt", "output")
 
 		assert.Contains(t, devS3Output, "name")
 		assert.Contains(t, prodS3Output, "name")
 
-		devLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "lambda"), "terragrunt", "output")
-		prodLambdaOutput, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "output")
+		devLambdaOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "lambda"), "terragrunt", "output")
+		prodLambdaOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "output")
 
 		assert.Contains(t, devLambdaOutput, "url")
 		assert.Contains(t, prodLambdaOutput, "url")
 
 		// Verify dependency resolution still works correctly with the new structure
-		devLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
+		devLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "dev", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
 
-		prodLambdaPlan, _ := helpers.ExecAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
+		prodLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(t, filepath.Join(liveDir, "prod", ".terragrunt-stack", "lambda"), "terragrunt", "plan")
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
 
 		// Verify the directory structure is clean - dev and prod should only contain terragrunt.stack.hcl
@@ -1392,7 +1378,10 @@ inputs = {
 	func() {
 		t.Log("Cleanup")
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+liveDir+" -- destroy -auto-approve")
-		require.NoError(t, err)
+		helpers.ExecWithMiseAndTestLogger(
+			t,
+			liveDir,
+			"terragrunt",
+			"run", "--all", "--non-interactive", "--", "destroy")
 	}()
 }
