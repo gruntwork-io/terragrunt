@@ -67,7 +67,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
-	// Resolve units (this applies include/exclude logic and sets FlagExcluded accordingly).
+	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
 		return nil, err

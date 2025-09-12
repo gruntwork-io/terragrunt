@@ -298,7 +298,10 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
-	filename := filepath.Base(opts.TerragruntConfigPath)
+	filename := config.DefaultTerragruntConfigPath
+	if opts.TerragruntConfigPath != "" {
+		filename = filepath.Base(opts.TerragruntConfigPath)
+	}
 
 	if c.Type == ConfigTypeStack {
 		filename = config.DefaultStackFile
