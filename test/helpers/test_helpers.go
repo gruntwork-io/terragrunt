@@ -188,5 +188,6 @@ func determineToolName(command string) string {
 	case "npm":
 		return "node"
 	}
+
 	return command
 }
