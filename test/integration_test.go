@@ -601,8 +601,6 @@ func TestTerragruntExcludesFile(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludesFile, ".terragrunt-excludes")
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureExcludesFile)
 
-			helpers.CleanupTerraformFolder(t, testFixtureExcludesFile)
-
 			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run apply --all --non-interactive --working-dir %s %s -- -auto-approve", rootPath, tc.flags))
 
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run output --all --non-interactive --working-dir %s %s", rootPath, tc.flags))
