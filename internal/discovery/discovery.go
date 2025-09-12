@@ -341,8 +341,16 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
+	// If the user provided a specific terragrunt config path and it is not a directory,
+	// use its base name as the file to parse. This allows users to run terragrunt with
+	// a specific config file instead of the default terragrunt.hcl.
+	// Otherwise, use the default terragrunt.hcl filename.
 	filename := config.DefaultTerragruntConfigPath
+	if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+		filename = filepath.Base(opts.TerragruntConfigPath)
+	}
 
+	// For stack configurations, always use the default stack config filename
 	if c.Type == ConfigTypeStack {
 		filename = config.DefaultStackFile
 	}

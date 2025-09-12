@@ -2,6 +2,7 @@ package runnerpool
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -21,7 +22,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
-		WithConfigFilenames([]string{config.DefaultTerragruntConfigPath}).
+		WithConfigFilenames([]string{filepath.Base(terragruntOptions.TerragruntConfigPath)}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
 
 	// Pass parser options
