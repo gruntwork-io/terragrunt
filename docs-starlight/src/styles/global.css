@@ -43,7 +43,6 @@
   --color-nav-link: #A0A1AC;
   --color-nav-link-hover: #e8eefc;
 
-
   /* Colors Text */
   --color-primary: #0F0934;
 
@@ -59,6 +58,7 @@
   --color-gray-3: #DBDBDB;
   --color-gray-4: #6D6F86;
   --color-stroke-dark: #2E375A;
+  --color-button-primary-border: hsla(0deg, 0%, 100%, 20%); 
 
   /* Colors Contact Form */
   --color-contact-form-button-bg: rgba(255, 255, 255, 0.15);

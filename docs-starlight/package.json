@@ -12,6 +12,7 @@
   "dependencies": {
     "@astrojs/markdown-remark": "^6.3.6",
     "@astrojs/partytown": "^2.1.4",
+    "@astrojs/react": "^4.3.1",
     "@astrojs/sitemap": "^3.5.0",
     "@astrojs/starlight": "^0.35.2",
     "@astrojs/starlight-tailwind": "^4.0.1",
@@ -19,9 +20,12 @@
     "@tailwindcss/vite": "^4.1.11",
     "astro": "^5.13.2",
     "astro-d2": "^0.8.0",
+    "clsx": "^2.1.1",
     "gray-matter": "^4.0.3",
+    "lucide-react": "^0.544.0",
     "sharp": "^0.34.3",
-    "starlight-links-validator": "^0.17.0"
+    "starlight-links-validator": "^0.17.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@types/bun": "^1.2.19"
