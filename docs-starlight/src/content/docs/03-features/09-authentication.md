@@ -40,16 +40,16 @@ To avoid these frustrating trade-offs, you can configure Terragrunt to assume an
 
 ## Configuring Terragrunt to assume an IAM role
 
-To tell Terragrunt to assume an IAM role, just set the [`--iam-role`](/docs/reference/cli/commands/run#iam-role) command line argument:
+To tell Terragrunt to assume an IAM role, just set the [`--iam-assume-role`](/docs/reference/cli/commands/run#iam-assume-role) command line argument:
 
 ```bash
-terragrunt apply --iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+terragrunt apply --iam-assume-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
-Alternatively, you can set the `TG_IAM_ROLE` environment variable:
+Alternatively, you can set the `TG_IAM_ASSUME_ROLE` environment variable:
 
 ```bash
-export TG_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+export TG_IAM_ASSUME_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 terragrunt apply
 ```
 
@@ -67,23 +67,23 @@ Terragrunt will call the `sts assume-role` API on your behalf and expose the cre
 
 ## Leveraging OIDC role assumption
 
-In addition, you can combine the `--iam-role` flag with the [`--iam-web-identity-token`](/docs/reference/cli/commands/run#iam-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
+In addition, you can combine the `--iam-assume-role` flag with the [`--iam-assume-role-web-identity-token`](/docs/reference/cli/commands/run#iam-assume-role-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
 
 This is especially convenient in the context of CI/CD pipelines, as it's generally a best practice to assume roles there via OIDC.
 
-Configuring OIDC role assumption largely works like the `--iam-role` flag, with the addition of the `--iam-web-identity-token` flag. One special aspect of the `--iam-web-identity-token` flag is that it can use both a token, and the path to a file containing the token.
+Configuring OIDC role assumption largely works like the `--iam-assume-role` flag, with the addition of the `--iam-assume-role-web-identity-token` flag. One special aspect of the `--iam-assume-role-web-identity-token` flag is that it can use both a token, and the path to a file containing the token.
 
 As a command line argument:
 
 ```bash
-terragrunt apply --iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME" --iam-web-identity-token "$TOKEN"
+terragrunt apply --iam-assume-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME" --iam-assume-role-web-identity-token "$TOKEN"
 ```
 
 As environment variables:
 
 ```bash
-export TG_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
-export TG_IAM_WEB_IDENTITY_TOKEN="$TOKEN"
+export TG_IAM_ASSUME_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+export TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN="$TOKEN"
 terragrunt apply
 ```
 

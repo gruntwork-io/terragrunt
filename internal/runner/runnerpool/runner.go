@@ -54,6 +54,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	// Collect all terragrunt.hcl paths for resolution.
 	unitPaths := make([]string, 0, len(discovered))
+
 	for _, cfg := range discovered {
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
@@ -61,11 +62,22 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue
 		}
 
-		terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
+		// Determine per-unit config filename
+		var fname string
+		if cfg.Type == discovery.ConfigTypeStack {
+			fname = config.DefaultStackFile
+		} else {
+			fname = config.DefaultTerragruntConfigPath
+			if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
+				fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
+			}
+		}
+
+		terragruntConfigPath := filepath.Join(cfg.Path, fname)
 		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
-	// Resolve units (this applies include/exclude logic and sets FlagExcluded accordingly).
+	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
 		return nil, err
