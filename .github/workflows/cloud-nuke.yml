@@ -13,8 +13,6 @@ jobs:
   run_cloud_nuke:
     name: Nuke
     runs-on: ubuntu-latest
-    # Only run on the original repository, not on forks
-    if: github.repository == 'gruntwork-io/terragrunt'
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
