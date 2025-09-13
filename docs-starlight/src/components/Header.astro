@@ -8,6 +8,8 @@ import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import ThemeToggle from '@components/ThemeToggle.astro';
 
+import Button from '@components/ui/Button';
+
 import '@styles/global.css';
 
 /**
@@ -125,8 +127,10 @@ try {
       </div>
       <div class="flex items-center gap-3 md:gap-3.5">
         <!-- Buttons -->
-        <a href="/terragrunt-scale" class="hidden md:flex secondary-button items-center h-[39px] text-center leading-[1.25] p-5">
-          Automate Deployments
+        <a href="/terragrunt-scale">
+          <Button variant="secondary" className="hidden md:flex">
+            Automate Deployments
+          </Button>
         </a>
         <a href="/terragrunt-scale" class="flex md:hidden secondary-button !p-3">
           <Image
@@ -136,8 +140,10 @@ try {
             width={20}
           />
         </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex primary-button items-center h-[39px] text-center leading-[1.25]">
-          Enterprise Support
+        <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex">
+          <Button variant="primary">
+            Enterprise Support
+          </Button>
         </a>
         <a href="https://www.gruntwork.io/services/terragrunt" class="flex md:hidden primary-button !p-3">
           <Image

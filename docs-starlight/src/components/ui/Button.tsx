@@ -30,7 +30,7 @@ export default function Button({
       type={type}
       className={cn(
         // Base styles
-        "inline-block cursor-pointer h-[39px] pl-[24px] pr-[24px]",
+        "inline-block cursor-pointer py-2.5 px-5 m-0",
         // Border
         "border border-solid",
         // Focus
@@ -38,18 +38,20 @@ export default function Button({
         // Text
         "font-sans rounded-lg text-sm text-center leading-normal",
         // Box shadow
-        "shadow-[0px_0px_15px_0px_rgba(137,107,255,0.30),0px_0px_1px_4px_rgba(52,49,27,0.22),0px_0px_1px_4px_rgba(52,49,47,0.22)]",
+        "shadow-md ring-1 ring-white/5",
         // Outline properties
         "outline-none outline-offset-0",
         // Text decoration properties
         "no-underline decoration-solid decoration-auto",
         // Transitions with gradient variables and correct timing function
         "transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        // TODO: Consider fixing box shadow for secondary variant
+        // Variant styles
         {
           "bg-[var(--color-accent-1)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-accent)] border-[var(--color-button-primary-border)]": variant === "primary",
+          "bg-[var(--color-opacity-1)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-gray-5)] border-gray-500": variant === "secondary",
           "bg-red-500 text-white hover:bg-red-600 border-red-500": variant === "destructive",
           "border border-[var(--sl-color-docs-stroke)] bg-[var(--sl-color-bg)] hover:bg-[var(--sl-color-gray-6)]": variant === "outline",
-          "bg-[var(--sl-color-gray-6)] text-[var(--sl-color-gray-1)] hover:bg-[var(--sl-color-gray-5)] border-[var(--sl-color-gray-6)]": variant === "secondary",
           "hover:bg-[var(--sl-color-gray-6)] border-transparent": variant === "ghost",
           "text-[var(--sl-color-accent)] underline-offset-4 hover:underline border-transparent": variant === "link",
         },
