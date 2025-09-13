@@ -2,6 +2,7 @@
 // Customize this as needed!
 
 import { cn } from "../../lib/utils";
+import { ExternalLink } from "lucide-react";
 
 interface ButtonProps {
   // TODO: Style secondary, ghost, outline, and link bvariants
@@ -11,6 +12,7 @@ interface ButtonProps {
   children: React.ReactNode;
   onClick?: () => void;
   type?: "button" | "submit" | "reset";
+  isExternalLink?: boolean;
 }
 
 export default function Button({
@@ -20,6 +22,7 @@ export default function Button({
   children,
   onClick,
   type = "button",
+  isExternalLink = false,
   ...props
 }: ButtonProps) {
   return (
@@ -62,6 +65,12 @@ export default function Button({
       {...props}
     >
       {children}
+      {isExternalLink && (
+        <ExternalLink 
+          className="inline-block ml-1 transform translate-y-0.25 -translate-x-0.75 w-3.5 h-3.5" 
+          aria-label="External link icon"
+        />
+      )}
     </button>
   );
 }
