@@ -4,6 +4,7 @@ package awshelper_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -118,4 +119,45 @@ func TestCreateAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "eu-west-1", cfg.Region)
 	assert.NotNil(t, cfg.Credentials)
+}
+
+func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx := context.Background()
+
+	// Set environment variables that should be overridden
+	originalAWSRegion := os.Getenv("AWS_REGION")
+	originalAWSDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
+	
+	// Set environment variables to a different region
+	os.Setenv("AWS_REGION", "us-west-1")
+	os.Setenv("AWS_DEFAULT_REGION", "us-west-1")
+	
+	// Clean up environment variables after test
+	defer func() {
+		if originalAWSRegion != "" {
+			os.Setenv("AWS_REGION", originalAWSRegion)
+		} else {
+			os.Unsetenv("AWS_REGION")
+		}
+		if originalAWSDefaultRegion != "" {
+			os.Setenv("AWS_DEFAULT_REGION", originalAWSDefaultRegion)
+		} else {
+			os.Unsetenv("AWS_DEFAULT_REGION")
+		}
+	}()
+
+	// Create config with explicit region that should take precedence
+	awsCfg := &awshelper.AwsSessionConfig{
+		Region: "us-east-1", // This should override the env vars
+	}
+	
+	opts := options.NewTerragruntOptions()
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsCfg, opts)
+	require.NoError(t, err)
+	
+	// Verify that the config uses the region from awsCfg, not from environment variables
+	assert.Equal(t, "us-east-1", cfg.Region)
 }
