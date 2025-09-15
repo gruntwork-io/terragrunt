@@ -24,7 +24,7 @@
     "starlight-links-validator": "^0.17.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.19"
+    "@types/bun": "^1.2.22"
   },
   "overrides": {
     "estree-walker": "2.0.2"
