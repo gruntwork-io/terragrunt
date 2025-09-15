@@ -4,7 +4,7 @@
 import { cn } from "../../lib/utils";
 import { ExternalLink } from "lucide-react";
 
-interface ButtonProps {
+export interface ButtonProps {
   // TODO: Style secondary, ghost, outline, and link bvariants
   variant?: "primary" | "secondary" | "ghost" | "outline" | "destructive" | "link";
   size?: "default" | "sm" | "lg" | "icon";
@@ -30,7 +30,7 @@ export default function Button({
       type={type}
       className={cn(
         // Base styles
-        "inline-block cursor-pointer py-2.5 px-5 m-0",
+        "cursor-pointer py-2.5 px-5 m-0",
         // Border
         "border border-solid",
         // Focus
@@ -42,10 +42,9 @@ export default function Button({
         // Outline properties
         "outline-none outline-offset-0",
         // Text decoration properties
-        "no-underline decoration-solid decoration-auto",
+        "no-underline",
         // Transitions with gradient variables and correct timing function
         "transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        // TODO: Consider fixing box shadow for secondary variant
         // Variant styles
         {
           "bg-[var(--color-accent-1)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-accent)] border-[var(--color-button-primary-border)]": variant === "primary",
@@ -56,10 +55,10 @@ export default function Button({
           "text-[var(--sl-color-accent)] underline-offset-4 hover:underline border-transparent": variant === "link",
         },
         {
-          "w-fit": size === "default",
-          "h-9 pt-2 pb-2 pl-3 pr-3 w-auto": size === "sm",
-          "h-11 pt-2 pb-2 pl-8 pr-8 w-auto": size === "lg",
-          "h-10 w-10 p-0": size === "icon",
+          "block w-fit": size === "default",
+          "block h-9 pt-2 pb-2 pl-3 pr-3 w-auto": size === "sm",
+          "block h-11 pt-2 pb-2 pl-8 pr-8 w-auto": size === "lg",
+          "flex w-auto p-3": size === "icon",
         },
         className
       )}

@@ -3,7 +3,6 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-@import "./buttons.css" layer(components);
 @import "./contactform.css" layer(components);
 @import "./lists.css" layer(components);
 
@@ -76,7 +75,7 @@
   --color-card-border: #2F3547;
   --color-acc-text: #F48701;
   --color-gray-border: #E2E3E6;
-  --color-primary-button-light: #FE8E03;
+  --color-primary-button-light: hsl(33, 99%, 47%);
 
   /* Starlight Customizations */
   --sl-color-hairline-shade: #2E375A;
@@ -398,17 +397,18 @@
   }
 
   /* Global link styling - apply Starlight's link styles everywhere except in sl-markdown-content */
-  a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a, .primary-button, .secondary-button) {
+  /* a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a) {
     color: var(--color-accent-1);
     text-decoration: underline;
     text-decoration-color: var(--color-accent-1);
     transition: color 0.2s ease, text-decoration-color 0.2s ease;
   }
   
-  a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a, .primary-button, .secondary-button):hover {
+  a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a):hover {
     color: var(--sl-color-accent);
     text-decoration-color: var(--sl-color-accent);
-  }
+  } */
+
 }
 
 @media (width < 768px) {
