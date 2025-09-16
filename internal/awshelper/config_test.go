@@ -4,7 +4,6 @@ package awshelper_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
