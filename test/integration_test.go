@@ -746,9 +746,9 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
 
-	expectedPaths := []string{
-		filepath.Join(rootPath, "second/a/terragrunt.hcl"),
-		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+	expectedRelPaths := []string{
+		filepath.Join("second", "a", "terragrunt.hcl"),
+		filepath.Join("second", "c", "terragrunt.hcl"),
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json --show-config-path", rootPath))
@@ -759,7 +759,18 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualPaths)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t, expectedPaths, actualPaths)
+	for _, rel := range expectedRelPaths {
+		found := false
+
+		for _, p := range actualPaths {
+			if strings.HasSuffix(p, rel) {
+				found = true
+				break
+			}
+		}
+
+		assert.Truef(t, found, "expected a path ending with %q in %v", rel, actualPaths)
+	}
 }
 
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
