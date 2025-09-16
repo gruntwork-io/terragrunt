@@ -2,7 +2,7 @@
 interface Props {
   title: string;
   description: string;
-  url: string;
+  url?: string;
 }
 
 const { title, description, url } = Astro.props;
@@ -38,9 +38,12 @@ const { title, description, url } = Astro.props;
     <meta name="twitter:site" content="@gruntwork_io" />
     <meta name="twitter:title" content={title} />
 
+    <link rel="canonical" href={url} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body class="tg bg-[#FAFAFA]">
-    <slot />
+    <main id="main-content">
+      <slot />
+    </main>
   </body>
 </html>
