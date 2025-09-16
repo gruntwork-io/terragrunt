@@ -90,35 +90,39 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 }
 
 func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
-	if len(diags) > 0 {
-		sort.Slice(diags, func(i, j int) bool {
-			var a, b string
-
-			if diags[i].Range != nil {
-				a = diags[i].Range.Filename
-			}
-
-			if diags[j].Range != nil {
-				b = diags[j].Range.Filename
-			}
-
-			return a < b
-		})
-
-		if err := writeDiagnostics(l, opts, diags); err != nil {
-			return err
-		}
-
-		// If there were diagnostics and stackErr is currently nil,
-		// create a new error to signal overall validation failure.
-		//
-		// This also ensures a non-zero exit code is returned by Terragrunt.
-		if callErr == nil {
-			callErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
-		}
+	if len(diags) == 0 {
+		return callErr
 	}
 
-	return callErr
+	sort.Slice(diags, func(i, j int) bool {
+		var a, b string
+
+		if diags[i].Range != nil {
+			a = diags[i].Range.Filename
+		}
+
+		if diags[j].Range != nil {
+			b = diags[j].Range.Filename
+		}
+
+		return a < b
+	})
+
+	if err := writeDiagnostics(l, opts, diags); err != nil {
+		return err
+	}
+
+	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
+
+	// If there were diagnostics and stackErr is currently nil,
+	// create a new error to signal overall validation failure.
+	//
+	// This also ensures a non-zero exit code is returned by Terragrunt.
+	if callErr == nil {
+		return diagError
+	}
+
+	return errors.Join(callErr, diagError)
 }
 
 func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
