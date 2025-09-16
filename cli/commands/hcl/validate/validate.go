@@ -114,10 +114,9 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 
 	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
 
-	// If there were diagnostics and stackErr is currently nil,
-	// create a new error to signal overall validation failure.
-	//
-	// This also ensures a non-zero exit code is returned by Terragrunt.
+	// If diagnostics exist and no other error was returned,
+	// return a synthetic error to mark validation as failed and
+	// ensure a non-zero exit code from Terragrunt.
 	if callErr == nil {
 		return diagError
 	}
