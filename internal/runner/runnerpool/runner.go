@@ -374,7 +374,7 @@ func filterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		opt.ApplyStack(r)
+		opt.Apply(r)
 	}
 
 	return r

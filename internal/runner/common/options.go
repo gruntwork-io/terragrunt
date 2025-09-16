@@ -14,18 +14,18 @@ type ParseOptionsSetter interface {
 
 // Option applies configuration to the StackRunner.
 type Option interface {
-	ApplyStack(stack StackRunner)
+	Apply(stack StackRunner)
 }
 
 type optionImpl struct {
-	applyStack      func(StackRunner)
+	apply           func(StackRunner)
 	parserOptions   []hclparse.Option
 	hasParseOptions bool
 }
 
-func (o optionImpl) ApplyStack(stack StackRunner) {
-	if o.applyStack != nil {
-		o.applyStack(stack)
+func (o optionImpl) Apply(stack StackRunner) {
+	if o.apply != nil {
+		o.apply(stack)
 	}
 }
 
@@ -46,7 +46,7 @@ func (o optionImpl) GetParseOptions() ([]hclparse.Option, bool) {
 // WithChildTerragruntConfig sets the TerragruntConfig on any Stack implementation.
 func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
 	return optionImpl{
-		applyStack: func(stack StackRunner) {
+		apply: func(stack StackRunner) {
 			stack.SetTerragruntConfig(cfg)
 		},
 	}
@@ -55,7 +55,7 @@ func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
 // WithParseOptions sets custom HCL parser options on both discovery and stack.
 func WithParseOptions(parserOptions []hclparse.Option) Option {
 	return optionImpl{
-		applyStack: func(stack StackRunner) {
+		apply: func(stack StackRunner) {
 			stack.SetParseOptions(parserOptions)
 		},
 		parserOptions:   parserOptions,
@@ -66,7 +66,7 @@ func WithParseOptions(parserOptions []hclparse.Option) Option {
 // WithReport attaches a report collector to the stack only.
 func WithReport(r *report.Report) Option {
 	return optionImpl{
-		applyStack: func(stack StackRunner) {
+		apply: func(stack StackRunner) {
 			stack.SetReport(r)
 		},
 	}
