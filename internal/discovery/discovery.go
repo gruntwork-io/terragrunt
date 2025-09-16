@@ -185,7 +185,7 @@ func (d *Discovery) WithSort(sort Sort) *Discovery {
 func (d *Discovery) WithOptions(opts ...common.Option) *Discovery { //nolint: revive
 	for _, opt := range opts {
 		if provider, ok := any(opt).(common.ParseOptionsProvider); ok {
-			if parseOpts, ok := provider.GetParseOptions(); ok {
+			if parseOpts := provider.GetParseOptions(); len(parseOpts) > 0 {
 				d = d.WithParserOptions(parseOpts)
 			}
 		}
