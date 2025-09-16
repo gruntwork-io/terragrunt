@@ -18,11 +18,18 @@ const { title, description, url } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- Open Graph / Facebook -->
+    <meta property="og:description" content={description} />
+    <!--
+    <meta property="og:image" content="http://example.com/ogp.jpg" />
+    <meta property="og:image:secure_url" content="https://secure.example.com/ogp.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="400" />
+    <meta property="og:image:height" content="300" />
+    <meta property="og:image:alt" content="A shiny red apple with a bite taken out" />
+    -->
+    <meta property="og:title" content={title} />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={url} />
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
-    <!-- <meta property="og:image" content="https://image.png" /> -->
 
     <!-- X (Twitter) -->
     <meta name="twitter:card" content="summary_large_image" />
