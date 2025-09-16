@@ -50,7 +50,7 @@ func NewRunner(l log.Logger, terragruntOptions *options.TerragruntOptions, opts 
 // WithOptions updates the stack with the provided options.
 func (runner *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		opt(runner)
+		opt.Apply(runner)
 	}
 
 	return runner

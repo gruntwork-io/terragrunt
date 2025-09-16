@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -175,6 +176,20 @@ func (d *Discovery) WithHidden() *Discovery {
 // WithSort sets the Sort flag to the given sort.
 func (d *Discovery) WithSort(sort Sort) *Discovery {
 	d.sort = sort
+
+	return d
+}
+
+// WithOptions applies any provided options that expose parser options.
+// Accepts common.Option values; only those implementing common.ParseOptionsProvider are used.
+func (d *Discovery) WithOptions(opts ...common.Option) *Discovery { //nolint: revive
+	for _, opt := range opts {
+		if provider, ok := any(opt).(common.ParseOptionsProvider); ok {
+			if parseOpts := provider.GetParseOptions(); len(parseOpts) > 0 {
+				d = d.WithParserOptions(parseOpts)
+			}
+		}
+	}
 
 	return d
 }

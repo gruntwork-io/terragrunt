@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -17,6 +16,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
+		WithOptions(opts...).
 		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
@@ -24,10 +24,6 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithSuppressParseErrors().
 		WithConfigFilenames([]string{filepath.Base(terragruntOptions.TerragruntConfigPath)}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
-
-	// Pass parser options
-	parserOptions := config.DefaultParserOptions(l, terragruntOptions)
-	d = d.WithParserOptions(parserOptions)
 
 	// Pass include/exclude directory filters
 	if len(terragruntOptions.IncludeDirs) > 0 {
