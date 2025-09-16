@@ -81,11 +81,15 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
 	if err != nil {
-		return err
+		return processDiagnostics(l, opts, diags, err)
 	}
 
 	stackErr := stack.Run(ctx, l, opts)
 
+	return processDiagnostics(l, opts, diags, stackErr)
+}
+
+func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
 	if len(diags) > 0 {
 		sort.Slice(diags, func(i, j int) bool {
 			var a, b string
@@ -109,12 +113,12 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		// create a new error to signal overall validation failure.
 		//
 		// This also ensures a non-zero exit code is returned by Terragrunt.
-		if stackErr == nil {
-			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
+		if callErr == nil {
+			callErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
 		}
 	}
 
-	return stackErr
+	return callErr
 }
 
 func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
