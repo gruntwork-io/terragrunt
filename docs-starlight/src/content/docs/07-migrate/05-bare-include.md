@@ -16,7 +16,7 @@ e.g.
 # terragrunt.hcl
 
 include {
-    path = find_in_parent_folders("root.hcl")
+    path = find_in_parent_folders()
 }
 ```
 
@@ -40,7 +40,7 @@ e.g.
 # terragrunt.hcl
 
 include {
-    path = find_in_parent_folders("root.hcl")
+    path = find_in_parent_folders()
 }
 ```
 
