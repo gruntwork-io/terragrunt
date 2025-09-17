@@ -21,7 +21,7 @@ jobs:
           echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v3
         with:
           version: 2025.8.16
           experimental: true
