@@ -4,6 +4,7 @@ package discovery
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -91,6 +93,12 @@ type Discovery struct {
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
 
+	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
+	compiledIncludePatterns []CompiledPattern
+
+	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
+	compiledExcludePatterns []CompiledPattern
+
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
 
@@ -131,6 +139,12 @@ type Discovery struct {
 // DiscoveryOption is a function that modifies a Discovery.
 type DiscoveryOption func(*Discovery)
 
+// CompiledPattern holds a precompiled glob pattern along with the original pattern string.
+type CompiledPattern struct {
+	Compiled interface{ Match(name string) bool }
+	Original string
+}
+
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
 
@@ -162,6 +176,20 @@ func (d *Discovery) WithHidden() *Discovery {
 // WithSort sets the Sort flag to the given sort.
 func (d *Discovery) WithSort(sort Sort) *Discovery {
 	d.sort = sort
+
+	return d
+}
+
+// WithOptions applies any provided options that expose parser options.
+// Accepts common.Option values; only those implementing common.ParseOptionsProvider are used.
+func (d *Discovery) WithOptions(opts ...common.Option) *Discovery { //nolint: revive
+	for _, opt := range opts {
+		if provider, ok := any(opt).(common.ParseOptionsProvider); ok {
+			if parseOpts := provider.GetParseOptions(); len(parseOpts) > 0 {
+				d = d.WithParserOptions(parseOpts)
+			}
+		}
+	}
 
 	return d
 }
@@ -267,6 +295,36 @@ func (d *Discovery) WithIgnoreExternalDependencies() *Discovery {
 	return d
 }
 
+// compileIncludePatterns compiles the include directory patterns for faster matching.
+func (d *Discovery) compileIncludePatterns(l log.Logger) {
+	d.compiledIncludePatterns = make([]CompiledPattern, 0, len(d.includeDirs))
+	for _, pattern := range d.includeDirs {
+		if compiled, err := zglob.New(pattern); err == nil {
+			d.compiledIncludePatterns = append(d.compiledIncludePatterns, CompiledPattern{
+				Original: pattern,
+				Compiled: compiled,
+			})
+		} else {
+			l.Warnf("Failed to compile include pattern '%s': %v. Pattern will be ignored.", pattern, err)
+		}
+	}
+}
+
+// compileExcludePatterns compiles the exclude directory patterns for faster matching.
+func (d *Discovery) compileExcludePatterns(l log.Logger) {
+	d.compiledExcludePatterns = make([]CompiledPattern, 0, len(d.excludeDirs))
+	for _, pattern := range d.excludeDirs {
+		if compiled, err := zglob.New(pattern); err == nil {
+			d.compiledExcludePatterns = append(d.compiledExcludePatterns, CompiledPattern{
+				Original: pattern,
+				Compiled: compiled,
+			})
+		} else {
+			l.Warnf("Failed to compile exclude pattern '%s': %v. Pattern will be ignored.", pattern, err)
+		}
+	}
+}
+
 // String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
 	return c.Path
@@ -298,8 +356,16 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
+	// If the user provided a specific terragrunt config path and it is not a directory,
+	// use its base name as the file to parse. This allows users to run terragrunt with
+	// a specific config file instead of the default terragrunt.hcl.
+	// Otherwise, use the default terragrunt.hcl filename.
 	filename := config.DefaultTerragruntConfigPath
+	if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+		filename = filepath.Base(opts.TerragruntConfigPath)
+	}
 
+	// For stack configurations, always use the default stack config filename
 	if c.Type == ConfigTypeStack {
 		filename = config.DefaultStackFile
 	}
@@ -389,7 +455,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		filenames = DefaultConfigFilenames
 	}
 
-	// Prepare include/exclude glob patterns (canonicalized) for zglob.Match
+	// Prepare include/exclude glob patterns (canonicalized) for matching
 	var includePatterns, excludePatterns []string
 
 	if len(d.includeDirs) > 0 {
@@ -412,7 +478,18 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		}
 	}
 
-	processFn := func(path string, info os.FileInfo, err error) error {
+	// Compile patterns if not already compiled
+	if len(d.compiledIncludePatterns) == 0 && len(includePatterns) > 0 {
+		d.includeDirs = includePatterns
+		d.compileIncludePatterns(l)
+	}
+
+	if len(d.compiledExcludePatterns) == 0 && len(excludePatterns) > 0 {
+		d.excludeDirs = excludePatterns
+		d.compileExcludePatterns(l)
+	}
+
+	processFn := func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return errors.New(err)
 		}
@@ -426,14 +503,9 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 
 		canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
 		if canErr == nil {
-			for _, pattern := range excludePatterns {
-				matched, matchErr := zglob.Match(pattern, canonicalDir)
-				if matchErr != nil {
-					l.Debugf("error matching exclude glob %s against %s: %v", pattern, canonicalDir, matchErr)
-				}
-
-				if matched {
-					l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern)
+			for _, pattern := range d.compiledExcludePatterns {
+				if pattern.Compiled.Match(canonicalDir) {
+					l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern.Original)
 					return nil
 				}
 			}
@@ -442,13 +514,8 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			if d.strictInclude || d.excludeByDefault {
 				included := false
 
-				for _, pattern := range includePatterns {
-					matched, matchErr := zglob.Match(pattern, canonicalDir)
-					if matchErr != nil {
-						l.Debugf("error matching include glob %s against %s: %v", pattern, canonicalDir, matchErr)
-					}
-
-					if matched {
+				for _, pattern := range d.compiledIncludePatterns {
+					if pattern.Compiled.Match(canonicalDir) {
 						included = true
 						break
 					}
@@ -473,13 +540,9 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				}
 
 				if !allowHidden {
-					for _, pattern := range includePatterns {
-						matched, matchErr := zglob.Match(pattern, canonicalDir)
-						if matchErr != nil {
-							l.Debugf("error matching include glob %s against %s: %v", pattern, canonicalDir, matchErr)
-						}
-
-						if matched {
+					// Use precompiled patterns for include matching in hidden directory check
+					for _, pattern := range d.compiledIncludePatterns {
+						if pattern.Compiled.Match(canonicalDir) {
 							allowHidden = true
 							break
 						}
@@ -517,9 +580,9 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		return nil
 	}
 
-	walkFn := filepath.Walk
+	walkFn := filepath.WalkDir
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkWithSymlinks
+		walkFn = util.WalkDirWithSymlinks
 	}
 
 	if err := walkFn(d.workingDir, processFn); err != nil {
@@ -597,14 +660,16 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			"working_dir":  d.workingDir,
 			"config_count": len(cfgs),
 		}, func(ctx context.Context) error {
-			if _, err := cfgs.CycleCheck(); err != nil {
+			if _, cycleErr := cfgs.CycleCheck(); cycleErr != nil {
 				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-				l.Debugf("Cycle: %w", err)
+				l.Debugf("Cycle: %w", cycleErr)
 
-				cfgs, err = cfgs.RemoveCycles()
-				if err != nil {
-					errs = append(errs, errors.New(err))
+				var removeErr error
+
+				cfgs, removeErr = cfgs.RemoveCycles()
+				if removeErr != nil {
+					errs = append(errs, errors.New(removeErr))
 				}
 			}
 

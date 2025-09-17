@@ -251,6 +251,14 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		cfg.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
+	if sourceConfig.IamAssumeRoleSessionName != "" {
+		cfg.IamAssumeRoleSessionName = sourceConfig.IamAssumeRoleSessionName
+	}
+
+	if sourceConfig.IamWebIdentityToken != "" {
+		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
+	}
+
 	if sourceConfig.TerraformVersionConstraint != "" {
 		cfg.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
@@ -379,6 +387,14 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 	if sourceConfig.IamAssumeRoleDuration != nil {
 		cfg.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
+	}
+
+	if sourceConfig.IamAssumeRoleSessionName != "" {
+		cfg.IamAssumeRoleSessionName = sourceConfig.IamAssumeRoleSessionName
+	}
+
+	if sourceConfig.IamWebIdentityToken != "" {
+		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
 	}
 
 	if sourceConfig.TerraformVersionConstraint != "" {
