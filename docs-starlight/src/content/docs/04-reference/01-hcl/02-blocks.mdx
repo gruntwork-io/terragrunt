@@ -656,9 +656,9 @@ more about the inheritance properties of Terragrunt in the [Filling in remote st
 section](/docs/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
-You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
-your `include` blocks. Bare includes (`include` block with no label - e.g., `include {}`) are currently supported for
-backward compatibility, but is deprecated usage and support may be removed in the future.
+You can have more than one `include` block, but each one must have a unique label and a unique path. It is recommended to
+always label your `include` blocks. Bare includes (`include` block with no label - e.g., `include {}`) are currently 
+supported for backward compatibility, but is deprecated usage and support may be removed in the future.
 
 `include` blocks support the following arguments:
 
@@ -666,7 +666,7 @@ backward compatibility, but is deprecated usage and support may be removed in th
   must be labeled with a unique name to differentiate it from the other includes. e.g., if you had a block `include
 "remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
-  with this configuration (the `child` config).
+  with this configuration (the `child` config). Each include block must have a unique path value.
 - `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
   variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
   `false`. Note that the `include` variable is a map of `include` labels to the parsed configuration value.
@@ -1202,7 +1202,8 @@ in the [Dependencies between modules
 section](/docs/features/stacks#dependencies-between-units) of the
 "Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
-You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`
+You can define more than one `dependency` block, but each one must have a unique label and a unique `config_path`.
+Each label you provide to the block identifies another `dependency`
 that you can reference in your config.
 
 The `dependency` block supports the following arguments:
@@ -1212,7 +1213,8 @@ The `dependency` block supports the following arguments:
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
   outputs and inputs of this dependency with the expressions `dependency.vpc.outputs` and `dependency.vpc.inputs`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
-  as a dependency in this configuration.
+  as a dependency in this configuration. Each dependency block must have a unique config_path value. When using `include`
+  configurations, merged dependencies are also validated for unique `config_path` values.
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
