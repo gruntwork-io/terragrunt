@@ -1,11 +1,15 @@
 ---
 interface Props {
-  title: string;
-  description: string;
-  url?: string;
+  title?: string;
+  description?: string;
+  url?: string | 'test';
 }
 
-const { title, description, url } = Astro.props;
+const {
+  title = 'Terragrunt | Orchestrate Terraform & OpenTofu at Scale',
+  description = 'Standardize IaC and manage growing infra complexity: define units & stacks, cut repetition with includes/hooks, execute modules in dependency order across environments.',
+  url = 'https://terragrunt.gruntwork.io/',
+} = Astro.props;
 ---
 <!DOCTYPE html>
 <html lang="en">
