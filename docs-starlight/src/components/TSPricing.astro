@@ -5,6 +5,7 @@ import { Image } from 'astro:assets';
 import BackgroundPattern from '@assets/hero-bkgnd.svg';
 import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.svg';
 import IconPricingEnterprise from '@assets/icons/terragrunt-pricing-enterprise.svg';
+import Button from './ui/Button';
 ---
 
 <!-- Section -->
@@ -70,11 +71,10 @@ import IconPricingEnterprise from '@assets/icons/terragrunt-pricing-enterprise.s
 
                     <p class="text-gray-1 font-sans text-sm">* Price reflects a 17% annual contract discount, and includes a license for 1 repo and 2 users.</p>
 
-                    <a
-                      class="primary-button inline-flex items-center justify-center self-end gap-1 w-full"
-                      href="/contact-tgs"
-                    >
-                      Contact Us
+                    <a href="/contact-tgs">
+                      <Button variant="primary" className="w-full">
+                        Contact Us
+                      </Button>
                     </a>
 
                   </div>
@@ -112,12 +112,11 @@ import IconPricingEnterprise from '@assets/icons/terragrunt-pricing-enterprise.s
                       </ul>
 
                     </div>
-
-                    <a
-                      class="primary-button inline-flex items-center justify-center self-end gap-1 w-full"
-                      href="/contact-tgs"
-                    >
+                    
+                    <a href="/contact-tgs">
+                      <Button variant="primary" className="w-full">
                         Contact Us
+                      </Button>
                     </a>
 
                   </div>
