@@ -170,6 +170,7 @@ export default defineConfig({
       ],
       components: {
         Header: "./src/components/Header.astro",
+        PageSidebar: "./src/components/PageSidebar.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
         SkipLink: "./src/components/SkipLink.astro",
       },
