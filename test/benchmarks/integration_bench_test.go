@@ -11,6 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// warmupApplies performs a number of unmeasured apply runs to warm caches and workers.
+func warmupApplies(b *testing.B, tmpDir string, useRunnerPool bool, count int) {
+	for i := 0; i < count; i++ {
+		if useRunnerPool {
+			helpers.ApplyWithRunnerPool(b, tmpDir)
+		} else {
+			helpers.Apply(b, tmpDir)
+		}
+	}
+}
+
 func BenchmarkEmptyTerragruntInit(b *testing.B) {
 	emptyMainTf := ``
 
@@ -216,6 +227,8 @@ terraform {
 	helpers.Init(b, tmpDir)
 
 	b.Run("default_runner", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, false, 2)
 		b.ResetTimer()
 
 		for i := 0; i < 10; i++ {
@@ -224,6 +237,8 @@ terraform {
 	})
 
 	b.Run("runner_pool", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, true, 2)
 		b.ResetTimer()
 
 		for i := 0; i < 10; i++ {
@@ -272,6 +287,8 @@ terraform {
 	helpers.Init(b, tmpDir)
 
 	b.Run("default_runner", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, false, 2)
 		b.ResetTimer()
 
 		for i := 0; i < 10; i++ {
@@ -280,6 +297,8 @@ terraform {
 	})
 
 	b.Run("runner_pool", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, true, 2)
 		b.ResetTimer()
 
 		for i := 0; i < 10; i++ {
@@ -356,6 +375,8 @@ dependencies {
 	helpers.Init(b, tmpDir)
 
 	b.Run("default_runner", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, false, 2)
 		b.ResetTimer()
 
 		for i := 0; i < 10; i++ {
@@ -364,6 +385,8 @@ dependencies {
 	})
 
 	b.Run("runner_pool", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, true, 2)
 		b.ResetTimer()
 
 		for i := 0; i < 10; i++ {
