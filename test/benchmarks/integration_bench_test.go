@@ -191,7 +191,7 @@ func BenchmarkManyEmptyTerragruntPlans(b *testing.B) {
 	})
 }
 
-func BenchmarkTenUnitsNoDependencies(b *testing.B) {
+func BenchmarkUnitsNoDependencies(b *testing.B) {
 	baseMainTf := `resource "null_resource" "test" {
   triggers = {
     timestamp = timestamp()
@@ -211,7 +211,7 @@ terraform {
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
-	helpers.GenerateNUnits(b, tmpDir, 10, includeRootConfig, baseMainTf)
+	helpers.GenerateNUnits(b, tmpDir, 25, includeRootConfig, baseMainTf)
 
 	helpers.Init(b, tmpDir)
 
@@ -230,7 +230,7 @@ terraform {
 	})
 }
 
-func BenchmarkTenUnitsNoDependenciesRandomWait(b *testing.B) {
+func BenchmarkUnitsNoDependenciesRandomWait(b *testing.B) {
 	emptyRootConfig := ``
 	includeRootConfig := `include "root" {
         path = find_in_parent_folders("root.hcl")
@@ -244,8 +244,8 @@ terraform {
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
-	// Generate 10 independent units with random 100-300ms waits
-	for i := 0; i < 10; i++ {
+	// Generate independent units with random 100-300ms waits
+	for i := 0; i < 25; i++ {
 		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
@@ -284,7 +284,7 @@ terraform {
 	})
 }
 
-func BenchmarkTenUnitsOneDependencyWithWait(b *testing.B) {
+func BenchmarkUnitsOneDependencyWithWait(b *testing.B) {
 	baseMainTf := `resource "null_resource" "test" {
   triggers = {
     timestamp = timestamp()
@@ -304,8 +304,8 @@ terraform {
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
-	// Create 10 units
-	for i := 0; i < 10; i++ {
+	// Create units
+	for i := 0; i < 25; i++ {
 		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
