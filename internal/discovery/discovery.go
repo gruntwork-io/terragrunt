@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -296,6 +297,33 @@ func (d *Discovery) WithExcludeDirs(dirs []string) *Discovery {
 // WithParserOptions sets custom HCL parser options to use when parsing during discovery.
 func (d *Discovery) WithParserOptions(options []hclparse.Option) *Discovery {
 	d.parserOptions = options
+	return d
+}
+
+// SetParseOptions implements common.ParseOptionsSetter allowing discovery to receive
+// HCL parser options via generic option plumbing.
+func (d *Discovery) SetParseOptions(options []hclparse.Option) {
+	d.parserOptions = options
+}
+
+// WithOptions ingests runner options and applies any discovery-relevant settings.
+// Currently, it extracts HCL parser options provided via common.ParseOptionsProvider
+// and forwards them to discovery's parser configuration.
+func (d *Discovery) WithOptions(opts ...common.Option) *Discovery {
+	var parserOptions []hclparse.Option
+
+	for _, opt := range opts {
+		if p, ok := opt.(common.ParseOptionsProvider); ok {
+			if po := p.GetParseOptions(); len(po) > 0 {
+				parserOptions = append(parserOptions, po...)
+			}
+		}
+	}
+
+	if len(parserOptions) > 0 {
+		d = d.WithParserOptions(parserOptions)
+	}
+
 	return d
 }
 
