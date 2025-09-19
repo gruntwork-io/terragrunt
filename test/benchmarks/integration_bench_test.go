@@ -217,6 +217,7 @@ terraform {
 
 	b.Run("default_runner", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < 10; i++ {
 			helpers.Apply(b, tmpDir)
 		}
@@ -224,6 +225,7 @@ terraform {
 
 	b.Run("runner_pool", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < 10; i++ {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
@@ -271,6 +273,7 @@ terraform {
 
 	b.Run("default_runner", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < 10; i++ {
 			helpers.Apply(b, tmpDir)
 		}
@@ -278,6 +281,7 @@ terraform {
 
 	b.Run("runner_pool", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < 10; i++ {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
@@ -325,6 +329,7 @@ dependencies {
 		} else {
 			tgConfig = includeRootConfig
 		}
+
 		tgPath := filepath.Join(unitDir, "terragrunt.hcl")
 		require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
 
@@ -343,6 +348,7 @@ dependencies {
 		} else {
 			tfConfig = baseMainTf
 		}
+
 		tfPath := filepath.Join(unitDir, "main.tf")
 		require.NoError(b, os.WriteFile(tfPath, []byte(tfConfig), helpers.DefaultFilePermissions))
 	}
@@ -351,6 +357,7 @@ dependencies {
 
 	b.Run("default_runner", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < 10; i++ {
 			helpers.Apply(b, tmpDir)
 		}
@@ -358,6 +365,7 @@ dependencies {
 
 	b.Run("runner_pool", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < 10; i++ {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
