@@ -211,7 +211,7 @@ terraform {
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
-	helpers.GenerateNUnits(b, tmpDir, 25, includeRootConfig, baseMainTf)
+	helpers.GenerateNUnits(b, tmpDir, 10, includeRootConfig, baseMainTf)
 
 	helpers.Init(b, tmpDir)
 
@@ -247,7 +247,7 @@ terraform {
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
 	// Generate independent units with random 100-300ms waits
-	for i := 0; i < 25; i++ {
+	for i := 0; i < 10; i++ {
 		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
@@ -309,7 +309,7 @@ terraform {
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
 	// Create units
-	for i := 0; i < 25; i++ {
+	for i := 0; i < 10; i++ {
 		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
