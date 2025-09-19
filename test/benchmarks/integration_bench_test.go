@@ -1,6 +1,8 @@
 package test_test
 
 import (
+	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +10,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/benchmarks/helpers"
 	"github.com/stretchr/testify/require"
 )
+
+// warmupApplies performs a number of unmeasured apply runs to warm caches and workers.
+func warmupApplies(b *testing.B, tmpDir string, useRunnerPool bool, count int) {
+	b.Helper()
+
+	for i := 0; i < count; i++ {
+		if useRunnerPool {
+			helpers.ApplyWithRunnerPool(b, tmpDir)
+		} else {
+			helpers.Apply(b, tmpDir)
+		}
+	}
+}
 
 func BenchmarkEmptyTerragruntInit(b *testing.B) {
 	emptyMainTf := ``
@@ -185,6 +200,199 @@ func BenchmarkManyEmptyTerragruntPlans(b *testing.B) {
 	b.Run("1000 units", func(b *testing.B) {
 		for b.Loop() {
 			helpers.Plan(b, tmpDir)
+		}
+	})
+}
+
+func BenchmarkUnitsNoDependencies(b *testing.B) {
+	baseMainTf := `resource "null_resource" "test" {
+  triggers = {
+    timestamp = timestamp()
+  }
+}`
+
+	emptyRootConfig := ``
+	includeRootConfig := `include "root" {
+        path = find_in_parent_folders("root.hcl")
+}
+terraform {
+    source = "."
+}
+`
+
+	tmpDir := b.TempDir()
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	helpers.GenerateNUnits(b, tmpDir, 10, includeRootConfig, baseMainTf)
+
+	helpers.Init(b, tmpDir)
+
+	b.Run("default_runner", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, false, 2)
+		b.ResetTimer()
+
+		for i := 0; i < 10; i++ {
+			helpers.Apply(b, tmpDir)
+		}
+	})
+
+	b.Run("runner_pool", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, true, 2)
+		b.ResetTimer()
+
+		for i := 0; i < 10; i++ {
+			helpers.ApplyWithRunnerPool(b, tmpDir)
+		}
+	})
+}
+
+func BenchmarkUnitsNoDependenciesRandomWait(b *testing.B) {
+	emptyRootConfig := ``
+	includeRootConfig := `include "root" {
+        path = find_in_parent_folders("root.hcl")
+}
+terraform {
+    source = "."
+}
+`
+
+	tmpDir := b.TempDir()
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	// Generate independent units with random 100-300ms waits
+	for i := 0; i < 10; i++ {
+		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
+		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
+
+		tgPath := filepath.Join(unitDir, "terragrunt.hcl")
+		require.NoError(b, os.WriteFile(tgPath, []byte(includeRootConfig), helpers.DefaultFilePermissions))
+
+		ms := 100 + rand.Intn(201) // 100..300 ms
+		secs := float64(ms) / 1000.0
+		mainTf := fmt.Sprintf(`resource "null_resource" "wait" {
+  provisioner "local-exec" {
+    command = "bash -c 'sleep %.3f'"
+  }
+  triggers = {
+    timestamp = timestamp()
+  }
+}
+`, secs)
+		tfPath := filepath.Join(unitDir, "main.tf")
+		require.NoError(b, os.WriteFile(tfPath, []byte(mainTf), helpers.DefaultFilePermissions))
+	}
+
+	helpers.Init(b, tmpDir)
+
+	b.Run("default_runner", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, false, 2)
+		b.ResetTimer()
+
+		for i := 0; i < 10; i++ {
+			helpers.Apply(b, tmpDir)
+		}
+	})
+
+	b.Run("runner_pool", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, true, 2)
+		b.ResetTimer()
+
+		for i := 0; i < 10; i++ {
+			helpers.ApplyWithRunnerPool(b, tmpDir)
+		}
+	})
+}
+
+func BenchmarkUnitsOneDependencyWithWait(b *testing.B) {
+	baseMainTf := `resource "null_resource" "test" {
+  triggers = {
+    timestamp = timestamp()
+  }
+}`
+
+	emptyRootConfig := ``
+	includeRootConfig := `include "root" {
+        path = find_in_parent_folders("root.hcl")
+}
+terraform {
+    source = "."
+}
+`
+
+	tmpDir := b.TempDir()
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	// Create units
+	for i := 0; i < 10; i++ {
+		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
+		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
+
+		// terragrunt.hcl
+		var tgConfig string
+		if i == 2 {
+			// unit-2 depends on unit-1
+			tgConfig = `include "root" {
+        path = find_in_parent_folders("root.hcl")
+}
+terraform {
+    source = "."
+}
+dependencies {
+    paths = ["../unit-1"]
+}`
+		} else {
+			tgConfig = includeRootConfig
+		}
+
+		tgPath := filepath.Join(unitDir, "terragrunt.hcl")
+		require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
+
+		// main.tf
+		var tfConfig string
+		if i == 1 {
+			// unit-1 has 400ms wait
+			tfConfig = `resource "null_resource" "wait" {
+  provisioner "local-exec" {
+    command = "bash -c 'sleep 0.4'"
+  }
+  triggers = {
+    timestamp = timestamp()
+  }
+}`
+		} else {
+			tfConfig = baseMainTf
+		}
+
+		tfPath := filepath.Join(unitDir, "main.tf")
+		require.NoError(b, os.WriteFile(tfPath, []byte(tfConfig), helpers.DefaultFilePermissions))
+	}
+
+	helpers.Init(b, tmpDir)
+
+	b.Run("default_runner", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, false, 2)
+		b.ResetTimer()
+
+		for i := 0; i < 10; i++ {
+			helpers.Apply(b, tmpDir)
+		}
+	})
+
+	b.Run("runner_pool", func(b *testing.B) {
+		// Warmups (not measured)
+		warmupApplies(b, tmpDir, true, 2)
+		b.ResetTimer()
+
+		for i := 0; i < 10; i++ {
+			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
 	})
 }

@@ -197,8 +197,6 @@ const (
 	prefix                     = "   "
 	unitPrefixMultiplier       = 2
 	runSummaryHeader           = "❯❯ Run Summary"
-	durationLabel              = "Duration"
-	unitsLabel                 = "Units"
 	successLabel               = "Succeeded"
 	failureLabel               = "Failed"
 	earlyExitLabel             = "Early Exits"
