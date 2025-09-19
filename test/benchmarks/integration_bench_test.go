@@ -14,6 +14,7 @@ import (
 // warmupApplies performs a number of unmeasured apply runs to warm caches and workers.
 func warmupApplies(b *testing.B, tmpDir string, useRunnerPool bool, count int) {
 	b.Helper()
+
 	for i := 0; i < count; i++ {
 		if useRunnerPool {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
