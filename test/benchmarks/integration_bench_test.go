@@ -11,19 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// warmupApplies performs a number of unmeasured apply runs to warm caches and workers.
-func warmupApplies(b *testing.B, tmpDir string, useRunnerPool bool, count int) {
-	b.Helper()
-
-	for i := 0; i < count; i++ {
-		if useRunnerPool {
-			helpers.ApplyWithRunnerPool(b, tmpDir)
-		} else {
-			helpers.Apply(b, tmpDir)
-		}
-	}
-}
-
 func BenchmarkEmptyTerragruntInit(b *testing.B) {
 	emptyMainTf := ``
 
@@ -233,7 +220,7 @@ terraform {
 		warmupApplies(b, tmpDir, false, 2)
 		b.ResetTimer()
 
-		for i := 0; i < 10; i++ {
+		for b.Loop() {
 			helpers.Apply(b, tmpDir)
 		}
 	})
@@ -243,7 +230,7 @@ terraform {
 		warmupApplies(b, tmpDir, true, 2)
 		b.ResetTimer()
 
-		for i := 0; i < 10; i++ {
+		for b.Loop() {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
 	})
@@ -293,7 +280,7 @@ terraform {
 		warmupApplies(b, tmpDir, false, 2)
 		b.ResetTimer()
 
-		for i := 0; i < 10; i++ {
+		for b.Loop() {
 			helpers.Apply(b, tmpDir)
 		}
 	})
@@ -303,7 +290,7 @@ terraform {
 		warmupApplies(b, tmpDir, true, 2)
 		b.ResetTimer()
 
-		for i := 0; i < 10; i++ {
+		for b.Loop() {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
 	})
@@ -381,7 +368,7 @@ dependencies {
 		warmupApplies(b, tmpDir, false, 2)
 		b.ResetTimer()
 
-		for i := 0; i < 10; i++ {
+		for b.Loop() {
 			helpers.Apply(b, tmpDir)
 		}
 	})
@@ -391,7 +378,7 @@ dependencies {
 		warmupApplies(b, tmpDir, true, 2)
 		b.ResetTimer()
 
-		for i := 0; i < 10; i++ {
+		for b.Loop() {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
 		}
 	})
@@ -478,7 +465,7 @@ terraform {
 				warmupApplies(b, dir, false, 2)
 				b.ResetTimer()
 
-				for i := 0; i < 10; i++ {
+				for b.Loop() {
 					helpers.Apply(b, dir)
 				}
 			})
@@ -488,10 +475,23 @@ terraform {
 				warmupApplies(b, dir, true, 2)
 				b.ResetTimer()
 
-				for i := 0; i < 10; i++ {
+				for b.Loop() {
 					helpers.ApplyWithRunnerPool(b, dir)
 				}
 			})
 		})
+	}
+}
+
+// warmupApplies performs a number of unmeasured apply runs to warm caches and workers.
+func warmupApplies(b *testing.B, tmpDir string, useRunnerPool bool, count int) {
+	b.Helper()
+
+	for range make([]struct{}, count) {
+		if useRunnerPool {
+			helpers.ApplyWithRunnerPool(b, tmpDir)
+		} else {
+			helpers.Apply(b, tmpDir)
+		}
 	}
 }
