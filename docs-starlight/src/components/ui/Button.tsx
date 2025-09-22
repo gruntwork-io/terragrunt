@@ -30,7 +30,9 @@ export default function Button({
       type={type}
       className={cn(
         // Base styles
-        "cursor-pointer py-2.5 px-5 m-0",
+        "cursor-pointer py-2.5 px-5 m-0 font-medium",
+        // Font smoothing for consistent rendering across pages
+        "antialiased",
         // Border
         "border border-solid",
         // Focus
