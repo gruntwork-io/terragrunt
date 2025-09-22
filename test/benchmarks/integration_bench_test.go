@@ -390,8 +390,8 @@ dependencies {
 // - Odd-indexed units are no-ops but depend on their paired even unit
 // It measures apply times for both the default runner (configstack) and the runner pool on the SAME stack.
 func BenchmarkDependencyPairwiseOddDependsOnPrevEvenRandomWait(b *testing.B) {
-	// Sizes for parameterized benchmark
-	sizes := []int{50, 100}
+	// Sizes for parameterized benchmark (2,4,8,...,128)
+	sizes := []int{2, 4, 8, 16, 32, 64, 128}
 
 	emptyRootConfig := ``
 	includeRootConfig := `include "root" {
@@ -404,24 +404,29 @@ terraform {
 
 	for _, n := range sizes {
 		b.Run(fmt.Sprintf("%d_units", n), func(b *testing.B) {
-			// Generate a single stack used by both runners to ensure a fair comparison
+			// Generate a single stack used by both runners
 			dir := b.TempDir()
 
 			// Write root.hcl
 			require.NoError(b, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
-			// Generate units
+			// Generate units where every odd depends on every even
 			for i := 0; i < n; i++ {
 				unitDir := filepath.Join(dir, fmt.Sprintf("unit-%d", i))
 				require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
-				// terragrunt.hcl: odd units depend on the previous even unit
+				// terragrunt.hcl: odd units depend on every even unit
 				var tgConfig string
-				if i%2 == 1 { // odd depends on i-1
-					tgConfig = includeRootConfig + fmt.Sprintf(`dependencies {
-  paths = ["../unit-%d"]
-}
-`, i-1)
+				if i%2 == 1 { // odd depends on all evens
+					var depBlocks string
+
+					for j := 0; j < n; j++ {
+						if j%2 == 0 { // even
+							depBlocks += fmt.Sprintf("dependency \"unit_%d\" {\n  config_path = \"../unit-%d\"\n}\n\n", j, j)
+						}
+					}
+
+					tgConfig = includeRootConfig + depBlocks
 				} else {
 					tgConfig = includeRootConfig
 				}
@@ -429,10 +434,10 @@ terraform {
 				tgPath := filepath.Join(unitDir, "terragrunt.hcl")
 				require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
 
-				// main.tf: even units wait 50..100ms; odd units are no-ops
+				// main.tf: odd units wait 50..100ms; even units are no-ops
 				var mainTf string
 
-				if i%2 == 0 { // even: random sleep
+				if i%2 == 1 { // odd: random sleep
 					ms := 50 + rand.Intn(51) // 50..100ms
 					secs := float64(ms) / 1000.0
 					mainTf = fmt.Sprintf(`resource "null_resource" "wait" {
@@ -444,7 +449,7 @@ terraform {
   }
 }
 `, secs)
-				} else { // odd: noop
+				} else { // even: noop
 					mainTf = `resource "null_resource" "noop" {
   triggers = {
     timestamp = timestamp()
