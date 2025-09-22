@@ -15,6 +15,10 @@ export interface ButtonProps {
   isExternalLink?: boolean;
 }
 
+export function isSizeIcon(size?: string): boolean {
+  return size === "icon";
+}
+
 export default function Button({
   variant = "primary",
   size = "default",
@@ -68,7 +72,7 @@ export default function Button({
       {...props}
     >
       {children}
-      {isExternalLink && (
+      {isExternalLink && !isSizeIcon(size) && (
         <ExternalLink 
           className="inline-block ml-1 transform translate-y-0.25 -translate-x-0.75 w-3.5 h-3.5" 
           aria-label="External link icon"
