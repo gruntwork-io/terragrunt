@@ -396,19 +396,6 @@
     margin: 1.5em 0;
   }
 
-  /* Global link styling - apply Starlight's link styles everywhere except in sl-markdown-content */
-  /* a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a) {
-    color: var(--color-accent-1);
-    text-decoration: underline;
-    text-decoration-color: var(--color-accent-1);
-    transition: color 0.2s ease, text-decoration-color 0.2s ease;
-  }
-  
-  a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a):hover {
-    color: var(--sl-color-accent);
-    text-decoration-color: var(--sl-color-accent);
-  } */
-
 }
 
 @media (width < 768px) {
