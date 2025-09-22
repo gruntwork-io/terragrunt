@@ -9,15 +9,21 @@ import { Icon } from '@astrojs/starlight/components';
   <slot />
 </DefaultPageSidebar>
 
-<div class="w-full h-[32px] bg-[url('../assets/pattern-div.svg')]"></div>
-<div class="m-0 p-6 dark:bg-accent-3/15 bg-opacity-20 border-y border-dashed border-gray-3 dark:border-stroke-dark">
-  <div class="flex flex-col gap-3">
-    <p class="text-primary font-medium text-xl leading-[150%] dark:text-white">
-      Scale up your Terragrunt
-    </p>
-    <p class="text-gray-1 dark:text-gray-1">
-      GitOps infrastructure pipelines, drift detection, and automated updates. No black boxes.
-    </p>
-    <a class="flex flex-row items-center" href="https://terragrunt.gruntwork.io/terragrunt-scale">Learn about Terragrunt Scale<Icon name="right-arrow" /></a>
+<!-- Terragrunt Scale CTA -->
+<div class="hidden min-[1152px]:block">
+  <div class="w-full h-[32px] bg-[url('../assets/pattern-div.svg')]"></div>
+  <div class="m-0 p-6 dark:bg-accent-3/15 bg-opacity-20 border-y border-dashed border-gray-3 dark:border-stroke-dark">
+    <div class="flex flex-col gap-3">
+      <p class="text-primary font-medium text-xl leading-[150%] dark:text-white">
+        Scale up your Terragrunt
+      </p>
+      <p class="text-gray-1 dark:text-gray-1">
+        GitOps infrastructure pipelines, drift detection, and automated updates. No black boxes.
+      </p>
+      <a class="flex flex-row items-center" href="https://terragrunt.gruntwork.io/terragrunt-scale">
+        Learn about Terragrunt Scale
+        <Icon name="right-arrow" class="shrink-0" />
+      </a>
+    </div>
   </div>
 </div>
