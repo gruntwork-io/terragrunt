@@ -410,23 +410,25 @@ terraform {
 			// Write root.hcl
 			require.NoError(b, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
+			// Seed random generator deterministically within this sub-benchmark
+			rnd := rand.New(rand.NewSource(int64(n)))
+
 			// Generate units where every odd depends on every even
 			for i := 0; i < n; i++ {
 				unitDir := filepath.Join(dir, fmt.Sprintf("unit-%d", i))
 				require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
-				// terragrunt.hcl: odd units depend on every even unit
+				// terragrunt.hcl: odd units depend only on the previous even unit (i-1)
 				var tgConfig string
-				if i%2 == 1 { // odd depends on all evens
-					var depBlocks string
 
-					for j := 0; j < n; j++ {
-						if j%2 == 0 { // even
-							depBlocks += fmt.Sprintf("dependency \"unit_%d\" {\n  config_path = \"../unit-%d\"\n}\n\n", j, j)
-						}
+				if i%2 == 1 {
+					prev := i - 1
+					if prev >= 0 {
+						depBlock := fmt.Sprintf("dependency \"unit_%d\" {\n  config_path = \"../unit-%d\"\n}\n\n", prev, prev)
+						tgConfig = includeRootConfig + depBlock
+					} else {
+						tgConfig = includeRootConfig
 					}
-
-					tgConfig = includeRootConfig + depBlocks
 				} else {
 					tgConfig = includeRootConfig
 				}
@@ -434,11 +436,11 @@ terraform {
 				tgPath := filepath.Join(unitDir, "terragrunt.hcl")
 				require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
 
-				// main.tf: odd units wait 50..100ms; even units are no-ops
+				// main.tf: even units wait 50..100ms; odd units are no-ops
 				var mainTf string
 
-				if i%2 == 1 { // odd: random sleep
-					ms := 50 + rand.Intn(51) // 50..100ms
+				if i%2 == 0 { // even: random sleep
+					ms := 50 + rnd.Intn(51) // 50..100ms
 					secs := float64(ms) / 1000.0
 					mainTf = fmt.Sprintf(`resource "null_resource" "wait" {
   provisioner "local-exec" {
@@ -449,7 +451,7 @@ terraform {
   }
 }
 `, secs)
-				} else { // even: noop
+				} else { // odd: noop
 					mainTf = `resource "null_resource" "noop" {
   triggers = {
     timestamp = timestamp()
