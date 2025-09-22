@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/benchmarks/helpers"
@@ -398,13 +397,14 @@ dependencies {
 	})
 }
 
-// BenchmarkDependencyFanInOddDependsOnEvenRandomWait generates N units (2,4,8,...,128) where:
-// - Every odd-indexed unit depends on every even-indexed unit
-// - Each unit performs a random sleep via local-exec to simulate workload
-// It measures apply times for both the default runner (configstack) and the runner pool.
-func BenchmarkDependencyFanInOddDependsOnEvenRandomWait(b *testing.B) {
+// BenchmarkDependencyPairwiseOddDependsOnPrevEvenRandomWait generates N units (50, 100) where:
+// - Every odd-indexed unit depends on the previous even-indexed unit (e.g., 1->0, 3->2, ...)
+// - Even-indexed units perform a random sleep via local-exec to simulate workload (50..100ms)
+// - Odd-indexed units are no-ops but depend on their paired even unit
+// It measures apply times for both the default runner (configstack) and the runner pool on the SAME stack.
+func BenchmarkDependencyPairwiseOddDependsOnPrevEvenRandomWait(b *testing.B) {
 	// Sizes for parameterized benchmark
-	sizes := []int{2, 4, 8, 16, 32, 64, 128}
+	sizes := []int{50, 100}
 
 	emptyRootConfig := ``
 	includeRootConfig := `include "root" {
@@ -417,79 +417,38 @@ terraform {
 
 	for _, n := range sizes {
 		b.Run(fmt.Sprintf("%d_units", n), func(b *testing.B) {
-			// Generate two variants: slow (with delays) for configstack, fast (no delays) for runner_pool
-			slowDir := b.TempDir()
-			fastDir := b.TempDir()
+			// Generate a single stack used by both runners to ensure a fair comparison
+			dir := b.TempDir()
 
-			// Write root.hcl for both variants
-			require.NoError(b, os.WriteFile(filepath.Join(slowDir, "root.hcl"), []byte(emptyRootConfig), helpers.DefaultFilePermissions))
-			require.NoError(b, os.WriteFile(filepath.Join(fastDir, "root.hcl"), []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+			// Write root.hcl
+			require.NoError(b, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
-			// Helper to generate a variant
-			generate := func(baseDir string, withDelay bool) {
-				for i := 0; i < n; i++ {
-					unitDir := filepath.Join(baseDir, fmt.Sprintf("unit-%d", i))
-					require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
+			// Generate units
+			for i := 0; i < n; i++ {
+				unitDir := filepath.Join(dir, fmt.Sprintf("unit-%d", i))
+				require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
-					// terragrunt.hcl: odd units depend on even units via dependency blocks
-					var tgConfig string
-					if i%2 == 1 { // odd unit depends on every even unit
-						deps := make([]string, 0, (n+1)/2)
-						for j := 0; j < n; j++ {
-							if j%2 == 0 { // even
-								deps = append(deps, fmt.Sprintf("../unit-%d", j))
-							}
-						}
-						// Build multiple dependency blocks
-						var depBlocks []string
-						for _, p := range deps {
-							name := strings.ReplaceAll(filepath.Base(p), "-", "_")
-							depBlocks = append(depBlocks, fmt.Sprintf("dependency \"%s\" {\n  config_path = \"%s\"\n}\n", name, p))
-						}
-						tgConfig = includeRootConfig + strings.Join(depBlocks, "\n")
-					} else {
-						tgConfig = includeRootConfig
-					}
-
-					tgPath := filepath.Join(unitDir, "terragrunt.hcl")
-					require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
-
-					// main.tf: withDelay => dependents (odd units) sleep random 20-50ms; providers (even) no sleep; without => noop
-					var mainTf string
-					var secs float64
-					if withDelay && i%2 == 1 { // only dependents get delay
-						ms := 20 + rand.Intn(31) // 20..50ms
-						secs = float64(ms) / 1000.0
-					}
-
-					if i%2 == 0 { // even unit: define output sleep_seconds
-						if withDelay {
-							// No delay for providers in slow stack; only expose output=0
-							mainTf = `resource "null_resource" "noop" {
-  triggers = {
-    timestamp = timestamp()
-  }
+				// terragrunt.hcl: odd units depend on the previous even unit
+				var tgConfig string
+				if i%2 == 1 { // odd depends on i-1
+					tgConfig = includeRootConfig + fmt.Sprintf(`dependencies {
+  paths = ["../unit-%d"]
 }
+`, i-1)
+				} else {
+					tgConfig = includeRootConfig
+				}
 
-output "sleep_seconds" {
-  value = 0
-}
-`
-						} else {
-							mainTf = `resource "null_resource" "noop" {
-  triggers = {
-    timestamp = timestamp()
-  }
-}
+				tgPath := filepath.Join(unitDir, "terragrunt.hcl")
+				require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
 
-output "sleep_seconds" {
-  value = 0
-}
-`
-						}
-					} else {
-						if withDelay {
-							mainTf = fmt.Sprintf(`resource "null_resource" "wait" {
+				// main.tf: even units wait 50..100ms; odd units are no-ops
+				var mainTf string
+
+				if i%2 == 0 { // even: random sleep
+					ms := 50 + rand.Intn(51) // 50..100ms
+					secs := float64(ms) / 1000.0
+					mainTf = fmt.Sprintf(`resource "null_resource" "wait" {
   provisioner "local-exec" {
     command = "bash -c 'sleep %.3f'"
   }
@@ -498,45 +457,39 @@ output "sleep_seconds" {
   }
 }
 `, secs)
-						} else {
-							mainTf = `resource "null_resource" "noop" {
+				} else { // odd: noop
+					mainTf = `resource "null_resource" "noop" {
   triggers = {
     timestamp = timestamp()
   }
 }
 `
-						}
-					}
-					tfPath := filepath.Join(unitDir, "main.tf")
-					require.NoError(b, os.WriteFile(tfPath, []byte(mainTf), helpers.DefaultFilePermissions))
 				}
+
+				tfPath := filepath.Join(unitDir, "main.tf")
+				require.NoError(b, os.WriteFile(tfPath, []byte(mainTf), helpers.DefaultFilePermissions))
 			}
 
-			// Generate both variants
-			generate(slowDir, true)
-			generate(fastDir, false)
-
 			// Init once to prepare
-			helpers.Init(b, slowDir)
-			helpers.Init(b, fastDir)
+			helpers.Init(b, dir)
 
 			b.Run("configstack", func(b *testing.B) {
 				// Warmups (not measured)
-				warmupApplies(b, slowDir, false, 2)
+				warmupApplies(b, dir, false, 2)
 				b.ResetTimer()
 
 				for i := 0; i < 10; i++ {
-					helpers.Apply(b, slowDir)
+					helpers.Apply(b, dir)
 				}
 			})
 
 			b.Run("runner_pool", func(b *testing.B) {
 				// Warmups (not measured)
-				warmupApplies(b, fastDir, true, 2)
+				warmupApplies(b, dir, true, 2)
 				b.ResetTimer()
 
 				for i := 0; i < 10; i++ {
-					helpers.ApplyWithRunnerPool(b, fastDir)
+					helpers.ApplyWithRunnerPool(b, dir)
 				}
 			})
 		})
