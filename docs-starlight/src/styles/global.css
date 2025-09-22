@@ -169,13 +169,6 @@
         padding: 10px 10px;
     }
   }
-
-  @media (min-width: 1152px) {
-    .right-sidebar {
-      padding-top: 0 !important;
-      position: relative !important;
-    }
-  }
 }
 
 /* Handle all CSS overrides in a single layer to make it easier to manage and update.
