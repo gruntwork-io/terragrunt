@@ -114,7 +114,7 @@ func (cloner *Cloner[T]) cloneValue(src reflect.Value) reflect.Value {
 		return cloner.cloneArray(src)
 	case reflect.Map:
 		return cloner.cloneMap(src)
-	case reflect.Ptr, reflect.UnsafePointer:
+	case reflect.Pointer, reflect.UnsafePointer:
 		return cloner.clonePointer(src)
 	case reflect.Struct:
 		return cloner.cloneStruct(src)

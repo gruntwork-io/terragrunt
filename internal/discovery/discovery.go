@@ -7,10 +7,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -24,6 +26,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -34,7 +37,32 @@ const (
 
 	// skipOutputDiagnostics is a string used to identify diagnostics that reference outputs.
 	skipOutputDiagnostics = "output"
+
+	// Default number of concurrent workers for discovery operations
+	defaultDiscoveryWorkers = 4
+
+	// Maximum number of workers (2x default to prevent excessive concurrency)
+	maxDiscoveryWorkers = defaultDiscoveryWorkers * 2
+
+	// Channel buffer multiplier for worker pools (larger buffers reduce blocking)
+	channelBufferMultiplier = 4
+
+	// Maximum hidden directory memoization entries (prevents unbounded memory growth)
+	maxHiddenDirMemoSize = 1000
+
+	// Default maximum dependency depth for discovery
+	defaultMaxDependencyDepth = 1000
+
+	// Maximum number of cycle removal attempts (prevents infinite loops)
+	maxCycleRemovalAttempts = 100
 )
+
+// defaultExcludeDirs is the default directories where units should never be discovered.
+var defaultExcludeDirs = []string{
+	".git/**",
+	".terraform/**",
+	".terragrunt-cache/**",
+}
 
 // ConfigType is the type of Terragrunt configuration.
 type ConfigType string
@@ -113,6 +141,9 @@ type Discovery struct {
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
+	// numWorkers determines the number of concurrent workers for discovery operations.
+	numWorkers int
+
 	// hidden determines whether to detect configurations in hidden directories.
 	hidden bool
 
@@ -133,6 +164,9 @@ type Discovery struct {
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
+
+	// useDefaultExcludes determines whether to use default exclude patterns.
+	useDefaultExcludes bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -149,6 +183,8 @@ var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config
 
 // NewDiscovery creates a new Discovery.
 func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
+	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
+
 	discovery := &Discovery{
 		workingDir: dir,
 		hidden:     false,
@@ -156,6 +192,8 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 			config.StackDir,
 			filepath.Join(config.StackDir, "**"),
 		},
+		numWorkers:         numWorkers,
+		useDefaultExcludes: true,
 	}
 
 	for _, opt := range opts {
@@ -186,7 +224,7 @@ func (d *Discovery) WithDiscoverDependencies() *Discovery {
 	d.requiresParse = true
 
 	if d.maxDependencyDepth == 0 {
-		d.maxDependencyDepth = 1000
+		d.maxDependencyDepth = defaultMaxDependencyDepth
 	}
 
 	return d
@@ -262,6 +300,33 @@ func (d *Discovery) WithParserOptions(options []hclparse.Option) *Discovery {
 	return d
 }
 
+// SetParseOptions implements common.ParseOptionsSetter allowing discovery to receive
+// HCL parser options via generic option plumbing.
+func (d *Discovery) SetParseOptions(options []hclparse.Option) {
+	d.parserOptions = options
+}
+
+// WithOptions ingests runner options and applies any discovery-relevant settings.
+// Currently, it extracts HCL parser options provided via common.ParseOptionsProvider
+// and forwards them to discovery's parser configuration.
+func (d *Discovery) WithOptions(opts ...common.Option) *Discovery {
+	var parserOptions []hclparse.Option
+
+	for _, opt := range opts {
+		if p, ok := opt.(common.ParseOptionsProvider); ok {
+			if po := p.GetParseOptions(); len(po) > 0 {
+				parserOptions = append(parserOptions, po...)
+			}
+		}
+	}
+
+	if len(parserOptions) > 0 {
+		d = d.WithParserOptions(parserOptions)
+	}
+
+	return d
+}
+
 // WithStrictInclude enables strict include mode.
 func (d *Discovery) WithStrictInclude() *Discovery {
 	d.strictInclude = true
@@ -277,6 +342,18 @@ func (d *Discovery) WithExcludeByDefault() *Discovery {
 // WithIgnoreExternalDependencies drops dependencies outside of the working directory.
 func (d *Discovery) WithIgnoreExternalDependencies() *Discovery {
 	d.ignoreExternalDependencies = true
+	return d
+}
+
+// WithNumWorkers sets the number of concurrent workers for discovery operations.
+func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
+	d.numWorkers = numWorkers
+	return d
+}
+
+// WithoutDefaultExcludes disables the use of default exclude patterns (e.g. .git, .terraform, .terragrunt-cache).
+func (d *Discovery) WithoutDefaultExcludes() *Discovery {
+	d.useDefaultExcludes = false
 	return d
 }
 
@@ -408,20 +485,32 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
 func (d *Discovery) isInHiddenDirectory(path string) bool {
+	// Check memoized hidden directories first
 	for _, hiddenDir := range d.hiddenDirMemo {
 		if strings.HasPrefix(path, hiddenDir) {
 			return true
 		}
 	}
 
+	// Quick check: if path doesn't contain "." after first character, it's not hidden
+	if !strings.Contains(path[1:], string(os.PathSeparator)+".") {
+		return false
+	}
+
 	hiddenPath := ""
-
 	parts := strings.SplitSeq(path, string(os.PathSeparator))
-	for part := range parts {
-		hiddenPath = filepath.Join(hiddenPath, part)
 
-		if strings.HasPrefix(part, ".") {
-			d.hiddenDirMemo = append(d.hiddenDirMemo, hiddenPath)
+	for part := range parts {
+		if hiddenPath != "" {
+			hiddenPath = filepath.Join(hiddenPath, part)
+		} else {
+			hiddenPath = part
+		}
+
+		if strings.HasPrefix(part, ".") && part != "." && part != ".." {
+			if len(d.hiddenDirMemo) < maxHiddenDirMemoSize {
+				d.hiddenDirMemo = append(d.hiddenDirMemo, hiddenPath)
+			}
 
 			return true
 		}
@@ -430,10 +519,314 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 	return false
 }
 
+// discoverConcurrently performs concurrent file discovery with worker pools using errgroup.
+func (d *Discovery) discoverConcurrently(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	filenames []string,
+) (DiscoveredConfigs, error) {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(d.numWorkers + 1) // +1 for the file walker
+
+	filePaths := make(chan string, d.numWorkers*channelBufferMultiplier)
+	results := make(chan *DiscoveredConfig, d.numWorkers*channelBufferMultiplier)
+
+	g.Go(func() error {
+		defer close(filePaths)
+		return d.walkDirectoryConcurrently(ctx, l, opts, filePaths)
+	})
+
+	for range d.numWorkers {
+		g.Go(func() error {
+			return d.configWorker(ctx, l, filePaths, results, filenames)
+		})
+	}
+
+	// Close results channel when all workers are done
+	go func() {
+		defer close(results)
+
+		_ = g.Wait() // We handle errors in the main thread below
+	}()
+
+	cfgs := make(DiscoveredConfigs, 0, len(results))
+
+	for config := range results {
+		cfgs = append(cfgs, config)
+	}
+
+	if err := g.Wait(); err != nil {
+		return cfgs, err
+	}
+
+	return cfgs, nil
+}
+
+// walkDirectoryConcurrently walks the directory tree and sends file paths to workers.
+func (d *Discovery) walkDirectoryConcurrently(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filePaths chan<- string) error {
+	walkFn := filepath.WalkDir
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		walkFn = util.WalkDirWithSymlinks
+	}
+
+	processFn := func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if info.IsDir() {
+			return d.shouldSkipDirectory(path, l)
+		}
+
+		select {
+		case filePaths <- path:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		return nil
+	}
+
+	return walkFn(d.workingDir, processFn)
+}
+
+// shouldSkipDirectory determines if a directory should be skipped during traversal.
+func (d *Discovery) shouldSkipDirectory(path string, l log.Logger) error {
+	base := filepath.Base(path)
+
+	switch base {
+	case ".git", ".terraform", ".terragrunt-cache":
+		return filepath.SkipDir
+	}
+
+	canonicalDir, canErr := util.CanonicalPath(path, d.workingDir)
+	if canErr == nil {
+		for _, pattern := range d.compiledExcludePatterns {
+			if pattern.Compiled.Match(canonicalDir) {
+				l.Debugf("Directory %s excluded by glob %s", canonicalDir, pattern.Original)
+				return filepath.SkipDir
+			}
+		}
+	}
+
+	return nil
+}
+
+// configWorker processes file paths and determines if they are Terragrunt configurations.
+func (d *Discovery) configWorker(
+	ctx context.Context,
+	l log.Logger,
+	filePaths <-chan string,
+	results chan<- *DiscoveredConfig,
+	filenames []string,
+) error {
+	for path := range filePaths {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		config := d.processFile(path, l, filenames)
+
+		if config != nil {
+			select {
+			case results <- config:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+
+	return nil
+}
+
+// processFile processes a single file to determine if it's a Terragrunt configuration.
+func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *DiscoveredConfig {
+	dir := filepath.Dir(path)
+
+	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
+	if canErr == nil {
+		for _, pattern := range d.compiledExcludePatterns {
+			if pattern.Compiled.Match(canonicalDir) {
+				l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern.Original)
+				return nil
+			}
+		}
+
+		// Enforce include patterns only when strictInclude or excludeByDefault are set
+		if d.strictInclude || d.excludeByDefault {
+			included := false
+
+			for _, pattern := range d.compiledIncludePatterns {
+				if pattern.Compiled.Match(canonicalDir) {
+					included = true
+					break
+				}
+			}
+
+			if !included {
+				return nil
+			}
+		}
+	}
+
+	// Now enforce hidden directory check if still applicable
+	if !d.hidden && d.isInHiddenDirectory(path) {
+		// If the directory is hidden, allow it only if it matches an include pattern
+		allowHidden := false
+
+		if canErr == nil {
+			// Always allow .terragrunt-stack contents
+			cleanDir := util.CleanPath(canonicalDir)
+			if strings.Contains(cleanDir, "/"+config.StackDir+"/") || strings.HasSuffix(cleanDir, "/"+config.StackDir) {
+				allowHidden = true
+			}
+
+			if !allowHidden {
+				// Use precompiled patterns for include matching in hidden directory check
+				for _, pattern := range d.compiledIncludePatterns {
+					if pattern.Compiled.Match(canonicalDir) {
+						allowHidden = true
+						break
+					}
+				}
+			}
+		}
+
+		if !allowHidden {
+			return nil
+		}
+	}
+
+	base := filepath.Base(path)
+	for _, fname := range filenames {
+		if base == fname {
+			cfgType := ConfigTypeUnit
+			if fname == config.DefaultStackFile {
+				cfgType = ConfigTypeStack
+			}
+
+			cfg := &DiscoveredConfig{
+				Type: cfgType,
+				Path: filepath.Dir(path),
+			}
+			if d.discoveryContext != nil {
+				cfg.DiscoveryContext = d.discoveryContext
+			}
+
+			return cfg
+		}
+	}
+
+	return nil
+}
+
+// parseConcurrently parses configurations concurrently to improve performance using errgroup.
+func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfgs DiscoveredConfigs) []error {
+	// Filter out configs that don't need parsing
+	// Pre-allocate with estimated capacity to reduce reallocation
+	configsToParse := make([]*DiscoveredConfig, 0, len(cfgs))
+	for _, cfg := range cfgs {
+		// Stack configurations don't need to be parsed for discovery purposes.
+		// They don't have exclude blocks or dependencies.
+		if cfg.Type == ConfigTypeStack {
+			continue
+		}
+
+		configsToParse = append(configsToParse, cfg)
+	}
+
+	if len(configsToParse) == 0 {
+		return nil
+	}
+
+	// Use errgroup for better error handling and synchronization
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(d.numWorkers)
+
+	// Use channels to coordinate parsing work
+	configChan := make(chan *DiscoveredConfig, d.numWorkers*channelBufferMultiplier)
+	errorChan := make(chan error, len(configsToParse))
+
+	// Start config sender
+	g.Go(func() error {
+		defer close(configChan)
+
+		for _, cfg := range configsToParse {
+			select {
+			case configChan <- cfg:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		return nil
+	})
+
+	// Start parser workers
+	for range d.numWorkers {
+		g.Go(func() error {
+			return d.parseWorker(ctx, l, opts, configChan, errorChan)
+		})
+	}
+
+	// Close error channel when all workers are done
+	go func() {
+		defer close(errorChan)
+
+		_ = g.Wait() // We handle errors in the main thread below
+	}()
+
+	// Collect errors
+	var errs []error
+
+	for err := range errorChan {
+		if err != nil {
+			errs = append(errs, errors.New(err))
+		}
+	}
+
+	// Wait for completion and get any errgroup errors
+	if err := g.Wait(); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errs
+}
+
+// parseWorker is a worker that parses configurations concurrently.
+func (d *Discovery) parseWorker(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, configChan <-chan *DiscoveredConfig, errorChan chan<- error) error {
+	for cfg := range configChan {
+		// Context cancellation check
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		err := cfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
+
+		// Send error or handle context cancellation
+		select {
+		case errorChan <- err:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return nil
+}
+
 // Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
-	var cfgs DiscoveredConfigs
-
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
@@ -442,6 +835,11 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 
 	// Prepare include/exclude glob patterns (canonicalized) for matching
 	var includePatterns, excludePatterns []string
+
+	// Add default excludes if enabled
+	if d.useDefaultExcludes {
+		excludePatterns = append(excludePatterns, defaultExcludeDirs...)
+	}
 
 	if len(d.includeDirs) > 0 {
 		for _, p := range d.includeDirs {
@@ -474,104 +872,10 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		d.compileExcludePatterns(l)
 	}
 
-	processFn := func(path string, info fs.DirEntry, err error) error {
-		if err != nil {
-			return errors.New(err)
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		// Apply include/exclude filters by directory path first
-		dir := filepath.Dir(path)
-
-		canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
-		if canErr == nil {
-			for _, pattern := range d.compiledExcludePatterns {
-				if pattern.Compiled.Match(canonicalDir) {
-					l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern.Original)
-					return nil
-				}
-			}
-
-			// Enforce include patterns only when strictInclude or excludeByDefault are set
-			if d.strictInclude || d.excludeByDefault {
-				included := false
-
-				for _, pattern := range d.compiledIncludePatterns {
-					if pattern.Compiled.Match(canonicalDir) {
-						included = true
-						break
-					}
-				}
-
-				if !included {
-					return nil
-				}
-			}
-		}
-
-		// Now enforce hidden directory check if still applicable
-		if !d.hidden && d.isInHiddenDirectory(path) {
-			// If the directory is hidden, allow it only if it matches an include pattern
-			allowHidden := false
-
-			if canErr == nil {
-				// Always allow .terragrunt-stack contents
-				cleanDir := util.CleanPath(canonicalDir)
-				if strings.Contains(cleanDir, "/"+config.StackDir+"/") || strings.HasSuffix(cleanDir, "/"+config.StackDir) {
-					allowHidden = true
-				}
-
-				if !allowHidden {
-					// Use precompiled patterns for include matching in hidden directory check
-					for _, pattern := range d.compiledIncludePatterns {
-						if pattern.Compiled.Match(canonicalDir) {
-							allowHidden = true
-							break
-						}
-					}
-				}
-			}
-
-			if !allowHidden {
-				return nil
-			}
-		}
-
-		base := filepath.Base(path)
-		for _, fname := range filenames {
-			if base == fname {
-				cfgType := ConfigTypeUnit
-				if fname == config.DefaultStackFile {
-					cfgType = ConfigTypeStack
-				}
-
-				cfg := &DiscoveredConfig{
-					Type: cfgType,
-					Path: filepath.Dir(path),
-				}
-				if d.discoveryContext != nil {
-					cfg.DiscoveryContext = d.discoveryContext
-				}
-
-				cfgs = append(cfgs, cfg)
-
-				break
-			}
-		}
-
-		return nil
-	}
-
-	walkFn := filepath.WalkDir
-	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkDirWithSymlinks
-	}
-
-	if err := walkFn(d.workingDir, processFn); err != nil {
-		return cfgs, errors.New(err)
+	// Use concurrent discovery for better performance
+	cfgs, err := d.discoverConcurrently(ctx, l, opts, filenames)
+	if err != nil {
+		return cfgs, err
 	}
 
 	errs := []error{}
@@ -580,20 +884,8 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	// as we might need to parse configurations for multiple reasons.
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
-		for _, cfg := range cfgs {
-			// Stack configurations don't need to be parsed for discovery purposes.
-			// They don't have exclude blocks or dependencies.
-			//
-			// This might change in the future, but for now we'll just skip parsing.
-			if cfg.Type == ConfigTypeStack {
-				continue
-			}
-
-			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
-			if err != nil {
-				errs = append(errs, errors.New(err))
-			}
-		}
+		parseErrs := d.parseConcurrently(ctx, l, opts, cfgs)
+		errs = append(errs, parseErrs...)
 	}
 
 	if d.discoverDependencies {
@@ -963,14 +1255,12 @@ func (c DiscoveredConfigs) CycleCheck() (*DiscoveredConfig, error) {
 
 // RemoveCycles removes cycles from the dependency graph.
 func (c DiscoveredConfigs) RemoveCycles() (DiscoveredConfigs, error) {
-	const maxCycleChecks = 100
-
 	var (
 		err error
 		cfg *DiscoveredConfig
 	)
 
-	for range maxCycleChecks {
+	for range maxCycleRemovalAttempts {
 		if cfg, err = c.CycleCheck(); err == nil {
 			break
 		}
