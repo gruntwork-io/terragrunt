@@ -1,6 +1,7 @@
 ---
 import '@styles/global.css';
 import { Image } from 'astro:assets';
+import { ArrowRight } from 'lucide-react';
 
 import BackgroundPattern from '@assets/boxes-bg.svg';
 import DriftIcon from '@assets/icons/drift-icon.svg';
@@ -94,12 +95,9 @@ const TerragruntScaleLink = '/terragrunt-scale';
                 </div>
             </div>
             <div class="relative mt-12 px-5 md:px-12 lg:px-8">
-              <!-- TODO: Fix arrow icon; also use Lucide icons for arrow -->
               <ButtonLink href={TerragruntScaleLink} variant="primary">
                 <span>Learn about Terragrunt Scale</span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
-                </svg>
+                <ArrowRight className="inline-block ml-1 transform translate-y-0.75 -translate-x-0.75 w-4 h-4" aria-label="External link icon" />
               </ButtonLink>
             </div>
         </div>
