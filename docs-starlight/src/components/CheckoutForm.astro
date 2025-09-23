@@ -51,7 +51,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
     <fieldset class="m-0 p-0 flex w-full gap-6">
       <label
         for="monthly"
-        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white"
+        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-accent-3"
       >
         <div class="w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
           <input type="radio" name="plan" id="monthly" value="monthly" class="peer mr-1.5 accent-accent" checked />
@@ -61,7 +61,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
 
       <label
         for="annual"
-        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white"
+        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-accent-3"
       >
         <div class="flex w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
           <input type="radio" name="plan" id="annual" value="annual" class="peer mr-1.5 accent-accent" />
@@ -73,11 +73,10 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
       </label>
     </fieldset>
 
-    <div class="w-full rounded-lg p-[1px] bg-linear-45 from-[#a696f8] to-[#765cf6]">
-      <button class="w-full py-3 bg-accent-1 hover:bg-accent text-white font-medium rounded-lg">
-        Continue to Payment
-      </button>
-    </div>
+    <button class="primary-button w-full items-center h-[39px] text-center leading-[1.25]">
+      Continue to Payment
+    </button>
+
   </div>
 
   <p class="text-xs text-gray-1 font-sans">Complete your transaction with Stripe. Schedule your onboarding session after payment.</p>
