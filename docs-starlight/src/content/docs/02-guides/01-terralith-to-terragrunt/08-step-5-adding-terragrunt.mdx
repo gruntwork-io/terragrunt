@@ -88,7 +88,7 @@ terraform {
 }
 
 inputs = {
-    name = "best-cat-2025-07-31-01-dev"
+    name = "best-cat-2025-09-24-2359-dev"
 
     lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
 }
@@ -102,7 +102,7 @@ terraform {
 }
 
 inputs = {
-    name = "best-cat-2025-07-31-01"
+    name = "best-cat-2025-09-24-2359"
 
     lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
 }
@@ -126,7 +126,7 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket         = "terragrunt-to-terralith-blog-2025-07-31-01"
+    bucket         = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
     key            = "dev/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
@@ -139,7 +139,7 @@ terraform {
 }
 
 inputs = {
-    name = "best-cat-2025-07-31-01-dev"
+    name = "best-cat-2025-09-24-2359-dev"
 
     lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
 }
@@ -155,7 +155,7 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket         = "terragrunt-to-terralith-blog-2025-07-31-01"
+    bucket         = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
     key            = "prod/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
@@ -168,7 +168,7 @@ terraform {
 }
 
 inputs = {
-    name = "best-cat-2025-07-31-01"
+    name = "best-cat-2025-09-24-2359"
 
     lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
 }
@@ -188,7 +188,7 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket       = "terragrunt-to-terralith-blog-2025-07-31-01"
+    bucket       = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
     key          = "dev/tofu.tfstate"
     region       = "us-east-1"
     encrypt      = true
@@ -211,7 +211,7 @@ terraform {
 }
 
 inputs = {
-  name = "best-cat-2025-07-31-01-dev"
+  name = "best-cat-2025-09-24-2359-dev"
 
   lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
 }
@@ -227,7 +227,7 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket       = "terragrunt-to-terralith-blog-2025-07-31-01"
+    bucket       = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
     key          = "prod/tofu.tfstate"
     region       = "us-east-1"
     encrypt      = true
@@ -250,7 +250,7 @@ terraform {
 }
 
 inputs = {
-  name = "best-cat-2025-07-31-01"
+  name = "best-cat-2025-09-24-2359"
 
   lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
 }

@@ -216,7 +216,7 @@ terragrunt state push /tmp/tofu.tfstate
 
 We can now remove the `.gitignore` files, and prove to ourselves that state has migrated successfully!
 
-<Code title="live" lang="bash" frame="terminal" code={`rm -f ./***/.gitignore
+<Code title="live" lang="bash" frame="terminal" code={`rm -rf ./***/.gitignore ./***/ddb ./***/iam ./***/lambda ./***/s3
 terragrunt run --all plan
 
 # No changes!

@@ -7,7 +7,7 @@ terraform {
 }
 
 inputs = {
-  name = "best-cat-2025-07-31-01-dev"
+  name = "best-cat-2025-09-24-2359-dev"
 
   # Optional: Force destroy S3 buckets even when they have objects in them.
   # You're generally advised not to do this with important infrastructure,

@@ -96,7 +96,7 @@ You'll want to make sure that `name` is set to something globally unique, as it'
 # live/.auto.tfvars
 
 # Required: Name used for all resources (must be unique)
-name = "best-cat-2025-07-31-01"
+name = "best-cat-2025-09-24-2359"
 
 # Required: Path to your Lambda function zip file
 lambda_zip_file = "../dist/best-cat.zip"
@@ -121,8 +121,8 @@ We're using the special new ✨ lockfile-based state locking ✨ made available 
 Unfortunately, OpenTofu will not provision this bucket for us automatically, so we will have to provision that manually.
 
 ```bash
-aws s3api create-bucket --bucket 'terragrunt-to-terralith-blog-step-1-2025-07-31-01' --region 'us-east-1'
-aws s3api put-bucket-versioning --bucket 'terragrunt-to-terralith-blog-2025-07-31-01' --versioning-configuration 'Status=Enabled'
+aws s3api create-bucket --bucket 'terragrunt-to-terralith-tfstate-2025-09-24-2359' --region 'us-east-1'
+aws s3api put-bucket-versioning --bucket 'terragrunt-to-terralith-tfstate-2025-09-24-2359' --versioning-configuration 'Status=Enabled'
 ```
 
 ## Project Layout Check-in
