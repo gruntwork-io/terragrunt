@@ -151,7 +151,7 @@
   body {
     margin: 0;
     padding: 0;
-  } 
+  }
 
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
@@ -182,7 +182,7 @@
   h1, h2, h3, h4, h5, h6 {
     font-weight: 400;
   }
-  
+
   /* Header */
   header {
     background-color: transparent;
@@ -404,7 +404,7 @@
     text-decoration-color: var(--color-accent-1);
     transition: color 0.2s ease, text-decoration-color 0.2s ease;
   }
-  
+
   a:not(.sl-markdown-content a, #starlight__sidebar a, starlight-toc a, .primary-button, .secondary-button):hover {
     color: var(--sl-color-accent);
     text-decoration-color: var(--sl-color-accent);
