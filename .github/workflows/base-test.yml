@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos]
+        os: [ubuntu, macos, windows]
     env:
       MISE_PROFILE: cicd
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
