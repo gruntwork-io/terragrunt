@@ -51,7 +51,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
     <fieldset class="m-0 p-0 flex w-full gap-6">
       <label
         for="monthly"
-        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-accent-3"
+        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-button-bg"
       >
         <div class="w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
           <input type="radio" name="plan" id="monthly" value="monthly" class="peer mr-1.5 accent-accent" checked />
@@ -61,7 +61,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
 
       <label
         for="annual"
-        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-accent-3"
+        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-button-bg"
       >
         <div class="flex w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
           <input type="radio" name="plan" id="annual" value="annual" class="peer mr-1.5 accent-accent" />
@@ -109,5 +109,6 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
 <style>
   label div:has(input:checked) {
     border-color: var(--color-radio-stroke-active);
+    background-color: var(--color-button-bg);
   }
 </style>
