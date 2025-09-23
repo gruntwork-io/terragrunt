@@ -14,7 +14,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
       />
       <div class="flex items-baseline">
         <span id="price-value" class="text-[42px] text-accent-3">$600</span>
-        <span id="price-period" class="text-gray-1 text-2xl m-0">/mo*</span>
+        <span id="price-period" class="text-gray-1 text-2xl m-0">/mo</span>
       </div>
     </div>
     <div class="flex flex-col gap-1">
@@ -77,24 +77,29 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
     </div>
   </div>
 
-  <p class="text-xs text-gray-1 font-sans">* Price reflects a 17% annual contract discount, and includes a license for 1 repo and 2 users.</p>
+  <p class="text-xs text-gray-1 font-sans">Complete your transaction with Stripe. Schedule your onboarding session after payment.</p>
+  <p id="additional-legal" class="text-xs text-gray-1 font-sans"></p>
 </div>
 
 <script>
   const price = document.getElementById("price-value");
   const term = document.getElementById("price-period");
+  const additionalLegal = document.getElementById("additional-legal");
+
   const radios = document.querySelectorAll("input[name='plan']");
 
   radios.forEach(radio => {
     const input = radio as HTMLInputElement;
     input.addEventListener("change", () => {
       if (input.value === "monthly") {
-        price.textContent = "$600";
-        term.textContent = "/mo*";
-    } else if (input.value === "annual") {
-        price.textContent = "$6000";
-        term.textContent = "/yr*";
-    }
+        price!.textContent = "$600";
+        term!.textContent = "/mo";
+        additionalLegal!.textContent = "";
+      } else if (input.value === "annual") {
+          price!.textContent = "$6000";
+          term!.textContent = "/yr*";
+          additionalLegal!.textContent = "* Price reflects a 17% annual contract discount, and includes a license for 1 repo and 2 users.";
+      }
     });
   });
 </script>
