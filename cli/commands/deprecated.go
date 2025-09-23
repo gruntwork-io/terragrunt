@@ -182,15 +182,9 @@ func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions)
 			Usage:      runSubCmd.Usage,
 			Flags:      runCmd.Flags,
 			CustomHelp: runSubCmd.CustomHelp,
-			Before: func(ctx *cli.Context) error {
-				if err := control.Evaluate(ctx); err != nil {
-					return cli.NewExitError(err, cli.ExitCodeGeneralError)
-				}
-
-				return nil
-			},
+			// Removal of default command forwarding: immediately error with guidance to use `run --`.
 			Action: func(ctx *cli.Context) error {
-				return runSubCmd.Action(ctx)
+				return cli.NewExitError(control.Error, cli.ExitCodeGeneralError)
 			},
 			Hidden:                       true,
 			DisabledErrorOnUndefinedFlag: true,
