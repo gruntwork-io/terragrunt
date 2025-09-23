@@ -1,4 +1,5 @@
 ---
+import CheckoutForm from '@components/CheckoutForm.astro';
 import Eyebrow from '@components/dv-Eyebrow.astro';
 import { Image } from 'astro:assets';
 import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.svg';
@@ -37,46 +38,8 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
       </div>
     </div>
 
-    <!-- Pricing -->
-    <div class="relative flex flex-col justify-between w-[426px] shrink-0 bg-bg-dark px-8 py-6 rounded-lg border border-card-border">
-      <Image
-        src={TerragruntAccent}
-        alt="Isometric background pattern with terragrunt logo"
-        class="absolute right-[-45px] bottom-[150px]"
-      />
-      <div>
-        <div class="flex flex-row items-center justify-between gap-2 mb-6">
-          <Image
-              alt="Pipelines Icon"
-              class={"aspect-[1/1] h-auto size-16"}
-              src={IconPricingTeam}
-          />
-          <p class="text-gray-1 text-2xl m-0">
-            <span class="text-[42px] text-accent-3">$500</span>/mo*
-          </p>
-        </div>
-        <div class="flex flex-col gap-1">
-          <p class="text-white font-sans text-xl font-medium m-0">Team</p>
-          <p class="text-gray-1 font-sans text-sm m-0">For most platform teams</p>
-        </div>
-
-        <ul class="list-none pl-0 flex flex-col gap-2">
-          <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
-            Terragrunt Pipelines
-          </li>
-          <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
-            Terragrunt Patcher
-          </li>
-          <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
-            Terragrunt Drift Detection
-          </li>
-          <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
-            Standard Support
-          </li>
-        </ul>
-      </div>
-
-      <p class="text-xs text-gray-1 font-sans">* Price reflects a 17% annual contract discount, and includes a license for 1 repo and 2 users.</p>
+    <div class="w-[426px] shrink-0">
+      <CheckoutForm />
     </div>
 
   </div>

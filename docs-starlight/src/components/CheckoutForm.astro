@@ -1,0 +1,106 @@
+---
+import { Image } from 'astro:assets';
+import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.svg';
+import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
+---
+
+<div class="relative flex flex-col h-full w-full justify-between bg-bg-dark px-8 py-6 rounded-lg border border-card-border">
+  <div class="relative w-full">
+    <div class="flex flex-row items-center justify-between gap-2 mb-6">
+      <Image
+          alt="Pipelines Icon"
+          class={"aspect-[1/1] h-auto size-16"}
+          src={IconPricingTeam}
+      />
+      <div class="flex items-baseline">
+        <span id="price-value" class="text-[42px] text-accent-3">$500</span>
+        <span id="price-period" class="text-gray-1 text-2xl m-0">/mo*</span>
+      </div>
+    </div>
+    <div class="flex flex-col gap-1">
+      <p class="text-white font-sans text-xl font-medium m-0">Team</p>
+      <p class="text-gray-1 font-sans text-sm m-0">For most platform teams</p>
+    </div>
+
+    <ul class="list-none pl-0 flex flex-col gap-2">
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Terragrunt Pipelines
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Terragrunt Patcher
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Terragrunt Drift Detection
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Standard Support
+      </li>
+    </ul>
+
+    <Image
+      src={TerragruntAccent}
+      alt="Isometric background pattern with terragrunt logo"
+      class="absolute right-[-80px] bottom-[0]"
+    />
+  </div>
+
+  <div class="flex flex-col gap-8 my-8">
+    <fieldset class="m-0 p-0 flex w-full gap-6">
+      <label
+        for="monthly"
+        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white"
+      >
+        <div class="w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
+          <input type="radio" name="plan" id="monthly" value="monthly" class="peer mr-1.5 accent-accent" />
+          Monthly
+        </div>
+      </label>
+
+      <label
+        for="annual"
+        class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white"
+      >
+        <div class="flex w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
+          <input type="radio" name="plan" id="annual" value="annual" class="peer mr-1.5 accent-accent" />
+          <div class="w-full flex items-center justify-between">
+            Annual <span class="bg-accent/[7%] p-0.5 text-xs font-mono text-accent">17% Off</span>
+          </div>
+
+        </div>
+      </label>
+    </fieldset>
+
+    <div class="w-full rounded-lg p-[1px] bg-linear-45 from-[#a696f8] to-[#765cf6]">
+      <button class="w-full py-3 bg-accent-1 hover:bg-accent text-white font-medium rounded-lg">
+        Continue to Payment
+      </button>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-1 font-sans">* Price reflects a 17% annual contract discount, and includes a license for 1 repo and 2 users.</p>
+</div>
+
+<script>
+  const price = document.getElementById("price-value");
+  const term = document.getElementById("price-period");
+  const radios = document.querySelectorAll("input[name='plan']");
+
+  radios.forEach(radio => {
+    const input = radio as HTMLInputElement;
+    input.addEventListener("change", () => {
+      if (input.value === "monthly") {
+        price.textContent = "$600";
+        term.textContent = "/mo*";
+    } else if (input.value === "annual") {
+        price.textContent = "$6000";
+        term.textContent = "/yr*";
+    }
+    });
+  });
+</script>
+
+<style>
+  label div:has(input:checked) {
+    border-color: var(--color-radio-stroke-active);
+  }
+</style>

@@ -39,10 +39,14 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
+  /* Buttons */
+  --color-button-bg: #EEECF7;
+  --color-radio-stroke: #F1F1F1;
+  --color-radio-stroke-active: #4a31c8;
+
   /* Colors Nav */
   --color-nav-link: #A0A1AC;
   --color-nav-link-hover: #e8eefc;
-
 
   /* Colors Text */
   --color-primary: #0F0934;
