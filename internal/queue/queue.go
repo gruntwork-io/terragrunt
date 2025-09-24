@@ -26,6 +26,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
@@ -140,6 +141,7 @@ func (e *Entry) IsUp() bool {
 
 type Queue struct {
 	Entries  Entries
+	mu       sync.RWMutex
 	FailFast bool
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
@@ -171,6 +173,15 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 
 // EntryByPath returns the entry with the given config path, or nil if not found.
 func (q *Queue) EntryByPath(path string) *Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	return q.entryByPathUnsafe(path)
+}
+
+// entryByPathUnsafe returns the entry with the given config path without locking.
+// Should only be called when the caller already holds a lock.
+func (q *Queue) entryByPathUnsafe(path string) *Entry {
 	for _, entry := range q.Entries {
 		if entry.Config.Path == path {
 			return entry
@@ -278,6 +289,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	if q.IgnoreDependencyOrder {
 		out := make([]*Entry, 0, len(q.Entries))
 
@@ -302,7 +316,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
-				depEntry := q.EntryByPath(dep.Path)
+				depEntry := q.entryByPathUnsafe(dep.Path)
 				if depEntry == nil || depEntry.Status != StatusSucceeded {
 					allDepsReady = false
 					break
@@ -345,11 +359,22 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 	return out
 }
 
+// SetEntryStatus safely sets the status of an entry with proper synchronization.
+func (q *Queue) SetEntryStatus(e *Entry, status Status) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	e.Status = status
+}
+
 // FailEntry marks the entry as failed and updates related entries if needed.
 // For up commands, this marks entries that come after this one as early exit.
 // For destroy/down commands, this marks entries that come before this one as early exit.
 // Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	e.Status = StatusFailed
 
 	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
@@ -403,7 +428,7 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 	}
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path)
 		if depEntry == nil {
 			continue
 		}
@@ -419,6 +444,9 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 
 // Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
 func (q *Queue) Finished() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	for _, e := range q.Entries {
 		if !isTerminal(e.Status) {
 			return false
@@ -434,10 +462,13 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 		return 0
 	}
 
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	count := 0
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path)
 		if depEntry == nil || depEntry.Status != StatusSucceeded {
 			count++
 		}
