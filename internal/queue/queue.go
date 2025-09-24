@@ -141,12 +141,11 @@ func (e *Entry) IsUp() bool {
 
 type Queue struct {
 	Entries  Entries
+	mu       sync.RWMutex
 	FailFast bool
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
 	IgnoreDependencyOrder bool
-	// mu protects concurrent access to entry status fields
-	mu sync.RWMutex
 }
 
 type Entries []*Entry
@@ -428,7 +427,7 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 	}
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path)
 		if depEntry == nil {
 			continue
 		}
