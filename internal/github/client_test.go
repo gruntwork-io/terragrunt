@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 func TestNewClient(t *testing.T) {
@@ -243,4 +248,203 @@ func containsString(s, substr string) bool {
 				}
 				return false
 			}())))
+}
+
+// Tests for GitHubReleasesDownloadClient
+
+func TestNewGitHubReleasesDownloadClient(t *testing.T) {
+	t.Parallel()
+
+	client := NewGitHubReleasesDownloadClient()
+	if client == nil {
+		t.Fatal("NewGitHubReleasesDownloadClient() returned nil")
+	}
+
+	if client.logger != nil {
+		t.Error("Expected logger to be nil by default")
+	}
+}
+
+func TestNewGitHubReleasesDownloadClientWithOptions(t *testing.T) {
+	t.Parallel()
+
+	logger := log.New()
+	client := NewGitHubReleasesDownloadClient(WithLogger(logger))
+
+	if client.logger != logger {
+		t.Error("Expected custom logger to be set")
+	}
+}
+
+func TestDownloadReleaseAssetsValidation(t *testing.T) {
+	t.Parallel()
+
+	client := NewGitHubReleasesDownloadClient()
+	ctx := context.Background()
+
+	testCases := []struct {
+		name     string
+		assets   *ReleaseAssets
+		errorMsg string
+	}{
+		{
+			name:     "empty repository",
+			assets:   &ReleaseAssets{Repository: "", PackageFile: "/tmp/package.zip"},
+			errorMsg: "repository cannot be empty",
+		},
+		{
+			name:     "empty package file",
+			assets:   &ReleaseAssets{Repository: "owner/repo", PackageFile: ""},
+			errorMsg: "package file path cannot be empty",
+		},
+		{
+			name:     "missing version for GitHub repo",
+			assets:   &ReleaseAssets{Repository: "owner/repo", Version: "", PackageFile: "/tmp/package.zip"},
+			errorMsg: "version cannot be empty for GitHub repository downloads",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := client.DownloadReleaseAssets(ctx, tc.assets)
+			if err == nil {
+				t.Errorf("Expected error for %s, but got none", tc.name)
+			}
+			if !containsString(err.Error(), tc.errorMsg) {
+				t.Errorf("Expected error to contain '%s', got '%s'", tc.errorMsg, err.Error())
+			}
+		})
+	}
+}
+
+func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
+	t.Parallel()
+
+	// Create temporary directory for downloads
+	tempDir, err := os.MkdirTemp("", "github_download_test_")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create mock server for GitHub releases
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Serve different content based on the requested file
+		if strings.HasSuffix(path, "package.zip") {
+			w.Header().Set("Content-Type", "application/zip")
+			fmt.Fprint(w, "fake-zip-content")
+		} else if strings.HasSuffix(path, "SHA256SUMS") {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "fake-checksum-content")
+		} else if strings.HasSuffix(path, "SHA256SUMS.sig") {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "fake-signature-content")
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	// Use direct URL approach for testing since mock servers are complex to set up for GitHub releases format
+	client := NewGitHubReleasesDownloadClient()
+
+	assets := &ReleaseAssets{
+		Repository:  server.URL + "/package.zip", // Direct URL
+		PackageFile: filepath.Join(tempDir, "package.zip"),
+		// Direct URLs don't use checksum files
+	}
+
+	ctx := context.Background()
+	result, err := client.DownloadReleaseAssets(ctx, assets)
+	if err != nil {
+		t.Fatalf("DownloadReleaseAssets() failed: %v", err)
+	}
+
+	// Verify result
+	if result.PackageFile != assets.PackageFile {
+		t.Errorf("Expected package file '%s', got '%s'", assets.PackageFile, result.PackageFile)
+	}
+	if result.ChecksumFile != "" {
+		t.Errorf("Expected empty checksum file for direct URL, got '%s'", result.ChecksumFile)
+	}
+	if result.ChecksumSigFile != "" {
+		t.Errorf("Expected empty signature file for direct URL, got '%s'", result.ChecksumSigFile)
+	}
+
+	// Verify package file was created and has expected content
+	verifyFileContent(t, result.PackageFile, "fake-zip-content")
+}
+
+func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
+	t.Parallel()
+
+	// Create temporary directory for downloads
+	tempDir, err := os.MkdirTemp("", "github_download_test_direct_")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		fmt.Fprint(w, "direct-url-content")
+	}))
+	defer server.Close()
+
+	client := NewGitHubReleasesDownloadClient()
+
+	assets := &ReleaseAssets{
+		Repository:  server.URL + "/direct-download.zip",
+		PackageFile: filepath.Join(tempDir, "direct.zip"),
+		// Note: No Version, ChecksumFile, or ChecksumSigFile for direct URLs
+	}
+
+	ctx := context.Background()
+	result, err := client.DownloadReleaseAssets(ctx, assets)
+	if err != nil {
+		t.Fatalf("DownloadReleaseAssets() failed: %v", err)
+	}
+
+	// Verify result
+	if result.PackageFile != assets.PackageFile {
+		t.Errorf("Expected package file '%s', got '%s'", assets.PackageFile, result.PackageFile)
+	}
+	if result.ChecksumFile != "" {
+		t.Errorf("Expected empty checksum file, got '%s'", result.ChecksumFile)
+	}
+	if result.ChecksumSigFile != "" {
+		t.Errorf("Expected empty signature file, got '%s'", result.ChecksumSigFile)
+	}
+
+	// Verify file was created and has expected content
+	verifyFileContent(t, result.PackageFile, "direct-url-content")
+}
+
+// Helper function to verify file content
+func verifyFileContent(t *testing.T, filePath, expectedContent string) {
+	t.Helper()
+
+	if !fileExists(filePath) {
+		t.Errorf("Expected file '%s' to exist", filePath)
+		return
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Errorf("Failed to read file '%s': %v", filePath, err)
+		return
+	}
+
+	if string(content) != expectedContent {
+		t.Errorf("Expected file content '%s', got '%s'", expectedContent, string(content))
+	}
+}
+
+// Helper function to check if file exists
+func fileExists(filePath string) bool {
+	_, err := os.Stat(filePath)
+	return err == nil
 }

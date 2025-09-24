@@ -20,8 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/github"
 
-	"github.com/hashicorp/go-getter"
-
 	"github.com/hashicorp/go-hclog"
 
 	"google.golang.org/grpc/credentials/insecure"
@@ -190,38 +188,35 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 
 	downloadFile := filepath.Join(path, enginePackageName(e))
 
-	downloads := make(map[string]string)
-	checksumFile := ""
-	checksumSigFile := ""
+	// Prepare download assets
+	assets := &github.ReleaseAssets{
+		Repository:  e.Source,
+		Version:     e.Version,
+		PackageFile: downloadFile,
+	}
 
-	if strings.Contains(e.Source, "://") {
-		// if source starts with absolute path, download as is
-		downloads[e.Source] = downloadFile
-	} else {
-		baseURL := fmt.Sprintf("https://%s/releases/download/%s", e.Source, e.Version)
+	var checksumFile, checksumSigFile string
 
-		// URLs and their corresponding local paths
+	// Only add checksum files for GitHub releases (not direct URLs)
+	if !strings.Contains(e.Source, "://") {
 		checksumFile = filepath.Join(path, engineChecksumName(e))
 		checksumSigFile = filepath.Join(path, engineChecksumSigName(e))
-		downloads[fmt.Sprintf("%s/%s", baseURL, enginePackageName(e))] = downloadFile
-		downloads[fmt.Sprintf("%s/%s", baseURL, engineChecksumName(e))] = checksumFile
-		downloads[fmt.Sprintf("%s/%s.sig", baseURL, engineChecksumName(e))] = checksumSigFile
+		assets.ChecksumFile = checksumFile
+		assets.ChecksumSigFile = checksumSigFile
 	}
 
-	for url, path := range downloads {
-		l.Infof("Downloading %s to %s", url, path)
-		client := &getter.Client{
-			Ctx:           ctx,
-			Src:           url,
-			Dst:           path,
-			Mode:          getter.ClientModeFile,
-			Decompressors: map[string]getter.Decompressor{},
-		}
+	// Create download client and download assets
+	downloadClient := github.NewGitHubReleasesDownloadClient(github.WithLogger(l))
 
-		if err := client.Get(); err != nil {
-			return errors.New(err)
-		}
+	result, err := downloadClient.DownloadReleaseAssets(ctx, assets)
+	if err != nil {
+		return errors.Errorf("failed to download engine assets: %w", err)
 	}
+
+	// Update file paths from result
+	downloadFile = result.PackageFile
+	checksumFile = result.ChecksumFile
+	checksumSigFile = result.ChecksumSigFile
 
 	if !opts.EngineSkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
 		l.Infof("Verifying checksum for %s", downloadFile)
