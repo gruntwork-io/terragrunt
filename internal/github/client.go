@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-getter"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -229,22 +230,32 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(ctx context.Context
 		}
 	}
 
+	g, downloadCtx := errgroup.WithContext(ctx)
+
 	for url, localPath := range downloads {
-		if c.logger != nil {
-			c.logger.Infof("Downloading %s to %s", url, localPath)
-		}
+		g.Go(func() error {
+			if c.logger != nil {
+				c.logger.Infof("Downloading %s to %s", url, localPath)
+			}
 
-		client := &getter.Client{
-			Ctx:           ctx,
-			Src:           url,
-			Dst:           localPath,
-			Mode:          getter.ClientModeFile,
-			Decompressors: map[string]getter.Decompressor{},
-		}
+			client := &getter.Client{
+				Ctx:           downloadCtx,
+				Src:           url,
+				Dst:           localPath,
+				Mode:          getter.ClientModeFile,
+				Decompressors: map[string]getter.Decompressor{},
+			}
 
-		if err := client.Get(); err != nil {
-			return nil, errors.Errorf("failed to download %s: %w", url, err)
-		}
+			if err := client.Get(); err != nil {
+				return errors.Errorf("failed to download %s: %w", url, err)
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	return result, nil

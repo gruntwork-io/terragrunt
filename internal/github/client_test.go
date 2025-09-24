@@ -12,27 +12,19 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewClient(t *testing.T) {
 	t.Parallel()
 
 	client := NewGitHubAPIClient()
-	if client == nil {
-		t.Fatal("NewClient() returned nil")
-	}
+	require.NotNil(t, client)
 
-	if client.baseURL != "https://api.github.com" {
-		t.Errorf("Expected baseURL to be 'https://api.github.com', got '%s'", client.baseURL)
-	}
-
-	if client.httpClient == nil {
-		t.Fatal("httpClient should not be nil")
-	}
-
-	if client.cache == nil {
-		t.Fatal("cache should not be nil")
-	}
+	assert.Equal(t, "https://api.github.com", client.baseURL)
+	assert.NotNil(t, client.httpClient)
+	assert.NotNil(t, client.cache)
 }
 
 func TestNewClientWithOptions(t *testing.T) {
@@ -46,13 +38,8 @@ func TestNewClientWithOptions(t *testing.T) {
 		WithBaseURL(customBaseURL),
 	)
 
-	if client.httpClient != customHTTPClient {
-		t.Error("Expected custom HTTP client to be set")
-	}
-
-	if client.baseURL != customBaseURL {
-		t.Errorf("Expected baseURL to be '%s', got '%s'", customBaseURL, client.baseURL)
-	}
+	assert.Equal(t, customHTTPClient, client.httpClient)
+	assert.Equal(t, customBaseURL, client.baseURL)
 }
 
 func TestGetLatestRelease(t *testing.T) {
@@ -60,13 +47,9 @@ func TestGetLatestRelease(t *testing.T) {
 
 	// Create a mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/owner/repo/releases/latest" {
-			t.Errorf("Expected path '/repos/owner/repo/releases/latest', got '%s'", r.URL.Path)
-		}
 
-		if r.Header.Get("Accept") != "application/vnd.github.v3+json" {
-			t.Errorf("Expected Accept header 'application/vnd.github.v3+json', got '%s'", r.Header.Get("Accept"))
-		}
+		assert.Equal(t, "/repos/owner/repo/releases/latest", r.URL.Path)
+		assert.Equal(t, "application/vnd.github.v3+json", r.Header.Get("Accept"))
 
 		w.Header().Set("Content-Type", "application/json")
 		response := `{
@@ -80,23 +63,12 @@ func TestGetLatestRelease(t *testing.T) {
 
 	client := NewGitHubAPIClient(WithBaseURL(server.URL))
 
-	ctx := context.Background()
-	release, err := client.GetLatestRelease(ctx, "owner/repo")
-	if err != nil {
-		t.Fatalf("GetLatestRelease() failed: %v", err)
-	}
+	release, err := client.GetLatestRelease(t.Context(), "owner/repo")
+	require.NoError(t, err)
 
-	if release.TagName != "v1.2.3" {
-		t.Errorf("Expected tag name 'v1.2.3', got '%s'", release.TagName)
-	}
-
-	if release.Name != "Release v1.2.3" {
-		t.Errorf("Expected name 'Release v1.2.3', got '%s'", release.Name)
-	}
-
-	if release.URL != "https://github.com/owner/repo/releases/tag/v1.2.3" {
-		t.Errorf("Expected URL 'https://github.com/owner/repo/releases/tag/v1.2.3', got '%s'", release.URL)
-	}
+	assert.Equal(t, "v1.2.3", release.TagName)
+	assert.Equal(t, "Release v1.2.3", release.Name)
+	assert.Equal(t, "https://github.com/owner/repo/releases/tag/v1.2.3", release.URL)
 }
 
 func TestGetLatestReleaseTag(t *testing.T) {
@@ -112,22 +84,16 @@ func TestGetLatestReleaseTag(t *testing.T) {
 
 	client := NewGitHubAPIClient(WithBaseURL(server.URL))
 
-	ctx := context.Background()
-	tag, err := client.GetLatestReleaseTag(ctx, "owner/repo")
-	if err != nil {
-		t.Fatalf("GetLatestReleaseTag() failed: %v", err)
-	}
+	tag, err := client.GetLatestReleaseTag(t.Context(), "owner/repo")
+	require.NoError(t, err)
 
-	if tag != "v2.0.0" {
-		t.Errorf("Expected tag 'v2.0.0', got '%s'", tag)
-	}
+	assert.Equal(t, "v2.0.0", tag)
 }
 
 func TestGetLatestReleaseInvalidRepository(t *testing.T) {
 	t.Parallel()
 
 	client := NewGitHubAPIClient()
-	ctx := context.Background()
 
 	testCases := []string{
 		"",
@@ -136,11 +102,9 @@ func TestGetLatestReleaseInvalidRepository(t *testing.T) {
 	}
 
 	for _, repo := range testCases {
-		t.Run(fmt.Sprintf("repo=%s", repo), func(t *testing.T) {
-			_, err := client.GetLatestRelease(ctx, repo)
-			if err == nil {
-				t.Errorf("Expected error for invalid repository '%s', but got none", repo)
-			}
+		t.Run(fmt.Sprintf("repo=%s", repo), func(tt *testing.T) {
+			_, err := client.GetLatestRelease(tt.Context(), repo)
+			require.Error(t, err)
 		})
 	}
 }
@@ -157,16 +121,9 @@ func TestGetLatestReleaseHTTPError(t *testing.T) {
 
 	client := NewGitHubAPIClient(WithBaseURL(server.URL))
 
-	ctx := context.Background()
-	_, err := client.GetLatestRelease(ctx, "owner/repo")
-	if err == nil {
-		t.Fatal("Expected error for HTTP 404, but got none")
-	}
-
-	expectedErrorSubstring := "GitHub API request to determine latest release failed with status 404"
-	if !containsString(err.Error(), expectedErrorSubstring) {
-		t.Errorf("Expected error to contain '%s', got '%s'", expectedErrorSubstring, err.Error())
-	}
+	_, err := client.GetLatestRelease(t.Context(), "owner/repo")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "GitHub API request to determine latest release failed with status 404")
 }
 
 func TestGetLatestReleaseEmptyTag(t *testing.T) {
@@ -182,16 +139,9 @@ func TestGetLatestReleaseEmptyTag(t *testing.T) {
 
 	client := NewGitHubAPIClient(WithBaseURL(server.URL))
 
-	ctx := context.Background()
-	_, err := client.GetLatestRelease(ctx, "owner/repo")
-	if err == nil {
-		t.Fatal("Expected error for empty tag name, but got none")
-	}
-
-	expectedErrorSubstring := "GitHub API returned empty tag name for latest release"
-	if !containsString(err.Error(), expectedErrorSubstring) {
-		t.Errorf("Expected error to contain '%s', got '%s'", expectedErrorSubstring, err.Error())
-	}
+	_, err := client.GetLatestRelease(t.Context(), "owner/repo")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "GitHub API returned empty tag name for latest release")
 }
 
 func TestGetLatestReleaseCaching(t *testing.T) {
@@ -209,45 +159,19 @@ func TestGetLatestReleaseCaching(t *testing.T) {
 
 	client := NewGitHubAPIClient(WithBaseURL(server.URL))
 
-	ctx := context.Background()
-
 	// First call should hit the server
-	tag1, err := client.GetLatestReleaseTag(ctx, "owner/repo")
-	if err != nil {
-		t.Fatalf("First call failed: %v", err)
-	}
-	if tag1 != "v1.0.0" {
-		t.Errorf("Expected tag 'v1.0.0', got '%s'", tag1)
-	}
-	if callCount != 1 {
-		t.Errorf("Expected 1 server call, got %d", callCount)
-	}
+	tag1, err := client.GetLatestReleaseTag(t.Context(), "owner/repo")
+	require.NoError(t, err)
+
+	assert.Equal(t, "v1.0.0", tag1)
+	assert.Equal(t, 1, callCount)
 
 	// Second call should use cache
-	tag2, err := client.GetLatestReleaseTag(ctx, "owner/repo")
-	if err != nil {
-		t.Fatalf("Second call failed: %v", err)
-	}
-	if tag2 != "v1.0.0" {
-		t.Errorf("Expected tag 'v1.0.0', got '%s'", tag2)
-	}
-	if callCount != 1 {
-		t.Errorf("Expected 1 server call (cached), got %d", callCount)
-	}
-}
+	tag2, err := client.GetLatestReleaseTag(t.Context(), "owner/repo")
+	require.NoError(t, err)
 
-// Helper function to check if a string contains a substring
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			func() bool {
-				for i := 1; i <= len(s)-len(substr); i++ {
-					if s[i:i+len(substr)] == substr {
-						return true
-					}
-				}
-				return false
-			}())))
+	assert.Equal(t, "v1.0.0", tag2)
+	assert.Equal(t, 1, callCount)
 }
 
 // Tests for GitHubReleasesDownloadClient
@@ -307,12 +231,8 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := client.DownloadReleaseAssets(ctx, tc.assets)
-			if err == nil {
-				t.Errorf("Expected error for %s, but got none", tc.name)
-			}
-			if !containsString(err.Error(), tc.errorMsg) {
-				t.Errorf("Expected error to contain '%s', got '%s'", tc.errorMsg, err.Error())
-			}
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.errorMsg)
 		})
 	}
 }
@@ -320,12 +240,7 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	t.Parallel()
 
-	// Create temporary directory for downloads
-	tempDir, err := os.MkdirTemp("", "github_download_test_")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create mock server for GitHub releases
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -358,20 +273,12 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := client.DownloadReleaseAssets(ctx, assets)
-	if err != nil {
-		t.Fatalf("DownloadReleaseAssets() failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify result
-	if result.PackageFile != assets.PackageFile {
-		t.Errorf("Expected package file '%s', got '%s'", assets.PackageFile, result.PackageFile)
-	}
-	if result.ChecksumFile != "" {
-		t.Errorf("Expected empty checksum file for direct URL, got '%s'", result.ChecksumFile)
-	}
-	if result.ChecksumSigFile != "" {
-		t.Errorf("Expected empty signature file for direct URL, got '%s'", result.ChecksumSigFile)
-	}
+	assert.Equal(t, assets.PackageFile, result.PackageFile)
+	assert.Equal(t, "", result.ChecksumFile)
+	assert.Equal(t, "", result.ChecksumSigFile)
 
 	// Verify package file was created and has expected content
 	verifyFileContent(t, result.PackageFile, "fake-zip-content")
@@ -380,12 +287,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 	t.Parallel()
 
-	// Create temporary directory for downloads
-	tempDir, err := os.MkdirTemp("", "github_download_test_direct_")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -404,20 +306,12 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := client.DownloadReleaseAssets(ctx, assets)
-	if err != nil {
-		t.Fatalf("DownloadReleaseAssets() failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify result
-	if result.PackageFile != assets.PackageFile {
-		t.Errorf("Expected package file '%s', got '%s'", assets.PackageFile, result.PackageFile)
-	}
-	if result.ChecksumFile != "" {
-		t.Errorf("Expected empty checksum file, got '%s'", result.ChecksumFile)
-	}
-	if result.ChecksumSigFile != "" {
-		t.Errorf("Expected empty signature file, got '%s'", result.ChecksumSigFile)
-	}
+	assert.Equal(t, assets.PackageFile, result.PackageFile)
+	assert.Equal(t, "", result.ChecksumFile)
+	assert.Equal(t, "", result.ChecksumSigFile)
 
 	// Verify file was created and has expected content
 	verifyFileContent(t, result.PackageFile, "direct-url-content")
@@ -427,24 +321,10 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 func verifyFileContent(t *testing.T, filePath, expectedContent string) {
 	t.Helper()
 
-	if !fileExists(filePath) {
-		t.Errorf("Expected file '%s' to exist", filePath)
-		return
-	}
+	require.FileExists(t, filePath)
 
 	content, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Errorf("Failed to read file '%s': %v", filePath, err)
-		return
-	}
+	require.NoError(t, err)
 
-	if string(content) != expectedContent {
-		t.Errorf("Expected file content '%s', got '%s'", expectedContent, string(content))
-	}
-}
-
-// Helper function to check if file exists
-func fileExists(filePath string) bool {
-	_, err := os.Stat(filePath)
-	return err == nil
+	assert.Equal(t, expectedContent, string(content))
 }
