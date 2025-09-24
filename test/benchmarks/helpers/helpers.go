@@ -107,3 +107,29 @@ func Plan(b *testing.B, dir string) {
 
 	b.ReportMetric(float64(planDuration.Seconds()), "plan_s/op")
 }
+
+func Apply(b *testing.B, dir string) {
+	b.Helper()
+
+	// Track apply time
+	applyStart := time.Now()
+
+	RunTerragruntCommand(b, "terragrunt", "run", "--all", "apply", "--non-interactive", "--working-dir", dir)
+
+	applyDuration := time.Since(applyStart)
+
+	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
+}
+
+func ApplyWithRunnerPool(b *testing.B, dir string) {
+	b.Helper()
+
+	// Track apply time
+	applyStart := time.Now()
+
+	RunTerragruntCommand(b, "terragrunt", "run", "--all", "apply", "--non-interactive", "--experiment", "runner-pool", "--working-dir", dir)
+
+	applyDuration := time.Since(applyStart)
+
+	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
+}

@@ -10,26 +10,26 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/markdown-remark": "^6.3.6",
     "@astrojs/partytown": "^2.1.4",
-    "@astrojs/starlight": "^0.31.1",
+    "@astrojs/sitemap": "^3.5.0",
+    "@astrojs/starlight": "^0.35.2",
     "@astrojs/starlight-tailwind": "^4.0.1",
-    "@astrojs/vercel": "^8.1.1",
-    "@tailwindcss/vite": "^4.1.5",
-    "@zachleat/table-saw": "^1.0.6",
-    "astro": "^5.4.2",
-    "astro-d2": "^0.7.0",
+    "@astrojs/vercel": "^8.2.6",
+    "@tailwindcss/vite": "^4.1.11",
+    "astro": "^5.13.2",
+    "astro-d2": "^0.8.0",
     "gray-matter": "^4.0.3",
-    "sharp": "^0.32.6",
-    "starlight-links-validator": "^0.14.3",
-    "tailwindcss": "^4.1.5"
-  },
-  "patchedDependencies": {
-    "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
+    "sharp": "^0.34.3",
+    "starlight-links-validator": "^0.17.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.4"
+    "@types/bun": "^1.2.19"
   },
   "overrides": {
     "estree-walker": "2.0.2"
+  },
+  "patchedDependencies": {
+    "@astrojs/starlight@0.35.2": "patches/@astrojs%2Fstarlight@0.35.2.patch"
   }
 }

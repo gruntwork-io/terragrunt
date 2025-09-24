@@ -1,0 +1,37 @@
+---
+import '@styles/global.css';
+
+import Card from '@components/dv-Card.astro';
+import Divider from '@components/dv-Divider.astro';
+import Eyebrow from '@components/dv-Eyebrow.astro';
+
+const unitsLink = '/docs/features/units';
+const runQueueLink = '/docs/features/run-queue';
+const authenticationLink = '/docs/features/authentication';
+---
+
+<section class="flex justify-center items-center pt-10 md:pt-36 px-5 md:px-0">
+    <div class="flex flex-col md:flex-row md:w-[680px] lg:w-[900px] md:pr-6">
+        <!-- Header Section -->
+        <div class="flex w-1/2 flex-col gap-4 md:gap-8 pb-6 md:pl-12">
+            <Eyebrow text="ORCHESTRATE" />
+            <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">Orchestrate Your <span class="text-accent">Infrastructure</span></h2>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col flex-1">
+            <Card title="Segment Your Infrastructure">
+                <p class="text-sm font-sans text-gray-1">Break down your monolithic infrastructure into manageable
+                <a href={unitsLink}>units</a> that are safe to update independently, and have their own state.</p>
+            </Card>
+            <Divider />
+            <Card title="Control Your Infrastructure">
+                <p class="text-sm font-sans text-gray-1">Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of the
+                <a href={runQueueLink}>Run Queue</a>.</p>
+            </Card>
+            <Divider />
+            <Card title="Secure Your Infrastructure">
+                <p class="text-sm font-sans text-gray-1">Terragrunt <a href={authenticationLink}>authentication tooling</a> makes it trivial to manage infrastructure across any number of environments or cloud providers with least privilege access.</p>
+            </Card>
+        </div>
+    </div>
+</section>

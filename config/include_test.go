@@ -141,12 +141,22 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		{
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
-			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
+			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 		},
 		{
 			&config.TerragruntConfig{},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
+		},
+		{
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session2"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+		},
+		{
+			&config.TerragruntConfig{},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
@@ -349,6 +359,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			if tc.expected.TerragruntDependencies == nil {
 				tc.expected.TerragruntDependencies = config.Dependencies{}
 			}
+
 			assert.Equal(t, tc.expected, tc.target)
 		})
 	}
@@ -367,12 +378,15 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	targetConfig := &config.TerragruntConfig{}
 
 	var wg sync.WaitGroup
+
 	numGoroutines := 666
 
 	wg.Add(numGoroutines)
+
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
+
 			config.CopyFieldsMetadata(sourceConfig, targetConfig)
 		}()
 	}
@@ -385,4 +399,36 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	if len(targetConfig.FieldsMetadata) != expectedFields {
 		t.Errorf("Expected %d fields, got %d", expectedFields, len(targetConfig.FieldsMetadata))
 	}
+}
+
+func TestDependencyFileNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	// Test that DependencyFileNotFoundError is properly defined and formatted
+	err := config.DependencyFileNotFoundError{Path: "/test/path/terragrunt.hcl"}
+
+	assert.Equal(t, "/test/path/terragrunt.hcl", err.Path)
+	assert.Contains(t, err.Error(), "Dependency file not found: /test/path/terragrunt.hcl")
+
+	// Test with a different path
+	err2 := config.DependencyFileNotFoundError{Path: "/another/path/config.hcl"}
+	assert.Equal(t, "/another/path/config.hcl", err2.Path)
+	assert.Contains(t, err2.Error(), "Dependency file not found: /another/path/config.hcl")
+}
+
+func TestIncludeConfigNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	// Test that IncludeConfigNotFoundError is properly defined and formatted
+	err := config.IncludeConfigNotFoundError{IncludePath: "/test/path/terragrunt.hcl", SourcePath: "/source/config.hcl"}
+
+	assert.Equal(t, "/test/path/terragrunt.hcl", err.IncludePath)
+	assert.Equal(t, "/source/config.hcl", err.SourcePath)
+	assert.Contains(t, err.Error(), "Include configuration not found: /test/path/terragrunt.hcl (referenced from: /source/config.hcl)")
+
+	// Test with a different path
+	err2 := config.IncludeConfigNotFoundError{IncludePath: "/another/path/config.hcl", SourcePath: "/different/source.hcl"}
+	assert.Equal(t, "/another/path/config.hcl", err2.IncludePath)
+	assert.Equal(t, "/different/source.hcl", err2.SourcePath)
+	assert.Contains(t, err2.Error(), "Include configuration not found: /another/path/config.hcl (referenced from: /different/source.hcl)")
 }

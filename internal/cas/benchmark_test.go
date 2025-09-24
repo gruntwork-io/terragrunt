@@ -23,6 +23,7 @@ func BenchmarkClone(b *testing.B) {
 		tempDir := b.TempDir()
 
 		b.ResetTimer()
+
 		for i := 0; b.Loop(); i++ {
 			b.StopTimer()
 
@@ -57,6 +58,7 @@ func BenchmarkClone(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+
 		if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "initial"),
 		}, repo); err != nil {
@@ -114,6 +116,7 @@ func BenchmarkContent(b *testing.B) {
 
 	b.Run("parallel_store", func(b *testing.B) {
 		var mu sync.Mutex
+
 		seen := make(map[string]bool)
 
 		b.RunParallel(func(pb *testing.PB) {
@@ -121,17 +124,22 @@ func BenchmarkContent(b *testing.B) {
 			for pb.Next() {
 				// Generate unique hash for each goroutine iteration
 				hash := fmt.Sprintf("benchmark%d_%d_%d", b.N, i, time.Now().UnixNano())
+
 				mu.Lock()
+
 				if seen[hash] {
 					mu.Unlock()
 					continue
 				}
+
 				seen[hash] = true
+
 				mu.Unlock()
 
 				if err := content.Store(l, hash, testData); err != nil {
 					b.Fatal(err)
 				}
+
 				i++
 			}
 		})
@@ -141,10 +149,12 @@ func BenchmarkContent(b *testing.B) {
 func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
+
 	git, err := cas.NewGitRunner()
 	if err != nil {
 		b.Fatal(err)
 	}
+
 	git = git.WithWorkDir(repoDir)
 
 	ctx := b.Context()
@@ -158,9 +168,11 @@ func BenchmarkGitOperations(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+
 		git = git.WithWorkDir(repoDir)
 
 		b.ResetTimer()
+
 		for b.Loop() {
 			_, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 			if err != nil {
@@ -171,6 +183,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	b.Run("ls-tree", func(b *testing.B) {
 		b.ResetTimer()
+
 		for b.Loop() {
 			_, err := git.LsTree(ctx, "HEAD", ".")
 			if err != nil {
@@ -193,6 +206,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		hash := tree.Entries()[0].Hash
 
 		tmpFile := b.TempDir() + "/cat-file"
+
 		tmp, err := os.Create(tmpFile)
 		if err != nil {
 			b.Fatal(err)
@@ -202,6 +216,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		defer tmp.Close()
 
 		b.ResetTimer()
+
 		for b.Loop() {
 			err := git.CatFile(ctx, hash, tmp)
 			if err != nil {

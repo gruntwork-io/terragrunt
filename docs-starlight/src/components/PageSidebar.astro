@@ -1,0 +1,31 @@
+---
+import DefaultPageSidebar from '@astrojs/starlight/components/PageSidebar.astro';
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<div class="h-full min-[1152px]:max-w-[400px] min-[1152px]:fixed border-r border-dashed border-gray-3 dark:border-stroke-dark">
+
+  <DefaultPageSidebar>
+    <slot />
+  </DefaultPageSidebar>
+
+  <!-- Terragrunt Scale CTA -->
+  <div class="hidden min-[1152px]:block">
+    <div class="w-full h-[32px] bg-[url(/images/pattern-div.svg)]"></div>
+    <div class="m-0 p-6 border-y border-dashed border-gray-3 dark:border-stroke-dark">
+      <div class="flex flex-col gap-3">
+        <p class="text-primary font-medium text-xs leading-[150%] dark:text-white">
+          Scale up your Terragrunt
+        </p>
+        <p class="text-xs text-gray-1 dark:text-gray-1">
+          GitOps infrastructure pipelines, drift detection, and automated updates. No black boxes.
+        </p>
+        <a class="text-xs flex flex-row items-center" href="https://terragrunt.gruntwork.io/terragrunt-scale">
+          Learn about Terragrunt Scale
+          <Icon name="right-arrow" class="shrink-0" />
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>

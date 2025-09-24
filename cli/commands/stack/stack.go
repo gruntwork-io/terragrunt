@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -17,10 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-const (
-	stackDir = ".terragrunt-stack"
-)
-
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
@@ -31,6 +26,20 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	opts.StackAction = "generate"
+
+	// Clean stack folders before calling `generate` when the `--source-update` flag is passed
+	if opts.SourceUpdate {
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
+			"stack_config_path": opts.TerragruntStackConfigPath,
+			"working_dir":       opts.WorkingDir,
+		}, func(ctx context.Context) error {
+			l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
+			return config.CleanStacks(ctx, l, opts)
+		})
+		if err != nil {
+			return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+		}
+	}
 
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
@@ -50,14 +59,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}, func(ctx context.Context) error {
 		return RunGenerate(ctx, l, opts)
 	})
-
 	if err != nil {
 		return err
-	}
-
-	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
-	if _, err := os.Stat(opts.WorkingDir); os.IsNotExist(err) {
-		return errors.Errorf("Stack directory does not exist or is not accessible: %s", opts.WorkingDir)
 	}
 
 	return runall.Run(ctx, l, opts)
@@ -150,48 +153,13 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 // RunClean recursively removes all stack directories under the specified WorkingDir.
 func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	telemeter := telemetry.TelemeterFromContext(ctx)
+
 	err := telemeter.Collect(ctx, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		errs := &errors.MultiError{}
-
-		walkFn := func(path string, d os.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				l.Warnf("Error accessing path %s: %v", path, walkErr)
-
-				errs = errs.Append(walkErr)
-
-				return nil
-			}
-
-			if d.IsDir() && d.Name() == stackDir {
-				relPath, relErr := filepath.Rel(opts.WorkingDir, path)
-				if relErr != nil {
-					relPath = path // fallback to absolute if error
-				}
-
-				l.Infof("Deleting stack directory: %s", relPath)
-
-				if rmErr := os.RemoveAll(path); rmErr != nil {
-					l.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
-
-					errs = errs.Append(rmErr)
-				}
-
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
-		if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
-			errs = errs.Append(walkErr)
-		}
-
-		return errs.ErrorOrNil()
+		return config.CleanStacks(ctx, l, opts)
 	})
-
 	if err != nil {
 		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 	}

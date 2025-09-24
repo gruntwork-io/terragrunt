@@ -1,0 +1,43 @@
+---
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import Card from '@components/dv-Card.astro';
+import IconTerragruntDriftEyebrow from '@assets/icons/terragrunt-drift-eyebrow.svg';
+
+import '@styles/global.css';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+    <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+        <!-- Header Section -->
+        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+            <Eyebrow text="TERRAGRUNT DRIFT DETECTION" icon={IconTerragruntDriftEyebrow} />
+            <h2 class="text-4xl md:text-[42px] font-sans m-0 text-primary">
+              <span class="text-accent">Detect and resolve</span> drift</h2>
+        </div>
+
+        <!-- Content Wrapper -->
+        <div class="flex flex-col lg:flex-row md:px-6">
+            <Card
+              title="Scheduled runs"
+              titleSize="text-md"
+              class="basis-1/3 border-b-0 lg:border-b border-x md:border-x-0"
+            >
+                <p class="text-sm font-sans text-gray-1">Run drift detection as often as you like to ensure your live resources reflect your IaC.</p>
+            </Card>
+            <Card
+              title="Automatic Pull Requests"
+              titleSize="text-md"
+              class="basis-1/3 border-b-0 lg:border-b border-x md:border-x-0 lg:border-x"
+            >
+                <p class="text-sm font-sans text-gray-1">Get pull requests to automatically report and resolve drift. Nothing changes in your infrastructure without review and approval.</p>
+            </Card>
+            <Card
+              title="Detect Drifted Stacks"
+              titleSize="text-md"
+              class="basis-1/3 border-x md:border-x-0"
+            >
+                <p class="text-sm font-sans text-gray-1">Detect drift even against your `terragrunt.stack.hcl` files to ensure nothing slips through the cracks.</p>
+            </Card>
+        </div>
+    </div>
+</section>

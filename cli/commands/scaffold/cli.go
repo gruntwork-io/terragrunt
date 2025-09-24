@@ -23,6 +23,7 @@ const (
 	OutputFolderFlagName  = "output-folder"
 	VarFlagName           = "var"
 	VarFileFlagName       = "var-file"
+	NoDependencyPrompt    = "no-dependency-prompt"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -78,6 +79,13 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in unit scaffolding.",
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoDependencyPrompt,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyPrompt),
+			Destination: &opts.NoDependencyPrompt,
+			Usage:       "Do not prompt for confirmation to include dependencies.",
 		}),
 	}
 }

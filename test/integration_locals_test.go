@@ -113,6 +113,7 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRunMultiple)
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
@@ -139,6 +140,7 @@ func TestTerragruntLocalRunOnce(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRunOnce)
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 

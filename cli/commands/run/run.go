@@ -35,7 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -217,7 +216,6 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, terragruntConfig, r)
 			return err
 		})
-
 		if err != nil {
 			return target.runErrorCallback(l, opts, terragruntConfig, err)
 		}
@@ -269,8 +267,10 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
+
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
+
 	actualLock.Lock()
 
 	for _, config := range cfg.GenerateConfigs {
@@ -308,7 +308,12 @@ func runTerragruntWithConfig(
 	r *report.Report,
 	target *Target,
 ) error {
-	// Add extra_arguments to the command
+	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
+
+		return nil
+	}
+
 	if cfg.Terraform != nil && cfg.Terraform.ExtraArgs != nil && len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, opts, cfg)
 
@@ -447,6 +452,7 @@ func ShouldCopyLockFile(args cli.Args, terraformConfig *config.TerraformConfig) 
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func RunActionWithHooks(ctx context.Context, l log.Logger, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
 	var allErrors *errors.MultiError
+
 	beforeHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = allErrors.Append(beforeHookErrors)
 
@@ -512,6 +518,7 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.Terr
 						}
 					}
 				}
+
 				select {
 				case <-time.After(opts.RetrySleepInterval):
 					// try again
@@ -580,7 +587,6 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
@@ -788,9 +794,17 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
 }
 
-// If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
-// before running the command.
+// remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
+// It returns true if:
+//   - BackendBootstrap is enabled in options
+//   - Remote state configuration is provided
+//   - The Terraform command uses state (e.g., plan, apply, destroy, output, etc.)
+//   - The remote state backend needs bootstrapping
 func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
+	// If backend bootstrap is disabled, we don't need to initialize remote state
+	if !opts.BackendBootstrap {
+		return false, nil
+	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
@@ -799,15 +813,6 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 
 	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts); err != nil || !ok {
 		return false, err
-	}
-
-	if !opts.BackendBootstrap {
-		ctx = log.ContextWithLogger(ctx, l)
-
-		strictControl := opts.StrictControls.Find(controls.RequireExplicitBootstrap)
-		if err := strictControl.Evaluate(ctx); err != nil {
-			return false, nil //nolint: nilerr
-		}
 	}
 
 	return true, nil

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/invopop/jsonschema"
 )
 
@@ -61,7 +62,7 @@ func (r *Report) WriteToFile(path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return os.Rename(tmpFile.Name(), path)
+	return util.MoveFile(tmpFile.Name(), path)
 }
 
 // WriteCSV writes the report to a writer in CSV format.
@@ -192,7 +193,7 @@ func (r *Report) WriteSchemaToFile(path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return os.Rename(tmpFile.Name(), path)
+	return util.MoveFile(tmpFile.Name(), path)
 }
 
 // WriteSchema writes a JSON schema for the report to a writer.

@@ -50,7 +50,7 @@ type Control interface {
 	// SuppressWarning suppresses the warning message from being displayed.
 	SuppressWarning()
 
-	// Evaluate evaluates the struct control.
+	// Evaluate evaluates the strict control.
 	Evaluate(ctx context.Context) error
 }
 

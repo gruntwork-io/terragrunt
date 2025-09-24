@@ -1,0 +1,33 @@
+---
+import Image from 'astro/components/Image.astro';
+
+import Card from '@components/dv-Card.astro';
+import Logo from '@assets/logos/caddi.png';
+import Quote from '@assets/quote.svg';
+
+import '@styles/global.css';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+    <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+        <div class="flex flex-col lg:flex-row md:px-6">
+            <Card class="w-full px-18 py-12 md:border-x-0">
+                <div class="relative">
+                  <Image src={Quote} alt="Quote" aria-hidden="true" class="absolute bottom-[-25px] left-[-10px]" />
+                </div>
+                <p class="text-sm font-sans text-primary max-w-[660px]">
+                  Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand. And now with Pipelines, things are even easier… We can literally copy and paste infrastructure and spin up new services, providers, and even full environments in minutes instead of hours or days
+                </p>
+                <div class="flex flex-row items-center">
+                  <div class="flex flex-col">
+                    <p class="text-sm font-sans text-primary m-0">Dallas Slaughter</p>
+                    <p class="text-xs font-sans text-gray-4 m-0">Founding Engineer</p>
+                  </div>
+                  <div class="ml-auto">
+                    <Image src={Logo} alt="Segment Logo" width={90} />
+                  </div>
+                </div>
+            </Card>
+        </div>
+    </div>
+</section>

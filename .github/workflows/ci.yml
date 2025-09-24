@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
+  precommit:
+    uses: ./.github/workflows/precommit.yml
+    secrets: inherit
+
+  codespell:
+    uses: ./.github/workflows/codespell.yml
+    secrets: inherit
+
+  markdownlint:
+    uses: ./.github/workflows/markdownlint.yml
+    secrets: inherit
+
+  license_check:
+    uses: ./.github/workflows/license-check.yml
+    secrets: inherit
+
+  base_tests:
+    needs: [lint, precommit, codespell, markdownlint, license_check]
+    uses: ./.github/workflows/base-test.yml
+    permissions:
+      contents: read
+      checks: write
+    secrets: inherit
+
+  build:
+    needs: [lint, precommit, codespell, markdownlint, license_check]
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  build_no_proxy:
+    needs: [lint, precommit, codespell, markdownlint, license_check]
+    uses: ./.github/workflows/build-no-proxy.yml
+    secrets: inherit
+
+  integration_tests:
+    needs: [base_tests, build, build_no_proxy]
+    uses: ./.github/workflows/integration-test.yml
+    permissions:
+      contents: read
+      checks: write
+    secrets: inherit
+
+  oidc_integration_tests:
+    needs: [base_tests, build, build_no_proxy]
+    uses: ./.github/workflows/oidc-integration-test.yml
+    permissions:
+      id-token: write
+      contents: read
+      checks: write
+    secrets: inherit
+
+

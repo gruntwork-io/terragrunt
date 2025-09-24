@@ -98,16 +98,23 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	shouldUpdateConstraints := false
 
 	if currentConstraintsAttr != nil {
-		currentConstraints, err := version.NewConstraint(strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, ""))
+		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
 		// If current version constraints are malformed, we should update it.
 		if err != nil {
 			shouldUpdateConstraints = true
-		}
-
-		newVersion, _ := version.NewVersion(provider.Version())
-		// If current version constrains do not match the new provider version, we should update it.
-		if !currentConstraints.Check(newVersion) {
-			shouldUpdateConstraints = true
+		} else {
+			newVersion, _ := version.NewVersion(provider.Version())
+			// If current version constrains do not match the new provider version, we should update it.
+			if !currentConstraints.Check(newVersion) {
+				shouldUpdateConstraints = true
+			} else {
+				// Even if current constraints are valid, check if module constraints have changed
+				moduleConstraints := provider.Constraints()
+				if moduleConstraints != "" && moduleConstraints != currentConstraintsValue {
+					shouldUpdateConstraints = true
+				}
+			}
 		}
 	} else {
 		// If there is no constraints attribute, we should update it.
@@ -115,7 +122,13 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	}
 
 	if shouldUpdateConstraints {
-		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(provider.Version()))
+		// Use module constraints if available, otherwise fall back to exact version
+		constraintsValue := provider.Constraints()
+		if constraintsValue == "" {
+			constraintsValue = provider.Version()
+		}
+
+		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
 	}
 
 	h1Hash, err := PackageHashV1(provider.PackageDir())
@@ -159,7 +172,6 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 
 	// a version attribute found
 	versionVal := getAttributeValueAsUnquotedString(versionAttr)
-	provider.Logger().Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
 
 	if versionVal == provider.Version() {
 		// if version is equal, get already existing hashes from lock file to merge.
@@ -234,4 +246,52 @@ func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenCBrack, Bytes: []byte{']'}})
 
 	return tokens
+}
+
+// UpdateLockfileConstraints updates only the constraints in an existing lock file
+// This is used for upgrade scenarios where module constraints have changed
+// but no providers were newly downloaded
+func UpdateLockfileConstraints(ctx context.Context, workingDir string, constraints ProviderConstraints) error {
+	filename := filepath.Join(workingDir, tf.TerraformLockFile)
+
+	if !util.FileExists(filename) {
+		return nil // No lock file to update
+	}
+
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	file, diags := hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return errors.New(diags)
+	}
+
+	updated := false
+
+	// Update constraints for each provider in the lock file
+	for providerAddr, newConstraint := range constraints {
+		providerBlock := file.Body().FirstMatchingBlock("provider", []string{providerAddr})
+		if providerBlock != nil {
+			currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+			if currentConstraintsAttr != nil {
+				currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+				if currentConstraintsValue != newConstraint {
+					providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+
+					updated = true
+				}
+			}
+		}
+	}
+
+	if updated {
+		const ownerWriteGlobalReadPerms = 0644
+		if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
+			return errors.New(err)
+		}
+	}
+
+	return nil
 }

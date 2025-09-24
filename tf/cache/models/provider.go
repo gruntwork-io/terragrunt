@@ -108,6 +108,9 @@ type Provider struct {
 	Version      string
 	OS           string
 	Arch         string
+
+	// OriginalConstraints holds the version constraints from the module's required_providers block
+	OriginalConstraints string
 }
 
 func ParseProvider(str string) *Provider {
@@ -153,6 +156,10 @@ func (provider *Provider) Platform() string {
 
 func (provider *Provider) Address() string {
 	return path.Join(provider.RegistryName, provider.Namespace, provider.Name)
+}
+
+func (provider *Provider) Constraints() string {
+	return provider.OriginalConstraints
 }
 
 // Match returns true if all defined provider properties are matched.

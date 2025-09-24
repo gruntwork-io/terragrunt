@@ -360,15 +360,15 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 		remoteStateBody.SetAttributeValue("backend", remoteStateAsCty.GetAttr("backend"))
 
-		if cfg.RemoteState.Config.DisableInit {
+		if cfg.RemoteState.DisableInit {
 			remoteStateBody.SetAttributeValue("disable_init", remoteStateAsCty.GetAttr("disable_init"))
 		}
 
-		if cfg.RemoteState.Config.DisableDependencyOptimization {
+		if cfg.RemoteState.DisableDependencyOptimization {
 			remoteStateBody.SetAttributeValue("disable_dependency_optimization", remoteStateAsCty.GetAttr("disable_dependency_optimization"))
 		}
 
-		if cfg.RemoteState.Config.BackendConfig != nil {
+		if cfg.RemoteState.BackendConfig != nil {
 			remoteStateBody.SetAttributeValue("config", remoteStateAsCty.GetAttr("config"))
 		}
 
@@ -489,6 +489,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 		if len(cfg.Exclude.Actions) > 0 {
 			excludeBody.SetAttributeValue("actions", excludeAsCty.GetAttr("actions"))
+		}
+
+		if cfg.Exclude.NoRun != nil {
+			excludeBody.SetAttributeValue("no_run", excludeAsCty.GetAttr("no_run"))
 		}
 
 		excludeBody.SetAttributeValue("if", excludeAsCty.GetAttr("if"))
@@ -1435,7 +1439,7 @@ func detectBareIncludeUsage(file *hclparse.File) bool {
 	switch filepath.Ext(file.ConfigPath) {
 	case ".json":
 		var data map[string]any
-		if err := json.Unmarshal(file.File.Bytes, &data); err != nil {
+		if err := json.Unmarshal(file.Bytes, &data); err != nil {
 			// If JSON is invalid, it can't be a valid bare include structure.
 			// The main parser will handle the invalid JSON error.
 			return false
@@ -1520,6 +1524,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, l log.Logger, file *hclpa
 
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
 		var diagErr hcl.Diagnostics
+
 		ok := errors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
@@ -1892,6 +1897,10 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, DependencyFileNotFoundError{Path: configPath}
+		}
+
 		return false, errors.New(err)
 	}
 
@@ -2097,7 +2106,6 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 	}
 
 	compiled, err := regexp.Compile(p)
-
 	if err != nil {
 		return nil, err
 	}

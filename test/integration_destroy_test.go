@@ -191,6 +191,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		"module-b",
 		"module-c",
 	}
+
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
 		modulePaths[moduleName] = util.JoinPath(testFixtureLocalIncludePreventDestroyDependencies, moduleName)
@@ -198,6 +199,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	// Cleanup all modules directories.
 	helpers.CleanupTerraformFolder(t, testFixtureLocalIncludePreventDestroyDependencies)
+
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerraformFolder(t, modulePath)
 	}
@@ -208,12 +210,12 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply-all --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
-	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
 	if err != nil {
-		t.Fatalf("apply-all in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std", err)
+		t.Fatalf("run --all apply in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std", err)
 	}
 
 	var (
@@ -221,9 +223,9 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		destroyAllStderr bytes.Buffer
 	)
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy-all --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
-	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run --all destroy stdout")
+	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run --all destroy stderr")
 
 	require.NoError(t, err)
 
@@ -239,7 +241,9 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
 		require.NoError(t, err)
+
 		output := showStdout.String()
+
 		switch moduleName {
 		case "module-a":
 			assert.Contains(t, output, "Hello, Module A")
@@ -286,13 +290,17 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 		&stderr,
 	)
 	os.Stderr = oldStdout
+
 	require.NoError(t, w.Close())
 
 	capturedOutput := make(chan string)
+
 	go func() {
 		var buf bytes.Buffer
+
 		_, e := io.Copy(&buf, r)
 		assert.NoError(t, e)
+
 		capturedOutput <- buf.String()
 	}()
 
@@ -325,6 +333,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
@@ -338,6 +347,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
@@ -368,6 +378,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
@@ -381,6 +392,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}

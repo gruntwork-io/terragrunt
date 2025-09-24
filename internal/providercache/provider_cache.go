@@ -211,7 +211,40 @@ func (cache *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
+	providerConstraints, err := getproviders.ParseProviderConstraints(opts, filepath.Dir(opts.TerragruntConfigPath))
+	if err != nil {
+		l.Debugf("Failed to parse provider constraints from %s: %v", filepath.Dir(opts.TerragruntConfigPath), err)
+
+		providerConstraints = make(getproviders.ProviderConstraints)
+	}
+
+	for _, provider := range caches {
+		if providerCache, ok := provider.(*services.ProviderCache); ok {
+			providerAddr := provider.Address()
+			if constraint, exists := providerConstraints[providerAddr]; exists {
+				providerCache.Provider.OriginalConstraints = constraint
+				l.Debugf("Applied constraint %s to provider %s", constraint, providerAddr)
+			} else {
+				l.Debugf("No constraint found for provider %s", providerAddr)
+			}
+		}
+	}
+
 	err = getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches)
+	if err != nil {
+		return nil, err
+	}
+
+	// For upgrade scenarios where no providers were newly cached, we still need to update
+	// the lock file if module constraints have changed. This only happens during upgrades.
+	// Check if user passed -upgrade flag to terraform init
+	isUpgrade := util.ListContainsElement(opts.TerraformCliArgs, "-upgrade")
+
+	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
+		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
+
+		err = getproviders.UpdateLockfileConstraints(ctx, opts.WorkingDir, providerConstraints)
+	}
 
 	return nil, err
 }
@@ -278,7 +311,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
-		apiURLs, err := cache.Server.DiscoveryURL(ctx, registryName)
+		apiURLs, err := cache.DiscoveryURL(ctx, registryName)
 		if err != nil {
 			return err
 		}

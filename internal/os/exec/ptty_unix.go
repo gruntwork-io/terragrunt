@@ -66,6 +66,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 			}
 		}
 	}()
+
 	ch <- syscall.SIGWINCH // Make sure the pty matches current size
 
 	// Set stdin in raw mode so that we preserve readline properties

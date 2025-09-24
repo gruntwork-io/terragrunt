@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -217,7 +217,7 @@ func (tracer *Tracer) openSpan(ctx context.Context, name string, attrs map[strin
 	// a useful lint, though. We should consider removing the suppression
 	// and fixing the lint.
 
-	ctx, span := tracer.Tracer.Start(ctx, name) // nolint:spancheck
+	ctx, span := tracer.Start(ctx, name) // nolint:spancheck
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
 

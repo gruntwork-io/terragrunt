@@ -62,9 +62,11 @@ func assertUnitsEqual(t *testing.T, expected *common.Unit, actual *common.Unit, 
 		if expected.Config.TerragruntDependencies == nil {
 			expected.Config.TerragruntDependencies = config.Dependencies{}
 		}
+
 		if actual.Config.TerragruntDependencies == nil {
 			actual.Config.TerragruntDependencies = config.Dependencies{}
 		}
+
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
 
 		assert.Equal(t, expected.Path, actual.Path, messageAndArgs...)
@@ -149,6 +151,7 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 	var unrecognizedDependencyError common.UnrecognizedDependencyError
 	if ok := errors.As(expected, &unrecognizedDependencyError); ok {
 		var actualUnrecognized common.UnrecognizedDependencyError
+
 		ok = errors.As(actual, &actualUnrecognized)
 		if assert.True(t, ok, messageAndArgs...) {
 			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)
@@ -177,16 +180,7 @@ func canonical(t *testing.T, path string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return out
-}
 
-func globCanonical(t *testing.T, path string) []string {
-	t.Helper()
-
-	out, err := util.GlobCanonicalPath(path, ".")
-	if err != nil {
-		t.Fatal(err)
-	}
 	return out
 }
 
@@ -199,10 +193,12 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 	if err != nil {
 		t.Fatalf("Error creating terragrunt options for test %v", err)
 	}
+
 	opts.RunTerragrunt = func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions, _ *report.Report) error {
 		*executed = true
 		return toReturnFromTerragruntCommand
 	}
+
 	return opts
 }
 
@@ -214,8 +210,10 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 	require.NotNil(t, multiError, "Expected a MutliError, but got: %v", actualError)
 
 	assert.Len(t, multiError.WrappedErrors(), len(expectedErrors))
+
 	for _, expectedErr := range expectedErrors {
 		found := false
+
 		for _, actualErr := range multiError.WrappedErrors() {
 			if errors.Is(expectedErr, actualErr) {
 				found = true
@@ -223,6 +221,7 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 				break
 			}
 		}
+
 		assert.True(t, found, "Couldn't find expected error %v", expectedErr)
 	}
 }

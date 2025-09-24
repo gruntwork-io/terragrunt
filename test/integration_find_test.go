@@ -156,6 +156,7 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
+
 			if strings.Contains(tc.args, "--json") {
 				jsonStringsEqual(t, tc.expected, stdout)
 			} else {
@@ -166,7 +167,7 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 }
 
 // jsonStringsEqual compares two JSON strings for equivalence, ignoring the order of nested arrays.
-func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...interface{}) bool {
+func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) bool {
 	t.Helper()
 
 	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
@@ -256,6 +257,7 @@ func TestFindExclude(t *testing.T) {
 
 			if strings.Contains(tc.args, "--json") {
 				var configs find.FoundConfigs
+
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
 
@@ -275,6 +277,7 @@ func TestFindExclude(t *testing.T) {
 						}
 					}
 				}
+
 				assert.ElementsMatch(t, tc.expectedPaths, paths)
 			} else {
 				paths := strings.Fields(stdout)
@@ -339,6 +342,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 			assert.Empty(t, stderr)
 
 			var configs find.FoundConfigs
+
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
 

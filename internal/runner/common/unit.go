@@ -90,7 +90,7 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 		return ""
 	}
 
-	path, err := filepath.Rel(opts.WorkingDir, unit.Path)
+	path, err := filepath.Rel(opts.RootWorkingDir, unit.Path)
 	if err != nil {
 		l.Warnf("Failed to get relative path for %s: %v", unit.Path, err)
 		path = unit.Path
@@ -99,7 +99,20 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(opts.WorkingDir, dir)
+		// Resolve relative output folder against root working directory, not the unit working directory,
+		// so that artifacts for all units are stored under a single root-level out dir structure.
+		base := opts.RootWorkingDir
+		if !filepath.IsAbs(base) {
+			// In case RootWorkingDir is somehow relative, resolve it first.
+			if absBase, err := filepath.Abs(base); err == nil {
+				base = absBase
+			} else {
+				l.Warnf("Failed to get absolute path for root working dir %s: %v", base, err)
+			}
+		}
+
+		dir = filepath.Join(base, dir)
+
 		if absDir, err := filepath.Abs(dir); err == nil {
 			dir = absDir
 		} else {
@@ -165,7 +178,11 @@ func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
 
 // FindByPath returns the unit that matches the given path, or nil if no such unit exists in the map.
 func (unitsMap UnitsMap) FindByPath(path string) *Unit {
-	return unitsMap[path]
+	if unit, ok := unitsMap[path]; ok {
+		return unit
+	}
+
+	return nil
 }
 
 // CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If

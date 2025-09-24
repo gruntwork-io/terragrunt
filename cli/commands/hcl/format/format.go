@@ -55,7 +55,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		l.Debugf("Formatting hcl file at: %s.", targetFile)
 
-		return formatTgHCL(l, opts, targetFile)
+		return formatTgHCL(ctx, l, opts, targetFile)
 	}
 
 	l.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
@@ -98,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	var formatErrors *errors.MultiError
 
 	for _, tgHclFile := range filteredTgHclFiles {
-		err := formatTgHCL(l, opts, tgHclFile)
+		err := formatTgHCL(ctx, l, opts, tgHclFile)
 		if err != nil {
 			formatErrors = formatErrors.Append(err)
 		}
@@ -109,7 +109,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
 	contents, err := io.ReadAll(os.Stdin)
-
 	if err != nil {
 		l.Errorf("Error reading from stdin: %s", err)
 
@@ -143,7 +142,7 @@ func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
 
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
-func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string) error {
+func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, tgHclFile string) error {
 	l.Debugf("Formatting %s", tgHclFile)
 
 	info, err := os.Stat(tgHclFile)
@@ -171,7 +170,7 @@ func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		diff, err := bytesDiff(l, contents, newContents, tgHclFile)
+		diff, err := bytesDiff(ctx, l, contents, newContents, tgHclFile)
 		if err != nil {
 			l.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
@@ -217,7 +216,7 @@ func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFil
 }
 
 // bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
-func bytesDiff(l log.Logger, b1, b2 []byte, path string) ([]byte, error) {
+func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
@@ -256,7 +255,7 @@ func bytesDiff(l log.Logger, b1, b2 []byte, path string) ([]byte, error) {
 		return nil, err
 	}
 
-	data, err := exec.Command("diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
+	data, err := exec.CommandContext(ctx, "diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
 	if len(data) > 0 {
 		// diff exits with a non-zero status when the files don't match.
 		// Ignore that failure as long as we get output.

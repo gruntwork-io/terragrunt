@@ -210,7 +210,6 @@ func (client *Client) AddLabelsToGCSBucket(ctx context.Context, l log.Logger, bu
 	}
 
 	_, err := bucket.Update(ctx, bucketAttrs)
-
 	if err != nil {
 		return errors.New(err)
 	}

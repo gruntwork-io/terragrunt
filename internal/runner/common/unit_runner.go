@@ -47,6 +47,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	defer func() {
 		outputLocks.Lock(runner.Unit.Path)
 		defer outputLocks.Unlock(runner.Unit.Path)
+
 		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 
@@ -65,7 +66,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 }
 
 // Run a unit right now by executing the runTerragrunt command of its TerragruntOptions field.
-func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
 	if runner.Unit.AssumeAlreadyApplied {
@@ -89,14 +90,14 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, rootOptions)}
+		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, opts)}
 
 		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
 			return err
 		}
 
 		// save the json output to the file plan file
-		outputFile := runner.Unit.OutputJSONFile(l, rootOptions)
+		outputFile := runner.Unit.OutputJSONFile(l, opts)
 		jsonDir := filepath.Dir(outputFile)
 
 		if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {

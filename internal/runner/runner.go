@@ -3,6 +3,7 @@ package runner
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -24,7 +25,7 @@ import (
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
-		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
+		l.Infof("Using runner pool for stack %s", terragruntOptions.WorkingDir)
 
 		return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 	}
@@ -41,9 +42,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		for k, v := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
-			matchedModulesMap[k] = v
-		}
+		maps.Copy(matchedModulesMap, findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig))
 	}
 
 	var matchedModules = make(common.Units, 0, len(matchedModulesMap))
