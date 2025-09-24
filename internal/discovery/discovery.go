@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
@@ -110,6 +111,9 @@ type Discovery struct {
 
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo []string
+
+	// hiddenDirMemoMu protects hiddenDirMemo from concurrent access
+	hiddenDirMemoMu sync.RWMutex
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
@@ -485,11 +489,9 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
 func (d *Discovery) isInHiddenDirectory(path string) bool {
-	// Check memoized hidden directories first
-	for _, hiddenDir := range d.hiddenDirMemo {
-		if strings.HasPrefix(path, hiddenDir) {
-			return true
-		}
+	ok := d.isInHiddenDirMemo(path)
+	if ok {
+		return true
 	}
 
 	// Quick check: if path doesn't contain "." after first character, it's not hidden
@@ -508,9 +510,30 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 		}
 
 		if strings.HasPrefix(part, ".") && part != "." && part != ".." {
-			if len(d.hiddenDirMemo) < maxHiddenDirMemoSize {
-				d.hiddenDirMemo = append(d.hiddenDirMemo, hiddenPath)
-			}
+			d.appendToHiddenDirMemo(hiddenPath)
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func (d *Discovery) appendToHiddenDirMemo(path string) {
+	d.hiddenDirMemoMu.Lock()
+	defer d.hiddenDirMemoMu.Unlock()
+
+	if len(d.hiddenDirMemo) < maxHiddenDirMemoSize {
+		d.hiddenDirMemo = append(d.hiddenDirMemo, path)
+	}
+}
+
+func (d *Discovery) isInHiddenDirMemo(path string) bool {
+	d.hiddenDirMemoMu.RLock()
+	defer d.hiddenDirMemoMu.RUnlock()
+
+	for _, hiddenDir := range d.hiddenDirMemo {
+		if strings.HasPrefix(path, hiddenDir) {
 
 			return true
 		}
