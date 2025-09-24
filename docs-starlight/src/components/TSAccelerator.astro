@@ -9,6 +9,8 @@ import IconLabel from '@components/dv-IconButton.astro';
 import OpentofuIcon from '@assets/opentofu-logo.svg';
 import TerraformIcon from '@assets/terraform-logo.svg';
 import TerragruntLogo from '@assets/icons/terragrunt-icon-dark.svg';
+import Button from '@components/ui/Button';
+import ButtonLink from '@components/ui/ButtonLink';
 
 import '@styles/global.css';
 ---
@@ -89,12 +91,14 @@ import '@styles/global.css';
           </div>
 
           <!-- CTA -->
-          <a
-            href="https://www.gruntwork.io/accelerator"
-            class="relative z-10 primary-button light hover:bg-[var(--color-acc-text)] inline-flex items-center justify-center mx-auto gap-1 w-full md:w-auto"
+          <ButtonLink 
+            href="https://www.gruntwork.io/accelerator" 
+            variant="primary" 
+            buttonClassName="w-full bg-[var(--color-primary-button-light)] hover:bg-[var(--color-acc-text)] shadow-[0_0_15px_#896bff4d,0_0_1px_4px_#34311b38,0_0_1px_4px_#34312f38] relative z-10"
+            isExternalLink={true}
           >
-              Learn More <Image class="inline-block" src={ExternalLinkIcon} alt="External link icon" />
-          </a>
+            Learn More
+          </ButtonLink>
 
         </div>
     </div>
