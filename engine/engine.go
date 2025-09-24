@@ -54,8 +54,10 @@ const (
 	latestVersionsContextKey   engineLocksKey   = iota
 )
 
-type engineClientsKey byte
-type engineLocksKey byte
+type (
+	engineClientsKey byte
+	engineLocksKey   byte
+)
 
 type ExecutionOptions struct {
 	CmdStdout         io.Writer
@@ -166,8 +168,8 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 		return errors.New(err)
 	}
 
-	if err := util.EnsureDirectory(path); err != nil {
-		return errors.New(err)
+	if ensureErr := util.EnsureDirectory(path); ensureErr != nil {
+		return errors.New(ensureErr)
 	}
 
 	localEngineFile := filepath.Join(path, engineFileName(e))
@@ -241,7 +243,13 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 }
 
 func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot))
+	url := fmt.Sprintf(
+		"https://api.github.com/repos/%s/releases/latest",
+		strings.TrimPrefix(
+			opts.Engine.Source,
+			defaultEngineRepoRoot,
+		),
+	)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
 	if err != nil {
@@ -270,6 +278,14 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 
 	defer resp.Body.Close() //nolint:errcheck
 
+	if resp.StatusCode >= 400 {
+		return "", errors.Errorf(
+			"GitHub API request to determine latest release failed with status %d: %s",
+			resp.StatusCode,
+			resp.Status,
+		)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", errors.New(err)
@@ -278,6 +294,10 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 	var r release
 	if err := json.Unmarshal(body, &r); err != nil {
 		return "", errors.New(err)
+	}
+
+	if r.Tag == "" {
+		return "", errors.Errorf("GitHub API returned empty tag name for latest release")
 	}
 
 	versionCache.Put(ctx, url, r.Tag)
