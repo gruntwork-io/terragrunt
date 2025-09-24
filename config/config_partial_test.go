@@ -497,8 +497,8 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	require.True(t, found, "original file should be cached")
 
 	// Modify file (this changes mod time)
-	time.Sleep(1 * time.Millisecond) // Ensure different mod time
 	require.NoError(t, os.WriteFile(configPath, []byte(modifiedContent), 0644))
+	forceModTimeChange(t, configPath, fileInfo.ModTime())
 
 	// Parse modified file - should create new cache entry
 	_, err = config.PartialParseConfigFile(parsingContext, l, configPath, nil)
@@ -577,4 +577,24 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	// Verify we can retrieve using the expected key
 	_, found := hclCache.Get(parsingContext, expectedCacheKey)
 	require.True(t, found, "should be able to retrieve using expected cache key format")
+}
+
+// forceModTimeChange ensures the file at path has a modification time strictly after prev.
+func forceModTimeChange(t *testing.T, path string, prev time.Time) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		err := os.Chtimes(path, time.Now(), time.Now())
+
+		require.NoError(t, err)
+
+		if fileInfo, err := os.Stat(path); err == nil && fileInfo.ModTime().After(prev) {
+			return
+		}
+
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	t.Fatalf("Failed to change modification time of %s within 5 seconds", path)
 }
