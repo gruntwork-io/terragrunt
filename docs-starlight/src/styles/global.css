@@ -150,7 +150,7 @@
   body {
     margin: 0;
     padding: 0;
-  } 
+  }
 
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
@@ -181,7 +181,7 @@
   h1, h2, h3, h4, h5, h6 {
     font-weight: 400;
   }
-  
+
   /* Header */
   header {
     background-color: transparent;
@@ -395,7 +395,6 @@
     border: 1px solid var(--sl-color-gray-5);
     margin: 1.5em 0;
   }
-
 }
 
 @media (width < 768px) {
