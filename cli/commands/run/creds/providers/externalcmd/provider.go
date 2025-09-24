@@ -41,6 +41,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}
 
 	parser := shellwords.NewParser()
+
 	parts, err := parser.Parse(provider.terragruntOptions.AuthProviderCmd)
 	if err != nil {
 		return nil, errors.Errorf("failed to parse auth provider command: %w", err)
