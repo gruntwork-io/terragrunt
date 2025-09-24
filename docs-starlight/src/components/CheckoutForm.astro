@@ -1,17 +1,13 @@
 ---
 import { Image } from 'astro:assets';
-import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.svg';
+import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.astro';
 import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
 ---
 
-<div class="relative flex flex-col h-full w-full justify-between bg-bg-dark px-8 py-6 rounded-lg border border-card-border">
+<div class="relative flex flex-col w-full bg-bg-dark px-8 py-6 rounded-lg border border-card-border">
   <div class="relative w-full">
     <div class="flex flex-row items-center justify-between gap-2 mb-6">
-      <Image
-          alt="Pipelines Icon"
-          class={"aspect-[1/1] h-auto size-16"}
-          src={IconPricingTeam}
-      />
+      <IconPricingTeam />
       <div class="flex items-baseline">
         <span id="price-value" class="text-[42px] text-accent-3">$600</span>
         <span id="price-period" class="text-gray-1 text-2xl m-0">/mo</span>
