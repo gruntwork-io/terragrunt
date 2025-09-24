@@ -69,34 +69,46 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
       </label>
     </fieldset>
 
-    <button class="primary-button w-full items-center h-[39px] text-center leading-[1.25]">
+    <a
+      class="primary-button w-full items-center h-[39px] text-center leading-[1.25] inline-flex justify-center"
+      href="#"
+      id="checkout"
+      rel="noopener noreferrer"
+      target="_blank"
+    >
       Continue to Payment
-    </button>
+    </a>
 
   </div>
 
-  <p class="text-xs text-gray-1 font-sans">Complete your transaction with Stripe. Schedule your onboarding session after payment.</p>
-  <p id="additional-legal" class="text-xs text-gray-1 font-sans"></p>
+  <p class="text-xs text-gray-1 font-sans mt-0">Complete your transaction with Stripe. Schedule your onboarding session after payment.</p>
+  <p id="additional-legal" class="text-xs text-gray-1 font-sans m-0"></p>
 </div>
 
 <script>
   const price = document.getElementById("price-value");
   const term = document.getElementById("price-period");
   const additionalLegal = document.getElementById("additional-legal");
+  const link = document.getElementById('checkout') as HTMLAnchorElement;
 
   const radios = document.querySelectorAll("input[name='plan']");
 
   radios.forEach(radio => {
     const input = radio as HTMLInputElement;
     input.addEventListener("change", () => {
+      // Monthly
       if (input.value === "monthly") {
         price!.textContent = "$600";
         term!.textContent = "/mo";
         additionalLegal!.textContent = "";
+        link!.href = "https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001";
+
+      // Annual
       } else if (input.value === "annual") {
           price!.textContent = "$500";
           term!.textContent = "/mo*";
           additionalLegal!.textContent = "* Annual contract, billed at $6,000 per year.";
+          link!.href = "https://buy.stripe.com/fZu7sLg6h7ajevb2i78g002";
       }
     });
   });
