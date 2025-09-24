@@ -1,10 +1,9 @@
 ---
-import { Image } from 'astro:assets';
 import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.astro';
-import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
+import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
 ---
 
-<div class="relative flex flex-col w-full bg-bg-dark px-8 py-6 rounded-lg border border-card-border">
+<div class="flex flex-col w-full bg-bg-dark px-8 py-6 rounded-lg border border-card-border">
   <div class="relative w-full">
     <div class="flex flex-row items-center justify-between gap-2 mb-6">
       <IconPricingTeam />
@@ -36,11 +35,9 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
       </li>
     </ul>
 
-    <Image
-      src={TerragruntAccent}
-      alt="Isometric background pattern with terragrunt logo"
-      class="absolute right-[-80px] bottom-[0]"
-    />
+    <div class="absolute right-[-80px] bottom-[0]">
+      <TerragruntAccent />
+    </div>
   </div>
 
   <div class="flex flex-col gap-8 my-8">
@@ -71,7 +68,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
 
     <a
       class="primary-button w-full items-center h-[39px] text-center leading-[1.25] inline-flex justify-center"
-      href="#"
+      href="https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001"
       id="checkout"
       rel="noopener noreferrer"
       target="_blank"
@@ -89,7 +86,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
   const price = document.getElementById("price-value");
   const term = document.getElementById("price-period");
   const additionalLegal = document.getElementById("additional-legal");
-  const link = document.getElementById('checkout') as HTMLAnchorElement;
+  const link = document.getElementById('checkout');
 
   const radios = document.querySelectorAll("input[name='plan']");
 
@@ -101,6 +98,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
         price!.textContent = "$600";
         term!.textContent = "/mo";
         additionalLegal!.textContent = "";
+        // @ts-ignore
         link!.href = "https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001";
 
       // Annual
@@ -108,6 +106,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.svg';
           price!.textContent = "$500";
           term!.textContent = "/mo*";
           additionalLegal!.textContent = "* Annual contract, billed at $6,000 per year.";
+          // @ts-ignore
           link!.href = "https://buy.stripe.com/fZu7sLg6h7ajevb2i78g002";
       }
     });
