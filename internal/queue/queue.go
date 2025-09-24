@@ -363,6 +363,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 func (q *Queue) SetEntryStatus(e *Entry, status Status) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
 	e.Status = status
 }
 
