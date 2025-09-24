@@ -174,6 +174,15 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 
 // EntryByPath returns the entry with the given config path, or nil if not found.
 func (q *Queue) EntryByPath(path string) *Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	return q.entryByPathUnsafe(path)
+}
+
+// entryByPathUnsafe returns the entry with the given config path without locking.
+// Should only be called when the caller already holds a lock.
+func (q *Queue) entryByPathUnsafe(path string) *Entry {
 	for _, entry := range q.Entries {
 		if entry.Config.Path == path {
 			return entry
@@ -308,7 +317,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
-				depEntry := q.EntryByPath(dep.Path)
+				depEntry := q.entryByPathUnsafe(dep.Path)
 				if depEntry == nil || depEntry.Status != StatusSucceeded {
 					allDepsReady = false
 					break
@@ -435,6 +444,9 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 
 // Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
 func (q *Queue) Finished() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	for _, e := range q.Entries {
 		if !isTerminal(e.Status) {
 			return false
@@ -450,10 +462,13 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 		return 0
 	}
 
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	count := 0
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path)
 		if depEntry == nil || depEntry.Status != StatusSucceeded {
 			count++
 		}
