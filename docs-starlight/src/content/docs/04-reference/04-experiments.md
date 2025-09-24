@@ -164,7 +164,7 @@ To transition the `runner-pool` feature to a stable release, the following must 
 - [x] Add support for including/excluding external units in the discovery process.
 - [x] Add runner pool implementation to execute discovered units.
 - [x] Add integration tests to track that the runner pool works in the same way as the current implementation.
-- [ ] Add performance tests to track that the runner pool implementation is faster than the current implementation.
+- [x] Add performance tests to track that the runner pool implementation is faster than the current implementation.
 - [x] Add support for fail fast behavior in the runner pool.
 - [x] Improve the UI to queue to apply.
 - [x] Add OpenTelemetry support to the runner pool.
