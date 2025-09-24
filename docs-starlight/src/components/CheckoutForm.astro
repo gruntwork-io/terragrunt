@@ -75,7 +75,6 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
     >
       Continue to Payment
     </a>
-
   </div>
 
   <p class="text-xs text-gray-1 font-sans mt-0">Complete your transaction with Stripe. Schedule your onboarding session after payment.</p>
@@ -94,20 +93,21 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
     const input = radio as HTMLInputElement;
     input.addEventListener("change", () => {
       // Monthly
+      if (!price || !term || !additionalLegal || !link) return;
       if (input.value === "monthly") {
-        price!.textContent = "$600";
-        term!.textContent = "/mo";
-        additionalLegal!.textContent = "";
+        price.textContent = "$600";
+        term.textContent = "/mo";
+        additionalLegal.textContent = "";
         // @ts-ignore
-        link!.href = "https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001";
+        link.href = "https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001";
 
       // Annual
       } else if (input.value === "annual") {
-          price!.textContent = "$500";
-          term!.textContent = "/mo*";
-          additionalLegal!.textContent = "* Annual contract, billed at $6,000 per year.";
+          price.textContent = "$500";
+          term.textContent = "/mo*";
+          additionalLegal.textContent = "* Annual contract, billed at $6,000 per year.";
           // @ts-ignore
-          link!.href = "https://buy.stripe.com/fZu7sLg6h7ajevb2i78g002";
+          link.href = "https://buy.stripe.com/fZu7sLg6h7ajevb2i78g002";
       }
     });
   });
