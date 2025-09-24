@@ -9,6 +9,9 @@ import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import ThemeToggle from '@components/ThemeToggle.astro';
 
+import Button from '@components/ui/Button';
+import ButtonLink from '@components/ui/ButtonLink';
+
 import '@styles/global.css';
 
 /**
@@ -57,12 +60,19 @@ try {
   But that's tricky because dark mode colors are set in the CSS "theme" layer, which is then inherited by this component,
   and this component can't change those variables directly.
 
-  To solve this, we override the one variable causing us trouble.
+  To solve this, we override the variables causing us trouble.
 -->
-
 <style>
   .header-dark-theme {
     --sl-color-gray-1: #e8eefc;
+    --sl-color-gray-2: #bbc2d4;
+    --sl-color-gray-3: #7e8bac;
+    --sl-color-gray-4: #4c5776;
+    --sl-color-gray-5: #2d3754;
+    --sl-color-gray-6: #1c2541;
+    --sl-color-gray-7: #0f1731;
+    --sl-color-gray-8: #0f0934;
+    --sl-color-white: #ffffff;
   }
 </style>
 
@@ -126,29 +136,48 @@ try {
       </div>
       <div class="flex items-center gap-3 md:gap-3.5">
         <!-- Buttons -->
-        <a href="/terragrunt-scale" class="hidden md:flex secondary-button items-center h-[39px] text-center leading-[1.25] p-5">
+        <ButtonLink 
+          href="/terragrunt-scale" 
+          variant="secondary" 
+          className="hidden md:flex"
+        >
           Automate Deployments
-        </a>
-        <a href="/terragrunt-scale" class="flex md:hidden secondary-button !p-3">
+        </ButtonLink>
+        <ButtonLink 
+          href="/terragrunt-scale" 
+          variant="secondary" 
+          size="icon"
+          className="md:hidden"
+        >
           <Image
             alt="Pipelines Icon"
             height={20}
             src={PipelineIcon}
             width={20}
           />
-        </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex primary-button items-center h-[39px] text-center leading-[1.25]">
+        </ButtonLink>
+        <ButtonLink 
+          href="https://www.gruntwork.io/services/terragrunt" 
+          variant="primary"
+          className="hidden md:flex"
+          isExternalLink={true}
+        >
           Enterprise Support
-        </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="flex md:hidden primary-button !p-3">
+        </ButtonLink>
+        <ButtonLink 
+          href="https://www.gruntwork.io/services/terragrunt" 
+          variant="primary" 
+          size="icon"
+          className="md:hidden"
+          isExternalLink={true}
+        >
           <Image
             alt="Headphones Icon"
-            class={"aspect-[1/1] h-auto"}
             height={20}
             src={HeadphonesIcon}
             width={20}
           />
-        </a>
+        </ButtonLink>
       </div>
     </div>
   </div>

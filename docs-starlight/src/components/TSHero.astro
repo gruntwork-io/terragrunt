@@ -4,15 +4,20 @@ import { Image } from 'astro:assets';
 
 import BackgroundPattern from '@assets/boxes-bg.svg';
 import ColFeature from '@components/ColFeature.astro';
-import GithubIcon from '@assets/icons/github-icon.svg';
-import GitlabIcon from '@assets/icons/gitlab-icon.svg';
 import Grunty2 from '@assets/grunty/grunty-2.svg';
 import IconDriftDetection from '@assets/icons/drift-detection.svg';
 import IconLabel from '@components/dv-IconButton.astro';
 import IconPatcher from '@assets/icons/terragrunt-patcher.svg';
 import IconPipelines from '@assets/icons/terragrunt-pipelines.svg';
-import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
+
+import MobileHeroBackground from '@assets/hero-bkgnd.svg';
+import Terminal from '@components/dv-Terminal.astro';
 import ThreeColFeatures from '@components/ThreeColFeatures.astro';
+import ButtonLink from '@components/ui/ButtonLink';
+
+import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
+import GithubIcon from '@assets/icons/github-icon.svg';
+import GitlabIcon from '@assets/icons/gitlab-icon.svg';
 ---
 
 <section class="relative md:pt-22 bg-[var(--color-bg-dark)] gap-10 overflow-hidden">
@@ -71,9 +76,9 @@ import ThreeColFeatures from '@components/ThreeColFeatures.astro';
               </div>
           </div>
           <div class="flex gap-5 w-full pb-28 md:pb-20 z-10">
-              <a href="/contact-tgs">
-                  <button class="primary-button">Get Demo</button>
-              </a>
+            <ButtonLink href="/contact-tgs" variant="primary">
+              Get Demo
+            </ButtonLink>
           </div>
         </div>
 

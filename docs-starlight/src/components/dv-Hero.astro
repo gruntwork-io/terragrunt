@@ -8,6 +8,7 @@ import MobileHeroBackground from '@assets/hero-bkgnd.svg';
 import OpentofuIcon from '@assets/opentofu-logo.svg';
 import Terminal from '@components/dv-Terminal.astro';
 import TerraformIcon from '@assets/terraform-logo.svg';
+import ButtonLink from '@components/ui/ButtonLink.tsx';
 ---
 
 <section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden pt-[var(--sl-nav-height)] ">
@@ -74,16 +75,12 @@ import TerraformIcon from '@assets/terraform-logo.svg';
         </div>
 
         <div class="flex gap-5 justify-center items-center w-full pb-28 md:pb-52">
-            <a href="/docs/getting-started/quick-start">
-                <button class="primary-button">
-                  Quick Start
-                </button>
-            </a>
-            <a href="https://terragrunt.gruntwork.io/terragrunt-scale/" rel="noopener noreferrer">
-                <button class="secondary-button">
-                  Commercial Offerings
-                </button>
-            </a>
+          <ButtonLink href="/docs/getting-started/quick-start" variant="primary">
+            Quick Start
+          </ButtonLink>
+          <ButtonLink href="/terragrunt-scale/" variant="secondary">
+            Commercial Offerings
+          </ButtonLink>
         </div>
     </div>
 
