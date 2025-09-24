@@ -26,6 +26,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
@@ -144,6 +145,8 @@ type Queue struct {
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
 	IgnoreDependencyOrder bool
+	// mu protects concurrent access to entry status fields
+	mu sync.RWMutex
 }
 
 type Entries []*Entry
@@ -278,6 +281,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	if q.IgnoreDependencyOrder {
 		out := make([]*Entry, 0, len(q.Entries))
 
@@ -345,11 +351,21 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 	return out
 }
 
+// SetEntryStatus safely sets the status of an entry with proper synchronization.
+func (q *Queue) SetEntryStatus(e *Entry, status Status) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	e.Status = status
+}
+
 // FailEntry marks the entry as failed and updates related entries if needed.
 // For up commands, this marks entries that come after this one as early exit.
 // For destroy/down commands, this marks entries that come before this one as early exit.
 // Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	e.Status = StatusFailed
 
 	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
