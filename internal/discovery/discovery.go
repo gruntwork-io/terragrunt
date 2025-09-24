@@ -109,12 +109,6 @@ type Discovery struct {
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo []string
-
-	// hiddenDirMemoMu protects hiddenDirMemo from concurrent access
-	hiddenDirMemoMu sync.RWMutex
-
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
 
@@ -132,6 +126,9 @@ type Discovery struct {
 
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
+
+	// hiddenDirMemo is a memoization of hidden directories.
+	hiddenDirMemo hiddenDirMemo
 
 	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
 	strictInclude bool
@@ -489,7 +486,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
 func (d *Discovery) isInHiddenDirectory(path string) bool {
-	ok := d.isInHiddenDirMemo(path)
+	ok := d.hiddenDirMemo.contains(path)
 	if ok {
 		return true
 	}
@@ -510,30 +507,7 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 		}
 
 		if strings.HasPrefix(part, ".") && part != "." && part != ".." {
-			d.appendToHiddenDirMemo(hiddenPath)
-
-			return true
-		}
-	}
-
-	return false
-}
-
-func (d *Discovery) appendToHiddenDirMemo(path string) {
-	d.hiddenDirMemoMu.Lock()
-	defer d.hiddenDirMemoMu.Unlock()
-
-	if len(d.hiddenDirMemo) < maxHiddenDirMemoSize {
-		d.hiddenDirMemo = append(d.hiddenDirMemo, path)
-	}
-}
-
-func (d *Discovery) isInHiddenDirMemo(path string) bool {
-	d.hiddenDirMemoMu.RLock()
-	defer d.hiddenDirMemoMu.RUnlock()
-
-	for _, hiddenDir := range d.hiddenDirMemo {
-		if strings.HasPrefix(path, hiddenDir) {
+			d.hiddenDirMemo.append(hiddenPath)
 
 			return true
 		}
@@ -1299,4 +1273,34 @@ func (c DiscoveredConfigs) RemoveCycles() (DiscoveredConfigs, error) {
 	}
 
 	return c, err
+}
+
+// hiddenDirMemo provides thread-safe memoization of hidden directories.
+type hiddenDirMemo struct {
+	entries []string
+	mu      sync.RWMutex
+}
+
+// append adds a path to the memo if there's space available.
+func (h *hiddenDirMemo) append(path string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if len(h.entries) < maxHiddenDirMemoSize {
+		h.entries = append(h.entries, path)
+	}
+}
+
+// contains checks if any of the memoized hidden directories is a prefix of the given path.
+func (h *hiddenDirMemo) contains(path string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, hiddenDir := range h.entries {
+		if strings.HasPrefix(path, hiddenDir) {
+			return true
+		}
+	}
+
+	return false
 }
