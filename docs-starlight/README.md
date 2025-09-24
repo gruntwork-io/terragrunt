@@ -24,6 +24,36 @@ You can now start the development server:
 bun dev
 ```
 
+## Adding shadcn/ui Components
+
+This project includes a limited number of shadcn/ui components. To add new shadcn/ui components:
+
+1. **Install a component**:
+   ```bash
+   npx shadcn@latest add [component-name]
+   ```
+   
+   Example:
+   ```bash
+   npx shadcn@latest add card
+   npx shadcn@latest add input
+   npx shadcn@latest add dialog
+   ```
+
+2. **Components will be installed to** `src/components/ui/`
+
+3. **Configuration**: The `components.json` file contains the shadcn/ui CLI configuration
+
+### Usage Example
+
+```tsx
+import Button from '@components/ui/Button.tsx';
+
+<Button variant="outline" className="bg-transparent border-white text-white hover:bg-white hover:text-black">
+  Learn More
+</Button>
+```
+
 ## WIP
 
 This is still a work in progress. Here are some of the tasks that need to be completed. For the list of tasks, see [TODO.md](TODO.md).
