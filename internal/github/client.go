@@ -179,7 +179,10 @@ func NewGitHubReleasesDownloadClient(opts ...GitHubReleasesDownloadClientOption)
 // DownloadReleaseAssets downloads the specified release assets from a GitHub repository.
 // It supports downloading from either full URLs (when repository contains "://") or
 // from GitHub releases using the standard GitHub releases URL format.
-func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(ctx context.Context, assets *ReleaseAssets) (*DownloadResult, error) {
+func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
+	ctx context.Context,
+	assets *ReleaseAssets,
+) (*DownloadResult, error) {
 	if assets.Repository == "" {
 		return nil, errors.Errorf("repository cannot be empty")
 	}

@@ -94,9 +94,9 @@ func Run(
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, err := createEngine(ctx, l, runOptions.TerragruntOptions)
-		if err != nil {
-			return nil, errors.New(err)
+		terragruntEngine, client, createEngineErr := createEngine(ctx, l, runOptions.TerragruntOptions)
+		if createEngineErr != nil {
+			return nil, errors.New(createEngineErr)
 		}
 
 		engineClients.Store(workingDir, &engineInstance{
@@ -107,7 +107,7 @@ func Run(
 
 		instance, _ = engineClients.Load(workingDir)
 
-		if err := initialize(ctx, l, runOptions, terragruntEngine); err != nil {
+		if err = initialize(ctx, l, runOptions, terragruntEngine); err != nil {
 			return nil, errors.New(err)
 		}
 	}
@@ -281,14 +281,15 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 	}
 
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
+		if err = os.RemoveAll(tempDir); err != nil {
 			l.Warnf("Failed to clean temp dir %s: %v", tempDir, err)
 		}
 	}()
 	// extract archive
-	if err := extract(l, downloadFile, tempDir); err != nil {
+	if err = extract(l, downloadFile, tempDir); err != nil {
 		return errors.New(err)
 	}
+
 	// process files
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
@@ -471,7 +472,7 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 	skipCheck := terragruntOptions.EngineSkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
-		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
 			return nil, nil, errors.New(err)
 		}
 	} else {
@@ -567,27 +568,27 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 	)
 
 	for {
-		runResp, err := response.Recv()
-		if err != nil || runResp == nil {
+		runResp, recvErr := response.Recv()
+		if recvErr != nil || runResp == nil {
 			break
 		}
 
-		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
+		if err = processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
 			return nil, errors.New(err)
 		}
 
-		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
+		if err = processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
 			return nil, errors.New(err)
 		}
 
 		resultCode = int(runResp.GetResultCode())
 	}
 
-	if err := flushBuffer(&stdoutLineBuf, stdout); err != nil {
+	if err = flushBuffer(&stdoutLineBuf, stdout); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := flushBuffer(&stderrLineBuf, stderr); err != nil {
+	if err = flushBuffer(&stderrLineBuf, stderr); err != nil {
 		return nil, errors.New(err)
 	}
 
@@ -815,7 +816,7 @@ func extract(l log.Logger, zipFile, destDir string) error {
 	}()
 
 	const dirPerm = 0755
-	if err := os.MkdirAll(destDir, dirPerm); err != nil {
+	if err = os.MkdirAll(destDir, dirPerm); err != nil {
 		return errors.New(err)
 	}
 
