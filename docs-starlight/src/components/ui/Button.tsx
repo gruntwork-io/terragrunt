@@ -7,9 +7,10 @@ import { ExternalLink } from "lucide-react";
 export interface ButtonProps {
   // TODO: Style secondary, ghost, outline, and link bvariants
   variant?: "primary" | "secondary" | "ghost" | "outline" | "destructive" | "link";
-  size?: "default" | "sm" | "lg" | "icon";
+  size?: "default" | "sm" | "lg" | "full" | "icon";
   className?: string;
   children: React.ReactNode;
+  id?: string;
   onClick?: () => void;
   type?: "button" | "submit" | "reset";
   isExternalLink?: boolean;
@@ -32,6 +33,7 @@ export default function Button({
   return (
     <button
       type={type}
+      id={props.id}
       className={cn(
         // Base styles
         "cursor-pointer py-2.5 px-5 m-0 font-medium",
@@ -64,6 +66,7 @@ export default function Button({
           "block w-fit": size === "default",
           "block h-9 pt-2 pb-2 pl-3 pr-3 w-auto": size === "sm",
           "block h-11 pt-2 pb-2 pl-8 pr-8 w-auto": size === "lg",
+          "block h-11 pt-2 pb-2 pl-8 pr-8 w-full": size === "full",
           "flex w-auto p-3": size === "icon",
         },
         className
@@ -73,8 +76,8 @@ export default function Button({
     >
       {children}
       {isExternalLink && !isSizeIcon(size) && (
-        <ExternalLink 
-          className="inline-block ml-1 transform translate-y-0.25 -translate-x-0.75 w-3.5 h-3.5" 
+        <ExternalLink
+          className="inline-block ml-1 transform translate-y-0.25 -translate-x-0.75 w-3.5 h-3.5"
           aria-label="External link icon"
         />
       )}

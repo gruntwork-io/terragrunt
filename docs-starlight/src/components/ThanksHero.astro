@@ -10,10 +10,10 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
   <div class="max-w-[1440px] mx-auto flex flex-row gap-x-15 pt-20 lg:pt-40 pb-10 lg:pb-15">
 
     <!-- How it works -->
-    <div class="flex flex-col gap-8">
+    <div class="flex flex-col gap-6">
       <Eyebrow text="Thank You" />
       <h1 class="text-[64px] text-primary m-0">Purchase <span class="text-accent">Complete!</span></h1>
-      <p class="text-gray-1">You've purchased Terragrunt Scale Team. Your account will be credited for the days between now and your onboarding session.</p>
+      <p class="text-gray-1">You've purchased Terragrunt Scale Team.</p>
 
       <h2 class="text-[42px] text-primary m-0">What's Next?</h2>
 
@@ -21,30 +21,32 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
       <div class="grid grid-cols-1 grid-rows-3 lg:grid-cols-3 lg:grid-rows-1 bg-white gap-0 border border-dashed border-gray-3">
 
         <div class="p-6 border-r border-dashed border-gray-3">
-          <h3 class="text-xl font-medium text-accent my-2">1.</h3>
-          <h3 class="text-xl font-medium text-primary my-2">Book onboarding <span class="italic">now</span></h3>
+          <h3 class="text-xl font-mono font-medium text-accent my-2">01.</h3>
+          <h3 class="text-xl font-medium text-primary my-2">Book onboarding</h3>
           <p class="text-sm mt-4 text-gray-1">Use the calendar to the right to schedule a time to meet with a Gruntwork Solutions Architect.</p>
         </div>
 
         <div class="p-6 border-r border-dashed border-gray-3">
-          <h3 class="text-xl font-medium text-accent my-2">2.</h3>
+          <h3 class="text-xl font-mono font-medium text-accent my-2">02.</h3>
           <h3 class="text-xl font-medium text-primary my-2">Check your email</h3>
           <p class="text-sm mt-4 text-gray-1">We'll send you an email with instructions to ensure you have everything you need before your onboarding session.</p>
         </div>
 
         <div class="p-6">
-          <h3 class="text-xl font-medium text-accent my-2">3.</h3>
+          <h3 class="text-xl font-mono font-medium text-accent my-2">03.</h3>
           <h3 class="text-xl font-medium text-primary my-2">Install & configure</h3>
           <p class="text-sm mt-4 text-gray-1">Meet with your Gruntwork Solutions Architect to access and configure Terragrunt Scale.</p>
         </div>
       </div>
     </div>
 
-    <div class="w-[426px] h-full shrink-0">
-      <!-- Start of Meetings Embed Script -->
-        <div class="meetings-iframe-container" data-src="https://support.gruntwork.io/meetings/gruntworkbrian/onboarding-tg-scale?embed=true"></div>
+    <div class="w-[408px] shrink-0">
+      <!-- Onboarding Calendar -->
+        <div
+          class="meetings-iframe-container rounded-lg"
+          data-src="https://support.gruntwork.io/meetings/gruntworkbrian/onboarding-tg-scale?embed=true"
+        ></div>
         <script type="text/javascript" src="https://static.hsappstatic.net/MeetingsEmbed/ex/MeetingsEmbedCode.js"></script>
-      <!-- End of Meetings Embed Script -->
     </div>
 
   </div>

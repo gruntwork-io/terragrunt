@@ -1,4 +1,5 @@
 ---
+import Button from '@components/ui/Button';
 import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.astro';
 import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
 ---
@@ -15,6 +16,9 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
     <div class="flex flex-col gap-1">
       <p class="text-white font-sans text-xl font-medium m-0">Team</p>
       <p class="text-gray-1 font-sans text-sm m-0">For most platform teams</p>
+      <div class="absolute right-[-80px] top-[50]">
+      <TerragruntAccent />
+    </div>
     </div>
 
     <ul class="list-none pl-0 flex flex-col gap-2">
@@ -34,20 +38,16 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
         Standard Support
       </li>
     </ul>
-
-    <div class="absolute right-[-80px] bottom-[0]">
-      <TerragruntAccent />
-    </div>
   </div>
 
-  <div class="flex flex-col gap-8 my-8">
+  <div class="flex flex-col gap-4 my-4">
     <fieldset class="m-0 p-0 flex w-full gap-6">
       <label
         for="monthly"
         class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-button-bg"
       >
-        <div class="w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
-          <input type="radio" name="plan" id="monthly" value="monthly" class="peer mr-1.5 accent-accent" checked />
+        <div class="flex items-center w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
+          <input type="radio" name="plan" id="monthly" value="monthly" class="custom-radio peer mr-1.5 accent-accent" checked />
           Monthly
         </div>
       </label>
@@ -56,9 +56,9 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
         for="annual"
         class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-button-bg"
       >
-        <div class="flex w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
-          <input type="radio" name="plan" id="annual" value="annual" class="peer mr-1.5 accent-accent" />
-          <div class="w-full flex items-center justify-between">
+        <div class="flex items-center w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
+          <input type="radio" name="plan" id="annual" value="annual" class="custom-radio peer" />
+          <div class="flex grow items-center justify-between">
             Annual <span class="bg-accent/[7%] p-0.5 text-xs font-mono text-accent">17% Off</span>
           </div>
 
@@ -67,13 +67,18 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
     </fieldset>
 
     <a
-      class="primary-button w-full items-center h-[39px] text-center leading-[1.25] inline-flex justify-center"
+      class="no-underline"
       href="https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001"
       id="checkout"
       rel="noopener noreferrer"
       target="_blank"
     >
-      Continue to Payment
+      <Button
+        size='full'
+        variant="primary"
+      >
+        Continue to Payment
+      </Button>
     </a>
   </div>
 
@@ -117,5 +122,33 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
   label div:has(input:checked) {
     border-color: var(--color-radio-stroke-active);
     background-color: var(--color-button-bg);
+  }
+  .custom-radio {
+    appearance: none;
+    background-color: transparent;
+    border: 1px solid #4F2FD0;
+    border-radius: 50%;
+    cursor: pointer;
+    height: 16px;
+    margin: 0 6px 0 0;
+    position: relative;
+    width: 16px;
+  }
+
+  .custom-radio:checked {
+    background-color: rgba(79, 47, 208, 0.07);
+    border-color: #4F2FD0;
+  }
+
+  .custom-radio:checked::after {
+    background-color: #4F2FD0; /* White center dot */
+    border-radius: 50%;
+    content: '';
+    height: 10px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
   }
 </style>
