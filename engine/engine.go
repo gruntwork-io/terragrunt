@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/github"
 
 	"github.com/hashicorp/go-getter"
 
@@ -243,66 +243,28 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 }
 
 func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
-	url := fmt.Sprintf(
-		"https://api.github.com/repos/%s/releases/latest",
-		strings.TrimPrefix(
-			opts.Engine.Source,
-			defaultEngineRepoRoot,
-		),
-	)
+	repository := strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	if val, found := versionCache.Get(ctx, url); found {
+	cacheKey := "github_release_" + repository
+	if val, found := versionCache.Get(ctx, cacheKey); found {
 		return val, nil
 	}
 
-	type release struct {
-		Tag string `json:"tag_name"`
-	}
-	// query tag from https://api.github.com/repos/{owner}/{repo}/releases/latest
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	githubClient := github.NewGitHubAPIClient()
+
+	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {
-		return "", errors.New(err)
+		return "", errors.Errorf("failed to get latest release for repository %s: %w", repository, err)
 	}
 
-	client := &http.Client{}
+	versionCache.Put(ctx, cacheKey, tag)
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode >= 400 {
-		return "", errors.Errorf(
-			"GitHub API request to determine latest release failed with status %d: %s",
-			resp.StatusCode,
-			resp.Status,
-		)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	var r release
-	if err := json.Unmarshal(body, &r); err != nil {
-		return "", errors.New(err)
-	}
-
-	if r.Tag == "" {
-		return "", errors.Errorf("GitHub API returned empty tag name for latest release")
-	}
-
-	versionCache.Put(ctx, url, r.Tag)
-
-	return r.Tag, nil
+	return tag, nil
 }
 
 func extractArchive(l log.Logger, downloadFile string, engineFile string) error {
