@@ -2,20 +2,17 @@
 import '@styles/global.css';
 import { Image } from 'astro:assets';
 
-import ColFeature from '@components/ColFeature.astro';
-import Grunty2 from '@assets/grunty/grunty-2.svg';
 import BackgroundPattern from '@assets/boxes-bg.svg';
+import ColFeature from '@components/ColFeature.astro';
+import GithubIcon from '@assets/icons/github-icon.svg';
+import GitlabIcon from '@assets/icons/gitlab-icon.svg';
+import Grunty2 from '@assets/grunty/grunty-2.svg';
 import IconDriftDetection from '@assets/icons/drift-detection.svg';
 import IconLabel from '@components/dv-IconButton.astro';
 import IconPatcher from '@assets/icons/terragrunt-patcher.svg';
 import IconPipelines from '@assets/icons/terragrunt-pipelines.svg';
-import MobileHeroBackground from '@assets/hero-bkgnd.svg';
-import Terminal from '@components/dv-Terminal.astro';
-import ThreeColFeatures from './ThreeColFeatures.astro';
-
-import GithubIcon from '@assets/icons/github-icon.svg';
-import GitlabIcon from '@assets/icons/gitlab-icon.svg';
 import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
+import ThreeColFeatures from '@components/ThreeColFeatures.astro';
 ---
 
 <section class="relative md:pt-22 bg-[var(--color-bg-dark)] gap-10 overflow-hidden">
@@ -33,12 +30,12 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
 
         <div class="max-w-[989px] flex flex-col gap-6">
           <div class="flex flex-col justify-start gap-5 w-full">
-              <h1 class="text-4xl md:text-6xl text-white leading-12 m-0">
-                Terragrunt Scale
-              </h1>
-              <p class="max-w-[650px] text-lg text-[var(--color-gray-1)]">
-                  Get best-in-class tooling by the creators of Terragrunt to unlock its full potential, helping you efficiently deploy, and maintain your infrastructure without the grunt work.
-              </p>
+            <h1 class="text-4xl md:text-6xl text-white leading-12 m-0">
+              Terragrunt Scale
+            </h1>
+            <p class="max-w-[650px] text-lg text-[var(--color-gray-1)]">
+              Standardize infra operations without leaving your pipeline: plan on PR, apply on merge, dependency-aware across workspaces, with automated drift detection and version-bump PRs to keep resources current.
+            </p>
           </div>
 
           <div class="flex flex-col sm:flex-row sm:items-center w-full gap-4">
@@ -71,8 +68,8 @@ import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
               </div>
           </div>
           <div class="flex gap-5 w-full pb-28 md:pb-20 z-10">
-              <a href="#view-plans">
-                  <button class="primary-button">View Plans</button>
+              <a href="/contact-tgs">
+                  <button class="primary-button">Get Demo</button>
               </a>
           </div>
         </div>

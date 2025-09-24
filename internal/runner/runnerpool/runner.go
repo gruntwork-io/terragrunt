@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -41,11 +42,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, common.ErrNoUnitsFound
 	}
 
-	q, queueErr := queue.NewQueue(discovered)
-	if queueErr != nil {
-		return nil, queueErr
-	}
-
+	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
 	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
 		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
@@ -53,9 +50,9 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	runner := &Runner{
 		Stack: &stack,
-		queue: q,
 	}
 
+	// Collect all terragrunt.hcl paths for resolution.
 	unitPaths := make([]string, 0, len(discovered))
 
 	for _, cfg := range discovered {
@@ -65,11 +62,22 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue
 		}
 
-		terragruntConfigPath := config.GetDefaultConfigPath(cfg.Path)
+		// Determine per-unit config filename
+		var fname string
+		if cfg.Type == discovery.ConfigTypeStack {
+			fname = config.DefaultStackFile
+		} else {
+			fname = config.DefaultTerragruntConfigPath
+			if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
+				fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
+			}
+		}
+
+		terragruntConfigPath := filepath.Join(cfg.Path, fname)
 		unitPaths = append(unitPaths, terragruntConfigPath)
 	}
 
-	// Create units from discovered configurations using the full resolution pipeline
+	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
 		return nil, err
@@ -81,6 +89,17 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	}
 
 	runner.Stack.Units = unitsMap
+
+	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
+	// This ensures excluded units are not shown in lists or scheduled at all.
+	filtered := filterDiscoveredUnits(discovered, unitsMap)
+
+	q, queueErr := queue.NewQueue(filtered)
+	if queueErr != nil {
+		return nil, queueErr
+	}
+
+	runner.queue = q
 
 	return runner.WithOptions(opts...), nil
 }
@@ -119,6 +138,27 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	if planDefer {
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
+	}
+
+	// Emit report entries for excluded units (if experiment enabled). Queue already excludes them.
+	if r.queue != nil && opts.Experiments.Evaluate(experiment.Report) && r.Stack.Report != nil {
+		for _, u := range r.Stack.Units {
+			if u.FlagExcluded {
+				run, err := r.Stack.Report.EnsureRun(u.Path)
+				if err != nil {
+					l.Errorf("Error ensuring run for unit %s: %v", u.Path, err)
+					continue
+				}
+
+				if err := r.Stack.Report.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeBlock),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", u.Path, err)
+				}
+			}
+		}
 	}
 
 	task := func(ctx context.Context, u *common.Unit) error {
@@ -280,10 +320,61 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 	}
 }
 
+// filterDiscoveredUnits removes configs for units flagged as excluded and prunes dependencies
+// that point to excluded units. This keeps the execution queue and any user-facing listings
+// free from units not intended to run.
+//
+// Inputs:
+//   - discovered: raw discovery results (paths and dependency edges)
+//   - units: resolved units (slice), where exclude rules have already been applied
+//
+// Behavior:
+//   - A config is included only if there's a corresponding unit and its FlagExcluded is false.
+//   - For each included config, its Dependencies list is filtered to only include included configs.
+//   - The function returns a new slice with shallow-copied entries so the original discovery
+//     results remain unchanged.
+func filterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.Units) discovery.DiscoveredConfigs {
+	// Build allowlist from non-excluded unit paths
+	allowed := make(map[string]struct{}, len(units))
+	for _, u := range units {
+		if !u.FlagExcluded {
+			allowed[u.Path] = struct{}{}
+		}
+	}
+
+	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
+
+	for _, cfg := range discovered {
+		if _, ok := allowed[cfg.Path]; !ok {
+			// Drop configs that map to excluded/missing units
+			continue
+		}
+
+		// Shallow copy unit struct to avoid field drift as values update
+		copyVal := *cfg
+		copyCfg := &copyVal
+
+		if cfg.Dependencies != nil {
+			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
+			for _, dep := range cfg.Dependencies {
+				if _, ok := allowed[dep.Path]; ok {
+					deps = append(deps, dep)
+				}
+			}
+
+			copyCfg.Dependencies = deps
+		}
+
+		filtered = append(filtered, copyCfg)
+	}
+
+	return filtered
+}
+
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		opt(r)
+		opt.Apply(r)
 	}
 
 	return r

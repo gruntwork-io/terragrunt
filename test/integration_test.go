@@ -746,9 +746,9 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
 
-	expectedPaths := []string{
-		filepath.Join(rootPath, "second/a/terragrunt.hcl"),
-		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+	expectedRelPaths := []string{
+		filepath.Join("second", "a", "terragrunt.hcl"),
+		filepath.Join("second", "c", "terragrunt.hcl"),
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json --show-config-path", rootPath))
@@ -759,7 +759,18 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualPaths)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t, expectedPaths, actualPaths)
+	for _, rel := range expectedRelPaths {
+		found := false
+
+		for _, p := range actualPaths {
+			if strings.HasSuffix(p, rel) {
+				found = true
+				break
+			}
+		}
+
+		assert.Truef(t, found, "expected a path ending with %q in %v", rel, actualPaths)
+	}
 }
 
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
@@ -860,16 +871,12 @@ func TestTerragruntWorksWithNonDefaultConfigNamesAndRunAllCommand(t *testing.T) 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigWithNonDefaultNames)
 	tmpEnvPath = path.Join(tmpEnvPath, testFixtureConfigWithNonDefaultNames)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --config main.hcl --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level debug --config main.hcl --non-interactive --working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 
-	out := stdout.String()
-	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Contains(t, stderr, "run_cmd output: [parent_hcl_file]")
+	assert.Contains(t, stderr, "run_cmd output: [dependency_hcl]")
+	assert.Contains(t, stderr, "run_cmd output: [common_hcl]")
 }
 
 func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {

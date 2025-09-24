@@ -501,3 +501,99 @@ func findStackFiles(t *testing.T, dir string) []string {
 
 	return stackFiles
 }
+
+func TestWriteValuesSkipsWhenNilOrNull(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create two units: one without values, one with explicit null values
+	stackConfig := `
+unit "u1" {
+  source = "./unit1"
+  path   = "u1"
+}
+
+unit "u2" {
+  source = "./unit2"
+  path   = "u2"
+  values = null
+}
+`
+
+	stackFilePath := filepath.Join(tmpDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(stackConfig), 0644))
+
+	// Unit 1
+	unit1Dir := filepath.Join(tmpDir, "unit1")
+	require.NoError(t, os.MkdirAll(unit1Dir, 0755))
+
+	unit1Config := `
+terraform {
+  source = "."
+}
+`
+	unit1ConfigPath := filepath.Join(unit1Dir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(unit1ConfigPath, []byte(unit1Config), 0644))
+
+	unit1MainTf := ""
+	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "main.tf"), []byte(unit1MainTf), 0644))
+
+	// Unit 2
+	unit2Dir := filepath.Join(tmpDir, "unit2")
+	require.NoError(t, os.MkdirAll(unit2Dir, 0755))
+
+	unit2Config := unit1Config
+	unit2ConfigPath := filepath.Join(unit2Dir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(unit2ConfigPath, []byte(unit2Config), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "main.tf"), []byte(unit1MainTf), 0644))
+
+	// Generate the stack
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+	require.NoError(t, err)
+
+	// Ensure values files are not created for both units
+	valuesU1 := filepath.Join(tmpDir, ".terragrunt-stack", "u1", "terragrunt.values.hcl")
+	valuesU2 := filepath.Join(tmpDir, ".terragrunt-stack", "u2", "terragrunt.values.hcl")
+
+	assert.NoFileExists(t, valuesU1)
+	assert.NoFileExists(t, valuesU2)
+}
+
+func TestWriteValuesRejectsNonObjectValues(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	stackConfig := `
+unit "bad" {
+  source = "./unit"
+  path   = "bad"
+  values = 666
+}
+`
+
+	stackFilePath := filepath.Join(tmpDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(stackConfig), 0644))
+
+	unitDir := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+	unitConfig := `
+terraform {
+  source = "."
+}
+`
+	unitConfigPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(unitConfigPath, []byte(unitConfig), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(""), 0644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+	if err == nil {
+		// If no error, that's a failure for this test
+		t.Fatalf("expected error when values is non-object, got none. stdout=%s stderr=%s", stdout, stderr)
+	}
+
+	combined := stdout + "\n" + stderr + "\n" + err.Error()
+	assert.Contains(t, combined, "expected object or map")
+}

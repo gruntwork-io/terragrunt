@@ -101,9 +101,13 @@ func CreateAwsConfig(
 		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
 	}
 
-	region := getRegionFromEnv(opts)
-	if region == "" && awsCfg != nil && awsCfg.Region != "" {
+	// Prioritize configured region over environment variables
+	// This fixes the issue where AWS_REGION/AWS_DEFAULT_REGION env vars override the backend config region
+	var region string
+	if awsCfg != nil && awsCfg.Region != "" {
 		region = awsCfg.Region
+	} else {
+		region = getRegionFromEnv(opts)
 	}
 
 	if region == "" {

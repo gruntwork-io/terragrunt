@@ -5,10 +5,10 @@ import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
 import partytown from "@astrojs/partytown";
+import tailwindcss from "@tailwindcss/vite";
 
 import starlightLinksValidator from "starlight-links-validator";
 import d2 from "astro-d2";
-import tailwindcss from "@tailwindcss/vite";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -167,39 +167,10 @@ export default defineConfig({
             content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
           },
         },
-        {
-          tag: "script",
-          attrs: {
-            src: "https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL",
-            type: "text/partytown",
-          },
-        },
-        {
-          tag: "script",
-          attrs: {
-            type: "text/partytown",
-          },
-          content: `
-          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-          })(window,document,'script','dataLayer','GTM-5TTJJGTL');
-        `,
-        },
-        {
-          tag: "script",
-          attrs: {
-            type: "text/javascript",
-            id: "hs-script-loader",
-            async: true,
-            defer: true,
-            src: "//js.hs-scripts.com/8376079.js",
-          },
-        },
       ],
       components: {
         Header: "./src/components/Header.astro",
+        PageSidebar: "./src/components/PageSidebar.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
         SkipLink: "./src/components/SkipLink.astro",
       },
@@ -209,9 +180,9 @@ export default defineConfig({
       },
       social: [
         {
+          href: "https://discord.gg/SPu4Degs5f",
           icon: "discord",
           label: "Discord",
-          href: "https://discord.gg/SPu4Degs5f",
         },
       ],
       sidebar: sidebar,
@@ -222,8 +193,8 @@ export default defineConfig({
             "http://localhost:16686/",
             "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're
-            // referencing content that is generated outside the contents of the markdown file.
+            // Unfortunately, these have to be ignored, as they're referencing content
+            // that is generated outside the contents of the markdown file.
             "/docs/reference/cli/commands/run#*",
             "/docs/reference/cli/commands/run/#*",
             "/docs/reference/cli/commands/list#*",
@@ -240,7 +211,14 @@ export default defineConfig({
     }),
     partytown({
       config: {
-        forward: ["dataLayer.push"],
+        debug: false,
+        logCalls: false,
+        logGetters: false,
+        logSetters: false,
+        logImageRequests: false,
+        logScriptExecution: false,
+        logStackTraces: false,
+        forward: ['dataLayer.push'],
       },
     }),
     sitemap(),
@@ -248,8 +226,7 @@ export default defineConfig({
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
-    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/":
-      "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
+    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/": "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
 
     // Redirects to external sites.
     "/contact/": "https://gruntwork.io/contact",
@@ -260,8 +237,7 @@ export default defineConfig({
     "/docs/reference/configuration/": "/docs/reference/hcl/",
     "/docs/reference/cli-options/": "/docs/reference/cli/",
     "/docs/reference/built-in-functions/": "/docs/reference/hcl/functions/",
-    "/docs/reference/config-blocks-and-attributes/":
-      "/docs/reference/hcl/blocks/",
+    "/docs/reference/config-blocks-and-attributes/": "/docs/reference/hcl/blocks/",
     "/docs/reference/strict-mode/": "/docs/reference/strict-controls/",
     "/docs/reference/log-formatting/": "/docs/reference/logging/formatting/",
     "/docs/features/aws-authentication/": "/docs/features/authentication/",
@@ -283,24 +259,18 @@ export default defineConfig({
     "/docs/features/inputs/": "/docs/features/units/",
     "/docs/features/locals/": "/docs/features/units/",
     "/docs/features/keep-your-terraform-code-dry/": "/docs/features/units/",
-    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/":
-      "/docs/features/stacks/",
-    "/docs/features/keep-your-terragrunt-architecture-dry/":
-      "/docs/features/includes/",
-    "/docs/features/keep-your-remote-state-configuration-dry/":
-      "/docs/features/state-backend/",
-    "/docs/features/keep-your-cli-flags-dry/":
-      "/docs/features/extra-arguments/",
+    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/": "/docs/features/stacks/",
+    "/docs/features/keep-your-terragrunt-architecture-dry/": "/docs/features/includes/",
+    "/docs/features/keep-your-remote-state-configuration-dry/": "/docs/features/state-backend/",
+    "/docs/features/keep-your-cli-flags-dry/": "/docs/features/extra-arguments/",
     "/docs/features/aws-auth/": "/docs/features/aws-authentication/",
-    "/docs/features/work-with-multiple-aws-accounts/":
-      "/docs/features/aws-authentication/",
+    "/docs/features/work-with-multiple-aws-accounts/": "/docs/features/aws-authentication/",
     "/docs/features/auto-retry/": "/docs/features/runtime-control/",
     "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
 
     // Additional redirects for 404ing URLs
-    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/":
-      "/docs/features/stacks/",
+    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/": "/docs/features/stacks/",
     "/docs/getting-started/configuration/": "/docs/reference/hcl/",
     "/docs/features/before-and-after-hooks/": "/docs/features/hooks/",
     "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL

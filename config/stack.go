@@ -931,6 +931,22 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		l.Debugf("No values to write in %s", directory)
 		return nil
 	}
+	// Avoid panics if the provided values are in unsupported format
+	if values.IsNull() {
+		l.Debugf("Skipping writing values in %s: values is null", directory)
+		return nil
+	}
+
+	if !values.IsWhollyKnown() {
+		l.Debugf("Skipping writing values in %s: values are not fully known", directory)
+		return nil
+	}
+
+	valType := values.Type()
+
+	if !valType.IsObjectType() && !valType.IsMapType() {
+		return errors.Errorf("writeValues: expected object or map, got %s", valType.FriendlyName())
+	}
 
 	if directory == "" {
 		return errors.New("writeValues: unit directory path cannot be empty")
