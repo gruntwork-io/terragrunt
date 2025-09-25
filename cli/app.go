@@ -161,6 +161,22 @@ func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 			return cli.NewExitError(err, 0)
 		}
 
+		// If args are present but the first non-flag token is not a known
+		// top-level command, fail fast with guidance to use `run --`.
+		// This removes the legacy behavior of implicitly forwarding unknown
+		// commands to OpenTofu/Terraform.
+		cmdName := ctx.Args().CommandName()
+		if cmdName != "" {
+			if ctx.Command == nil || ctx.Command.Subcommand(cmdName) == nil {
+				// Show a clear error pointing users to the explicit run form.
+				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
+				return cli.NewExitError(
+					errors.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://terragrunt.gruntwork.io/docs/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					cli.ExitCodeGeneralError,
+				)
+			}
+		}
+
 		return nil
 	}
 }
