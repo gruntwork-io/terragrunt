@@ -7,7 +7,9 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
 ---
 
 <section class="relative bg-[#FAFAFA] border-b border-solid border-gray-3 pt-[var(--sl-nav-height)] px-4 lg:px-19 overflow-x-hidden">
-  <div class="max-w-[1440px] mx-auto flex flex-col lg:flex-row gap-x-15 pt-20 lg:pt-40 pb-10 lg:pb-15">
+  <div class="max-w-[1440px] mx-auto pt-20 lg:pt-40 pb-10 lg:pb-15">
+    <div class="lg:grid lg:grid-cols-[1fr_426px] lg:gap-15">
+
 
     <!-- How it works -->
     <div class="flex flex-col gap-8 flex-1">
@@ -69,8 +71,10 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
       </div>
     </div>
 
-    <div class="w-full lg:w-[426px] lg:sticky lg:top-40 shrink-0 mt-8 lg:mt-0">
-      <CheckoutForm />
+    <div class="mt-8 lg:mt-0">
+      <div class="relative mx-auto max-w-[700px] lg:fixed lg:top-40 lg:w-[426px]">
+        <CheckoutForm />
+      </div>
     </div>
 
   </div>
