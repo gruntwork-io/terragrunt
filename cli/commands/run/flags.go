@@ -89,10 +89,15 @@ const (
 	JSONOutDirFlagName = "json-out-dir"
 
 	// `--graph` related flags.
-
 	GraphRootFlagName = "graph-root"
 
 	FailFastFlagName = "fail-fast"
+
+	// Backend and feature flags (shared with backend commands)
+	BackendBootstrapFlagName        = "backend-bootstrap"
+	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
+	DisableBucketUpdateFlagName     = "disable-bucket-update"
+	FeatureFlagName                 = "feature"
 )
 
 // NewFlags creates and returns global flags.
@@ -591,6 +596,10 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 	}
 
+	// Add shared backend and feature flags
+	flags = flags.Add(NewBackendFlags(l, opts, prefix)...)
+	flags = flags.Add(NewFeatureFlags(l, opts, prefix)...)
+
 	return flags.Sort()
 }
 
@@ -613,4 +622,60 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 		},
 		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("tfpath"), terragruntPrefixControl),
 	)
+}
+
+// NewBackendFlags defines backend-related flags that should be available to both `run` and `backend` commands.
+func NewBackendFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
+
+	return cli.Flags{
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        BackendBootstrapFlagName,
+			EnvVars:     tgPrefix.EnvVars(BackendBootstrapFlagName),
+			Destination: &opts.BackendBootstrap,
+			Usage:       "Automatically bootstrap backend infrastructure before attempting to use it.",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        BackendRequireBootstrapFlagName,
+			EnvVars:     tgPrefix.EnvVars(BackendRequireBootstrapFlagName),
+			Destination: &opts.FailIfBucketCreationRequired,
+			Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
+		},
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fail-on-state-bucket-creation"), terragruntPrefixControl),
+		),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        DisableBucketUpdateFlagName,
+			EnvVars:     tgPrefix.EnvVars(DisableBucketUpdateFlagName),
+			Destination: &opts.DisableBucketUpdate,
+			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
+		},
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-bucket-update"), terragruntPrefixControl),
+		),
+	}
+}
+
+// NewFeatureFlags defines the feature flag map that should be available to both `run` and `backend` commands.
+func NewFeatureFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
+
+	return cli.Flags{
+		flags.NewFlag(&cli.MapFlag[string, string]{
+			Name:     FeatureFlagName,
+			EnvVars:  tgPrefix.EnvVars(FeatureFlagName),
+			Usage:    "Set feature flags for the HCL code.",
+			Splitter: util.SplitComma,
+			Action: func(_ *cli.Context, value map[string]string) error {
+				for key, val := range value {
+					opts.FeatureFlags.Store(key, val)
+				}
+				return nil
+			},
+		},
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("feature"), terragruntPrefixControl),
+		),
+	}
 }

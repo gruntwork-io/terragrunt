@@ -12,7 +12,11 @@ import (
 const CommandName = "bootstrap"
 
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	return run.NewFlags(l, opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
+	base := run.NewFlags(l, opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
+	// Also include backend-related and feature flags explicitly for backend commands
+	base = append(base, run.NewBackendFlags(l, opts, nil)...)
+	base = append(base, run.NewFeatureFlags(l, opts, nil)...)
+	return base
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {

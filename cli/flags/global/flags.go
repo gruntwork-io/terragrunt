@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -94,47 +93,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 	flags := cli.Flags{
 		NewLogLevelFlag(l, opts, prefix),
-
-		// Global backend bootstrap flag so users can pass it with any command
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        BackendBootstrapFlagName,
-			EnvVars:     tgPrefix.EnvVars(BackendBootstrapFlagName),
-			Destination: &opts.BackendBootstrap,
-			Usage:       "Automatically bootstrap backend infrastructure before attempting to use it.",
-		}),
-
-		// Global backend flags for stricter bootstrap behavior and bucket updates
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        BackendRequireBootstrapFlagName,
-			EnvVars:     tgPrefix.EnvVars(BackendRequireBootstrapFlagName),
-			Destination: &opts.FailIfBucketCreationRequired,
-			Usage:       "Fail if backend bucket must be created (require bootstrap).",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fail-on-state-bucket-creation"), terragruntPrefixControl),
-			flags.WithDeprecatedFlag(&cli.BoolFlag{Name: "fail-on-state-bucket-creation"}, nil, terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        DisableBucketUpdateFlagName,
-			EnvVars:     tgPrefix.EnvVars(DisableBucketUpdateFlagName),
-			Destination: &opts.DisableBucketUpdate,
-			Usage:       "Do not update backend bucket configuration.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-bucket-update"), terragruntPrefixControl)),
-
-		// Global feature flags (map string->string)
-		flags.NewFlag(&cli.MapFlag[string, string]{
-			Name:     FeatureFlagName,
-			EnvVars:  tgPrefix.EnvVars(FeatureFlagName),
-			Usage:    "Set feature flags for the HCL code.",
-			Splitter: util.SplitComma,
-			Action: func(_ *cli.Context, value map[string]string) error {
-				for key, val := range value {
-					opts.FeatureFlags.Store(key, val)
-				}
-
-				return nil
-			},
-		}, flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("feature"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
