@@ -61,7 +61,7 @@ func TestGcpBootstrapBackend(t *testing.T) {
 		},
 		{
 			name: "bootstrap gcs backend by backend command",
-			args: "backend --backend-bootstrap bootstrap",
+			args: "backend bootstrap --backend-bootstrap",
 			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string) {
 				t.Helper()
 
@@ -122,7 +122,7 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Run failed")
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend --backend-bootstrap delete --all --force")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend delete --backend-bootstrap --feature disable_versioning=true --all --force")
 	require.NoError(t, err)
 }
 
@@ -149,10 +149,10 @@ func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
 
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend --backend-bootstrap migrate unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend migrate --backend-bootstrap --feature disable_versioning=true unit1 unit2")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend --backend-bootstrap migrate --force unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend migrate --backend-bootstrap --feature disable_versioning=true --force unit1 unit2")
 	require.NoError(t, err)
 }
 
