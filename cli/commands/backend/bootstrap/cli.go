@@ -16,6 +16,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	// Also include backend-related and feature flags explicitly for backend commands
 	base = append(base, run.NewBackendFlags(l, opts, nil)...)
 	base = append(base, run.NewFeatureFlags(l, opts, nil)...)
+
 	return base
 }
 

@@ -38,6 +38,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	base := run.NewFlags(l, opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
 	base = append(base, run.NewBackendFlags(l, opts, nil)...)
 	base = append(base, run.NewFeatureFlags(l, opts, nil)...)
+
 	return append(flags, base...)
 }
 
