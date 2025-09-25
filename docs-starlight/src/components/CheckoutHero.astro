@@ -6,11 +6,11 @@ import IconGithub from '@assets/icons/github-icon.svg';
 import IconGitlab from '@assets/icons/gitlab-icon.svg';
 ---
 
-<section class="relative bg-[#FAFAFA] border-b border-solid border-gray-3 overflow-hidden pt-[var(--sl-nav-height)] px-4 lg:px-19">
-  <div class="max-w-[1440px] mx-auto flex flex-col lg:flex-row gap-x-15 pt-20 lg:pt-40 pb-10 lg:pb-15">
+<section class="relative bg-[#FAFAFA] border-b border-solid border-gray-3 pt-[var(--sl-nav-height)] px-4 xl:px-19 overflow-x-hidden">
+  <div class="max-w-[1440px] mx-auto flex flex-col xl:flex-row gap-x-15 pt-20 xl:pt-40 pb-10 xl:pb-15">
 
     <!-- How it works -->
-    <div class="flex flex-col gap-8">
+    <div class="flex flex-col gap-8 flex-1">
       <Eyebrow text="Checkout" />
       <h1 class="text-[64px] text-primary m-0">Purchase <span class="text-accent">Terragrunt Scale</span></h1>
 
@@ -47,15 +47,15 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
       <h2 class="text-[42px] text-primary m-0">How it works</h2>
 
       <!-- Steps -->
-      <div class="flex flex-col lg:grid lg:grid-cols-3 lg:grid-rows-1 bg-white gap-0 border border-dashed border-gray-3">
+      <div class="flex flex-col xl:grid xl:grid-cols-3 xl:grid-rows-1 bg-white gap-0 border border-dashed border-gray-3">
 
-        <div class="p-6 border-b lg:border-b-0 lg:border-r border-dashed border-gray-3">
+        <div class="p-6 border-b xl:border-b-0 xl:border-r border-dashed border-gray-3">
           <h3 class="text-xl font-mono font-medium text-accent my-2">01.</h3>
           <h3 class="text-xl font-medium text-primary my-2">Sign Up</h3>
           <p class="text-sm mt-4 text-gray-1">Select your billing cycle and complete payment with Stripe.</p>
         </div>
 
-        <div class="p-6 border-b lg:border-b-0 lg:border-r border-dashed border-gray-3">
+        <div class="p-6 border-b xl:border-b-0 xl:border-r border-dashed border-gray-3">
           <h3 class="text-xl font-mono font-medium text-accent my-2">02.</h3>
           <h3 class="text-xl font-medium text-primary my-2">Schedule onboarding</h3>
           <p class="text-sm mt-4 text-gray-1">Book your onboarding with a Gruntwork Solutions Architect immediately after completing payment.</p>
@@ -69,7 +69,7 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
       </div>
     </div>
 
-    <div class="sticky top-40 h-full w-full lg:w-[426px] shrink-0 mt-8 lg:mt-0">
+    <div class="w-full xl:w-[426px] xl:sticky xl:top-40 shrink-0 mt-8 xl:mt-0">
       <CheckoutForm />
     </div>
 
