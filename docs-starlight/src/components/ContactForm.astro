@@ -59,7 +59,9 @@
 
     function showContactForm() {
       formToggle?.classList.add('active');
+      formToggle?.setAttribute('aria-pressed', 'true');
       iframeToggle?.classList.remove('active');
+      iframeToggle?.setAttribute('aria-pressed', 'false');
 
       contactFormView?.classList.remove('hidden');
       contactFormView?.classList.add('active');
@@ -70,7 +72,9 @@
 
     function showIframe() {
       formToggle?.classList.remove('active');
+      formToggle?.setAttribute('aria-pressed', 'false');
       iframeToggle?.classList.add('active');
+      iframeToggle?.setAttribute('aria-pressed', 'true');
 
       contactFormView?.classList.remove('active');
       contactFormView?.classList.add('hidden');
