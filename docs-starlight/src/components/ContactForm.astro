@@ -9,12 +9,14 @@
     <button
       id="form-toggle"
       class="active px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 bg-[var(--color-contact-form-button-bg)] text-white cursor-pointer"
+      aria-pressed="true"
     >
       Send a Message
     </button>
     <button
       id="iframe-toggle"
       class="px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 text-gray-1 hover:text-white cursor-pointer"
+      aria-pressed="false"
     >
       Book a Call
     </button>
@@ -30,8 +32,9 @@
   <!-- Book a Call (Hidden by default) -->
   <div id="book-a-call" class="w-full max-w-md hidden min-h-[650px]">
     <iframe
-      src="https://meetings.hubspot.com/chris-pham/book-a-demo-terragrunt-scale?embed=true"
       class="w-full min-h-[650px]"
+      loading="lazy"
+      src="https://meetings.hubspot.com/chris-pham/book-a-demo-terragrunt-scale?embed=true"
       title="Schedule Demo"
     ></iframe>
   </div>
@@ -59,6 +62,8 @@
     function showContactForm() {
       formToggle?.classList.add('active');
       iframeToggle?.classList.remove('active');
+      formToggle?.setAttribute('aria-pressed', 'true');
++     iframeToggle?.setAttribute('aria-pressed', 'false');
 
       contactFormView?.classList.remove('hidden');
       contactFormView?.classList.add('active');
@@ -70,6 +75,8 @@
     function showIframe() {
       formToggle?.classList.remove('active');
       iframeToggle?.classList.add('active');
+      formToggle?.setAttribute('aria-pressed', 'false');
++     iframeToggle?.setAttribute('aria-pressed', 'true');
 
       contactFormView?.classList.remove('active');
       contactFormView?.classList.add('hidden');
@@ -83,4 +90,10 @@
   });
 </script>
 
-<script charset="utf-8" type="text/javascript" src="//js.hsforms.net/forms/embed/v2.js"></script>
+<script
+  charset="utf-8"
+  type="text/javascript"
+  src="//js.hsforms.net/forms/embed/v2.js"
+  defer
+></script>
+<script type="text/javascript" src="https://js.hs-scripts.com/8376079.js" async defer></script>
