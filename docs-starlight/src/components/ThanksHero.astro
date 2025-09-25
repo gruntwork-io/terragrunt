@@ -6,8 +6,8 @@ import IconGithub from '@assets/icons/github-icon.svg';
 import IconGitlab from '@assets/icons/gitlab-icon.svg';
 ---
 
-<section class="pt-[var(--sl-nav-height)] px-19">
-  <div class="max-w-[1440px] mx-auto flex flex-row gap-x-15 pt-20 lg:pt-40 pb-10 lg:pb-15">
+<section class="pt-[var(--sl-nav-height)] px-4 lg:px-19">
+  <div class="max-w-[1440px] mx-auto flex flex-col lg:flex-row gap-x-15 pt-20 lg:pt-40 pb-10 lg:pb-15">
 
     <!-- How it works -->
     <div class="flex flex-col gap-6">
@@ -20,13 +20,13 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
       <!-- Steps -->
       <div class="grid grid-cols-1 grid-rows-3 lg:grid-cols-3 lg:grid-rows-1 bg-white gap-0 border border-dashed border-gray-3">
 
-        <div class="p-6 border-r border-dashed border-gray-3">
+        <div class="p-6 border-b-1 lg:border-r lg:border-b-0 border-dashed border-gray-3">
           <h3 class="text-xl font-mono font-medium text-accent my-2">01.</h3>
           <h3 class="text-xl font-medium text-primary my-2">Book onboarding</h3>
           <p class="text-sm mt-4 text-gray-1">Use the calendar to the right to schedule a time to meet with a Gruntwork Solutions Architect.</p>
         </div>
 
-        <div class="p-6 border-r border-dashed border-gray-3">
+        <div class="p-6 border-b-1 lg:border-r lg:border-b-0 border-dashed border-gray-3">
           <h3 class="text-xl font-mono font-medium text-accent my-2">02.</h3>
           <h3 class="text-xl font-medium text-primary my-2">Check your email</h3>
           <p class="text-sm mt-4 text-gray-1">We'll send you an email with instructions to ensure you have everything you need before your onboarding session.</p>
@@ -40,7 +40,7 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
       </div>
     </div>
 
-    <div class="w-[408px] shrink-0">
+    <div class="w-full lg:w-[408px] sticky top-40 shrink-0">
       <!-- Onboarding Calendar -->
         <div
           class="meetings-iframe-container rounded-lg"
