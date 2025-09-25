@@ -31,7 +31,7 @@ import GitlabIcon from '@assets/icons/gitlab-icon.svg';
       width={1440}
     />
 
-    <div class="pt-[200px] md:pt-[100px] px-5 md:px-20 max-w-[1440px] mx-auto">
+    <div class="relative z-10 pt-[200px] md:pt-[100px] px-5 md:px-20 max-w-[1440px] mx-auto">
 
         <div class="max-w-[989px] flex flex-col gap-6">
           <div class="flex flex-col justify-start gap-5 w-full">
@@ -45,34 +45,31 @@ import GitlabIcon from '@assets/icons/gitlab-icon.svg';
 
           <div class="flex flex-col sm:flex-row sm:items-center w-full gap-4">
               <p class="font-mono text-xs text-white md:pr-4 m-0 select-none">BUILT FOR:</p>
-              <div class="flex gap-1 uppercase">
-                  <div class="bg-[var(--color-bg-dark)] select-none">
-                    <IconLabel
-                      src={GithubIcon}
-                      alt="Github Icon"
-                      text="Github"
-                      textColor='text-white'
-                      eager
-                      />
-                  </div>
-                  <div class="bg-[var(--color-bg-dark)] select-none">
-                    <IconLabel
-                      src={GitlabIcon}
-                      alt="Gitlab Icon"
-                      text="Gitlab"
-                      textColor='text-white'
-                      eager
-                    />
-                  </div>
-                  <div class="bg-[var(--color-bg-dark)] select-none">
-                    <IconLabel
-                      src={TerragruntIcon}
-                      alt="Terragrunt"
-                      text="Terragrunt"
-                      textColor='text-white'
-                      eager
-                    />
-                  </div>
+              <div class="flex gap-1 uppercase select-none">
+                <IconLabel
+                  alt="Github Icon"
+                  bgcolor="bg-[var(--color-bg-dark)]"
+                  src={GithubIcon}
+                  text="Github"
+                  textColor="text-white"
+                  eager
+                  />
+                <IconLabel
+                  alt="Gitlab Icon"
+                  bgcolor="bg-[var(--color-bg-dark)]"
+                  src={GitlabIcon}
+                  text="Gitlab"
+                  textColor="text-white"
+                  eager
+                />
+                <IconLabel
+                  alt="Terragrunt"
+                  bgcolor="bg-[var(--color-bg-dark)]"
+                  src={TerragruntIcon}
+                  text="Terragrunt"
+                  textColor="text-white"
+                  eager
+                />
               </div>
           </div>
           <div class="flex gap-5 w-full pb-28 md:pb-20 z-10">

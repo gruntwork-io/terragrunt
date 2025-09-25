@@ -60,10 +60,12 @@
     }
 
     function showContactForm() {
-      formToggle?.classList.add('active');
-      iframeToggle?.classList.remove('active');
-      formToggle?.setAttribute('aria-pressed', 'true');
-+     iframeToggle?.setAttribute('aria-pressed', 'false');
+      if (iframeToggle && formToggle) {
+        formToggle?.classList.add('active');
+        iframeToggle?.classList.remove('active');
+        formToggle?.setAttribute('aria-pressed', 'true');
+  +     iframeToggle?.setAttribute('aria-pressed', 'false');
+      }
 
       contactFormView?.classList.remove('hidden');
       contactFormView?.classList.add('active');
@@ -73,10 +75,12 @@
     }
 
     function showIframe() {
-      formToggle?.classList.remove('active');
-      iframeToggle?.classList.add('active');
-      formToggle?.setAttribute('aria-pressed', 'false');
-+     iframeToggle?.setAttribute('aria-pressed', 'true');
+      if (iframeToggle && formToggle) {
+        formToggle?.classList.remove('active');
+        iframeToggle?.classList.add('active');
+        formToggle?.setAttribute('aria-pressed', 'false');
+        iframeToggle.setAttribute('aria-pressed', 'true');
+      }
 
       contactFormView?.classList.remove('active');
       contactFormView?.classList.add('hidden');
