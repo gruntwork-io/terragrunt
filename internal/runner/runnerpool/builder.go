@@ -12,7 +12,12 @@ import (
 )
 
 // Build stack runner using discovery and queueing mechanisms.
-func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
+func Build(
+	ctx context.Context,
+	l log.Logger,
+	terragruntOptions *options.TerragruntOptions,
+	opts ...common.Option,
+) (common.StackRunner, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
@@ -23,7 +28,10 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithConfigFilenames([]string{filepath.Base(terragruntOptions.TerragruntConfigPath)}).
-		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
+		WithDiscoveryContext(&discovery.DiscoveryContext{
+			Cmd:  terragruntOptions.TerraformCliArgs.First(),
+			Args: terragruntOptions.TerraformCliArgs.Tail(),
+		})
 
 	// Pass include/exclude directory filters
 	if len(terragruntOptions.IncludeDirs) > 0 {
