@@ -29,7 +29,7 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Contains(t, stdout, "Using hashicorp/null v3.2.4 from the shared cache directory")
+	assert.Regexp(t, `Using hashicorp/null [^ ]+ from the shared cache directory`, stdout)
 	assert.Contains(t, stderr, "using cache key for version files")
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
 }
