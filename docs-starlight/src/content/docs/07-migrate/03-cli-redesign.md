@@ -163,7 +163,7 @@ You can find the new environment variable names in the [CLI reference](/docs/ref
 
 ### Use the new `run` command
 
-Default behavior change: Terragrunt no longer forwards unknown commands to OpenTofu/Terraform by default. If you previously ran commands like `terragrunt workspace ls`, use the explicit `run` form instead:
+Default behavior change (v0.88.0): Terragrunt no longer forwards unknown commands to OpenTofu/Terraform by default. If you previously ran commands like `terragrunt workspace ls`, use the explicit `run` form instead:
 
 ```bash
 terragrunt run -- workspace ls

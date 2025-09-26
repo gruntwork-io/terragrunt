@@ -140,6 +140,8 @@ Note that runs abstract away a lot of the complexity that comes from working wit
 
 The way in which these complexities are abstracted is via Terragrunt configuration files (`terragrunt.hcl`), which can be used to define how Terragrunt should forward commands to OpenTofu/Terraform.
 
+Note: As of v0.88.0, Terragrunt no longer forwards unknown commands to OpenTofu/Terraform by default. Use the explicit `run` command (e.g., `terragrunt run -- workspace ls`) or supported shortcuts.
+
 In the simplest case, a run in a unit with an empty `terragrunt.hcl` file will be equivalent to running OpenTofu/Terraform directly in the unit directory (with some small additional features like automatic initialization and logging adjustments).
 
 ### Execution
