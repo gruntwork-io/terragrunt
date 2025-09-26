@@ -26,10 +26,11 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 
 	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --non-interactive --working-dir " + unitPath
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Regexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
+	assert.Contains(t, stderr, "Applied constraint ~> 3.0.0 to provider registry.opentofu.org/hashicorp/null")
+	assert.Contains(t, stderr, "Returning 1 ready providers for request")
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
 }
 
