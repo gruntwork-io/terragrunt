@@ -4375,3 +4375,15 @@ func TestMixedStackConfigIgnored(t *testing.T) {
 	require.NotContains(t, stderr, "Error: Unsupported block type")
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
 }
+
+// Test that default command forwarding is disabled and users are guided to use `run --`.
+func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt workspace list --non-interactive --working-dir "+rootPath)
+	require.Error(t, err, "expected error when invoking unknown top-level command without 'run'")
+}
