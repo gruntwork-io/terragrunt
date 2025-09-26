@@ -664,10 +664,10 @@ func NewFeatureFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags
 
 	return cli.Flags{
 		flags.NewFlag(&cli.MapFlag[string, string]{
-			Name:     FeatureFlagName,
-			EnvVars:  tgPrefix.EnvVars(FeatureFlagName),
-			Usage:    "Set feature flags for the HCL code.",
-			Splitter: util.SplitComma,
+			Name:    FeatureFlagName,
+			EnvVars: tgPrefix.EnvVars(FeatureFlagName),
+			Usage:   "Set feature flags for the HCL code.",
+			// Use default splitting behavior with comma separators via MapFlag defaults
 			Action: func(_ *cli.Context, value map[string]string) error {
 				for key, val := range value {
 					opts.FeatureFlags.Store(key, val)

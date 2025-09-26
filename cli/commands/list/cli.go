@@ -93,11 +93,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
+	prefix := flags.Prefix{CommandName}
 
 	// Base flags for list plus backend/feature flags
-	flags := NewFlags(cmdOpts, nil)
-	flags = append(flags, runCmd.NewBackendFlags(l, opts, nil)...)
-	flags = append(flags, runCmd.NewFeatureFlags(l, opts, nil)...)
+	flags := NewFlags(cmdOpts, prefix)
+	flags = append(flags, runCmd.NewBackendFlags(l, opts, prefix)...)
+	flags = append(flags, runCmd.NewFeatureFlags(l, opts, prefix)...)
 
 	return &cli.Command{
 		Name:    CommandName,

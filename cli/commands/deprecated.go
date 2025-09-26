@@ -176,6 +176,7 @@ func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions)
 		newCommand := "terragrunt " + run.CommandName + " -- " + runSubCmd.Name
 		control := controls.NewDeprecatedReplacedCommand(runSubCmd.Name, newCommand)
 		strictGroups.AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
+		ctl := control
 
 		cmd := &cli.Command{
 			Name:       runSubCmd.Name,
@@ -184,7 +185,7 @@ func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions)
 			CustomHelp: runSubCmd.CustomHelp,
 			// Removal of default command forwarding: immediately error with guidance to use `run --`.
 			Action: func(ctx *cli.Context) error {
-				return cli.NewExitError(control.Error, cli.ExitCodeGeneralError)
+				return cli.NewExitError(ctl.Error, cli.ExitCodeGeneralError)
 			},
 			Hidden:                       true,
 			DisabledErrorOnUndefinedFlag: true,
