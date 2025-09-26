@@ -80,10 +80,6 @@ func TestFlag_Evaluate(t *testing.T) {
 		return true
 	}
 
-	deprecatedMovedFlagWarning := func(cmdName string) string {
-		return controls.NewDeprecatedMovedFlagName(&cli.BoolFlag{}, &cli.BoolFlag{}, cmdName).WarningFmt
-	}
-
 	deprecatedFlagWarning := func() string {
 		return controls.NewDeprecatedFlagName(&cli.BoolFlag{}, &cli.BoolFlag{}, "").WarningFmt
 	}
@@ -102,27 +98,7 @@ func TestFlag_Evaluate(t *testing.T) {
 		flags          []testCaseFlag
 		expectedOutput []string
 	}{
-		{
-			[]testCaseFlag{
-				{
-					flags.NewMovedFlag(&cli.BoolFlag{Name: "flag-name"}, "run", mockRegControls),
-					"flag-name",
-					"",
-				},
-				{
-					flags.NewMovedFlag(flags.NewFlag(
-						&cli.BoolFlag{Name: "new-flag-name"},
-						flags.WithDeprecatedName("old-flag-name", nil),
-					), "run", mockRegControls),
-					"old-flag-name",
-					"",
-				},
-			},
-			[]string{
-				fmt.Sprintf(deprecatedMovedFlagWarning("run"), "flag-name", "run --flag-name"),
-				fmt.Sprintf(deprecatedMovedFlagWarning("run"), "old-flag-name", "run --new-flag-name"),
-			},
-		},
+
 		{
 			[]testCaseFlag{
 				{

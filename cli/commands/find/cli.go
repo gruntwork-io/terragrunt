@@ -3,6 +3,7 @@
 package find
 
 import (
+	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -97,11 +98,16 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
 
+	// Base flags for find plus backend/feature flags
+	flags := NewFlags(cmdOpts, nil)
+	flags = append(flags, runCmd.NewBackendFlags(l, opts, nil)...)
+	flags = append(flags, runCmd.NewFeatureFlags(l, opts, nil)...)
+
 	return &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandAlias},
 		Usage:   "Find relevant Terragrunt configurations.",
-		Flags:   NewFlags(cmdOpts, nil),
+		Flags:   flags,
 		Before: func(ctx *cli.Context) error {
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON
