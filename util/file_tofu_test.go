@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Sink variables to prevent dead-code elimination in benchmarks
+var (
+	benchmarkBoolSink bool
+)
+
 func TestIsTFFile(t *testing.T) {
 	t.Parallel()
 
@@ -72,6 +77,7 @@ func TestIsTFFile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -146,6 +152,7 @@ func TestDirContainsTFFiles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -234,6 +241,7 @@ func TestFindTFFiles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -403,6 +411,7 @@ module "database" {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -489,9 +498,14 @@ func BenchmarkIsTFFile(b *testing.B) {
 		"/very/long/path/to/opentofu/modules/database/variables.tofu",
 	}
 
-	for b.Loop() {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
 		for _, path := range testPaths {
-			util.IsTFFile(path)
+			if util.IsTFFile(path) {
+				benchmarkBoolSink = !benchmarkBoolSink
+			}
 		}
 	}
 }
@@ -516,8 +530,13 @@ func BenchmarkDirContainsTFFiles(b *testing.B) {
 		require.NoError(b, os.WriteFile(filePath, []byte("# Test content"), 0644))
 	}
 
-	for b.Loop() {
-		_, err := util.DirContainsTFFiles(tmpDir)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		result, err := util.DirContainsTFFiles(tmpDir)
 		require.NoError(b, err)
+
+		benchmarkBoolSink = benchmarkBoolSink != result
 	}
 }
