@@ -496,7 +496,7 @@ func BenchmarkIsTFFile(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, path := range testPaths {
 			if util.IsTFFile(path) {
 				benchmarkBoolSink = !benchmarkBoolSink
@@ -528,7 +528,7 @@ func BenchmarkDirContainsTFFiles(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err := util.DirContainsTFFiles(tmpDir)
 		require.NoError(b, err)
 
