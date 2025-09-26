@@ -6,7 +6,7 @@ import IconGithub from '@assets/icons/github-icon.svg';
 import IconGitlab from '@assets/icons/gitlab-icon.svg';
 ---
 
-<section class="relative bg-[#FAFAFA] border-b border-solid border-gray-3 pt-[var(--sl-nav-height)] px-4 lg:px-19 overflow-x-hidden">
+<section class="relative bg-[#FAFAFA] border-b border-solid border-gray-3 pt-[var(--sl-nav-height)] px-4 lg:px-19 overflow-x-hidden lg:overflow-visible">
   <div class="max-w-[1440px] mx-auto pt-20 lg:pt-40 pb-10 lg:pb-15">
     <div class="lg:grid lg:grid-cols-[1fr_426px] lg:gap-15">
 
@@ -72,7 +72,7 @@ import IconGitlab from '@assets/icons/gitlab-icon.svg';
     </div>
 
     <div class="mt-8 lg:mt-0">
-      <div class="relative mx-auto max-w-[700px] lg:fixed lg:top-40 lg:w-[426px]">
+      <div class="relative mx-auto max-w-[700px] lg:sticky lg:top-40 lg:w-[426px]">
         <CheckoutForm />
       </div>
     </div>
