@@ -1,0 +1,26 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import CompactFooter from '@components/CompactFooter.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+import ThanksHero from '@components/ThanksHero.astro';
+
+import '@styles/global.css';
+---
+<BaseLayout
+  title="Terragrunt Scale | Purchase Complete"
+  description="Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current; built by the creators of Terragrunt."
+  url="https://terragrunt.gruntwork.io/thanks"
+>
+  <Header showThemeToggle={false} />
+  <ThanksHero />
+
+  <div class="max-w-[1312px] mx-auto w-full">
+    <div class="border-x border-solid border-gray-3">
+      <CompactFooter />
+    </div>
+  </div>
+
+</BaseLayout>

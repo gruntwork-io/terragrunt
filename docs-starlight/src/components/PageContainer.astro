@@ -10,11 +10,11 @@ const {
 } = Astro.props;
 ---
 
-<div class="relative min-h-[100vh] w-full overflow-hidden lg:px-8 xl:px-24 2xl:px-76">
-  <div class={`min-h-[100vh] relative flex flex-col lg:border-l lg:border-r ${borderOuter} max-w-[1312px] mx-auto w-full`}>
+<div class="relative w-full overflow-hidden lg:px-8 xl:px-24 2xl:px-76">
+  <div class={`relative w-full flex flex-col lg:border-l lg:border-r ${borderOuter} max-w-[1312px] mx-auto`}>
 
     <!-- FIXME: Between 1024px - 1046px the dotted lines do not match the edge of the sections -->
-    <div class=`hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed ${borderInner}`></div>
+    <div class={`hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed ${borderInner}`} aria-hidden="true"></div>
 
     <slot />
   </div>

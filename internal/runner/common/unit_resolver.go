@@ -344,7 +344,7 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 		return false
 	}
 	if !r.doubleStarEnabled {
-		excludeFn = func(l log.Logger, unitPath string) bool {
+		excludeFn = func(_ log.Logger, unitPath string) bool {
 			return collections.ListContainsElement(opts.ExcludeDirs, unitPath)
 		}
 	}
@@ -633,7 +633,7 @@ func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.L
 		return false
 	}
 	if !r.doubleStarEnabled {
-		includeFn = func(l log.Logger, unit *Unit) bool {
+		includeFn = func(_ log.Logger, unit *Unit) bool {
 			if unit.FindUnitInPath(opts.IncludeDirs) {
 				return true
 			} else {

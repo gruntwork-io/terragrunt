@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -91,10 +92,15 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
+	flags := NewFlags(opts, nil)
+	// Accept backend and feature flags for scaffold as well
+	flags = append(flags, runCmd.NewBackendFlags(l, opts, nil)...)
+	flags = append(flags, runCmd.NewFeatureFlags(l, opts, nil)...)
+
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Scaffold a new Terragrunt module.",
-		Flags: NewFlags(opts, nil),
+		Flags: flags,
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 

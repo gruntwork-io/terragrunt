@@ -8,6 +8,7 @@ import MobileHeroBackground from '@assets/hero-bkgnd.svg';
 import OpentofuIcon from '@assets/opentofu-logo.svg';
 import Terminal from '@components/dv-Terminal.astro';
 import TerraformIcon from '@assets/terraform-logo.svg';
+import ButtonLink from '@components/ui/ButtonLink.tsx';
 ---
 
 <section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden pt-[var(--sl-nav-height)] ">
@@ -40,48 +41,46 @@ import TerraformIcon from '@assets/terraform-logo.svg';
         </div>
 
         <div class="flex flex-col md:flex-row justify-center items-center w-full gap-4">
-            <p class="  font-mono text-xs text-white md:pr-4">BUILT FOR:</p>
+            <p class="font-mono uppercase text-xs text-white md:pr-4">BUILT FOR:</p>
             <div class="flex gap-1">
-                <a
-                  class="bg-[var(--color-bg-dark)] cursor-pointer no-underline"
-                  href="https://opentofu.org"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  <IconLabel
-                    src={OpentofuIcon}
-                    alt="Opentofu Icon"
-                    text="OPENTOFU"
-                    eager
-                  />
-                </a>
-                <a
-                  class="bg-[var(--color-bg-dark)] cursor-pointer no-underline"
-                  href="https://developer.hashicorp.com/terraform"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
+              <a
+                class="bg-[var(--color-bg-dark)] cursor-pointer no-underline text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-dark)]"
+                href="https://opentofu.org"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
                 <IconLabel
-                    src={TerraformIcon}
-                    alt="Terraform Icon"
-                    text="TERRAFORM"
-                        eager
-                    />
-                </a>
+                  alt="Opentofu Icon"
+                  src={OpentofuIcon}
+                  text="OPENTOFU"
+                  textColor='text-white'
+                  eager
+                />
+              </a>
+              <a
+                class="bg-[var(--color-bg-dark)] cursor-pointer no-underline text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-dark)]"
+                href="https://developer.hashicorp.com/terraform"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                <IconLabel
+                  alt="Terraform Icon"
+                  src={TerraformIcon}
+                  text="TERRAFORM"
+                  textColor='text-white'
+                  eager
+                />
+              </a>
             </div>
         </div>
 
         <div class="flex gap-5 justify-center items-center w-full pb-28 md:pb-52">
-            <a href="/docs/getting-started/quick-start">
-                <button class="primary-button">
-                  Quick Start
-                </button>
-            </a>
-            <a href="https://terragrunt.gruntwork.io/terragrunt-scale/" rel="noopener noreferrer">
-                <button class="secondary-button">
-                  Commercial Offerings
-                </button>
-            </a>
+          <ButtonLink href="/docs/getting-started/quick-start" variant="primary">
+            Quick Start
+          </ButtonLink>
+          <ButtonLink href="/terragrunt-scale/" variant="secondary">
+            Commercial Offerings
+          </ButtonLink>
         </div>
     </div>
 

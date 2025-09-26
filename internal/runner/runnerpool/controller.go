@@ -113,7 +113,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			for _, e := range readyEntries {
 				// log debug which entry is running
 				l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
-				e.Status = queue.StatusRunning
+				dr.q.SetEntryStatus(e, queue.StatusRunning)
 
 				sem <- struct{}{}
 
@@ -151,15 +151,12 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					}
 
 					l.Debugf("Runner Pool Controller: %s succeeded", ent.Config.Path)
-					ent.Status = queue.StatusSucceeded
+					dr.q.SetEntryStatus(ent, queue.StatusSucceeded)
 				}(e)
 			}
 
-			if len(readyEntries) == 0 {
-				// If no goroutines are running, break
-				if len(sem) == 0 {
-					break
-				}
+			if len(readyEntries) == 0 && len(sem) == 0 {
+				break
 			}
 
 			select {

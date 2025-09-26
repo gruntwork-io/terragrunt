@@ -183,7 +183,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return nil
 	}
 
-	prompt := fmt.Sprintf("Remote state S3 bucket %s is res of date. Would you like Terragrunt to update it?", bucketName)
+	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", bucketName)
 
 	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
