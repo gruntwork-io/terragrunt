@@ -74,14 +74,6 @@ const (
 	DeprecatedDisableLogFormattingFlagName = "disable-log-formatting"
 	DeprecatedJSONLogFlagName              = "json-log"
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
-
-	// Backend-related global flags.
-	BackendBootstrapFlagName        = "backend-bootstrap"
-	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
-	DisableBucketUpdateFlagName     = "disable-bucket-update"
-
-	// Feature flags for HCL code
-	FeatureFlagName = "feature"
 )
 
 // NewFlags creates and returns global flags common for all commands.
