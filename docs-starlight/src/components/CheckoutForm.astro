@@ -49,7 +49,7 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
         for="monthly"
         class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-button-bg"
       >
-        <div class="flex items-center w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
+        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
           <input type="radio" name="plan" id="monthly" value="monthly" class="custom-radio peer mr-1.5 accent-accent" checked />
           Monthly
         </div>
@@ -59,10 +59,13 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
         for="annual"
         class="w-1/2 p-0.5 flex flex-row items-center cursor-pointer rounded-lg bg-white hover:bg-button-bg"
       >
-        <div class="flex items-center w-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
-          <input type="radio" name="plan" id="annual" value="annual" class="custom-radio peer" />
-          <div class="flex grow items-center justify-between">
-            Annual <span class="bg-accent/[7%] p-0.5 text-xs font-mono text-accent">17% Off</span>
+        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-lg border-4 border-solid border-radio-stroke">
+          <input type="radio" name="plan" id="annual" value="annual" class="custom-radio peer shrink-0 grow-0" />
+          <div class="w-full flex flex-row flex-wrap items-center justify-between">
+            <div>Annual</div>
+            <div class="text-right">
+              <span class="bg-accent/[7%] p-0.5 text-xs font-mono text-accent text-right">17% Off</span>
+            </div>
           </div>
 
         </div>
