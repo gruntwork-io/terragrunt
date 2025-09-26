@@ -322,8 +322,6 @@ You can also see what to expect in your filesystem at each step [here](https://g
    - Stores downloaded modules and providers
    - Stores generated files (in this case, the `hi.txt` file will be created under `.terragrunt-cache/[HASH]/[HASH]/hi.txt` rather than directly in the `foo` or `bar` directories)
 
-   With this configuration, the `hi.txt` files will be created directly in the `foo` and `bar` directories instead of the `.terragrunt-cache` directory.
-
    The `.terragrunt-cache` directory is typically added to `.gitignore` files, similar to the `.terraform` directory that OpenTofu generates. You can safely delete this folder at any time, and Terragrunt will recreate it as necessary.
 
    If you want to control where the files are created, you can modify the module to accept an output directory parameter. For example, you can update the `shared/main.tf` file to:
@@ -350,6 +348,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
      content = "Hello from bar, Terragrunt!"
    }
    ```
+   With this configuration, the `hi.txt` files will be created directly in the `foo` and `bar` directories instead of the `.terragrunt-cache` directory.
 
    Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
