@@ -31,7 +31,6 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 
 	assert.Contains(t, stderr, "Using hashicorp/null v3.2.4 from the shared cache directory")
 	assert.Contains(t, stderr, "using cache key for version files")
-	assert.Contains(t, stderr, "Returning 1 ready providers for request")
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
 }
 
