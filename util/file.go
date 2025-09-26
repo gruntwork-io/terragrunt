@@ -33,9 +33,6 @@ const (
 	ChecksumReadBlock     = 8192
 )
 
-// Sentinel error used to indicate an intentional early exit from WalkDir
-var errWalkEarlyExit = errors.Errorf("early WalkDir termination")
-
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
 func FileOrData(maybePath string) (string, error) {
@@ -277,15 +274,11 @@ func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error
 
 		if pattern.Match(content) {
 			found = true
-			return errWalkEarlyExit
+			return filepath.SkipAll
 		}
 
 		return nil
 	})
-
-	if errors.Is(err, errWalkEarlyExit) {
-		err = nil
-	}
 
 	return found, err
 }
@@ -305,15 +298,11 @@ func DirContainsTFFiles(dirPath string) (bool, error) {
 
 		if IsTFFile(path) {
 			found = true
-			return errWalkEarlyExit
+			return filepath.SkipAll
 		}
 
 		return nil
 	})
-
-	if errors.Is(err, errWalkEarlyExit) {
-		err = nil
-	}
 
 	return found, err
 }
