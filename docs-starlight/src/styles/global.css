@@ -38,6 +38,11 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
+  /* Buttons */
+  --color-button-bg: #EEECF7;
+  --color-radio-stroke: #E3DFF4;
+  --color-radio-stroke-active: #4a31c8;
+
   /* Colors Nav */
   --color-nav-link: #A0A1AC;
   --color-nav-link-hover: #e8eefc;
@@ -57,7 +62,7 @@
   --color-gray-3: #DBDBDB;
   --color-gray-4: #6D6F86;
   --color-stroke-dark: #2E375A;
-  --color-button-primary-border: hsla(0deg, 0%, 100%, 20%); 
+  --color-button-primary-border: hsla(0deg, 0%, 100%, 20%);
 
   /* Colors Contact Form */
   --color-contact-form-button-bg: rgba(255, 255, 255, 0.15);
@@ -143,10 +148,6 @@
     box-sizing: border-box;
   }
 
-  html, body {
-    overflow-x: hidden;
-  }
-
   body {
     margin: 0;
     padding: 0;
@@ -202,17 +203,6 @@
     starlight-menu-button button {
       top: 80px;
     }
-  }
-
-  .social-icon {
-    color: var(--color-gray-1) !important;
-    cursor: pointer;
-    text-decoration: none;
-  }
-
-  .social-icon:hover {
-    color: var(--sl-color-gray-1) !important;
-    cursor: pointer;
   }
 
   .searchbar {

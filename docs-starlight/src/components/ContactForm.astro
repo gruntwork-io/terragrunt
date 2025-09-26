@@ -32,8 +32,9 @@
   <!-- Book a Call (Hidden by default) -->
   <div id="book-a-call" class="w-full max-w-md hidden min-h-[650px]">
     <iframe
-      src="https://meetings.hubspot.com/chris-pham/book-a-demo-terragrunt-scale?embed=true"
       class="w-full min-h-[650px]"
+      loading="lazy"
+      src="https://meetings.hubspot.com/chris-pham/book-a-demo-terragrunt-scale?embed=true"
       title="Schedule Demo"
     ></iframe>
   </div>
@@ -47,8 +48,10 @@
     const contactFormView = document.getElementById('contact-form');
     const iframeView = document.getElementById('book-a-call');
 
+    // @ts-ignore
     if (typeof hbspt !== 'undefined' && contactFormView) {
-      hbspt.forms.create({
+        // @ts-ignore
+        hbspt.forms.create({
         portalId: "8376079",
         formId: "6e91923f-df87-4925-a8d1-72b50c2ee655",
         region: "na1",
@@ -58,10 +61,12 @@
     }
 
     function showContactForm() {
-      formToggle?.classList.add('active');
-      formToggle?.setAttribute('aria-pressed', 'true');
-      iframeToggle?.classList.remove('active');
-      iframeToggle?.setAttribute('aria-pressed', 'false');
+      if (iframeToggle && formToggle) {
+        formToggle?.classList.add('active');
+        formToggle?.setAttribute('aria-pressed', 'true');
+        iframeToggle?.classList.remove('active');
+  +     iframeToggle?.setAttribute('aria-pressed', 'false');
+      }
 
       contactFormView?.classList.remove('hidden');
       contactFormView?.classList.add('active');
@@ -71,10 +76,12 @@
     }
 
     function showIframe() {
-      formToggle?.classList.remove('active');
-      formToggle?.setAttribute('aria-pressed', 'false');
-      iframeToggle?.classList.add('active');
-      iframeToggle?.setAttribute('aria-pressed', 'true');
+      if (iframeToggle && formToggle) {
+        formToggle?.classList.remove('active');
+        formToggle?.setAttribute('aria-pressed', 'false');
+        iframeToggle?.classList.add('active');
+        iframeToggle.setAttribute('aria-pressed', 'true');
+      }
 
       contactFormView?.classList.remove('active');
       contactFormView?.classList.add('hidden');

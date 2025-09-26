@@ -7,21 +7,21 @@ import Button from "./Button";
 type ButtonProps = React.ComponentProps<typeof Button>;
 
 interface ButtonLinkProps extends ButtonProps {
-  href: string;
-  target?: "_blank" | "_self" | "_parent" | "_top";
-  rel?: string;
   buttonClassName?: string;
+  href: string;
+  rel?: string;
+  target?: "_blank" | "_self" | "_parent" | "_top";
 }
 
 export default function ButtonLink({
-  href,
-  target,
-  rel,
-  className,
   buttonClassName,
+  href,
+  rel,
+  target,
+  className,
   ...buttonProps
 }: ButtonLinkProps) {
-  
+
   return (
     <a
       href={href}

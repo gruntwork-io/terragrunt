@@ -24,6 +24,9 @@
       ],
       "@styles/*": [
         "src/styles/*"
+      ],
+      "@ui/*": [
+        "src/components/ui/*"
       ]
     }
   }
