@@ -39,12 +39,14 @@ var (
 )
 
 type CatalogConfig struct {
+	NoShell         *bool    `hcl:"no_shell,optional" cty:"no_shell"`
+	NoHooks         *bool    `hcl:"no_hooks,optional" cty:"no_hooks"`
 	DefaultTemplate string   `hcl:"default_template,optional" cty:"default_template"`
 	URLs            []string `hcl:"urls,attr" cty:"urls"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v}", cfg.URLs, cfg.DefaultTemplate)
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}", cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
