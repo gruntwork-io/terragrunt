@@ -208,25 +208,25 @@ terragrunt run -- workspace ls
 Similarly, commands like `graph` won't be supported as a shortcut, as `graph` is a now deprecated command in the Terragrunt CLI. Supporting it as a shortcut would be misleading, so you can use the `run` command to run it explicitly:
 
 ```bash
-terragrunt run graph
+terragrunt run --graph
 ```
 
 You might want to explicitly indicate that the flag you are using is one for OpenTofu/Terraform, and not a Terragrunt flag. To do this, you can use the `--` argument to explicitly separate the Terragrunt flags from the OpenTofu/Terraform flags:
 
 ```bash
-terragrunt run  -- apply -auto-approve
+terragrunt run -- apply -auto-approve
 ```
 
 This usually isn't necessary, except when combining a complicated series of flags and arguments, which can be difficult to parse for the CLI.
 
 In addition to allowing for explicit invocation of OpenTofu/Terraform instead of using shortcuts, the `run` command also takes on the responsibilities of the now deprecated `run-all` and `graph` commands using flags.
 
-For example, if you are currently using the `terragrunt run --all` command, you can switch to the `run` command with the `--all` flag instead.
+For example, if you are currently using the `terragrunt run-all` command, you can switch to the `run` command with the `--all` flag instead.
 
 Before:
 
 ```bash
-terragrunt run --all plan
+terragrunt run-all plan
 ```
 
 After:
