@@ -26,11 +26,12 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 
 	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --non-interactive --working-dir " + unitPath
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "using cache key for version files")
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
+	assert.Regexp(t, `(Reusing previous version|shared cache directory)`, stdout)
 }
 
 func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
