@@ -843,7 +843,6 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 				l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
 				continue
 			}
-
 		}
 
 		// Mark all affected dependencies as excluded

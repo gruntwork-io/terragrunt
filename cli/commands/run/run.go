@@ -514,7 +514,6 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.Terr
 					); err != nil {
 						l.Errorf("Error ending run for unit %s: %v", opts.WorkingDir, err)
 					}
-
 				}
 
 				select {
