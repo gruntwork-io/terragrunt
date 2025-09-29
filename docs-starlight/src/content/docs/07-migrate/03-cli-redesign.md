@@ -214,7 +214,7 @@ terragrunt run graph
 You might want to explicitly indicate that the flag you are using is one for OpenTofu/Terraform, and not a Terragrunt flag. To do this, you can use the `--` argument to explicitly separate the Terragrunt flags from the OpenTofu/Terraform flags:
 
 ```bash
-terragrunt run  -- apply -auto-approve
+terragrunt run -- apply -auto-approve
 ```
 
 This usually isn't necessary, except when combining a complicated series of flags and arguments, which can be difficult to parse for the CLI.
