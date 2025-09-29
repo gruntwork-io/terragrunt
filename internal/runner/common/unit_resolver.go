@@ -354,7 +354,7 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 
 	parseCtx := r.createParsingContext(ctx, l, opts)
 
-	if err := r.acquireCredentials(ctx, l, opts); err != nil {
+	if err = r.acquireCredentials(ctx, l, opts); err != nil {
 		return nil, err
 	}
 
@@ -373,16 +373,16 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 
 	opts.Source = terragruntSource
 
-	if err := r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
+	if err = r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
 		return nil, err
 	}
 
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
+	hasFiles, err := util.DirContainsTFFiles(filepath.Dir(terragruntConfigPath))
 	if err != nil {
 		return nil, err
 	}
 
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && len(matches) == 0 {
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
 		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}

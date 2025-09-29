@@ -16,6 +16,7 @@ jobs:
           - name: Fixtures with OpenTofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
           - name: Fixtures with Latest OSS Terraform
@@ -60,7 +61,7 @@ jobs:
           - name: AWS Tofu
             os: ubuntu
             target: ./...
-            tags: aws
+            tags: 'aws,tofu'
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
@@ -112,12 +113,14 @@ jobs:
           - name: Provider Cache Server with Tofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
           - name: Provider Cache Dir with Tofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/provider-cache-dir.sh
               - .github/scripts/setup/tofu-switch.sh
