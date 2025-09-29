@@ -43,13 +43,13 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
   </div>
 
   <div class="w-full flex flex-col gap-4 my-4">
-    <fieldset class="mx-auto p-0 flex gap-0 rounded-3xl bg-white">
+    <fieldset class="mx-auto p-0 flex gap-0 rounded-3xl bg-checkout-radio border-2 border-solid border-white">
       <legend class="sr-only">Subscription options</legend>
       <label
         for="monthly"
-        class=" p-0.5 flex flex-row items-center cursor-pointer rounded-3xl bg-white hover:bg-button-bg"
+        class="p-0.5 flex flex-row items-center cursor-pointer rounded-3xl bg-checkout-radio hover:bg-button-bg"
       >
-        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-3xl border-4 border-solid border-radio-stroke px-3">
+        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-3xl border-4 border-solid border-transparent px-6 hover:bg-white">
           <input type="radio" name="plan" id="monthly" value="monthly" class="custom-radio peer mr-1.5 accent-accent" checked />
           Monthly
         </div>
@@ -57,9 +57,9 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
 
       <label
         for="annual"
-        class="p-0.5 flex flex-row items-center cursor-pointer rounded-3xl bg-white hover:bg-button-bg"
+        class="p-0.5 flex flex-row items-center cursor-pointer rounded-3xl hover:bg-button-bg"
       >
-        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-3xl border-4 border-solid border-radio-stroke pl-3">
+        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-3xl border-4 border-solid border-transparent pl-4 hover:bg-white">
           <input type="radio" name="plan" id="annual" value="annual" class="custom-radio peer shrink-0 grow-0" />
           <div class="w-full flex flex-row flex-wrap items-center justify-between gap-3 mr-3">
             <div>Annual</div>
@@ -123,28 +123,31 @@ import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
 
 <style>
   label div:has(input:checked) {
-    border-color: var(--color-radio-stroke-active);
-    background-color: var(--color-button-bg);
+    border-color: var(--color-checkout-radio-active);
+    background-color: white;
   }
+
   .custom-radio {
     appearance: none;
     background-color: transparent;
     border: 1px solid #4F2FD0;
     border-radius: 50%;
     cursor: pointer;
+    display: none;
     height: 16px;
     margin: 0 6px 0 0;
     position: relative;
     width: 16px;
   }
 
+  /* Radio background */
   .custom-radio:checked {
-    background-color: rgba(79, 47, 208, 0.07);
-    border-color: #4F2FD0;
+    border-color: transparent;
+    background-color: transparent;
   }
 
   .custom-radio:checked::after {
-    background-color: #4F2FD0; /* White center dot */
+    background-color: transparent;
     border-radius: 50%;
     content: '';
     height: 10px;
