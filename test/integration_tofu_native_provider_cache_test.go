@@ -29,8 +29,9 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Regexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
+	assert.Contains(t, stderr, "using cache key for version files")
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
+	assert.Regexp(t, `(Reusing previous version|shared cache directory)`, stdout)
 }
 
 func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
@@ -51,8 +52,9 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Regexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
+	assert.Contains(t, stderr, "using cache key for version files")
+	assert.Regexp(t, `(Reusing previous version|shared cache directory)`, stdout)
 }
 
 func TestAutoProviderCacheDirDisabled(t *testing.T) {

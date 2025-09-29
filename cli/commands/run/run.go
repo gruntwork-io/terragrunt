@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -74,7 +73,10 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
-const TerraformExtensionGlob = "*.tf"
+const (
+	TerraformExtensionGlob = "*.tf"
+	TofuExtensionGlob      = "*.tofu"
+)
 
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
@@ -568,25 +570,7 @@ func prepareInitCommand(ctx context.Context, l log.Logger, terragruntOptions *op
 
 // CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
 func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
-	found := false
-
-	err := filepath.WalkDir(terragruntOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		if isTofuFile(path) {
-			found = true
-
-			return filepath.SkipAll
-		}
-
-		return nil
-	})
+	found, err := util.DirContainsTFFiles(terragruntOptions.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -598,24 +582,6 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 	return nil
 }
 
-// isTofuFile checks if a given file is an OpenTofu/Terraform file
-func isTofuFile(path string) bool {
-	suffixes := []string{
-		".tf",
-		".tofu",
-		".tf.json",
-		".tofu.json",
-	}
-
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(path, suffix) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
 func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
@@ -623,7 +589,8 @@ func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendTy
 		return errors.New(err)
 	}
 
-	definesBackend, err := util.Grep(terraformBackendRegexp, opts.WorkingDir+"/**/*.tf")
+	// Check for backend definitions in .tf and .tofu files using WalkDir
+	definesBackend, err := util.RegexFoundInTFFiles(opts.WorkingDir, terraformBackendRegexp)
 	if err != nil {
 		return err
 	}
@@ -791,7 +758,13 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 		return true, nil
 	}
 
-	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
+	// Check for module definitions in .tf and .tofu files using WalkDir
+	hasModuleDefinition, err := util.RegexFoundInTFFiles(terragruntOptions.WorkingDir, ModuleRegex)
+	if err != nil {
+		return false, err
+	}
+
+	return hasModuleDefinition, nil
 }
 
 // remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
