@@ -78,7 +78,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    You can now run `terragrunt` commands within the `foo` directory, as if you were using `tofu` or `terraform`.
 
-   ⚠️ Important: Do not run tofu init or terraform init yourself when using Terragrunt. Terragrunt maintains its own .terraform folder, and if a .terraform folder exists in your working directory, it can interfere with Terragrunt’s behavior.
+   ⚠️ Important: Do not run `tofu init` or `terraform init` yourself when using Terragrunt. Terragrunt maintains its own `.terraform` folder, and if a `.terraform` folder exists in your working directory, it can interfere with Terragrunt’s behavior. If you already ran one of those commands, delete the local `.terraform` directory before re-running Terragrunt.
 
    ```bash
    $ cd foo
