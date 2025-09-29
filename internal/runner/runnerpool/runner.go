@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -140,8 +139,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	// Emit report entries for excluded units (if experiment enabled). Queue already excludes them.
-	if r.queue != nil && opts.Experiments.Evaluate(experiment.Report) && r.Stack.Report != nil {
+	// Emit report entries for excluded units. Queue already excludes them.
+	if r.Stack.Report != nil {
 		for _, u := range r.Stack.Units {
 			if u.FlagExcluded {
 				run, err := r.Stack.Report.EnsureRun(u.Path)

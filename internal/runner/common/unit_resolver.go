@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -828,12 +827,33 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 			// Mark unit itself as excluded
 			unit.FlagExcluded = true
 
-			if opts.Experiments.Evaluate(experiment.Report) {
-				// TODO: Make an upsert option for ends,
-				// so that I don't have to do this every time.
-				run, err := reportInstance.EnsureRun(unit.Path)
+			// TODO: Make an upsert option for ends,
+			// so that I don't have to do this every time.
+			run, err := reportInstance.EnsureRun(unit.Path)
+			if err != nil {
+				l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
+				continue
+			}
+
+			if err := reportInstance.EndRun(
+				run.Path,
+				report.WithResult(report.ResultExcluded),
+				report.WithReason(report.ReasonExcludeDir),
+			); err != nil {
+				l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
+				continue
+			}
+
+		}
+
+		// Mark all affected dependencies as excluded
+		for _, dependency := range unit.Dependencies {
+			if excludeFn(l, dependency) {
+				dependency.FlagExcluded = true
+
+				run, err := reportInstance.EnsureRun(dependency.Path)
 				if err != nil {
-					l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
+					l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
 					continue
 				}
 
@@ -842,32 +862,8 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 					report.WithResult(report.ResultExcluded),
 					report.WithReason(report.ReasonExcludeDir),
 				); err != nil {
-					l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
+					l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
 					continue
-				}
-			}
-		}
-
-		// Mark all affected dependencies as excluded
-		for _, dependency := range unit.Dependencies {
-			if excludeFn(l, dependency) {
-				dependency.FlagExcluded = true
-
-				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := reportInstance.EnsureRun(dependency.Path)
-					if err != nil {
-						l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
-						continue
-					}
-
-					if err := reportInstance.EndRun(
-						run.Path,
-						report.WithResult(report.ResultExcluded),
-						report.WithReason(report.ReasonExcludeDir),
-					); err != nil {
-						l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
-						continue
-					}
 				}
 			}
 		}

@@ -32,7 +32,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -508,15 +507,14 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.Terr
 					exitCode.ResetSuccess()
 
 					// Also assume this retry will succeed for now. If it doesn't, we'll update this later.
-					if opts.Experiments.Evaluate(experiment.Report) {
-						if err := r.EndRun(
-							opts.WorkingDir,
-							report.WithResult(report.ResultSucceeded),
-							report.WithReason(report.ReasonRetrySucceeded),
-						); err != nil {
-							l.Errorf("Error ending run for unit %s: %v", opts.WorkingDir, err)
-						}
+					if err := r.EndRun(
+						opts.WorkingDir,
+						report.WithResult(report.ResultSucceeded),
+						report.WithReason(report.ReasonRetrySucceeded),
+					); err != nil {
+						l.Errorf("Error ending run for unit %s: %v", opts.WorkingDir, err)
 					}
+
 				}
 
 				select {

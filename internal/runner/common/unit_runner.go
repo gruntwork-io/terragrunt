@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -51,15 +50,13 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 
-	if opts.Experiments.Evaluate(experiment.Report) {
-		run, err := report.NewRun(runner.Unit.Path)
-		if err != nil {
-			return err
-		}
+	run, err := report.NewRun(runner.Unit.Path)
+	if err != nil {
+		return err
+	}
 
-		if err := r.AddRun(run); err != nil {
-			return err
-		}
+	if err := r.AddRun(run); err != nil {
+		return err
 	}
 
 	return opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)

@@ -63,13 +63,15 @@ func NewExperiments() Experiments {
 			Name: CAS,
 		},
 		{
-			Name: Report,
+			Name:   Report,
+			Status: StatusCompleted,
 		},
 		{
 			Name: RunnerPool,
 		},
 		{
-			Name: AutoProviderCacheDir,
+			Name:   AutoProviderCacheDir,
+			Status: StatusCompleted,
 		},
 	}
 }

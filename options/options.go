@@ -750,20 +750,18 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
-			if opts.Experiments.Evaluate(experiment.Report) {
-				run, err := r.GetRun(opts.WorkingDir)
-				if err != nil {
-					return err
-				}
+			run, err := r.GetRun(opts.WorkingDir)
+			if err != nil {
+				return err
+			}
 
-				if err := r.EndRun(
-					run.Path,
-					report.WithResult(report.ResultSucceeded),
-					report.WithReason(report.ReasonErrorIgnored),
-					report.WithCauseIgnoreBlock(action.IgnoreBlockName),
-				); err != nil {
-					return err
-				}
+			if err := r.EndRun(
+				run.Path,
+				report.WithResult(report.ResultSucceeded),
+				report.WithReason(report.ReasonErrorIgnored),
+				report.WithCauseIgnoreBlock(action.IgnoreBlockName),
+			); err != nil {
+				return err
 			}
 
 			return nil
@@ -778,21 +776,19 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				action.RetrySleepSecs,
 			)
 
-			if opts.Experiments.Evaluate(experiment.Report) {
-				// Assume the retry will succeed.
-				run, err := r.GetRun(opts.WorkingDir)
-				if err != nil {
-					return err
-				}
+			// Assume the retry will succeed.
+			run, err := r.GetRun(opts.WorkingDir)
+			if err != nil {
+				return err
+			}
 
-				if err := r.EndRun(
-					run.Path,
-					report.WithResult(report.ResultSucceeded),
-					report.WithReason(report.ReasonRetrySucceeded),
-					report.WithCauseRetryBlock(action.RetryBlockName),
-				); err != nil {
-					return err
-				}
+			if err := r.EndRun(
+				run.Path,
+				report.WithResult(report.ResultSucceeded),
+				report.WithReason(report.ReasonRetrySucceeded),
+				report.WithCauseRetryBlock(action.RetryBlockName),
+			); err != nil {
+				return err
 			}
 
 			// Sleep before retry
