@@ -6,7 +6,7 @@ sidebar:
   order: 11
 ---
 
-import { FileTree, Aside } from '@astrojs/starlight/components';
+import { Code, FileTree, Aside } from '@astrojs/starlight/components';
 
 You've just completed a major refactor using **Terragrunt Stacks**.
 
@@ -51,10 +51,7 @@ What we'll want to do is perform state migration while having both unit layouts 
 
 First, let's make sure we have our stack generated as-is without removing the `no_dot_terragrunt_stack` attribute.
 
-```bash
-# live
-
-$ terragrunt stack generate
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt stack generate
 16:36:50.794 INFO   Generating stack from ./dev/terragrunt.stack.hcl
 16:36:50.797 INFO   Generating stack from ./prod/terragrunt.stack.hcl
 16:36:50.798 INFO   Processing unit s3 from ./dev/terragrunt.stack.hcl
@@ -65,133 +62,21 @@ $ terragrunt stack generate
 16:36:50.798 INFO   Processing unit iam from ./prod/terragrunt.stack.hcl
 16:36:50.798 INFO   Processing unit ddb from ./prod/terragrunt.stack.hcl
 16:36:50.798 INFO   Processing unit s3 from ./prod/terragrunt.stack.hcl
-```
+`} />
 
 Now let's edit our `terragrunt.stack.hcl` files to remove the `no_dot_terragrunt_stack` attribute. This will generate units into the desired final directory structure.
 
-```hcl
-# live/dev/terragrunt.stack.hcl
+import liveDevTerragruntStackHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-8-refactoring-state-with-terragrunt-stacks/live/dev/terragrunt.stack.hcl?raw';
 
-locals {
-    name       = "best-cat-2025-07-31-01-dev"
-    aws_region = "us-east-1"
+<Code title="live/dev/terragrunt.stack.hcl" lang="hcl" code={liveDevTerragruntStackHcl} />
 
-    units_path = find_in_parent_folders("catalog/units")
-}
+import liveProdTerragruntStackHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-8-refactoring-state-with-terragrunt-stacks/live/prod/terragrunt.stack.hcl?raw';
 
-unit "ddb" {
-    source = "${local.units_path}/ddb"
-    path   = "ddb"
-
-    values = {
-        name = local.name
-    }
-}
-
-unit "s3" {
-    source = "${local.units_path}/s3"
-    path   = "s3"
-
-    values = {
-        name = local.name
-    }
-}
-
-unit "iam" {
-    source = "${local.units_path}/iam"
-    path   = "iam"
-
-    values = {
-        name = local.name
-
-        aws_region = local.aws_region
-
-        s3_path = "../s3"
-        ddb_path = "../ddb"
-    }
-}
-
-unit "lambda" {
-    source = "${local.units_path}/lambda"
-    path   = "lambda"
-
-    values = {
-        name = local.name
-
-        aws_region = local.aws_region
-
-        s3_path = "../s3"
-        ddb_path = "../ddb"
-        iam_path = "../iam"
-    }
-}
-```
-
-```hcl
-# live/prod/terragrunt.stack.hcl
-
-locals {
-  name       = "best-cat-2025-07-31-01"
-  aws_region = "us-east-1"
-
-  units_path = find_in_parent_folders("catalog/units")
-}
-
-unit "ddb" {
-  source = "${local.units_path}/ddb"
-  path   = "ddb"
-
-  values = {
-    name = local.name
-  }
-}
-
-unit "s3" {
-  source = "${local.units_path}/s3"
-  path   = "s3"
-
-  values = {
-    name = local.name
-  }
-}
-
-unit "iam" {
-  source = "${local.units_path}/iam"
-  path   = "iam"
-
-  values = {
-    name = local.name
-
-    aws_region = local.aws_region
-
-    s3_path  = "../s3"
-    ddb_path = "../ddb"
-  }
-}
-
-unit "lambda" {
-  source = "${local.units_path}/lambda"
-  path   = "lambda"
-
-  values = {
-    name = local.name
-
-    aws_region = local.aws_region
-
-    s3_path  = "../s3"
-    ddb_path = "../ddb"
-    iam_path = "../iam"
-  }
-}
-```
+<Code title="live/prod/terragrunt.stack.hcl" lang="hcl" code={liveProdTerragruntStackHcl} />
 
 Now let's generate again to get that generated `.terragrunt-stack` directory.
 
-```hcl
-# live
-
-terragrunt stack generate
-```
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt stack generate`} />
 
 ## Project Layout Check-in
 
@@ -292,10 +177,7 @@ Should see a layout like the following now, with both a stack generated within `
 
 To migrate state from the old unit paths to the new paths, we can run the following:
 
-```bash
-# live
-
-# Migrate dev state
+<Code title="live" lang="bash" frame="terminal" code={`# Migrate dev state
 cd dev/ddb
 terragrunt state pull > /tmp/tofu.tfstate
 cd ../.terragrunt-stack/ddb
@@ -330,18 +212,15 @@ cd ../../lambda
 terragrunt state pull > /tmp/tofu.tfstate
 cd ../.terragrunt-stack/lambda
 terragrunt state push /tmp/tofu.tfstate
-```
+`} />
 
 We can now remove the `.gitignore` files, and prove to ourselves that state has migrated successfully!
 
-```bash
-# live
-
-rm -f ./***/.gitignore
+<Code title="live" lang="bash" frame="terminal" code={`rm -rf ./***/.gitignore ./***/ddb ./***/iam ./***/lambda ./***/s3
 terragrunt run --all plan
 
 # No changes!
-```
+`} />
 
 ## Trade-offs
 
