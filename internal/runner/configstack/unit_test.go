@@ -260,7 +260,7 @@ func TestRunUnitsNoUnits(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 
@@ -274,7 +274,7 @@ func TestRunUnitsOneUnitSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -288,7 +288,7 @@ func TestRunUnitsOneUnitSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 
@@ -318,7 +318,7 @@ func TestRunUnitsOneUnitAssumeAlreadyRan(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -332,7 +332,7 @@ func TestRunUnitsReverseOrderOneUnitSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -346,7 +346,7 @@ func TestRunUnitsReverseOrderOneUnitSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsReverseOrder(t.Context(), opts)
@@ -360,7 +360,7 @@ func TestRunUnitsIgnoreOrderOneUnitSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -374,7 +374,7 @@ func TestRunUnitsIgnoreOrderOneUnitSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
@@ -389,7 +389,7 @@ func TestRunUnitsOneUnitError(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
@@ -403,7 +403,7 @@ func TestRunUnitsOneUnitError(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -418,7 +418,7 @@ func TestRunUnitsReverseOrderOneUnitError(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
@@ -432,7 +432,7 @@ func TestRunUnitsReverseOrderOneUnitError(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsReverseOrder(t.Context(), opts)
@@ -448,7 +448,7 @@ func TestRunUnitsIgnoreOrderOneUnitError(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -462,7 +462,7 @@ func TestRunUnitsIgnoreOrderOneUnitError(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
@@ -477,7 +477,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -486,7 +486,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -495,7 +495,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -509,7 +509,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -527,7 +527,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -536,7 +536,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -545,7 +545,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -559,7 +559,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -578,7 +578,7 @@ func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -587,7 +587,7 @@ func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -596,7 +596,7 @@ func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -610,7 +610,7 @@ func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsReverseOrder(t.Context(), opts)
@@ -628,7 +628,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -637,7 +637,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -646,7 +646,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -660,7 +660,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
@@ -678,7 +678,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -688,7 +688,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -697,7 +697,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -711,7 +711,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err := runner.RunUnits(t.Context(), opts)
@@ -730,7 +730,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -740,7 +740,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -750,7 +750,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 	cRan := false
 	expectedErrC := errors.New("Expected error for unit c")
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -764,7 +764,7 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -782,7 +782,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -791,7 +791,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -800,7 +800,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -814,7 +814,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -832,7 +832,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -841,7 +841,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -850,7 +850,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:                 "c",
+		Path:                 "/c",
 		Dependencies:         common.Units{unitB},
 		Config:               config.TerragruntConfig{},
 		Logger:               l,
@@ -860,7 +860,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 
 	dRan := false
 	unitD := &common.Unit{
-		Path:              "d",
+		Path:              "/d",
 		Dependencies:      common.Units{unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -874,7 +874,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC, unitD},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -893,7 +893,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) 
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -902,7 +902,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) 
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -911,7 +911,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) 
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -925,7 +925,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) 
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsReverseOrder(t.Context(), opts)
@@ -943,7 +943,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -952,7 +952,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -961,7 +961,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -975,7 +975,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
@@ -993,7 +993,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1003,7 +1003,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1012,7 +1012,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1028,7 +1028,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -1048,7 +1048,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	terragruntOptionsA := optionsWithMockTerragruntCommand(t, "a", nil, &aRan)
 	terragruntOptionsA.IgnoreDependencyErrors = true
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1060,7 +1060,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1071,7 +1071,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	terragruntOptionsC := optionsWithMockTerragruntCommand(t, "c", nil, &cRan)
 	terragruntOptionsC.IgnoreDependencyErrors = true
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1085,7 +1085,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -1104,7 +1104,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1114,7 +1114,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1123,7 +1123,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1139,7 +1139,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsReverseOrder(t.Context(), opts)
@@ -1158,7 +1158,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1168,7 +1168,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1177,7 +1177,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1191,7 +1191,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
@@ -1211,7 +1211,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1220,7 +1220,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1229,7 +1229,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1246,7 +1246,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -1266,7 +1266,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *tes
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1275,7 +1275,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *tes
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1284,7 +1284,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *tes
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1298,7 +1298,7 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *tes
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
@@ -1317,7 +1317,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1326,7 +1326,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1335,7 +1335,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	cRan := false
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1344,7 +1344,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	dRan := false
 	unitD := &common.Unit{
-		Path:              "d",
+		Path:              "/d",
 		Dependencies:      common.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1353,7 +1353,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	eRan := false
 	unitE := &common.Unit{
-		Path:              "e",
+		Path:              "/e",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1362,7 +1362,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	fRan := false
 	unitF := &common.Unit{
-		Path:              "f",
+		Path:              "/f",
 		Dependencies:      common.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1376,7 +1376,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC, unitD, unitE, unitF},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -1398,7 +1398,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "large-graph-a",
+		Path:              "/large-graph-a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1407,7 +1407,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "large-graph-b",
+		Path:              "/large-graph-b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1417,7 +1417,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 	cRan := false
 	expectedErrC := errors.New("Expected error for unit large-graph-c")
 	unitC := &common.Unit{
-		Path:              "large-graph-c",
+		Path:              "/large-graph-c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1426,7 +1426,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	dRan := false
 	unitD := &common.Unit{
-		Path:              "large-graph-d",
+		Path:              "/large-graph-d",
 		Dependencies:      common.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1435,7 +1435,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	eRan := false
 	unitE := &common.Unit{
-		Path:                 "large-graph-e",
+		Path:                 "/large-graph-e",
 		Dependencies:         common.Units{},
 		Config:               config.TerragruntConfig{},
 		Logger:               l,
@@ -1445,7 +1445,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	fRan := false
 	unitF := &common.Unit{
-		Path:              "large-graph-f",
+		Path:              "/large-graph-f",
 		Dependencies:      common.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1454,7 +1454,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	gRan := false
 	unitG := &common.Unit{
-		Path:              "large-graph-g",
+		Path:              "/large-graph-g",
 		Dependencies:      common.Units{unitE},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1471,7 +1471,7 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC, unitD, unitE, unitF, unitG},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err = runner.RunUnits(t.Context(), opts)
@@ -1494,7 +1494,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 
 	aRan := false
 	unitA := &common.Unit{
-		Path:              "a",
+		Path:              "/a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1503,7 +1503,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 
 	bRan := false
 	unitB := &common.Unit{
-		Path:              "b",
+		Path:              "/b",
 		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1513,7 +1513,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 	cRan := false
 	expectedErrC := errors.New("Expected error for unit c")
 	unitC := &common.Unit{
-		Path:              "c",
+		Path:              "/c",
 		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1522,7 +1522,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 
 	dRan := false
 	unitD := &common.Unit{
-		Path:              "d",
+		Path:              "/d",
 		Dependencies:      common.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1531,7 +1531,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 
 	eRan := false
 	unitE := &common.Unit{
-		Path:              "e",
+		Path:              "/e",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1540,7 +1540,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 
 	fRan := false
 	unitF := &common.Unit{
-		Path:              "f",
+		Path:              "/f",
 		Dependencies:      common.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
@@ -1557,7 +1557,7 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 	runner := configstack.Runner{
 		Stack: &common.Stack{
 			Units:  common.Units{unitA, unitB, unitC, unitD, unitE, unitF},
-			Report: report.NewReport(),
+			Report: report.NewReport().WithWorkingDir(t.TempDir()),
 		},
 	}
 	err := runner.RunUnitsReverseOrder(t.Context(), opts)

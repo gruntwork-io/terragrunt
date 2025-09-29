@@ -284,7 +284,7 @@ func TestToRunningUnitsMultipleUnitsWithAndWithoutDependenciesIgnoreOrder(t *tes
 func testToRunningUnits(t *testing.T, units common.Units, order configstack.DependencyOrder, expected configstack.RunningUnits) {
 	t.Helper()
 
-	actual, err := configstack.ToRunningUnits(units, order, report.NewReport(), mockOptions)
+	actual, err := configstack.ToRunningUnits(units, order, report.NewReport().WithWorkingDir(t.TempDir()), mockOptions)
 	if assert.NoError(t, err, "For units %v and order %v", units, order) {
 		assertDependencyControllerMapsEqual(t, expected, actual, true, "For units %v and order %v", units, order)
 	}
@@ -324,7 +324,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		"e": ctrlE,
 	}
 
-	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport(), false)
+	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport().WithWorkingDir(t.TempDir()), false)
 	require.NoError(t, err)
 
 	assertDependencyControllerMapsEqual(t, expected, actual, true)
@@ -354,7 +354,7 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 		"b": ctrlB,
 	}
 
-	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport(), mockOptions.Experiments.Evaluate(experiment.Report))
+	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport().WithWorkingDir(t.TempDir()), mockOptions.Experiments.Evaluate(experiment.Report))
 	require.NoError(t, err)
 
 	assertDependencyControllerMapsEqual(t, expected, actual, true)
@@ -386,7 +386,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		"d": ctrlD,
 		"e": ctrlE,
 	}
-	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport(), false)
+	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport().WithWorkingDir(t.TempDir()), false)
 	require.NoError(t, err)
 
 	_ctrlD := newTestDependencyController(unitD)

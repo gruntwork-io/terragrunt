@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -611,6 +612,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
 	stack := configstack.NewRunner(l, opts)
+	stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
@@ -671,6 +673,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
 	stack := configstack.NewRunner(l, opts)
+	stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
@@ -746,6 +749,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 			configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
 			stack := configstack.NewRunner(l, opts)
+			stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 			actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 			// construct the expected list
 			unitA.FlagExcluded = true
@@ -789,6 +793,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
 	stack := configstack.NewRunner(l, opts)
+	stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
@@ -838,6 +843,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
 	stack := configstack.NewRunner(l, opts)
+	stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
@@ -889,6 +895,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
 	stack := configstack.NewRunner(l, opts)
+	stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
@@ -947,6 +954,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-f/" + config.DefaultTerragruntConfigPath}
 
 	stack := configstack.NewRunner(l, opts)
+	stack.SetReport(report.NewReport().WithWorkingDir(t.TempDir()))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
