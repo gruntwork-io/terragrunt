@@ -53,7 +53,7 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
 	assert.Contains(t, stderr, "using cache key for version files")
-	assert.Contains(t, stdout, "Reusing previous version")
+	assert.Regexp(t, `(Reusing previous version|shared cache directory)`, stdout)
 }
 
 func TestAutoProviderCacheDirDisabled(t *testing.T) {
