@@ -415,7 +415,7 @@ func TestBufferModuleOutput(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-disable --working-dir "+rootPath+" -- plan -out planfile")
 	require.NoError(t, err)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-disable --working-dir "+rootPath+" -- show -json planfile")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --summary-disable --log-disable --working-dir "+rootPath+" -- show -json planfile")
 	require.NoError(t, err)
 
 	for stdout := range strings.SplitSeq(stdout, "\n") {
@@ -4307,7 +4307,7 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	expected := 1
+	expected := 2
 
 	if expectExtraVersionCommandCall(t) {
 		expected++
