@@ -58,34 +58,52 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHo
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
-			l.Infof("Executing hook: %s", curHook.Name)
+			// Ensure run exists in report for this error hook execution
+			_, ensureErr := r.EnsureRun(terragruntOptions.WorkingDir)
+			if ensureErr != nil {
+				l.Errorf("Error ensuring run for error hook %s: %v", curHook.Name, ensureErr)
+				errorsOccured = multierror.Append(errorsOccured, ensureErr)
 
-			workingDir := ""
-			if curHook.WorkingDir != nil {
-				workingDir = *curHook.WorkingDir
+				continue
 			}
 
-			var suppressStdout bool
-			if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
-				suppressStdout = true
-			}
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
+				"hook": curHook.Name,
+				"dir":  curHook.WorkingDir,
+			}, func(ctx context.Context) error {
+				l.Infof("Executing hook: %s", curHook.Name)
 
-			actionToExecute := curHook.Execute[0]
-			actionParams := curHook.Execute[1:]
-			terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
+				workingDir := ""
+				if curHook.WorkingDir != nil {
+					workingDir = *curHook.WorkingDir
+				}
 
-			_, possibleError := shell.RunCommandWithOutput(
-				ctx,
-				l,
-				terragruntOptions,
-				workingDir,
-				suppressStdout,
-				false,
-				actionToExecute, actionParams...,
-			)
-			if possibleError != nil {
-				l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccured = multierror.Append(errorsOccured, possibleError)
+				var suppressStdout bool
+				if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+					suppressStdout = true
+				}
+
+				actionToExecute := curHook.Execute[0]
+				actionParams := curHook.Execute[1:]
+				terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
+
+				_, possibleError := shell.RunCommandWithOutput(
+					ctx,
+					l,
+					terragruntOptions,
+					workingDir,
+					suppressStdout,
+					false,
+					actionToExecute, actionParams...,
+				)
+				if possibleError != nil {
+					l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+					return possibleError
+				}
+				return nil
+			})
+			if err != nil {
+				errorsOccured = multierror.Append(errorsOccured, err)
 			}
 		}
 	}
@@ -123,6 +141,7 @@ func processHooks(
 			if ensureErr != nil {
 				l.Errorf("Error ensuring run for hook %s: %v", curHook.Name, ensureErr)
 				errorsOccured = multierror.Append(errorsOccured, ensureErr)
+
 				continue
 			}
 
