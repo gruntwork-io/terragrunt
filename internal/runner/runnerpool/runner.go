@@ -38,6 +38,30 @@ type Runner struct {
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	if len(discovered) == 0 {
+		// If strict include mode is enabled, it's valid to have no discovered configs
+		// (e.g., when no directories are included). In this case, return an empty runner.
+		if terragruntOptions.StrictInclude {
+			// Create an empty runner that will process no units
+			stack := common.Stack{
+				TerragruntOptions: terragruntOptions,
+				ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
+			}
+
+			runner := &Runner{
+				Stack: &stack,
+			}
+
+			// Create an empty queue
+			q, queueErr := queue.NewQueue(discovery.DiscoveredConfigs{})
+			if queueErr != nil {
+				return nil, queueErr
+			}
+
+			runner.queue = q
+
+			return runner.WithOptions(opts...), nil
+		}
+
 		return nil, common.ErrNoUnitsFound
 	}
 
