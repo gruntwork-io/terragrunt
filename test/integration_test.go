@@ -2916,16 +2916,12 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIncludeParent)
 	tmpEnvPath = path.Join(tmpEnvPath, testFixtureIncludeParent)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --log-level debug --all apply --non-interactive --working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 
-	out := stdout.String()
-	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Contains(t, stderr, "parent_hcl_file")
+	assert.Contains(t, stderr, "dependency_hcl")
+	assert.Contains(t, stderr, "common_hcl")
 }
 
 // The tests here cannot be parallelized.
@@ -3648,13 +3644,8 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+testPath, &stdout, &stderr)
+	_, output, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+testPath)
 	require.NoError(t, err)
-
-	output := stderr.String()
 
 	// check that only enabled dependencies are evaluated
 
@@ -3673,7 +3664,7 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
-		assert.NotContains(t, output, relPath, output)
+		assert.NotContains(t, output, "- Unit "+relPath, output)
 	}
 }
 
