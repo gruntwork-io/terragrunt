@@ -27,6 +27,7 @@ func TestDeprecatedHclvalidateCommand_HclvalidateInvalidConfigPath(t *testing.T)
 	expectedPaths := []string{
 		filepath.Join(rootPath, "second/a/terragrunt.hcl"),
 		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+		filepath.Join(rootPath, "second/d/terragrunt.hcl"),
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --working-dir %s --json --show-config-path", rootPath))
