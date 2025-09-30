@@ -100,6 +100,7 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHo
 					l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 					return possibleError
 				}
+
 				return nil
 			})
 			if err != nil {
