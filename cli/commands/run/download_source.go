@@ -193,13 +193,13 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 		return false, nil
 	}
 
-	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
+	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	if len(tfFiles) == 0 {
-		l.Debugf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
+	if !hasFiles {
+		l.Debugf("Working dir %s exists but contains no Terraform or OpenTofu files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
 		return false, nil
 	}
 

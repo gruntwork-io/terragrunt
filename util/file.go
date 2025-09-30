@@ -227,6 +227,104 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	return false, nil
 }
 
+// FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
+func FindTFFiles(rootPath string) ([]string, error) {
+	var terraformFiles []string
+
+	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if IsTFFile(path) {
+			terraformFiles = append(terraformFiles, path)
+		}
+
+		return nil
+	})
+
+	return terraformFiles, err
+}
+
+// RegexFoundInTFFiles walks through the directory and checks if any OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json) contain the given regex pattern
+func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error) {
+	var found bool
+
+	err := filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !IsTFFile(path) {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if pattern.Match(content) {
+			found = true
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	return found, err
+}
+
+// DirContainsTFFiles checks if the given directory contains any Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
+func DirContainsTFFiles(dirPath string) (bool, error) {
+	var found bool
+
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if IsTFFile(path) {
+			found = true
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	return found, err
+}
+
+// IsTFFile checks if a given file is a Terraform/OpenTofu file (.tf, .tofu, .tf.json, .tofu.json)
+func IsTFFile(path string) bool {
+	suffixes := []string{
+		".tf",
+		".tofu",
+		".tf.json",
+		".tofu.json",
+	}
+
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IsDir returns true if the path points to a directory.
 func IsDir(path string) bool {
 	fileInfo, err := os.Stat(path)

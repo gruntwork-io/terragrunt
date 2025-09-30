@@ -6,7 +6,7 @@ sidebar:
   order: 7
 ---
 
-import { FileTree, Aside } from '@astrojs/starlight/components';
+import { Code, FileTree, Aside } from '@astrojs/starlight/components';
 
 In the previous step, you successfully duplicated your `prod` environment as a new `dev` environment by replicating your `prod` module declaration as a new `dev` module instance in your `live/main.tf` file. While this demonstrated the power of reusable modules, it also introduced significant risk: the ***Terralith***. You've tightly coupled management of both your `dev` and `prod` environments in a single state file, and you introduce risk to one whenever you attempt to make changes to another.
 
@@ -18,89 +18,35 @@ Breaking down your Terralith so that you have multiple root modules is fairly si
 
 First, let's create a top-level directory for `prod` in `live`.
 
-```bash
-# live
-
-mkdir prod
-```
+<Code title="live" lang="bash" frame="terminal" code={`mkdir prod`} />
 
 Next, let's move everything into the `prod` directory (If you're not comfortable with using the `find` command here, you can just drag the content into the `prod` directory).
 
-```bash
-# live/prod
-
-find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \;
-```
+<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \;`} />
 
 To complete our new multi-environment setup, let's duplicate that `prod` directory to a new `dev` directory.
 
-```bash
-# live/prod
-
-cp -R prod dev
-```
+<Code title="live" lang="bash" frame="terminal" code={`cp -R prod dev`} />
 
 We need to edit the contents of the `dev` and `prod` directories to make some key adjustments. First, we'll want to make sure that the `backend.tf` files are updated to use new keys so that the two root modules don't conflict with each other.
 
-```hcl
-# live/dev/backend.tf
+import devBackendTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/backend.tf?raw';
 
-terraform {
-  backend "s3" {
-    bucket       = "terragrunt-to-terralith-blog-2025-07-31-01"
-    key          = "dev/tofu.tfstate"
-    region       = "us-east-1"
-    encrypt      = true
-    use_lockfile = true
-  }
-}
-```
+<Code title="live/dev/backend.tf" lang="hcl" code={devBackendTf} />
 
-```hcl
-# live/prod
+import prodBackendTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/backend.tf?raw';
 
-terraform {
-  backend "s3" {
-    bucket       = "terragrunt-to-terralith-blog-2025-07-31-01"
-    key          = "prod/tofu.tfstate"
-    region       = "us-east-1"
-    encrypt      = true
-    use_lockfile = true
-  }
-}
-```
+<Code title="live/prod/backend.tf" lang="hcl" code={prodBackendTf} />
 
 We'll also want to update the references to the shared module, update the `.auto.tfvars` file and edit the outputs to handle all the changes necessary for this project.
 
-```hcl
-# live/prod/main.tf
+import devMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/main.tf?raw';
 
-module "main" {
-  source = "../../catalog/modules/best_cat"
+<Code title="live/dev/main.tf" lang="hcl" code={devMainTf} />
 
-  name = var.name
+import prodMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/main.tf?raw';
 
-  aws_region = var.aws_region
-
-  lambda_zip_file = var.lambda_zip_file
-  force_destroy   = var.force_destroy
-}
-```
-
-```hcl
-# live/dev/main.tf
-
-module "main" {
-  source = "../../catalog/modules/best_cat"
-
-  name = var.name
-
-  aws_region = var.aws_region
-
-  lambda_zip_file = var.lambda_zip_file
-  force_destroy   = var.force_destroy
-}
-```
+<Code title="live/prod/main.tf" lang="hcl" code={prodMainTf} />
 
 <Aside type="note">
 These two files are now *exactly the same*. This will be important to keep in mind later.
@@ -108,153 +54,23 @@ These two files are now *exactly the same*. This will be important to keep in mi
 
 Given that we've renamed the the module, we'll also need to add `moved` blocks to handle the state moves that need to take place here. If you're not sure what we're doing here, consider reviewing earlier steps.
 
-```hcl
-# live/dev/moved.tf
+import devMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/moved.tf?raw';
 
-moved {
-  from = module.dev.module.ddb.aws_dynamodb_table.asset_metadata
-  to   = module.main.module.ddb.aws_dynamodb_table.asset_metadata
-}
+<Code title="live/dev/moved.tf" lang="hcl" code={devMovedTf} />
 
-moved {
-  from = module.dev.module.iam.aws_iam_policy.lambda_basic_execution
-  to   = module.main.module.iam.aws_iam_policy.lambda_basic_execution
-}
+import prodMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/moved.tf?raw';
 
-moved {
-  from = module.dev.module.iam.aws_iam_policy.lambda_dynamodb
-  to   = module.main.module.iam.aws_iam_policy.lambda_dynamodb
-}
+<Code title="live/prod/moved.tf" lang="hcl" code={prodMovedTf} />
 
-moved {
-  from = module.dev.module.iam.aws_iam_policy.lambda_s3_read
-  to   = module.main.module.iam.aws_iam_policy.lambda_s3_read
-}
+Next, we'll update the outputs, just like we did for the `main.tf` files.
 
-moved {
-  from = module.dev.module.iam.aws_iam_role.lambda_role
-  to   = module.main.module.iam.aws_iam_role.lambda_role
-}
+import devOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/outputs.tf?raw';
 
-moved {
-  from = module.dev.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = module.main.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-}
+<Code title="live/dev/outputs.tf" lang="hcl" code={devOutputsTf} />
 
-moved {
-  from = module.dev.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  to   = module.main.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-}
+import prodOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/outputs.tf?raw';
 
-moved {
-  from = module.dev.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  to   = module.main.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-}
-
-moved {
-  from = module.dev.module.lambda.aws_lambda_function.main
-  to   = module.main.module.lambda.aws_lambda_function.main
-}
-
-moved {
-  from = module.dev.module.lambda.aws_lambda_function_url.main
-  to   = module.main.module.lambda.aws_lambda_function_url.main
-}
-
-moved {
-  from = module.dev.module.s3.aws_s3_bucket.static_assets
-  to   = module.main.module.s3.aws_s3_bucket.static_assets
-}
-```
-
-```hcl
-# live/prod/moved.tf
-
-moved {
-  from = module.prod.module.ddb.aws_dynamodb_table.asset_metadata
-  to   = module.main.module.ddb.aws_dynamodb_table.asset_metadata
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_policy.lambda_basic_execution
-  to   = module.main.module.iam.aws_iam_policy.lambda_basic_execution
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_policy.lambda_dynamodb
-  to   = module.main.module.iam.aws_iam_policy.lambda_dynamodb
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_policy.lambda_s3_read
-  to   = module.main.module.iam.aws_iam_policy.lambda_s3_read
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_role.lambda_role
-  to   = module.main.module.iam.aws_iam_role.lambda_role
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = module.main.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  to   = module.main.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-}
-
-moved {
-  from = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  to   = module.main.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-}
-
-moved {
-  from = module.prod.module.lambda.aws_lambda_function.main
-  to   = module.main.module.lambda.aws_lambda_function.main
-}
-
-moved {
-  from = module.prod.module.lambda.aws_lambda_function_url.main
-  to   = module.main.module.lambda.aws_lambda_function_url.main
-}
-
-moved {
-  from = module.prod.module.s3.aws_s3_bucket.static_assets
-  to   = module.main.module.s3.aws_s3_bucket.static_assets
-}
-```
-
-Next, we'll update the outputs, just like we did for the [`main.tf`](http://main.tf) files.
-
-```hcl
-# live/prod/outputs.tf
-
-output "lambda_function_url" {
-  description = "URL of the Lambda function"
-  value       = module.main.lambda_function_url
-}
-
-output "s3_bucket_name" {
-  description = "Name of the S3 bucket for static assets"
-  value       = module.main.s3_bucket_name
-}
-```
-
-```hcl
-# live/dev/outputs.tf
-
-output "lambda_function_url" {
-  description = "URL of the Lambda function"
-  value       = module.main.lambda_function_url
-}
-
-output "s3_bucket_name" {
-  description = "Name of the S3 bucket for static assets"
-  value       = module.main.s3_bucket_name
-}
-```
+<Code title="live/prod/outputs.tf" lang="hcl" code={prodOutputsTf} />
 
 <Aside type="note">
 These two files are *also exactly the same*. This will be important to keep in mind later.
@@ -266,7 +82,7 @@ Finally, we need to update the `.auto.tfvars` files to reflect the difference in
 # live/prod/.auto.tfvars
 
 # Required: Name used for all resources (must be unique)
-name = "best-cat-2025-07-31-01"
+name = "best-cat-2025-09-24-2359"
 
 # Required: Path to your Lambda function zip file
 lambda_zip_file = "../../dist/best-cat.zip"
@@ -276,12 +92,11 @@ lambda_zip_file = "../../dist/best-cat.zip"
 # live/dev/.auto.tfvars
 
 # Required: Name used for all resources (must be unique)
-name = "best-cat-2025-07-31-01-dev"
+name = "best-cat-2025-09-24-2359-dev"
 
 # Required: Path to your Lambda function zip file
 lambda_zip_file = "../../dist/best-cat.zip"
 ```
-
 <Aside type="note">
 These two files differ in that they have different `name` values. They're not identical, but they're very similar.
 </Aside>
@@ -290,10 +105,7 @@ It's time for some more state manipulation! We currently have a single state fil
 
 In addition to having the state in S3, we also have a local copy of state in each root module. Running the `tofu init -migrate-state` command with the `.terraform` directory populated by copy of state from the previous configuration of the project will copy state to the new location in each new root module.
 
-```bash
-# live/dev
-
-$ tofu init -migrate-state
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu init -migrate-state
 
 Initializing the backend...
 Backend configuration changed!
@@ -311,12 +123,9 @@ Do you want to copy existing state to the new backend?
 
 Successfully configured the backend "s3"! OpenTofu will automatically
 use this backend unless the backend configuration changes.
-```
+`} />
 
-```bash
-# live/prod
-
-$ tofu init -migrate-state
+<Code title="live/prod" lang="bash" frame="terminal" code={`$ tofu init -migrate-state
 
 Initializing the backend...
 Backend configuration changed!
@@ -334,7 +143,7 @@ Do you want to copy existing state to the new backend?
 
 Successfully configured the backend "s3"! OpenTofu will automatically
 use this backend unless the backend configuration changes.
-```
+`} />
 
 We now have the state in `s3://[your-state-bucket]/tofu.tfstate` copied to both:
 
@@ -343,167 +152,13 @@ We now have the state in `s3://[your-state-bucket]/tofu.tfstate` copied to both:
 
 We need to remove the resources from state that aren't relevant in the new root modules, now so that we don't deploy `prod` resources in the `dev` root module and vice versa.
 
-```bash
-# live/dev/removed.tf
+import devRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/removed.tf?raw';
 
-removed {
-  from = module.prod.module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/dev/removed.tf" lang="hcl" code={devRemovedTf} />
 
-removed {
-  from = module.prod.module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
+import prodRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/removed.tf?raw';
 
-removed {
-  from = module.prod.module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.prod.module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
-
-```bash
-# live/prod/removed.tf
-
-removed {
-  from = module.dev.module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.dev.module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
+<Code title="live/prod/removed.tf" lang="hcl" code={prodRemovedTf} />
 
 ## Project Layout Check-in
 
@@ -537,34 +192,25 @@ At this stage, we should have a `live` directory that looks like the following (
 
 We should now see that we're simply going to forget the removed resources instead of destroying them.
 
-```bash
-# live/dev
-
-$ tofu plan
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu plan
 ...
 Plan: 0 to add, 1 to change, 0 to destroy, 11 to forget.
 ...
-```
+`} />
 
 Let's apply both `dev` and `prod` to finalize the moves and removals.
 
-```bash
-# live/dev
-
-$ tofu apply
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed, 11 forgotten.
 ...
-```
+`} />
 
-```bash
-# live/prod
-
-$ tofu apply
+<Code title="live/prod" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed, 11 forgotten.
 ...
-```
+`} />
 
 ## Trade-offs
 
