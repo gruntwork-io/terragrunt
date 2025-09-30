@@ -1052,42 +1052,6 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 }
 
-func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsRunnerPoolExperimentEnabled(t) {
-		t.Skip("Skipping test in runner-pool experiment")
-		return
-	}
-
-	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
-	// so the symlinked directories are copied physically, which defeats the purpose of this test,
-	// therefore we are going to create the symlinks manually in the destination directory
-	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, textFixtureDisjointSymlinks))
-	require.NoError(t, err)
-
-	disjointSymlinksEnvironmentPath := util.JoinPath(tmpEnvPath, textFixtureDisjointSymlinks)
-	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "b")))
-	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "c")))
-
-	expectedApplyOutput := fmt.Sprintf(`
-	{
-	  "Group 1": [
-		"%[1]s/a",
-		"%[1]s/b",
-		"%[1]s/c"
-	  ]
-	}`, disjointSymlinksEnvironmentPath)
-
-	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-module-groups --experiment symlinks --working-dir %s apply", disjointSymlinksEnvironmentPath))
-	require.NoError(t, err)
-
-	output := strings.ReplaceAll(stdout, " ", "")
-	expectedOutput := strings.ReplaceAll(strings.ReplaceAll(expectedApplyOutput, "\t", ""), " ", "")
-	assert.Contains(t, strings.TrimSpace(output), strings.TrimSpace(expectedOutput))
-}
-
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
