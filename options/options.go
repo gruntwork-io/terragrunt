@@ -750,7 +750,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
-			run, err := r.GetRun(opts.WorkingDir)
+			run, err := r.EnsureRun(opts.WorkingDir)
 			if err != nil {
 				return err
 			}
@@ -777,7 +777,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 			)
 
 			// Assume the retry will succeed.
-			run, err := r.GetRun(opts.WorkingDir)
+			run, err := r.EnsureRun(opts.WorkingDir)
 			if err != nil {
 				return err
 			}
