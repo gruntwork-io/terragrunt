@@ -82,7 +82,7 @@ func (s *Summary) Update(run *Run) {
 		s.firstRunStart = &run.Started
 	}
 
-	if s.lastRunEnd == nil || run.Ended.After(*s.lastRunEnd) {
+	if !run.Ended.IsZero() && (s.lastRunEnd == nil || run.Ended.After(*s.lastRunEnd)) {
 		s.lastRunEnd = &run.Ended
 	}
 }
