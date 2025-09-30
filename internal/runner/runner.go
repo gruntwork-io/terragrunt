@@ -11,11 +11,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -24,13 +21,10 @@ import (
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
-	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
-		l.Infof("Using runner pool for stack %s", terragruntOptions.WorkingDir)
 
-		return runnerpool.Build(ctx, l, terragruntOptions, opts...)
-	}
+	l.Infof("Using runner pool for stack %s", terragruntOptions.WorkingDir)
 
-	return configstack.Build(ctx, l, terragruntOptions, opts...)
+	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 }
 
 // FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
