@@ -47,7 +47,9 @@ func Build(
 		d = d.WithStrictInclude()
 	}
 
-	if terragruntOptions.ExcludeByDefault {
+	// For ModulesThatInclude filtering, we need to discover all modules first before filtering,
+	// so we don't set ExcludeByDefault during discovery. The filtering will happen later in the unit resolver.
+	if terragruntOptions.ExcludeByDefault && len(terragruntOptions.ModulesThatInclude) == 0 {
 		d = d.WithExcludeByDefault()
 	}
 

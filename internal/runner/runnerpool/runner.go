@@ -38,9 +38,14 @@ type Runner struct {
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	if len(discovered) == 0 {
-		// If a strict include mode or exclude-by-default mode is enabled, it's valid to have no discovered configs
-		// (e.g., when no directories match the include patterns). In this case, return an empty runner.
-		if terragruntOptions.StrictInclude || terragruntOptions.ExcludeByDefault {
+		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
+		// Note: ModulesThatInclude filtering happens after discovery, so it might legitimately result in empty discovery.
+		isFilteringEnabled := terragruntOptions.StrictInclude ||
+			len(terragruntOptions.IncludeDirs) > 0 ||
+			len(terragruntOptions.ModulesThatInclude) > 0 ||
+			terragruntOptions.ExcludeByDefault
+
+		if isFilteringEnabled {
 			// Create an empty runner that will process no units
 			stack := common.Stack{
 				TerragruntOptions: terragruntOptions,
