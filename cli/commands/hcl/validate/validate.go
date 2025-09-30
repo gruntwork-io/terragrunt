@@ -79,7 +79,13 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return err
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
+	stack, err := runner.FindStackInSubfolders(
+		ctx,
+		l,
+		opts,
+		common.WithParseOptions(parseOptions),
+		common.WithReport(report.NewReport()),
+	)
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
 	}
