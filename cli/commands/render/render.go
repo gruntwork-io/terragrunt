@@ -76,7 +76,7 @@ func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.Te
 	if !opts.DisableDependentModules {
 		dependentModules := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts.TerragruntOptions, cfg)
 
-		var dependentModulesPath []*string
+		dependentModulesPath := make([]*string, 0, len(dependentModules))
 		for _, module := range dependentModules {
 			dependentModulesPath = append(dependentModulesPath, &module.Path)
 		}

@@ -70,11 +70,12 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.UnitsMap {
 	matchedModulesMap := make(common.UnitsMap)
 
-	dir += filepath.FromSlash("/")
+	// Construct the full path to terragrunt.hcl in the directory
+	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
-	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
+	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	if err != nil {
-		l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
+		l.Debugf("Failed to build terragrunt options from %s %v", configPath, err)
 		return matchedModulesMap
 	}
 
