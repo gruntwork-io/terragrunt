@@ -194,6 +194,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 			}
 
 			var records []map[string]string
+
 			for _, record := range allRecords {
 				if record["Result"] != "" {
 					records = append(records, record)
@@ -536,6 +537,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 		// Check that Started time is set
 		started, ok := r["Started"].(string)
 		require.True(t, ok, "Record %d Started should be a string", i)
+
 		_, err := time.Parse(time.RFC3339, started)
 		require.NoError(t, err, "Record %d Started should be in RFC3339 format", i)
 	}
