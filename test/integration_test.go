@@ -4329,7 +4329,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	expected := 2
+	expected := 3
 
 	if expectExtraVersionCommandCall(t) {
 		expected++
@@ -4351,10 +4351,6 @@ func expectExtraVersionCommandCall(t *testing.T) bool {
 	}
 
 	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
-		return true
-	}
-
-	if os.Getenv("TG_EXPERIMENT") == "auto-provider-cache-dir" {
 		return true
 	}
 
