@@ -67,7 +67,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: RunnerPool,
+			Name:   RunnerPool,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   AutoProviderCacheDir,
