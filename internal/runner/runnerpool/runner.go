@@ -35,6 +35,12 @@ type Runner struct {
 	planErrorBuffers []bytes.Buffer
 }
 
+// SetQueue replaces the runner's queue with a new one.
+// This is useful for filtering the queue after initial discovery.
+func (r *Runner) SetQueue(q *queue.Queue) {
+	r.queue = q
+}
+
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	if len(discovered) == 0 {

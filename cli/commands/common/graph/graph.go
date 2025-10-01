@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -41,12 +44,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		rootDir = gitRoot
 	}
 
-	l, rootOptions, err := opts.CloneWithConfigPath(l, rootDir)
-	if err != nil {
-		return err
-	}
-
-	rootOptions.WorkingDir = rootDir
+	// Clone options and set RootWorkingDir to rootDir so discovery starts from the graph root
+	// This allows discovering all modules including dependents (modules that depend on the working dir)
+	graphOpts := opts.Clone()
+	graphOpts.RootWorkingDir = rootDir
 
 	stackOpts := []common.Option{}
 
@@ -78,7 +79,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, rootOptions, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
 	if err != nil {
 		return err
 	}
@@ -98,5 +99,35 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	return runall.RunAllOnStack(ctx, l, opts, stack)
+	// Rebuild the queue with filtered units
+	// The queue needs to be rebuilt because it was created before we set FlagExcluded
+	if poolRunner, ok := stack.(*runnerpool.Runner); ok {
+		// Get the discovered configs that correspond to non-excluded units
+		var filteredDiscovered discovery.DiscoveredConfigs
+
+		for _, unit := range stack.GetStack().Units {
+			if !unit.FlagExcluded {
+				// Find the corresponding discovered config
+				// We need to reconstruct it from the unit
+				filteredDiscovered = append(filteredDiscovered, &discovery.DiscoveredConfig{
+					Path:   unit.Path,
+					Parsed: &unit.Config,
+					Type:   discovery.ConfigTypeUnit,
+				})
+			}
+		}
+
+		// Create a new queue with only the filtered units
+		newQueue, err := queue.NewQueue(filteredDiscovered)
+		if err != nil {
+			return err
+		}
+
+		// Replace the queue in the runner
+		// Note: This requires accessing the unexported queue field, which is not ideal
+		// but necessary to make the filtering work
+		poolRunner.SetQueue(newQueue)
+	}
+
+	return runall.RunAllOnStack(ctx, l, graphOpts, stack)
 }
