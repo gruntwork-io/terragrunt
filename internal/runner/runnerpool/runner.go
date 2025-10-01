@@ -39,11 +39,8 @@ type Runner struct {
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	if len(discovered) == 0 {
 		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
-		// Note: ModulesThatInclude filtering happens after discovery, so it might legitimately result in empty discovery.
 		isFilteringEnabled := terragruntOptions.StrictInclude ||
-			len(terragruntOptions.IncludeDirs) > 0 ||
-			len(terragruntOptions.ModulesThatInclude) > 0 ||
-			terragruntOptions.ExcludeByDefault
+			len(terragruntOptions.ModulesThatInclude) > 0
 
 		if isFilteringEnabled {
 			// Create an empty runner that will process no units
@@ -117,6 +114,15 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	}
 
 	runner.Stack.Units = unitsMap
+
+	// Handle prevent_destroy logic for destroy operations
+	// If running destroy, exclude units with prevent_destroy=true and their dependencies
+	if isDestroyCommand(terragruntOptions) {
+		l.Debugf("Detected destroy command, applying prevent_destroy exclusions")
+		applyPreventDestroyExclusions(l, unitsMap)
+	} else {
+		l.Debugf("Not a destroy command (first arg: %s), skipping prevent_destroy exclusions", terragruntOptions.TerraformCliArgs.First())
+	}
 
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
 	// This ensures excluded units are not shown in lists or scheduled at all.
@@ -426,4 +432,65 @@ func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
 // SetReport sets the report for the stack.
 func (r *Runner) SetReport(report *report.Report) {
 	r.Stack.Report = report
+}
+
+// isDestroyCommand checks if the current command is a destroy operation
+func isDestroyCommand(opts *options.TerragruntOptions) bool {
+	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
+		return true
+	}
+
+	if util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
+		return true
+	}
+
+	return false
+}
+
+// applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
+// from being destroyed. This prevents accidental destruction of protected infrastructure.
+func applyPreventDestroyExclusions(l log.Logger, units common.Units) {
+	// First pass: identify units with prevent_destroy=true
+	protectedUnits := make(map[string]bool)
+
+	for _, unit := range units {
+		if unit.Config.PreventDestroy != nil && *unit.Config.PreventDestroy {
+			protectedUnits[unit.Path] = true
+			unit.FlagExcluded = true
+			l.Debugf("Unit %s is protected by prevent_destroy flag", unit.Path)
+		}
+	}
+
+	if len(protectedUnits) == 0 {
+		return
+	}
+
+	// Second pass: find all dependencies of protected units
+	// We need to prevent destruction of any unit that a protected unit depends on
+	dependencyPaths := make(map[string]bool)
+
+	for _, unit := range units {
+		if protectedUnits[unit.Path] {
+			collectDependencies(unit, dependencyPaths)
+		}
+	}
+
+	// Third pass: mark dependencies as excluded
+	for _, unit := range units {
+		if dependencyPaths[unit.Path] && !protectedUnits[unit.Path] {
+			unit.FlagExcluded = true
+			l.Debugf("Unit %s is excluded because it's a dependency of a protected unit", unit.Path)
+		}
+	}
+}
+
+// collectDependencies recursively collects all dependency paths for a unit
+func collectDependencies(unit *common.Unit, paths map[string]bool) {
+	for _, dep := range unit.Dependencies {
+		if !paths[dep.Path] {
+			paths[dep.Path] = true
+			// Recursively collect dependencies of dependencies
+			collectDependencies(dep, paths)
+		}
+	}
 }

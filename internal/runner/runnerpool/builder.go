@@ -19,8 +19,14 @@ func Build(
 	opts ...common.Option,
 ) (common.StackRunner, error) {
 	// discovery configurations
+	// Use RootWorkingDir which is the canonicalized absolute path, not WorkingDir which may be relative
+	workingDir := terragruntOptions.RootWorkingDir
+	if workingDir == "" {
+		workingDir = terragruntOptions.WorkingDir
+	}
+
 	d := discovery.
-		NewDiscovery(terragruntOptions.WorkingDir).
+		NewDiscovery(workingDir).
 		WithOptions(opts...).
 		WithDiscoverExternalDependencies().
 		WithParseInclude().
@@ -47,11 +53,9 @@ func Build(
 		d = d.WithStrictInclude()
 	}
 
-	// For ModulesThatInclude filtering, we need to discover all modules first before filtering,
-	// so we don't set ExcludeByDefault during discovery. The filtering will happen later in the unit resolver.
-	if terragruntOptions.ExcludeByDefault && len(terragruntOptions.ModulesThatInclude) == 0 {
-		d = d.WithExcludeByDefault()
-	}
+	// We intentionally do NOT set ExcludeByDefault during discovery, even if it's enabled in options.
+	// The filtering will happen later in the unit resolver after all modules have been discovered.
+	// This ensures that dependency resolution works correctly and modules aren't prematurely excluded.
 
 	// Pass dependency behavior flags
 	if terragruntOptions.IgnoreExternalDependencies {
