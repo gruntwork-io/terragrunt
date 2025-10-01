@@ -523,6 +523,18 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
+	// Ensure configPath is absolute and normalized for consistent path handling
+	if !filepath.IsAbs(configPath) {
+		absConfigPath, err := filepath.Abs(configPath)
+		if err != nil {
+			return l, nil, err
+		}
+
+		configPath = util.CleanPath(absConfigPath)
+	} else {
+		configPath = util.CleanPath(configPath)
+	}
+
 	workingDir := filepath.Dir(configPath)
 
 	newOpts.TerragruntConfigPath = configPath

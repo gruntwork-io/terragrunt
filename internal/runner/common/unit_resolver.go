@@ -569,6 +569,12 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 			}
 
 			externalDependency.AssumeAlreadyApplied = !shouldApply
+			// Mark external dependencies as excluded if they shouldn't be applied
+			// This ensures they are tracked in the report but not executed
+			if !shouldApply {
+				externalDependency.FlagExcluded = true
+			}
+
 			allExternalDependencies[externalDependency.Path] = externalDependency
 		}
 	}

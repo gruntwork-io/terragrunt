@@ -132,7 +132,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
 	// This ensures excluded units are not shown in lists or scheduled at all.
-	filtered := filterDiscoveredUnits(discovered, unitsMap)
+	filtered := FilterDiscoveredUnits(discovered, unitsMap)
 
 	q, queueErr := queue.NewQueue(filtered)
 	if queueErr != nil {
@@ -184,18 +184,37 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	if r.Stack.Report != nil {
 		for _, u := range r.Stack.Units {
 			if u.FlagExcluded {
-				run, err := r.Stack.Report.EnsureRun(u.Path)
+				// Ensure path is absolute for reporting
+				unitPath := u.Path
+				if !filepath.IsAbs(unitPath) {
+					var err error
+
+					unitPath, err = filepath.Abs(unitPath)
+					if err != nil {
+						l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
+						continue
+					}
+				}
+
+				run, err := r.Stack.Report.EnsureRun(unitPath)
 				if err != nil {
-					l.Errorf("Error ensuring run for unit %s: %v", u.Path, err)
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
+				}
+
+				// Determine the reason for exclusion
+				// External dependencies that are assumed already applied are excluded with --queue-exclude-external
+				reason := report.ReasonExcludeBlock
+				if u.AssumeAlreadyApplied {
+					reason = report.ReasonExcludeExternal
 				}
 
 				if err := r.Stack.Report.EndRun(
 					run.Path,
 					report.WithResult(report.ResultExcluded),
-					report.WithReason(report.ReasonExcludeBlock),
+					report.WithReason(reason),
 				); err != nil {
-					l.Errorf("Error ending run for unit %s: %v", u.Path, err)
+					l.Errorf("Error ending run for unit %s: %v", unitPath, err)
 				}
 			}
 		}
@@ -222,7 +241,81 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		WithMaxConcurrency(opts.Parallelism),
 	)
 
-	return controller.Run(ctx, l)
+	err := controller.Run(ctx, l)
+
+	// Emit report entries for early exit units after controller completes
+	if r.Stack.Report != nil {
+		for _, entry := range r.queue.Entries {
+			if entry.Status == queue.StatusEarlyExit {
+				unit := r.getUnitByPath(entry.Config.Path)
+				if unit == nil {
+					l.Warnf("Could not find unit for early exit entry: %s", entry.Config.Path)
+					continue
+				}
+
+				// Ensure path is absolute for reporting
+				unitPath := unit.Path
+				if !filepath.IsAbs(unitPath) {
+					var absErr error
+
+					unitPath, absErr = filepath.Abs(unitPath)
+					if absErr != nil {
+						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+						continue
+					}
+				}
+
+				run, reportErr := r.Stack.Report.EnsureRun(unitPath)
+				if reportErr != nil {
+					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
+					continue
+				}
+
+				// Find the immediate failed or early-exited ancestor to set as cause
+				// If a dependency failed, use it; otherwise if a dependency exited early, use it
+				var (
+					failedAncestor string
+					foundFailedDep bool
+				)
+
+				for _, dep := range entry.Config.Dependencies {
+					// Search for the dependency in queue entries
+					for _, qEntry := range r.queue.Entries {
+						if qEntry.Config.Path == dep.Path {
+							if qEntry.Status == queue.StatusFailed {
+								failedAncestor = filepath.Base(dep.Path)
+								foundFailedDep = true
+
+								break
+							} else if qEntry.Status == queue.StatusEarlyExit && failedAncestor == "" {
+								// Use early exit dependency as fallback
+								failedAncestor = filepath.Base(dep.Path)
+							}
+						}
+					}
+
+					if foundFailedDep {
+						// Stop if we found a directly failed dependency
+						break
+					}
+				}
+
+				endOpts := []report.EndOption{
+					report.WithResult(report.ResultEarlyExit),
+					report.WithReason(report.ReasonAncestorError),
+				}
+				if failedAncestor != "" {
+					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
+				}
+
+				if endErr := r.Stack.Report.EndRun(run.Path, endOpts...); endErr != nil {
+					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
+				}
+			}
+		}
+	}
+
+	return err
 }
 
 // handleApplyDestroy handles logic for apply and destroy commands.
@@ -245,6 +338,17 @@ func (r *Runner) handlePlan() {
 	for i, u := range r.Stack.Units {
 		u.TerragruntOptions.ErrWriter = io.MultiWriter(&r.planErrorBuffers[i], u.TerragruntOptions.ErrWriter)
 	}
+}
+
+// getUnitByPath returns the unit with the given path, or nil if not found.
+func (r *Runner) getUnitByPath(path string) *common.Unit {
+	for _, u := range r.Stack.Units {
+		if u.Path == path {
+			return u
+		}
+	}
+
+	return nil
 }
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
@@ -360,7 +464,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 	}
 }
 
-// filterDiscoveredUnits removes configs for units flagged as excluded and prunes dependencies
+// FilterDiscoveredUnits removes configs for units flagged as excluded and prunes dependencies
 // that point to excluded units. This keeps the execution queue and any user-facing listings
 // free from units not intended to run.
 //
@@ -373,7 +477,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 //   - For each included config, its Dependencies list is filtered to only include included configs.
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
-func filterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.Units) discovery.DiscoveredConfigs {
+func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.Units) discovery.DiscoveredConfigs {
 	// Build allowlist from non-excluded unit paths
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {

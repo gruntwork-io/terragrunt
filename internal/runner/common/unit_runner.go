@@ -50,7 +50,22 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 
-	run, err := report.NewRun(runner.Unit.Path)
+	// Ensure path is absolute and normalized for reporting
+	unitPath := runner.Unit.Path
+	if !filepath.IsAbs(unitPath) {
+		var absErr error
+
+		unitPath, absErr = filepath.Abs(unitPath)
+		if absErr != nil {
+			return absErr
+		}
+
+		unitPath = util.CleanPath(unitPath)
+	} else {
+		unitPath = util.CleanPath(unitPath)
+	}
+
+	run, err := report.NewRun(unitPath)
 	if err != nil {
 		return err
 	}
@@ -59,7 +74,27 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		return err
 	}
 
-	return opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
+	runErr := opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
+
+	// End the run with appropriate result
+	if runErr != nil {
+		if endErr := r.EndRun(
+			run.Path,
+			report.WithResult(report.ResultFailed),
+			report.WithReason(report.ReasonRunError),
+			report.WithCauseRunError(runErr.Error()),
+		); endErr != nil {
+			runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+		}
+
+		return runErr
+	}
+
+	if endErr := r.EndRun(run.Path, report.WithResult(report.ResultSucceeded)); endErr != nil {
+		runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+	}
+
+	return nil
 }
 
 // Run a unit right now by executing the runTerragrunt command of its TerragruntOptions field.

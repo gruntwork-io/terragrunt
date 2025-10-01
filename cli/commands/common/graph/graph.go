@@ -102,30 +102,31 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// Rebuild the queue with filtered units
 	// The queue needs to be rebuilt because it was created before we set FlagExcluded
 	if poolRunner, ok := stack.(*runnerpool.Runner); ok {
-		// Get the discovered configs that correspond to non-excluded units
-		var filteredDiscovered discovery.DiscoveredConfigs
+		// Reconstruct discovered configs from ALL units (including excluded ones)
+		// This is necessary so that excluded units can be reported properly
+		var allDiscovered discovery.DiscoveredConfigs
 
 		for _, unit := range stack.GetStack().Units {
-			if !unit.FlagExcluded {
-				// Find the corresponding discovered config
-				// We need to reconstruct it from the unit
-				filteredDiscovered = append(filteredDiscovered, &discovery.DiscoveredConfig{
-					Path:   unit.Path,
-					Parsed: &unit.Config,
-					Type:   discovery.ConfigTypeUnit,
-				})
-			}
+			// Include ALL units (both excluded and non-excluded)
+			// The filtering will be done by filterDiscoveredUnits based on FlagExcluded
+			allDiscovered = append(allDiscovered, &discovery.DiscoveredConfig{
+				Path:   unit.Path,
+				Parsed: &unit.Config,
+				Type:   discovery.ConfigTypeUnit,
+			})
 		}
 
-		// Create a new queue with only the filtered units
+		// Use the runner pool's filter logic to create properly filtered discovered configs
+		// This respects FlagExcluded and ensures excluded units are tracked for reporting
+		filteredDiscovered := runnerpool.FilterDiscoveredUnits(allDiscovered, stack.GetStack().Units)
+
+		// Create a new queue with the filtered units
 		newQueue, err := queue.NewQueue(filteredDiscovered)
 		if err != nil {
 			return err
 		}
 
 		// Replace the queue in the runner
-		// Note: This requires accessing the unexported queue field, which is not ideal
-		// but necessary to make the filtering work
 		poolRunner.SetQueue(newQueue)
 	}
 
