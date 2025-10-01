@@ -827,32 +827,12 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 			// Mark unit itself as excluded
 			unit.FlagExcluded = true
 
-			// TODO: Make an upsert option for ends,
-			// so that I don't have to do this every time.
-			run, err := reportInstance.EnsureRun(unit.Path)
-			if err != nil {
-				l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
-				continue
-			}
-
-			if err := reportInstance.EndRun(
-				run.Path,
-				report.WithResult(report.ResultExcluded),
-				report.WithReason(report.ReasonExcludeDir),
-			); err != nil {
-				l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
-				continue
-			}
-		}
-
-		// Mark all affected dependencies as excluded
-		for _, dependency := range unit.Dependencies {
-			if excludeFn(l, dependency) {
-				dependency.FlagExcluded = true
-
-				run, err := reportInstance.EnsureRun(dependency.Path)
+			// Only update report if it's enabled
+			if reportInstance != nil {
+				// so that I don't have to do this every time.
+				run, err := reportInstance.EnsureRun(unit.Path)
 				if err != nil {
-					l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
+					l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
 					continue
 				}
 
@@ -861,8 +841,33 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 					report.WithResult(report.ResultExcluded),
 					report.WithReason(report.ReasonExcludeDir),
 				); err != nil {
-					l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
+					l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
 					continue
+				}
+			}
+		}
+
+		// Mark all affected dependencies as excluded
+		for _, dependency := range unit.Dependencies {
+			if excludeFn(l, dependency) {
+				dependency.FlagExcluded = true
+
+				// Only update report if it's enabled
+				if reportInstance != nil {
+					run, err := reportInstance.EnsureRun(dependency.Path)
+					if err != nil {
+						l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
+						continue
+					}
+
+					if err := reportInstance.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeDir),
+					); err != nil {
+						l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
+						continue
+					}
 				}
 			}
 		}
