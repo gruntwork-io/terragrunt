@@ -64,7 +64,7 @@ Terragrunt dependency blocks allow reading inputs directly from other dependenci
 
 The reason for this is that Terragrunt needs to recursively read inputs from dependencies, and their dependencies, all the way down to the ancestral Terragrunt unit they all have in common to be able to expose the inputs to the dependent unit from its direct dependency (as the inputs from the direct dependency might be derived from a dependency of the direct dependency).
 
-You can mitigate this performance penalty by using the `skip-dependency-inputs` strict control.
+You can mitigate this performance penalty by using the `skip-dependencies-inputs` strict control.
 
 Enabling this strict control will activate a breaking change in Terragrunt behavior, making it so that dependency blocks no longer parse dependencies of dependencies, which is required to read inputs from direct dependencies.
 
