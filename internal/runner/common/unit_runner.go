@@ -124,7 +124,9 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		jsonOptions.TerraformCommand = tf.CommandNameShow
 		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, opts)}
 
-		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
+		// Don't pass the report to RunTerragrunt for the JSON show command
+		// to avoid creating duplicate report entries for the cache directory
+		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, nil); err != nil {
 			return err
 		}
 

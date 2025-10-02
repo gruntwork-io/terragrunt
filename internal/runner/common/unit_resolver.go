@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -94,7 +95,14 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
-	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsThatAreIncludedByOthers)
+	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
+	// This ensures units excluded via CLI get the correct reason in reports
+	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsThatAreIncludedByOthers)
+	if err != nil {
+		return nil, err
+	}
+
+	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +112,7 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
-	withUnitsExcluded, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
-	if err != nil {
-		return nil, err
-	}
-
-	return withUnitsExcluded, nil
+	return withUnitsRead, nil
 }
 
 // telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
@@ -215,7 +218,7 @@ func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Log
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result := r.flagExcludedUnits(l, r.Stack.TerragruntOptions, withUnitsThatAreIncludedByOthers)
+		result := r.flagExcludedUnits(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
 		withExcludedUnits = result
 
 		return nil
@@ -752,7 +755,7 @@ func (r *UnitResolver) flagDependencyIncludes(dependency *Unit, unitPath string,
 }
 
 // flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.
-func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, units Units) Units {
+func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	for _, unit := range units {
 		excludeConfig := unit.Config.Exclude
 
@@ -767,6 +770,35 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 		if excludeConfig.If {
 			l.Debugf("Unit %s is excluded by exclude block", unit.Path)
 			unit.FlagExcluded = true
+
+			// Only update report if it's enabled
+			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+				// Ensure path is absolute for reporting
+				unitPath := unit.Path
+				if !filepath.IsAbs(unitPath) {
+					var absErr error
+					unitPath, absErr = filepath.Abs(unitPath)
+					if absErr != nil {
+						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+						continue
+					}
+				}
+
+				run, err := reportInstance.EnsureRun(unitPath)
+				if err != nil {
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
+					continue
+				}
+
+				if err := reportInstance.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeBlock),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", unitPath, err)
+					continue
+				}
+			}
 		}
 
 		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
@@ -774,6 +806,35 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 
 			for _, dependency := range unit.Dependencies {
 				dependency.FlagExcluded = true
+
+				// Only update report if it's enabled
+				if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+					// Ensure path is absolute for reporting
+					depPath := dependency.Path
+					if !filepath.IsAbs(depPath) {
+						var absErr error
+						depPath, absErr = filepath.Abs(depPath)
+						if absErr != nil {
+							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)
+							continue
+						}
+					}
+
+					run, err := reportInstance.EnsureRun(depPath)
+					if err != nil {
+						l.Errorf("Error ensuring run for dependency %s: %v", depPath, err)
+						continue
+					}
+
+					if err := reportInstance.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeBlock),
+					); err != nil {
+						l.Errorf("Error ending run for dependency %s: %v", depPath, err)
+						continue
+					}
+				}
 			}
 		}
 	}
@@ -834,11 +895,23 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 			unit.FlagExcluded = true
 
 			// Only update report if it's enabled
-			if reportInstance != nil {
+			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+				// Ensure path is absolute for reporting
+				unitPath := unit.Path
+				if !filepath.IsAbs(unitPath) {
+					var absErr error
+					unitPath, absErr = filepath.Abs(unitPath)
+					if absErr != nil {
+						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+						continue
+					}
+				}
+
+				// TODO: Make an upsert option for ends,
 				// so that I don't have to do this every time.
-				run, err := reportInstance.EnsureRun(unit.Path)
+				run, err := reportInstance.EnsureRun(unitPath)
 				if err != nil {
-					l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
 				}
 
@@ -847,7 +920,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 					report.WithResult(report.ResultExcluded),
 					report.WithReason(report.ReasonExcludeDir),
 				); err != nil {
-					l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
+					l.Errorf("Error ending run for unit %s: %v", unitPath, err)
 					continue
 				}
 			}
@@ -859,10 +932,21 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 				dependency.FlagExcluded = true
 
 				// Only update report if it's enabled
-				if reportInstance != nil {
-					run, err := reportInstance.EnsureRun(dependency.Path)
+				if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+					// Ensure path is absolute for reporting
+					depPath := dependency.Path
+					if !filepath.IsAbs(depPath) {
+						var absErr error
+						depPath, absErr = filepath.Abs(depPath)
+						if absErr != nil {
+							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)
+							continue
+						}
+					}
+
+					run, err := reportInstance.EnsureRun(depPath)
 					if err != nil {
-						l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
+						l.Errorf("Error ensuring run for dependency %s: %v", depPath, err)
 						continue
 					}
 
@@ -871,7 +955,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(report.ReasonExcludeDir),
 					); err != nil {
-						l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
+						l.Errorf("Error ending run for dependency %s: %v", depPath, err)
 						continue
 					}
 				}
