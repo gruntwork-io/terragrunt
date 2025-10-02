@@ -106,12 +106,19 @@ func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 
 // WriteSummary writes the summary to a writer.
 func (r *Report) WriteSummary(w io.Writer) error {
+	summary := r.Summarize()
+
+	// Don't write anything if there are no units
+	if summary.TotalUnits() == 0 {
+		return nil
+	}
+
 	_, err := fmt.Fprintf(w, "\n")
 	if err != nil {
 		return err
 	}
 
-	err = r.Summarize().Write(w)
+	err = summary.Write(w)
 	if err != nil {
 		return err
 	}
@@ -126,6 +133,11 @@ func (r *Report) WriteSummary(w io.Writer) error {
 
 // Write writes the summary to a writer.
 func (s *Summary) Write(w io.Writer) error {
+	// Don't write summary if there are no units
+	if s.TotalUnits() == 0 {
+		return nil
+	}
+
 	colorizer := NewColorizer(s.shouldColor)
 
 	if s.showUnitLevelSummary {

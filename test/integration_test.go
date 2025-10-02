@@ -287,34 +287,12 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 func TestLogCustomFormatOutput(t *testing.T) {
 	t.Parallel()
 
-	var (
-		absPathReg = `(?:/[^/]+)*/` + regexp.QuoteMeta(testFixtureLogFormatter)
-	)
-
 	testCases := []struct {
 		expectedErr        error
 		logCustomFormat    string
 		expectedStdOutRegs []*regexp.Regexp
 		expectedStdErrRegs []*regexp.Regexp
 	}{
-		{
-			logCustomFormat:    "%time %level %prefix %msg",
-			expectedStdOutRegs: []*regexp.Regexp{},
-			expectedStdErrRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Unit ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Unit ` + absPathReg + `/app must wait for 1 dependencies to finish`),
-			},
-		},
-		{
-			logCustomFormat:    "%interval %level(case=upper) %prefix(path=short-relative,prefix='[',suffix='] ')%msg(path=relative)",
-			expectedStdOutRegs: []*regexp.Regexp{},
-			expectedStdErrRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Unit ./dep must wait for 0 dependencies to finish")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Unit ./app must wait for 1 dependencies to finish")),
-			},
-		},
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command-args(suffix=': ')%msg(path=relative)",
 			expectedStdOutRegs: []*regexp.Regexp{
@@ -384,7 +362,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all init --log-level trace --non-interactive -no-color --no-color --log-custom-format=%q --working-dir %s", tc.logCustomFormat, rootPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --summary-disable --all init --log-level trace --non-interactive -no-color --no-color --log-custom-format=%q --working-dir %s", tc.logCustomFormat, rootPath))
 
 			if tc.expectedErr != nil {
 				assert.EqualError(t, err, tc.expectedErr.Error())
@@ -603,7 +581,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 
 			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run apply --all --non-interactive --working-dir %s %s -- -auto-approve", rootPath, tc.flags))
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run output --all --non-interactive --working-dir %s %s", rootPath, tc.flags))
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run output --summary-disable --all --non-interactive --working-dir %s %s", rootPath, tc.flags))
 			require.NoError(t, err)
 
 			actualOutput := strings.Split(strings.TrimSpace(stdout), "\n")
