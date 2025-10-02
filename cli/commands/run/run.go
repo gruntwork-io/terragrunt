@@ -546,15 +546,24 @@ func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 // to the TerraformCliArgs
 func prepareInitCommand(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntConfig.RemoteState != nil {
-		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
-		remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, terragruntConfig.RemoteState, terragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		if remoteStateNeedsInit {
+		// When backend bootstrap is explicitly enabled, proactively bootstrap the backend
+		// (e.g., ensure S3 bucket and DynamoDB table exist). The bootstrap operations are idempotent
+		// and safe to run repeatedly.
+		if terragruntOptions.BackendBootstrap {
 			if err := terragruntConfig.RemoteState.Bootstrap(ctx, l, terragruntOptions); err != nil {
 				return err
+			}
+		} else {
+			// Otherwise, initialize the remote state only if necessary
+			remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, terragruntConfig.RemoteState, terragruntOptions)
+			if err != nil {
+				return err
+			}
+
+			if remoteStateNeedsInit {
+				if err := terragruntConfig.RemoteState.Bootstrap(ctx, l, terragruntOptions); err != nil {
+					return err
+				}
 			}
 		}
 
