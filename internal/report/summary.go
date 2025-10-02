@@ -133,11 +133,6 @@ func (r *Report) WriteSummary(w io.Writer) error {
 
 // Write writes the summary to a writer.
 func (s *Summary) Write(w io.Writer) error {
-	// Don't write summary if there are no units
-	if s.TotalUnits() == 0 {
-		return nil
-	}
-
 	colorizer := NewColorizer(s.shouldColor)
 
 	if s.showUnitLevelSummary {
