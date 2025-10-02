@@ -24,7 +24,7 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
-func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError, r *report.Report) error {
+func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError, _ *report.Report) error {
 	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
 		return nil
 	}
@@ -58,15 +58,6 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHo
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
-			// Ensure run exists in report for this error hook execution
-			_, ensureErr := r.EnsureRun(terragruntOptions.WorkingDir)
-			if ensureErr != nil {
-				l.Errorf("Error ensuring run for error hook %s: %v", curHook.Name, ensureErr)
-				errorsOccured = multierror.Append(errorsOccured, ensureErr)
-
-				continue
-			}
-
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
@@ -119,7 +110,7 @@ func processHooks(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	previousExecErrors *errors.MultiError,
-	r *report.Report,
+	_ *report.Report,
 ) error {
 	if len(hooks) == 0 {
 		return nil
@@ -137,15 +128,6 @@ func processHooks(
 
 		allPreviousErrors := previousExecErrors.Append(errorsOccured)
 		if shouldRunHook(curHook, opts, allPreviousErrors) {
-			// Ensure run exists in report for this hook execution
-			_, ensureErr := r.EnsureRun(opts.WorkingDir)
-			if ensureErr != nil {
-				l.Errorf("Error ensuring run for hook %s: %v", curHook.Name, ensureErr)
-				errorsOccured = multierror.Append(errorsOccured, ensureErr)
-
-				continue
-			}
-
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,

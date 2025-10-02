@@ -83,6 +83,10 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		Stack: &stack,
 	}
 
+	// Apply options (including report) BEFORE resolving units so that
+	// the report is available during unit resolution for tracking exclusions
+	runner = runner.WithOptions(opts...)
+
 	// Collect all terragrunt.hcl paths for resolution.
 	unitPaths := make([]string, 0, len(discovered))
 

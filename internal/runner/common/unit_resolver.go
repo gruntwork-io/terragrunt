@@ -768,15 +768,20 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 		}
 
 		if excludeConfig.If {
-			l.Debugf("Unit %s is excluded by exclude block", unit.Path)
+			// Check if unit was already excluded (e.g., by --queue-exclude-dir)
+			// If so, don't overwrite the existing exclusion reason
+			wasAlreadyExcluded := unit.FlagExcluded
+			l.Debugf("Unit %s is excluded by exclude block (wasAlreadyExcluded=%v)", unit.Path, wasAlreadyExcluded)
 			unit.FlagExcluded = true
 
-			// Only update report if it's enabled
-			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+			// Only update report if it's enabled AND the unit wasn't already excluded
+			// This ensures CLI flags like --queue-exclude-dir take precedence over exclude blocks
+			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) && !wasAlreadyExcluded {
 				// Ensure path is absolute for reporting
 				unitPath := unit.Path
 				if !filepath.IsAbs(unitPath) {
 					var absErr error
+
 					unitPath, absErr = filepath.Abs(unitPath)
 					if absErr != nil {
 						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
@@ -784,12 +789,15 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 					}
 				}
 
+				// Only report if not already excluded - EndRun will handle this gracefully
+				// by returning early if the run already ended with ResultExcluded
 				run, err := reportInstance.EnsureRun(unitPath)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
 				}
 
+				// EndRun will skip updating if already ended with ResultExcluded
 				if err := reportInstance.EndRun(
 					run.Path,
 					report.WithResult(report.ResultExcluded),
@@ -805,14 +813,18 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path)
 
 			for _, dependency := range unit.Dependencies {
+				// Check if dependency was already excluded
+				wasAlreadyExcluded := dependency.FlagExcluded
 				dependency.FlagExcluded = true
 
-				// Only update report if it's enabled
-				if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+				// Only update report if it's enabled AND the dependency wasn't already excluded
+				// This ensures CLI exclusions take precedence over exclude blocks
+				if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) && !wasAlreadyExcluded {
 					// Ensure path is absolute for reporting
 					depPath := dependency.Path
 					if !filepath.IsAbs(depPath) {
 						var absErr error
+
 						depPath, absErr = filepath.Abs(depPath)
 						if absErr != nil {
 							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)
@@ -892,14 +904,17 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	for _, unit := range units {
 		if excludeFn(l, unit) {
 			// Mark unit itself as excluded
+			l.Debugf("Unit %s is excluded by --queue-exclude-dir (reportInstance=%v, experiment=%v)", unit.Path, reportInstance != nil, opts.Experiments.Evaluate(experiment.Report))
 			unit.FlagExcluded = true
 
 			// Only update report if it's enabled
 			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+				l.Debugf("Reporting %s as excluded by --queue-exclude-dir", unit.Path)
 				// Ensure path is absolute for reporting
 				unitPath := unit.Path
 				if !filepath.IsAbs(unitPath) {
 					var absErr error
+
 					unitPath, absErr = filepath.Abs(unitPath)
 					if absErr != nil {
 						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
@@ -937,6 +952,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 					depPath := dependency.Path
 					if !filepath.IsAbs(depPath) {
 						var absErr error
+
 						depPath, absErr = filepath.Abs(depPath)
 						if absErr != nil {
 							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)

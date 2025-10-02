@@ -467,24 +467,24 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	// The expected format has units grouped by status with timing (sorted alphabetically within categories)
 	expectedOutput := `
 ❯❯ Run Summary  13 units  x
-   ────────────────────────────────────────────────────────────────────────────────────────────────
+   ────────────────────────────
    Succeeded (4)
-      error-ignore ............................................................................ x
-      first-success ........................................................................... x
-      retry-success ........................................................................... x
-      second-success .......................................................................... x
+      error-ignore ...... x
+      first-success ..... x
+      retry-success ..... x
+      second-success .... x
    Failed (3)
-      chain-a ................................................................................. x
-      first-failure ........................................................................... x
-      second-failure .......................................................................... x
+      chain-a ........... x
+      first-failure ..... x
+      second-failure .... x
    Early Exits (4)
-      chain-b ................................................................................. x
-      chain-c ................................................................................. x
-      first-early-exit ........................................................................ x
-      second-early-exit ....................................................................... x
+      chain-b ........... x
+      chain-c ........... x
+      first-early-exit .. x
+      second-early-exit . x
    Excluded (2)
-      first-exclude ........................................................................... x
-      second-exclude .......................................................................... x`
+      first-exclude ..... x
+      second-exclude .... x`
 
 	assert.Equal(t, strings.TrimSpace(expectedOutput), strings.TrimSpace(stdoutStr))
 }

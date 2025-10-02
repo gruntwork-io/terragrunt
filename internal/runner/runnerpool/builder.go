@@ -39,14 +39,16 @@ func Build(
 			Args: terragruntOptions.TerraformCliArgs.Tail(),
 		})
 
-	// Pass include/exclude directory filters
+	// Pass include directory filters
 	if len(terragruntOptions.IncludeDirs) > 0 {
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
 
-	if len(terragruntOptions.ExcludeDirs) > 0 {
-		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
-	}
+	// Don't pass ExcludeDirs to discovery - let all units be discovered
+	// and then filter/report them during unit resolution where we have access to the report
+	// if len(terragruntOptions.ExcludeDirs) > 0 {
+	// 	d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
+	// }
 
 	// Pass include behavior flags
 	if terragruntOptions.StrictInclude {
