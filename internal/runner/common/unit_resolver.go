@@ -95,9 +95,16 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
+	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
+	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
+	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
+	if err != nil {
+		return nil, err
+	}
+
 	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
 	// This ensures units excluded via CLI get the correct reason in reports
-	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsThatAreIncludedByOthers)
+	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
 	if err != nil {
 		return nil, err
 	}
@@ -107,12 +114,7 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
-	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withExcludedUnits)
-	if err != nil {
-		return nil, err
-	}
-
-	return withUnitsRead, nil
+	return withExcludedUnits, nil
 }
 
 // telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
