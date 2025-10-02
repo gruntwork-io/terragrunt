@@ -238,6 +238,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	r.queue.FailFast = opts.FailFast
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
+	// Allow continuing the queue when dependencies fail if requested via CLI
+	r.queue.IgnoreDependencyErrors = opts.IgnoreDependencyErrors
 	controller := NewController(
 		r.queue,
 		r.Stack.Units,
