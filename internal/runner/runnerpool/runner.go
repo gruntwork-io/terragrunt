@@ -490,7 +490,15 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		}
 	}
 
+	// Index discovered configs by path for quick lookup
+	discoveredByPath := make(map[string]*discovery.DiscoveredConfig, len(discovered))
+	for _, cfg := range discovered {
+		discoveredByPath[cfg.Path] = cfg
+	}
+
+	// First pass: keep only allowed configs and prune their dependencies to allowed ones
 	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
+	present := make(map[string]*discovery.DiscoveredConfig, len(discovered))
 
 	for _, cfg := range discovered {
 		if _, ok := allowed[cfg.Path]; !ok {
@@ -514,6 +522,70 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		}
 
 		filtered = append(filtered, copyCfg)
+		present[copyCfg.Path] = copyCfg
+	}
+
+	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
+	for _, u := range units {
+		if u.FlagExcluded {
+			continue
+		}
+
+		if _, ok := present[u.Path]; ok {
+			continue
+		}
+
+		// Create a minimal discovered config for the missing unit
+		copyCfg := &discovery.DiscoveredConfig{
+			Type: discovery.ConfigTypeUnit,
+			Path: u.Path,
+		}
+
+		filtered = append(filtered, copyCfg)
+		present[u.Path] = copyCfg
+	}
+
+	// Augment dependencies from resolved units to ensure DAG edges are complete
+	for _, u := range units {
+		if u.FlagExcluded {
+			continue
+		}
+
+		cfg := present[u.Path]
+		if cfg == nil {
+			continue
+		}
+
+		// Build a set of existing dependency paths on cfg to avoid duplicates
+		existing := make(map[string]struct{}, len(cfg.Dependencies))
+		for _, dep := range cfg.Dependencies {
+			existing[dep.Path] = struct{}{}
+		}
+
+		// Add any missing allowed dependencies from the resolved unit graph
+		for _, depUnit := range u.Dependencies {
+			if depUnit == nil {
+				continue
+			}
+
+			if _, ok := allowed[depUnit.Path]; !ok {
+				continue
+			}
+
+			if _, ok := existing[depUnit.Path]; ok {
+				continue
+			}
+
+			// Ensure the dependency config exists in the filtered set
+			depCfg, ok := present[depUnit.Path]
+			if !ok {
+				depCfg = &discovery.DiscoveredConfig{Type: discovery.ConfigTypeUnit, Path: depUnit.Path}
+				filtered = append(filtered, depCfg)
+				present[depUnit.Path] = depCfg
+			}
+
+			cfg.Dependencies = append(cfg.Dependencies, depCfg)
+		}
 	}
 
 	return filtered
