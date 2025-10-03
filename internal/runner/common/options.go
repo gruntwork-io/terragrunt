@@ -88,9 +88,9 @@ func WithReport(r *report.Report) Option {
 	}
 }
 
-// UnitFilterCallback is a callback that modifies unit exclusions after units are resolved
+// UnitFilterCallback is a callback that modifies unit exclusions after units are discovered
 // but before the queue is built. This allows commands to customize which units should be
-// included or excluded from execution.
+// included or excluded from runs.
 type UnitFilterCallback func(units Units)
 
 // WithUnitFilter provides a callback to customize unit exclusions after resolution.

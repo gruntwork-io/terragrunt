@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -859,7 +858,7 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 // flagUnitsThatRead iterates over a unit slice and flags all units that read at least one file in the specified
 // file list in the TerragruntOptions UnitsReading attribute.
 func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units Units) Units {
-	// If no UnitsThatRead is specified return the units list instantly
+	// If no UnitsThatRead is specified, return the unit list instantly
 	if len(opts.UnitsReading) == 0 {
 		return units
 	}
@@ -906,12 +905,11 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	for _, unit := range units {
 		if excludeFn(l, unit) {
 			// Mark unit itself as excluded
-			l.Debugf("Unit %s is excluded by --queue-exclude-dir (reportInstance=%v, experiment=%v)", unit.Path, reportInstance != nil, opts.Experiments.Evaluate(experiment.Report))
+			l.Debugf("Unit %s is excluded", unit.Path)
 			unit.FlagExcluded = true
 
 			// Only update report if it's enabled
 			if reportInstance != nil {
-				l.Debugf("Reporting %s as excluded by --queue-exclude-dir", unit.Path)
 				// Ensure path is absolute for reporting
 				unitPath := unit.Path
 				if !filepath.IsAbs(unitPath) {

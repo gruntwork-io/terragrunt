@@ -6,11 +6,7 @@ sidebar:
   order: 17
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
-<Aside type="tip">
 This feature has been stabilized and is now enabled by default when using OpenTofu >= 1.10.
-</Aside>
 
 *Automatic Provider Cache Dir* is a feature of Terragrunt that automatically configures OpenTofu's native provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This enables efficient provider caching without the need to manually configure provider cache directories or use Terragrunt's provider cache server.
 
@@ -110,9 +106,3 @@ You can enable debug logging to see more information:
 ```bash
 terragrunt apply --log-level debug
 ```
-
-## Status
-
-This feature has been **stabilized** and is now enabled by default when using OpenTofu >= 1.10.
-
-For more information, see the [auto-provider-cache-dir documentation](/docs/reference/experiments#auto-provider-cache-dir).

@@ -6,12 +6,6 @@ env:
   - TG_NO_AUTO_PROVIDER_CACHE_DIR
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
 When enabled, Terragrunt will disable the `auto-provider-cache-dir` feature. This flag allows you to selectively opt-out of the automatic provider caching behavior.
 
 This is useful when you want to maintain control over provider caching in specific environments or scenarios.
-
-<Aside type="note">
-The auto-provider-cache-dir feature is now enabled by default when using OpenTofu >= 1.10. Use this flag to disable it for specific runs where manual provider cache control is needed.
-</Aside>
