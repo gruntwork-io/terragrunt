@@ -785,8 +785,8 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 
 					unitPath, absErr = filepath.Abs(unitPath)
 					if absErr != nil {
-						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
-						continue
+						l.Warnf("Could not resolve absolute path for unit %s, using cleaned relative path: %v", unit.Path, absErr)
+						unitPath = filepath.Clean(unit.Path)
 					}
 				}
 
@@ -829,6 +829,9 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 						depPath, absErr = filepath.Abs(depPath)
 						if absErr != nil {
 							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)
+							// Revert exclusion since reporting couldn't proceed and this block changed the state
+							dependency.FlagExcluded = false
+
 							continue
 						}
 					}

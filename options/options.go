@@ -530,6 +530,7 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 		if err != nil {
 			return l, nil, err
 		}
+
 		configPath = util.CleanPath(absConfigPath)
 	}
 

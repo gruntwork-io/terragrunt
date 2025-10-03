@@ -692,6 +692,7 @@ func collectDependenciesBounded(unit *common.Unit, paths map[string]bool, depth 
 	if depth >= maxDependencyTraversalDepth {
 		return
 	}
+
 	for _, dep := range unit.Dependencies {
 		if !paths[dep.Path] {
 			paths[dep.Path] = true
