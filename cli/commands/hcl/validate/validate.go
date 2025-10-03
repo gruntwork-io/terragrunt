@@ -36,6 +36,10 @@ import (
 
 const splitCount = 2
 
+var skipHCLDiagnostics = []string{
+	"Unknown variable",
+}
+
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
@@ -62,9 +66,16 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	parseOptions := []hclparse.Option{
 		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			for _, hclDiag := range hclDiags {
-				// Skip "Unknown variable" errors as they are typically dependency resolution errors,
-				// not HCL syntax errors. We want to report only direct parse errors in the file.
-				if hclDiag.Summary == "Unknown variable" {
+				// check skip list first
+				skip := false
+
+				for _, skipMsg := range skipHCLDiagnostics {
+					if hclDiag.Summary == skipMsg {
+						skip = true
+					}
+				}
+
+				if skip {
 					continue
 				}
 
