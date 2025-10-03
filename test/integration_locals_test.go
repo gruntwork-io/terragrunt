@@ -135,9 +135,9 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	expectedAnotherArg := 4
 
 	if cacheEnv != "1" {
-		expectedUUIDLocals = 2
-		expectedRandomArg = 4
-		expectedAnotherArg = 3
+		expectedUUIDLocals = 3
+		expectedRandomArg = 6
+		expectedAnotherArg = 4
 	}
 
 	assert.Equal(t, 1, strings.Count(stdout, "echo_uuid_input"))
