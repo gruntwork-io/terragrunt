@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,8 +114,10 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRunMultiple)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalRunMultiple)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalRunMultiple)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --working-dir "+testFixtureLocalRunMultiple)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --working-dir "+rootPath)
 	require.Error(t, err)
 
 	// Check for cached values between locals and inputs sections
