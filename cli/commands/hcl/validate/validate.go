@@ -62,6 +62,23 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	parseOptions := []hclparse.Option{
 		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			for _, hclDiag := range hclDiags {
+				// Skip "Unknown variable" errors as they are typically dependency resolution errors,
+				// not HCL syntax errors. We want to report only direct parse errors in the file.
+				if hclDiag.Summary == "Unknown variable" {
+					continue
+				}
+
+				// Only report diagnostics that are actually in the file being parsed,
+				// not errors from dependencies or other files
+				if hclDiag.Subject != nil && file != nil {
+					fileFilename := file.Body.MissingItemRange().Filename
+
+					diagFilename := hclDiag.Subject.Filename
+					if diagFilename != fileFilename {
+						continue
+					}
+				}
+
 				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
 				if !diags.Contains(newDiag) {
 					diags = append(diags, newDiag)
