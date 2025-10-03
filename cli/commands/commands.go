@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -150,8 +149,8 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// Handle auto provider cache dir experiment
-	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) && !opts.NoAutoProviderCacheDir {
+	// Set up automatic provider caching if enabled
+	if !opts.NoAutoProviderCacheDir {
 		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}

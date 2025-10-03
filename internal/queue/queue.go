@@ -146,6 +146,9 @@ type Queue struct {
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
 	IgnoreDependencyOrder bool
+	// IgnoreDependencyErrors, if set to true, allows scheduling and running entries even if their
+	// dependencies failed. Additionally, failures will not propagate EarlyExit to dependents/dependencies.
+	IgnoreDependencyErrors bool
 }
 
 type Entries []*Entry
@@ -313,6 +316,12 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 
 		if e.IsUp() {
 			// Up logic: all dependencies must be succeeded
+			if q.IgnoreDependencyErrors {
+				// When ignoring dependency errors, allow scheduling regardless of dependency results
+				out = append(out, e)
+				continue
+			}
+
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
@@ -330,6 +339,12 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 			continue
 		}
 		// Down logic: all dependents must be succeeded
+		if q.IgnoreDependencyErrors {
+			// When ignoring dependency errors, allow scheduling regardless of dependents' results
+			out = append(out, e)
+			continue
+		}
+
 		allDependentsReady := true
 
 		for _, other := range q.Entries {
@@ -387,6 +402,11 @@ func (q *Queue) FailEntry(e *Entry) {
 			n.Status = StatusEarlyExit
 		}
 
+		return
+	}
+
+	// If ignoring dependency errors, do not propagate early exit to other entries.
+	if q.IgnoreDependencyErrors {
 		return
 	}
 

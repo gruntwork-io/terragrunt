@@ -31,7 +31,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -144,7 +143,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return processHooks(ctx, l, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil)
+		return processHooks(ctx, l, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil, r)
 	}); err != nil {
 		return target.runErrorCallback(l, opts, terragruntConfig, err)
 	}
@@ -366,7 +365,7 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, func(ctx context.Context) error {
+	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(ctx context.Context) error {
 		runTerraformError := RunTerraformWithRetry(ctx, l, opts, r)
 
 		var lockFileError error
@@ -452,10 +451,10 @@ func ShouldCopyLockFile(args cli.Args, terraformConfig *config.TerraformConfig) 
 
 // RunActionWithHooks runs the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
-func RunActionWithHooks(ctx context.Context, l log.Logger, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
+func RunActionWithHooks(ctx context.Context, l log.Logger, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, r *report.Report, action func(ctx context.Context) error) error {
 	var allErrors *errors.MultiError
 
-	beforeHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
+	beforeHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors, r)
 	allErrors = allErrors.Append(beforeHookErrors)
 
 	var actionErrors error
@@ -466,8 +465,8 @@ func RunActionWithHooks(ctx context.Context, l log.Logger, description string, t
 		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
-	postHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
-	errorHookErrors := processErrorHooks(ctx, l, terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
+	postHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors, r)
+	errorHookErrors := processErrorHooks(ctx, l, terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors, r)
 	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
@@ -510,14 +509,12 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.Terr
 					exitCode.ResetSuccess()
 
 					// Also assume this retry will succeed for now. If it doesn't, we'll update this later.
-					if opts.Experiments.Evaluate(experiment.Report) {
-						if err := r.EndRun(
-							opts.WorkingDir,
-							report.WithResult(report.ResultSucceeded),
-							report.WithReason(report.ReasonRetrySucceeded),
-						); err != nil {
-							l.Errorf("Error ending run for unit %s: %v", opts.WorkingDir, err)
-						}
+					if err := r.EndRun(
+						opts.WorkingDir,
+						report.WithResult(report.ResultSucceeded),
+						report.WithReason(report.ReasonRetrySucceeded),
+					); err != nil {
+						l.Errorf("Error ending run for unit %s: %v", opts.WorkingDir, err)
 					}
 				}
 
@@ -549,15 +546,24 @@ func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 // to the TerraformCliArgs
 func prepareInitCommand(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntConfig.RemoteState != nil {
-		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
-		remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, terragruntConfig.RemoteState, terragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		if remoteStateNeedsInit {
+		// When backend bootstrap is explicitly enabled, proactively bootstrap the backend
+		// (e.g., ensure S3 bucket and DynamoDB table exist). The bootstrap operations are idempotent
+		// and safe to run repeatedly.
+		if terragruntOptions.BackendBootstrap {
 			if err := terragruntConfig.RemoteState.Bootstrap(ctx, l, terragruntOptions); err != nil {
 				return err
+			}
+		} else {
+			// Otherwise, initialize the remote state only if necessary
+			remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, terragruntConfig.RemoteState, terragruntOptions)
+			if err != nil {
+				return err
+			}
+
+			if remoteStateNeedsInit {
+				if err := terragruntConfig.RemoteState.Bootstrap(ctx, l, terragruntOptions); err != nil {
+					return err
+				}
 			}
 		}
 

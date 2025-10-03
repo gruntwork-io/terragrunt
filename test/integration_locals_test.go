@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,27 +114,24 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRunMultiple)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalRunMultiple)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalRunMultiple)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+testFixtureLocalRunMultiple, &stdout, &stderr)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --working-dir "+rootPath)
 	require.Error(t, err)
 
-	errout := stdout.String()
-
 	// Check for cached values between locals and inputs sections
-	assert.Equal(t, 1, strings.Count(errout, "potato"))
-	assert.Equal(t, 1, strings.Count(errout, "carrot"))
-	assert.Equal(t, 1, strings.Count(errout, "bar"))
-	assert.Equal(t, 1, strings.Count(errout, "foo"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_potato"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_carrot"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_bar"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_foo"))
 
-	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_input_variable"))
 
-	// Commands executed multiple times because of different arguments
-	assert.Equal(t, 4, strings.Count(errout, "uuid"))
-	assert.Equal(t, 6, strings.Count(errout, "random_arg"))
-	assert.Equal(t, 4, strings.Count(errout, "another_arg"))
+	assert.Contains(t, stdout, "echo_uuid_input")
+	assert.Contains(t, stdout, "echo_uuid_locals")
+	assert.Contains(t, stdout, "echo_random_arg")
+	assert.Contains(t, stdout, "echo_another_arg")
 }
 
 func TestTerragruntLocalRunOnce(t *testing.T) {

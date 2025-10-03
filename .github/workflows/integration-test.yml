@@ -117,13 +117,6 @@ jobs:
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
-          - name: Provider Cache Dir with Tofu
-            os: ubuntu
-            target: ./test
-            tags: tofu
-            setup_scripts:
-              - .github/scripts/setup/provider-cache-dir.sh
-              - .github/scripts/setup/tofu-switch.sh
           - name: Deprecated
             os: ubuntu
             target: ./...

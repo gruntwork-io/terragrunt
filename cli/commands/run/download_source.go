@@ -149,7 +149,7 @@ func DownloadTerraformSourceIfNecessary(
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 
-	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, func(_ context.Context) error {
+	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, r, func(_ context.Context) error {
 		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
 	})
 	if downloadErr != nil {

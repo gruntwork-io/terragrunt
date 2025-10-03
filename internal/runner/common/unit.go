@@ -123,7 +123,8 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 	return filepath.Join(dir, fileName)
 }
 
-// FindUnitInPath returns true if a unit is located under one of the target directories
+// FindUnitInPath returns true if a unit is located under one of the target directories.
+// Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
 func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
 	return slices.Contains(targetDirs, unit.Path)
 }

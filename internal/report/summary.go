@@ -82,7 +82,7 @@ func (s *Summary) Update(run *Run) {
 		s.firstRunStart = &run.Started
 	}
 
-	if s.lastRunEnd == nil || run.Ended.After(*s.lastRunEnd) {
+	if !run.Ended.IsZero() && (s.lastRunEnd == nil || run.Ended.After(*s.lastRunEnd)) {
 		s.lastRunEnd = &run.Ended
 	}
 }
@@ -106,12 +106,19 @@ func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 
 // WriteSummary writes the summary to a writer.
 func (r *Report) WriteSummary(w io.Writer) error {
+	summary := r.Summarize()
+
+	// Don't write anything if there are no units
+	if summary.TotalUnits() == 0 {
+		return nil
+	}
+
 	_, err := fmt.Fprintf(w, "\n")
 	if err != nil {
 		return err
 	}
 
-	err = r.Summarize().Write(w)
+	err = summary.Write(w)
 	if err != nil {
 		return err
 	}

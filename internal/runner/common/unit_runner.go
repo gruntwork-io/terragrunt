@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -51,8 +50,22 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 
-	if opts.Experiments.Evaluate(experiment.Report) {
-		run, err := report.NewRun(runner.Unit.Path)
+	// Only create report entries if report is not nil
+	if r != nil {
+		// Ensure path is absolute and normalized for reporting
+		unitPath := runner.Unit.Path
+		if !filepath.IsAbs(unitPath) {
+			p, absErr := filepath.Abs(unitPath)
+			if absErr != nil {
+				return absErr
+			}
+
+			unitPath = p
+		}
+
+		unitPath = util.CleanPath(unitPath)
+
+		run, err := report.NewRun(unitPath)
 		if err != nil {
 			return err
 		}
@@ -62,7 +75,40 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		}
 	}
 
-	return opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
+	runErr := opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
+
+	// End the run with appropriate result (only if report is not nil)
+	if r != nil {
+		// Get the unit path (already computed above)
+		unitPath := runner.Unit.Path
+		if !filepath.IsAbs(unitPath) {
+			p, absErr := filepath.Abs(unitPath)
+			if absErr != nil {
+				runner.Unit.Logger.Errorf("Error getting absolute path for unit %s: %v", runner.Unit.Path, absErr)
+			} else {
+				unitPath = p
+			}
+		}
+
+		unitPath = util.CleanPath(unitPath)
+
+		if runErr != nil {
+			if endErr := r.EndRun(
+				unitPath,
+				report.WithResult(report.ResultFailed),
+				report.WithReason(report.ReasonRunError),
+				report.WithCauseRunError(runErr.Error()),
+			); endErr != nil {
+				runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+			}
+		} else {
+			if endErr := r.EndRun(unitPath, report.WithResult(report.ResultSucceeded)); endErr != nil {
+				runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+			}
+		}
+	}
+
+	return runErr
 }
 
 // Run a unit right now by executing the runTerragrunt command of its TerragruntOptions field.
@@ -92,7 +138,11 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		jsonOptions.TerraformCommand = tf.CommandNameShow
 		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, opts)}
 
-		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
+		// Use an ad-hoc report to avoid polluting the main report with entries
+		// for the cache directory, while still satisfying RunTerragrunt's
+		// expectation for a non-nil report parameter.
+		adhocReport := report.NewReport()
+		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, adhocReport); err != nil {
 			return err
 		}
 

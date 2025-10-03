@@ -6,15 +6,11 @@ sidebar:
   order: 17
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+This feature has been stabilized and is now enabled by default when using OpenTofu >= 1.10.
 
-<Aside type="tip">
-This feature is currently experimental. It may change in future versions.
-</Aside>
+*Automatic Provider Cache Dir* is a feature of Terragrunt that automatically configures OpenTofu's native provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This enables efficient provider caching without the need to manually configure provider cache directories or use Terragrunt's provider cache server.
 
-*Automatic Provider Cache Dir* is an experimental feature of Terragrunt that automatically configures OpenTofu's native provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This enables efficient provider caching without the need to manually configure provider cache directories or use Terragrunt's provider cache server.
-
-When the Auto Provider Cache Dir experiment is enabled, Terragrunt will automatically configure OpenTofu to use a shared provider cache directory, which provides several benefits:
+When using OpenTofu >= 1.10, Terragrunt will automatically configure OpenTofu to use a shared provider cache directory, which provides several benefits:
 
 - **Improved performance**: Providers are downloaded once and reused across multiple configurations
 - **Reduced bandwidth usage**: Eliminates redundant provider downloads
@@ -31,16 +27,9 @@ The Automatic Provider Cache Dir feature has specific requirements:
 
 ## Usage
 
-Since this is an experimental feature, it must be explicitly enabled using the `--experiment` flag:
+When using OpenTofu >= 1.10, this feature is enabled by default. No additional configuration is required:
 
 ```bash
-terragrunt run --all apply --experiment auto-provider-cache-dir
-```
-
-Or with environment variables:
-
-```bash
-TG_EXPERIMENT='auto-provider-cache-dir' \
 terragrunt run --all apply
 ```
 
@@ -64,27 +53,21 @@ The default provider cache directory is located at:
 You can customize the provider cache directory using the `--provider-cache-dir` flag:
 
 ```bash
-terragrunt apply \
---experiment auto-provider-cache-dir \
---provider-cache-dir /custom/path/to/cache
+terragrunt apply --provider-cache-dir /custom/path/to/cache
 ```
 
 Or with environment variables:
 
 ```bash
-TG_EXPERIMENT='auto-provider-cache-dir' \
-TG_PROVIDER_CACHE_DIR='/custom/path/to/cache' \
-terragrunt apply
+TG_PROVIDER_CACHE_DIR='/custom/path/to/cache' terragrunt apply
 ```
 
 ## Disabling Auto Provider Cache Dir
 
-Even when the experiment is enabled, you can selectively disable the feature for specific runs using the `--no-auto-provider-cache-dir` flag:
+You can disable the feature for specific runs using the `--no-auto-provider-cache-dir` flag:
 
 ```bash
-terragrunt run --all apply \
---experiment auto-provider-cache-dir \
---no-auto-provider-cache-dir
+terragrunt run --all apply --no-auto-provider-cache-dir
 ```
 
 This is particularly useful when:
@@ -115,18 +98,11 @@ Terragrunt also provides a [Provider Cache Server](/docs/features/provider-cache
 If the feature doesn't seem to be working:
 
 1. **Check OpenTofu version**: Ensure you're using OpenTofu 1.10 or later
-2. **Verify experiment is enabled**: Look for "Auto provider cache dir enabled" in debug logs
-3. **Check cache directory**: Ensure the cache directory is accessible and has proper permissions
-4. **Review environment variables**: Verify `TF_PLUGIN_CACHE_DIR` is not already set by another tool
+2. **Check cache directory**: Ensure the cache directory is accessible and has proper permissions
+3. **Review environment variables**: Verify `TF_PLUGIN_CACHE_DIR` is not already set by another tool
 
 You can enable debug logging to see more information:
 
 ```bash
-terragrunt apply --log-level debug --experiment auto-provider-cache-dir
+terragrunt apply --log-level debug
 ```
-
-## Status
-
-This feature is currently **experimental** and may change in future versions. Based on community feedback and testing, it may be stabilized and enabled by default in future releases.
-
-For the latest status and to provide feedback, see the [auto-provider-cache-dir experiment documentation](/docs/reference/experiments#auto-provider-cache-dir).

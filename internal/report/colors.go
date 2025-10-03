@@ -93,6 +93,11 @@ func NewColorizer(shouldColor bool) *Colorizer {
 
 // colorDuration returns the duration as a string, colored based on the duration.
 func (c *Colorizer) colorDuration(duration time.Duration) string {
+	// if duration is negative, return "N/A" in default color
+	if duration < 0 {
+		return c.defaultColorizer("N/A")
+	}
+
 	if duration < time.Microsecond {
 		return c.nanosecondColorizer(fmt.Sprintf("%dns", duration.Nanoseconds()))
 	}
