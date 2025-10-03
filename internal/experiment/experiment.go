@@ -151,7 +151,7 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 
 // Evaluate returns true if the experiment is found and enabled otherwise returns false.
 func (exps Experiments) Evaluate(name string) bool {
-	if experiment := exps.Find(name); experiment != nil {
+	if experiment := exps.FilterByStatus(StatusOngoing).Find(name); experiment != nil {
 		return experiment.Evaluate()
 	}
 
