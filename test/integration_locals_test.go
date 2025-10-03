@@ -114,26 +114,21 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRunMultiple)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+testFixtureLocalRunMultiple, &stdout, &stderr)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --working-dir "+testFixtureLocalRunMultiple)
 	require.Error(t, err)
 
-	errout := stdout.String()
-
 	// Check for cached values between locals and inputs sections
-	assert.Equal(t, 1, strings.Count(errout, "potato"))
-	assert.Equal(t, 1, strings.Count(errout, "carrot"))
-	assert.Equal(t, 1, strings.Count(errout, "bar"))
-	assert.Equal(t, 1, strings.Count(errout, "foo"))
+	assert.Equal(t, 1, strings.Count(stdout, "potato"))
+	assert.Equal(t, 1, strings.Count(stdout, "carrot"))
+	assert.Equal(t, 1, strings.Count(stdout, "bar"))
+	assert.Equal(t, 1, strings.Count(stdout, "foo"))
 
-	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
+	assert.Equal(t, 1, strings.Count(stdout, "input_variable"))
 
 	// Commands executed multiple times because of different arguments
-	assert.Equal(t, 4, strings.Count(errout, "uuid"))
-	assert.Equal(t, 6, strings.Count(errout, "random_arg"))
-	assert.Equal(t, 4, strings.Count(errout, "another_arg"))
+	assert.Equal(t, 4, strings.Count(stdout, "uuid"))
+	assert.Equal(t, 6, strings.Count(stdout, "random_arg"))
+	assert.Equal(t, 4, strings.Count(stdout, "another_arg"))
 }
 
 func TestTerragruntLocalRunOnce(t *testing.T) {
