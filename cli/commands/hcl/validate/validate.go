@@ -36,8 +36,9 @@ import (
 
 const splitCount = 2
 
+// diagnostics to skip because they are not relevant for terragrunt validation
 var skipHCLDiagnostics = []string{
-	"Unknown variable",
+	"there is no variable named \"dependency\"",
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -66,17 +67,22 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	parseOptions := []hclparse.Option{
 		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			for _, hclDiag := range hclDiags {
-				// check skip list first
-				skip := false
+				// Only apply skip list when using --show-config-path flag
+				// This flag is used by the deprecated hclvalidate command to show only file paths
+				if opts.HCLValidateShowConfigPath {
+					skip := false
 
-				for _, skipMsg := range skipHCLDiagnostics {
-					if hclDiag.Summary == skipMsg {
-						skip = true
+					for _, skipMsg := range skipHCLDiagnostics {
+						// check if the diagnostic message contains any of the skip messages in lower case
+						if strings.Contains(strings.ToLower(hclDiag.Detail), strings.ToLower(skipMsg)) {
+							skip = true
+							break
+						}
 					}
-				}
 
-				if skip {
-					continue
+					if skip {
+						continue
+					}
 				}
 
 				// Only report diagnostics that are actually in the file being parsed,
