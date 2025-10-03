@@ -778,7 +778,7 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 
 			// Only update report if it's enabled AND the unit wasn't already excluded
 			// This ensures CLI flags like --queue-exclude-dir take precedence over exclude blocks
-			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) && !wasAlreadyExcluded {
+			if reportInstance != nil && !wasAlreadyExcluded {
 				// Ensure path is absolute for reporting
 				unitPath := unit.Path
 				if !filepath.IsAbs(unitPath) {
@@ -821,7 +821,7 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 
 				// Only update report if it's enabled AND the dependency wasn't already excluded
 				// This ensures CLI exclusions take precedence over exclude blocks
-				if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) && !wasAlreadyExcluded {
+				if reportInstance != nil && !wasAlreadyExcluded {
 					// Ensure path is absolute for reporting
 					depPath := dependency.Path
 					if !filepath.IsAbs(depPath) {
@@ -910,7 +910,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 			unit.FlagExcluded = true
 
 			// Only update report if it's enabled
-			if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+			if reportInstance != nil {
 				l.Debugf("Reporting %s as excluded by --queue-exclude-dir", unit.Path)
 				// Ensure path is absolute for reporting
 				unitPath := unit.Path
@@ -949,7 +949,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 				dependency.FlagExcluded = true
 
 				// Only update report if it's enabled
-				if reportInstance != nil && opts.Experiments.Evaluate(experiment.Report) {
+				if reportInstance != nil {
 					// Ensure path is absolute for reporting
 					depPath := dependency.Path
 					if !filepath.IsAbs(depPath) {

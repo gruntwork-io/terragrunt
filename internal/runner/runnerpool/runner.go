@@ -33,7 +33,6 @@ type Runner struct {
 	Stack              *common.Stack
 	queue              *queue.Queue
 	unitFilterCallback common.UnitFilterCallback
-	planErrorBuffers   []bytes.Buffer
 }
 
 // SetQueue replaces the runner's queue with a new one.
@@ -173,7 +172,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		r.syncTerraformCliArgs(l, opts)
 	}
 
-	var planDefer bool
+	var planErrorBuffers []bytes.Buffer
 
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
@@ -181,16 +180,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	case tf.CommandNameShow:
 		r.handleShow(l, opts)
 	case tf.CommandNamePlan:
-		r.handlePlan()
-
-		planDefer = true
+		planErrorBuffers = r.handlePlan()
+		defer r.summarizePlanAllErrors(l, planErrorBuffers)
 	}
 
-	if planDefer {
-		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
-	}
-
-	// Emit report entries for excluded units. Queue already excludes them.
+	// Emit report entries for excluded units that haven't been reported yet.
+	// Units excluded by CLI flags or exclude blocks are already reported during unit resolution,
+	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
 	if r.Stack.Report != nil {
 		for _, u := range r.Stack.Units {
 			if u.FlagExcluded {
@@ -212,19 +208,24 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				// Determine the reason for exclusion
-				// External dependencies that are assumed already applied are excluded with --queue-exclude-external
-				reason := report.ReasonExcludeBlock
-				if u.AssumeAlreadyApplied {
-					reason = report.ReasonExcludeExternal
-				}
+				// Only report exclusion if it hasn't been reported yet
+				// Units excluded by --queue-exclude-dir or exclude blocks are already reported
+				// during unit resolution with the correct reason
+				if run.Result == "" {
+					// Determine the reason for exclusion
+					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
+					reason := report.ReasonExcludeBlock
+					if u.AssumeAlreadyApplied {
+						reason = report.ReasonExcludeExternal
+					}
 
-				if err := r.Stack.Report.EndRun(
-					run.Path,
-					report.WithResult(report.ResultExcluded),
-					report.WithReason(reason),
-				); err != nil {
-					l.Errorf("Error ending run for unit %s: %v", unitPath, err)
+					if err := r.Stack.Report.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(reason),
+					); err != nil {
+						l.Errorf("Error ending run for unit %s: %v", unitPath, err)
+					}
 				}
 			}
 		}
@@ -345,11 +346,14 @@ func (r *Runner) handleShow(l log.Logger, opts *options.TerragruntOptions) {
 }
 
 // handlePlan handles logic for plan command, including error buffer setup and summary.
-func (r *Runner) handlePlan() {
-	r.planErrorBuffers = make([]bytes.Buffer, len(r.Stack.Units))
+// Returns error buffers for each unit to capture stderr output for later analysis.
+func (r *Runner) handlePlan() []bytes.Buffer {
+	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units))
 	for i, u := range r.Stack.Units {
-		u.TerragruntOptions.ErrWriter = io.MultiWriter(&r.planErrorBuffers[i], u.TerragruntOptions.ErrWriter)
+		u.TerragruntOptions.ErrWriter = io.MultiWriter(&planErrorBuffers[i], u.TerragruntOptions.ErrWriter)
 	}
+
+	return planErrorBuffers
 }
 
 // getUnitByPath returns the unit with the given path, or nil if not found.
