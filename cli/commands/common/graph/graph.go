@@ -79,6 +79,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 
 		// Recursively collect all dependent units
+		maxIterations := len(units)*len(units) + 1
+		iterations := 0
 		for {
 			noUpdates := true
 
@@ -96,6 +98,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			}
 
 			if noUpdates {
+				break
+			}
+
+			iterations++
+			if iterations >= maxIterations {
 				break
 			}
 		}
