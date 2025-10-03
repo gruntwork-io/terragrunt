@@ -679,13 +679,23 @@ func applyPreventDestroyExclusions(l log.Logger, units common.Units) {
 	}
 }
 
-// collectDependencies recursively collects all dependency paths for a unit
+// maxDependencyTraversalDepth bounds the depth of dependency traversal to prevent excessive recursion.
+const maxDependencyTraversalDepth = 256
+
+// collectDependencies collects dependency paths for a unit with a bounded recursion depth.
 func collectDependencies(unit *common.Unit, paths map[string]bool) {
+	collectDependenciesBounded(unit, paths, 0)
+}
+
+// collectDependenciesBounded recursively collects all dependency paths for a unit up to maxDependencyTraversalDepth.
+func collectDependenciesBounded(unit *common.Unit, paths map[string]bool, depth int) {
+	if depth >= maxDependencyTraversalDepth {
+		return
+	}
 	for _, dep := range unit.Dependencies {
 		if !paths[dep.Path] {
 			paths[dep.Path] = true
-			// Recursively collect dependencies of dependencies
-			collectDependencies(dep, paths)
+			collectDependenciesBounded(dep, paths, depth+1)
 		}
 	}
 }
