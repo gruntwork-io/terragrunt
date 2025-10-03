@@ -55,17 +55,15 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		// Ensure path is absolute and normalized for reporting
 		unitPath := runner.Unit.Path
 		if !filepath.IsAbs(unitPath) {
-			var absErr error
-
-			unitPath, absErr = filepath.Abs(unitPath)
+			p, absErr := filepath.Abs(unitPath)
 			if absErr != nil {
 				return absErr
 			}
 
-			unitPath = util.CleanPath(unitPath)
-		} else {
-			unitPath = util.CleanPath(unitPath)
+			unitPath = p
 		}
+
+		unitPath = util.CleanPath(unitPath)
 
 		run, err := report.NewRun(unitPath)
 		if err != nil {
@@ -84,17 +82,15 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		// Get the unit path (already computed above)
 		unitPath := runner.Unit.Path
 		if !filepath.IsAbs(unitPath) {
-			var absErr error
-
-			unitPath, absErr = filepath.Abs(unitPath)
+			p, absErr := filepath.Abs(unitPath)
 			if absErr != nil {
 				runner.Unit.Logger.Errorf("Error getting absolute path for unit %s: %v", runner.Unit.Path, absErr)
 			} else {
-				unitPath = util.CleanPath(unitPath)
+				unitPath = p
 			}
-		} else {
-			unitPath = util.CleanPath(unitPath)
 		}
+
+		unitPath = util.CleanPath(unitPath)
 
 		if runErr != nil {
 			if endErr := r.EndRun(
