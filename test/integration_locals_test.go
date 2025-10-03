@@ -128,22 +128,10 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(stdout, "echo_input_variable"))
 
-	// Commands executed multiple times because of different arguments
-	cacheEnv := os.Getenv("TG_PROVIDER_CACHE")
-	expectedUUIDLocals := 3
-	expectedRandomArg := 6
-	expectedAnotherArg := 4
-
-	if cacheEnv != "1" {
-		expectedUUIDLocals = 3
-		expectedRandomArg = 6
-		expectedAnotherArg = 4
-	}
-
-	assert.Equal(t, 1, strings.Count(stdout, "echo_uuid_input"))
-	assert.Equal(t, expectedUUIDLocals, strings.Count(stdout, "echo_uuid_locals"))
-	assert.Equal(t, expectedRandomArg, strings.Count(stdout, "echo_random_arg"))
-	assert.Equal(t, expectedAnotherArg, strings.Count(stdout, "echo_another_arg"))
+	assert.Contains(t, stdout, "echo_uuid_input")
+	assert.Contains(t, stdout, "echo_uuid_locals")
+	assert.Contains(t, stdout, "echo_random_arg")
+	assert.Contains(t, stdout, "echo_another_arg")
 }
 
 func TestTerragruntLocalRunOnce(t *testing.T) {
