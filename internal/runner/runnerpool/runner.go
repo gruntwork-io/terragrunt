@@ -30,9 +30,10 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack            *common.Stack
-	queue            *queue.Queue
-	planErrorBuffers []bytes.Buffer
+	Stack              *common.Stack
+	queue              *queue.Queue
+	unitFilterCallback common.UnitFilterCallback
+	planErrorBuffers   []bytes.Buffer
 }
 
 // SetQueue replaces the runner's queue with a new one.
@@ -132,6 +133,11 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		applyPreventDestroyExclusions(l, unitsMap)
 	} else {
 		l.Debugf("Not a destroy command (first arg: %s), skipping prevent_destroy exclusions", terragruntOptions.TerraformCliArgs.First())
+	}
+
+	// Apply unit filter callback if provided (e.g., for graph command to filter units)
+	if runner.unitFilterCallback != nil {
+		runner.unitFilterCallback(unitsMap)
 	}
 
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
@@ -620,6 +626,11 @@ func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
 // SetReport sets the report for the stack.
 func (r *Runner) SetReport(report *report.Report) {
 	r.Stack.Report = report
+}
+
+// SetUnitFilterCallback sets the unit filter callback.
+func (r *Runner) SetUnitFilterCallback(callback common.UnitFilterCallback) {
+	r.unitFilterCallback = callback
 }
 
 // isDestroyCommand checks if the current command is a destroy operation

@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -65,7 +62,56 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
+	// Add unit filter callback for graph command to filter units based on dependencies
+	// This will be called after units are resolved but before the queue is built
+	stackOpts = append(stackOpts, common.WithReport(r), common.WithUnitFilter(func(units common.Units) {
+		workDir := opts.WorkingDir
+
+		// Build dependency map first
+		dependentUnits := make(map[string][]string)
+
+		for _, unit := range units {
+			if len(unit.Dependencies) != 0 {
+				for _, dep := range unit.Dependencies {
+					dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
+				}
+			}
+		}
+
+		// Recursively collect all dependent units
+		for {
+			noUpdates := true
+
+			for unit, dependents := range dependentUnits {
+				for _, dependent := range dependents {
+					initialSize := len(dependentUnits[unit])
+					list := util.RemoveDuplicatesFromList(append(dependentUnits[unit], dependentUnits[dependent]...))
+					list = util.RemoveElementFromList(list, unit)
+					dependentUnits[unit] = list
+
+					if initialSize != len(dependentUnits[unit]) {
+						noUpdates = false
+					}
+				}
+			}
+
+			if noUpdates {
+				break
+			}
+		}
+
+		// Determine which modules to include
+		modulesToInclude := dependentUnits[workDir]
+		modulesToInclude = append(modulesToInclude, workDir)
+
+		// Mark units as excluded unless they are in modulesToInclude
+		for _, module := range units {
+			module.FlagExcluded = true
+			if util.ListContainsElement(modulesToInclude, module.Path) {
+				module.FlagExcluded = false
+			}
+		}
+	}))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
@@ -82,52 +128,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
 	if err != nil {
 		return err
-	}
-
-	dependentModules := stack.ListStackDependentUnits()
-
-	workDir := opts.WorkingDir
-	modulesToInclude := dependentModules[workDir]
-	// workdir to list too
-	modulesToInclude = append(modulesToInclude, workDir)
-
-	// include from stack only elements from modulesToInclude
-	for _, module := range stack.GetStack().Units {
-		module.FlagExcluded = true
-		if util.ListContainsElement(modulesToInclude, module.Path) {
-			module.FlagExcluded = false
-		}
-	}
-
-	// Rebuild the queue with filtered units
-	// The queue needs to be rebuilt because it was created before we set FlagExcluded
-	if poolRunner, ok := stack.(*runnerpool.Runner); ok {
-		// Reconstruct discovered configs from ALL units (including excluded ones)
-		// This is necessary so that excluded units can be reported properly
-		var allDiscovered discovery.DiscoveredConfigs
-
-		for _, unit := range stack.GetStack().Units {
-			// Include ALL units (both excluded and non-excluded)
-			// The filtering will be done by filterDiscoveredUnits based on FlagExcluded
-			allDiscovered = append(allDiscovered, &discovery.DiscoveredConfig{
-				Path:   unit.Path,
-				Parsed: &unit.Config,
-				Type:   discovery.ConfigTypeUnit,
-			})
-		}
-
-		// Use the runner pool's filter logic to create properly filtered discovered configs
-		// This respects FlagExcluded and ensures excluded units are tracked for reporting
-		filteredDiscovered := runnerpool.FilterDiscoveredUnits(allDiscovered, stack.GetStack().Units)
-
-		// Create a new queue with the filtered units
-		newQueue, err := queue.NewQueue(filteredDiscovered)
-		if err != nil {
-			return err
-		}
-
-		// Replace the queue in the runner
-		poolRunner.SetQueue(newQueue)
 	}
 
 	return runall.RunAllOnStack(ctx, l, graphOpts, stack)

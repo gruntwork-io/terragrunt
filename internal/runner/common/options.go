@@ -87,3 +87,26 @@ func WithReport(r *report.Report) Option {
 		},
 	}
 }
+
+// UnitFilterCallback is a callback that modifies unit exclusions after units are resolved
+// but before the queue is built. This allows commands to customize which units should be
+// included or excluded from execution.
+type UnitFilterCallback func(units Units)
+
+// WithUnitFilter provides a callback to customize unit exclusions after resolution.
+// The callback receives the resolved units and can modify their FlagExcluded field.
+// This is useful for commands like graph that need to filter units based on custom logic.
+func WithUnitFilter(callback UnitFilterCallback) Option {
+	return optionImpl{
+		apply: func(stack StackRunner) {
+			if setter, ok := stack.(UnitFilterSetter); ok {
+				setter.SetUnitFilterCallback(callback)
+			}
+		},
+	}
+}
+
+// UnitFilterSetter is an interface for stack runners that support unit filtering callbacks.
+type UnitFilterSetter interface {
+	SetUnitFilterCallback(callback UnitFilterCallback)
+}
