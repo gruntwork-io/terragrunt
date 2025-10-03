@@ -799,6 +799,39 @@ inputs = {
 
 		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-6-breaking-the-terralith-further")
 
+		// Ensure root.hcl uses the correct stateBucketName
+		rootHclContent := fmt.Sprintf(`remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket       = "%s"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+generate "providers" {
+  path      = "providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "%s"
+}
+EOF
+}
+`, stateBucketName, region, region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(liveDir, "root.hcl"),
+			[]byte(rootHclContent),
+			0644,
+		))
+
 		// Create directories for each component in both environments
 		components := []string{"s3", "ddb", "iam", "lambda"}
 		environments := []string{"dev", "prod"}
@@ -826,7 +859,7 @@ inputs = {
 					nameToUse = name + "-dev"
 				}
 
-				content := strings.ReplaceAll(string(sourceContent), "best-cat-2025-07-31-01", name)
+				content := strings.ReplaceAll(string(sourceContent), "best-cat-2025-09-24-2359", name)
 				content = strings.ReplaceAll(content, name+"-dev", nameToUse)
 				content = strings.ReplaceAll(content, name, nameToUse)
 
@@ -852,7 +885,7 @@ inputs = {
 			}
 		}
 
-		require.NoError(t, os.WriteFile(filepath.Join(liveDir, "dev", "s3", "terragrunt.hcl"), fmt.Appendf(nil, `include "root" {
+		devS3Content := fmt.Sprintf(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
@@ -864,9 +897,10 @@ inputs = {
   name = "%s-dev"
   force_destroy = true
 }
-`, name), 0644))
+`, name)
+		require.NoError(t, os.WriteFile(filepath.Join(liveDir, "dev", "s3", "terragrunt.hcl"), []byte(devS3Content), 0644))
 
-		require.NoError(t, os.WriteFile(filepath.Join(liveDir, "prod", "s3", "terragrunt.hcl"), fmt.Appendf(nil, `include "root" {
+		prodS3Content := fmt.Sprintf(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
@@ -878,7 +912,8 @@ inputs = {
   name = "%s"
   force_destroy = true
 }
-`, name), 0644))
+`, name)
+		require.NoError(t, os.WriteFile(filepath.Join(liveDir, "prod", "s3", "terragrunt.hcl"), []byte(prodS3Content), 0644))
 
 		// Remove the old terragrunt.hcl and moved.tf files from the environment root directories
 		for _, env := range environments {
@@ -956,6 +991,39 @@ inputs = {
 		// Path to step 7 fixtures
 		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-7-taking-advantage-of-terragrunt-stacks")
 
+		// Ensure root.hcl uses the correct stateBucketName
+		rootHclContent := fmt.Sprintf(`remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket       = "%s"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+generate "providers" {
+  path      = "providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "%s"
+}
+EOF
+}
+`, stateBucketName, region, region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(liveDir, "root.hcl"),
+			[]byte(rootHclContent),
+			0644,
+		))
+
 		// Create the catalog/units directory structure for unit definitions
 		catalogUnitsDir := filepath.Join(catalogDir, "units")
 		components := []string{"ddb", "iam", "lambda", "s3"}
@@ -992,7 +1060,7 @@ inputs = {
 		require.NoError(t, err)
 
 		// Replace the hardcoded name with our test-specific name
-		customizedDevStackContent := strings.ReplaceAll(string(devStackContent), "best-cat-2025-07-31-01-dev", name+"-dev")
+		customizedDevStackContent := strings.ReplaceAll(string(devStackContent), "best-cat-2025-09-24-2359-dev", name+"-dev")
 		customizedDevStackContent = strings.ReplaceAll(customizedDevStackContent, "us-east-1", region)
 
 		require.NoError(t, os.WriteFile(
@@ -1007,7 +1075,7 @@ inputs = {
 		require.NoError(t, err)
 
 		// Replace the hardcoded name with our test-specific name
-		customizedProdStackContent := strings.ReplaceAll(string(prodStackContent), "best-cat-2025-07-31-01", name)
+		customizedProdStackContent := strings.ReplaceAll(string(prodStackContent), "best-cat-2025-09-24-2359", name)
 		customizedProdStackContent = strings.ReplaceAll(customizedProdStackContent, "us-east-1", region)
 
 		require.NoError(t, os.WriteFile(
@@ -1094,6 +1162,39 @@ inputs = {
 		// Path to step 8 fixtures
 		fixtureStepPath := filepath.Join(fixturePath, "walkthrough", "step-8-refactoring-state-with-terragrunt-stacks")
 
+		// Ensure root.hcl uses the correct stateBucketName
+		rootHclContent := fmt.Sprintf(`remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket       = "%s"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "%s"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+generate "providers" {
+  path      = "providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "%s"
+}
+EOF
+}
+`, stateBucketName, region, region)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(liveDir, "root.hcl"),
+			[]byte(rootHclContent),
+			0644,
+		))
+
 		// First, generate the current stack to ensure everything is present
 		helpers.ExecWithMiseAndTestLogger(t, liveDir, "terragrunt", "stack", "generate")
 
@@ -1104,7 +1205,7 @@ inputs = {
 		require.NoError(t, err)
 
 		// Replace the hardcoded name with our test-specific name
-		customizedDevStackContent := strings.ReplaceAll(string(devStackContent), "best-cat-2025-07-31-01-dev", name+"-dev")
+		customizedDevStackContent := strings.ReplaceAll(string(devStackContent), "best-cat-2025-09-24-2359-dev", name+"-dev")
 		customizedDevStackContent = strings.ReplaceAll(customizedDevStackContent, "us-east-1", region)
 
 		require.NoError(t, os.WriteFile(
@@ -1119,7 +1220,7 @@ inputs = {
 		require.NoError(t, err)
 
 		// Replace the hardcoded name with our test-specific name
-		customizedProdStackContent := strings.ReplaceAll(string(prodStackContent), "best-cat-2025-07-31-01", name)
+		customizedProdStackContent := strings.ReplaceAll(string(prodStackContent), "best-cat-2025-09-24-2359", name)
 		customizedProdStackContent = strings.ReplaceAll(customizedProdStackContent, "us-east-1", region)
 
 		require.NoError(t, os.WriteFile(
