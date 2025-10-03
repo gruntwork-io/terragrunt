@@ -118,17 +118,18 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	require.Error(t, err)
 
 	// Check for cached values between locals and inputs sections
-	assert.Equal(t, 1, strings.Count(stdout, "potato"))
-	assert.Equal(t, 1, strings.Count(stdout, "carrot"))
-	assert.Equal(t, 1, strings.Count(stdout, "bar"))
-	assert.Equal(t, 1, strings.Count(stdout, "foo"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_potato"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_carrot"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_bar"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_foo"))
 
-	assert.Equal(t, 1, strings.Count(stdout, "input_variable"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_input_variable"))
 
 	// Commands executed multiple times because of different arguments
-	assert.Equal(t, 4, strings.Count(stdout, "uuid"))
-	assert.Equal(t, 6, strings.Count(stdout, "random_arg"))
-	assert.Equal(t, 4, strings.Count(stdout, "another_arg"))
+	assert.Equal(t, 1, strings.Count(stdout, "echo_uuid_input"))
+	assert.Equal(t, 3, strings.Count(stdout, "echo_uuid_locals"))
+	assert.Equal(t, 6, strings.Count(stdout, "echo_random_arg"))
+	assert.Equal(t, 4, strings.Count(stdout, "echo_another_arg"))
 }
 
 func TestTerragruntLocalRunOnce(t *testing.T) {
