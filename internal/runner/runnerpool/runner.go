@@ -130,8 +130,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	if isDestroyCommand(terragruntOptions) {
 		l.Debugf("Detected destroy command, applying prevent_destroy exclusions")
 		applyPreventDestroyExclusions(l, unitsMap)
-	} else {
-		l.Debugf("Not a destroy command (first arg: %s), skipping prevent_destroy exclusions", terragruntOptions.TerraformCliArgs.First())
 	}
 
 	// Apply unit filter callback if provided (e.g., for graph command to filter units)
@@ -258,6 +256,12 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	// Emit report entries for early exit units after controller completes
 	if r.Stack.Report != nil {
+		// Build a quick lookup of queue entry status by path to avoid nested scans
+		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
+		for _, qe := range r.queue.Entries {
+			statusByPath[qe.Config.Path] = qe.Status
+		}
+
 		for _, entry := range r.queue.Entries {
 			if entry.Status == queue.StatusEarlyExit {
 				unit := r.getUnitByPath(entry.Config.Path)
@@ -286,30 +290,18 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				// Find the immediate failed or early-exited ancestor to set as cause
 				// If a dependency failed, use it; otherwise if a dependency exited early, use it
-				var (
-					failedAncestor string
-					foundFailedDep bool
-				)
+				var failedAncestor string
 
 				for _, dep := range entry.Config.Dependencies {
-					// Search for the dependency in queue entries
-					for _, qEntry := range r.queue.Entries {
-						if qEntry.Config.Path == dep.Path {
-							if qEntry.Status == queue.StatusFailed {
-								failedAncestor = filepath.Base(dep.Path)
-								foundFailedDep = true
-
-								break
-							} else if qEntry.Status == queue.StatusEarlyExit && failedAncestor == "" {
-								// Use early exit dependency as fallback
-								failedAncestor = filepath.Base(dep.Path)
-							}
-						}
+					status := statusByPath[dep.Path]
+					if status == queue.StatusFailed {
+						failedAncestor = filepath.Base(dep.Path)
+						break
 					}
 
-					if foundFailedDep {
-						// Stop if we found a directly failed dependency
-						break
+					if status == queue.StatusEarlyExit && failedAncestor == "" {
+						// Use early exit dependency as fallback
+						failedAncestor = filepath.Base(dep.Path)
 					}
 				}
 
