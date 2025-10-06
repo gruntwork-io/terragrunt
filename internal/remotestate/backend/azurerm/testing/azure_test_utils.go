@@ -20,6 +20,8 @@ const (
 	AzureStorageContainerMinLength = 3
 	// AzureStorageContainerMaxLength is the maximum length for Azure storage container names (63 characters)
 	AzureStorageContainerMaxLength = 63
+	defaultCleanupSleepSeconds     = 2
+	timestampSuffixLength          = 8
 )
 
 // AzureTestConfig contains Azure storage test configuration.
@@ -171,6 +173,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...
 		if err != nil {
 			t.Logf("Error checking container existence (attempt %d): %v", i+1, err)
 			time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+
 			continue
 		}
 
@@ -186,13 +189,14 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...
 		}
 
 		// Wait a bit for Azure to process the deletion
-		time.Sleep(2 * time.Second)
+		time.Sleep(defaultCleanupSleepSeconds * time.Second)
 
 		// Verify deletion
 		exists, err = client.ContainerExists(ctx, config.ContainerName)
 		if err != nil {
 			t.Logf("Error verifying container deletion (attempt %d): %v", i+1, err)
-			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
+			time.Sleep(time.Duration(i+1) * defaultCleanupSleepSeconds * time.Second) // Exponential backoff
+
 			continue
 		}
 
@@ -206,7 +210,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...
 			require.Fail(t, fmt.Sprintf("Failed to cleanup container %s after %d attempts", config.ContainerName, retryLimit))
 		} else {
 			t.Logf("Cleanup attempt %d failed, retrying...", i+1)
-			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
+			time.Sleep(time.Duration(i+1) * defaultCleanupSleepSeconds * time.Second) // Exponential backoff
 		}
 	}
 }
@@ -253,7 +257,7 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 			break
 		}
 
-		time.Sleep(2 * time.Second)
+		time.Sleep(defaultCleanupSleepSeconds * time.Second)
 	}
 
 	require.NoError(t, checkErr)
@@ -273,9 +277,9 @@ func CleanupAzureContainerWithRetry(t *testing.T, config *AzureTestConfig, maxRe
 func generateUniqueContainerName(testName string) string {
 	// Combine test name with nanosecond timestamp for true uniqueness
 	timestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
-	// Use last 8 digits of timestamp
-	if len(timestamp) > 8 {
-		timestamp = timestamp[len(timestamp)-8:]
+	// Use last digits of timestamp for uniqueness without exceeding limits
+	if len(timestamp) > timestampSuffixLength {
+		timestamp = timestamp[len(timestamp)-timestampSuffixLength:]
 	}
 
 	// Clean test name for Azure compliance

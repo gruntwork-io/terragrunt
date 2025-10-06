@@ -534,8 +534,10 @@ func GetErrorContext(err error) (ErrorClassification, OperationType, string) {
 	classification := ClassifyError(err)
 
 	// Determine operation type and details
-	var operationType OperationType
-	var details string
+	var (
+		operationType OperationType
+		details       string
+	)
 
 	switch {
 	case errors.As(err, &StorageAccountCreationError{}):
@@ -566,14 +568,14 @@ func WrapErrorWithTelemetry(ctx context.Context, err error, tel *AzureTelemetryC
 
 	// Get error context
 	classification, _, details := GetErrorContext(err)
-	
+
 	// Log error with telemetry
 	tel.LogError(ctx, err, operation, AzureErrorMetrics{
 		Classification: classification,
-		Operation:     OperationType(operation),
-		ResourceType:  resourceType,
-		ResourceName:  resourceName,
-		ErrorMessage:  details,
+		Operation:      operation,
+		ResourceType:   resourceType,
+		ResourceName:   resourceName,
+		ErrorMessage:   details,
 		Additional: map[string]interface{}{
 			"error_type": reflect.TypeOf(err).String(),
 		},

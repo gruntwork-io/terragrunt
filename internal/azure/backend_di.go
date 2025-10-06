@@ -45,6 +45,7 @@ func NewAzureBackendDependencies(
 	container := impl.NewProductionServiceContainer(config)
 
 	storageAccountService, err := container.GetStorageAccountService(ctx, l, config)
+
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +55,7 @@ func NewAzureBackendDependencies(
 		"options": opts,
 	})
 	blobService, err := container.GetBlobService(ctx, l, blobConfig)
+
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +65,7 @@ func NewAzureBackendDependencies(
 		"subscriptionId": subscriptionID,
 	})
 	resourceGroupService, err := container.GetResourceGroupService(ctx, l, rgConfig)
+
 	if err != nil {
 		return nil, err
 	}

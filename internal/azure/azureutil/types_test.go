@@ -288,18 +288,20 @@ func TestStructDefaults(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ErrorMetrics defaults", func(t *testing.T) {
+		t.Parallel()
+
 		metrics := azureutil.ErrorMetrics{}
 
-		assert.Equal(t, "", metrics.ErrorType)
+		assert.Empty(t, metrics.ErrorType)
 		assert.Equal(t, azureutil.ErrorClass(""), metrics.Classification)
 		assert.Equal(t, azureutil.OperationType(""), metrics.Operation)
-		assert.Equal(t, "", metrics.ResourceType)
-		assert.Equal(t, "", metrics.ResourceName)
-		assert.Equal(t, "", metrics.ErrorMessage)
+		assert.Empty(t, metrics.ResourceType)
+		assert.Empty(t, metrics.ResourceName)
+		assert.Empty(t, metrics.ErrorMessage)
 		assert.False(t, metrics.IsRetryable)
-		assert.Equal(t, "", metrics.SubscriptionID)
-		assert.Equal(t, "", metrics.Location)
-		assert.Equal(t, "", metrics.AuthMethod)
+		assert.Empty(t, metrics.SubscriptionID)
+		assert.Empty(t, metrics.Location)
+		assert.Empty(t, metrics.AuthMethod)
 		assert.Equal(t, 0, metrics.StatusCode)
 		assert.Equal(t, 0, metrics.RetryAttempts)
 		assert.Nil(t, metrics.Additional)
@@ -311,6 +313,8 @@ func TestStructFieldAssignment(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ErrorMetrics field assignment", func(t *testing.T) {
+		t.Parallel()
+
 		metrics := &azureutil.ErrorMetrics{}
 
 		// Test field assignment

@@ -3,6 +3,7 @@ package factory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -15,28 +16,30 @@ import (
 
 // Options for configuring the enhanced service factory
 type Options struct {
-	EnableMocking bool
 	MockResponses map[string]interface{}
 	DefaultConfig map[string]interface{}
 	RetryConfig   *interfaces.RetryConfig
+	EnableMocking bool
 }
 
 // AzureServiceFactory implements interfaces.AzureServiceContainer and provides
 // factory methods for creating Azure services
+//
+//nolint:govet // fieldalignment: Struct embeds multiple maps/interfaces; reordering would hurt readability without measurable benefit.
 type AzureServiceFactory struct {
+	// Synchronization for caches and configuration
+	cacheMutex sync.RWMutex
+
 	// Configuration
 	config interfaces.ServiceContainerConfig
 
 	// Service caches
-	cacheMutex                 sync.RWMutex
 	storageAccountServiceCache map[string]interfaces.StorageAccountService
 	blobServiceCache           map[string]interfaces.BlobService
 	resourceGroupServiceCache  map[string]interfaces.ResourceGroupService
 	rbacServiceCache           map[string]interfaces.RBACService
 	authServiceCache           map[string]interfaces.AuthenticationService
-
-	// Cache metadata
-	cacheTimestamps map[string]time.Time
+	cacheTimestamps            map[string]time.Time
 
 	// Registered custom services
 	customStorageAccountService interfaces.StorageAccountService
@@ -62,6 +65,8 @@ func NewAzureServiceFactory() interfaces.AzureServiceContainer {
 // NewAzureServiceFactoryWithOptions creates a new factory with specific options
 func NewAzureServiceFactoryWithOptions(options *interfaces.FactoryOptions) interfaces.AzureServiceContainer {
 	factory := NewAzureServiceFactory()
+
+	// TODO: Enhance factory to use retry config and other options
 	if options != nil {
 		// Apply options to the factory
 		if factoryImpl, ok := factory.(*AzureServiceFactory); ok {
@@ -69,9 +74,9 @@ func NewAzureServiceFactoryWithOptions(options *interfaces.FactoryOptions) inter
 			// The actual implementation would need to be enhanced to use these options
 			_ = factoryImpl
 			_ = options
-			// TODO: Enhance factory to use retry config and other options
 		}
 	}
+
 	return factory
 }
 
@@ -98,9 +103,11 @@ func (f *AzureServiceFactory) Initialize(ctx context.Context, l log.Logger, conf
 	if enableCaching, ok := config["enable_caching"].(bool); ok {
 		f.config.EnableCaching = enableCaching
 	}
+
 	if cacheTimeout, ok := config["cache_timeout"].(int); ok {
 		f.config.CacheTimeout = cacheTimeout
 	}
+
 	if maxCacheSize, ok := config["max_cache_size"].(int); ok {
 		f.config.MaxCacheSize = maxCacheSize
 	}
@@ -307,7 +314,7 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 	// Extract the subscription ID from config
 	subscriptionID, _ := config["subscription_id"].(string)
 	if subscriptionID == "" {
-		return nil, fmt.Errorf("subscription_id is required in the configuration")
+		return nil, errors.New("subscription_id is required in the configuration")
 	}
 
 	// Create a new resource group client
@@ -333,13 +340,13 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 // GetRBACService creates and returns an RBACService instance
 func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.RBACService, error) {
 	// For now, we'll return a not implemented error
-	return nil, fmt.Errorf("RBACService not implemented")
+	return nil, errors.New("RBACService not implemented")
 }
 
 // GetAuthenticationService creates and returns an AuthenticationService instance
 func (f *AzureServiceFactory) GetAuthenticationService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.AuthenticationService, error) {
 	// For now, we'll return a not implemented error
-	return nil, fmt.Errorf("AuthenticationService not implemented")
+	return nil, errors.New("AuthenticationService not implemented")
 }
 
 // RegisterStorageAccountService registers a custom StorageAccountService implementation
@@ -384,15 +391,19 @@ func (f *AzureServiceFactory) GetRegisteredServices() []string {
 	if f.customStorageAccountService != nil {
 		services = append(services, "storage")
 	}
+
 	if f.customBlobService != nil {
 		services = append(services, "blob")
 	}
+
 	if f.customResourceGroupService != nil {
 		services = append(services, "resourcegroup")
 	}
+
 	if f.customRBACService != nil {
 		services = append(services, "rbac")
 	}
+
 	if f.customAuthService != nil {
 		services = append(services, "auth")
 	}

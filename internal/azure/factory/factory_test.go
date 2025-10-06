@@ -12,6 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testContextKey string
+
+const factoryContextKey testContextKey = "factory"
+
+var _ interfaces.AzureServiceContainer = (*factory.AzureServiceFactory)(nil)
+
 // TestNewAzureServiceFactory tests factory creation
 func TestNewAzureServiceFactory(t *testing.T) {
 	t.Parallel()
@@ -19,16 +25,14 @@ func TestNewAzureServiceFactory(t *testing.T) {
 	factory := factory.NewAzureServiceFactory()
 
 	require.NotNil(t, factory)
-
-	// Verify it implements the interface
-	var _ interfaces.AzureServiceContainer = factory
 }
 
 // TestFactoryOptions tests factory options configuration
 func TestFactoryOptions(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	//nolint:govet // fieldalignment: table-driven tests prioritize logical ordering.
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name    string
 		options *factory.Options
 	}{
@@ -113,7 +117,8 @@ func TestFactoryOptions(t *testing.T) {
 func TestServiceContainerConfig(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	//nolint:govet // fieldalignment: table-driven tests prioritize logical ordering.
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name   string
 		config interfaces.ServiceContainerConfig
 	}{
@@ -159,7 +164,7 @@ func TestServiceContainerConfig(t *testing.T) {
 func TestRetryConfig(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name   string
 		config *interfaces.RetryConfig
 		valid  bool
@@ -252,7 +257,7 @@ func TestContextHandling(t *testing.T) {
 	factory := factory.NewAzureServiceFactory()
 	require.NotNil(t, factory)
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name string
 		ctx  context.Context
 	}{
@@ -266,7 +271,7 @@ func TestContextHandling(t *testing.T) {
 		},
 		{
 			name: "context with values",
-			ctx:  context.WithValue(context.Background(), "test-key", "test-value"),
+			ctx:  context.WithValue(context.Background(), factoryContextKey, "test-value"),
 		},
 		{
 			name: "context with timeout",
@@ -303,7 +308,7 @@ func TestContextHandling(t *testing.T) {
 func TestStorageAccountConfigValidation(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name   string
 		config *types.StorageAccountConfig
 		valid  bool

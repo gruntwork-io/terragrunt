@@ -103,12 +103,18 @@ type RBACConfig struct {
 	EnableRetry bool
 }
 
+const (
+	defaultRBACMaxRetries         = 5
+	defaultRBACRetryDelaySeconds  = 3
+	defaultRBACPropagationTimeout = 60
+)
+
 // DefaultRBACConfig returns the default configuration for RBAC operations.
 func DefaultRBACConfig() RBACConfig {
 	return RBACConfig{
-		MaxRetries:         5,
-		RetryDelay:         3,
-		PropagationTimeout: 60,
+		MaxRetries:         defaultRBACMaxRetries,
+		RetryDelay:         defaultRBACRetryDelaySeconds,
+		PropagationTimeout: defaultRBACPropagationTimeout,
 		EnableRetry:        true,
 	}
 }

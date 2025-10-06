@@ -15,9 +15,6 @@ type ServiceFactory interface {
 
 // FactoryOptions defines options for configuring the service factory
 type FactoryOptions struct {
-	// EnableMocking enables the use of mock implementations
-	EnableMocking bool
-
 	// MockResponses contains predefined responses for mock services
 	MockResponses map[string]interface{}
 
@@ -26,10 +23,16 @@ type FactoryOptions struct {
 
 	// RetryConfig contains retry settings
 	RetryConfig *RetryConfig
+
+	// EnableMocking enables the use of mock implementations
+	EnableMocking bool
 }
 
 // RetryConfig defines retry behavior for Azure operations
 type RetryConfig struct {
+	// RetryableStatusCodes are HTTP status codes that should trigger a retry
+	RetryableStatusCodes []int
+
 	// MaxRetries is the maximum number of retries
 	MaxRetries int
 
@@ -38,7 +41,4 @@ type RetryConfig struct {
 
 	// MaxDelay is the maximum delay between retries in seconds
 	MaxDelay int
-
-	// RetryableStatusCodes are HTTP status codes that should trigger a retry
-	RetryableStatusCodes []int
 }

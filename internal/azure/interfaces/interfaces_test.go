@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestRoleAssignment tests the RoleAssignment struct
@@ -79,8 +80,8 @@ func TestErrorConstants(t *testing.T) {
 	t.Parallel()
 
 	// Test that error constants exist and are not nil
-	assert.NotNil(t, interfaces.ErrNotImplemented)
-	assert.NotNil(t, interfaces.ErrInvalidCredentials)
+	require.Error(t, interfaces.ErrNotImplemented)
+	require.Error(t, interfaces.ErrInvalidCredentials)
 
 	// Test that error constants have meaningful messages
 	assert.Contains(t, interfaces.ErrNotImplemented.Error(), "not implemented")
@@ -95,16 +96,20 @@ func TestConfigStructDefaults(t *testing.T) {
 	t.Parallel()
 
 	t.Run("AuthenticationConfig defaults", func(t *testing.T) {
+		t.Parallel()
+
 		config := interfaces.AuthenticationConfig{}
 
-		assert.Equal(t, "", config.SubscriptionID)
-		assert.Equal(t, "", config.TenantID)
-		assert.Equal(t, "", config.ClientID)
-		assert.Equal(t, "", config.ClientSecret)
+		assert.Empty(t, config.SubscriptionID)
+		assert.Empty(t, config.TenantID)
+		assert.Empty(t, config.ClientID)
+		assert.Empty(t, config.ClientSecret)
 		assert.False(t, config.UseManagedIdentity)
 	})
 
 	t.Run("RBACConfig defaults", func(t *testing.T) {
+		t.Parallel()
+
 		config := interfaces.RBACConfig{}
 
 		assert.Equal(t, 0, config.MaxRetries)
@@ -114,19 +119,23 @@ func TestConfigStructDefaults(t *testing.T) {
 	})
 
 	t.Run("RoleAssignment defaults", func(t *testing.T) {
+		t.Parallel()
+
 		roleAssignment := interfaces.RoleAssignment{}
 
-		assert.Equal(t, "", roleAssignment.RoleName)
-		assert.Equal(t, "", roleAssignment.PrincipalID)
-		assert.Equal(t, "", roleAssignment.Scope)
-		assert.Equal(t, "", roleAssignment.Description)
+		assert.Empty(t, roleAssignment.RoleName)
+		assert.Empty(t, roleAssignment.PrincipalID)
+		assert.Empty(t, roleAssignment.Scope)
+		assert.Empty(t, roleAssignment.Description)
 	})
 
 	t.Run("Principal defaults", func(t *testing.T) {
+		t.Parallel()
+
 		principal := interfaces.Principal{}
 
-		assert.Equal(t, "", principal.ID)
-		assert.Equal(t, "", principal.Type)
+		assert.Empty(t, principal.ID)
+		assert.Empty(t, principal.Type)
 	})
 }
 
@@ -135,6 +144,8 @@ func TestStructFieldAssignments(t *testing.T) {
 	t.Parallel()
 
 	t.Run("AuthenticationConfig field assignment", func(t *testing.T) {
+		t.Parallel()
+
 		config := &interfaces.AuthenticationConfig{}
 
 		// Test field assignment
@@ -153,6 +164,8 @@ func TestStructFieldAssignments(t *testing.T) {
 	})
 
 	t.Run("RBACConfig field assignment", func(t *testing.T) {
+		t.Parallel()
+
 		config := &interfaces.RBACConfig{}
 
 		// Test field assignment
@@ -174,6 +187,8 @@ func TestStructComparison(t *testing.T) {
 	t.Parallel()
 
 	t.Run("AuthenticationConfig equality", func(t *testing.T) {
+		t.Parallel()
+
 		config1 := interfaces.AuthenticationConfig{
 			SubscriptionID: "sub1",
 			TenantID:       "tenant1",
@@ -197,6 +212,8 @@ func TestStructComparison(t *testing.T) {
 	})
 
 	t.Run("RoleAssignment equality", func(t *testing.T) {
+		t.Parallel()
+
 		role1 := interfaces.RoleAssignment{
 			RoleName:    "Owner",
 			PrincipalID: "principal1",

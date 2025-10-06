@@ -30,22 +30,117 @@ remote_state {
 }
 ```
 
-### Authentication Methods
+## Authentication Methods
 
-1. Using Azure CLI (Recommended for local development):
+There are several ways to authenticate with Azure. Below are the recommended approaches in order of preference:
 
-    ```bash
-    az login
-    ```
+### 1. Azure AD Authentication (Recommended)
 
-2. Using Environment Variables (Recommended for CI/CD):
+The recommended authentication method that uses Azure Active Directory with automatic credential discovery.
 
-    ```bash
-    export ARM_CLIENT_ID="your-client-id"
-    export ARM_CLIENT_SECRET="your-client-secret"
-    export ARM_TENANT_ID="your-tenant-id"
-    export ARM_SUBSCRIPTION_ID="your-subscription-id"
-    ```
+```hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    use_azuread_auth = true
+    # Other required fields...
+  }
+}
+```
+
+When using Azure AD authentication, Terragrunt will use the current logged-in Azure CLI credentials or environment variables.
+
+**For local development:** Use Azure CLI
+
+```bash
+az login
+```
+
+**For CI/CD environments:** Use environment variables
+
+```bash
+export ARM_CLIENT_ID="your-app-registration-id"
+export ARM_CLIENT_SECRET="your-client-secret"
+export ARM_TENANT_ID="your-tenant-id"
+export ARM_SUBSCRIPTION_ID="your-subscription-id"
+```
+
+#### Credential Sources (in order of precedence)
+
+1. Environment variables (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
+2. Azure CLI authentication
+3. Managed Service Identity (when running on Azure)
+4. Visual Studio authentication
+5. Visual Studio Code authentication
+
+### 2. Managed Service Identity (MSI)
+
+Uses Azure's Managed Service Identity for authentication when running on Azure resources.
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    use_msi = true
+    # Other required fields...
+  }
+}
+```
+
+#### Supported Azure Resources
+
+- Azure Virtual Machines
+- Azure App Service
+- Azure Function Apps
+- Azure Container Instances
+- Azure Kubernetes Service
+
+### 3. Service Principal Authentication
+
+Uses an explicit Azure AD application (service principal) for authentication.
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    subscription_id  = "12345678-1234-1234-1234-123456789abc"
+    tenant_id        = "87654321-4321-4321-4321-210987654321"
+    client_id        = "11111111-1111-1111-1111-111111111111"
+    client_secret    = "your-client-secret"
+    # Other required fields...
+  }
+}
+```
+
+#### Environment Variables
+
+- `AZURE_CLIENT_ID` or `ARM_CLIENT_ID`: Service Principal client ID
+- `AZURE_CLIENT_SECRET` or `ARM_CLIENT_SECRET`: Service Principal client secret
+- `AZURE_TENANT_ID` or `ARM_TENANT_ID`: Azure AD tenant ID
+- `AZURE_SUBSCRIPTION_ID` or `ARM_SUBSCRIPTION_ID`: Azure subscription ID
+
+### 4. SAS Token Authentication
+
+Uses a Shared Access Signature token for storage-specific authentication.
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "mystorageaccount"
+    sas_token           = "?sv=2021-06-08&ss=b&srt=sco&sp=rwdlacx&se=2023-12-31T23:59:59Z&sig=..."
+    # Other required fields...
+  }
+}
+```
+
+### 5. Troubleshooting Authentication
+
+To test your Azure credentials:
+
+```bash
+az account show
+```
 
 ## Configuration Options
 
@@ -86,60 +181,6 @@ These options are only used when `create_storage_account_if_not_exists = true`:
 | `min_tls_version` | `"TLS1_2"` | Minimum TLS version |
 | `allow_blob_public_access` | `false` | Allow public access to blobs |
 | `enable_https_traffic_only` | `true` | Allow only HTTPS traffic |
-
-## Authentication Methods
-
-There are several ways to authenticate with Azure. Below are the recommended approaches in order of preference:
-
-1. **Azure AD (Recommended)**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        use_azuread_auth = true
-        # Other configuration...
-      }
-    }
-    ```
-
-2. **Managed Identity**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        use_msi = true
-        # Other configuration...
-      }
-    }
-    ```
-
-3. **Service Principal**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        client_id     = "your-client-id"
-        client_secret = "your-client-secret"
-        tenant_id     = "your-tenant-id"
-        # Other configuration...
-      }
-    }
-    ```
-
-4. **SAS Token**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        sas_token = "your-sas-token"
-        # Other configuration...
-      }
-    }
-    ```
 
 ## Advanced Features
 
@@ -222,15 +263,32 @@ remote_state {
 - Check Terragrunt debug logs with `TF_LOG=DEBUG terragrunt <command>`
 - File issues on the [Terragrunt GitHub repository](https://github.com/gruntwork-io/terragrunt)
 
-This document explains how to configure Terragrunt to use the new interface-based Azure storage backend for remote state management.
+## Azure Backend Configuration
+
+This document explains how to configure Terragrunt to use the Azure storage backend for remote state management.
+
+## Table of Contents
+
+- [Configuration Options](#configuration-options)
+  - [Required Configuration](#required-configuration)
+  - [Optional Configuration](#optional-configuration)
+  - [Storage Account Creation Options](#storage-account-creation-options)
+- [Authentication Methods](#authentication-methods)
+- [Advanced Features](#advanced-features)
+- [Cloud Environments](#cloud-environments)
+- [Best Practices](#best-practices)
+- [Environment Variables](#environment-variables)
+- [Troubleshooting](#troubleshooting)
+- [Migration Guide](#migration-guide)
+- [References](#references)
 
 ## Key Features
 
-The new interface-based Azure backend adds several improvements:
+The Azure backend offers several important features:
 
 - **Blob Versioning**: Built-in support for state file versioning
 - **Enhanced Error Handling**: Better error classification and retry logic
-- **Improved Authentication**: More robust Azure AD integration
+- **Improved Authentication**: Multiple robust authentication methods
 - **Automatic Bootstrapping**: Can create and configure storage accounts automatically
 
 ## Configuration Options
@@ -332,207 +390,6 @@ remote_state {
       CostCenter  = "engineering"
     }
   }
-}
-```
-
-### 3. StorageAccountConfig
-
-Configuration for Azure Storage account operations, used by the StorageAccountService interface for storage account management.
-
-#### Key Features
-
-- Comprehensive storage account configuration through interface-based design
-- Support for all Azure storage account types and tiers
-- Configurable replication strategies  
-- Security controls for public access
-- Versioning control through `IsVersioningEnabled` method
-- Custom tagging support
-
-#### Interface Usage
-
-```go
-// Storage account operations through interface
-storageService, err := factory.GetStorageAccountService(ctx, logger, config)
-if err != nil {
-    return err
-}
-
-// Check versioning status
-versioningEnabled, err := storageService.IsVersioningEnabled(ctx)
-if err != nil {
-    return err
-}
-
-// Get storage account details
-account, err := storageService.GetStorageAccount(ctx, resourceGroup, accountName)
-if err != nil {
-    return err
-}
-```
-
-### 4. ResourceGroupConfig
-
-Configuration for Azure Resource Group operations, used by the ResourceGroupService interface for resource group management.
-
-#### Key Features
-
-- Resource group creation and management through interface
-- Location specification
-- Custom tagging support
-- Subscription-level organization
-
-#### Interface Usage
-
-```go
-// Resource group operations through interface
-rgService, err := factory.GetResourceGroupService(ctx, logger, config)
-if err != nil {
-    return err
-}
-
-// Ensure resource group exists
-err = rgService.EnsureResourceGroup(ctx, logger, resourceGroupName, location, tags)
-if err != nil {
-    return err
-}
-```
-
-### Authentication Methods
-
-The backend supports several authentication methods:
-
-1. **Azure AD (Recommended)**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        # ... required settings ...
-        use_azuread_auth = true  # Use Azure AD authentication
-      }
-    }
-    ```
-
-1. **Managed Identity**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        # ... required settings ...
-        use_msi = true  # Use managed identity
-      }
-    }
-    ```
-
-1. **Service Principal**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        # ... required settings ...
-        tenant_id     = "your-tenant-id"
-        client_id     = "your-client-id"
-        client_secret = "your-client-secret"
-      }
-    }
-    ```
-
-1. **SAS Token**
-
-    ```hcl
-    remote_state {
-      backend = "azurerm"
-      config = {
-        # ... required settings ...
-        sas_token = "your-sas-token"
-      }
-    }
-    ```
-
-### Advanced Features
-
-### 1. Azure AD Authentication (Default)
-
-The recommended authentication method that uses Azure Active Directory with automatic credential discovery.
-
-#### Configuration
-
-```hcl
-config = {
-  use_azuread_auth = true
-  subscription_id  = "12345678-1234-1234-1234-123456789abc"
-  # Other required fields...
-}
-```
-
-#### Credential Sources (in order of precedence)
-
-1. Environment variables (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
-2. Azure CLI authentication
-3. Managed Service Identity (when running on Azure)
-4. Visual Studio authentication
-5. Visual Studio Code authentication
-
-### 2. Service Principal Authentication
-
-Uses an explicit Azure AD application (service principal) for authentication.
-
-#### Configuration
-
-```hcl
-config = {
-  use_azuread_auth = false
-  subscription_id  = "12345678-1234-1234-1234-123456789abc"
-  tenant_id        = "87654321-4321-4321-4321-210987654321"
-  client_id        = "11111111-1111-1111-1111-111111111111"
-  client_secret    = "your-client-secret"
-  # Other required fields...
-}
-```
-
-#### Environment Variables
-
-- `AZURE_CLIENT_ID` or `ARM_CLIENT_ID`
-- `AZURE_CLIENT_SECRET` or `ARM_CLIENT_SECRET`
-- `AZURE_TENANT_ID` or `ARM_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID` or `ARM_SUBSCRIPTION_ID`
-
-### 3. Managed Service Identity (MSI)
-
-Uses Azure's Managed Service Identity for authentication when running on Azure resources.
-
-#### Configuration
-
-```hcl
-config = {
-  use_msi         = true
-  subscription_id = "12345678-1234-1234-1234-123456789abc"
-  # Other required fields...
-}
-```
-
-#### Supported Azure Resources
-
-- Azure Virtual Machines
-- Azure App Service
-- Azure Function Apps
-- Azure Container Instances
-- Azure Kubernetes Service
-
-### 4. SAS Token Authentication
-
-Uses a Shared Access Signature token for storage-specific authentication.
-
-#### Configuration
-
-```hcl
-config = {
-  storage_account_name = "mystorageaccount"
-  sas_token           = "?sv=2021-06-08&ss=b&srt=sco&sp=rwdlacx&se=2023-12-31T23:59:59Z&sig=..."
-  subscription_id     = "12345678-1234-1234-1234-123456789abc"
-  # Other required fields...
 }
 ```
 

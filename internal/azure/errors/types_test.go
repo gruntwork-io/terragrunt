@@ -14,22 +14,23 @@ import (
 func TestErrorClass(t *testing.T) {
 	t.Parallel()
 
+	//nolint:govet // fieldalignment: table-driven tests prefer logical field order.
 	tests := []struct {
-		name  string
 		class azureerrors.ErrorClass
+		name  string
 	}{
-		{"authentication", azureerrors.ErrorClassAuthentication},
-		{"authorization", azureerrors.ErrorClassAuthorization},
-		{"configuration", azureerrors.ErrorClassConfiguration},
-		{"invalid_request", azureerrors.ErrorClassInvalidRequest},
-		{"networking", azureerrors.ErrorClassNetworking},
-		{"not_found", azureerrors.ErrorClassNotFound},
-		{"permission", azureerrors.ErrorClassPermission},
-		{"resource", azureerrors.ErrorClassResource},
-		{"system", azureerrors.ErrorClassSystem},
-		{"throttling", azureerrors.ErrorClassThrottling},
-		{"transient", azureerrors.ErrorClassTransient},
-		{"unknown", azureerrors.ErrorClassUnknown},
+		{class: azureerrors.ErrorClassAuthentication, name: "authentication"},
+		{class: azureerrors.ErrorClassAuthorization, name: "authorization"},
+		{class: azureerrors.ErrorClassConfiguration, name: "configuration"},
+		{class: azureerrors.ErrorClassInvalidRequest, name: "invalid_request"},
+		{class: azureerrors.ErrorClassNetworking, name: "networking"},
+		{class: azureerrors.ErrorClassNotFound, name: "not_found"},
+		{class: azureerrors.ErrorClassPermission, name: "permission"},
+		{class: azureerrors.ErrorClassResource, name: "resource"},
+		{class: azureerrors.ErrorClassSystem, name: "system"},
+		{class: azureerrors.ErrorClassThrottling, name: "throttling"},
+		{class: azureerrors.ErrorClassTransient, name: "transient"},
+		{class: azureerrors.ErrorClassUnknown, name: "unknown"},
 	}
 
 	for _, tc := range tests {
@@ -48,14 +49,15 @@ func TestErrorClass(t *testing.T) {
 func TestResourceType(t *testing.T) {
 	t.Parallel()
 
+	//nolint:govet // fieldalignment: table-driven tests prefer logical field order.
 	tests := []struct {
-		name         string
 		resourceType azureerrors.ResourceType
+		name         string
 	}{
-		{"blob", azureerrors.ResourceTypeBlob},
-		{"container", azureerrors.ResourceTypeContainer},
-		{"resource_group", azureerrors.ResourceTypeResourceGroup},
-		{"storage_account", azureerrors.ResourceTypeStorage},
+		{resourceType: azureerrors.ResourceTypeBlob, name: "blob"},
+		{resourceType: azureerrors.ResourceTypeContainer, name: "container"},
+		{resourceType: azureerrors.ResourceTypeResourceGroup, name: "resource_group"},
+		{resourceType: azureerrors.ResourceTypeStorage, name: "storage_account"},
 	}
 
 	for _, tc := range tests {
@@ -74,18 +76,18 @@ func TestResourceType(t *testing.T) {
 func TestAzureErrorCreation(t *testing.T) {
 	t.Parallel()
 
+	//nolint:govet // fieldalignment: table-driven tests prefer logical field order.
 	tests := []struct {
-		name     string
 		azureErr *azureerrors.AzureError
+		name     string
 	}{
 		{
-			name: "minimal error",
 			azureErr: &azureerrors.AzureError{
 				Message: "Test error message",
 			},
+			name: "minimal error",
 		},
 		{
-			name: "complete error",
 			azureErr: &azureerrors.AzureError{
 				Message:        "Complete error message",
 				Wrapped:        errors.New("underlying error"),
@@ -95,9 +97,9 @@ func TestAzureErrorCreation(t *testing.T) {
 				ResourceName:   "teststorageaccount",
 				Operation:      "CreateStorageAccount",
 			},
+			name: "complete error",
 		},
 		{
-			name: "permission error",
 			azureErr: &azureerrors.AzureError{
 				Message:        "Access denied",
 				Classification: azureerrors.ErrorClassPermission,
@@ -105,15 +107,16 @@ func TestAzureErrorCreation(t *testing.T) {
 				ResourceName:   "test-blob.tfstate",
 				Suggestion:     "Check your RBAC permissions",
 			},
+			name: "permission error",
 		},
 		{
-			name: "not found error",
 			azureErr: &azureerrors.AzureError{
 				Message:        "Resource not found",
 				Classification: azureerrors.ErrorClassNotFound,
 				ResourceType:   azureerrors.ResourceTypeContainer,
 				ResourceName:   "tfstate-container",
 			},
+			name: "not found error",
 		},
 	}
 
@@ -146,42 +149,43 @@ func TestAzureErrorCreation(t *testing.T) {
 func TestAzureErrorFormatting(t *testing.T) {
 	t.Parallel()
 
+	//nolint:govet // fieldalignment: table-driven tests prefer logical field order.
 	tests := []struct {
-		name           string
 		azureErr       *azureerrors.AzureError
 		expectContains []string
+		name           string
 	}{
 		{
-			name: "simple message",
 			azureErr: &azureerrors.AzureError{
 				Message: "Simple error",
 			},
 			expectContains: []string{"Simple error"},
+			name:           "simple message",
 		},
 		{
-			name: "error with operation",
 			azureErr: &azureerrors.AzureError{
 				Message:   "Operation failed",
 				Operation: "CreateBlob",
 			},
 			expectContains: []string{"Operation failed", "CreateBlob"},
+			name:           "error with operation",
 		},
 		{
-			name: "error with resource info",
 			azureErr: &azureerrors.AzureError{
 				Message:      "Resource error",
 				ResourceType: azureerrors.ResourceTypeBlob,
 				ResourceName: "test-blob",
 			},
 			expectContains: []string{"Resource error", "blob", "test-blob"},
+			name:           "error with resource info",
 		},
 		{
-			name: "error with wrapped error",
 			azureErr: &azureerrors.AzureError{
 				Message: "Outer error",
 				Wrapped: errors.New("inner error"),
 			},
 			expectContains: []string{"Outer error", "inner error"},
+			name:           "error with wrapped error",
 		},
 	}
 
@@ -217,7 +221,7 @@ func TestAzureErrorChaining(t *testing.T) {
 	}
 
 	// Test error chain with errors.Is
-	assert.True(t, errors.Is(azureErr, originalErr))
+	assert.ErrorIs(t, azureErr, originalErr)
 }
 
 // TestAzureErrorClassification tests error classification logic

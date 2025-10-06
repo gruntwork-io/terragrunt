@@ -1,8 +1,9 @@
+//nolint:testpackage // Requires access to internal helpers for comprehensive coverage.
 package azureutil
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -10,15 +11,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockTelemetryCollector implements the core functionality of TelemetryCollector for testing
-type MockTelemetryCollector struct {
+type MockTelemetryCollector struct { //nolint:govet // test helper prioritizes readability over packing
 	ErrorsLogged     int
 	OperationsLogged int
 	LastErrorMetrics ErrorMetrics
 	LastOperation    OperationType
 }
+
+type testContextKey string
 
 func (m *MockTelemetryCollector) LogError(ctx context.Context, err error, operation OperationType, metrics ErrorMetrics) {
 	m.ErrorsLogged++
@@ -31,6 +35,8 @@ func (m *MockTelemetryCollector) LogOperation(ctx context.Context, operation Ope
 }
 
 func TestWithErrorHandling_Success(t *testing.T) {
+	t.Parallel()
+
 	// Set up
 	collector := &MockTelemetryCollector{}
 	var logger log.Logger // Using a nil logger for tests
@@ -49,19 +55,21 @@ func TestWithErrorHandling_Success(t *testing.T) {
 	)
 
 	// Verify
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 0, collector.ErrorsLogged)
 	assert.Equal(t, 1, collector.OperationsLogged)
 	assert.Equal(t, OperationBootstrap, collector.LastOperation)
 }
 
 func TestWithErrorHandling_Error(t *testing.T) {
+	t.Parallel()
+
 	// Set up
 	collector := &MockTelemetryCollector{}
 	var logger log.Logger // Using a nil logger for tests
 	handler := NewErrorHandler(collector, logger)
 	ctx := context.Background()
-	testError := fmt.Errorf("test error")
+	testError := errors.New("test error")
 
 	// Test with a failed operation
 	err := handler.WithErrorHandling(
@@ -75,7 +83,7 @@ func TestWithErrorHandling_Error(t *testing.T) {
 	)
 
 	// Verify
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, 1, collector.ErrorsLogged)
 	assert.Equal(t, 0, collector.OperationsLogged)
 	assert.Equal(t, "storage_account", collector.LastErrorMetrics.ResourceType)
@@ -84,9 +92,11 @@ func TestWithErrorHandling_Error(t *testing.T) {
 }
 
 func TestErrorTypeDetection(t *testing.T) {
+	t.Parallel()
+
 	handler := NewErrorHandler(nil, nil)
 
-	testCases := []struct {
+	testCases := []struct { //nolint:govet // test table structure simplicity prioritized
 		errMsg       string
 		expectedType string
 	}{
@@ -103,8 +113,12 @@ func TestErrorTypeDetection(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
+
 		t.Run(tc.errMsg, func(t *testing.T) {
-			err := fmt.Errorf("%s", tc.errMsg)
+			t.Parallel()
+
+			err := errors.New(tc.errMsg)
 			errorType := handler.determineErrorType(err)
 			assert.Equal(t, tc.expectedType, errorType)
 		})
@@ -112,9 +126,11 @@ func TestErrorTypeDetection(t *testing.T) {
 }
 
 func TestRetryableErrorDetection(t *testing.T) {
+	t.Parallel()
+
 	handler := NewErrorHandler(nil, nil)
 
-	testCases := []struct {
+	testCases := []struct { //nolint:govet // prioritizing readability in table layout
 		errMsg      string
 		isRetryable bool
 	}{
@@ -131,8 +147,12 @@ func TestRetryableErrorDetection(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
+
 		t.Run(tc.errMsg, func(t *testing.T) {
-			err := fmt.Errorf("%s", tc.errMsg)
+			t.Parallel()
+
+			err := errors.New(tc.errMsg)
 			isRetryable := handler.isRetryableError(err)
 			assert.Equal(t, tc.isRetryable, isRetryable)
 		})
@@ -141,6 +161,8 @@ func TestRetryableErrorDetection(t *testing.T) {
 
 // Test the WithAuthErrorHandling function
 func TestWithAuthErrorHandling(t *testing.T) {
+	t.Parallel()
+
 	logger := log.New()
 	collector := &MockTelemetryCollector{}
 	handler := NewErrorHandler(collector, logger)
@@ -157,17 +179,17 @@ func TestWithAuthErrorHandling(t *testing.T) {
 	err := handler.WithAuthErrorHandling(ctx, authConfig, func() error {
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, collector.OperationsLogged)
 	assert.Equal(t, 0, collector.ErrorsLogged)
 	assert.Equal(t, OperationAuthentication, collector.LastOperation)
 
 	// Test failed operation
-	testErr := fmt.Errorf("authentication failed: invalid credentials")
+	testErr := errors.New("authentication failed: invalid credentials")
 	err = handler.WithAuthErrorHandling(ctx, authConfig, func() error {
 		return testErr
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Azure authentication failed using")
 	assert.Contains(t, err.Error(), "azuread")
 	assert.Contains(t, err.Error(), "invalid credentials")
@@ -183,7 +205,7 @@ func TestWithAuthErrorHandling(t *testing.T) {
 func TestErrorClassificationComprehensive(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table readability over packing
 		name          string
 		errMsg        string
 		expectedClass ErrorClass
@@ -238,7 +260,7 @@ func TestErrorClassificationComprehensive(t *testing.T) {
 			if tc.errMsg == "" {
 				err = nil
 			} else {
-				err = fmt.Errorf("%s", tc.errMsg)
+				err = errors.New(tc.errMsg)
 			}
 
 			result := ClassifyError(err)
@@ -253,7 +275,7 @@ func TestErrorClassificationComprehensive(t *testing.T) {
 func TestErrorHandlerWithNilComponents(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // table layout chosen for clarity in tests
 		name      string
 		telemetry TelemetryCollector
 		logger    log.Logger
@@ -374,7 +396,7 @@ func TestResourceTypeConstants(t *testing.T) {
 func TestIsPermissionErrorEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // maintain descriptive test cases order
 		name     string
 		err      error
 		expected bool
@@ -386,37 +408,37 @@ func TestIsPermissionErrorEdgeCases(t *testing.T) {
 		},
 		{
 			name:     "empty error message",
-			err:      fmt.Errorf(""),
+			err:      errors.New(""),
 			expected: false,
 		},
 		{
 			name:     "case insensitive - UNAUTHORIZED",
-			err:      fmt.Errorf("UNAUTHORIZED"),
+			err:      errors.New("UNAUTHORIZED"),
 			expected: true,
 		},
 		{
 			name:     "case insensitive - Forbidden",
-			err:      fmt.Errorf("Forbidden"),
+			err:      errors.New("Forbidden"),
 			expected: true,
 		},
 		{
 			name:     "substring match - contains unauthorized",
-			err:      fmt.Errorf("Request failed: unauthorized access to resource"),
+			err:      errors.New("Request failed: unauthorized access to resource"),
 			expected: true,
 		},
 		{
 			name:     "substring match - contains permission",
-			err:      fmt.Errorf("User lacks permission to perform this action"),
+			err:      errors.New("User lacks permission to perform this action"),
 			expected: true,
 		},
 		{
 			name:     "no match - generic error",
-			err:      fmt.Errorf("generic failure occurred"),
+			err:      errors.New("generic failure occurred"),
 			expected: false,
 		},
 		{
 			name:     "no match - network error",
-			err:      fmt.Errorf("network connection timeout"),
+			err:      errors.New("network connection timeout"),
 			expected: false,
 		},
 	}
@@ -439,7 +461,7 @@ func TestErrorHandlerContextPropagation(t *testing.T) {
 	collector := &MockTelemetryCollector{}
 	handler := NewErrorHandler(collector, nil)
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // structured for readability in test coverage
 		name string
 		ctx  context.Context
 	}{
@@ -457,7 +479,7 @@ func TestErrorHandlerContextPropagation(t *testing.T) {
 		},
 		{
 			name: "context with values",
-			ctx:  context.WithValue(context.Background(), "key", "value"),
+			ctx:  context.WithValue(context.Background(), testContextKey("key"), "value"),
 		},
 	}
 
@@ -491,7 +513,7 @@ func TestErrorHandlerLargeErrorMessage(t *testing.T) {
 
 	// Create a large error message
 	largeMessage := strings.Repeat("This is a very long error message. ", 1000)
-	largeErr := fmt.Errorf("%s", largeMessage)
+	largeErr := errors.New(largeMessage)
 
 	// Test that large errors are handled gracefully
 	assert.NotPanics(t, func() {

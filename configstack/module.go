@@ -246,7 +246,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
 		dir += filepath.FromSlash("/")
 
-		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
+		cfgOptions, err := options.NewTerragruntOptionsWithConfigPathContext(ctx, dir)
 		if err != nil {
 			l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
 			continue

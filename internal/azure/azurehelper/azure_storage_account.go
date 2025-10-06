@@ -41,6 +41,8 @@ type StorageAccountClient struct {
 	defaultReplicationType string
 }
 
+const defaultSASExpiryHours = 24
+
 // StorageAccountConfig represents the configuration for an Azure Storage Account.
 //
 // This struct contains all the necessary parameters to create, update, or configure
@@ -376,6 +378,7 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 	}
 
 	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(enable)
+
 	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
 	if err != nil {
 		return errors.Errorf("failed to set versioning on storage account %s: %w", c.storageAccountName, err)
@@ -386,8 +389,8 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 
 func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
-	err := c.listAndUpdateVersioning(ctx, true)
-	if err != nil {
+
+	if err := c.listAndUpdateVersioning(ctx, true); err != nil {
 		return err
 	}
 
@@ -398,8 +401,8 @@ func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Contex
 
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
-	err := c.listAndUpdateVersioning(ctx, false)
-	if err != nil {
+
+	if err := c.listAndUpdateVersioning(ctx, false); err != nil {
 		return err
 	}
 
@@ -721,8 +724,7 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 	l.Infof("Deleting storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
 	// First check if the storage account exists
-	_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
-	if err != nil {
+	if _, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil); err != nil {
 		// If 404, it's already deleted
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == httpStatusNotFound {
@@ -734,8 +736,8 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 	}
 
 	// Delete the storage account
-	_, err = c.client.Delete(ctx, c.resourceGroupName, c.storageAccountName, nil)
-	if err != nil {
+
+	if _, err := c.client.Delete(ctx, c.resourceGroupName, c.storageAccountName, nil); err != nil {
 		return errors.Errorf("error deleting storage account: %w", err)
 	}
 
@@ -748,6 +750,7 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error {
 	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
 	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
+
 	if err != nil {
 		return fmt.Errorf("error creating resource group client: %w", err)
 	}
@@ -1262,6 +1265,7 @@ func (c *StorageAccountClient) GetStorageAccountKeys(ctx context.Context) ([]str
 	}
 
 	var keys []string
+
 	if resp.Keys != nil {
 		for _, key := range resp.Keys {
 			if key.Value != nil {
@@ -1277,7 +1281,7 @@ func (c *StorageAccountClient) GetStorageAccountKeys(ctx context.Context) ([]str
 func (c *StorageAccountClient) GetStorageAccountSAS(ctx context.Context, permissions string, expiry *time.Time) (string, error) {
 	// Set default expiry if not provided
 	if expiry == nil {
-		defaultExpiry := time.Now().Add(24 * time.Hour)
+		defaultExpiry := time.Now().Add(time.Duration(defaultSASExpiryHours) * time.Hour)
 		expiry = &defaultExpiry
 	}
 
@@ -1301,7 +1305,7 @@ func (c *StorageAccountClient) GetStorageAccountSAS(ctx context.Context, permiss
 	}
 
 	if resp.AccountSasToken == nil {
-		return "", fmt.Errorf("SAS token is nil in response")
+		return "", errors.New("SAS token is nil in response")
 	}
 
 	return *resp.AccountSasToken, nil

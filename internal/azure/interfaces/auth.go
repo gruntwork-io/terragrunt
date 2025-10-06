@@ -14,6 +14,15 @@ var (
 	ErrNotImplemented     = errors.New("not implemented")
 )
 
+const (
+	defaultAuthMethod                  = "azuread"
+	defaultCloudEnvironment            = "public"
+	defaultTokenRefreshThresholdSecond = 300
+	defaultAuthMaxRetries              = 3
+	defaultAuthRetryDelaySecond        = 1
+	defaultAuthTimeoutSecond           = 30
+)
+
 // PrincipalInfo represents information about an Azure AD principal
 type PrincipalInfo struct {
 	ID   string
@@ -154,9 +163,17 @@ type AuthenticationConfig struct {
 	// When specified, tokens are cached to improve performance.
 	TokenCachePath string
 
-	// EnableTokenCache indicates whether to enable token caching.
-	// Default: true
-	EnableTokenCache bool
+	// SubscriptionID is the Azure subscription ID
+	SubscriptionID string
+
+	// TenantID is the Azure AD tenant ID
+	TenantID string
+
+	// ClientID is the Azure AD application client ID
+	ClientID string
+
+	// ClientSecret is the Azure AD application client secret
+	ClientSecret string
 
 	// TokenRefreshThreshold specifies when to refresh tokens (in seconds before expiry).
 	// Default: 300 (5 minutes)
@@ -174,17 +191,9 @@ type AuthenticationConfig struct {
 	// Default: 30
 	Timeout int
 
-	// SubscriptionID is the Azure subscription ID
-	SubscriptionID string
-
-	// TenantID is the Azure AD tenant ID
-	TenantID string
-
-	// ClientID is the Azure AD application client ID
-	ClientID string
-
-	// ClientSecret is the Azure AD application client secret
-	ClientSecret string
+	// EnableTokenCache indicates whether to enable token caching.
+	// Default: true
+	EnableTokenCache bool
 
 	// UseManagedIdentity indicates whether to use managed identity authentication
 	UseManagedIdentity bool
@@ -193,13 +202,13 @@ type AuthenticationConfig struct {
 // DefaultAuthenticationConfig returns the default configuration for authentication operations.
 func DefaultAuthenticationConfig() AuthenticationConfig {
 	return AuthenticationConfig{
-		Method:                "azuread",
-		CloudEnvironment:      "public",
+		Method:                defaultAuthMethod,
+		CloudEnvironment:      defaultCloudEnvironment,
 		TokenCachePath:        "",
 		EnableTokenCache:      true,
-		TokenRefreshThreshold: 300,
-		MaxRetries:            3,
-		RetryDelay:            1,
-		Timeout:               30,
+		TokenRefreshThreshold: defaultTokenRefreshThresholdSecond,
+		MaxRetries:            defaultAuthMaxRetries,
+		RetryDelay:            defaultAuthRetryDelaySecond,
+		Timeout:               defaultAuthTimeoutSecond,
 	}
 }

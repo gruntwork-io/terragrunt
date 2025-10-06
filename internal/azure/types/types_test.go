@@ -11,12 +11,11 @@ import (
 func TestStorageAccountConfig(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name   string
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		config *types.StorageAccountConfig
+		name   string
 	}{
 		{
-			name: "complete config",
 			config: &types.StorageAccountConfig{
 				Name:                  "testaccount",
 				ResourceGroupName:     "test-rg",
@@ -32,18 +31,19 @@ func TestStorageAccountConfig(t *testing.T) {
 					"Owner":       "terragrunt",
 				},
 			},
+			name: "complete config",
 		},
 		{
-			name: "minimal config",
 			config: &types.StorageAccountConfig{
 				Name:              "minimalaccount",
 				ResourceGroupName: "minimal-rg",
 				Location:          "westus",
 			},
+			name: "minimal config",
 		},
 		{
-			name:   "empty config",
 			config: &types.StorageAccountConfig{},
+			name:   "empty config",
 		},
 	}
 
@@ -80,12 +80,11 @@ func TestStorageAccountConfig(t *testing.T) {
 func TestStorageAccount(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		account *types.StorageAccount
+		name    string
 	}{
 		{
-			name: "complete account",
 			account: &types.StorageAccount{
 				Name:              "testaccount",
 				ResourceGroupName: "test-rg",
@@ -98,7 +97,7 @@ func TestStorageAccount(t *testing.T) {
 					ProvisioningState: "Succeeded",
 					StatusOfPrimary:   "Available",
 					StatusOfSecondary: "Unavailable",
-					SupportsHttpsOnly: true,
+					SupportsHTTPSOnly: true,
 					PrimaryEndpoints: types.StorageEndpoints{
 						Blob:  "https://test.blob.core.windows.net/",
 						Queue: "https://test.queue.core.windows.net/",
@@ -110,18 +109,19 @@ func TestStorageAccount(t *testing.T) {
 					},
 				},
 			},
+			name: "complete account",
 		},
 		{
-			name: "minimal account",
 			account: &types.StorageAccount{
 				Name:              "minimal",
 				ResourceGroupName: "minimal-rg",
 				Location:          "westus",
 			},
+			name: "minimal account",
 		},
 		{
-			name:    "empty account",
 			account: &types.StorageAccount{},
+			name:    "empty account",
 		},
 	}
 
@@ -145,18 +145,18 @@ func TestStorageAccount(t *testing.T) {
 func TestStorageEndpoints(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		endpoints types.StorageEndpoints
+		name      string
 	}{
 		{
-			name: "complete endpoints",
 			endpoints: types.StorageEndpoints{
 				Blob:  "https://test.blob.core.windows.net/",
 				Queue: "https://test.queue.core.windows.net/",
 				Table: "https://test.table.core.windows.net/",
 				File:  "https://test.file.core.windows.net/",
 			},
+			name: "complete endpoints",
 		},
 		{
 			name: "partial endpoints",
@@ -224,13 +224,15 @@ func TestGetObjectOutput(t *testing.T) {
 func TestTypeStringConversions(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name     string
 		testFunc func(t *testing.T)
 	}{
 		{
 			name: "AccountKind conversion",
 			testFunc: func(t *testing.T) {
+				t.Helper()
+
 				kind := types.AccountKind("StorageV2")
 				assert.Equal(t, "StorageV2", string(kind))
 			},
@@ -238,6 +240,8 @@ func TestTypeStringConversions(t *testing.T) {
 		{
 			name: "AccountTier conversion",
 			testFunc: func(t *testing.T) {
+				t.Helper()
+
 				tier := types.AccountTier("Standard")
 				assert.Equal(t, "Standard", string(tier))
 			},
@@ -245,6 +249,8 @@ func TestTypeStringConversions(t *testing.T) {
 		{
 			name: "AccessTier conversion",
 			testFunc: func(t *testing.T) {
+				t.Helper()
+
 				accessTier := types.AccessTier("Hot")
 				assert.Equal(t, "Hot", string(accessTier))
 			},
@@ -252,6 +258,8 @@ func TestTypeStringConversions(t *testing.T) {
 		{
 			name: "ReplicationType conversion",
 			testFunc: func(t *testing.T) {
+				t.Helper()
+
 				replication := types.ReplicationType("LRS")
 				assert.Equal(t, "LRS", string(replication))
 			},
@@ -278,10 +286,10 @@ func TestStorageAccountPropertiesDefaults(t *testing.T) {
 	assert.False(t, properties.EnableVersioning)
 	assert.False(t, properties.IsHnsEnabled)
 	assert.Equal(t, types.AccountKind(""), properties.Kind)
-	assert.Equal(t, "", properties.ProvisioningState)
-	assert.Equal(t, "", properties.StatusOfPrimary)
-	assert.Equal(t, "", properties.StatusOfSecondary)
-	assert.False(t, properties.SupportsHttpsOnly)
+	assert.Empty(t, properties.ProvisioningState)
+	assert.Empty(t, properties.StatusOfPrimary)
+	assert.Empty(t, properties.StatusOfSecondary)
+	assert.False(t, properties.SupportsHTTPSOnly)
 
 	// Test that endpoints are zero-valued structs
 	assert.Equal(t, types.StorageEndpoints{}, properties.PrimaryEndpoints)

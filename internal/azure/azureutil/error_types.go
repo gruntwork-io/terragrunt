@@ -21,14 +21,16 @@ const (
 )
 
 // AzureError represents a structured error from Azure operations
+//
+//lint:ignore fieldalignment -- Struct ordering matches public API expectations and doc layout.
 type AzureError struct {
-	Message        string
 	Wrapped        error
+	Message        string
 	Suggestion     string
-	Classification ErrorClass
 	ResourceType   string
 	ResourceName   string
 	Operation      string
+	Classification ErrorClass
 }
 
 // Error implements the error interface
@@ -37,9 +39,11 @@ func (e *AzureError) Error() string {
 	if e.Wrapped != nil {
 		base = fmt.Sprintf("%s: %v", base, e.Wrapped)
 	}
+
 	if e.Suggestion != "" {
 		base = fmt.Sprintf("%s\nSuggestion: %s", base, e.Suggestion)
 	}
+
 	return base
 }
 
@@ -102,6 +106,7 @@ func newGenericError(msg string, opts ...ErrorOption) *AzureError {
 	for _, opt := range opts {
 		opt(err)
 	}
+
 	return err
 }
 
@@ -114,5 +119,6 @@ func newPermissionError(msg string, opts ...ErrorOption) *AzureError {
 	for _, opt := range opts {
 		opt(err)
 	}
+
 	return err
 }

@@ -83,15 +83,13 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	// If we have subscription ID and resource group, verify storage account exists using Management API
 	if subscriptionID != "" && resourceGroupName != "" {
 		// Create storage account client to verify the storage account exists
-		var saClient *StorageAccountClient
-		saClient, err = CreateStorageAccountClient(ctx, l, config)
+		saClient, err := CreateStorageAccountClient(ctx, l, config)
 		if err != nil {
 			return nil, errors.Errorf("error creating storage account client: %w", err)
 		}
 
 		// Check if the storage account exists
-		var exists bool
-		exists, _, err = saClient.StorageAccountExists(ctx)
+		exists, _, err := saClient.StorageAccountExists(ctx)
 		if err != nil {
 			return nil, errors.Errorf("error checking if storage account exists: %w", err)
 		}
@@ -125,6 +123,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		// For credential-based authentication methods
 		client, err = azblob.NewClient(url, authResult.Credential, nil)
 	}
+
 	if err != nil {
 		// Check if error is due to storage account not existing
 		if strings.Contains(err.Error(), "not exist") ||
@@ -142,6 +141,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	testContainerName := "terragrunt-connectivity-test"
 	testContainer := client.ServiceClient().NewContainerClient(testContainerName)
 	_, err = testContainer.GetProperties(ctx, nil)
+
 	if err != nil {
 		var respErr *azcore.ResponseError
 
@@ -228,6 +228,7 @@ func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName s
 	}
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
+
 	_, err := container.GetProperties(ctx, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
@@ -256,12 +257,10 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 
 	if !exists {
 		l.Infof("Creating Azure Storage container %s", containerName)
+
 		_, err = c.client.CreateContainer(ctx, containerName, nil)
 		if err != nil {
-			return ContainerCreationError{
-				Underlying:    err,
-				ContainerName: containerName,
-			}
+			return NewContainerCreationError(err, containerName)
 		}
 	}
 
@@ -270,8 +269,7 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 
 // DeleteBlobIfNecessary deletes a blob if it exists.
 func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Logger, containerName string, blobName string) error {
-	_, err := c.client.DeleteBlob(ctx, containerName, blobName, nil)
-	if err != nil {
+	if _, err := c.client.DeleteBlob(ctx, containerName, blobName, nil); err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.ErrorCode == "BlobNotFound" {
 			return nil
@@ -290,6 +288,7 @@ func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, c
 	}
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
+
 	_, err := container.Delete(ctx, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
@@ -310,6 +309,7 @@ func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, contai
 	}
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
+
 	blockBlob := container.NewBlockBlobClient(blobName)
 
 	_, err := blockBlob.UploadBuffer(ctx, data, nil)
@@ -323,7 +323,7 @@ func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, contai
 // CopyBlobToContainer copies a blob from one container to another, potentially across storage accounts.
 func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *BlobServiceClient,
 	dstContainer, dstKey string,
-) error {
+) (err error) {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
 		return errors.Errorf("container names and blob keys are required")
 	}
@@ -336,24 +336,29 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 
 	srcBlobOutput, err := c.GetObject(ctx, input)
 	if err != nil {
-		return fmt.Errorf("error reading source blob: %w", err)
+		return errors.Errorf("error reading source blob: %w", err)
 	}
 
+	// Using named return value with defer to handle errors properly
 	defer func() {
-		if closeErr := srcBlobOutput.Body.Close(); closeErr != nil {
-			err = fmt.Errorf("failed to close blob: %w (original error: %w)", closeErr, err)
+		if closeErr := srcBlobOutput.Body.Close(); closeErr != nil && err == nil {
+			// Only set the close error if we don't already have an error
+			err = errors.Errorf("failed to close blob: %w", closeErr)
 		}
 	}()
 
 	// Read the blob content
 	blobData, err := io.ReadAll(srcBlobOutput.Body)
 	if err != nil {
-		return fmt.Errorf("error reading blob data: %w", err)
+		return errors.Errorf("error reading blob data: %w", err)
 	}
 
+	// Create a logger for the upload operation to avoid nil pointer dereference
+	logger := log.Default()
+
 	// Upload to the destination
-	if err := dstClient.UploadBlob(ctx, nil, dstContainer, dstKey, blobData); err != nil {
-		return fmt.Errorf("error copying blob to destination: %w", err)
+	if err := dstClient.UploadBlob(ctx, logger, dstContainer, dstKey, blobData); err != nil {
+		return errors.Errorf("error copying blob to destination: %w", err)
 	}
 
 	return nil
@@ -365,8 +370,17 @@ type ContainerCreationError struct {
 	ContainerName string // 16 bytes (string)
 }
 
+// NewContainerCreationError creates a new ContainerCreationError using the errors package for consistent error handling.
+func NewContainerCreationError(underlying error, containerName string) ContainerCreationError {
+	return ContainerCreationError{
+		Underlying:    errors.New(underlying),
+		ContainerName: containerName,
+	}
+}
+
 // Error returns a string indicating that container operation failed.
 func (err ContainerCreationError) Error() string {
+	// Using the errors package for consistent formatting
 	return fmt.Sprintf("error with container %s: %v", err.ContainerName, err.Underlying)
 }
 

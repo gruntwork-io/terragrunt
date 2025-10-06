@@ -1,4 +1,6 @@
 // Test file to verify the new StorageAccountService methods are implemented
+//
+//nolint:testpackage // Requires internal implementation access for verification.
 package implementations
 
 import (
@@ -10,7 +12,11 @@ import (
 )
 
 func TestStorageAccountServiceMethodsAreImplemented(t *testing.T) {
+	t.Parallel()
+
 	t.Run("methods should not return nil by default", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a mock client for testing
 		service := &StorageAccountServiceImpl{
 			client: nil, // This will cause issues if we actually call the methods, but we're just testing they exist
@@ -39,7 +45,11 @@ func TestStorageAccountServiceMethodsAreImplemented(t *testing.T) {
 }
 
 func TestStorageAccountServiceInterface(t *testing.T) {
+	t.Parallel()
+
 	t.Run("StorageAccountServiceImpl implements interface", func(t *testing.T) {
+		t.Parallel()
+
 		service := &StorageAccountServiceImpl{}
 
 		// Verify it implements the interface

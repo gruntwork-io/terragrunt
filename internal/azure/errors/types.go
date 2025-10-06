@@ -3,8 +3,23 @@ package errors
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
+	terragruntErrors "github.com/gruntwork-io/terragrunt/internal/errors"
 )
+
+// FormatWithStackTrace formats a string with arguments and ensures stack traces are preserved
+// This is a helper function to replace fmt.Sprintf while ensuring proper error handling
+func FormatWithStackTrace(format string, args ...interface{}) string {
+	for i, arg := range args {
+		if err, ok := arg.(error); ok && err != nil {
+			// Replace error arguments with stack-traced versions
+			args[i] = terragruntErrors.New(err)
+		}
+	}
+
+	return fmt.Sprintf(format, args...)
+}
 
 // ErrorClass represents the classification of an Azure error
 type ErrorClass string
@@ -58,11 +73,12 @@ func (e *AzureError) Error() string {
 
 	// Add resource context if available
 	if e.ResourceType != "" || e.ResourceName != "" {
-		if e.ResourceType != "" && e.ResourceName != "" {
+		switch {
+		case e.ResourceType != "" && e.ResourceName != "":
 			base = fmt.Sprintf("%s [%s: %s]", base, e.ResourceType, e.ResourceName)
-		} else if e.ResourceType != "" {
+		case e.ResourceType != "":
 			base = fmt.Sprintf("%s [%s]", base, e.ResourceType)
-		} else if e.ResourceName != "" {
+		case e.ResourceName != "":
 			base = fmt.Sprintf("%s [%s]", base, e.ResourceName)
 		}
 	}
@@ -70,9 +86,11 @@ func (e *AzureError) Error() string {
 	if e.Wrapped != nil {
 		base = fmt.Sprintf("%s: %v", base, e.Wrapped)
 	}
+
 	if e.Suggestion != "" {
 		base = fmt.Sprintf("%s\nSuggestion: %s", base, e.Suggestion)
 	}
+
 	return base
 }
 
@@ -84,10 +102,14 @@ func (e *AzureError) Unwrap() error {
 // ErrorOption is a functional option for configuring an AzureError
 type ErrorOption func(*AzureError)
 
-// WithError adds an underlying error
+// WithError adds an underlying error with stack trace
 func WithError(err error) ErrorOption {
 	return func(e *AzureError) {
-		e.Wrapped = err
+		if err != nil {
+			e.Wrapped = terragruntErrors.New(err)
+		} else {
+			e.Wrapped = nil
+		}
 	}
 }
 
@@ -135,6 +157,7 @@ func NewGenericError(msg string, opts ...ErrorOption) error {
 	for _, opt := range opts {
 		opt(err)
 	}
+
 	return err
 }
 
@@ -147,63 +170,18 @@ func NewPermissionError(msg string, opts ...ErrorOption) error {
 	for _, opt := range opts {
 		opt(err)
 	}
+
 	return err
 }
 
 // IsPermissionError checks if the given error indicates a permission issue
 func IsPermissionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Convert to string for pattern matching
-	errStr := err.Error()
-	errStrLower := strings.ToLower(errStr)
-
-	return strings.Contains(errStrLower, "unauthorized") ||
-		strings.Contains(errStrLower, "forbidden") ||
-		strings.Contains(errStrLower, "permission denied") ||
-		strings.Contains(errStrLower, "access denied") ||
-		strings.Contains(errStrLower, "authentication failed") ||
-		strings.Contains(errStrLower, "insufficient privileges")
+	// Using the centralized errorutil implementation
+	return errorutil.IsPermissionError(err)
 }
 
 // ClassifyError determines the error classification from an error
 func ClassifyError(err error) ErrorClass {
-	if err == nil {
-		return ErrorClassUnknown
-	}
-
-	errStr := err.Error()
-	errStrLower := strings.ToLower(errStr)
-
-	switch {
-	case strings.Contains(errStrLower, "unauthorized") ||
-		strings.Contains(errStrLower, "unauthenticated"):
-		return ErrorClassAuthentication
-	case strings.Contains(errStrLower, "forbidden") ||
-		strings.Contains(errStrLower, "permission denied") ||
-		strings.Contains(errStrLower, "access denied"):
-		return ErrorClassPermission
-	case strings.Contains(errStrLower, "not found") ||
-		strings.Contains(errStrLower, "404"):
-		return ErrorClassNotFound
-	case strings.Contains(errStrLower, "timeout") ||
-		strings.Contains(errStrLower, "timed out") ||
-		strings.Contains(errStrLower, "connection refused"):
-		return ErrorClassNetworking
-	case strings.Contains(errStrLower, "invalid") ||
-		strings.Contains(errStrLower, "bad request") ||
-		strings.Contains(errStrLower, "malformed"):
-		return ErrorClassInvalidRequest
-	case strings.Contains(errStrLower, "throttled") ||
-		strings.Contains(errStrLower, "rate limit"):
-		return ErrorClassThrottling
-	case strings.Contains(errStrLower, "transient") ||
-		strings.Contains(errStrLower, "temporary") ||
-		strings.Contains(errStrLower, "retry"):
-		return ErrorClassTransient
-	default:
-		return ErrorClassUnknown
-	}
+	// Convert from errorutil.ErrorClass to local ErrorClass type
+	return ErrorClass(errorutil.ClassifyError(err))
 }

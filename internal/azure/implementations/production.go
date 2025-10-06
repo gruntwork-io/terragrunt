@@ -3,6 +3,9 @@ package implementations
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -23,6 +26,8 @@ import (
 type StorageAccountServiceImpl struct {
 	client *azurehelper.StorageAccountClient
 }
+
+const jwtTokenParts = 3
 
 // NewStorageAccountService creates a new StorageAccountService implementation
 func NewStorageAccountService(client *azurehelper.StorageAccountClient) interfaces.StorageAccountService {
@@ -52,7 +57,7 @@ func (s *StorageAccountServiceImpl) CreateStorageAccount(ctx context.Context, cf
 
 // DeleteStorageAccount deletes a storage account by resource group and account name
 func (s *StorageAccountServiceImpl) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
-	return s.client.DeleteStorageAccount(ctx, nil)
+	return s.client.DeleteStorageAccount(ctx, log.Default())
 }
 
 // GetResourceID gets the resource ID of the storage account
@@ -62,9 +67,11 @@ func (s *StorageAccountServiceImpl) GetResourceID(ctx context.Context) string {
 	if err != nil || account == nil {
 		return ""
 	}
+
 	if account.ID != nil {
 		return *account.ID
 	}
+
 	return ""
 }
 
@@ -82,7 +89,7 @@ func (s *StorageAccountServiceImpl) mapAzureAccountToInternalType(account *armst
 
 	if account.Properties != nil {
 		storageAccount.Properties = &types.StorageAccountProperties{
-			SupportsHttpsOnly: getBoolValue(account.Properties.EnableHTTPSTrafficOnly),
+			SupportsHTTPSOnly: getBoolValue(account.Properties.EnableHTTPSTrafficOnly),
 			IsHnsEnabled:      getBoolValue(account.Properties.IsHnsEnabled),
 		}
 
@@ -139,6 +146,7 @@ func getStringValue(ptr *string) string {
 	if ptr == nil {
 		return ""
 	}
+
 	return *ptr
 }
 
@@ -146,6 +154,7 @@ func getBoolValue(ptr *bool) bool {
 	if ptr == nil {
 		return false
 	}
+
 	return *ptr
 }
 
@@ -187,7 +196,7 @@ func (s *StorageAccountServiceImpl) GetStorageAccountProperties(ctx context.Cont
 
 	// Convert Azure properties to our internal type
 	props := &types.StorageAccountProperties{
-		SupportsHttpsOnly: getBoolValue(azureProps.EnableHTTPSTrafficOnly),
+		SupportsHTTPSOnly: getBoolValue(azureProps.EnableHTTPSTrafficOnly),
 		IsHnsEnabled:      getBoolValue(azureProps.IsHnsEnabled),
 	}
 
@@ -273,8 +282,8 @@ func (r *ResourceGroupServiceImpl) GetResourceGroup(ctx context.Context, resourc
 // RBACServiceImpl is the production implementation of RBACService
 type RBACServiceImpl struct {
 	credential     azcore.TokenCredential
-	config         interfaces.RBACConfig
 	subscriptionID string // Adding subscriptionID separately since it's not in the interface.RBACConfig
+	config         interfaces.RBACConfig
 }
 
 // NewRBACService creates a new RBACService implementation
@@ -291,7 +300,7 @@ func (r *RBACServiceImpl) AssignRole(ctx context.Context, l log.Logger, roleName
 	// Get role definition ID from role name
 	roleDefID, err := r.getRoleDefinitionID(ctx, roleName)
 	if err != nil {
-		return fmt.Errorf("failed to get role definition for %s: %v", roleName, err)
+		return fmt.Errorf("failed to get role definition for %s: %w", roleName, err)
 	}
 
 	client, err := armauthorization.NewRoleAssignmentsClient(r.subscriptionID, r.credential, nil)
@@ -316,6 +325,7 @@ func (r *RBACServiceImpl) AssignRole(ctx context.Context, l log.Logger, roleName
 	}
 
 	l.Debugf("Successfully assigned role %s to principal %s at scope %s", roleName, principalID, scope)
+
 	return nil
 }
 
@@ -333,32 +343,40 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 	}
 
 	for _, assignment := range assignments {
-		if assignment.Properties != nil &&
-			assignment.Properties.PrincipalID != nil &&
-			assignment.Properties.RoleDefinitionID != nil &&
-			*assignment.Properties.PrincipalID == principalID {
+		props := assignment.Properties
+		if props == nil || props.PrincipalID == nil || props.RoleDefinitionID == nil {
+			continue
+		}
 
-			// Role name should match if provided
-			if roleName != "" {
-				roleDefID := *assignment.Properties.RoleDefinitionID
-				if !strings.Contains(strings.ToLower(roleDefID), strings.ToLower(roleName)) {
-					continue
-				}
-			}
+		if *props.PrincipalID != principalID {
+			continue
+		}
 
-			if assignment.Name != nil {
-				_, err = client.Delete(ctx, scope, *assignment.Name, nil)
-				if err != nil {
-					l.Debugf("Failed to remove role assignment %s: %v", *assignment.Name, err)
-					return err
-				}
-				l.Debugf("Successfully removed role assignment %s", *assignment.Name)
-				return nil
+		// Role name should match if provided
+		if roleName != "" {
+			roleDefID := *props.RoleDefinitionID
+			if !strings.Contains(strings.ToLower(roleDefID), strings.ToLower(roleName)) {
+				continue
 			}
 		}
+
+		if assignment.Name == nil {
+			continue
+		}
+
+		_, err = client.Delete(ctx, scope, *assignment.Name, nil)
+		if err != nil {
+			l.Debugf("Failed to remove role assignment %s: %v", *assignment.Name, err)
+			return err
+		}
+
+		l.Debugf("Successfully removed role assignment %s", *assignment.Name)
+
+		return nil
 	}
 
 	l.Debugf("No role assignment found for principal %s at scope %s", principalID, scope)
+
 	return nil
 }
 
@@ -389,21 +407,24 @@ func (r *RBACServiceImpl) ListRoleAssignments(ctx context.Context, scope string)
 		return nil, err
 	}
 
-	var result []interfaces.RoleAssignment
-	for _, assignment := range assignments {
-		if assignment.Properties != nil && assignment.Properties.PrincipalID != nil &&
-			assignment.Properties.RoleDefinitionID != nil && assignment.Properties.Scope != nil {
-			// Get role name from the role definition ID
-			roleName := extractRoleNameFromDefinitionID(*assignment.Properties.RoleDefinitionID)
+	result := make([]interfaces.RoleAssignment, 0, len(assignments))
 
-			roleAssignment := interfaces.RoleAssignment{
-				RoleName:    roleName,
-				PrincipalID: *assignment.Properties.PrincipalID,
-				Scope:       *assignment.Properties.Scope,
-				Description: "", // No description available from the SDK
-			}
-			result = append(result, roleAssignment)
+	for _, assignment := range assignments {
+		props := assignment.Properties
+		if props == nil || props.PrincipalID == nil || props.RoleDefinitionID == nil || props.Scope == nil {
+			continue
 		}
+
+		roleName := extractRoleNameFromDefinitionID(*props.RoleDefinitionID)
+
+		roleAssignment := interfaces.RoleAssignment{
+			RoleName:    roleName,
+			PrincipalID: *props.PrincipalID,
+			Scope:       *props.Scope,
+			Description: "", // No description available from the SDK
+		}
+
+		result = append(result, roleAssignment)
 	}
 
 	return result, nil
@@ -419,7 +440,7 @@ func (r *RBACServiceImpl) AssignStorageBlobDataOwnerRole(ctx context.Context, l 
 		return err
 	}
 
-	return r.AssignRole(ctx, l, principalID, roleDefinitionID, storageAccountScope)
+	return r.AssignRole(ctx, l, roleDefinitionID, principalID, storageAccountScope)
 }
 
 // GetCurrentPrincipal gets the current principal's information
@@ -431,9 +452,15 @@ func (r *RBACServiceImpl) GetCurrentPrincipal(ctx context.Context) (*interfaces.
 		return nil, err
 	}
 
+	// Parse the token to extract the principal ID (OID claim)
+	principalID, principalType, err := r.extractPrincipalInfoFromToken(token.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	return &interfaces.Principal{
-		ID:   token.Token,
-		Type: "ServicePrincipal", // Default to service principal, though this might be a user
+		ID:   principalID,
+		Type: principalType,
 	}, nil
 }
 
@@ -459,6 +486,7 @@ func (r *RBACServiceImpl) GetPrincipalID(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return principal.ID, nil
 }
 
@@ -470,7 +498,7 @@ func (r *RBACServiceImpl) getRoleDefinitionID(ctx context.Context, roleName stri
 		return "", err
 	}
 
-	scope := fmt.Sprintf("/subscriptions/%s", r.subscriptionID)
+	scope := "/subscriptions/" + r.subscriptionID
 	filter := fmt.Sprintf("roleName eq '%s'", roleName)
 
 	// Use the updated SDK method signature
@@ -512,6 +540,7 @@ func (r *RBACServiceImpl) listRoleAssignments(ctx context.Context, scope string)
 		if err != nil {
 			return nil, err
 		}
+
 		assignments = append(assignments, page.Value...)
 	}
 
@@ -524,12 +553,14 @@ func (r *RBACServiceImpl) IsPermissionError(err error) bool {
 		return false
 	}
 
-	// Check for common permission error patterns in Azure SDK errors
 	errMsg := strings.ToLower(err.Error())
-	return strings.Contains(errMsg, "unauthorized") ||
-		strings.Contains(errMsg, "forbidden") ||
-		strings.Contains(errMsg, "no permission") ||
-		strings.Contains(errMsg, "access denied")
+
+	unauthorized := strings.Contains(errMsg, "unauthorized")
+	forbidden := strings.Contains(errMsg, "forbidden")
+	noPermission := strings.Contains(errMsg, "no permission")
+	accessDenied := strings.Contains(errMsg, "access denied")
+
+	return unauthorized || forbidden || noPermission || accessDenied
 }
 
 // AuthenticationServiceImpl is the production implementation of AuthenticationService
@@ -594,9 +625,38 @@ func (a *AuthenticationServiceImpl) IsManagedIdentity(ctx context.Context) (bool
 
 // GetCurrentPrincipal retrieves information about the currently authenticated principal
 func (a *AuthenticationServiceImpl) GetCurrentPrincipal(ctx context.Context) (interface{}, error) {
-	// This would require additional API calls to Microsoft Graph API
-	// For now, return a placeholder implementation
-	return nil, interfaces.ErrNotImplemented
+	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, err := parseJWTToken(token.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract the principal information
+	principalInfo := make(map[string]interface{})
+
+	// Extract Object ID (principal ID)
+	if oid, ok := claims["oid"].(string); ok && oid != "" {
+		principalInfo["id"] = oid
+	} else if sub, ok := claims["sub"].(string); ok && sub != "" {
+		principalInfo["id"] = sub
+	} else {
+		return nil, errors.New("could not extract principal ID from token claims")
+	}
+
+	// Set the principal type
+	if _, ok := claims["idp"].(string); ok {
+		principalInfo["type"] = "User"
+	} else {
+		principalInfo["type"] = "ServicePrincipal"
+	}
+
+	return principalInfo, nil
 }
 
 // GetSubscriptionID returns the current subscription ID
@@ -617,14 +677,20 @@ func (a *AuthenticationServiceImpl) GetAccessToken(ctx context.Context, scopes [
 	if err != nil {
 		return "", err
 	}
+
 	return token.Token, nil
 }
 
 // GetTokenClaims extracts claims from the current token
 func (a *AuthenticationServiceImpl) GetTokenClaims(ctx context.Context) (map[string]interface{}, error) {
-	// This would require JWT parsing
-	// For now, return a placeholder implementation
-	return nil, interfaces.ErrNotImplemented
+	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return parseJWTToken(token.Token)
 }
 
 // GetAuthenticationMethod returns the current authentication method
@@ -635,9 +701,11 @@ func (a *AuthenticationServiceImpl) GetAuthenticationMethod(ctx context.Context)
 	if a.config.UseManagedIdentity {
 		return "managed-identity", nil
 	}
+
 	if a.config.ClientID != "" {
 		return "service-principal", nil
 	}
+
 	return "unknown", nil
 }
 
@@ -656,11 +724,11 @@ func (a *AuthenticationServiceImpl) GetCloudEnvironment(ctx context.Context) (st
 func (a *AuthenticationServiceImpl) GetConfiguration(ctx context.Context) (map[string]interface{}, error) {
 	// Convert the config struct to a map
 	return map[string]interface{}{
-		"subscriptionId":     a.config.SubscriptionID,
-		"tenantId":           a.config.TenantID,
-		"clientId":           a.config.ClientID,
-		"clientSecret":       a.config.ClientSecret,
-		"useManagedIdentity": a.config.UseManagedIdentity,
+		"subscription_id":      a.config.SubscriptionID,
+		"tenant_id":            a.config.TenantID,
+		"client_id":            a.config.ClientID,
+		"client_secret":        a.config.ClientSecret,
+		"use_managed_identity": a.config.UseManagedIdentity,
 	}, nil
 }
 
@@ -706,13 +774,16 @@ func (a *AuthenticationServiceImpl) IsAuthenticationError(err error) bool {
 	}
 
 	errMsg := strings.ToLower(err.Error())
-	return strings.Contains(errMsg, "unauthorized") ||
-		strings.Contains(errMsg, "authentication") ||
-		strings.Contains(errMsg, "unauthenticated") ||
-		strings.Contains(errMsg, "invalid_client") ||
-		strings.Contains(errMsg, "invalid_token") ||
-		strings.Contains(errMsg, "token expired") ||
-		strings.Contains(errMsg, "aadsts") // Azure AD error prefix
+
+	unauthorized := strings.Contains(errMsg, "unauthorized")
+	authentication := strings.Contains(errMsg, "authentication")
+	unauthenticated := strings.Contains(errMsg, "unauthenticated")
+	invalidClient := strings.Contains(errMsg, "invalid_client")
+	invalidToken := strings.Contains(errMsg, "invalid_token")
+	tokenExpired := strings.Contains(errMsg, "token expired")
+	aadError := strings.Contains(errMsg, "aadsts")
+
+	return unauthorized || authentication || unauthenticated || invalidClient || invalidToken || tokenExpired || aadError
 }
 
 // IsAzureAD checks if using Azure AD authentication
@@ -723,6 +794,7 @@ func (a *AuthenticationServiceImpl) IsAzureAD(ctx context.Context) (bool, error)
 	if err != nil {
 		return false, err
 	}
+
 	if isSP {
 		return false, nil
 	}
@@ -731,6 +803,7 @@ func (a *AuthenticationServiceImpl) IsAzureAD(ctx context.Context) (bool, error)
 	if err != nil {
 		return false, err
 	}
+
 	if isMSI {
 		return false, nil
 	}
@@ -750,6 +823,7 @@ func NewProductionServiceContainer(config map[string]interface{}) interfaces.Azu
 	if config == nil {
 		config = make(map[string]interface{})
 	}
+
 	return &ProductionServiceContainer{
 		config: config,
 		cache:  make(map[string]interface{}),
@@ -790,19 +864,15 @@ func (c *ProductionServiceContainer) GetRBACService(ctx context.Context, l log.L
 	mergedConfig := mergeConfig(c.config, config)
 
 	// Create Azure RBAC client
-	client, err := createRBACClient(ctx, mergedConfig)
+	client, err := createRBACClient(mergedConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// Extract configuration
 	subscriptionID, _ := config["subscriptionId"].(string)
-	rbacConfig := interfaces.RBACConfig{
-		MaxRetries:         5,
-		RetryDelay:         3,
-		PropagationTimeout: 60,
-		EnableRetry:        true,
-	}
+	rbacConfig := interfaces.DefaultRBACConfig()
+
 	return NewRBACService(client, rbacConfig, subscriptionID), nil
 }
 
@@ -827,12 +897,14 @@ func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Contex
 	}
 
 	// Get credential from config
-	cred, err := createAuthenticationCredential(ctx, authConfig)
+	cred, err := createAuthenticationCredential(authConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewAuthenticationService(cred, authConfig), nil
+	service := NewAuthenticationService(cred, authConfig)
+
+	return service, nil
 }
 
 // GetResourceGroupService returns a production resource group service
@@ -844,7 +916,7 @@ func (c *ProductionServiceContainer) GetResourceGroupService(ctx context.Context
 	// Extract required fields from config
 	subscriptionID, _ := mergedConfig["subscriptionId"].(string)
 	if subscriptionID == "" {
-		return nil, fmt.Errorf("subscription ID is required")
+		return nil, errors.New("subscription ID is required")
 	}
 
 	client, err := azurehelper.CreateResourceGroupClient(ctx, l, subscriptionID)
@@ -868,6 +940,7 @@ func (c *ProductionServiceContainer) GetRegisteredServices() []string {
 	for serviceName := range c.cache {
 		services = append(services, serviceName)
 	}
+
 	return services
 }
 
@@ -876,6 +949,7 @@ func (c *ProductionServiceContainer) GetServiceInfo(serviceName string) (map[str
 	if info, exists := c.cache[serviceName]; exists {
 		return info.(map[string]interface{}), nil
 	}
+
 	return nil, fmt.Errorf("service %s not registered", serviceName)
 }
 
@@ -903,6 +977,7 @@ func (c *ProductionServiceContainer) Health(ctx context.Context, l log.Logger) e
 			return fmt.Errorf("service %s is not properly initialized", serviceName)
 		}
 	}
+
 	return nil
 }
 
@@ -916,7 +991,7 @@ func (c *ProductionServiceContainer) Initialize(ctx context.Context, l log.Logge
 
 	// Validate required configuration
 	if subscriptionID, ok := c.config["subscriptionId"].(string); !ok || subscriptionID == "" {
-		return fmt.Errorf("subscription ID is required")
+		return errors.New("subscription ID is required")
 	}
 
 	// Initialize the cache if it doesn't exist
@@ -924,11 +999,9 @@ func (c *ProductionServiceContainer) Initialize(ctx context.Context, l log.Logge
 		c.cache = make(map[string]interface{})
 	}
 
-	// Optional: Pre-initialize commonly used services
-	// This is optional and services can be created on-demand instead
+	// Optional: Pre-initialize commonly used services. This is optional and services can be created on-demand instead.
 	if _, err := c.GetAuthenticationService(ctx, l, config); err != nil {
 		l.Debugf("Warning: Failed to pre-initialize authentication service: %v", err)
-		// Don't return error as this is optional
 	}
 
 	return nil
@@ -941,6 +1014,7 @@ func (c *ProductionServiceContainer) Reset(ctx context.Context, l log.Logger) er
 
 	// Log the reset operation
 	l.Debugf("Reset Azure service container - cleared all services and configuration")
+
 	return nil
 }
 
@@ -990,6 +1064,7 @@ func extractRoleNameFromDefinitionID(roleDefinitionID string) string {
 	if len(parts) > 0 {
 		return parts[len(parts)-1]
 	}
+
 	return roleDefinitionID
 }
 
@@ -999,21 +1074,21 @@ func createStorageClient(ctx context.Context, config map[string]interface{}) (*a
 	// This is a stub that will return descriptive error
 	// Using the existing function requires a logger and configuration
 	// that may not be available in all contexts
-	return nil, fmt.Errorf("storage account client creation not initialized: use proper initialization through a service container instead")
+	return nil, errors.New("storage account client creation not initialized: use proper initialization through a service container instead")
 }
 
 func createBlobClient(ctx context.Context, config map[string]interface{}) (*azurehelper.BlobServiceClient, error) {
 	// This is a stub that will return descriptive error
 	// Using the existing function requires a logger and configuration
 	// that may not be available in all contexts
-	return nil, fmt.Errorf("blob service client creation not initialized: use proper initialization through a service container instead")
+	return nil, errors.New("blob service client creation not initialized: use proper initialization through a service container instead")
 }
 
-func createRBACClient(ctx context.Context, config map[string]interface{}) (azcore.TokenCredential, error) {
+func createRBACClient(config map[string]interface{}) (azcore.TokenCredential, error) {
 	// Extract subscription ID from config
 	subscriptionID, _ := config["subscriptionId"].(string)
 	if subscriptionID == "" {
-		return nil, fmt.Errorf("subscription ID is required for RBAC operations")
+		return nil, errors.New("subscription ID is required for RBAC operations")
 	}
 
 	// Create credentials based on config
@@ -1023,63 +1098,73 @@ func createRBACClient(ctx context.Context, config map[string]interface{}) (azcor
 	useManagedIdentity, _ := config["useManagedIdentity"].(bool)
 
 	// Create the credential based on available authentication methods
-	if useManagedIdentity {
+	switch {
+	case useManagedIdentity:
 		// Use managed identity if specified
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
 		}
+
 		return cred, nil
-	} else if clientID != "" && clientSecret != "" && tenantID != "" {
+	case clientID != "" && clientSecret != "" && tenantID != "":
 		// Use service principal if credentials are provided
 		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
 		}
+
 		return cred, nil
-	} else {
+	default:
 		// Fall back to default credential
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
 		}
+
 		return cred, nil
 	}
 }
 
 // Helper function to create an authentication credential
-func createAuthenticationCredential(ctx context.Context, config interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
+func createAuthenticationCredential(config interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
 	// Check which authentication method to use
-	if config.UseManagedIdentity {
+	switch {
+	case config.UseManagedIdentity:
 		// Use managed identity if specified
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
 		}
+
 		return cred, nil
-	} else if config.ClientID != "" && config.ClientSecret != "" && config.TenantID != "" {
+	case config.ClientID != "" && config.ClientSecret != "" && config.TenantID != "":
 		// Use service principal if credentials are provided
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID, config.ClientSecret, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
 		}
+
 		return cred, nil
-	} else if config.TenantID != "" {
+	case config.TenantID != "":
 		// If tenant ID is provided, try to create a default credential
 		options := &azidentity.DefaultAzureCredentialOptions{
 			TenantID: config.TenantID,
 		}
+
 		cred, err := azidentity.NewDefaultAzureCredential(options)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
 		}
+
 		return cred, nil
-	} else {
+	default:
 		// Fall back to default credential
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
 		}
+
 		return cred, nil
 	}
 }
@@ -1109,16 +1194,18 @@ func (a *AuthenticationServiceImpl) IsPermissionError(err error) bool {
 
 	// Check common Azure authentication/permission error patterns
 	errMsg := strings.ToLower(err.Error())
-	return strings.Contains(errMsg, "forbidden") ||
-		strings.Contains(errMsg, "unauthorized") ||
-		strings.Contains(errMsg, "insufficient privileges") ||
-		strings.Contains(errMsg, "access denied") ||
-		strings.Contains(errMsg, "permission") ||
-		strings.Contains(errMsg, "role assignment") ||
-		// Include Azure AD error codes
-		strings.Contains(errMsg, "aadsts50105") || // Principal not found
-		strings.Contains(errMsg, "aadsts65001") || // Consent required
-		strings.Contains(errMsg, "aadsts50001") // Not authorized
+
+	forbidden := strings.Contains(errMsg, "forbidden")
+	unauthorized := strings.Contains(errMsg, "unauthorized")
+	insufficient := strings.Contains(errMsg, "insufficient privileges")
+	accessDenied := strings.Contains(errMsg, "access denied")
+	permission := strings.Contains(errMsg, "permission")
+	roleAssignment := strings.Contains(errMsg, "role assignment")
+	aadsts50105 := strings.Contains(errMsg, "aadsts50105")
+	aadsts65001 := strings.Contains(errMsg, "aadsts65001")
+	aadsts50001 := strings.Contains(errMsg, "aadsts50001")
+
+	return forbidden || unauthorized || insufficient || accessDenied || permission || roleAssignment || aadsts50105 || aadsts65001 || aadsts50001
 }
 
 // IsTokenExpiredError checks if an error is related to an expired token
@@ -1128,12 +1215,15 @@ func (a *AuthenticationServiceImpl) IsTokenExpiredError(err error) bool {
 	}
 
 	errMsg := strings.ToLower(err.Error())
-	return strings.Contains(errMsg, "token expired") ||
-		strings.Contains(errMsg, "token has expired") ||
-		strings.Contains(errMsg, "aadsts50013") || // Invalid/expired token
-		strings.Contains(errMsg, "aadsts70043") || // Token expired and cannot be refreshed
-		strings.Contains(errMsg, "jwt token expired") ||
-		strings.Contains(errMsg, "token is expired")
+
+	tokenExpired := strings.Contains(errMsg, "token expired")
+	tokenHasExpired := strings.Contains(errMsg, "token has expired")
+	aadsts50013 := strings.Contains(errMsg, "aadsts50013")
+	aadsts70043 := strings.Contains(errMsg, "aadsts70043")
+	jwtExpired := strings.Contains(errMsg, "jwt token expired")
+	tokenIsExpired := strings.Contains(errMsg, "token is expired")
+
+	return tokenExpired || tokenHasExpired || aadsts50013 || aadsts70043 || jwtExpired || tokenIsExpired
 }
 
 // SetCloudEnvironment sets the current Azure cloud environment
@@ -1143,5 +1233,57 @@ func (a *AuthenticationServiceImpl) SetCloudEnvironment(ctx context.Context, env
 	if environment != "" && environment != "AzurePublicCloud" {
 		return fmt.Errorf("unsupported cloud environment: %s, only AzurePublicCloud is currently supported", environment)
 	}
+
 	return nil
+}
+
+// extractPrincipalInfoFromToken parses a JWT token and extracts the principal ID and type
+// For Azure AD tokens, the principal ID is typically in the "oid" claim (Object ID)
+func (r *RBACServiceImpl) extractPrincipalInfoFromToken(tokenString string) (string, string, error) {
+	claims, err := parseJWTToken(tokenString)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Extract the Object ID (oid) claim which is the principal ID in Azure AD
+	var principalID string
+	if oid, ok := claims["oid"].(string); ok && oid != "" {
+		principalID = oid
+	} else if sub, ok := claims["sub"].(string); ok && sub != "" {
+		// Fall back to subject claim if oid is not available
+		principalID = sub
+	} else {
+		return "", "", errors.New("could not extract principal ID from token claims")
+	}
+
+	// Determine principal type
+	principalType := "ServicePrincipal" // Default to service principal
+	if idpVal, ok := claims["idp"].(string); ok && idpVal != "" {
+		principalType = "User" // If idp claim is present, it's likely a user
+	}
+
+	return principalID, principalType, nil
+}
+
+// parseJWTToken is a helper function that parses a JWT token and returns its claims
+func parseJWTToken(tokenString string) (map[string]interface{}, error) {
+	// Split the JWT token into parts
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != jwtTokenParts {
+		return nil, errors.New("invalid token format")
+	}
+
+	// Decode the payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("error decoding token payload: %w", err)
+	}
+
+	// Parse the JSON payload
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("error parsing token claims: %w", err)
+	}
+
+	return claims, nil
 }

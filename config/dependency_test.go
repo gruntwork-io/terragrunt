@@ -3,7 +3,6 @@ package config_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -275,7 +275,7 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 		return nil, err
 	}
 	if !exists {
-		return nil, fmt.Errorf("Azure container %s does not exist", containerName)
+		return nil, errors.Errorf("Azure container %s does not exist", containerName)
 	}
 
 	// Get the state file blob content
@@ -289,13 +289,13 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 
 	output, err := client.GetObject(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("error reading terraform state blob %s from container %s: %w", key, containerName, err)
+		return nil, errors.Errorf("error reading terraform state blob %s from container %s: %w", key, containerName, err)
 	}
 
 	defer output.Body.Close()
 	data, err := io.ReadAll(output.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
+		return nil, errors.Errorf("error reading response body: %w", err)
 	}
 
 	return data, nil

@@ -4,6 +4,7 @@ package azureutil
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -81,6 +82,7 @@ func (h *ErrorHandler) WithErrorHandling(
 	if resourceType != "" {
 		attrs["resource_type"] = resourceType
 	}
+
 	if resourceName != "" {
 		attrs["resource_name"] = resourceName
 	}
@@ -99,9 +101,11 @@ func (h *ErrorHandler) WithRetryableErrorHandling(
 	fn func() error,
 ) (error, bool) {
 	err := h.WithErrorHandling(ctx, operation, resourceType, resourceName, fn)
+
 	if err != nil {
 		return err, h.isRetryableError(err)
 	}
+
 	return nil, false
 }
 
@@ -217,52 +221,51 @@ func (h *ErrorHandler) determineErrorType(err error) string {
 	errorString := err.Error()
 
 	// Check for specific terragrunt error patterns in the error message
-	if strings.Contains(errorString, "Azure authentication failed") {
+	switch {
+	case strings.Contains(errorString, "Azure authentication failed"):
 		return "AuthenticationError"
-	}
-	if strings.Contains(errorString, "Container") && strings.Contains(errorString, "does not exist") {
-		return "ContainerDoesNotExistError"
-	}
-	if strings.Contains(errorString, "container name") &&
-		(strings.Contains(errorString, "invalid") || strings.Contains(errorString, "must be")) {
-		return "ContainerValidationError"
-	}
-	if strings.Contains(errorString, "error with storage account") {
-		return "StorageAccountCreationError"
-	}
-	if strings.Contains(errorString, "no valid authentication method found") {
-		return "NoValidAuthMethodError"
-	}
 
-	// Common error patterns
-	if containsAny(errorString, "authentication", "unauthorized", "unauthenticated", "permission denied") {
+	case strings.Contains(errorString, "Container") && strings.Contains(errorString, "does not exist"):
+		return "ContainerDoesNotExistError"
+
+	case strings.Contains(errorString, "container name") &&
+		(strings.Contains(errorString, "invalid") || strings.Contains(errorString, "must be")):
+		return "ContainerValidationError"
+
+	case strings.Contains(errorString, "error with storage account"):
+		return "StorageAccountCreationError"
+
+	case strings.Contains(errorString, "no valid authentication method found"):
+		return "NoValidAuthMethodError"
+
+	case containsAny(errorString, "authentication", "unauthorized", "unauthenticated", "permission denied"):
 		return "AuthenticationError"
-	}
-	if containsAny(errorString, "not found", "does not exist", "404", "no such file") {
+
+	case containsAny(errorString, "not found", "does not exist", "404", "no such file"):
 		return "NotFoundError"
-	}
-	if containsAny(errorString, "already exists", "conflict", "409", "duplicate") {
+
+	case containsAny(errorString, "already exists", "conflict", "409", "duplicate"):
 		return "ConflictError"
-	}
-	if containsAny(errorString, "validate", "validation", "invalid", "malformed") {
+
+	case containsAny(errorString, "validate", "validation", "invalid", "malformed"):
 		return "ValidationError"
-	}
-	if containsAny(errorString, "timeout", "timed out", "deadline exceeded") {
+
+	case containsAny(errorString, "timeout", "timed out", "deadline exceeded"):
 		return "TimeoutError"
-	}
-	if containsAny(errorString, "throttl", "rate limit", "429", "too many requests") {
+
+	case containsAny(errorString, "throttl", "rate limit", "429", "too many requests"):
 		return "ThrottlingError"
-	}
-	if containsAny(errorString, "connection", "network", "connect", "unreachable", "no route") {
+
+	case containsAny(errorString, "connection", "network", "connect", "unreachable", "no route"):
 		return "NetworkError"
-	}
-	if containsAny(errorString, "permission", "access denied", "forbidden", "not authorized") {
+
+	case containsAny(errorString, "permission", "access denied", "forbidden", "not authorized"):
 		return "PermissionError"
-	}
-	if containsAny(errorString, "quota", "limit exceeded", "insufficient", "capacity") {
+
+	case containsAny(errorString, "quota", "limit exceeded", "insufficient", "capacity"):
 		return "QuotaError"
-	}
-	if containsAny(errorString, "configuration", "config", "settings") {
+
+	case containsAny(errorString, "configuration", "config", "settings"):
 		return "ConfigurationError"
 	}
 
@@ -280,12 +283,12 @@ func (h *ErrorHandler) isRetryableError(err error) bool {
 	if tgerrors.As(err, &azureErr) {
 		// Common retryable status codes
 		switch azureErr.StatusCode {
-		case 408, // Request Timeout
-			429, // Too Many Requests
-			500, // Internal Server Error
-			502, // Bad Gateway
-			503, // Service Unavailable
-			504: // Gateway Timeout
+		case http.StatusRequestTimeout,
+			http.StatusTooManyRequests,
+			http.StatusInternalServerError,
+			http.StatusBadGateway,
+			http.StatusServiceUnavailable,
+			http.StatusGatewayTimeout:
 			return true
 		}
 
@@ -303,13 +306,13 @@ func (h *ErrorHandler) isRetryableError(err error) bool {
 
 		// Non-retryable status codes regardless of error message
 		switch azureErr.StatusCode {
-		case 400, // Bad Request
-			401, // Unauthorized
-			403, // Forbidden
-			404, // Not Found
-			409, // Conflict
-			412, // Precondition Failed
-			422: // Unprocessable Entity
+		case http.StatusBadRequest,
+			http.StatusUnauthorized,
+			http.StatusForbidden,
+			http.StatusNotFound,
+			http.StatusConflict,
+			http.StatusPreconditionFailed,
+			http.StatusUnprocessableEntity:
 			return false
 		}
 	}
@@ -338,11 +341,13 @@ func (h *ErrorHandler) wrapError(err error, operation OperationType, resourceTyp
 	}
 
 	var message string
-	if resourceType != "" && resourceName != "" {
+
+	switch {
+	case resourceType != "" && resourceName != "":
 		message = fmt.Sprintf("Azure %s operation failed for %s '%s'", operation, resourceType, resourceName)
-	} else if resourceType != "" {
+	case resourceType != "":
 		message = fmt.Sprintf("Azure %s operation failed for %s", operation, resourceType)
-	} else {
+	default:
 		message = fmt.Sprintf("Azure %s operation failed", operation)
 	}
 
@@ -361,3 +366,14 @@ func (h *ErrorHandler) wrapAuthError(err error, authConfig *azureauth.AuthConfig
 }
 
 // Helper methods are now defined in types.go
+
+// Helper functions for string operations
+func containsAny(s string, substrings ...string) bool {
+	for _, substring := range substrings {
+		if strings.Contains(strings.ToLower(s), strings.ToLower(substring)) {
+			return true
+		}
+	}
+
+	return false
+}

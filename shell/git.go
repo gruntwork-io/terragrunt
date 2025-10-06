@@ -32,7 +32,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
+	opts, err := options.NewTerragruntOptionsWithConfigPathContext(ctx, path)
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +62,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
+	gitOpts, err := options.NewTerragruntOptionsWithConfigPathContext(ctx, opts.WorkingDir)
 	if err != nil {
 		return nil, err
 	}

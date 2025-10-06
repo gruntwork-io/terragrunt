@@ -3,7 +3,7 @@ package factory
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -40,6 +40,7 @@ func (s *storageAccountServiceAdapter) CreateStorageAccount(ctx context.Context,
 
 	// Use CreateStorageAccountIfNecessary since there's no direct Create method
 	logger := log.Default()
+
 	return s.client.CreateStorageAccountIfNecessary(ctx, logger, azureConfig)
 }
 
@@ -53,9 +54,11 @@ func (s *storageAccountServiceAdapter) DeleteStorageAccount(ctx context.Context,
 func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
 	// Use StorageAccountExists as it returns the account object
 	_, account, err := s.client.StorageAccountExists(ctx)
+
 	if err != nil {
 		return nil, err
 	}
+
 	if account == nil {
 		return nil, nil
 	}
@@ -71,12 +74,15 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 		result.Properties = &types.StorageAccountProperties{
 			ProvisioningState: string(*account.Properties.ProvisioningState),
 		}
+
 		if account.Properties.EnableHTTPSTrafficOnly != nil {
-			result.Properties.SupportsHttpsOnly = *account.Properties.EnableHTTPSTrafficOnly
+			result.Properties.SupportsHTTPSOnly = *account.Properties.EnableHTTPSTrafficOnly
 		}
+
 		if account.Properties.AccessTier != nil {
 			result.Properties.AccessTier = types.AccessTier(*account.Properties.AccessTier)
 		}
+
 		if account.Properties.IsHnsEnabled != nil {
 			result.Properties.IsHnsEnabled = *account.Properties.IsHnsEnabled
 		}
@@ -103,18 +109,22 @@ func (s *storageAccountServiceAdapter) GetStorageAccountSAS(ctx context.Context,
 // GetStorageAccountProperties retrieves properties of a storage account
 func (s *storageAccountServiceAdapter) GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error) {
 	account, err := s.GetStorageAccount(ctx, resourceGroupName, accountName)
+
 	if err != nil {
 		return nil, err
 	}
+
 	if account == nil {
 		return nil, nil
 	}
+
 	return account.Properties, nil
 }
 
 // Exists checks if a storage account exists
 func (s *storageAccountServiceAdapter) Exists(ctx context.Context, config types.StorageAccountConfig) (bool, error) {
 	exists, _, err := s.client.StorageAccountExists(ctx)
+
 	return exists, err
 }
 
@@ -163,6 +173,7 @@ func (s *storageAccountServiceAdapter) EnsureResourceGroup(ctx context.Context, 
 func (s *storageAccountServiceAdapter) GetResourceID(ctx context.Context) string {
 	// Get the storage account details first
 	_, account, err := s.client.StorageAccountExists(ctx)
+
 	if err != nil || account == nil {
 		return ""
 	}
@@ -171,6 +182,7 @@ func (s *storageAccountServiceAdapter) GetResourceID(ctx context.Context) string
 	if account.ID != nil {
 		return *account.ID
 	}
+
 	return ""
 }
 
@@ -197,16 +209,21 @@ func (b *blobServiceAdapter) GetObject(ctx context.Context, input *types.GetObje
 	}
 
 	azureOutput, err := b.client.GetObject(ctx, azureInput)
+
 	if err != nil {
 		return nil, err
 	}
 
+	defer func() {
+		_ = azureOutput.Body.Close()
+	}()
+
 	// Read the body into a byte slice
 	content, err := io.ReadAll(azureOutput.Body)
+
 	if err != nil {
 		return nil, err
 	}
-	defer azureOutput.Body.Close()
 
 	// Convert back to our types
 	return &types.GetObjectOutput{
@@ -248,7 +265,7 @@ func (b *blobServiceAdapter) UploadBlob(ctx context.Context, l log.Logger, conta
 func (b *blobServiceAdapter) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
 	// This is a more complex operation that would need to be implemented
 	// For now, return a placeholder implementation that indicates it's not implemented
-	return fmt.Errorf("CopyBlobToContainer is not yet implemented in the adapter")
+	return errors.New("CopyBlobToContainer is not yet implemented in the adapter")
 }
 
 // resourceGroupServiceAdapter implements interfaces.ResourceGroupService

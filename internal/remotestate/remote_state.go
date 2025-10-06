@@ -31,10 +31,10 @@ func init() {
 }
 
 // RegisterBackends conditionally registers all backends based on experiment flags
-func RegisterBackends(opts *options.TerragruntOptions) {
+func RegisterBackends(ctx context.Context, opts *options.TerragruntOptions) {
 	// Register experimental backends if enabled
 	if opts.Experiments.Evaluate(experiment.AzureBackend) {
-		backends = append(backends, azurerm.NewBackend(nil))
+		backends = append(backends, azurerm.NewBackendWithContext(ctx, nil))
 	}
 }
 

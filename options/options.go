@@ -33,7 +33,7 @@ import (
 
 // Hook is a function that's called when TerragruntOptions are finalized
 // This allows packages to hook into options initialization to register functionality
-type Hook func(opts *TerragruntOptions)
+type Hook func(ctx context.Context, opts *TerragruntOptions)
 
 // Collection of hooks to call when options are finalized
 var optionsHooks []Hook
@@ -45,9 +45,9 @@ func RegisterHook(hook Hook) {
 }
 
 // RunHooks executes all registered hooks with the provided options
-func RunHooks(opts *TerragruntOptions) {
+func RunHooks(ctx context.Context, opts *TerragruntOptions) {
 	for _, hook := range optionsHooks {
-		hook(opts)
+		hook(ctx, opts)
 	}
 }
 
@@ -395,10 +395,20 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
-	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
+	return NewTerragruntOptionsContext(context.Background())
+}
+
+// NewTerragruntOptionsContext creates a new TerragruntOptions object initialized with the supplied context.
+func NewTerragruntOptionsContext(ctx context.Context) *TerragruntOptions {
+	return NewTerragruntOptionsWithWritersContext(ctx, os.Stdout, os.Stderr)
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
+	return NewTerragruntOptionsWithWritersContext(context.Background(), stdout, stderr)
+}
+
+// NewTerragruntOptionsWithWritersContext creates a new TerragruntOptions object with the provided writers and context.
+func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr io.Writer) *TerragruntOptions {
 	opts := &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
@@ -454,13 +464,18 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 	}
 
 	// Run any registered options hooks
-	RunHooks(opts)
+	RunHooks(ctx, opts)
 
 	return opts
 }
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions()
+	return NewTerragruntOptionsWithConfigPathContext(context.Background(), terragruntConfigPath)
+}
+
+// NewTerragruntOptionsWithConfigPathContext creates a new TerragruntOptions configured with the given path and context.
+func NewTerragruntOptionsWithConfigPathContext(ctx context.Context, terragruntConfigPath string) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptionsContext(ctx)
 	opts.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)

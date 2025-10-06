@@ -28,9 +28,22 @@ const (
 
 	// AzureTagValueMaxLength is the maximum length for a tag value in Azure
 	AzureTagValueMaxLength = 256
+
+	testIDSlugMaxLength          = 12
+	containerCleanNameMaxLength  = 16
+	containerPrefixTrimLength    = 6
+	resourceIDTrimLength         = 8
+	containerCleanupSleepSeconds = 2
+	resourceDeletionSleepSeconds = 5
+	defaultConfigFilePermissions = 0o644
+	resourceGroupNamePrefix      = "terragrunt-test-"
+	containerNamePrefix          = "tg-"
+	containerNameBase            = "tg"
 )
 
 // IsolatedAzureConfig contains required configuration for running isolated Azure tests
+//
+//nolint:govet // fieldalignment: Test configuration matches documentation order for clarity.
 type IsolatedAzureConfig struct {
 	// Basic Azure Configuration
 	StorageAccountName string
@@ -40,8 +53,7 @@ type IsolatedAzureConfig struct {
 	SubscriptionID     string
 
 	// Authentication
-	UseAzureAD bool
-	AccessKey  string
+	AccessKey string
 
 	// Isolation Properties
 	TestName      string
@@ -49,10 +61,12 @@ type IsolatedAzureConfig struct {
 	IsolationMode string
 
 	// Advanced Isolation
+	TestTags map[string]string
+
+	UseAzureAD             bool
 	IsolatedStorageAccount bool
 	IsolatedResourceGroup  bool
 	CleanupAfterTest       bool
-	TestTags               map[string]string
 }
 
 // GetIsolatedAzureConfig returns an Azure configuration with proper test isolation
@@ -84,12 +98,15 @@ func GetIsolatedAzureConfig(t *testing.T) *IsolatedAzureConfig {
 			t.Skip("Skipping Azure test: No subscription ID provided")
 		}
 	}
+
 	if resourceGroup == "" && !isolateResourceGroup {
 		resourceGroup = "terragrunt-test"
 	}
+
 	if location == "" {
 		location = "eastus"
 	}
+
 	if isolationMode == "" {
 		isolationMode = "full" // Options: "full", "container", "none"
 	}
@@ -145,9 +162,44 @@ func GetIsolatedAzureConfig(t *testing.T) *IsolatedAzureConfig {
 
 // generateUniqueTestID creates a unique identifier for the test run
 func generateUniqueTestID(testName string) string {
-	// Format: <timestamp>-<uuid-part>
+	// Format: <clean-test-name>-<timestamp>-<uuid-part>
 	timestamp := time.Now().Format("20060102-150405")
 	uuidPart := strings.Split(uuid.New().String(), "-")[0]
+
+	// Derive a stable, Azure-friendly slug from the test name to aid debugging
+	cleanBuilder := strings.Builder{}
+	lastWasHyphen := false
+
+	for _, r := range strings.ToLower(testName) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			cleanBuilder.WriteRune(r)
+
+			lastWasHyphen = false
+		case r == '-' || r == '_' || r == ' ':
+			if cleanBuilder.Len() > 0 && !lastWasHyphen {
+				cleanBuilder.WriteRune('-')
+
+				lastWasHyphen = true
+			}
+		default:
+			if cleanBuilder.Len() > 0 && !lastWasHyphen {
+				cleanBuilder.WriteRune('-')
+
+				lastWasHyphen = true
+			}
+		}
+	}
+
+	cleanName := strings.Trim(cleanBuilder.String(), "-")
+	if len(cleanName) > testIDSlugMaxLength {
+		cleanName = cleanName[:testIDSlugMaxLength]
+	}
+
+	if cleanName != "" {
+		return fmt.Sprintf("%s-%s-%s", cleanName, timestamp, uuidPart)
+	}
+
 	return fmt.Sprintf("%s-%s", timestamp, uuidPart)
 }
 
@@ -169,26 +221,26 @@ func generateIsolatedContainerName(testName, testID string) string {
 	cleanName = strings.Trim(cleanName, "-")
 
 	// Limit length
-	if len(cleanName) > 16 {
-		cleanName = cleanName[:16]
+	if len(cleanName) > containerCleanNameMaxLength {
+		cleanName = cleanName[:containerCleanNameMaxLength]
 	}
 
 	// Format: tg-<clean-name>-<test-id>
-	containerName := fmt.Sprintf("tg-%s-%s", cleanName, testID)
+	containerName := containerNamePrefix + cleanName + "-" + testID
 
 	// Azure container names must be 3-63 characters
 	if len(containerName) > AzureStorageContainerMaxLength {
-		// Use first 6 chars of name + test ID to maintain some readability
-		prefix := "tg"
-		if len(cleanName) > 6 {
-			prefix = fmt.Sprintf("tg-%s", cleanName[:6])
+		// Use first characters of name + test ID to maintain some readability
+		prefix := containerNameBase
+		if len(cleanName) > containerPrefixTrimLength {
+			prefix = containerNamePrefix + cleanName[:containerPrefixTrimLength]
 		}
-		containerName = fmt.Sprintf("%s-%s", prefix, testID)
+
+		containerName = prefix + "-" + testID
 
 		// If still too long, use just the prefix and shortened test ID
 		if len(containerName) > AzureStorageContainerMaxLength {
-			containerName = fmt.Sprintf("%s-%s", prefix,
-				testID[len(testID)-20:])
+			containerName = prefix + "-" + testID[len(testID)-20:]
 		}
 	}
 
@@ -286,6 +338,7 @@ func CleanupContainer(t *testing.T, config *IsolatedAzureConfig) {
 	if exists {
 		// Try to delete the container with retries
 		const maxRetries = 3
+
 		var deleteErr error
 
 		for i := 0; i < maxRetries; i++ {
@@ -294,9 +347,11 @@ func CleanupContainer(t *testing.T, config *IsolatedAzureConfig) {
 				t.Logf("[%s] Successfully deleted Azure container: %s", t.Name(), config.ContainerName)
 				return
 			}
+
 			t.Logf("[%s] Failed to delete container (attempt %d/%d): %v",
 				t.Name(), i+1, maxRetries, deleteErr)
-			time.Sleep(time.Second * 2)
+
+			time.Sleep(containerCleanupSleepSeconds * time.Second)
 		}
 
 		if deleteErr != nil {
@@ -337,6 +392,7 @@ func CleanupStorageAccount(t *testing.T, config *IsolatedAzureConfig) {
 	if exists {
 		// Try to delete the storage account with retries
 		const maxRetries = 3
+
 		var deleteErr error
 
 		for i := 0; i < maxRetries; i++ {
@@ -345,9 +401,11 @@ func CleanupStorageAccount(t *testing.T, config *IsolatedAzureConfig) {
 				t.Logf("[%s] Successfully deleted Azure storage account: %s", t.Name(), config.StorageAccountName)
 				return
 			}
+
 			t.Logf("[%s] Failed to delete storage account (attempt %d/%d): %v",
 				t.Name(), i+1, maxRetries, deleteErr)
-			time.Sleep(time.Second * 5) // Storage accounts can take longer to delete
+
+			time.Sleep(resourceDeletionSleepSeconds * time.Second) // Storage accounts can take longer to delete
 		}
 
 		if deleteErr != nil {
@@ -383,6 +441,7 @@ func CleanupResourceGroup(t *testing.T, config *IsolatedAzureConfig) {
 	if exists {
 		// Try to delete the resource group with retries
 		const maxRetries = 3
+
 		var deleteErr error
 
 		for i := 0; i < maxRetries; i++ {
@@ -391,9 +450,11 @@ func CleanupResourceGroup(t *testing.T, config *IsolatedAzureConfig) {
 				t.Logf("[%s] Successfully initiated deletion of Azure resource group: %s", t.Name(), config.ResourceGroup)
 				return
 			}
+
 			t.Logf("[%s] Failed to delete resource group (attempt %d/%d): %v",
 				t.Name(), i+1, maxRetries, deleteErr)
-			time.Sleep(time.Second * 5) // Resource groups can take longer to delete
+
+			time.Sleep(resourceDeletionSleepSeconds * time.Second) // Resource groups can take longer to delete
 		}
 
 		if deleteErr != nil {
@@ -417,38 +478,34 @@ func UpdateTerragruntConfigForAzureTest(t *testing.T, config *IsolatedAzureConfi
 	updatedContent := string(content)
 
 	// Update container name
-	updatedContent = strings.Replace(
+	updatedContent = strings.ReplaceAll(
 		updatedContent,
 		`container_name = "terragrunt-test"`,
 		fmt.Sprintf(`container_name = "%s"`, config.ContainerName),
-		-1,
 	)
 
 	// Update storage account name if isolated
 	if config.IsolatedStorageAccount {
-		updatedContent = strings.Replace(
+		updatedContent = strings.ReplaceAll(
 			updatedContent,
 			`storage_account_name = "terragrunttest"`,
 			fmt.Sprintf(`storage_account_name = "%s"`, config.StorageAccountName),
-			-1,
 		)
 
 		// Also handle variations
-		updatedContent = strings.Replace(
+		updatedContent = strings.ReplaceAll(
 			updatedContent,
 			`storage_account_name = "terragrunt-test"`,
 			fmt.Sprintf(`storage_account_name = "%s"`, config.StorageAccountName),
-			-1,
 		)
 	}
 
 	// Update resource group name if isolated
 	if config.IsolatedResourceGroup {
-		updatedContent = strings.Replace(
+		updatedContent = strings.ReplaceAll(
 			updatedContent,
 			`resource_group_name = "terragrunt-test"`,
 			fmt.Sprintf(`resource_group_name = "%s"`, config.ResourceGroup),
-			-1,
 		)
 	}
 
@@ -467,7 +524,7 @@ func UpdateTerragruntConfigForAzureTest(t *testing.T, config *IsolatedAzureConfi
 	}
 
 	// Write back to file
-	err = os.WriteFile(configPath, []byte(updatedContent), 0644)
+	err = os.WriteFile(configPath, []byte(updatedContent), defaultConfigFilePermissions)
 	require.NoError(t, err, "Failed to write updated terragrunt config")
 
 	t.Logf("[%s] Updated terragrunt config with isolated resources", t.Name())
@@ -478,6 +535,7 @@ func sanitizeTagValue(value string) string {
 	if len(value) > AzureTagValueMaxLength {
 		return value[:AzureTagValueMaxLength]
 	}
+
 	return value
 }
 
@@ -494,8 +552,8 @@ func generateIsolatedStorageAccountName(testName, testID string) string {
 
 	// Extract unique portion of test ID (without dashes)
 	idPart := strings.ReplaceAll(testID, "-", "")
-	if len(idPart) > 8 {
-		idPart = idPart[:8]
+	if len(idPart) > resourceIDTrimLength {
+		idPart = idPart[:resourceIDTrimLength]
 	}
 
 	// Format: tg<clean-name><id-part>
@@ -526,16 +584,16 @@ func generateIsolatedResourceGroupName(testName, testID string) string {
 	cleanName = strings.Trim(cleanName, "-")
 
 	// Format: terragrunt-test-<clean-name>-<test-id>
-	rgName := fmt.Sprintf("terragrunt-test-%s-%s", cleanName, testID)
+	rgName := "terragrunt-test-" + cleanName + "-" + testID
 
 	// Resource group names must be 1-90 characters
 	if len(rgName) > AzureResourceGroupMaxLength {
 		// Keep as much of the test name as possible for readability
-		maxTestNameLen := AzureResourceGroupMaxLength - len(testID) - 17 // 17 for "terragrunt-test--"
+		maxTestNameLen := AzureResourceGroupMaxLength - len(testID) - len(resourceGroupNamePrefix) - 1 // extra hyphen between name and testID
 		if maxTestNameLen > 0 {
-			rgName = fmt.Sprintf("terragrunt-test-%s-%s", cleanName[:maxTestNameLen], testID)
+			rgName = "terragrunt-test-" + cleanName[:maxTestNameLen] + "-" + testID
 		} else {
-			rgName = fmt.Sprintf("terragrunt-test-%s", testID)
+			rgName = "terragrunt-test-" + testID
 		}
 	}
 
@@ -638,6 +696,7 @@ func removeHclBlock(content, blockName string) string {
 func addHclAttribute(content, attrName, attrValue string) string {
 	// Check if we need to add quotes
 	valueStr := attrValue
+
 	if _, err := strconv.ParseBool(attrValue); err != nil {
 		if _, err := strconv.ParseFloat(attrValue, 64); err != nil {
 			// Not a boolean or number, wrap in quotes

@@ -83,6 +83,7 @@ func (e *ResourceNotFoundError) Error() string {
 	if e.Message != "" {
 		return e.Message
 	}
+
 	return "Resource not found: " + e.ResourceType + " " + e.Name
 }
 

@@ -1,9 +1,5 @@
 package errors
 
-import (
-	"fmt"
-)
-
 // WrapBlobError wraps a blob-related error with context
 func WrapBlobError(err error, container, key string) error {
 	if err == nil {
@@ -12,7 +8,7 @@ func WrapBlobError(err error, container, key string) error {
 
 	if IsPermissionError(err) {
 		return NewPermissionError(
-			fmt.Sprintf("Permission denied while accessing blob %s in container %s", key, container),
+			FormatWithStackTrace("Permission denied while accessing blob %s in container %s", key, container),
 			WithError(err),
 			WithSuggestion("Check that you have the Storage Blob Data Reader/Contributor role."),
 			WithClassification(ErrorClassPermission),
@@ -22,7 +18,7 @@ func WrapBlobError(err error, container, key string) error {
 	}
 
 	return NewGenericError(
-		fmt.Sprintf("Error operating on blob %s in container %s", key, container),
+		FormatWithStackTrace("Error operating on blob %s in container %s", key, container),
 		WithError(err),
 		WithClassification(ClassifyError(err)),
 		WithResourceType(ResourceTypeBlob),
@@ -38,7 +34,7 @@ func WrapResourceGroupError(err error, resourceGroupName string) error {
 
 	if IsPermissionError(err) {
 		return NewPermissionError(
-			fmt.Sprintf("Permission denied while managing resource group %s", resourceGroupName),
+			FormatWithStackTrace("Permission denied while managing resource group %s", resourceGroupName),
 			WithError(err),
 			WithSuggestion("Check that you have the Contributor or Owner role on the resource group or subscription."),
 			WithClassification(ErrorClassPermission),
@@ -48,7 +44,7 @@ func WrapResourceGroupError(err error, resourceGroupName string) error {
 	}
 
 	return NewGenericError(
-		fmt.Sprintf("Error managing resource group %s", resourceGroupName),
+		FormatWithStackTrace("Error managing resource group %s", resourceGroupName),
 		WithError(err),
 		WithClassification(ClassifyError(err)),
 		WithResourceType(ResourceTypeResourceGroup),
@@ -64,7 +60,7 @@ func WrapStorageAccountError(err error, accountName string) error {
 
 	if IsPermissionError(err) {
 		return NewPermissionError(
-			fmt.Sprintf("Permission denied while managing storage account %s", accountName),
+			FormatWithStackTrace("Permission denied while managing storage account %s", accountName),
 			WithError(err),
 			WithSuggestion("Check that you have the Storage Account Contributor role and Storage Blob Data Owner role."),
 			WithClassification(ErrorClassPermission),
@@ -74,7 +70,7 @@ func WrapStorageAccountError(err error, accountName string) error {
 	}
 
 	return NewGenericError(
-		fmt.Sprintf("Error managing storage account %s", accountName),
+		FormatWithStackTrace("Error managing storage account %s", accountName),
 		WithError(err),
 		WithClassification(ClassifyError(err)),
 		WithResourceType(ResourceTypeStorage),
@@ -90,7 +86,7 @@ func WrapContainerError(err error, containerName string) error {
 
 	if IsPermissionError(err) {
 		return NewPermissionError(
-			fmt.Sprintf("Permission denied while managing container %s", containerName),
+			FormatWithStackTrace("Permission denied while managing container %s", containerName),
 			WithError(err),
 			WithSuggestion("Check that you have the Storage Blob Data Reader/Contributor role."),
 			WithClassification(ErrorClassPermission),
@@ -100,7 +96,7 @@ func WrapContainerError(err error, containerName string) error {
 	}
 
 	return NewGenericError(
-		fmt.Sprintf("Error managing container %s", containerName),
+		FormatWithStackTrace("Error managing container %s", containerName),
 		WithError(err),
 		WithClassification(ClassifyError(err)),
 		WithResourceType(ResourceTypeContainer),
@@ -110,8 +106,12 @@ func WrapContainerError(err error, containerName string) error {
 
 // WrapContainerDoesNotExistError wraps a container not found error with context
 func WrapContainerDoesNotExistError(err error, containerName string) error {
+	if err == nil {
+		return nil
+	}
+
 	return NewGenericError(
-		fmt.Sprintf("Container %s does not exist", containerName),
+		FormatWithStackTrace("Container %s does not exist", containerName),
 		WithError(err),
 		WithClassification(ErrorClassNotFound),
 		WithResourceType(ResourceTypeContainer),
@@ -121,8 +121,12 @@ func WrapContainerDoesNotExistError(err error, containerName string) error {
 
 // WrapAuthenticationError wraps an authentication error with context
 func WrapAuthenticationError(err error, method string) error {
+	if err == nil {
+		return nil
+	}
+
 	return NewGenericError(
-		fmt.Sprintf("Failed to authenticate using %s", method),
+		FormatWithStackTrace("Failed to authenticate using %s", method),
 		WithError(err),
 		WithClassification(ErrorClassAuthentication),
 		WithSuggestion("Check your credentials and ensure you have the necessary permissions."),

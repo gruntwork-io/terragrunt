@@ -9,6 +9,6 @@ type GetObjectInput struct {
 
 // GetObjectOutput represents output parameters from getting a blob
 type GetObjectOutput struct {
-	Content    []byte
 	Properties map[string]string
+	Content    []byte
 }

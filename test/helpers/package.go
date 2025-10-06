@@ -835,7 +835,7 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 
 	t.Log(args)
 
-	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
+	opts := options.NewTerragruntOptionsWithWritersContext(ctx, writer, errwriter)
 
 	l := log.New(
 		log.WithOutput(errwriter),

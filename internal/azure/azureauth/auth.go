@@ -46,12 +46,10 @@ const (
 )
 
 // AuthConfig represents the configuration for Azure authentication.
-//
 // This struct contains all possible authentication parameters for connecting to Azure services.
 // Only a subset of fields will be used depending on the selected authentication method.
 // The configuration supports multiple authentication methods with automatic fallback and
 // environment variable integration.
-//
 // Authentication Methods:
 //   - Azure AD (Default): Uses Azure Active Directory with automatic credential discovery
 //   - Service Principal: Uses explicit client credentials (client_id, client_secret, tenant_id)
@@ -198,14 +196,6 @@ type AuthConfig struct {
 	// Optional for other authentication methods.
 	SasToken string
 
-	// UseMSI indicates whether to use Managed Service Identity authentication.
-	// When true, the code will attempt to authenticate using Azure MSI.
-	// Required for: AuthMethodMSI (set to true)
-	// Only works when running on Azure resources (VMs, App Service, Function Apps, etc.)
-	// Automatically uses the system-assigned or user-assigned managed identity.
-	// Default: false
-	UseMSI bool
-
 	// MSIEndpoint specifies a custom MSI endpoint URL.
 	// Optional for: AuthMethodMSI
 	// When empty, uses the default Azure Instance Metadata Service endpoint.
@@ -220,6 +210,24 @@ type AuthConfig struct {
 	// Required when using user-assigned managed identities.
 	MSIResourceID string
 
+	// CloudEnvironment specifies the Azure cloud environment to use.
+	// Valid values:
+	// - "public" or "AzurePublicCloud": Azure Public Cloud (default)
+	// - "government" or "AzureUSGovernmentCloud": Azure US Government Cloud
+	// - "china" or "AzureChinaCloud": Azure China Cloud
+	// - "german" or "AzureGermanCloud": Azure German Cloud (deprecated)
+	// Environment variables: AZURE_ENVIRONMENT, ARM_ENVIRONMENT
+	// Default: "public" (Azure Public Cloud)
+	CloudEnvironment string
+
+	// UseMSI indicates whether to use Managed Service Identity authentication.
+	// When true, the code will attempt to authenticate using Azure MSI.
+	// Required for: AuthMethodMSI (set to true)
+	// Only works when running on Azure resources (VMs, App Service, Function Apps, etc.)
+	// Automatically uses the system-assigned or user-assigned managed identity.
+	// Default: false
+	UseMSI bool
+
 	// UseAzureAD indicates whether to use Azure Active Directory authentication.
 	// When true, uses Azure AD with automatic credential discovery.
 	// Default: true (Azure AD is now the default authentication method)
@@ -232,16 +240,6 @@ type AuthConfig struct {
 	// Automatically set by the authentication system during configuration loading.
 	// Default: false
 	UseEnvironment bool
-
-	// CloudEnvironment specifies the Azure cloud environment to use.
-	// Valid values:
-	// - "public" or "AzurePublicCloud": Azure Public Cloud (default)
-	// - "government" or "AzureUSGovernmentCloud": Azure US Government Cloud
-	// - "china" or "AzureChinaCloud": Azure China Cloud
-	// - "german" or "AzureGermanCloud": Azure German Cloud (deprecated)
-	// Environment variables: AZURE_ENVIRONMENT, ARM_ENVIRONMENT
-	// Default: "public" (Azure Public Cloud)
-	CloudEnvironment string
 }
 
 // AuthResult contains the credential and any associated metadata.
@@ -337,34 +335,39 @@ func GetAuthConfig(
 ) (*AuthConfig, error) {
 	authConfig := &AuthConfig{
 		// Extract values from config with type assertion
-		SubscriptionID: getStringValue(config, "subscription_id", ""),
-		ClientID:       getStringValue(config, "client_id", ""),
-		ClientSecret:   getStringValue(config, "client_secret", ""),
-		TenantID:       getStringValue(config, "tenant_id", ""),
-		SasToken:       getStringValue(config, "sas_token", ""),
+		SubscriptionID: getStringValue(config, "subscription_id"),
+		ClientID:       getStringValue(config, "client_id"),
+		ClientSecret:   getStringValue(config, "client_secret"),
+		TenantID:       getStringValue(config, "tenant_id"),
+		SasToken:       getStringValue(config, "sas_token"),
 
 		// Extract boolean values
 		UseAzureAD: getBoolValue(config, "use_azuread_auth", false),
 		UseMSI:     getBoolValue(config, "use_msi", false),
 
 		// Extract storage account name if present
-		StorageAccountName: getStringValue(config, "storage_account_name", ""),
+		StorageAccountName: getStringValue(config, "storage_account_name"),
 	}
 
 	// Try to detect auth method based on configuration
-	if authConfig.UseAzureAD {
+	switch {
+	case authConfig.UseAzureAD:
 		authConfig.Method = AuthMethodAzureAD
+
 		l.Debugf("Using Azure AD authentication based on configuration")
-	} else if authConfig.UseMSI {
+	case authConfig.UseMSI:
 		authConfig.Method = AuthMethodMSI
+
 		l.Debugf("Using MSI authentication based on configuration")
-	} else if authConfig.SasToken != "" {
+	case authConfig.SasToken != "":
 		authConfig.Method = AuthMethodSasToken
+
 		l.Debugf("Using SAS token authentication based on configuration")
-	} else if authConfig.ClientID != "" && authConfig.ClientSecret != "" && authConfig.TenantID != "" {
+	case authConfig.ClientID != "" && authConfig.ClientSecret != "" && authConfig.TenantID != "":
 		authConfig.Method = AuthMethodServicePrincipal
+
 		l.Debugf("Using Service Principal authentication based on configuration")
-	} else {
+	default:
 		// Check environment variables if no explicit credentials in config
 		envClientID := getFirstEnvValue("AZURE_CLIENT_ID", "ARM_CLIENT_ID", "")
 		envClientSecret := getFirstEnvValue("AZURE_CLIENT_SECRET", "ARM_CLIENT_SECRET", "")
@@ -372,26 +375,30 @@ func GetAuthConfig(
 		envSubID := getFirstEnvValue("AZURE_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID", "")
 		envSas := getFirstEnvValue("AZURE_STORAGE_SAS_TOKEN", "ARM_SAS_TOKEN", "")
 
-		if envClientID != "" && envClientSecret != "" && envTenantID != "" {
+		switch {
+		case envClientID != "" && envClientSecret != "" && envTenantID != "":
 			authConfig.Method = AuthMethodServicePrincipal
 			authConfig.ClientID = envClientID
 			authConfig.ClientSecret = envClientSecret
 			authConfig.TenantID = envTenantID
 			authConfig.UseEnvironment = true
+
 			l.Debugf("Using Service Principal authentication from environment variables")
 
 			if envSubID != "" {
 				authConfig.SubscriptionID = envSubID
 			}
-		} else if envSas != "" {
+		case envSas != "":
 			authConfig.Method = AuthMethodSasToken
 			authConfig.SasToken = envSas
 			authConfig.UseEnvironment = true
+
 			l.Debugf("Using SAS token authentication from environment variables")
-		} else {
+		default:
 			// Default to Azure AD authentication if nothing else specified
 			authConfig.Method = AuthMethodAzureAD
 			authConfig.UseAzureAD = true
+
 			l.Debugf("No explicit authentication method configured, defaulting to Azure AD authentication")
 		}
 	}
@@ -420,24 +427,31 @@ func GetTokenCredential(
 	l log.Logger,
 	config *AuthConfig,
 ) (*AuthResult, error) {
-	var credential azcore.TokenCredential
-	var err error
+	var (
+		credential azcore.TokenCredential
+		err        error
+	)
 
 	switch config.Method {
 	case AuthMethodAzureAD:
 		l.Debugf("Creating Azure AD credential")
+
 		credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 
 	case AuthMethodMSI:
 		l.Debugf("Creating MSI credential")
+
 		opts := &azidentity.ManagedIdentityCredentialOptions{}
+
 		if config.MSIResourceID != "" {
 			opts.ID = azidentity.ResourceID(config.MSIResourceID)
 		}
+
 		credential, err = azidentity.NewManagedIdentityCredential(opts)
 
 	case AuthMethodServicePrincipal:
 		l.Debugf("Creating Service Principal credential")
+
 		credential, err = azidentity.NewClientSecretCredential(
 			config.TenantID,
 			config.ClientID,
@@ -447,15 +461,18 @@ func GetTokenCredential(
 
 	case AuthMethodEnvironment:
 		l.Debugf("Creating credential from environment variables")
+
 		credential, err = azidentity.NewEnvironmentCredential(nil)
 
 	case AuthMethodCLI:
 		l.Debugf("Creating Azure CLI credential")
+
 		credential, err = azidentity.NewAzureCLICredential(nil)
 
 	case AuthMethodSasToken:
 		// For SAS token, we return no credential but include the token in the result
 		l.Debugf("Using SAS token authentication")
+
 		return &AuthResult{
 			Credential:     nil,
 			SasToken:       config.SasToken,
@@ -490,9 +507,11 @@ func ValidateAuthConfig(config *AuthConfig) error {
 		if config.TenantID == "" {
 			errs = append(errs, errors.Errorf("tenant_id is required for service principal authentication"))
 		}
+
 		if config.ClientID == "" {
 			errs = append(errs, errors.Errorf("client_id is required for service principal authentication"))
 		}
+
 		if config.ClientSecret == "" {
 			errs = append(errs, errors.Errorf("client_secret is required for service principal authentication"))
 		}
@@ -500,17 +519,22 @@ func ValidateAuthConfig(config *AuthConfig) error {
 		if config.SasToken == "" {
 			errs = append(errs, errors.Errorf("sas_token is required for SAS token authentication"))
 		}
+
 		if config.StorageAccountName == "" {
 			errs = append(errs, errors.Errorf("storage_account_name is required for SAS token authentication"))
 		}
+	// No additional validation required for these authentication methods.
+	case AuthMethodAzureAD, AuthMethodMSI, AuthMethodEnvironment, AuthMethodCLI:
 	}
 
 	if len(errs) > 0 {
 		// Combine all errors into a single error message
 		errorMsg := "Azure authentication config validation failed:"
+
 		for _, err := range errs {
 			errorMsg += "\n- " + err.Error()
 		}
+
 		return errors.Errorf("%s", errorMsg)
 	}
 
@@ -550,12 +574,13 @@ func GetArmEndpoint(cloudEnv string) string {
 	}
 }
 
-// Helper function to get string value from map with default
-func getStringValue(config map[string]interface{}, key string, defaultValue string) string {
+// Helper function to get string value from map with default empty string
+func getStringValue(config map[string]interface{}, key string) string {
 	if val, ok := config[key].(string); ok {
 		return val
 	}
-	return defaultValue
+
+	return ""
 }
 
 // Helper function to get bool value from map with default
@@ -563,6 +588,7 @@ func getBoolValue(config map[string]interface{}, key string, defaultValue bool) 
 	if val, ok := config[key].(bool); ok {
 		return val
 	}
+
 	return defaultValue
 }
 
@@ -573,6 +599,7 @@ func getFirstEnvValue(keys ...string) string {
 			return val
 		}
 	}
+
 	return keys[len(keys)-1] // Default value
 }
 
@@ -591,5 +618,6 @@ func IsAzureError(err error, errorCode string) bool {
 	if errors.As(err, &respErr) {
 		return strings.EqualFold(respErr.ErrorCode, errorCode)
 	}
+
 	return false
 }

@@ -120,10 +120,10 @@ type AzureServiceContainer interface {
 // ServiceContainerConfig represents configuration for the Azure service container.
 // This configuration controls container behavior, caching, and service lifecycle management.
 type ServiceContainerConfig struct {
-	// EnableCaching indicates whether to cache service instances.
-	// When enabled, service instances are reused for the same configuration.
-	// Default: true
-	EnableCaching bool
+	// LogLevel specifies the logging level for the service container.
+	// Valid values: "debug", "info", "warn", "error"
+	// Default: "info"
+	LogLevel string
 
 	// CacheTimeout specifies how long to cache service instances (in seconds).
 	// After this timeout, cached instances are discarded and recreated.
@@ -135,34 +135,40 @@ type ServiceContainerConfig struct {
 	// Default: 100
 	MaxCacheSize int
 
+	// HealthCheckInterval specifies how often to perform health checks (in seconds).
+	// Default: 60 (1 minute)
+	HealthCheckInterval int
+
+	// EnableCaching indicates whether to cache service instances.
+	// When enabled, service instances are reused for the same configuration.
+	// Default: true
+	EnableCaching bool
+
 	// EnableHealthChecks indicates whether to perform health checks on services.
 	// When enabled, services are periodically checked for health.
 	// Default: false
 	EnableHealthChecks bool
 
-	// HealthCheckInterval specifies how often to perform health checks (in seconds).
-	// Default: 60 (1 minute)
-	HealthCheckInterval int
-
 	// EnableMetrics indicates whether to collect metrics about service usage.
 	// When enabled, metrics are collected for service creation, usage, and errors.
 	// Default: false
 	EnableMetrics bool
-
-	// LogLevel specifies the logging level for the service container.
-	// Valid values: "debug", "info", "warn", "error"
-	// Default: "info"
-	LogLevel string
 }
+
+const (
+	defaultCacheTimeoutSeconds    = 300
+	defaultMaxCacheSize           = 100
+	defaultHealthCheckIntervalSec = 60
+)
 
 // DefaultServiceContainerConfig returns the default configuration for the service container.
 func DefaultServiceContainerConfig() ServiceContainerConfig {
 	return ServiceContainerConfig{
 		EnableCaching:       true,
-		CacheTimeout:        300,
-		MaxCacheSize:        100,
+		CacheTimeout:        defaultCacheTimeoutSeconds,
+		MaxCacheSize:        defaultMaxCacheSize,
 		EnableHealthChecks:  false,
-		HealthCheckInterval: 60,
+		HealthCheckInterval: defaultHealthCheckIntervalSec,
 		EnableMetrics:       false,
 		LogLevel:            "info",
 	}

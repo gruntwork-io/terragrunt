@@ -1,4 +1,6 @@
 // Test file for BlobService implementation
+//
+//nolint:testpackage // Integration-style test exercises internal helpers.
 package implementations
 
 import (
@@ -12,18 +14,24 @@ import (
 )
 
 func TestBlobServiceGetObjectValidation(t *testing.T) {
+	t.Parallel()
+
 	// Create a minimal service with nil client for validation testing
 	service := &BlobServiceImpl{
 		client: nil, // This will cause actual calls to fail, but validation should occur first
 	}
 
 	t.Run("nil input validation", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := service.GetObject(context.Background(), nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "input cannot be nil")
 	})
 
 	t.Run("empty container validation", func(t *testing.T) {
+		t.Parallel()
+
 		input := &types.GetObjectInput{
 			ContainerName: "",
 			BlobName:      "test-blob",
@@ -34,6 +42,8 @@ func TestBlobServiceGetObjectValidation(t *testing.T) {
 	})
 
 	t.Run("empty blob validation", func(t *testing.T) {
+		t.Parallel()
+
 		input := &types.GetObjectInput{
 			ContainerName: "test-container",
 			BlobName:      "",
@@ -45,7 +55,11 @@ func TestBlobServiceGetObjectValidation(t *testing.T) {
 }
 
 func TestBlobServiceInterface(t *testing.T) {
+	t.Parallel()
+
 	t.Run("BlobServiceImpl implements interface", func(t *testing.T) {
+		t.Parallel()
+
 		service := &BlobServiceImpl{}
 
 		// Verify it implements the interface

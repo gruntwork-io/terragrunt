@@ -2,24 +2,24 @@ package types
 
 // StorageAccount represents an Azure storage account
 type StorageAccount struct {
+	Properties        *StorageAccountProperties
 	Name              string
 	ResourceGroupName string
 	Location          string
-	Properties        *StorageAccountProperties
 }
 
 // StorageAccountProperties represents Azure storage account properties
 type StorageAccountProperties struct {
-	AccessTier         AccessTier
-	EnableVersioning   bool
-	IsHnsEnabled       bool
-	Kind               AccountKind
 	PrimaryEndpoints   StorageEndpoints
-	ProvisioningState  string
 	SecondaryEndpoints StorageEndpoints
+	ProvisioningState  string
 	StatusOfPrimary    string
 	StatusOfSecondary  string
-	SupportsHttpsOnly  bool
+	Kind               AccountKind
+	AccessTier         AccessTier
+	SupportsHTTPSOnly  bool
+	EnableVersioning   bool
+	IsHnsEnabled       bool
 }
 
 // StorageEndpoints represents the endpoints for a storage account

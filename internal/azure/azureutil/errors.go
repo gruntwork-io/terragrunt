@@ -2,7 +2,8 @@ package azureutil
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 )
 
 // Resource types for error handling
@@ -15,20 +16,7 @@ const (
 
 // IsPermissionError checks if the given error indicates a permission issue
 func IsPermissionError(err error) bool {
-	// Check common Azure permissions error patterns
-	if err == nil {
-		return false
-	}
-
-	// Convert to string for pattern matching
-	errStr := err.Error()
-
-	return strings.Contains(strings.ToLower(errStr), "unauthorized") ||
-		strings.Contains(strings.ToLower(errStr), "forbidden") ||
-		strings.Contains(strings.ToLower(errStr), "permission") ||
-		strings.Contains(strings.ToLower(errStr), "access denied") ||
-		strings.Contains(strings.ToLower(errStr), "authentication failed") ||
-		strings.Contains(strings.ToLower(errStr), "insufficient privileges")
+	return errorutil.IsPermissionError(err)
 }
 
 // WrapBlobError wraps a blob-related error with context
@@ -65,7 +53,7 @@ func WrapResourceGroupError(err error, resourceGroupName string) error {
 
 	if IsPermissionError(err) {
 		return newPermissionError(
-			fmt.Sprintf("Permission denied while managing resource group %s", resourceGroupName),
+			"Permission denied while managing resource group "+resourceGroupName,
 			WithError(err),
 			WithSuggestion("Check that you have the Contributor or Owner role on the resource group or subscription."),
 			WithClassification(ErrorClassPermission),
@@ -75,7 +63,7 @@ func WrapResourceGroupError(err error, resourceGroupName string) error {
 	}
 
 	return newGenericError(
-		fmt.Sprintf("Error managing resource group %s", resourceGroupName),
+		"Error managing resource group "+resourceGroupName,
 		WithError(err),
 		WithClassification(ClassifyError(err)),
 		WithResourceType(ResourceTypeResourceGroup),

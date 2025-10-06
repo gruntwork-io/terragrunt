@@ -6,25 +6,28 @@ package azurerm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureutil"
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // TelemetryCollectorSettings defines settings for the telemetry collector
 type TelemetryCollectorSettings struct {
-	// EnableDetailedMetrics enables collection of detailed performance metrics
-	EnableDetailedMetrics bool
 	// BufferSize sets the buffer size for metrics collection
 	BufferSize int
-	// EnableCaching enables caching of telemetry data
-	EnableCaching bool
 	// FlushInterval sets how often to flush telemetry data (in seconds)
 	FlushInterval time.Duration
+	// EnableDetailedMetrics enables collection of detailed performance metrics
+	EnableDetailedMetrics bool
+	// EnableCaching enables caching of telemetry data
+	EnableCaching bool
 }
 
 // TelemetryAdapter provides a bridge between azureutil.TelemetryCollector and AzureTelemetryCollector
@@ -109,6 +112,7 @@ const (
 	ErrorClassUnknown          ErrorClassification = "unknown"
 	ErrorClassAuthentication   ErrorClassification = "authentication"
 	ErrorClassConfiguration    ErrorClassification = "configuration"
+	ErrorClassResource         ErrorClassification = "resource"
 	ErrorClassStorage          ErrorClassification = "storage"
 	ErrorClassContainer        ErrorClassification = "container"
 	ErrorClassNetwork          ErrorClassification = "network"
@@ -181,105 +185,145 @@ func ClassifyError(err error) ErrorClassification {
 		return ""
 	}
 
-	// First try to use ConvertAzureError for structured error analysis
-	azureErr := azurehelper.ConvertAzureError(err)
-	if azureErr != nil {
-		// Use status codes for classification when available
-		switch azureErr.StatusCode {
-		case 401, 403: //nolint: mnd
-			return ErrorClassAuthentication
-		case 404: //nolint: mnd
-			return ErrorClassResourceNotFound
-		case 429: //nolint: mnd
-			return ErrorClassTransient
-		case 500, 502, 503, 504: //nolint: mnd
-			return ErrorClassTransient
-		}
-
-		// Check specific Azure error codes
-		switch azureErr.ErrorCode {
-		case "StorageAccountNotFound":
-			return ErrorClassResourceNotFound
-		case "ContainerNotFound":
-			return ErrorClassResourceNotFound
-		case "AuthorizationFailed", "Forbidden", "Unauthorized":
-			return ErrorClassAuthentication
-		case "InsufficientAccountPermissions", "AccessDenied":
-			return ErrorClassPermissions
-		case "ThrottledRequest", "TooManyRequests":
-			return ErrorClassTransient
-		case "InternalError", "ServiceUnavailable":
-			return ErrorClassTransient
-		}
-	}
-
-	// Fallback to string-based detection for non-Azure errors or when ConvertAzureError fails
 	errStr := strings.ToLower(err.Error())
 
-	// Authentication errors
-	if strings.Contains(errStr, "authentication") || strings.Contains(errStr, "unauthorized") ||
-		strings.Contains(errStr, "forbidden") || strings.Contains(errStr, "invalid credentials") ||
-		strings.Contains(errStr, "token") || strings.Contains(errStr, "401") || strings.Contains(errStr, "403") {
-		return ErrorClassAuthentication
+	if errStr == "" {
+		return ErrorClassUnknown
 	}
 
-	// Configuration errors
-	if strings.Contains(errStr, "missing") && (strings.Contains(errStr, "subscription") ||
-		strings.Contains(errStr, "location") || strings.Contains(errStr, "resource group")) {
+	if strings.Contains(errStr, "missing") &&
+		(strings.Contains(errStr, "subscription") || strings.Contains(errStr, "location") || strings.Contains(errStr, "resource group")) {
 		return ErrorClassConfiguration
 	}
 
-	// Storage account errors
-	if strings.Contains(errStr, "storage account") {
-		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "does not exist") {
-			return ErrorClassResourceNotFound
-		}
-
-		return ErrorClassStorage
-	}
-
-	// Container errors
-	if strings.Contains(errStr, "container") {
-		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "does not exist") {
-			return ErrorClassResourceNotFound
-		}
-
-		if strings.Contains(errStr, "validation") || strings.Contains(errStr, "invalid") {
-			return ErrorClassValidation
-		}
-
-		return ErrorClassContainer
-	}
-
-	// Network and transient errors
-	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "connection") ||
-		strings.Contains(errStr, "throttled") || strings.Contains(errStr, "429") ||
-		strings.Contains(errStr, "500") || strings.Contains(errStr, "502") ||
-		strings.Contains(errStr, "503") || strings.Contains(errStr, "504") {
-		return ErrorClassTransient
-	}
-
-	// Permission errors - enhanced detection matching azurehelper.IsPermissionError patterns
-	if strings.Contains(errStr, "permission") || strings.Contains(errStr, "access denied") ||
-		strings.Contains(errStr, "insufficient") || strings.Contains(errStr, "forbidden") ||
-		strings.Contains(errStr, "not authorized") || strings.Contains(errStr, "authorization failed") ||
-		strings.Contains(errStr, "role assignment") || strings.Contains(errStr, "storage blob data owner") {
-		return ErrorClassPermissions
-	}
-
-	// Quota and limits
-	if strings.Contains(errStr, "quota") || strings.Contains(errStr, "limit") ||
-		strings.Contains(errStr, "exceeded") {
-		return ErrorClassQuotaLimits
-	}
-
-	// Validation errors
-	if strings.Contains(errStr, "validation") || strings.Contains(errStr, "invalid") ||
-		strings.Contains(errStr, "must be") || strings.Contains(errStr, "cannot") {
+	if strings.Contains(errStr, "validation") ||
+		strings.Contains(errStr, "parameter must") ||
+		strings.Contains(errStr, "name validation") ||
+		strings.Contains(errStr, "invalid parameter") ||
+		strings.Contains(errStr, "must be between") {
 		return ErrorClassValidation
 	}
 
-	// Default to user input for unclassified errors
+	azureErr := azurehelper.ConvertAzureError(err)
+	if azureErr != nil {
+		status := azureErr.StatusCode
+		code := strings.ToLower(azureErr.ErrorCode)
+		message := strings.ToLower(azureErr.Message)
+
+		switch status {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			if strings.Contains(message, "permission") || strings.Contains(message, "access denied") {
+				return ErrorClassPermissions
+			}
+
+			return ErrorClassAuthentication
+		case http.StatusNotFound:
+			return ErrorClassResourceNotFound
+		case http.StatusTooManyRequests:
+			if strings.Contains(code, "quota") || strings.Contains(message, "quota") || strings.Contains(message, "limit") {
+				return ErrorClassQuotaLimits
+			}
+
+			return ErrorClassTransient
+		case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return ErrorClassTransient
+		}
+
+		switch code {
+		case "storageaccountnotfound", "accountnotfound", "blobnotfound", "resourcegroupnotfound":
+			return ErrorClassResourceNotFound
+		case "containernotfound":
+			return ErrorClassResourceNotFound
+		case "authorizationfailed", "forbidden", "unauthorized", "insufficientaccountpermissions", "accessdenied":
+			return ErrorClassPermissions
+		case "quotaexceeded", "capacitylimitexceeded", "requestrateperhourlimitexceeded":
+			return ErrorClassQuotaLimits
+		}
+	}
+
+	if strings.Contains(errStr, "permission denied") ||
+		strings.Contains(errStr, "access denied") ||
+		strings.Contains(errStr, "insufficient access") ||
+		strings.Contains(errStr, "insufficient permission") ||
+		strings.Contains(errStr, "insufficient privileges") ||
+		strings.Contains(errStr, "rbac") ||
+		strings.Contains(errStr, "role assignment") {
+		return ErrorClassPermissions
+	}
+
+	if strings.Contains(errStr, "authentication") ||
+		strings.Contains(errStr, "unauthorized") ||
+		strings.Contains(errStr, "invalid credentials") ||
+		strings.Contains(errStr, "invalid token") ||
+		strings.Contains(errStr, "token expired") ||
+		strings.Contains(errStr, "auth failed") ||
+		strings.Contains(errStr, "forbidden") {
+		return ErrorClassAuthentication
+	}
+
+	if strings.Contains(errStr, "quota") ||
+		strings.Contains(errStr, "limit exceeded") ||
+		strings.Contains(errStr, "maximum number") ||
+		strings.Contains(errStr, "capacity limit") {
+		return ErrorClassQuotaLimits
+	}
+
+	if strings.Contains(errStr, "http 429") ||
+		strings.Contains(errStr, "too many requests") ||
+		strings.Contains(errStr, "http 500") ||
+		strings.Contains(errStr, "http 503") ||
+		strings.Contains(errStr, "service unavailable") ||
+		strings.Contains(errStr, "internal server error") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "transient") ||
+		strings.Contains(errStr, "temporary failure") ||
+		strings.Contains(errStr, "retry") {
+		return ErrorClassTransient
+	}
+
+	if strings.Contains(errStr, "not found") || strings.Contains(errStr, "does not exist") {
+		return ErrorClassResourceNotFound
+	}
+
+	if strings.Contains(errStr, "storage account") {
+		return ErrorClassStorage
+	}
+
+	if strings.Contains(errStr, "container") {
+		return ErrorClassContainer
+	}
+
+	classification := errorutil.ClassifyError(err)
+
+	switch classification {
+	case errorutil.ErrorClassAuthentication:
+		return ErrorClassAuthentication
+	case errorutil.ErrorClassPermission:
+		return ErrorClassPermissions
+	case errorutil.ErrorClassNotFound:
+		return ErrorClassResourceNotFound
+	case errorutil.ErrorClassNetworking:
+		return ErrorClassTransient
+	case errorutil.ErrorClassInvalidRequest:
+		return ErrorClassValidation
+	case errorutil.ErrorClassThrottling, errorutil.ErrorClassTransient:
+		return ErrorClassTransient
+	case errorutil.ErrorClassConfiguration:
+		return ErrorClassConfiguration
+	case errorutil.ErrorClassResource:
+		if strings.Contains(errStr, "storage account") {
+			return ErrorClassStorage
+		}
+
+		if strings.Contains(errStr, "container") {
+			return ErrorClassContainer
+		}
+
+		return ErrorClassResource
+	case errorutil.ErrorClassUnknown:
+		return ErrorClassUserInput
+	}
+
 	return ErrorClassUserInput
 }
 
@@ -359,12 +403,16 @@ func (atc *AzureTelemetryCollector) LogError(ctx context.Context, err error, ope
 		atc.logger.Errorf("Azure authentication/permission error: %s", FormatLogMessage(metrics, logFields))
 	case ErrorClassResourceNotFound:
 		atc.logger.Warnf("Azure resource not found: %s", FormatLogMessage(metrics, logFields))
+	case ErrorClassResource:
+		atc.logger.Errorf("Azure resource error: %s", FormatLogMessage(metrics, logFields))
 	case ErrorClassStorage, ErrorClassContainer:
 		atc.logger.Errorf("Azure storage/container error: %s", FormatLogMessage(metrics, logFields))
 	case ErrorClassNetwork:
 		atc.logger.Warnf("Azure network error: %s", FormatLogMessage(metrics, logFields))
 	case ErrorClassQuotaLimits:
 		atc.logger.Errorf("Azure quota/limits error: %s", FormatLogMessage(metrics, logFields))
+	case ErrorClassUnknown:
+		atc.logger.Warnf("Azure unknown error classification: %s", FormatLogMessage(metrics, logFields))
 	default:
 		atc.logger.Errorf("Azure error: %s", FormatLogMessage(metrics, logFields))
 	}
@@ -527,9 +575,9 @@ func IsSensitiveAttribute(key string) bool {
 	return false
 }
 
-// LogError records an error with context for telemetry
-func (t *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err error, opType OperationType, metrics AzureErrorMetrics) {
-	if t == nil {
+// LogErrorWithMetrics records an error with context for telemetry
+func (atc *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err error, opType OperationType, metrics AzureErrorMetrics) {
+	if atc == nil {
 		return
 	}
 
@@ -539,19 +587,45 @@ func (t *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err e
 
 	// Convert telemetry types if needed
 	var operation OperationType
+
 	switch opType {
-	case "bootstrap":
-		operation = OperationBootstrap
-	case "delete":
-		operation = OperationDelete
+	case OperationBootstrap,
+		OperationNeedsBootstrap,
+		OperationDelete,
+		OperationDeleteContainer,
+		OperationDeleteAccount,
+		OperationMigrate,
+		OperationContainerOp,
+		OperationStorageOp,
+		OperationValidation,
+		OperationAuthentication,
+		OperationBlobGet,
+		OperationBlobPut,
+		OperationBlobDelete,
+		OperationBlobExists,
+		OperationBlobList,
+		OperationContainerCreate,
+		OperationContainerDelete,
+		OperationContainerExists,
+		OperationStorageCreate,
+		OperationStorageDelete,
+		OperationStorageExists,
+		OperationStorageUpdate,
+		OperationVersionCheck,
+		OperationRoleAssign,
+		OperationRoleRevoke,
+		OperationRoleList,
+		OperationAuthRefresh,
+		OperationAuthValidate:
+		operation = opType
 	default:
-		operation = OperationType(opType)
+		operation = opType
 	}
 
 	// Convert ErrorMetrics to AzureErrorMetrics
 	azureMetrics := AzureErrorMetrics{
 		ErrorType:      metrics.ErrorType,
-		Classification: ErrorClassification(metrics.Classification),
+		Classification: metrics.Classification,
 		Operation:      operation,
 		ResourceType:   metrics.ResourceType,
 		ResourceName:   metrics.ResourceName,
@@ -563,9 +637,9 @@ func (t *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err e
 		IsRetryable:    metrics.IsRetryable,
 	}
 
-	if t.telemeter != nil {
+	if atc.telemeter != nil {
 		// Count the error occurrence
-		t.telemeter.Count(ctx, "azure_backend_errors", 1)
+		atc.telemeter.Count(ctx, "azure_backend_errors", 1)
 	}
 
 	// Log the error details
@@ -573,14 +647,16 @@ func (t *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err e
 		azureMetrics.ErrorType, azureMetrics.Classification, azureMetrics.Operation)
 
 	if azureMetrics.ResourceType != "" {
-		errorDetails += fmt.Sprintf(", Resource Type: %s", azureMetrics.ResourceType)
-	}
-	if azureMetrics.ResourceName != "" {
-		errorDetails += fmt.Sprintf(", Resource Name: %s", azureMetrics.ResourceName)
-	}
-	if azureMetrics.StatusCode != 0 {
-		errorDetails += fmt.Sprintf(", Status Code: %d", azureMetrics.StatusCode)
+		errorDetails += ", Resource Type: " + azureMetrics.ResourceType
 	}
 
-	t.logger.Errorf("Azure backend error: %v (%s)", err, errorDetails)
+	if azureMetrics.ResourceName != "" {
+		errorDetails += ", Resource Name: " + azureMetrics.ResourceName
+	}
+
+	if azureMetrics.StatusCode != 0 {
+		errorDetails += ", Status Code: " + strconv.Itoa(azureMetrics.StatusCode)
+	}
+
+	atc.logger.Errorf("Azure backend error: %v (%s)", err, errorDetails)
 }

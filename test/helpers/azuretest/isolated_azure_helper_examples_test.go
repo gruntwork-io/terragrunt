@@ -1,3 +1,4 @@
+//nolint:testpackage // Example tests exercise helper internals directly.
 package azuretest
 
 import (
@@ -7,11 +8,14 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/require"
 )
 
-// Example test using the isolated Azure helper to demonstrate complete resource isolation
-func ExampleIsolatedAzureTest(t *testing.T) {
+// Test using the isolated Azure helper to demonstrate complete resource isolation
+func TestIsolatedAzureExample(t *testing.T) {
+	t.Parallel()
+
 	// This test demonstrates how to use the isolated Azure helper for complete resource isolation
 	// It creates isolated storage accounts and resource groups for each test run
 
@@ -38,8 +42,9 @@ func ExampleIsolatedAzureTest(t *testing.T) {
 	testBlob := fmt.Sprintf("test-blob-%d", time.Now().Unix())
 	testData := []byte("test data for isolated Azure test")
 
-	// Upload a blob
-	err := blobClient.UploadBlob(ctx, nil, config.ContainerName, testBlob, testData)
+	// Upload a blob with a proper logger
+	logger := log.Default()
+	err := blobClient.UploadBlob(ctx, logger, config.ContainerName, testBlob, testData)
 	require.NoError(t, err, "Failed to upload blob")
 
 	// Download the blob
@@ -57,8 +62,10 @@ func ExampleIsolatedAzureTest(t *testing.T) {
 	t.Logf("Test completed successfully with isolated resources")
 }
 
-// Example test using container-level isolation only
-func ExampleContainerOnlyIsolationTest(t *testing.T) {
+// Test using container-level isolation only
+func TestContainerOnlyIsolation(t *testing.T) {
+	t.Parallel()
+
 	// This test demonstrates container-level isolation only
 	// It uses existing storage account and resource group
 
@@ -85,8 +92,8 @@ func ExampleContainerOnlyIsolationTest(t *testing.T) {
 	t.Logf("Container isolation test completed successfully")
 }
 
-// Example test for parallel execution with resource isolation
-func ExampleParallelSafeTest(t *testing.T) {
+// Test for parallel execution with resource isolation
+func TestParallelSafeIsolation(t *testing.T) {
 	// This test demonstrates how to safely run tests in parallel
 	// Each test gets its own isolated resources based on the test name and timestamp
 
@@ -112,11 +119,12 @@ func ExampleParallelSafeTest(t *testing.T) {
 	ctx := context.Background()
 
 	// Test unique operations for this test
-	testBlob := fmt.Sprintf("parallel-test-%s", config.TestID)
-	testData := []byte(fmt.Sprintf("parallel test data for %s", config.TestName))
+	testBlob := "parallel-test-" + config.TestID
+	testData := []byte("parallel test data for " + config.TestName)
 
-	// Upload a blob
-	err := blobClient.UploadBlob(ctx, nil, config.ContainerName, testBlob, testData)
+	// Upload a blob with a proper logger
+	logger := log.Default()
+	err := blobClient.UploadBlob(ctx, logger, config.ContainerName, testBlob, testData)
 	require.NoError(t, err, "Failed to upload blob in parallel test")
 
 	// Check container exists

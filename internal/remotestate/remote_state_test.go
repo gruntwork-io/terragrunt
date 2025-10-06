@@ -80,7 +80,7 @@ func setupOptionsWithExperiment(experimentName string) *options.TerragruntOption
 // This is needed for tests that expect the Azure backend to be available
 func setupWithAzureBackendExperiment() *options.TerragruntOptions {
 	opts := setupOptionsWithExperiment(experiment.AzureBackend)
-	remotestate.RegisterBackends(opts)
+	remotestate.RegisterBackends(context.Background(), opts)
 	return opts
 }
 

@@ -1,3 +1,4 @@
+//nolint:testpackage // Tests rely on internal type definitions for validation.
 package types
 
 import (
@@ -10,7 +11,7 @@ import (
 func TestStorageAccountConfig_Validation(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name   string
 		config StorageAccountConfig
 		valid  bool
@@ -95,7 +96,7 @@ func TestStorageAccountConfig_Validation(t *testing.T) {
 func TestStorageEndpoints_IsEmpty(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name      string
 		endpoints StorageEndpoints
 		isEmpty   bool
@@ -151,7 +152,7 @@ func TestStorageEndpoints_IsEmpty(t *testing.T) {
 func TestAccountKind_String(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name     string
 		kind     AccountKind
 		expected string
@@ -203,7 +204,7 @@ func TestAccountKind_String(t *testing.T) {
 func TestAccessTier_String(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name     string
 		tier     AccessTier
 		expected string
@@ -250,7 +251,7 @@ func TestAccessTier_String(t *testing.T) {
 func TestStorageAccountProperties_HasEndpoints(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name       string
 		properties StorageAccountProperties
 		hasPrimary bool

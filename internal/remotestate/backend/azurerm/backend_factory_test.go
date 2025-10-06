@@ -1,3 +1,4 @@
+//nolint:testpackage // Factory tests require access to internal constructors.
 package azurerm
 
 import (
@@ -14,7 +15,7 @@ import (
 func TestEnhancedBackendConfigCreation(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { // nolint:govet // fieldalignment is acceptable in table-driven tests
 		name                  string
 		config                *BackendConfig
 		expectEnhancedFactory bool
@@ -129,7 +130,7 @@ func TestFactoryConfigurationUpdates(t *testing.T) {
 	}
 
 	err := backend.UpdateFactoryConfiguration(updates)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify updates were applied
 	updatedConfig := backend.GetFactoryConfiguration()

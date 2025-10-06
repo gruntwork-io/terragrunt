@@ -3,7 +3,7 @@ package testing
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/factory"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
@@ -14,10 +14,10 @@ import (
 
 // TestingServicesConfig provides configuration for mock services in testing
 type TestingServicesConfig struct {
-	ExistsReturns   bool
 	ExistsError     error
 	UploadError     error
 	DownloadError   error
+	ExistsReturns   bool
 	ContainerExists bool
 }
 
@@ -99,6 +99,7 @@ func (m *MockStorageAccountService) CreateStorageAccount(ctx context.Context, cf
 	if m.CreateStorageAccountFunc != nil {
 		return m.CreateStorageAccountFunc(ctx, cfg)
 	}
+
 	return nil
 }
 
@@ -106,6 +107,7 @@ func (m *MockStorageAccountService) DeleteStorageAccount(ctx context.Context, re
 	if m.DeleteStorageAccountFunc != nil {
 		return m.DeleteStorageAccountFunc(ctx, resourceGroupName, accountName)
 	}
+
 	return nil
 }
 
@@ -113,6 +115,7 @@ func (m *MockStorageAccountService) GetStorageAccount(ctx context.Context, resou
 	if m.GetStorageAccountFunc != nil {
 		return m.GetStorageAccountFunc(ctx, resourceGroupName, accountName)
 	}
+
 	return nil, nil
 }
 
@@ -120,6 +123,7 @@ func (m *MockStorageAccountService) GetStorageAccountKeys(ctx context.Context, r
 	if m.GetStorageAccountKeysFunc != nil {
 		return m.GetStorageAccountKeysFunc(ctx, resourceGroupName, accountName)
 	}
+
 	return []string{}, nil
 }
 
@@ -127,6 +131,7 @@ func (m *MockStorageAccountService) GetStorageAccountSAS(ctx context.Context, re
 	if m.GetStorageAccountSASFunc != nil {
 		return m.GetStorageAccountSASFunc(ctx, resourceGroupName, accountName)
 	}
+
 	return "", nil
 }
 
@@ -134,6 +139,7 @@ func (m *MockStorageAccountService) GetStorageAccountProperties(ctx context.Cont
 	if m.GetStorageAccountPropertiesFunc != nil {
 		return m.GetStorageAccountPropertiesFunc(ctx, resourceGroupName, accountName)
 	}
+
 	return nil, nil
 }
 
@@ -157,13 +163,15 @@ func (m *MockBlobService) GetObject(ctx context.Context, input *types.GetObjectI
 	if m.GetObjectFunc != nil {
 		return m.GetObjectFunc(ctx, input)
 	}
-	return nil, fmt.Errorf("not implemented")
+
+	return nil, errors.New("not implemented")
 }
 
 func (m *MockBlobService) ContainerExists(ctx context.Context, containerName string) (bool, error) {
 	if m.ContainerExistsFunc != nil {
 		return m.ContainerExistsFunc(ctx, containerName)
 	}
+
 	return false, nil
 }
 
@@ -171,6 +179,7 @@ func (m *MockBlobService) CreateContainerIfNecessary(ctx context.Context, l log.
 	if m.CreateContainerIfNecessaryFunc != nil {
 		return m.CreateContainerIfNecessaryFunc(ctx, l, containerName)
 	}
+
 	return nil
 }
 
@@ -178,6 +187,7 @@ func (m *MockBlobService) DeleteContainer(ctx context.Context, l log.Logger, con
 	if m.DeleteContainerFunc != nil {
 		return m.DeleteContainerFunc(ctx, l, containerName)
 	}
+
 	return nil
 }
 
@@ -185,6 +195,7 @@ func (m *MockBlobService) DeleteBlobIfNecessary(ctx context.Context, l log.Logge
 	if m.DeleteBlobIfNecessaryFunc != nil {
 		return m.DeleteBlobIfNecessaryFunc(ctx, l, containerName, blobName)
 	}
+
 	return nil
 }
 
@@ -192,6 +203,7 @@ func (m *MockBlobService) UploadBlob(ctx context.Context, l log.Logger, containe
 	if m.UploadBlobFunc != nil {
 		return m.UploadBlobFunc(ctx, l, containerName, blobName, data)
 	}
+
 	return nil
 }
 
@@ -199,5 +211,6 @@ func (m *MockBlobService) CopyBlobToContainer(ctx context.Context, srcContainer,
 	if m.CopyBlobToContainerFunc != nil {
 		return m.CopyBlobToContainerFunc(ctx, srcContainer, srcKey, dstClient, dstContainer, dstKey)
 	}
+
 	return nil
 }

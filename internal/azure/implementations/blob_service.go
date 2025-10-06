@@ -3,6 +3,7 @@ package implementations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -26,17 +27,17 @@ func NewBlobService(client *azurehelper.BlobServiceClient) interfaces.BlobServic
 }
 
 // GetObject gets a blob object using the new types
-func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectInput) (*types.GetObjectOutput, error) {
+func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectInput) (output *types.GetObjectOutput, err error) {
 	if input == nil {
-		return nil, fmt.Errorf("input cannot be nil")
+		return nil, errors.New("input cannot be nil")
 	}
 
 	if input.ContainerName == "" {
-		return nil, fmt.Errorf("container name is required")
+		return nil, errors.New("container name is required")
 	}
 
 	if input.BlobName == "" {
-		return nil, fmt.Errorf("blob name is required")
+		return nil, errors.New("blob name is required")
 	}
 
 	// Convert types.GetObjectInput to azurehelper.GetObjectInput
@@ -52,27 +53,31 @@ func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectI
 	}
 
 	if helperOutput == nil {
-		return nil, fmt.Errorf("helper returned nil output")
+		return nil, errors.New("helper returned nil output")
 	}
 
 	if helperOutput.Body == nil {
-		return nil, fmt.Errorf("helper returned nil body")
+		return nil, errors.New("helper returned nil body")
 	}
+
+	// Ensure the body is closed regardless of how we exit this function
+	defer func() {
+		if closeErr := helperOutput.Body.Close(); closeErr != nil {
+			// Log the close error, but don't override any existing errors
+			if err == nil {
+				err = fmt.Errorf("failed to close blob stream: %w", closeErr)
+			}
+		}
+	}()
 
 	// Read the content from the ReadCloser
 	content, err := io.ReadAll(helperOutput.Body)
 	if err != nil {
-		helperOutput.Body.Close()
 		return nil, fmt.Errorf("failed to read blob content: %w", err)
 	}
 
-	// Close the ReadCloser
-	if err := helperOutput.Body.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close blob stream: %w", err)
-	}
-
 	// Convert azurehelper.GetObjectOutput to types.GetObjectOutput
-	output := &types.GetObjectOutput{
+	output = &types.GetObjectOutput{
 		Content:    content,
 		Properties: make(map[string]string), // Initialize empty properties for now
 	}
@@ -118,8 +123,11 @@ func (b *BlobServiceImpl) CopyBlobToContainer(ctx context.Context, srcContainer,
 		return fmt.Errorf("failed to get source blob: %w", err)
 	}
 
+	// Create a logger for the upload operation
+	logger := log.Default()
+
 	// Upload the blob to the destination
-	err = dstClient.UploadBlob(ctx, nil, dstContainer, dstKey, output.Content)
+	err = dstClient.UploadBlob(ctx, logger, dstContainer, dstKey, output.Content)
 	if err != nil {
 		return fmt.Errorf("failed to upload blob to destination: %w", err)
 	}
