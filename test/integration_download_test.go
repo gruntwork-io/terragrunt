@@ -185,9 +185,8 @@ func TestInvalidRemoteDownloadWithRetries(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureInvalidRemoteDownloadPathWithRetries)
-	absPath, err := filepath.Abs(testFixtureInvalidRemoteDownloadPathWithRetries)
-	require.NoError(t, err)
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+absPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureInvalidRemoteDownloadPathWithRetries)
 
 	require.Error(t, err)
 

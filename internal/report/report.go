@@ -170,6 +170,11 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // If the run does not exist, it creates a new run and adds it to the report, then returns the run.
 // This is useful when a run is being ended that might not have been started due to exclusion, etc.
 func (r *Report) EnsureRun(path string) (*Run, error) {
+	// convert path to absolute if not already
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
 	run, err := r.GetRun(path)
 	if err == nil {
 		return run, nil
