@@ -816,7 +816,7 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
 
-	telemetryOutput, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --working-dir "+rootPath+"  -- apply")
+	telemetryOutput, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+"  -- apply")
 	require.NoError(t, err)
 
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_discovery\"")

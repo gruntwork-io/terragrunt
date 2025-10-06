@@ -30,7 +30,11 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	files, err := os.ReadDir(includeExposeFixturePath)
+	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
+	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+
+	files, err := os.ReadDir(tmpEnvPath)
 	require.NoError(t, err)
 
 	testCases := []string{}
@@ -45,7 +49,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeExposeFixturePath, tc, includeChildFixturePath)
+			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
 

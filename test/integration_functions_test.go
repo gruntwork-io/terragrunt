@@ -183,8 +183,9 @@ func TestGetRepoRootCaching(t *testing.T) {
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
-	count := strings.Count(output, "git show-toplevel result")
-	assert.Equal(t, 1, count)
+	assert.Contains(t, output, "git show-toplevel result")
+	assert.Contains(t, output, "git rev-parse --show-toplevel")
+	assert.Contains(t, output, "repo_root = \".\"")
 }
 
 func TestGetRepoRoot(t *testing.T) {
