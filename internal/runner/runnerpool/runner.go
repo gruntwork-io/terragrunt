@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -619,8 +620,42 @@ func (r *Runner) SetReport(report *report.Report) {
 }
 
 // SetUnitFilters sets the unit filters for the runner.
+// Filters are deduplicated before appending to prevent duplicate filter application.
 func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
-	r.unitFilters = append(r.unitFilters, filters...)
+	for _, filter := range filters {
+		if !containsFilter(r.unitFilters, filter) {
+			r.unitFilters = append(r.unitFilters, filter)
+		}
+	}
+}
+
+// GetUnitFilters returns the unit filters configured for the runner.
+// This is primarily used for testing purposes.
+func (r *Runner) GetUnitFilters() []common.UnitFilter {
+	return r.unitFilters
+}
+
+// containsFilter checks if a filter already exists in the filters slice.
+// Uses reflection to compare filter pointers for deduplication.
+func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool {
+	targetValue := reflect.ValueOf(target)
+	targetPtr := targetValue.Pointer()
+
+	for _, existing := range filters {
+		existingValue := reflect.ValueOf(existing)
+
+		// Compare by pointer for function-type filters
+		if existingValue.Pointer() == targetPtr {
+			return true
+		}
+
+		// For struct-based filters, compare by value equality
+		if reflect.DeepEqual(existing, target) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isDestroyCommand checks if the current command is a destroy operation

@@ -28,9 +28,11 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options
 		}
 	}
 
-	// Recursively collect all dependent units
-	// Use a safe upper bound to prevent infinite loops
-	maxIterations := len(units)*len(units) + 1
+	// Propagate transitive dependencies across all units.
+	// A DAG can have up to N−1 levels, so at most N iterations are needed.
+	// Each iteration propagates one level deeper; exceeding N implies a cycle.
+	//See: https://en.wikipedia.org/wiki/Topological_sorting#Properties
+	maxIterations := len(units)
 	for i := 0; i < maxIterations; i++ {
 		updated := false
 
