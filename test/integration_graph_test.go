@@ -54,7 +54,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --summary-disable --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)

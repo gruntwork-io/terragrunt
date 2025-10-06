@@ -362,7 +362,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --summary-disable --all init --log-level trace --non-interactive -no-color --no-color --log-custom-format=%q --working-dir %s", tc.logCustomFormat, rootPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all init --log-level trace --non-interactive -no-color --no-color --log-custom-format=%q --working-dir %s", tc.logCustomFormat, rootPath))
 
 			if tc.expectedErr != nil {
 				assert.EqualError(t, err, tc.expectedErr.Error())
@@ -393,7 +393,7 @@ func TestBufferModuleOutput(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-disable --working-dir "+rootPath+" -- plan -out planfile")
 	require.NoError(t, err)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --summary-disable --log-disable --working-dir "+rootPath+" -- show -json planfile")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-disable --working-dir "+rootPath+" -- show -json planfile")
 	require.NoError(t, err)
 
 	for stdout := range strings.SplitSeq(stdout, "\n") {
@@ -581,7 +581,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 
 			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run apply --all --non-interactive --working-dir %s %s -- -auto-approve", rootPath, tc.flags))
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run output --summary-disable --all --non-interactive --working-dir %s %s", rootPath, tc.flags))
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run output --all --non-interactive --working-dir %s %s", rootPath, tc.flags))
 			require.NoError(t, err)
 
 			actualOutput := strings.Split(strings.TrimSpace(stdout), "\n")

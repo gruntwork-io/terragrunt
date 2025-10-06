@@ -23,7 +23,7 @@ const (
 	testFixtureReportPath = "fixtures/report"
 )
 
-func TestTerragruntReportExperiment(t *testing.T) {
+func TestTerragruntReport(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -77,7 +77,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 `), strings.TrimSpace(stdoutStr))
 }
 
-func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
+func TestTerragruntReportDisableSummary(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -99,7 +99,7 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	assert.NotContains(t, stdoutStr, "Run Summary")
 }
 
-func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
+func TestTerragruntReportSaveToFile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -246,7 +246,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	}
 }
 
-func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
+func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -404,7 +404,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 	}
 }
 
-func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
+func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment

@@ -71,7 +71,7 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --summary-disable --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json")
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}

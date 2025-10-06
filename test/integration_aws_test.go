@@ -762,7 +762,7 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 		stderr bytes.Buffer
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --summary-disable output app2_text --queue-ignore-errors --non-interactive --backend-bootstrap --working-dir "+environmentPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all output app2_text --queue-ignore-errors --non-interactive --backend-bootstrap --working-dir "+environmentPath, &stdout, &stderr)
 	require.NoError(t, err)
 	output := stdout.String()
 
