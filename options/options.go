@@ -787,7 +787,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				action.RetrySleepSecs,
 			)
 
-			// Assume the retry will succeed.
+			// Record that a retry will be attempted without prematurely marking success.
 			run, err := r.EnsureRun(opts.WorkingDir)
 			if err != nil {
 				return err
