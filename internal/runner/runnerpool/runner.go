@@ -494,12 +494,6 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		}
 	}
 
-	// Index discovered configs by path for quick lookup
-	discoveredByPath := make(map[string]*discovery.DiscoveredConfig, len(discovered))
-	for _, cfg := range discovered {
-		discoveredByPath[cfg.Path] = cfg
-	}
-
 	// First pass: keep only allowed configs and prune their dependencies to allowed ones
 	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
 	present := make(map[string]*discovery.DiscoveredConfig, len(discovered))
@@ -631,15 +625,8 @@ func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
 
 // isDestroyCommand checks if the current command is a destroy operation
 func isDestroyCommand(opts *options.TerragruntOptions) bool {
-	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
-		return true
-	}
-
-	if util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
-		return true
-	}
-
-	return false
+	return opts.TerraformCommand == tf.CommandNameDestroy ||
+		util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy)
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
