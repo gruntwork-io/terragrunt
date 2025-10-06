@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -62,59 +61,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	// Add unit filter callback for graph command to filter units based on dependencies
-	// This will be called after units are resolved but before the queue is built
-	stackOpts = append(stackOpts, common.WithReport(r), common.WithUnitFilter(func(units common.Units) {
-		workDir := opts.WorkingDir
+	// Create graph dependency filter to show only the working directory and its dependents
+	graphFilter := &common.GraphDependencyFilter{
+		TargetDir: opts.WorkingDir,
+	}
 
-		// Build dependency map first
-		dependentUnits := make(map[string][]string)
-
-		for _, unit := range units {
-			if len(unit.Dependencies) != 0 {
-				for _, dep := range unit.Dependencies {
-					dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
-				}
-			}
-		}
-
-		// Recursively collect all dependent units
-		maxIterations := len(units)*len(units) + 1
-		for i := 0; i < maxIterations; i++ {
-			updated := false
-
-			for unit, dependents := range dependentUnits {
-				for _, dep := range dependents {
-					old := dependentUnits[unit]
-					newList := util.RemoveDuplicatesFromList(
-						append(old, dependentUnits[dep]...),
-					)
-					newList = util.RemoveElementFromList(newList, unit)
-
-					if len(newList) != len(old) {
-						dependentUnits[unit] = newList
-						updated = true
-					}
-				}
-			}
-
-			if !updated {
-				break
-			}
-		}
-
-		// Determine which modules to include
-		modulesToInclude := dependentUnits[workDir]
-		modulesToInclude = append(modulesToInclude, workDir)
-
-		// Mark units as excluded unless they are in modulesToInclude
-		for _, module := range units {
-			module.FlagExcluded = true
-			if util.ListContainsElement(modulesToInclude, module.Path) {
-				module.FlagExcluded = false
-			}
-		}
-	}))
+	// Add unit filter for graph command to filter units based on dependencies
+	// This will be applied after units are resolved but before the queue is built
+	stackOpts = append(stackOpts, common.WithReport(r), common.WithUnitFilters(graphFilter))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck

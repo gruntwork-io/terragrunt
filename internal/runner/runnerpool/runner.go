@@ -30,9 +30,9 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack              *common.Stack
-	queue              *queue.Queue
-	unitFilterCallback common.UnitFilterCallback
+	Stack       *common.Stack
+	queue       *queue.Queue
+	unitFilters []common.UnitFilter
 }
 
 // SetQueue replaces the runner's queue with a new one.
@@ -118,6 +118,11 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 
+	// Add unit filters to the resolver
+	if len(runner.unitFilters) > 0 {
+		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
+	}
+
 	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
 	if err != nil {
 		return nil, err
@@ -130,11 +135,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	if isDestroyCommand(terragruntOptions) {
 		l.Debugf("Detected destroy command, applying prevent_destroy exclusions")
 		applyPreventDestroyExclusions(l, unitsMap)
-	}
-
-	// Apply unit filter callback if provided (e.g., for graph command to filter units)
-	if runner.unitFilterCallback != nil {
-		runner.unitFilterCallback(unitsMap)
 	}
 
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
@@ -624,9 +624,9 @@ func (r *Runner) SetReport(report *report.Report) {
 	r.Stack.Report = report
 }
 
-// SetUnitFilterCallback sets the unit filter callback.
-func (r *Runner) SetUnitFilterCallback(callback common.UnitFilterCallback) {
-	r.unitFilterCallback = callback
+// SetUnitFilters sets the unit filters for the runner.
+func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
+	r.unitFilters = append(r.unitFilters, filters...)
 }
 
 // isDestroyCommand checks if the current command is a destroy operation

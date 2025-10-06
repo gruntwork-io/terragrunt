@@ -26,6 +26,7 @@ type UnitResolver struct {
 	includeGlobs      map[string]glob.Glob
 	excludeGlobs      map[string]glob.Glob
 	doubleStarEnabled bool
+	filters           []UnitFilter
 }
 
 // NewUnitResolver creates a new UnitResolver with the given stack.
@@ -57,7 +58,15 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 		doubleStarEnabled: doubleStarEnabled,
 		includeGlobs:      includeGlobs,
 		excludeGlobs:      excludeGlobs,
+		filters:           []UnitFilter{},
 	}, nil
+}
+
+// WithFilters adds unit filters to the resolver.
+// Filters are applied after units are resolved but before the queue is built.
+func (r *UnitResolver) WithFilters(filters ...UnitFilter) *UnitResolver {
+	r.filters = append(r.filters, filters...)
+	return r
 }
 
 // ResolveTerraformModules goes through each of the given Terragrunt configuration files
@@ -113,7 +122,13 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
-	return withExcludedUnits, nil
+	// Apply custom filters after standard resolution logic
+	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	return filteredUnits, nil
 }
 
 // telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
@@ -983,4 +998,31 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	}
 
 	return units
+}
+
+// telemetryApplyFilters applies all configured unit filters to the resolved units
+func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, units Units) (Units, error) {
+	if len(r.filters) == 0 {
+		return units, nil
+	}
+
+	var filteredUnits Units
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_unit_filters", map[string]any{
+		"working_dir":  r.Stack.TerragruntOptions.WorkingDir,
+		"filter_count": len(r.filters),
+	}, func(ctx context.Context) error {
+		// Apply all filters in sequence
+		for _, filter := range r.filters {
+			if err := filter.Filter(ctx, units, r.Stack.TerragruntOptions); err != nil {
+				return err
+			}
+		}
+
+		filteredUnits = units
+
+		return nil
+	})
+
+	return filteredUnits, err
 }
