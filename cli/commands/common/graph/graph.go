@@ -62,7 +62,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	// Create graph dependency filter to show only the working directory and its dependents
-	graphFilter := &common.GraphDependencyFilter{
+	graphFilter := &common.UnitFilterGraph{
 		TargetDir: opts.WorkingDir,
 	}
 

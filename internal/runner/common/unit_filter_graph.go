@@ -7,16 +7,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// GraphDependencyFilter filters units to include only a target directory and its dependents.
+// UnitFilterGraph filters units to include only a target directory and its dependents.
 // This filter is used by the graph command to show only relevant units in the dependency graph.
-type GraphDependencyFilter struct {
+type UnitFilterGraph struct {
 	// TargetDir is the directory whose dependents should be included
 	TargetDir string
 }
 
 // Filter implements UnitFilter.
 // It marks all units as excluded except for the target directory and units that depend on it.
-func (f *GraphDependencyFilter) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
+func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
 	// Build dependency map first
 	dependentUnits := make(map[string][]string)
 
