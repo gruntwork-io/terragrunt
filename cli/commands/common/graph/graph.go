@@ -80,30 +80,25 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		// Recursively collect all dependent units
 		maxIterations := len(units)*len(units) + 1
-		iterations := 0
-
-		for {
-			noUpdates := true
+		for i := 0; i < maxIterations; i++ {
+			updated := false
 
 			for unit, dependents := range dependentUnits {
-				for _, dependent := range dependents {
-					initialSize := len(dependentUnits[unit])
-					list := util.RemoveDuplicatesFromList(append(dependentUnits[unit], dependentUnits[dependent]...))
-					list = util.RemoveElementFromList(list, unit)
-					dependentUnits[unit] = list
+				for _, dep := range dependents {
+					old := dependentUnits[unit]
+					newList := util.RemoveDuplicatesFromList(
+						append(old, dependentUnits[dep]...),
+					)
+					newList = util.RemoveElementFromList(newList, unit)
 
-					if initialSize != len(dependentUnits[unit]) {
-						noUpdates = false
+					if len(newList) != len(old) {
+						dependentUnits[unit] = newList
+						updated = true
 					}
 				}
 			}
 
-			if noUpdates {
-				break
-			}
-
-			iterations++
-			if iterations >= maxIterations {
+			if !updated {
 				break
 			}
 		}

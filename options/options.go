@@ -735,6 +735,12 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 
 	currentAttempt := 1
 
+	// convert working dir to an absolute path for reporting
+	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
 	for {
 		err := operation()
 		if err == nil {
@@ -761,7 +767,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
-			run, err := r.EnsureRun(opts.WorkingDir)
+			run, err := r.EnsureRun(absWorkingDir)
 			if err != nil {
 				return err
 			}
@@ -788,7 +794,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 			)
 
 			// Record that a retry will be attempted without prematurely marking success.
-			run, err := r.EnsureRun(opts.WorkingDir)
+			run, err := r.EnsureRun(absWorkingDir)
 			if err != nil {
 				return err
 			}
