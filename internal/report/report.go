@@ -175,6 +175,7 @@ func (r *Report) EnsureRun(path string) (*Run, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	run, err := r.GetRun(path)
 	if err == nil {
 		return run, nil
