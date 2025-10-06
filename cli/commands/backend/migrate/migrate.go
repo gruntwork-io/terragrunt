@@ -55,7 +55,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	l.Debugf("Migration: Destination experiments: %v", dstModule.TerragruntOptions.Experiments)
 
 	// Re-register backends with updated experiment flags
-	remotestate.RegisterBackends(srcModule.TerragruntOptions)
+	remotestate.RegisterBackends(ctx, srcModule.TerragruntOptions)
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.TerragruntOptions)
 	if err != nil || srcRemoteState == nil {
