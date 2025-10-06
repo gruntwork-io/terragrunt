@@ -24,7 +24,7 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
 	unitPath := util.JoinPath(testPath, "basic", "unit")
 
-	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --non-interactive --working-dir " + unitPath
+	cmd := "terragrunt init --log-level debug --non-interactive --working-dir " + unitPath
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 		helpers.CopyDir(t, unitPath, util.JoinPath(testPath, "unit-"+strconv.Itoa(i)))
 	}
 
-	cmd := "terragrunt run --all init --log-level debug --experiment auto-provider-cache-dir --non-interactive --working-dir " + testPath
+	cmd := "terragrunt run --all init --log-level debug --non-interactive --working-dir " + testPath
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
 	unitPath := util.JoinPath(testPath, "basic", "unit")
 
-	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --no-auto-provider-cache-dir --non-interactive --working-dir " + unitPath
+	cmd := "terragrunt init --log-level debug --no-auto-provider-cache-dir --non-interactive --working-dir " + unitPath
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)

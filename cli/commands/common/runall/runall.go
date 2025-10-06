@@ -164,10 +164,5 @@ func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 		return true
 	}
 
-	// Skip summary when JSON report format is specified
-	if opts.ReportFormat == report.FormatJSON {
-		return true
-	}
-
 	return false
 }

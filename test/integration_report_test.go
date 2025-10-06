@@ -37,7 +37,7 @@ func TestTerragruntReport(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -91,7 +91,7 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output does not contain the summary
@@ -159,7 +159,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 
 			reportFile := "report." + tc.format
 			cmd := fmt.Sprintf(
-				"terragrunt run --all apply --experiment report --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				util.JoinPath(rootPath, "second-exclude"),
 				reportFile)
@@ -305,7 +305,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			t.Parallel()
 
 			// Build command with appropriate flags
-			cmd := "terragrunt run --all apply --experiment report --non-interactive --working-dir " + rootPath
+			cmd := "terragrunt run --all apply --non-interactive --working-dir " + rootPath
 			if tc.reportFile != "" {
 				cmd += " --report-file " + tc.reportFile
 			}
@@ -418,7 +418,7 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -512,7 +512,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --queue-exclude-external --experiment report --feature dep=%s --working-dir %s --report-file %s",
+			"terragrunt run --all plan --queue-exclude-external --feature dep=%s --working-dir %s --report-file %s",
 			dep,
 			rootPath,
 			reportFile,
