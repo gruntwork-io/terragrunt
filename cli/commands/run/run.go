@@ -66,7 +66,6 @@ var TerraformCommandsThatUseState = []string{
 
 var TerraformCommandsThatDoNotNeedInit = []string{
 	"version",
-	"terragrunt-info",
 	"graph-dependencies",
 }
 

@@ -12,8 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
-	"github.com/gruntwork-io/terragrunt/cli/commands/info"
-	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -25,15 +23,13 @@ import (
 
 // The following commands are DEPRECATED
 const (
-	CommandRunAllName             = "run-all"
-	CommandGraphName              = "graph"
-	CommandHCLFmtName             = "hclfmt"
-	CommandHCLValidateName        = "hclvalidate"
-	CommandValidateInputsName     = "validate-inputs"
-	CommandRenderJSONName         = "render-json"
-	CommandTerragruntInfoName     = "terragrunt-info"
-	CommandOutputModuleGroupsName = "output-module-groups"
-	CommandGraphDependenciesName  = "graph-dependencies"
+	CommandRunAllName            = "run-all"
+	CommandGraphName             = "graph"
+	CommandHCLFmtName            = "hclfmt"
+	CommandHCLValidateName       = "hclvalidate"
+	CommandValidateInputsName    = "validate-inputs"
+	CommandRenderJSONName        = "render-json"
+	CommandGraphDependenciesName = "graph-dependencies"
 )
 
 // NewDeprecatedCommands returns a slice of deprecated commands to convert the command to the known alternative.
@@ -49,9 +45,6 @@ func NewDeprecatedCommands(l log.Logger, opts *options.TerragruntOptions) cli.Co
 		newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
 			hcl.CommandName, validate.CommandName,
 			"--" + validate.InputsFlagName}),
-		// `terragrunt-info`
-		newDeprecatedCLIRedesignCommand(CommandTerragruntInfoName, cli.Args{
-			info.CommandName, print.CommandName}),
 		// `graph-dependencies`
 		newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
 			dag.CommandName, daggraph.CommandName}),

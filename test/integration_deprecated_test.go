@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -83,26 +82,6 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 		errOutput := stderr.String()
 		assert.True(t, strings.Contains(errOutput, tc.expected) || strings.Contains(output, tc.expected))
 	}
-}
-
-func TestDeprecatedTerragruntInfoCommand_TerragruntInfoError(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInfoError)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureInfoError, "module-b")
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --non-interactive --working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	// parse stdout json as InfoOutput
-	var output print.InfoOutput
-
-	err = json.Unmarshal(stdout.Bytes(), &output)
-	require.NoError(t, err)
 }
 
 func TestDeprecatedRenderJsonCommand_RenderJsonDependentModulesMetadataTerraform(t *testing.T) {
