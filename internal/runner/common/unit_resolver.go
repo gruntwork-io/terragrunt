@@ -25,8 +25,8 @@ type UnitResolver struct {
 	Stack             *Stack
 	includeGlobs      map[string]glob.Glob
 	excludeGlobs      map[string]glob.Glob
-	doubleStarEnabled bool
 	filters           []UnitFilter
+	doubleStarEnabled bool
 }
 
 // NewUnitResolver creates a new UnitResolver with the given stack.
