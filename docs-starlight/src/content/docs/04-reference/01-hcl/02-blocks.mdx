@@ -405,6 +405,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `external_id` - (Optional) The external ID to use when assuming the role.
 - `session_name` - (Optional) The session name to use when assuming the role.
 - `dynamodb_table` - (Optional) The name of a DynamoDB table to use for state locking and consistency. The table must have a primary key named LockID. If not present, locking will be disabled.
+- `use_lockfile` - (Optional) When `true`, enables native S3 locking using S3 object conditional writes for state locking. This feature requires OpenTofu >= 1.10. Can be used simultaneously with `dynamodb_table` during migration (both locks must be acquired successfully), but typically used as a replacement for DynamoDB locking.
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
 - `skip_bucket_accesslogging`: *DEPRECATED* If provided, will be ignored. A log warning will be issued in the console output to notify the user.
@@ -552,6 +553,44 @@ include "root" {
 # child/main.tf
 terraform {
   backend "gcs" {}
+}
+```
+
+Example with S3 using native S3 locking (OpenTofu >= 1.10):
+
+```hcl
+# Configure OpenTofu/Terraform state to be stored in S3 with native S3 locking instead of DynamoDB.
+# This uses S3 object conditional writes for state locking, which requires OpenTofu >= 1.10.
+remote_state {
+  backend = "s3"
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+Example with S3 using both DynamoDB and native S3 locking during migration (OpenTofu >= 1.10):
+
+```hcl
+# Configure OpenTofu/Terraform state with dual locking during migration from DynamoDB to S3 native locking.
+# Both locks must be successfully acquired before operations can proceed.
+# After the migration period, remove dynamodb_table to use only S3 native locking.
+# Note: This won't delete the DynamoDB table, it will just be unused.
+# You can delete it manually after the migration period.
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"  # Remove this after migration period
+    use_lockfile   = true             # New native S3 locking
+  }
 }
 ```
 
@@ -1449,9 +1488,10 @@ Syntax:
 # terragrunt.hcl
 
 exclude {
-    if = <boolean expression>           # Boolean expression to determine exclusion.
-    actions = ["<action>", ...]         # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
-    exclude_dependencies = <boolean>    # Boolean to determine if dependencies should also be excluded.
+    if                   = <boolean>         # Boolean to determine exclusion.
+    no_run               = <boolean>         # Boolean to prevent the unit from running (even when not using `--all`).
+    actions              = ["<action>", ...] # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
+    exclude_dependencies = <boolean>         # Boolean to determine if dependencies should also be excluded.
 }
 ```
 
@@ -1462,6 +1502,7 @@ Attributes:
 | `if`                   | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
 | `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
 | `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
+| `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for both single unit commands and `run --all` commands, but only when the current action matches the `actions` list. |
 
 Examples:
 
@@ -1502,6 +1543,18 @@ exclude {
 ```
 
 This setup is useful for scenarios where output evaluation is still needed, even if other actions like `plan` or `apply` are excluded.
+
+```hcl
+# terragrunt.hcl
+
+exclude {
+    if      = true
+    no_run  = true
+    actions = ["plan"]
+}
+```
+
+This configuration prevents the unit from running when `if` is `true` AND the current action is "plan". The `no_run` attribute works for both single unit commands (like `terragrunt plan`) and `run --all` commands (like `terragrunt run --all plan`), but only when the current action matches the `actions` list.
 
 Consider using this for units that are expensive to continuously update, and can be opted in when necessary.
 
@@ -1663,6 +1716,10 @@ errors {
 
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
+**Purpose**: Define a single, deployable piece of infrastructure.
+**Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application).
+**Result**: Generates a single `terragrunt.hcl` file in the specified path.
+
 The `unit` block supports the following arguments:
 
 - `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
@@ -1764,13 +1821,28 @@ With the above configuration, the resulting directory structure will be:
 The `vpc` unit is placed inside `.terragrunt-stack`, as expected.
 The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**, rather than inside `.terragrunt-stack`, due to `no_dot_terragrunt_stack = true`.
 
-**Note:**
-The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+**Notes:**
+
+- The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
+- A pre-created `terragrunt.values.hcl` file can be provided in the unit source (sibling to the `terragrunt.hcl` file used as the source of the unit). If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
+
+### Comparison: unit vs stack blocks
+
+| Aspect | `unit` block | `stack` block |
+|--------|-------------|---------------|
+| **Purpose** | Define a single infrastructure component | Define a reusable collection of components |
+| **When to use** | For specific, one-off infrastructure pieces | For patterns of infrastructure pieces that you want provisioned together |
+| **Generated output** | A directory with a single `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
 
 ## stack
 
 The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
 Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.
+
+**Purpose**: Define a collection of related units that can be reused.
+**Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times.
+**Result**: Generates another `terragrunt.stack.hcl` file that can contain more units or stacks.
 
 Stacks are designed to be nestable, helping to mitigate the risk of stacks becoming too large or too repetitive.
 When a stack is generated, it can include nested stacks, ensuring that the configuration scales efficiently.
@@ -1813,5 +1885,8 @@ In this example, the `services` stack is defined with path `services`, which wil
 The stack is also provided with custom values for `project` and `cidr`, which can be used within the stack's configuration files.
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
 
-**Note:**
-The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+**Notes:**
+
+- The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
+- A pre-created `terragrunt.values.hcl` file can be provided in the stack source (sibling to the `terragrunt.stack.hcl` file used as the source of the stack). If present, this file will be used as the default values for the stack. However, if the values attribute is defined in the stack block, the generated `terragrunt.values.hcl` will replace the pre-existing file.

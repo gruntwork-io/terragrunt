@@ -22,6 +22,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	// set pre-defined variables
 	vars := map[string]any{}
+
 	var requiredVariables, optionalVariables []*config.ParsedVariable
 
 	requiredVariables = append(requiredVariables, &config.ParsedVariable{
@@ -62,14 +63,15 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:    outputDir,
-		OnMissingKey:    boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig: boilerplateoptions.DefaultMissingConfigAction,
-		Vars:            vars,
-		DisableShell:    true,
-		DisableHooks:    true,
-		NonInteractive:  true,
-		TemplateFolder:  templateDir,
+		OutputFolder:            outputDir,
+		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
+		Vars:                    vars,
+		DisableShell:            true,
+		DisableHooks:            true,
+		NonInteractive:          true,
+		DisableDependencyPrompt: false,
+		TemplateFolder:          templateDir,
 	}
 
 	emptyDep := variables.Dependency{}

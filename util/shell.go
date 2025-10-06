@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"syscall"
@@ -13,8 +14,8 @@ import (
 )
 
 // IsCommandExecutable - returns true if a command can be executed without errors.
-func IsCommandExecutable(command string, args ...string) bool {
-	cmd := exec.Command(command, args...)
+func IsCommandExecutable(ctx context.Context, command string, args ...string) bool {
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil

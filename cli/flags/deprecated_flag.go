@@ -107,15 +107,6 @@ func StrictControlsByGlobalFlags(strictControls strict.Controls, controlNames ..
 	}
 }
 
-// StrictControlsByMovedGlobalFlags returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
-// And assigns the "Moved to other %s command global flags" category to these controls.
-func StrictControlsByMovedGlobalFlags(strictControls strict.Controls, commandName string, controlNames ...string) RegisterStrictControlsFunc {
-	return func(flagNameControl, envVarControl strict.Control) bool {
-		flagNamesCategory := fmt.Sprintf(controls.MovedGlobalFlagsCategoryNameFmt, commandName)
-		return registerStrictControls(strictControls, flagNameControl, envVarControl, flagNamesCategory, "", controlNames...)
-	}
-}
-
 func registerStrictControls(strictControls strict.Controls,
 	flagNameControl, envVarControl strict.Control,
 	flagNamesCategory, envVarsCategory string,

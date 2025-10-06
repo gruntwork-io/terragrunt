@@ -47,7 +47,7 @@ type ModuleIsProtected struct {
 }
 
 func (err ModuleIsProtected) Error() string {
-	return fmt.Sprintf("Module is protected by the prevent_destroy flag in %s. Set it to false or delete it to allow destroying of the module.", err.Opts.TerragruntConfigPath)
+	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.Opts.TerragruntConfigPath)
 }
 
 type MaxRetriesExceeded struct {
@@ -55,7 +55,7 @@ type MaxRetriesExceeded struct {
 }
 
 func (err MaxRetriesExceeded) Error() string {
-	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.TFPath, strings.Join(err.Opts.TerraformCliArgs, " "))
 }
 
 type RunAllDisabledErr struct {

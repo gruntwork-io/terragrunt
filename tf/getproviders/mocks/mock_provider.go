@@ -55,6 +55,20 @@ func (mr *MockProviderMockRecorder) Address() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Address", reflect.TypeOf((*MockProvider)(nil).Address))
 }
 
+// Constraints mocks base method.
+func (m *MockProvider) Constraints() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Constraints")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Constraints indicates an expected call of Constraints.
+func (mr *MockProviderMockRecorder) Constraints() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Constraints", reflect.TypeOf((*MockProvider)(nil).Constraints))
+}
+
 // DocumentSHA256Sums mocks base method.
 func (m *MockProvider) DocumentSHA256Sums(ctx context.Context) ([]byte, error) {
 	m.ctrl.T.Helper()

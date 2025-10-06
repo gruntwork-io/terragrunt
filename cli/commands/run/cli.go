@@ -104,7 +104,7 @@ func validateCommand(opts *options.TerragruntOptions) error {
 }
 
 func isTerraformPath(opts *options.TerragruntOptions) bool {
-	return strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath)
+	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
 }
 
 // wrapWithStackGenerate wraps a CLI command to handle automatic stack generation.
@@ -125,6 +125,20 @@ func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *c
 
 		// Set the stack config path to the default location in the working directory
 		opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
+
+		// Clean stack folders before calling `generate` when the `--source-update` flag is passed
+		if opts.SourceUpdate {
+			errClean := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
+				"stack_config_path": opts.TerragruntStackConfigPath,
+				"working_dir":       opts.WorkingDir,
+			}, func(ctx context.Context) error {
+				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
+				return config.CleanStacks(ctx, l, opts)
+			})
+			if errClean != nil {
+				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
+			}
+		}
 
 		// Generate the stack configuration with telemetry tracking
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{

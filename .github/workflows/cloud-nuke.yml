@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install cloud-nuke
         run: |
@@ -30,7 +30,7 @@ jobs:
             VERSION: 0.40.0
 
       - name: Authenticate to AWS
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.CLOUD_NUKE_ROLE }}
           aws-region: us-east-1
@@ -43,6 +43,7 @@ jobs:
                 --resource-type s3 \
                 --resource-type vpc \
                 --resource-type ec2 \
+                --resource-type dynamodb \
                 --region us-east-1 \
                 --region us-west-2 \
                 --older-than 1h \

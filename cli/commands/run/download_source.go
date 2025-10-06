@@ -148,10 +148,10 @@ func DownloadTerraformSourceIfNecessary(
 	}
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
+
 	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, func(_ context.Context) error {
 		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
 	})
-
 	if downloadErr != nil {
 		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
@@ -193,13 +193,13 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 		return false, nil
 	}
 
-	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
+	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	if len(tfFiles) == 0 {
-		l.Debugf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
+	if !hasFiles {
+		l.Debugf("Working dir %s exists but contains no Terraform or OpenTofu files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
 		return false, nil
 	}
 
@@ -214,7 +214,6 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 	}
 
 	previousVersion, err := readVersionFile(terraformSource)
-
 	if err != nil {
 		return false, err
 	}
@@ -274,6 +273,28 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	}
 }
 
+// preserveSymlinksOption is a custom client option that ensures DisableSymlinks
+// setting is preserved during git operations
+func preserveSymlinksOption() getter.ClientOption {
+	return func(c *getter.Client) error {
+		// Create a custom git getter that preserves symlink settings
+		if c.Getters != nil {
+			if gitGetter, exists := c.Getters["git"]; exists {
+				// Replace with a wrapper that preserves symlink settings
+				c.Getters["git"] = &symlinkPreservingGitGetter{
+					original: gitGetter,
+					client:   c,
+				}
+			}
+		}
+
+		// Ensure DisableSymlinks is set to false
+		c.DisableSymlinks = false
+
+		return nil
+	}
+}
+
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
@@ -323,11 +344,11 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg))
+		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg), preserveSymlinksOption())
 	})
 }
 
-// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory
+// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
 func ValidateWorkingDir(terraformSource *tf.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {

@@ -1,0 +1,42 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+const {
+  alt,
+  author,
+  class: customClass = "",
+  company,
+  content,
+  job,
+  logo,
+  theme = "light",
+  title
+} = Astro.props;
+
+const isDark = theme === "dark";
+
+const bgClass = isDark ? "bg-bg-dark" : "bg-white";
+const jobtitle = isDark ? "text-white" : "text-gray-1";
+const textPrimary = isDark ? "text-white" : "text-gray-1";
+const textSecondary = isDark ? "text-white" : "text-gray-2";
+---
+
+<div class={`border-4 border-solid rounded-lg ${bgClass} border-[#f1f1f1] ${customClass} p-6`}>
+  <div class="flex flex-col gap-8">
+    {logo &&
+      <Image
+        height={24}
+        src={logo}
+        alt={(alt?.trim()) || "Logo Brand"}
+      />
+    }
+    <div class="flex flex-col gap-4">
+      <p class={`font-sans text-sm whitespace-pre-line ${textPrimary}`}>{content}</p>
+      <div class="flex flex-col">
+          <p class={`font-sans text-sm m-0 ${textSecondary}`}>{author}</p>
+          <p class={`font-sans text-xs m-0 ${jobtitle}`}>{title}</p>
+      </div>
+    </div>
+  </div>
+</div>

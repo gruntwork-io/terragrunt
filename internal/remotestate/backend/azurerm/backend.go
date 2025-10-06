@@ -305,18 +305,19 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		"azurerm",
 		func() error {
 			var configErr error
+
 			azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
 
 			return configErr
 		},
 	)
-
 	if err != nil {
 		return err
 	}
 
 	// Validate container name before any Azure operations
 	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
+
 	err = errorHandler.WithErrorHandling(
 		ctx,
 		azureutil.OperationValidation,
@@ -326,7 +327,6 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			return ValidateContainerName(containerName)
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -387,6 +387,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 	// ensure that only one goroutine can initialize storage
 	mu := backend.GetBucketMutex(azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -445,10 +446,10 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 		// Use retry logic for storage account creation
 		retryConfig := DefaultRetryConfig()
+
 		err = WithRetry(ctx, l, "storage account bootstrap", retryConfig, func() error {
 			return backend.bootstrapStorageAccount(ctx, l, azureCfg)
 		})
-
 		if err != nil {
 			wrappedErr := WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 			tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
@@ -467,6 +468,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 	// Create the container if necessary with retry logic
 	retryConfig := DefaultRetryConfig()
+
 	err = WithRetry(ctx, l, "container creation", retryConfig, func() error {
 		createErr := client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 		if createErr != nil {
@@ -476,7 +478,6 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 		return nil
 	})
-
 	if err != nil {
 		wrappedErr := WrapContainerError(err, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 		tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
@@ -565,6 +566,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 	var containerExists bool
 
 	retryConfig := DefaultRetryConfig()
+
 	err = WithRetry(ctx, l, "container existence check", retryConfig, func() error {
 		// Get the blob service from the container
 		blobService, err := backend.getBlobService(ctx, l, azureCfg, opts)
@@ -599,7 +601,6 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 		return nil
 	})
-
 	if err != nil {
 		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
 			ErrorType:      "ContainerExistenceCheckError",
@@ -648,12 +649,12 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		"azurerm",
 		func() error {
 			var configErr error
+
 			azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
 
 			return configErr
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -735,12 +736,12 @@ func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backe
 		"azurerm",
 		func() error {
 			var configErr error
+
 			azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
 
 			return configErr
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -1043,12 +1044,12 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 		"azurerm",
 		func() error {
 			var configErr error
+
 			azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
 
 			return configErr
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -1857,6 +1858,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 		"azurerm",
 		func() error {
 			var configErr error
+
 			azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
 
 			return configErr
@@ -1874,6 +1876,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 	// Validate container name before any Azure operations
 	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
+
 	err = errorHandler.WithErrorHandling(
 		ctx,
 		azureutil.OperationValidation,
@@ -1883,7 +1886,6 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 			return ValidateContainerName(containerName)
 		},
 	)
-
 	if err != nil {
 		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
 			ErrorType:      "ValidationError",
@@ -1925,7 +1927,6 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 		return nil
 	})
-
 	if err != nil {
 		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
 			ErrorType:      "VersioningCheckError",

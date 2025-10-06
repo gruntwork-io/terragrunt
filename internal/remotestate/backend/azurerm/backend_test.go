@@ -22,6 +22,7 @@ import (
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
+
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
@@ -44,6 +45,7 @@ func TestBackendBootstrapInvalidConfig(t *testing.T) {
 
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
+
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -78,11 +80,14 @@ func TestBackendBootstrapInvalidConfig(t *testing.T) {
 	}
 
 	b := newTestBackend()
+
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := b.NeedsBootstrap(t.Context(), l, tc.config, opts)
+
 			if tc.expectError {
 				require.Error(t, err)
 			} else {
@@ -265,6 +270,7 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -274,6 +280,7 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 			// Check if we get expected results
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.errorMsg != "" {
 					assert.Contains(t, err.Error(), tc.errorMsg)
 				}
@@ -291,6 +298,7 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 	// Test with basic storage account creation configuration
 	t.Run("BasicStorageAccountConfig", func(t *testing.T) {
 		t.Parallel()
+
 		config := backend.Config{
 			"storage_account_name":                 "mystorageaccount",
 			"container_name":                       "terraform-state",
@@ -401,6 +409,7 @@ func TestAzureAuthenticationOptions(t *testing.T) {
 	// Test Azure AD authentication
 	t.Run("AzureADAuth", func(t *testing.T) {
 		t.Parallel()
+
 		config := backend.Config{
 			"storage_account_name": "mystorageaccount",
 			"container_name":       "terraform-state",
@@ -420,6 +429,7 @@ func TestAzureAuthenticationOptions(t *testing.T) {
 	// Test Managed Identity authentication
 	t.Run("ManagedIdentityAuth", func(t *testing.T) {
 		t.Parallel()
+
 		config := backend.Config{
 			"storage_account_name": "mystorageaccount",
 			"container_name":       "terraform-state",
@@ -439,6 +449,7 @@ func TestAzureAuthenticationOptions(t *testing.T) {
 	// Test service principal authentication
 	t.Run("ServicePrincipalAuth", func(t *testing.T) {
 		t.Parallel()
+
 		config := backend.Config{
 			"storage_account_name": "mystorageaccount",
 			"container_name":       "terraform-state",
@@ -501,6 +512,7 @@ func TestBlobServiceClientCreationError(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc // capture range variable
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -565,6 +577,7 @@ func TestContainerCreationError(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc // capture range variable
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -701,6 +714,7 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -850,6 +864,7 @@ func TestContainerNameValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc // capture range variable
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -965,6 +980,7 @@ func TestContainerNameValidation_AdditionalEdgeCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -986,6 +1002,7 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	b := azurerm.NewBackend(nil)
@@ -1069,15 +1086,18 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := b.Bootstrap(t.Context(), l, tc.config, opts)
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.expectedErrorType != nil {
 					require.ErrorAs(t, err, tc.expectedErrorType)
 				}
+
 				if tc.expectedErrorString != "" {
 					require.Contains(t, err.Error(), tc.expectedErrorString)
 				}
@@ -1089,10 +1109,11 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 // Test authentication configuration error paths in Bootstrap
 func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 	// Note: Cannot use t.Parallel() here because we use t.Setenv()
-
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
+
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	b := azurerm.NewBackend(nil)
@@ -1166,6 +1187,7 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			// Note: Cannot use t.Parallel() here because we use t.Setenv()
 
@@ -1183,9 +1205,11 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 			err := b.Bootstrap(t.Context(), l, tc.config, opts)
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.expectedErrorType != nil {
 					require.ErrorAs(t, err, tc.expectedErrorType)
 				}
+
 				if tc.expectedErrorString != "" {
 					require.Contains(t, err.Error(), tc.expectedErrorString)
 				}
@@ -1201,6 +1225,7 @@ func TestDelete_ErrorPathsDetailed(t *testing.T) {
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	b := azurerm.NewBackend(nil)
@@ -1265,16 +1290,19 @@ func TestDelete_ErrorPathsDetailed(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := b.Delete(t.Context(), l, tc.config, opts)
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.expectedErrorType != nil {
 					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
 					require.ErrorAs(t, err, &missingConfigError)
 				}
+
 				if tc.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorString)
 				}
@@ -1290,6 +1318,7 @@ func TestDeleteContainer_ErrorPathsDetailed(t *testing.T) {
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	b := azurerm.NewBackend(nil)
@@ -1330,16 +1359,19 @@ func TestDeleteContainer_ErrorPathsDetailed(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := b.DeleteContainer(t.Context(), l, tc.config, opts)
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.expectedErrorType != nil {
 					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
 					require.ErrorAs(t, err, &missingConfigError)
 				}
+
 				if tc.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorString)
 				}
@@ -1355,6 +1387,7 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	b := azurerm.NewBackend(nil)
@@ -1408,16 +1441,19 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := b.Migrate(t.Context(), l, tc.srcConfig, tc.dstConfig, opts)
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.expectedErrorType != nil {
 					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
 					require.ErrorAs(t, err, &missingConfigError)
 				}
+
 				if tc.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorString)
 				}
@@ -1430,6 +1466,7 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 // This test focuses only on config parsing errors that happen before Azure API calls
 func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
 	t.Parallel()
+
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1510,6 +1547,7 @@ func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// These tests only exercise config parsing, which should fail before Azure API calls
@@ -1531,6 +1569,7 @@ func TestDeleteStorageAccount_ConfigValidation(t *testing.T) {
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	b := azurerm.NewBackend(nil)

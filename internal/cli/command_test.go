@@ -156,6 +156,7 @@ func TestCommandRun(t *testing.T) {
 			t.Parallel()
 
 			var actualOrder = new(int)
+
 			action := func(expectedOrder int, expectedArgs []string) cli.ActionFunc {
 				return func(ctx *cli.Context) error {
 					(*actualOrder)++
@@ -186,7 +187,6 @@ func TestCommandRun(t *testing.T) {
 			} else {
 				require.NoError(t, err, tc)
 			}
-
 		})
 	}
 }

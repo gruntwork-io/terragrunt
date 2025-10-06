@@ -14,3 +14,8 @@ ec2:
   include:
     name_regex:
       - "^single-instance$"
+
+dynamodb:
+  include:
+    table_names_regex:
+      - "^terragrunt-test.*"

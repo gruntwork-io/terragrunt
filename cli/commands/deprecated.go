@@ -25,14 +25,6 @@ import (
 
 // The following commands are DEPRECATED
 const (
-	CommandSpinUpName      = "spin-up"
-	CommandTearDownName    = "tear-down"
-	CommandPlanAllName     = "plan-all"
-	CommandApplyAllName    = "apply-all"
-	CommandDestroyAllName  = "destroy-all"
-	CommandOutputAllName   = "output-all"
-	CommandValidateAllName = "validate-all"
-
 	CommandRunAllName             = "run-all"
 	CommandGraphName              = "graph"
 	CommandHCLFmtName             = "hclfmt"
@@ -47,15 +39,6 @@ const (
 // NewDeprecatedCommands returns a slice of deprecated commands to convert the command to the known alternative.
 func NewDeprecatedCommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	deprecatedCommands := DeprecatedCommands{
-		// legacy-all commands
-		newDeprecatedLegacyAllCommand(CommandSpinUpName, tf.CommandNameApply),
-		newDeprecatedLegacyAllCommand(CommandTearDownName, tf.CommandNameDestroy),
-		newDeprecatedLegacyAllCommand(CommandPlanAllName, tf.CommandNamePlan),
-		newDeprecatedLegacyAllCommand(CommandApplyAllName, tf.CommandNameApply),
-		newDeprecatedLegacyAllCommand(CommandDestroyAllName, tf.CommandNameDestroy),
-		newDeprecatedLegacyAllCommand(CommandValidateAllName, tf.CommandNameValidate),
-		newDeprecatedLegacyAllCommand(CommandOutputAllName, tf.CommandNameOutput),
-
 		// `hclfmt`
 		newDeprecatedCLIRedesignCommand(CommandHCLFmtName, cli.Args{
 			hcl.CommandName, format.CommandName}),
@@ -147,17 +130,6 @@ func NewDeprecatedCommands(l log.Logger, opts *options.TerragruntOptions) cli.Co
 	return append(deprecatedCommands.CLICommands(opts), deprecatedDefaultCommands...)
 }
 
-func newDeprecatedLegacyAllCommand(deprecatedCommandName, tfCommandName string) *DeprecatedCommand {
-	return &DeprecatedCommand{
-		commandName: deprecatedCommandName,
-		// we can't recoomand to use `run --all plan/apply/...` as alternative for `*-all` commands
-		// because `run` command doesn't allow TF flags to be specified before `--` separator.
-		replaceWithArgs: cli.Args{tfCommandName, "--" + runall.AllFlagName},
-		controlName:     controls.LegacyAll,
-		controlCategory: controls.RunAllCommandsCategoryName,
-	}
-}
-
 func newDeprecatedCLIRedesignCommand(deprecatedCommandName string, replaceWithArgs cli.Args, subcommands ...*DeprecatedCommand) *DeprecatedCommand {
 	cmd := &DeprecatedCommand{
 		subcommands:     subcommands,
@@ -204,21 +176,16 @@ func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions)
 		newCommand := "terragrunt " + run.CommandName + " -- " + runSubCmd.Name
 		control := controls.NewDeprecatedReplacedCommand(runSubCmd.Name, newCommand)
 		strictGroups.AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
+		ctl := control
 
 		cmd := &cli.Command{
 			Name:       runSubCmd.Name,
 			Usage:      runSubCmd.Usage,
 			Flags:      runCmd.Flags,
 			CustomHelp: runSubCmd.CustomHelp,
-			Before: func(ctx *cli.Context) error {
-				if err := control.Evaluate(ctx); err != nil {
-					return cli.NewExitError(err, cli.ExitCodeGeneralError)
-				}
-
-				return nil
-			},
+			// Removal of default command forwarding: immediately error with guidance to use `run --`.
 			Action: func(ctx *cli.Context) error {
-				return runSubCmd.Action(ctx)
+				return cli.NewExitError(ctl.Error, cli.ExitCodeGeneralError)
 			},
 			Hidden:                       true,
 			DisabledErrorOnUndefinedFlag: true,

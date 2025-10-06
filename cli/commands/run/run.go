@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
@@ -28,13 +29,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -74,7 +73,10 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
-const TerraformExtensionGlob = "*.tf"
+const (
+	TerraformExtensionGlob = "*.tf"
+	TofuExtensionGlob      = "*.tofu"
+)
 
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
@@ -216,7 +218,6 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, terragruntConfig, r)
 			return err
 		})
-
 		if err != nil {
 			return target.runErrorCallback(l, opts, terragruntConfig, err)
 		}
@@ -268,8 +269,10 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
+
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
+
 	actualLock.Lock()
 
 	for _, config := range cfg.GenerateConfigs {
@@ -307,7 +310,12 @@ func runTerragruntWithConfig(
 	r *report.Report,
 	target *Target,
 ) error {
-	// Add extra_arguments to the command
+	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
+
+		return nil
+	}
+
 	if cfg.Terraform != nil && cfg.Terraform.ExtraArgs != nil && len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, opts, cfg)
 
@@ -379,7 +387,7 @@ func runTerragruntWithConfig(
 
 // confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
 func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
-	modules := configstack.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
+	modules := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
 	if len(modules) != 0 {
 		if _, err := opts.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			l.Error(err)
@@ -446,6 +454,7 @@ func ShouldCopyLockFile(args cli.Args, terraformConfig *config.TerraformConfig) 
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func RunActionWithHooks(ctx context.Context, l log.Logger, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
 	var allErrors *errors.MultiError
+
 	beforeHookErrors := processHooks(ctx, l, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = allErrors.Append(beforeHookErrors)
 
@@ -511,6 +520,7 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.Terr
 						}
 					}
 				}
+
 				select {
 				case <-time.After(opts.RetrySleepInterval):
 					// try again
@@ -560,26 +570,7 @@ func prepareInitCommand(ctx context.Context, l log.Logger, terragruntOptions *op
 
 // CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
 func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
-	found := false
-
-	err := filepath.WalkDir(terragruntOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		if isTofuFile(path) {
-			found = true
-
-			return filepath.SkipAll
-		}
-
-		return nil
-	})
-
+	found, err := util.DirContainsTFFiles(terragruntOptions.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -591,24 +582,6 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 	return nil
 }
 
-// isTofuFile checks if a given file is an OpenTofu/Terraform file
-func isTofuFile(path string) bool {
-	suffixes := []string{
-		".tf",
-		".tofu",
-		".tf.json",
-		".tofu.json",
-	}
-
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(path, suffix) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
 func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
@@ -616,7 +589,8 @@ func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendTy
 		return errors.New(err)
 	}
 
-	definesBackend, err := util.Grep(terraformBackendRegexp, opts.WorkingDir+"/**/*.tf")
+	// Check for backend definitions in .tf and .tofu files using WalkDir
+	definesBackend, err := util.RegexFoundInTFFiles(opts.WorkingDir, terraformBackendRegexp)
 	if err != nil {
 		return err
 	}
@@ -784,12 +758,26 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 		return true, nil
 	}
 
-	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
+	// Check for module definitions in .tf and .tofu files using WalkDir
+	hasModuleDefinition, err := util.RegexFoundInTFFiles(terragruntOptions.WorkingDir, ModuleRegex)
+	if err != nil {
+		return false, err
+	}
+
+	return hasModuleDefinition, nil
 }
 
-// If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
-// before running the command.
+// remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
+// It returns true if:
+//   - BackendBootstrap is enabled in options
+//   - Remote state configuration is provided
+//   - The Terraform command uses state (e.g., plan, apply, destroy, output, etc.)
+//   - The remote state backend needs bootstrapping
 func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
+	// If backend bootstrap is disabled, we don't need to initialize remote state
+	if !opts.BackendBootstrap {
+		return false, nil
+	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
@@ -798,15 +786,6 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 
 	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts); err != nil || !ok {
 		return false, err
-	}
-
-	if !opts.BackendBootstrap {
-		ctx = log.ContextWithLogger(ctx, l)
-
-		strictControl := opts.StrictControls.Find(controls.RequireExplicitBootstrap)
-		if err := strictControl.Evaluate(ctx); err != nil {
-			return false, nil //nolint: nilerr
-		}
 	}
 
 	return true, nil

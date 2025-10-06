@@ -407,9 +407,11 @@ func TestInterfaceBasicUsage(t *testing.T) {
 	t.Parallel()
 
 	// Test that we can declare variables of interface types
-	var storageService interfaces.StorageAccountService
-	var blobService interfaces.BlobService
-	var resourceGroupService interfaces.ResourceGroupService
+	var (
+		storageService       interfaces.StorageAccountService
+		blobService          interfaces.BlobService
+		resourceGroupService interfaces.ResourceGroupService
+	)
 
 	// Test that interfaces can be assigned nil
 	storageService = nil

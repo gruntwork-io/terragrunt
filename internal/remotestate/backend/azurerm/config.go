@@ -408,7 +408,6 @@ func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm,
 // ExtendedAzureConfig parses and validates the config.
 func (cfg Config) ExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, error) {
 	extConfig, parseErr := cfg.ParseExtendedAzureConfig()
-
 	if parseErr != nil {
 		return nil, parseErr
 	}

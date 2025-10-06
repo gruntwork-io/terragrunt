@@ -278,6 +278,7 @@ func TestContextHandling(t *testing.T) {
 			ctx: func() context.Context {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 				defer cancel()
+
 				return ctx
 			}(),
 		},

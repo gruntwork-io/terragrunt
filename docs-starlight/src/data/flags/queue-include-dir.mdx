@@ -6,8 +6,18 @@ env:
   - TG_QUEUE_INCLUDE_DIR
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Specifies directories to include when running commands with [`--all`](/docs/reference/cli/commands/run#all).
 
 This flag can be specified multiple times to include multiple directories. When using the `TG_QUEUE_INCLUDE_DIR` environment variable, specify the directories as a comma-separated list.
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks/#the-run---all-command) feature documentation.
+To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
+
+<Aside type="note">
+Glob patterns must use Unix forward slashes `/` to separate directories, even on Windows machines.
+
+Glob behavior for `**` and `**/*` will change in a future version of Terragrunt.
+
+See the [double-star strict control](/docs/reference/strict-controls/#double-star) for full details.
+</Aside>

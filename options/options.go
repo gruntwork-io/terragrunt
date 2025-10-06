@@ -82,7 +82,7 @@ const (
 )
 
 var (
-	DefaultWrappedPath = identifyDefaultWrappedExecutable()
+	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
 
 	defaultProviderCacheRegistryNames = []string{
 		"registry.terraform.io",
@@ -165,8 +165,8 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// Location of the terraform binary
-	TerraformPath string
+	// Location (or name) of the OpenTofu/Terraform binary
+	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 	// Original Terraform command being executed by Terragrunt.
@@ -343,6 +343,12 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
+	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
+	TFPathExplicitlySet bool
+	// FailFast is a flag to stop execution on the first error in apply of units.
+	FailFast bool
+	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
+	NoDependencyPrompt bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -410,7 +416,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 // NewTerragruntOptionsWithWritersContext creates a new TerragruntOptions object with the provided writers and context.
 func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr io.Writer) *TerragruntOptions {
 	opts := &TerragruntOptions{
-		TerraformPath:                  DefaultWrappedPath,
+		TFPath:                         DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
@@ -461,6 +467,7 @@ func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr 
 		NoStackGenerate:            false,
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
+		NoDependencyPrompt:         false,
 	}
 
 	// Run any registered options hooks
@@ -606,6 +613,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Options must be inserted after command but before the other args
 	// command is either 1 word or 2 words
 	var args []string
+
 	args = append(args, opts.TerraformCliArgs[:commandLength]...)
 	args = append(args, restArgs...)
 	args = append(args, opts.TerraformCliArgs[commandLength:]...)
@@ -705,8 +713,8 @@ func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []s
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
-func identifyDefaultWrappedExecutable() string {
-	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
+func identifyDefaultWrappedExecutable(ctx context.Context) string {
+	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
 	// fallback to Terraform if tofu is not available
@@ -847,8 +855,8 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
-	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 
+	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 	if err != nil {
 		return err
 	}

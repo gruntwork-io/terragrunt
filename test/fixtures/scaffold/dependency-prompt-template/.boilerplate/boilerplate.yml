@@ -1,0 +1,10 @@
+# boilerplate config
+
+dependencies:
+  - name: base
+    template-url: ../base
+    output-folder: base/
+
+  - name: leaf
+    template-url: ../leaf
+    output-folder: leaf/

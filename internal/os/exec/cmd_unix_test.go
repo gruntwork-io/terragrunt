@@ -25,7 +25,7 @@ func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
 
 	for index := 0; index <= 255; index++ {
-		cmd := exec.Command("testdata/test_exit_code.sh", strconv.Itoa(index))
+		cmd := exec.Command(t.Context(), "testdata/test_exit_code.sh", strconv.Itoa(index))
 		err := cmd.Run()
 
 		if index == 0 {
@@ -33,6 +33,7 @@ func TestExitCodeUnix(t *testing.T) {
 		} else {
 			require.Error(t, err)
 		}
+
 		retCode, err := util.GetExitCode(err)
 		require.NoError(t, err)
 		assert.Equal(t, index, retCode)
@@ -50,7 +51,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	expectedWait := 5
 
-	cmd := exec.Command("testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+	cmd := exec.Command(t.Context(), "testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 
 	runChannel := make(chan error)
 
@@ -60,6 +61,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	time.Sleep(time.Second)
 	start := time.Now()
+
 	cmd.Process.Signal(os.Interrupt)
 
 	err := <-runChannel
@@ -79,7 +81,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	expectedInterrupts := 10
 
-	cmd := exec.Command("testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
+	cmd := exec.Command(t.Context(), "testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
 
 	runChannel := make(chan error)
 
@@ -90,15 +92,20 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	time.Sleep(time.Second)
 
 	interruptAndWaitForProcess := func() (int, error) {
-		var interrupts int
-		var err error
+		var (
+			interrupts int
+			err        error
+		)
+
 		for {
 			time.Sleep(500 * time.Millisecond)
+
 			select {
 			case err = <-runChannel:
 				return interrupts, err
 			default:
 				cmd.Process.Signal(os.Interrupt)
+
 				interrupts++
 			}
 		}

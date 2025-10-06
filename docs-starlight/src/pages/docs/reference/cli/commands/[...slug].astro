@@ -4,6 +4,7 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import { getCollection } from 'astro:content';
 import { getHeadings } from '@lib/commands/headings';
 import { getSidebar } from '@lib/commands/sidebar';
+import { string } from 'astro:schema';
 
 export const prerender = true;
 
@@ -47,4 +48,3 @@ const { name, path, description, headings, sidebar } = Astro.props;
 >
 	<Command path={path} />
 </StarlightPage>
-

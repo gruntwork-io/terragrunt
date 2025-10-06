@@ -49,6 +49,7 @@ func NewMockServices(config *TestingServicesConfig) (interfaces.StorageAccountSe
 			if config.DownloadError != nil {
 				return nil, config.DownloadError
 			}
+
 			return &types.GetObjectOutput{
 				Content: []byte("mock-state-data"),
 			}, nil

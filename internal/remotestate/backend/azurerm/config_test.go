@@ -20,6 +20,7 @@ import (
 func setupOptionsWithExperiment(experimentName string) *options.TerragruntOptions {
 	opts := options.NewTerragruntOptions()
 	opts.Experiments.EnableExperiment(experimentName)
+
 	return opts
 }
 
@@ -28,6 +29,7 @@ func setupOptionsWithExperiment(experimentName string) *options.TerragruntOption
 func setupWithAzureBackendExperiment() *options.TerragruntOptions {
 	opts := setupOptionsWithExperiment(experiment.AzureBackend)
 	remotestate.RegisterBackends(context.Background(), opts)
+
 	return opts
 }
 
@@ -41,6 +43,7 @@ func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArg
 
 func TestFilterOutTerragruntKeys(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		config   azurerm.Config
 		expected azurerm.Config
@@ -87,6 +90,7 @@ func TestFilterOutTerragruntKeys(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			filtered := tc.config.FilterOutTerragruntKeys()
 			// Convert filtered map[string]interface{} to Config for comparison
 			filteredConfig := azurerm.Config(filtered)
@@ -151,7 +155,6 @@ func TestParseExtendedAzureConfig(t *testing.T) {
 				assert.Equal(t, tc.config["storage_account_name"], config.RemoteStateConfigAzurerm.StorageAccountName)
 				assert.Equal(t, tc.config["container_name"], config.RemoteStateConfigAzurerm.ContainerName)
 				assert.Equal(t, tc.config["key"], config.RemoteStateConfigAzurerm.Key)
-
 			}
 		},
 		)
@@ -552,6 +555,7 @@ func TestBackendConfigValidation(t *testing.T) {
 
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.errorMsg != "" {
 					assert.Contains(t, err.Error(), tc.errorMsg)
 				}

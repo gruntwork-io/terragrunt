@@ -162,13 +162,13 @@ Provide your feedback on the [Runner Pool](https://github.com/gruntwork-io/terra
 To transition the `runner-pool` feature to a stable release, the following must be addressed:
 
 - [x] Use new discovery and queue packages to discover units.
-- [ ] Add support for including/excluding external units in the discovery process.
-- [ ] Add runner pool implementation to execute discovered units.
-- [ ] Add integration tests to track that the runner pool works in the same way as the current implementation.
-- [ ] Add performance tests to track that the runner pool implementation is faster than the current implementation.
-- [ ] Add support for fail fast behavior in the runner pool.
-- [ ] Improve the UI to queue to apply.
-- [ ] Add OpenTelemetry support to the runner pool.
+- [x] Add support for including/excluding external units in the discovery process.
+- [x] Add runner pool implementation to execute discovered units.
+- [x] Add integration tests to track that the runner pool works in the same way as the current implementation.
+- [x] Add performance tests to track that the runner pool implementation is faster than the current implementation.
+- [x] Add support for fail fast behavior in the runner pool.
+- [x] Improve the UI to queue to apply.
+- [x] Add OpenTelemetry support to the runner pool.
 
 ### `azure-backend`
 

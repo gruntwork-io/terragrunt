@@ -43,7 +43,9 @@ func TestPrintRawOutputsBasicTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var buffer bytes.Buffer
+
 			outputs := cty.ObjectVal(map[string]cty.Value{
 				"key1": tt.value,
 			})
@@ -59,6 +61,7 @@ func TestPrintRawOutputsComplexObject(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"key1": cty.MapVal(map[string]cty.Value{
 			"nested": cty.StringVal("value"),
@@ -75,6 +78,7 @@ func TestPrintRawOutputsMultipleKeys(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"key1": cty.StringVal("value1"),
 		"key2": cty.NumberIntVal(2),
@@ -89,6 +93,7 @@ func TestPrintRawOutputsList(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"key1": cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
 	})
@@ -104,6 +109,7 @@ func TestPrintRawOutputsNil(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	err := stack.PrintRawOutputs(nil, &buffer, cty.NilVal)
 	require.NoError(t, err)
 	assert.Empty(t, buffer.String())
@@ -113,6 +119,7 @@ func TestPrintOutputs(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"key1": cty.StringVal("value1"),
 		"key2": cty.NumberIntVal(2),
@@ -128,6 +135,7 @@ func TestPrintJSONOutput(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"key1": cty.StringVal("value1"),
 		"key2": cty.NumberIntVal(2),
@@ -213,7 +221,9 @@ func TestPrintRawOutputsEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var buffer bytes.Buffer
+
 			err := stack.PrintRawOutputs(nil, &buffer, tt.outputs)
 
 			if tt.expectError {
@@ -292,6 +302,7 @@ func TestPrintRawOutputsSpecialCharacters(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"special": cty.StringVal("value with spaces, quotes \" and special chars @#$%^&*()"),
 	})
@@ -307,6 +318,7 @@ func TestPrintRawOutputsNullValue(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
+
 	outputs := cty.ObjectVal(map[string]cty.Value{
 		"null_val": cty.NullVal(cty.String),
 	})
@@ -363,9 +375,12 @@ func TestPrintOutputsEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var buffer bytes.Buffer
+
 			err := stack.PrintOutputs(&buffer, tt.outputs)
 			require.NoError(t, err)
+
 			output := buffer.String()
 			for _, expectedLine := range tt.expected {
 				assert.Contains(t, output, expectedLine)
@@ -421,9 +436,12 @@ func TestPrintJSONOutputEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var buffer bytes.Buffer
+
 			err := stack.PrintJSONOutput(&buffer, tt.outputs)
 			require.NoError(t, err)
+
 			if tt.isNil {
 				assert.Equal(t, tt.expected, buffer.String())
 			} else {
@@ -461,7 +479,9 @@ func TestPrintRawOutputsNestedValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var buffer bytes.Buffer
+
 			outputs := cty.ObjectVal(map[string]cty.Value{
 				"parent": cty.ObjectVal(map[string]cty.Value{
 					"child": cty.ObjectVal(map[string]cty.Value{
@@ -514,6 +534,7 @@ func TestPrintRawOutputsSpecialCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var buffer bytes.Buffer
 
 			err := stack.PrintRawOutputs(nil, &buffer, tt.outputs)

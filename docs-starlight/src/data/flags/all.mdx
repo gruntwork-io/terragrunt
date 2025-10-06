@@ -18,7 +18,7 @@ terragrunt run --all plan
 
 This will run the `plan` command against all units in the current stack.
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks/#the-run---all-command) feature documentation.
+To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
 
 <Aside type="note">
 Terragrunt has a notion of "external dependencies". These are units that are not part of the current stack, from the perspective of the current working directory, but are dependencies of units that are part of the current stack.
@@ -32,4 +32,31 @@ If you would like to suppress this prompt, you can use the [`--non-interactive` 
 When running a `run --all destroy` command, Terragrunt will destroy all dependencies of the units under the current working directory, in addition to the units themselves by default!
 
 If you wish to prevent external dependencies from being destroyed, add the [`--queue-exclude-external` flag](/docs/reference/cli/commands/run#queue-exclude-external), or use the [`--exclude-dir` flag](/docs/reference/cli/commands/run#exclude-dir) once for each directory you wish to exclude.
+</Aside>
+
+<Aside type="caution">
+Use `run --all` with care if you have unapplied dependencies.
+
+If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
+and you've never deployed them, then commands like `run --all plan` will fail,
+as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
+
+The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/hcl/blocks/#dependency).
+</Aside>
+
+<Aside type="note">
+Using `run --all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
+arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
+
+</Aside>
+
+<Aside type="note">
+Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options)
+flag with the `run --all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
+
+The algorithm for determining the aggregate exit code is as follows:
+
+- If any unit throws a 1, Terragrunt will throw a 1.
+- If any unit throws a 2, but nothing throws a 1, Terragrunt will throw a 2.
+- If nothing throws a non-zero, Terragrunt will throw a 0.
 </Aside>

@@ -77,7 +77,6 @@ func (h *ErrorHandler) WithErrorHandling(
 		"status":      "success",
 		"duration_ms": duration.Milliseconds(),
 	}
-
 	// Add resource information if provided
 	if resourceType != "" {
 		attrs["resource_type"] = resourceType
@@ -101,7 +100,6 @@ func (h *ErrorHandler) WithRetryableErrorHandling(
 	fn func() error,
 ) (error, bool) {
 	err := h.WithErrorHandling(ctx, operation, resourceType, resourceName, fn)
-
 	if err != nil {
 		return err, h.isRetryableError(err)
 	}

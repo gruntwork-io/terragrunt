@@ -39,7 +39,9 @@ func TestWithErrorHandling_Success(t *testing.T) {
 
 	// Set up
 	collector := &MockTelemetryCollector{}
+
 	var logger log.Logger // Using a nil logger for tests
+
 	handler := NewErrorHandler(collector, logger)
 	ctx := context.Background()
 
@@ -66,7 +68,9 @@ func TestWithErrorHandling_Error(t *testing.T) {
 
 	// Set up
 	collector := &MockTelemetryCollector{}
+
 	var logger log.Logger // Using a nil logger for tests
+
 	handler := NewErrorHandler(collector, logger)
 	ctx := context.Background()
 	testError := errors.New("test error")
@@ -474,6 +478,7 @@ func TestErrorHandlerContextPropagation(t *testing.T) {
 			ctx: func() context.Context {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
+
 				return ctx
 			}(),
 		},

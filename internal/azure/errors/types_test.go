@@ -369,6 +369,7 @@ func TestAzureErrorResourceInformation(t *testing.T) {
 			// Test that error string includes resource information
 			errStr := err.Error()
 			assert.Contains(t, strings.ToLower(errStr), strings.ToLower(string(tc.resourceType)))
+
 			if tc.resourceName != "" {
 				assert.Contains(t, strings.ToLower(errStr), strings.ToLower(tc.resourceName))
 			}

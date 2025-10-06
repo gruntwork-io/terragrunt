@@ -1,0 +1,105 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+import { ArrowRight } from 'lucide-react';
+
+import BackgroundPattern from '@assets/boxes-bg.svg';
+import DriftIcon from '@assets/icons/drift-icon.svg';
+import grunty from '@assets/grunty/grunty.svg';
+import IconPipelines from '@assets/icons/ci-cd-icon.svg';
+import PatcherIcon from '@assets/icons/patcher-icon.svg';
+
+import ButtonLink from '@components/ui/ButtonLink';
+
+const TerragruntScaleLink = '/terragrunt-scale';
+---
+
+<!-- Section -->
+<section class="relative px-5 pt-10 md:pt-36 w-full">
+    <Image
+        src={grunty}
+        alt="Grunty"
+        class="absolute -bottom-38 md:-bottom-24 lg:-bottom-26 xl:-bottom-22 right-0 md:-right-4 lg:right-5 xl:-right-24 z-20 pointer-events-none select-none w-40 md:w-52 xl:w-60 h-auto"
+    />
+    <!-- upsell -->
+    <div class="relative bg-bg-dark overflow-hidden border-[6px] border-[#E6E6E6] rounded-3xl">
+        <Image
+            alt="Isometric background pattern"
+            class="absolute bottom-[-80px] min-w-[100vw] h-auto max-w-none pointer-events-none select-none opacity-50"
+            src={BackgroundPattern}
+        />
+        <div class="flex flex-col py-8 md:py-0 md:pt-20 md:pb-[100px] justify-center items-center z-10">
+            <!-- Header Section -->
+            <div class="flex flex-col px-5 xl:px-20 pb-10 md:pb-[60px] gap-4 md:text-center lg:items-center">
+                <h3 class="text-4xl md:text-[42px] font-sans text-white m-0">
+                  <span class="text-accent-3">Supercharge</span> Terragrunt for your Organization
+                </h3>
+                <p class="text-gray-1 font-sans lg:w-[594px]">
+                  Unlock Terragrunt’s full potential with Terragrunt Scale — purpose-built tooling that streamlines deploying and operating your infrastructure.
+                </p>
+            </div>
+            <!-- Wrapper -->
+            <div class="flex flex-col md:flex-row px-8 gap-8 lg:px-20 lg:gap-20">
+
+                <!-- Item -->
+                <div class="flex flex-col gap-6 z-30 w-full md:w-1/3">
+                  <Image
+                    alt="Pipelines Icon"
+                    class={"aspect-[1/1] h-auto"}
+                    height={44}
+                    src={IconPipelines}
+                    width={44}
+                  />
+                  <div class="flex flex-col gap-1">
+                      <p class="text-white font-sans text-xl font-medium m-0">Automate your CI/CD</p>
+                      <p class="text-gray-1 font-sans text-sm"><span class="text-white">Gruntwork Pipelines</span> is an out-of-the-box, best practices, secure CI/CD pipeline, built for Terragrunt, by the creators of Terragrunt.</p>
+                  </div>
+                </div>
+                <!-- Item -->
+                <div class="flex flex-col gap-6 z-30 w-full md:w-1/3">
+                  <Image
+                    alt="Drift Icon"
+                    class={"aspect-[1/1] h-auto"}
+                    height={44}
+                    src={DriftIcon}
+                    width={44}
+                  />
+                  <div class="flex flex-col gap-1">
+                    <p class="text-white font-sans text-xl font-medium m-0">
+                      Remediate infra drift
+                    </p>
+                    <p class="text-gray-1 font-sans text-sm">
+                      <span class="text-white">Terragrunt Drift Detection</span> regularly compares your live cloud resources to your IaC and automatically opens pull requests to eliminate infrastructure drift.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Item -->
+                <div class="flex flex-col gap-6 z-30 w-full md:w-1/3">
+                  <Image
+                    alt=""
+                    aria-hidden="true"
+                    class="aspect-square h-auto"
+                    height={44}
+                    src={PatcherIcon}
+                    width={44}
+                  />
+                  <div class="flex flex-col gap-1">
+                    <p class="text-white font-sans text-xl font-medium m-0">
+                      Keep your IaC Fresh
+                    </p>
+                    <p class="text-gray-1 font-sans text-sm font-normal">
+                      <span class="text-white">Gruntwork Patcher</span> is a dependency management tool that keeps your OpenTofu/Terraform modules up to date, even through breaking changes.
+                    </p>
+                  </div>
+                </div>
+            </div>
+            <div class="relative mt-12 px-5 md:px-12 lg:px-8">
+              <ButtonLink href={TerragruntScaleLink} variant="primary">
+                <span>Learn about Terragrunt Scale</span>
+                <ArrowRight className="inline-block ml-1 transform translate-y-0.75 -translate-x-0.75 w-4 h-4" aria-label="External link icon" />
+              </ButtonLink>
+            </div>
+        </div>
+    </div>
+</section>

@@ -17,6 +17,7 @@ import (
 func createTestLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
+
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
@@ -48,6 +49,7 @@ func TestWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	callCount := 0
 	operation := func() error {
 		callCount++
+
 		return nil
 	}
 
@@ -80,6 +82,7 @@ func TestWithRetry_SuccessAfterRetries(t *testing.T) {
 				StatusCode: 503,
 			}
 		}
+
 		return nil
 	}
 
@@ -110,6 +113,7 @@ func TestWithRetry_MaxRetriesExceeded(t *testing.T) {
 	callCount := 0
 	operation := func() error {
 		callCount++
+
 		return azurerm.TransientAzureError{
 			Underlying: errors.New("permanent failure"),
 			Operation:  "test",
@@ -179,6 +183,7 @@ func TestWithRetry_ContextCancellation(t *testing.T) {
 				cancel()
 			}()
 		}
+
 		return azurerm.TransientAzureError{
 			Underlying: errors.New("transient failure"),
 			Operation:  "test",

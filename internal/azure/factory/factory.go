@@ -191,6 +191,7 @@ func (f *AzureServiceFactory) GetStorageAccountService(ctx context.Context, l lo
 	}
 
 	f.cacheMutex.RUnlock()
+
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
 
@@ -243,6 +244,7 @@ func (f *AzureServiceFactory) GetBlobService(ctx context.Context, l log.Logger, 
 	}
 
 	f.cacheMutex.RUnlock()
+
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
 
@@ -301,6 +303,7 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 	}
 
 	f.cacheMutex.RUnlock()
+
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
 
@@ -353,6 +356,7 @@ func (f *AzureServiceFactory) GetAuthenticationService(ctx context.Context, l lo
 func (f *AzureServiceFactory) RegisterStorageAccountService(service interfaces.StorageAccountService) {
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
+
 	f.customStorageAccountService = service
 }
 
@@ -360,6 +364,7 @@ func (f *AzureServiceFactory) RegisterStorageAccountService(service interfaces.S
 func (f *AzureServiceFactory) RegisterBlobService(service interfaces.BlobService) {
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
+
 	f.customBlobService = service
 }
 
@@ -367,6 +372,7 @@ func (f *AzureServiceFactory) RegisterBlobService(service interfaces.BlobService
 func (f *AzureServiceFactory) RegisterResourceGroupService(service interfaces.ResourceGroupService) {
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
+
 	f.customResourceGroupService = service
 }
 
@@ -374,6 +380,7 @@ func (f *AzureServiceFactory) RegisterResourceGroupService(service interfaces.Re
 func (f *AzureServiceFactory) RegisterRBACService(service interfaces.RBACService) {
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
+
 	f.customRBACService = service
 }
 
@@ -381,6 +388,7 @@ func (f *AzureServiceFactory) RegisterRBACService(service interfaces.RBACService
 func (f *AzureServiceFactory) RegisterAuthenticationService(service interfaces.AuthenticationService) {
 	f.cacheMutex.Lock()
 	defer f.cacheMutex.Unlock()
+
 	f.customAuthService = service
 }
 

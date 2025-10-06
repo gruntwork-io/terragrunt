@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -90,8 +91,45 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 
 	providerBlock.Body().SetAttributeValue("version", cty.StringVal(provider.Version()))
 
-	// Constraints can contain multiple constraint expressions, including comparison operators, but in the Terragrunt Provider Cache use case, we assume that the required_providers are pinned to a specific version to detect the required version without terraform init, so we can simply specify the constraints attribute as the same as the version. This may differ from what terraform generates, but we expect that it doesn't matter in practice.
-	providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(provider.Version()))
+	// If version constraints exist in current lock file and match the new version, we keep them unchanged.
+	// Otherwise, we specify the constraints attribute the same as the version.
+	currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+
+	shouldUpdateConstraints := false
+
+	if currentConstraintsAttr != nil {
+		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+		// If current version constraints are malformed, we should update it.
+		if err != nil {
+			shouldUpdateConstraints = true
+		} else {
+			newVersion, _ := version.NewVersion(provider.Version())
+			// If current version constrains do not match the new provider version, we should update it.
+			if !currentConstraints.Check(newVersion) {
+				shouldUpdateConstraints = true
+			} else {
+				// Even if current constraints are valid, check if module constraints have changed
+				moduleConstraints := provider.Constraints()
+				if moduleConstraints != "" && moduleConstraints != currentConstraintsValue {
+					shouldUpdateConstraints = true
+				}
+			}
+		}
+	} else {
+		// If there is no constraints attribute, we should update it.
+		shouldUpdateConstraints = true
+	}
+
+	if shouldUpdateConstraints {
+		// Use module constraints if available, otherwise fall back to exact version
+		constraintsValue := provider.Constraints()
+		if constraintsValue == "" {
+			constraintsValue = provider.Version()
+		}
+
+		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
+	}
 
 	h1Hash, err := PackageHashV1(provider.PackageDir())
 	if err != nil {
@@ -134,7 +172,6 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 
 	// a version attribute found
 	versionVal := getAttributeValueAsUnquotedString(versionAttr)
-	provider.Logger().Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
 
 	if versionVal == provider.Version() {
 		// if version is equal, get already existing hashes from lock file to merge.
@@ -209,4 +246,52 @@ func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenCBrack, Bytes: []byte{']'}})
 
 	return tokens
+}
+
+// UpdateLockfileConstraints updates only the constraints in an existing lock file
+// This is used for upgrade scenarios where module constraints have changed
+// but no providers were newly downloaded
+func UpdateLockfileConstraints(ctx context.Context, workingDir string, constraints ProviderConstraints) error {
+	filename := filepath.Join(workingDir, tf.TerraformLockFile)
+
+	if !util.FileExists(filename) {
+		return nil // No lock file to update
+	}
+
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	file, diags := hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return errors.New(diags)
+	}
+
+	updated := false
+
+	// Update constraints for each provider in the lock file
+	for providerAddr, newConstraint := range constraints {
+		providerBlock := file.Body().FirstMatchingBlock("provider", []string{providerAddr})
+		if providerBlock != nil {
+			currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+			if currentConstraintsAttr != nil {
+				currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+				if currentConstraintsValue != newConstraint {
+					providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+
+					updated = true
+				}
+			}
+		}
+	}
+
+	if updated {
+		const ownerWriteGlobalReadPerms = 0644
+		if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
+			return errors.New(err)
+		}
+	}
+
+	return nil
 }

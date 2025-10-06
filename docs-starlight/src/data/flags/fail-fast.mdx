@@ -1,0 +1,17 @@
+---
+name: fail-fast
+description: Fail the run if any unit fails, stopping all remaining units immediately.
+type: bool
+env:
+  - TG_FAIL_FAST
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When enabled, Terragrunt will fail the entire run as soon as any unit fails. If any unit encounters an error during execution, all remaining units will be skipped and the run will exit with a failure status immediately.
+
+This is useful for enforcing strict failure handling in CI/CD pipelines or when you want to stop processing on the first error.
+
+<Aside type="caution">
+Currently, `--fail-fast` is honored only when the `runner-pool` experiment is enabled.
+</Aside>

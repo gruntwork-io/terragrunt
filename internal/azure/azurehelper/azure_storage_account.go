@@ -736,7 +736,6 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 	}
 
 	// Delete the storage account
-
 	if _, err := c.client.Delete(ctx, c.resourceGroupName, c.storageAccountName, nil); err != nil {
 		return errors.Errorf("error deleting storage account: %w", err)
 	}
@@ -749,8 +748,8 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 // EnsureResourceGroup creates a resource group if it doesn't exist
 func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error {
 	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
-	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
 
+	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
 	if err != nil {
 		return fmt.Errorf("error creating resource group client: %w", err)
 	}
@@ -956,7 +955,6 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 	}
 
 	var respErr *azcore.ResponseError
-
 	if errors.As(err, &respErr) && respErr.StatusCode == httpStatusConflict {
 		if isServicePrincipal {
 			l.Infof("Storage Blob Data Owner role already assigned to service principal %s", userObjectID)
@@ -983,8 +981,8 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 			GenerateUUID()[0:4],
 			GenerateUUID()[0:12])
 		l.Infof("Retrying with alternative role assignment ID format: %s", roleAssignmentID)
-		_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
 
+		_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
 		if retryErr == nil {
 			l.Info("Successfully created role assignment with alternative ID format")
 

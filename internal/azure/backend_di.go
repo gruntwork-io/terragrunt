@@ -45,7 +45,6 @@ func NewAzureBackendDependencies(
 	container := impl.NewProductionServiceContainer(config)
 
 	storageAccountService, err := container.GetStorageAccountService(ctx, l, config)
-
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +53,8 @@ func NewAzureBackendDependencies(
 	blobConfig := mergeConfig(config, map[string]interface{}{
 		"options": opts,
 	})
-	blobService, err := container.GetBlobService(ctx, l, blobConfig)
 
+	blobService, err := container.GetBlobService(ctx, l, blobConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +63,8 @@ func NewAzureBackendDependencies(
 	rgConfig := mergeConfig(config, map[string]interface{}{
 		"subscriptionId": subscriptionID,
 	})
-	resourceGroupService, err := container.GetResourceGroupService(ctx, l, rgConfig)
 
+	resourceGroupService, err := container.GetResourceGroupService(ctx, l, rgConfig)
 	if err != nil {
 		return nil, err
 	}

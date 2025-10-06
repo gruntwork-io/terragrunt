@@ -31,7 +31,6 @@ func TestIsolatedAzureExample(t *testing.T) {
 
 	// Get blob client for the isolated resources
 	blobClient := GetAzureBlobClient(t, config)
-
 	// Ensure container exists
 	EnsureContainerExists(t, config, blobClient)
 
@@ -96,7 +95,6 @@ func TestContainerOnlyIsolation(t *testing.T) {
 func TestParallelSafeIsolation(t *testing.T) {
 	// This test demonstrates how to safely run tests in parallel
 	// Each test gets its own isolated resources based on the test name and timestamp
-
 	t.Parallel() // Safe to run in parallel because of resource isolation
 
 	// Get isolated Azure configuration

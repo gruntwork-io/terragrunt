@@ -135,16 +135,14 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 
 		return nil, errors.Errorf("error creating blob client with default credential: %w", err)
 	}
-
 	// Check if we can access the service endpoint to verify the storage account exists and is accessible
 	// Try to get properties of a non-existent container to test connectivity
 	testContainerName := "terragrunt-connectivity-test"
 	testContainer := client.ServiceClient().NewContainerClient(testContainerName)
-	_, err = testContainer.GetProperties(ctx, nil)
 
+	_, err = testContainer.GetProperties(ctx, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
-
 		switch {
 		case errors.As(err, &respErr) && respErr.ErrorCode == "ContainerNotFound":
 			// This is actually good - it means we reached the storage account but the container doesn't exist

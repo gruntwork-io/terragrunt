@@ -56,6 +56,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
+
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, modulePath := range tc.expectedModules {
@@ -73,7 +74,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
 				require.NoError(t, err)
 
-				assert.NotContainsf(t, output, "Module "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
+				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
 			}
 		})
 	}
@@ -119,6 +120,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
+
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, modulePath := range tc.expectedModules {
@@ -136,7 +138,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
 				require.NoError(t, err)
 
-				assert.NotContainsf(t, output, "Module "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
+				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
 			}
 		})
 	}
@@ -153,5 +155,6 @@ func prepareGraphFixture(t *testing.T) string {
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
+
 	return tmpEnvPath
 }

@@ -188,6 +188,7 @@ func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
+
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
@@ -203,7 +204,7 @@ func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 func terragruntOptionsWithHookEnvs(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
 	newOpts := *opts
 	newOpts.Env = cloner.Clone(opts.Env)
-	newOpts.Env[HookCtxTFPathEnvName] = opts.TerraformPath
+	newOpts.Env[HookCtxTFPathEnvName] = opts.TFPath
 	newOpts.Env[HookCtxCommandEnvName] = opts.TerraformCommand
 	newOpts.Env[HookCtxHookNameEnvName] = hookName
 

@@ -1,0 +1,56 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import Card from '@components/dv-Card.astro';
+
+import PatternDotsRight from '@assets/pattern-dots-right.svg';
+
+const hooksLink = '/docs/features/hooks';
+const errorHandlingLink = '/docs/features/runtime-control/#errors';
+const featureFlagsLink = '/docs/features/runtime-control/#feature-flags';
+const catalogLink = '/docs/features/catalog';
+const scaffoldLink = '/docs/features/scaffold';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+    <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+        <!-- Header Section -->
+        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+            <Eyebrow text="CONSISTENCY" />
+            <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">Codify <span class="text-accent">Tribal</span> Knowledge</h2>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col lg:flex-row md:px-6">
+            <Card title="Automate Using Hooks" titleSize="text-md" class="border-x md:border-x-0 lg:border-l">
+                <p class="text-sm font-sans text-gray-1">Don’t pretend you’ll always remember to do things before/after updating IaC. Codify those tasks with <a href={hooksLink}>hooks</a> so that they’re done automatically.</p>
+            </Card>
+            <Card title="Handle Expected Errors" titleSize="text-md" class="border-x md:border-x-0 border-y-0 lg:border">
+                <p class="text-sm font-sans text-gray-1">You know networks can be flaky, and cloud providers aren’t perfect. Automatically handle the errors they produce using built-in <a href={errorHandlingLink}>error handling</a>.</p>
+            </Card>
+            <Card title="Integrate Early and Often" titleSize="text-md" class="border-x md:border-x-0 lg:border-r">
+                <p class="text-sm font-sans text-gray-1">Get you and your teammates on the same page. Work on a consistent, unified codebase, but gradually roll out new infrastructure features using <a href={featureFlagsLink}>feature flags</a>.</p>
+            </Card>
+        </div>
+        <div class="md:px-6">
+            <div class="flex items-center h-[72px] md:h-auto justify-center md:justify-between md:pl-6 border-dashed border-x border-gray-3">
+                <p class="text-3xl md:text-[34px] font-sans">and <span class="text-accent">Enable</span> Self-Service</p>
+                <Image
+                    src={PatternDotsRight}
+                    alt="Dots Pattern"
+                    class="hidden md:block"
+                />
+            </div>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col lg:flex-row md:px-6">
+            <Card title="Leverage a Proven Infrastructure Catalog" titleSize="text-md" class="border-x md:border-x-0 lg:border-x border-b-0 md:border-r-0 lg:border-b">
+                <p class="text-sm font-sans text-gray-1">Catalog standard infrastructure patterns for reuse across your organization using the <a href={catalogLink}>catalog</a> Terminal User Interface (TUI).</p>
+            </Card>
+            <Card title="Empower All Your Engineers" titleSize="text-md" class="md:border-x-0 lg:border-r">
+                <p class="text-sm font-sans text-gray-1">Design opinionated templates to <a href={scaffoldLink}>scaffold</a> exactly the right infrastructure that’s needed without writing any IaC by hand.</p>
+            </Card>
+        </div>
+    </div>
+</section>

@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/options"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -221,7 +220,6 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 			}
 
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -231,7 +229,6 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	}
 
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
-
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -303,6 +300,8 @@ func PartialParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string
 		if err != nil {
 			return nil, err
 		}
+
+		hclCache.Put(ctx, cacheKey, file)
 	}
 
 	return TerragruntConfigFromPartialConfig(ctx, l, file, include)
@@ -536,6 +535,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
+
 				ok := errors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
@@ -571,14 +571,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
 			}
 
-			// By default, we use the tofu binary if it's available.
-			//
-			// If we reach this stage, the user has explicitly set a value for the `terraform_binary` attribute,
-			// _and_ the value is the default tofu path (which is what it is if they don't use the --tf-path flag),
-			// we use the value they set in their configuration.
-			//
-			// Otherwise, we assume that they've explicitly set the path they want to use via the --tf-path flag.
-			if decoded.TerraformBinary != nil && ctx.TerragruntOptions.TerraformPath == options.DefaultWrappedPath {
+			// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
+			if !ctx.TerragruntOptions.TFPathExplicitlySet && decoded.TerraformBinary != nil {
 				output.TerraformBinary = *decoded.TerraformBinary
 			}
 
@@ -600,8 +594,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
-			err := file.Decode(&decoded, evalParsingContext)
 
+			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
@@ -631,8 +625,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 		case ErrorsBlock:
 			decoded := terragruntErrors{}
-			err := file.Decode(&decoded, evalParsingContext)
 
+			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
@@ -712,12 +706,23 @@ func partialParseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfi
 		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	return PartialParseConfigFile(
+	config, err := PartialParseConfigFile(
 		ctx,
 		l,
 		includePath,
 		includedConfig,
 	)
+	if err != nil {
+		// Convert generic config not found error to include-specific error
+		var configNotFoundError TerragruntConfigNotFoundError
+		if errors.As(err, &configNotFoundError) {
+			return nil, IncludeConfigNotFoundError{IncludePath: includePath, SourcePath: ctx.TerragruntOptions.TerragruntConfigPath}
+		}
+
+		return nil, err
+	}
+
+	return config, nil
 }
 
 // This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of

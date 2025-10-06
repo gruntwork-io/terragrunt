@@ -1,0 +1,53 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import Card from '@components/dv-Card.astro';
+import IconTerragruntEyebrow from '@assets/icons/terragrunt-pipelines-eyebrow.svg';
+import Col1Bottom from '@assets/col-images/col-1-bottom.jpg';
+import Col2Bottom from '@assets/col-images/col-2-bottom.jpg';
+import Col2Top from '@assets/col-images/col-2-top.jpg';
+import Col3Top from '@assets/col-images/col-3-top.jpg';
+
+const hooksLink = '/docs/features/hooks';
+const errorHandlingLink = '/docs/features/runtime-control/#errors';
+const featureFlagsLink = '/docs/features/runtime-control/#feature-flags';
+const catalogLink = '/docs/features/catalog';
+const scaffoldLink = '/docs/features/scaffold';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+  <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+    <!-- Header Section -->
+    <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+      <Eyebrow text="Terragrunt Pipelines" icon={IconTerragruntEyebrow} />
+      <h2 class="text-4xl md:text-[42px] font-sans m-0 text-primary">
+        <span class="text-accent">Deploy</span> infra changes with confidence
+      </h2>
+    </div>
+
+    <!-- Content Wrapper -->
+    <div class="flex flex-col md:flex-row md:px-6">
+      <div class="w-full md:w-1/3">
+        <Card title="Secure GitOps Workflow" titleSize="text-md">
+          <p class="text-sm font-sans text-gray-1 m-0">Plans run automatically when you open a pull request, and applies run on merge in your GitHub/GitLab workflows, not on our servers. Plan output and log summaries appear in comments for easy access</p>
+        </Card>
+        <Image src={Col1Bottom} alt="Decoration" class="hidden md:block" />
+      </div>
+      <div class="w-full md:w-1/3">
+        <Image src={Col2Top} alt="Decoration" class="hidden md:block" />
+        <Card title="Smart Dependency Management" titleSize="text-md">
+          <p class="text-sm font-sans text-gray-1 m-0">Updates are applied while respecting the dependency graph (DAG) order so that adds, changes, and destroys all run successfully. This even includes changes across environments with their own access control rules.</p>
+        </Card>
+        <Image src={Col2Bottom} alt="Decoration" class="hidden md:block" />
+      </div>
+      <div class="w-full md:w-1/3">
+        <Image src={Col3Top} alt="Decoration" class="hidden md:block" />
+        <Card title="Minimize Your Blast Radius" titleSize="text-md">
+          <p class="text-sm font-sans text-gray-1 m-0">Pipelines identifies the minimum set of infrastructure units affected by your changes, avoiding unnecessary operations and limiting risk.</p>
+        </Card>
+      </div>
+    </div>
+  </div>
+</section>

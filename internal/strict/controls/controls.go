@@ -19,9 +19,6 @@ const (
 	// DeprecatedConfigs is the control that prevents the use of deprecated config fields/section/..., anything related to config syntax.
 	DeprecatedConfigs = "deprecated-configs"
 
-	// LegacyAll is a control group for the legacy *-all commands.
-	LegacyAll = "legacy-all"
-
 	// LegacyLogs is a control group for legacy log flags that were in use before the log was redesign.
 	LegacyLogs = "legacy-logs"
 
@@ -47,8 +44,16 @@ const (
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
+	// LegacyAll is a control group for the legacy *-all commands.
+	// This control is marked as completed since the commands have been removed.
+	LegacyAll = "legacy-all"
+
 	// BareInclude is the control that prevents the use of the `include` block without a label.
 	BareInclude = "bare-include"
+
+	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
+	// and will log a warning when using **/*
+	DoubleStar = "double-star"
 )
 
 //nolint:lll
@@ -75,6 +80,7 @@ func New() strict.Controls {
 		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
 		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
 	}
 
 	controls := strict.Controls{
@@ -113,11 +119,56 @@ func New() strict.Controls {
 			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",
 			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
 		},
+		&Control{
+			Name:        "spin-up",
+			Description: "Prevents the deprecated spin-up command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        "tear-down",
+			Description: "Prevents the deprecated tear-down command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        "plan-all",
+			Description: "Prevents the deprecated plan-all command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        "apply-all",
+			Description: "Prevents the deprecated apply-all command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        "destroy-all",
+			Description: "Prevents the deprecated destroy-all command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        "output-all",
+			Description: "Prevents the deprecated output-all command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        "validate-all",
+			Description: "Prevents the deprecated validate-all command from being used.",
+			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
+		},
+
 		&Control{
 			Name:        TerragruntPrefixFlags,
 			Description: "Prevents deprecated flags with `terragrunt-` prefixes from being used.",
 			Category:    stageCategory,
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        TerragruntPrefixEnvVars,
@@ -141,47 +192,21 @@ func New() strict.Controls {
 			Warning:     "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
 			Category:    stageCategory,
 		},
-		&Control{
-			Name:        "spin-up",
-			Description: "Prevents the deprecated spin-up command from being used.",
-			Category:    stageCategory,
-		},
-		&Control{
-			Name:        "tear-down",
-			Description: "Prevents the deprecated tear-down command from being used.",
-			Category:    stageCategory,
-		},
-		&Control{
-			Name:        "plan-all",
-			Description: "Prevents the deprecated plan-all command from being used.",
-			Category:    stageCategory,
-		},
-		&Control{
-			Name:        "apply-all",
-			Description: "Prevents the deprecated apply-all command from being used.",
-			Category:    stageCategory,
-		},
-		&Control{
-			Name:        "destroy-all",
-			Description: "Prevents the deprecated destroy-all command from being used.",
-			Category:    stageCategory,
-		},
-		&Control{
-			Name:        "output-all",
-			Description: "Prevents the deprecated output-all command from being used.",
-			Category:    stageCategory,
-		},
-		&Control{
-			Name:        "validate-all",
-			Description: "Prevents the deprecated validate-all command from being used.",
-			Category:    stageCategory,
-		},
+
 		&Control{
 			Name:        BareInclude,
 			Description: "Prevents the use of the `include` block without a label.",
 			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
 			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
+		},
+
+		&Control{
+			Name:        DoubleStar,
+			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
+			Category:    stageCategory,
+			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
+			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 		},
 	}
 

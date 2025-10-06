@@ -14,3 +14,32 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "go"
+      - "dependencies"
+    ignore:
+      - dependency-name: "github.com/charmbracelet/glamour"
+        versions: ["<= 0.10.1"]
+      - dependency-name: "github.com/charmbracelet/x/ansi"
+        # https://github.com/charmbracelet/bubbletea/issues/1448#issuecomment-3105363044
+
+  - package-ecosystem: "bun"
+    directories:
+      - "**/*"
+    schedule:
+      interval: "weekly"
+    groups:
+      js-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "javascript"
+      - "dependencies"
+    ignore:
+      - dependency-name: "@astrojs/starlight"
+        # Custom patch applied - manual updates required
+        # When updating, you have to manually update the patch in the docs-starlight/package.json

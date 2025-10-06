@@ -10,6 +10,7 @@ import (
 
 func TestConfig_IsEqual(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct { //nolint: govet
 		name            string
 		existingBackend backend.Config
@@ -248,6 +249,7 @@ func TestConfig_AzureBackendComparison(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			log := log.Default()
 			actual := tc.newConfig.IsEqual(tc.existingBackend, "", log)
 			assert.Equal(t, tc.expected, actual, "Expected IsEqual to return %t but got %t for existingBackend %v and newConfig %v", tc.expected, actual, tc.existingBackend, tc.newConfig)

@@ -1,12 +1,18 @@
 // @ts-check
 import { defineConfig } from "astro/config";
-import starlight from "@astrojs/starlight";
-import starlightLinksValidator from "starlight-links-validator";
-import vercel from "@astrojs/vercel";
-import d2 from "astro-d2";
-import tailwindcss from "@tailwindcss/vite";
 
+import starlight from "@astrojs/starlight";
+import sitemap from "@astrojs/sitemap";
+import vercel from "@astrojs/vercel";
 import partytown from "@astrojs/partytown";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@astrojs/react";
+
+import starlightLinksValidator from "starlight-links-validator";
+import d2 from "astro-d2";
+
+// Check if we're in Vercel environment
+const isVercel = globalThis.process?.env?.VERCEL;
 
 export const sidebar = [
   {
@@ -14,15 +20,23 @@ export const sidebar = [
     autogenerate: { directory: "01-getting-started" },
   },
   {
-    label: "Features",
-    autogenerate: { directory: "02-features", collapsed: true },
+    label: "Guides",
+    items: [
+      {
+        label: "Terralith to Terragrunt",
+        autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
+      },
+    ],
+    collapsed: true,
   },
   {
-    label: "Community",
-    autogenerate: { directory: "03-community", collapsed: true },
+    label: "Features",
+    autogenerate: { directory: "03-features", collapsed: true },
+    collapsed: true,
   },
   {
     label: "Reference",
+    collapsed: true,
     items: [
       {
         label: "HCL",
@@ -59,96 +73,163 @@ export const sidebar = [
     ],
   },
   {
+    label: "Community",
+    autogenerate: { directory: "05-community", collapsed: true },
+    collapsed: true,
+  },
+  {
     label: "Troubleshooting",
-    autogenerate: { directory: "05-troubleshooting", collapsed: true },
+    autogenerate: { directory: "06-troubleshooting", collapsed: true },
+    collapsed: true,
   },
   {
     label: "Migrate",
-    autogenerate: { directory: "06-migrate", collapsed: true },
+    autogenerate: { directory: "07-migrate", collapsed: true },
+    collapsed: true,
   },
 ];
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://terragrunt-v1.gruntwork.io",
-  output: "server",
-  adapter: vercel({
-    isr: {
-      expiration: 60 * 60 * 24, // 24 hours
-    },
-  }),
-  integrations: [starlight({
-    title: "Terragrunt",
-    customCss: ["./src/styles/global.css"],
-    head: [
-      {
-        tag: 'script',
-        attrs: {
-          src: 'https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL',
-          type: 'text/partytown',
+  site: "https://terragrunt.gruntwork.io",
+  output: isVercel ? "server" : "static",
+  adapter: isVercel
+    ? vercel({
+        imageService: true,
+        isr: {
+          expiration: 60 * 60 * 24, // 24 hours
         },
+      })
+    : undefined,
+  integrations: [
+    // We use React for the shadcn/ui components.
+    react(),
+    starlight({
+      title: "Terragrunt",
+      description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
+      editLink: {
+        // TODO: update this once the docs live in `docs`.
+        baseUrl:
+          "https://github.com/gruntwork-io/terragrunt/edit/main/docs-starlight",
       },
-      {
-        tag: 'script',
-        attrs: {
-          type: 'text/partytown',
+      customCss: ["./src/styles/global.css"],
+      head: [
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'description',
+            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+          },
         },
-        content: `
-          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer','GTM-5TTJJGTL');
-          `,
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:title',
+            content: 'Terragrunt',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:description',
+            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:type',
+            content: 'website',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:url',
+            content: 'https://terragrunt.gruntwork.io',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:card',
+            content: 'summary_large_image',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:title',
+            content: 'Terragrunt',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:description',
+            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+          },
+        },
+      ],
+      components: {
+        Header: "./src/components/Header.astro",
+        PageSidebar: "./src/components/PageSidebar.astro",
+        SiteTitle: "./src/components/SiteTitle.astro",
+        SkipLink: "./src/components/SkipLink.astro",
       },
-    ],
-    components: {
-      Header: './src/components/Header.astro',
-      SiteTitle: './src/components/SiteTitle.astro',
-      SkipLink: './src/components/SkipLink.astro',
-    },
-    logo: {
-      dark: "/src/assets/horizontal-logo-light.svg",
-      light: "/src/assets/horizontal-logo-dark.svg",
-    },
-    social: {
-      discord: "https://discord.gg/SPu4Degs5f",
-    },
-    sidebar: sidebar,
-    // NOTE: We don't currently check links by default because the CLI
-    // Redesign isn't done yet. Once those pages are built out, we'll require
-    // links to be checked for all builds.
-    plugins: [
-      starlightLinksValidator({
-        exclude: [
-          // Used in the docs for OpenTelemetry
-          "http://localhost:16686/",
-          "http://localhost:9090/",
+      logo: {
+        dark: "/src/assets/horizontal-logo-light.svg",
+        light: "/src/assets/horizontal-logo-dark.svg",
+      },
+      social: [
+        {
+          href: "https://discord.gg/SPu4Degs5f",
+          icon: "discord",
+          label: "Discord",
+        },
+      ],
+      sidebar: sidebar,
+      plugins: [
+        starlightLinksValidator({
+          exclude: [
+            // Used in the docs for OpenTelemetry
+            "http://localhost:16686/",
+            "http://localhost:9090/",
 
-          // Unfortunately, these have to be ignored, as they're
-          // referencing content that is generated outside the contents of the markdown file.
-          "/docs/reference/cli/commands/run#*",
-          "/docs/reference/cli/commands/run/#*",
-          "/docs/reference/cli/commands/list#*",
-          "/docs/reference/cli/commands/list/#*",
-        ],
-      }),
-    ],
-  }), d2({
-    // It's recommended that we just skip generation in Vercel,
-    // and generate diagrams locally:
-    // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
-    skipGeneration: !!process.env['VERCEL']
-  }), partytown({
-    config: {
-      forward: ['dataLayer.push']
-    }
-  })],
+            // Unfortunately, these have to be ignored, as they're referencing content
+            // that is generated outside the contents of the markdown file.
+            "/docs/reference/cli/commands/run#*",
+            "/docs/reference/cli/commands/run/#*",
+            "/docs/reference/cli/commands/list#*",
+            "/docs/reference/cli/commands/list/#*",
+          ],
+        }),
+      ],
+    }),
+    d2({
+      // It's recommended that we just skip generation in Vercel,
+      // and generate diagrams locally:
+      // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
+      skipGeneration: !!isVercel,
+    }),
+    partytown({
+      config: {
+        debug: false,
+        logCalls: false,
+        logGetters: false,
+        logSetters: false,
+        logImageRequests: false,
+        logScriptExecution: false,
+        logStackTraces: false,
+        forward: ['dataLayer.push'],
+      },
+    }),
+    sitemap(),
+  ],
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
-    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/":
-      "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
+    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/": "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
 
     // Redirects to external sites.
     "/contact/": "https://gruntwork.io/contact",
@@ -159,8 +240,7 @@ export default defineConfig({
     "/docs/reference/configuration/": "/docs/reference/hcl/",
     "/docs/reference/cli-options/": "/docs/reference/cli/",
     "/docs/reference/built-in-functions/": "/docs/reference/hcl/functions/",
-    "/docs/reference/config-blocks-and-attributes/":
-      "/docs/reference/hcl/blocks/",
+    "/docs/reference/config-blocks-and-attributes/": "/docs/reference/hcl/blocks/",
     "/docs/reference/strict-mode/": "/docs/reference/strict-controls/",
     "/docs/reference/log-formatting/": "/docs/reference/logging/formatting/",
     "/docs/features/aws-authentication/": "/docs/features/authentication/",
@@ -182,17 +262,12 @@ export default defineConfig({
     "/docs/features/inputs/": "/docs/features/units/",
     "/docs/features/locals/": "/docs/features/units/",
     "/docs/features/keep-your-terraform-code-dry/": "/docs/features/units/",
-    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/":
-      "/docs/features/stacks/",
-    "/docs/features/keep-your-terragrunt-architecture-dry/":
-      "/docs/features/includes/",
-    "/docs/features/keep-your-remote-state-configuration-dry/":
-      "/docs/features/state-backend/",
-    "/docs/features/keep-your-cli-flags-dry/":
-      "/docs/features/extra-arguments/",
+    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/": "/docs/features/stacks/",
+    "/docs/features/keep-your-terragrunt-architecture-dry/": "/docs/features/includes/",
+    "/docs/features/keep-your-remote-state-configuration-dry/": "/docs/features/state-backend/",
+    "/docs/features/keep-your-cli-flags-dry/": "/docs/features/extra-arguments/",
     "/docs/features/aws-auth/": "/docs/features/aws-authentication/",
-    "/docs/features/work-with-multiple-aws-accounts/":
-      "/docs/features/aws-authentication/",
+    "/docs/features/work-with-multiple-aws-accounts/": "/docs/features/aws-authentication/",
     "/docs/features/auto-retry/": "/docs/features/runtime-control/",
     "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
@@ -207,5 +282,9 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+  },
+  tailwind: {
+    // We include this extra Tailwind config to support the shadcn/ui components.
+    configFile: './tailwind.config.mjs',
   },
 });

@@ -54,7 +54,6 @@ func (s *storageAccountServiceAdapter) DeleteStorageAccount(ctx context.Context,
 func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
 	// Use StorageAccountExists as it returns the account object
 	_, account, err := s.client.StorageAccountExists(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +108,6 @@ func (s *storageAccountServiceAdapter) GetStorageAccountSAS(ctx context.Context,
 // GetStorageAccountProperties retrieves properties of a storage account
 func (s *storageAccountServiceAdapter) GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error) {
 	account, err := s.GetStorageAccount(ctx, resourceGroupName, accountName)
-
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +122,6 @@ func (s *storageAccountServiceAdapter) GetStorageAccountProperties(ctx context.C
 // Exists checks if a storage account exists
 func (s *storageAccountServiceAdapter) Exists(ctx context.Context, config types.StorageAccountConfig) (bool, error) {
 	exists, _, err := s.client.StorageAccountExists(ctx)
-
 	return exists, err
 }
 
@@ -209,7 +206,6 @@ func (b *blobServiceAdapter) GetObject(ctx context.Context, input *types.GetObje
 	}
 
 	azureOutput, err := b.client.GetObject(ctx, azureInput)
-
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +216,6 @@ func (b *blobServiceAdapter) GetObject(ctx context.Context, input *types.GetObje
 
 	// Read the body into a byte slice
 	content, err := io.ReadAll(azureOutput.Body)
-
 	if err != nil {
 		return nil, err
 	}

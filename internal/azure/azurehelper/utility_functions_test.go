@@ -395,6 +395,7 @@ func TestConvertToPointerMap(t *testing.T) {
 			for key, expectedValue := range tc.expected {
 				resultValue, exists := result[key]
 				assert.True(t, exists, "Key %s should exist in result", key)
+
 				if expectedValue == nil {
 					assert.Nil(t, resultValue)
 				} else {
