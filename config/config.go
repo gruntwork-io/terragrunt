@@ -1274,7 +1274,12 @@ func ParseConfigString(ctx *ParsingContext, l log.Logger, configPath string, con
 //     - dependency
 //  5. Merge the included config with the parsed config. Note that all the config data is mergeable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
-func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfig(
+	ctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+	includeFromChild *IncludeConfig,
+) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
 	if err := detectDeprecatedConfigurations(ctx, l, file); err != nil {
@@ -1309,7 +1314,7 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 		ctx = ctx.WithLocals(baseBlocks.Locals)
 	}
 
-	if ctx.DecodedDependencies == nil {
+	if !ctx.SkipOutputsResolution && ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, file)
