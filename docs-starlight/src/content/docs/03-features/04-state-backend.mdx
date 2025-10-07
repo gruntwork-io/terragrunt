@@ -240,18 +240,23 @@ remote_state {
     subscription_id    = "00000000-0000-0000-0000-000000000000"  # If storage account is in a different subscription
 
     # Authentication Methods (choose one):
-    
-    # 1. Azure AD Authentication (recommended - default)
-    use_azuread_auth   = true    # Optional, defaults to true if no other auth method specified
-    # Supports Managed Identity, Service Principal, and az cli credentials automatically
-    
+
+    # 1. Azure AD / Default credential chain (recommended)
+    #    Leave all other authentication flags unset to let Terragrunt discover credentials automatically.
+
     # 2. Managed Service Identity (for Azure environments)
     # use_msi          = true
     # use_azuread_auth = false
-    
-    # 3. Storage Account Key Authentication (least recommended)
-    # storage_account_key = "your-storage-account-key"
-    # use_azuread_auth   = false
+
+    # 3. Service principal credentials
+    # use_azuread_auth = false
+    # client_id        = "00000000-0000-0000-0000-000000000000"
+    # client_secret    = get_env("AZURE_CLIENT_SECRET", "")
+    # tenant_id        = "00000000-0000-0000-0000-000000000000"
+
+    # 4. SAS token (data-plane access only)
+    # use_azuread_auth = false
+    # sas_token        = get_env("AZURE_STORAGE_SAS", "")
     
     # Optional: Disable Terragrunt's automatic storage account updating
     skip_storage_account_update = true  # Set to true if you want to manage storage account settings manually
@@ -336,36 +341,72 @@ remote_state {
 
 ### Azure Authentication
 
-Azure AD authentication is now the **only** supported authentication method in Terragrunt for Azure Storage backend. This aligns with security best practices and provides better access control and auditing capabilities.
+Terragrunt routes all Azure credential handling through the `azureauth` package. Azure AD via the DefaultAzureCredential chain remains the recommended approach because it supports MFA, conditional access, and detailed auditing. Managed identity, explicit service principal credentials, and storage SAS tokens are still supported for compatibility scenarios. Only one authentication method can be active at a time—`use_azuread_auth` defaults to `true`, so set it to `false` when you switch to another option.
 
-The Azure Default Credential Chain is used, which tries multiple authentication methods in the following order:
+**Azure AD / DefaultAzureCredential (recommended)**
 
-1. Environment Variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
-2. Managed Identity (when running in Azure)
-3. Azure CLI credentials (when signed in with `az login`)
-4. Visual Studio Code credentials (when signed in to Azure extension)
+When no other method is selected, Terragrunt automatically uses the [Azure Default Credential Chain](https://learn.microsoft.com/en-us/dotnet/api/azure.identity.defaultazurecredential), which attempts credentials in this order:
 
-You can also explicitly configure authentication using:
+1. Environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, etc.)
+2. Managed identity (when running on Azure resources)
+3. Azure CLI sign-in (`az login`)
+4. Visual Studio Code Azure extension
+
+No additional configuration is required unless you need to specify a `subscription_id` for storage-account bootstrap operations.
+
+**Managed identity (MSI)**
 
 ```hcl
 config = {
-  use_azuread_auth = true    # Optional, defaults to true
-  subscription_id  = "..."   # Required for storage account creation
-  tenant_id       = "..."    # Optional
-  client_id       = "..."    # Optional
-  client_secret   = "..."    # Optional
-  use_msi         = true     # Optional, for Managed Identity
+  use_msi          = true
+  use_azuread_auth = false
+  subscription_id  = "00000000-0000-0000-0000-000000000000" # required for bootstrap features
 }
 ```
 
+Use this when Terragrunt runs inside Azure with a system- or user-assigned managed identity that has access to the target storage account.
+
+**Service principal credentials**
+
+```hcl
+config = {
+  use_azuread_auth = false
+  client_id        = "11111111-1111-1111-1111-111111111111"
+  client_secret    = get_env("AZURE_CLIENT_SECRET", "")
+  tenant_id        = "22222222-2222-2222-2222-222222222222"
+  subscription_id  = "00000000-0000-0000-0000-000000000000"
+}
+```
+
+Provide an app registration with Storage Blob Data Owner (or equivalent) permissions on the storage account or resource group.
+
+**SAS token (data-plane access only)**
+
+```hcl
+config = {
+  use_azuread_auth    = false
+  storage_account_name = "mystorageaccount"
+  sas_token           = get_env("AZURE_STORAGE_SAS", "")
+  container_name      = "terraform-state"
+}
+```
+
+SAS tokens work for existing storage accounts and support Terragrunt's data-plane operations (for example, reading, writing, and locking state). They do **not** provide access to Azure Resource Manager APIs, so features such as `create_storage_account_if_not_exists`, RBAC assignment, or storage-account configuration updates require Azure AD authentication instead.
+
+**Deprecated or unsupported authentication options:**
+
+- `access_key` / `storage_account_key`
+- `connection_string`
+- Environment variables `ARM_ACCESS_KEY` and `AZURE_STORAGE_KEY`
+
 ### Important Notes
 
-1. **Azure AD Only**: SAS token and storage account key authentication methods are no longer supported
-2. **Versioning**: Blob versioning is managed at the storage account level and enabled by default during bootstrap
-3. **Server-Side Encryption**: Azure Storage automatically encrypts all data at rest
-4. **Access Control**: RBAC permissions are automatically assigned during bootstrap
-5. **Locking**: Azure Blob lease is used for state locking, no additional resources needed
-6. **Legacy Support**: If you see warnings about `ARM_ACCESS_KEY`, `AZURE_STORAGE_KEY`, or `sas_token` configuration, update to Azure AD authentication
+1. **One method at a time**: `use_azuread_auth` defaults to `true`. Set it to `false` when you configure `use_msi`, service principal credentials, or `sas_token` to avoid the “multiple authentication methods” validation error.
+2. **Versioning**: Blob versioning is managed at the storage account level and enabled by default during bootstrap.
+3. **Server-Side Encryption**: Azure Storage automatically encrypts all data at rest.
+4. **Access Control**: RBAC role assignment during bootstrap requires Azure AD credentials (Azure AD default, MSI, or service principal). SAS tokens skip RBAC updates because they only grant data-plane access.
+5. **Locking**: Azure Blob lease is used for state locking, no additional resources needed.
+6. **Legacy Support**: Storage access keys, connection strings, and related environment variables (`ARM_ACCESS_KEY`, `AZURE_STORAGE_KEY`) are no longer supported.
 
 ### Error Messages and Troubleshooting
 
@@ -377,19 +418,20 @@ Common error messages and their resolutions:
 | `location is required for storage account creation` | Add `location` to config when using `create_storage_account_if_not_exists = true` |
 | `container name is required` | Specify a valid container name in config |
 | `authentication failed` | Check Azure AD credentials and permissions |
-| `no valid authentication method found` | Configure Azure AD authentication method |
+| `no valid authentication method found` | Configure a supported authentication method (Azure AD, MSI, service principal, or SAS) |
+| `multiple authentication methods specified` | Ensure only one of `use_azuread_auth`, `use_msi`, service principal fields, or `sas_token` is set |
 | `error checking container existence` | Verify network connectivity and access |
 | `blob not found` | Verify state file path and container name |
 | `ARM_ACCESS_KEY is no longer supported` | Switch to Azure AD authentication |
 | `AZURE_STORAGE_KEY is no longer supported` | Switch to Azure AD authentication |
-| `SAS token authentication is no longer supported` | Switch to Azure AD authentication, MSI, or service principal |
 
 ### Best Practices
 
 1. **Authentication**
-   - Use Azure AD authentication (now the default)
-   - Use managed identities in Azure environments
-   - Rotate service principal credentials regularly if used
+  - Prefer Azure AD / DefaultAzureCredential when possible
+  - Use managed identities in Azure environments for workload identities
+  - Rotate service principal credentials regularly when they are used
+  - Limit SAS tokens to short-lived, scoped scenarios
 
 2. **Storage Configuration**
    - Enable blob versioning at the storage account level (enabled by default during bootstrap)
@@ -512,53 +554,3 @@ remote_state {
 ```
 
 To disable updating existing storage accounts, set `skip_storage_account_update = true`.
-
-#### Azure Authentication
-
-Azure AD authentication is the only supported authentication method for Azure remote state backend. Storage account key and SAS token authentication are no longer supported.
-
-To use Azure AD authentication:
-
-```hcl
-remote_state {
-  backend = "azurerm"
-  # ... other configuration ...
-  config = {
-    # Required - defaults to true even if not specified
-    use_azuread_auth = true  
-    
-    # Storage account configuration
-    storage_account_name = "mystorageaccount"
-    container_name = "terraform-state"
-    key = "${path_relative_to_include()}/terraform.tfstate"
-    
-    # Optional - needed for certain Azure AD permission scenarios
-    subscription_id = "00000000-0000-0000-0000-000000000000"
-    tenant_id = "00000000-0000-0000-0000-000000000000"
-  }
-}
-```
-
-Azure AD authentication uses the [Azure Default Credential Chain](https://learn.microsoft.com/en-us/dotnet/api/azure.identity.defaultazurecredential), which tries multiple authentication methods in the following order:
-
-1. **Environment variables** (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
-2. **Managed Identity** (when running in Azure)
-3. **Azure CLI credentials** (when signed in with `az login`)
-4. **Visual Studio Code credentials** (when signed in to Azure extension)
-
-For additional authentication options, you can use:
-
-| Option | Description | 
-|--------|-------------|
-| `use_msi` | Use Managed Service Identity for authentication when running in Azure | 
-| `client_id` | Service principal client ID for Azure AD auth | 
-| `client_secret` | Service principal client secret for Azure AD auth |
-| `tenant_id` | Azure AD tenant ID |
-| `subscription_id` | Azure subscription ID (required for storage account bootstrap) |
-
-**Deprecated authentication options that are no longer supported:**
-
-- `sas_token` - Removed in favor of Azure AD authentication
-- `storage_account_key` - Removed in favor of Azure AD authentication  
-- `connection_string` - Removed in favor of Azure AD authentication
-- Environment variables `ARM_ACCESS_KEY` and `AZURE_STORAGE_KEY`
