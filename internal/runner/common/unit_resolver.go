@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -26,6 +25,7 @@ type UnitResolver struct {
 	Stack             *Stack
 	includeGlobs      map[string]glob.Glob
 	excludeGlobs      map[string]glob.Glob
+	filters           []UnitFilter
 	doubleStarEnabled bool
 }
 
@@ -58,7 +58,15 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 		doubleStarEnabled: doubleStarEnabled,
 		includeGlobs:      includeGlobs,
 		excludeGlobs:      excludeGlobs,
+		filters:           []UnitFilter{},
 	}, nil
+}
+
+// WithFilters adds unit filters to the resolver.
+// Filters are applied after units are resolved but before the queue is built.
+func (r *UnitResolver) WithFilters(filters ...UnitFilter) *UnitResolver {
+	r.filters = append(r.filters, filters...)
+	return r
 }
 
 // ResolveTerraformModules goes through each of the given Terragrunt configuration files
@@ -95,22 +103,32 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 		return nil, err
 	}
 
-	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsThatAreIncludedByOthers)
+	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
+	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
+	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
 	if err != nil {
 		return nil, err
 	}
 
-	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withExcludedUnits)
+	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
+	// This ensures units excluded via CLI get the correct reason in reports
+	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
 	if err != nil {
 		return nil, err
 	}
 
-	withUnitsExcluded, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
+	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
 	if err != nil {
 		return nil, err
 	}
 
-	return withUnitsExcluded, nil
+	// Apply custom filters after standard resolution logic
+	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	return filteredUnits, nil
 }
 
 // telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
@@ -216,7 +234,7 @@ func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Log
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result := r.flagExcludedUnits(l, r.Stack.TerragruntOptions, withUnitsThatAreIncludedByOthers)
+		result := r.flagExcludedUnits(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
 		withExcludedUnits = result
 
 		return nil
@@ -570,6 +588,12 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 			}
 
 			externalDependency.AssumeAlreadyApplied = !shouldApply
+			// Mark external dependencies as excluded if they shouldn't be applied
+			// This ensures they are tracked in the report but not executed
+			if !shouldApply {
+				externalDependency.FlagExcluded = true
+			}
+
 			allExternalDependencies[externalDependency.Path] = externalDependency
 		}
 	}
@@ -747,7 +771,7 @@ func (r *UnitResolver) flagDependencyIncludes(dependency *Unit, unitPath string,
 }
 
 // flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.
-func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, units Units) Units {
+func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	for _, unit := range units {
 		excludeConfig := unit.Config.Exclude
 
@@ -760,15 +784,88 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 		}
 
 		if excludeConfig.If {
-			l.Debugf("Unit %s is excluded by exclude block", unit.Path)
+			// Check if unit was already excluded (e.g., by --queue-exclude-dir)
+			// If so, don't overwrite the existing exclusion reason
+			wasAlreadyExcluded := unit.FlagExcluded
+			l.Debugf("Unit %s is excluded by exclude block (wasAlreadyExcluded=%v)", unit.Path, wasAlreadyExcluded)
 			unit.FlagExcluded = true
+
+			// Only update report if it's enabled AND the unit wasn't already excluded
+			// This ensures CLI flags like --queue-exclude-dir take precedence over exclude blocks
+			if reportInstance != nil && !wasAlreadyExcluded {
+				// Ensure path is absolute for reporting
+				unitPath := unit.Path
+				if !filepath.IsAbs(unitPath) {
+					var absErr error
+
+					unitPath, absErr = filepath.Abs(unitPath)
+					if absErr != nil {
+						l.Warnf("Could not resolve absolute path for unit %s, using cleaned relative path: %v", unit.Path, absErr)
+						unitPath = filepath.Clean(unit.Path)
+					}
+				}
+
+				// Only report if not already excluded - EndRun will handle this gracefully
+				// by returning early if the run already ended with ResultExcluded
+				run, err := reportInstance.EnsureRun(unitPath)
+				if err != nil {
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
+					continue
+				}
+
+				// EndRun will skip updating if already ended with ResultExcluded
+				if err := reportInstance.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeBlock),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", unitPath, err)
+					continue
+				}
+			}
 		}
 
 		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
 			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path)
 
 			for _, dependency := range unit.Dependencies {
+				// Check if dependency was already excluded
+				wasAlreadyExcluded := dependency.FlagExcluded
 				dependency.FlagExcluded = true
+
+				// Only update report if it's enabled AND the dependency wasn't already excluded
+				// This ensures CLI exclusions take precedence over exclude blocks
+				if reportInstance != nil && !wasAlreadyExcluded {
+					// Ensure path is absolute for reporting
+					depPath := dependency.Path
+					if !filepath.IsAbs(depPath) {
+						var absErr error
+
+						depPath, absErr = filepath.Abs(depPath)
+						if absErr != nil {
+							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)
+							// Revert exclusion since reporting couldn't proceed and this block changed the state
+							dependency.FlagExcluded = false
+
+							continue
+						}
+					}
+
+					run, err := reportInstance.EnsureRun(depPath)
+					if err != nil {
+						l.Errorf("Error ensuring run for dependency %s: %v", depPath, err)
+						continue
+					}
+
+					if err := reportInstance.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeBlock),
+					); err != nil {
+						l.Errorf("Error ending run for dependency %s: %v", depPath, err)
+						continue
+					}
+				}
 			}
 		}
 	}
@@ -779,7 +876,7 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 // flagUnitsThatRead iterates over a unit slice and flags all units that read at least one file in the specified
 // file list in the TerragruntOptions UnitsReading attribute.
 func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units Units) Units {
-	// If no UnitsThatRead is specified return the units list instantly
+	// If no UnitsThatRead is specified, return the unit list instantly
 	if len(opts.UnitsReading) == 0 {
 		return units
 	}
@@ -826,14 +923,28 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	for _, unit := range units {
 		if excludeFn(l, unit) {
 			// Mark unit itself as excluded
+			l.Debugf("Unit %s is excluded", unit.Path)
 			unit.FlagExcluded = true
 
-			if opts.Experiments.Evaluate(experiment.Report) {
+			// Only update report if it's enabled
+			if reportInstance != nil {
+				// Ensure path is absolute for reporting
+				unitPath := unit.Path
+				if !filepath.IsAbs(unitPath) {
+					var absErr error
+
+					unitPath, absErr = filepath.Abs(unitPath)
+					if absErr != nil {
+						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+						continue
+					}
+				}
+
 				// TODO: Make an upsert option for ends,
 				// so that I don't have to do this every time.
-				run, err := reportInstance.EnsureRun(unit.Path)
+				run, err := reportInstance.EnsureRun(unitPath)
 				if err != nil {
-					l.Errorf("Error ensuring run for unit %s: %v", unit.Path, err)
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
 				}
 
@@ -842,7 +953,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 					report.WithResult(report.ResultExcluded),
 					report.WithReason(report.ReasonExcludeDir),
 				); err != nil {
-					l.Errorf("Error ending run for unit %s: %v", unit.Path, err)
+					l.Errorf("Error ending run for unit %s: %v", unitPath, err)
 					continue
 				}
 			}
@@ -853,10 +964,23 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 			if excludeFn(l, dependency) {
 				dependency.FlagExcluded = true
 
-				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := reportInstance.EnsureRun(dependency.Path)
+				// Only update report if it's enabled
+				if reportInstance != nil {
+					// Ensure path is absolute for reporting
+					depPath := dependency.Path
+					if !filepath.IsAbs(depPath) {
+						var absErr error
+
+						depPath, absErr = filepath.Abs(depPath)
+						if absErr != nil {
+							l.Errorf("Error getting absolute path for dependency %s: %v", dependency.Path, absErr)
+							continue
+						}
+					}
+
+					run, err := reportInstance.EnsureRun(depPath)
 					if err != nil {
-						l.Errorf("Error ensuring run for dependency %s: %v", dependency.Path, err)
+						l.Errorf("Error ensuring run for dependency %s: %v", depPath, err)
 						continue
 					}
 
@@ -865,7 +989,7 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(report.ReasonExcludeDir),
 					); err != nil {
-						l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
+						l.Errorf("Error ending run for dependency %s: %v", depPath, err)
 						continue
 					}
 				}
@@ -874,4 +998,31 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	}
 
 	return units
+}
+
+// telemetryApplyFilters applies all configured unit filters to the resolved units
+func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, units Units) (Units, error) {
+	if len(r.filters) == 0 {
+		return units, nil
+	}
+
+	var filteredUnits Units
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_unit_filters", map[string]any{
+		"working_dir":  r.Stack.TerragruntOptions.WorkingDir,
+		"filter_count": len(r.filters),
+	}, func(ctx context.Context) error {
+		// Apply all filters in sequence
+		for _, filter := range r.filters {
+			if err := filter.Filter(ctx, units, r.Stack.TerragruntOptions); err != nil {
+				return err
+			}
+		}
+
+		filteredUnits = units
+
+		return nil
+	})
+
+	return filteredUnits, err
 }

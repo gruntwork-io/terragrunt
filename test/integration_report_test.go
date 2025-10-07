@@ -23,7 +23,7 @@ const (
 	testFixtureReportPath = "fixtures/report"
 )
 
-func TestTerragruntReportExperiment(t *testing.T) {
+func TestTerragruntReport(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -37,7 +37,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -77,7 +77,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 `), strings.TrimSpace(stdoutStr))
 }
 
-func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
+func TestTerragruntReportDisableSummary(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -91,7 +91,7 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output does not contain the summary
@@ -99,7 +99,7 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	assert.NotContains(t, stdoutStr, "Run Summary")
 }
 
-func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
+func TestTerragruntReportSaveToFile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -159,7 +159,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 
 			reportFile := "report." + tc.format
 			cmd := fmt.Sprintf(
-				"terragrunt run --all apply --experiment report --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				util.JoinPath(rootPath, "second-exclude"),
 				reportFile)
@@ -246,7 +246,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	}
 }
 
-func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
+func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -305,7 +305,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 			t.Parallel()
 
 			// Build command with appropriate flags
-			cmd := "terragrunt run --all apply --experiment report --non-interactive --working-dir " + rootPath
+			cmd := "terragrunt run --all apply --non-interactive --working-dir " + rootPath
 			if tc.reportFile != "" {
 				cmd += " --report-file " + tc.reportFile
 			}
@@ -404,7 +404,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 	}
 }
 
-func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
+func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -418,7 +418,7 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -512,7 +512,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --queue-exclude-external --experiment report --feature dep=%s --working-dir %s --report-file %s",
+			"terragrunt run --all plan --queue-exclude-external --feature dep=%s --working-dir %s --report-file %s",
 			dep,
 			rootPath,
 			reportFile,

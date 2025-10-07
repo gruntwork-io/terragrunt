@@ -65,16 +65,19 @@ func NewExperiments() Experiments {
 			Name: CAS,
 		},
 		{
-			Name: Report,
+			Name:   Report,
+			Status: StatusCompleted,
 		},
 		{
-			Name: RunnerPool,
+			Name:   RunnerPool,
+			Status: StatusCompleted,
 		},
 		{
 			Name: AzureBackend,
 		},
 		{
-			Name: AutoProviderCacheDir,
+			Name:   AutoProviderCacheDir,
+			Status: StatusCompleted,
 		},
 	}
 }

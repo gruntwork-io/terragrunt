@@ -257,6 +257,9 @@ Note that the current plan for stabilization is to have the feature be enabled b
 
 - [cli-redesign](#cli-redesign)
 - [stacks](#stacks)
+- [runner-pool](#runner-pool)
+- [report](#report)
+- [auto-provider-cache-dir](#auto-provider-cache-dir)
 
 ### `cli-redesign`
 
@@ -333,3 +336,88 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
 - [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
+
+### `runner-pool`
+
+Proposes replacing Terragrunt's group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
+This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
+
+#### `runner-pool` - What it does
+
+Allow usage of experimental runner pool implementation for units execution.
+
+#### `runner-pool` - How to provide feedback
+
+Provide your feedback on the [Runner Pool](https://github.com/gruntwork-io/terragrunt/issues/3629).
+
+#### `runner-pool` - Criteria for stabilization
+
+To transition the `runner-pool` feature to a stable release, the following must be addressed:
+
+- [x] Use new discovery and queue packages to discover units.
+- [x] Add support for including/excluding external units in the discovery process.
+- [x] Add runner pool implementation to execute discovered units.
+- [x] Add integration tests to track that the runner pool works in the same way as the current implementation.
+- [x] Add performance tests to track that the runner pool implementation is faster than the current implementation.
+- [x] Add support for fail fast behavior in the runner pool.
+- [x] Improve the UI to queue to apply.
+- [x] Add OpenTelemetry support to the runner pool.
+
+### `report`
+
+Support for Terragrunt Run Reports and Summaries.
+
+#### `report` - What it does
+
+Allows generation of run reports and summary displays. This experiment flag is no longer needed, as the report feature is now stable and available by default.
+
+#### `report` - How to provide feedback
+
+Now that the report experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+
+#### `report` - Criteria for stabilization
+
+To transition the `report` feature to stable, the following have been completed:
+
+- [x] Add support for generating reports (in CSV format by default).
+- [x] Add support for displaying summaries of runs.
+- [x] Add ability to disable summary display.
+- [x] Add support for generating reports in JSON format.
+- [x] Add comprehensive integration tests for the `report` experiment.
+- [x] Finalize the design of run summaries and reports.
+
+### `auto-provider-cache-dir`
+
+Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
+
+#### `auto-provider-cache-dir` - What it does
+
+This experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+
+This experiment flag is no longer needed, as the auto-provider-cache-dir feature is now enabled by default when using OpenTofu >= 1.10.
+
+**Requirements:**
+
+- OpenTofu version >= 1.10 is required
+- Only works when using OpenTofu (not Terraform)
+
+**Disabling the feature:**
+
+You can disable the auto-provider-cache-dir feature using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply --no-auto-provider-cache-dir
+```
+
+#### `auto-provider-cache-dir` - How to provide feedback
+
+Now that the auto-provider-cache-dir experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+
+#### `auto-provider-cache-dir` - Criteria for stabilization
+
+To transition the `auto-provider-cache-dir` feature to stable, the following have been completed:
+
+- [x] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
+- [x] Performance comparison with the existing provider cache server approach.
+- [x] Documentation and examples of best practices for usage.
+- [x] Community feedback on real-world usage and any edge cases discovered.
