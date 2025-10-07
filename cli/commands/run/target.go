@@ -26,18 +26,18 @@ type TargetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions,
 // which is already coded in `terraform.runTerraform` and complicated to extract
 // into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
 // Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
-// For example, `info print` CLI command requires source to be downloaded before running its specific action. To do this it:
+// For example, `terragrunt-info` CLI command requires source to be downloaded before running its specific action. To do this it:
 /*
-   package print
+   package info
    ... code omitted
 
-   // creates a new target with `TargetPointDownloadSource` point name, once a source is downloaded `target` will call the `runInfoPrint` callback func.
-   target := run.NewTarget(terraform.TargetPointDownloadSource, runInfoPrint)
+   // creates a new target with `TargetPointDownloadSource` point name, once a source is downloaded `target` will call the `runTerragruntInfo` callback func.
+   target := run.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
    run.RunWithTarget(opts, target)
 
    ... code omitted
 
-   func runInfoPrint(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+   func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 
    ... code omitted
 */
