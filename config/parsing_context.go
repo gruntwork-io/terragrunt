@@ -48,8 +48,11 @@ type ParsingContext struct {
 	// expected to be available.
 	PartialParseDecodeList []PartialDecodeSectionType
 
-	// `ParserOptions` is used to configure hcl Parser.
+	// ParserOptions is used to configure hcl Parser.
 	ParserOptions []hclparse.Option
+
+	// SkipOutputsResolution is used to optionally opt-out of resolving outputs.
+	SkipOutputsResolution bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {

@@ -4252,3 +4252,85 @@ func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt workspace list --non-interactive --working-dir "+rootPath)
 	require.Error(t, err, "expected error when invoking unknown top-level command without 'run'")
 }
+
+func TestDiscoveryDoesntResolveOutputs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	depDir := filepath.Join(tmpDir, "dep")
+	err := os.MkdirAll(depDir, 0755)
+	require.NoError(t, err)
+
+	mainDir := filepath.Join(tmpDir, "main")
+	err = os.MkdirAll(mainDir, 0755)
+	require.NoError(t, err)
+
+	depConfig := `
+terraform {
+  source = "."
+}
+`
+	err = os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(depConfig), 0644)
+	require.NoError(t, err)
+
+	depTerraform := `
+output "value" {
+  value = "hello from dependency"
+}
+`
+	err = os.WriteFile(filepath.Join(depDir, "main.tf"), []byte(depTerraform), 0644)
+	require.NoError(t, err)
+
+	mainConfig := `
+terraform {
+  source = "."
+}
+
+dependency "dep" {
+  config_path = "../dep"
+
+  mock_outputs = {
+    value = "mock value"
+  }
+}
+
+inputs = {
+  dep_value = dependency.dep.outputs.value
+}
+`
+	err = os.WriteFile(filepath.Join(mainDir, "terragrunt.hcl"), []byte(mainConfig), 0644)
+	require.NoError(t, err)
+
+	mainTerraform := `
+variable "dep_value" {
+  type = string
+}
+
+output "result" {
+  value = var.dep_value
+}
+`
+	err = os.WriteFile(filepath.Join(mainDir, "main.tf"), []byte(mainTerraform), 0644)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+depDir)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+depDir)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hello from dependency")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+tmpDir)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, stdout)
+	assert.NotEmpty(t, stderr)
+
+	assert.NotContains(t, stderr, "that has no outputs, but mock outputs provided and returning those in dependency output")
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+mainDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "hello from dependency")
+}

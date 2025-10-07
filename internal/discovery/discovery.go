@@ -467,6 +467,8 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
+	parsingCtx.SkipOutputsResolution = true
+
 	//nolint: contextcheck
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
