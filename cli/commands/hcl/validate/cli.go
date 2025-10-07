@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -64,6 +65,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl),         // `TG_HCLVALIDATE_JSON`
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl), // `TERRAGRUNT_HCLVALIDATE_JSON`
 		),
+
+		shared.NewTFPathFlag(opts, nil),
 	}
 
 	return flagSet
