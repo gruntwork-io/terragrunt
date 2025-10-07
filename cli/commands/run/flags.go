@@ -144,7 +144,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("config"), terragruntPrefixControl)),
 
-		shared.NewTFPathFlag(opts, prefix),
+		shared.NewTFPathFlag(opts),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoAutoInitFlagName,

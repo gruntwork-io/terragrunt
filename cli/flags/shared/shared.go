@@ -28,9 +28,9 @@ const (
 )
 
 // NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
-func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+func NewTFPathFlag(opts *options.TerragruntOptions) *flags.Flag {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return flags.NewFlag(
@@ -51,7 +51,7 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 // NewQueueFlags creates the flags used for queue control
 func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return cli.Flags{
