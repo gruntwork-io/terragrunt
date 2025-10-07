@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -155,7 +156,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("config"), terragruntPrefixControl)),
 
-		NewTFPathFlag(opts, prefix),
+		shared.NewTFPathFlag(opts, prefix),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoAutoInitFlagName,
@@ -601,27 +602,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	flags = flags.Add(NewFeatureFlags(l, opts, prefix)...)
 
 	return flags.Sort()
-}
-
-// NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
-func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
-
-	return flags.NewFlag(
-		&cli.GenericFlag[string]{
-			Name:    TFPathFlagName,
-			EnvVars: tgPrefix.EnvVars(TFPathFlagName),
-			Usage:   "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
-			Setter: func(value string) error {
-				opts.TFPath = value
-				opts.TFPathExplicitlySet = true
-				return nil
-			},
-		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("tfpath"), terragruntPrefixControl),
-	)
 }
 
 // NewBackendFlags defines backend-related flags that should be available to both `run` and `backend` commands.
