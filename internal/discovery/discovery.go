@@ -448,7 +448,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
-	)
+	).WithSkipOutputsResolution()
 
 	// Apply custom parser options if provided via discovery
 	if len(parserOptions) > 0 {
@@ -464,7 +464,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 			for _, hclDiag := range hclDiags {
 				filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
 					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), skipNoVariableNamedDependencyDiagnostic)
+					strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic)
 
 				if !filterOut {
 					filteredDiags = append(filteredDiags, hclDiag)
@@ -475,8 +475,6 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		}))
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
-
-	parsingCtx.SkipOutputsResolution = true
 
 	//nolint: contextcheck
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
