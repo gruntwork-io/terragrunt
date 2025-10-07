@@ -4334,3 +4334,90 @@ output "result" {
 
 	assert.Contains(t, stdout, "hello from dependency")
 }
+
+func TestExternalDependenciesAreResolved(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	depDir := filepath.Join(tmpDir, "dep")
+	err := os.MkdirAll(depDir, 0755)
+	require.NoError(t, err)
+
+	mainDir := filepath.Join(tmpDir, "main")
+	err = os.MkdirAll(mainDir, 0755)
+	require.NoError(t, err)
+
+	depConfig := `
+terraform {
+  source = "."
+}
+`
+	err = os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(depConfig), 0644)
+	require.NoError(t, err)
+
+	depTerraform := `
+output "value" {
+  value = "hello from dependency"
+}
+`
+	err = os.WriteFile(filepath.Join(depDir, "main.tf"), []byte(depTerraform), 0644)
+	require.NoError(t, err)
+
+	mainConfig := `
+terraform {
+  source = "."
+}
+
+dependency "dep" {
+  config_path = "../dep"
+
+  mock_outputs = {
+    value = "mock value"
+  }
+}
+
+inputs = {
+  dep_value = dependency.dep.outputs.value
+}
+`
+	err = os.WriteFile(filepath.Join(mainDir, "terragrunt.hcl"), []byte(mainConfig), 0644)
+	require.NoError(t, err)
+
+	mainTerraform := `
+variable "dep_value" {
+  type = string
+}
+
+output "result" {
+  value = var.dep_value
+}
+`
+	err = os.WriteFile(filepath.Join(mainDir, "main.tf"), []byte(mainTerraform), 0644)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --queue-exclude-external --working-dir "+mainDir,
+	)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, stdout)
+	assert.NotEmpty(t, stderr)
+
+	assert.Contains(
+		t,
+		stderr,
+		"that has no outputs, but mock outputs provided and returning those in dependency output",
+	)
+	assert.NotContains(
+		t,
+		stderr,
+		`There is no variable named "dependency".`,
+	)
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+mainDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "hello from dependency")
+}
