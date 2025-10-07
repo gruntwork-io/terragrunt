@@ -39,6 +39,14 @@ const (
 	// skipOutputDiagnostics is a string used to identify diagnostics that reference outputs.
 	skipOutputDiagnostics = "output"
 
+	// skipNoVariableNamedDependencyDiagnostic is a string used to identify diagnostics
+	// that reference the missing dependency variable.
+	//
+	// This is fine during discovery, as we don't need dependency outputs resolved.
+	//
+	// This is a hack, and there should be a better way of handling this...
+	skipNoVariableNamedDependencyDiagnostic = `There is no variable named "dependency".`
+
 	// Default number of concurrent workers for discovery operations
 	defaultDiscoveryWorkers = 4
 
@@ -454,10 +462,11 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 			filteredDiags := hcl.Diagnostics{}
 
 			for _, hclDiag := range hclDiags {
-				containsOutputRef := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics)
+				filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), skipNoVariableNamedDependencyDiagnostic)
 
-				if !containsOutputRef {
+				if !filterOut {
 					filteredDiags = append(filteredDiags, hclDiag)
 				}
 			}

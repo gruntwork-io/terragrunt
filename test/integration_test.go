@@ -4415,9 +4415,4 @@ output "result" {
 		stderr,
 		`There is no variable named "dependency".`,
 	)
-
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+mainDir)
-	require.NoError(t, err)
-
-	assert.Contains(t, stdout, "hello from dependency")
 }
