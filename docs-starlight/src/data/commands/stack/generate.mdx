@@ -86,3 +86,21 @@ terragrunt stack generate --no-stack-validate
 <Aside type="caution">
 Path Restrictions: If an absolute path is provided as an argument, `generate` will throw an error. Only relative paths within the working directory are supported.
 </Aside>
+
+<Aside type="caution">
+Recreating the stack directory and cleaning stale files: By default, `terragrunt stack generate` does not delete files in `.terragrunt-stack` that are no longer produced by the current `terragrunt.stack.hcl`. If you removed or changed `values` or units and still see old files (e.g., a lingering `terragrunt.values.hcl`), regenerate from a clean state by either refreshing sources or cleaning the directory first:
+
+```bash
+# Refresh sources and regenerate from a clean copy
+terragrunt stack generate --source-update
+
+# Or explicitly remove the generated directory first
+terragrunt stack clean && terragrunt stack generate
+```
+
+You can also pass `--source-update` when running commands via `stack run`:
+
+```bash
+terragrunt stack run plan --source-update
+```
+</Aside>
