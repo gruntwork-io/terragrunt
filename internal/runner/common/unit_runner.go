@@ -84,15 +84,9 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 	runErr := opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
 
-	// Merge unit exit code into the global exit code with precedence (1 > 2 > 0)
+	// Merge unit exit code into the global exit code; precedence is handled by Set
 	if globalExitCode != nil {
-		switch unitExitCode.Get() {
-		case 1:
-			globalExitCode.Set(1)
-		case 2:
-			// Only promote to 2 if not already in error state
-			globalExitCode.Set(2)
-		}
+		globalExitCode.Set(unitExitCode.Get())
 	}
 
 	// End the run with appropriate result (only if report is not nil)
