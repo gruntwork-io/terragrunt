@@ -100,3 +100,8 @@ func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *Pars
 	ctx.ParserOptions = parserOptions
 	return &ctx
 }
+
+func (ctx ParsingContext) WithSkipOutputsResolution() *ParsingContext {
+	ctx.SkipOutputsResolution = true
+	return &ctx
+}
