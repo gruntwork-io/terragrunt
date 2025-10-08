@@ -86,7 +86,6 @@ const (
 	testFixtureNullValue                      = "fixtures/null-values"
 	testFixtureOutDir                         = "fixtures/out-dir"
 	testFixtureOutputAll                      = "fixtures/output-all"
-	testFixtureOutputModuleGroups             = "fixtures/output-module-groups"
 	testFixtureParallelRun                    = "fixtures/parallel-run"
 	testFixtureParallelStateInit              = "fixtures/parallel-state-init"
 	testFixtureParallelism                    = "fixtures/parallelism"
@@ -282,6 +281,31 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
+}
+
+func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "runall-retry-after-drift")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+
+	// Pre-apply the drift unit so it has a file, then delete it to ensure drift exists
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app_drift"))
+	require.NoError(t, err)
+	err = os.Remove(filepath.Join(rootPath, "app_drift", "example.txt"))
+	require.NoError(t, err)
+
+	var exitCode tf.DetailedExitCode
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --parallelism 1 --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.Get())
 }
 
 func TestLogCustomFormatOutput(t *testing.T) {
