@@ -1514,9 +1514,9 @@ func TestDependencyMockOutput(t *testing.T) {
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
-	// Now run --all apply so that the dependency is applied, and verify it uses the dependency output
+	// Now run --all apply so that the dependency is applied and verify it uses the dependency output
 	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
@@ -2164,13 +2164,13 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
 	// The file should exist in the first run.
 	assert.True(t, util.FileExists(depPathFileOut))
 	assert.False(t, util.FileExists(mainPathFileOut))
 
-	// Now delete file and run plain main again. It should NOT create file.out.
+	// Now delete the file and run plain main again. It should NOT create file.out.
 	require.NoError(t, os.Remove(depPathFileOut))
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+mainPath)
 	assert.False(t, util.FileExists(depPathFileOut))
@@ -3086,7 +3086,7 @@ func TestDependenciesOptimisation(t *testing.T) {
 		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
 	)
 
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
 	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 

@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -179,14 +180,6 @@ func (dep *Dependency) setRenderedOutputs(ctx *ParsingContext, l log.Logger) err
 
 	return nil
 }
-
-// jsonOutputCache is a map that maps config paths to the outputs so that they can be reused across calls for common
-// modules. We use sync.Map to ensure atomic updates during concurrent access.
-var jsonOutputCache = sync.Map{}
-
-// outputLocks is a map that maps config paths to mutex locks to ensure we only have a single instance of terragrunt
-// output running for a given dependent config. We use sync.Map to ensure atomic updates during concurrent access.
-var outputLocks = sync.Map{}
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
@@ -609,13 +602,22 @@ func isRenderCommand(ctx *ParsingContext) bool {
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
 func getOutputJSONWithCaching(ctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
-	// Acquire synchronization lock to ensure only one instance of output is called per config.
-	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+	// Use context-based caches instead of global sync.Map
+	outputLocksCache := cache.ContextCache[*sync.Mutex](ctx, DependencyLocksContextKey)
+	jsonCache := cache.ContextCache[[]byte](ctx, DependencyJSONOutputCacheContextKey)
 
-	actualLock := rawActualLock.(*sync.Mutex)
-	defer actualLock.Unlock()
+	// Acquire synchronization lock to ensure only one instance of output is called per config.
+	// Get or create a lock for this specific target config
+	var actualLock *sync.Mutex
+	if cachedLock, found := outputLocksCache.Get(ctx, targetConfig); found {
+		actualLock = cachedLock
+	} else {
+		actualLock = &sync.Mutex{}
+		outputLocksCache.Put(ctx, targetConfig, actualLock)
+	}
 
 	actualLock.Lock()
+	defer actualLock.Unlock()
 
 	// This debug log is useful for validating if the locking mechanism is working. If the locking mechanism is working,
 	// we should only see one pair of logs at a time that begin with this statement, and then the relevant "terraform
@@ -623,11 +625,10 @@ func getOutputJSONWithCaching(ctx *ParsingContext, l log.Logger, targetConfig st
 	l.Debugf("Getting output of dependency %s for config %s", targetConfig, ctx.TerragruntOptions.TerragruntConfigPath)
 
 	// Look up if we have already run terragrunt output for this target config
-	rawJSONBytes, hasRun := jsonOutputCache.Load(targetConfig)
-	if hasRun {
+	if cachedJSONBytes, hasRun := jsonCache.Get(ctx, targetConfig); hasRun {
 		// Cache hit, so return cached output
 		l.Debugf("%s was run before. Using cached output.", targetConfig)
-		return rawJSONBytes.([]byte), nil
+		return cachedJSONBytes, nil
 	}
 
 	// Cache miss, so look up the output and store in cache
@@ -643,7 +644,7 @@ func getOutputJSONWithCaching(ctx *ParsingContext, l log.Logger, targetConfig st
 		newJSONBytes = newJSONBytes[index:]
 	}
 
-	jsonOutputCache.Store(targetConfig, newJSONBytes)
+	jsonCache.Put(ctx, targetConfig, newJSONBytes)
 
 	return newJSONBytes, nil
 }
@@ -1161,8 +1162,13 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 }
 
 // ClearOutputCache clears the output cache. Useful during testing.
-func ClearOutputCache() {
-	jsonOutputCache = sync.Map{}
+func ClearOutputCache(ctx context.Context) {
+	// Extract caches from context and clear them
+	jsonCache := cache.ContextCache[[]byte](ctx, DependencyJSONOutputCacheContextKey)
+	locksCache := cache.ContextCache[*sync.Mutex](ctx, DependencyLocksContextKey)
+
+	jsonCache.Clear()
+	locksCache.Clear()
 }
 
 // runTerraformInitForDependencyOutput will run terraform init in a mode that doesn't pull down plugins or modules. Note

@@ -249,7 +249,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 			appDir = filepath.Join(tc.rootPath, app)
 
 			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, tc.downloadDir))
-			config.ClearOutputCache()
+			config.ClearOutputCache(t.Context())
 		}
 
 		if tc.downloadDir != "" {

@@ -1195,10 +1195,15 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			return errors.Errorf("failed to get file info: %w", err)
 		}
 
-		var (
-			file     *hclparse.File
-			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, fileInfo.ModTime().UnixMicro())
+		cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
+			configPath,
+			ctx.TerragruntOptions.WorkingDir,
+			childKey,
+			decodeListKey,
+			fileInfo.ModTime().UnixMicro(),
 		)
+
+		var file *hclparse.File
 
 		// TODO: Remove lint ignore
 		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
