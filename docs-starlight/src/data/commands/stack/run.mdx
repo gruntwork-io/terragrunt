@@ -32,3 +32,14 @@ This feature facilitates efficient orchestration of operations on multiple units
 Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
+
+<Aside type="note">
+Refreshing sources and cleaning stale files: If you change or remove units/values and find stale files remain in `.terragrunt-stack`, pass `--source-update` to refresh sources before generation, or clean the directory first:
+
+```bash
+terragrunt stack run plan --source-update
+
+# or
+terragrunt stack clean && terragrunt stack run plan
+```
+</Aside>
