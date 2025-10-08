@@ -64,9 +64,9 @@ var TerraformCommandsThatUseState = []string{
 	"state",
 }
 
+// TerraformCommandsThatDoNotNeedInit is a list of Terraform commands that do not require 'terraform init' to be executed.
 var TerraformCommandsThatDoNotNeedInit = []string{
 	"version",
-	"graph-dependencies",
 }
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
