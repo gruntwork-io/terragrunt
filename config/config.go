@@ -1186,11 +1186,6 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
 		}
 
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -1202,7 +1197,7 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 
 		var (
 			file     *hclparse.File
-			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, fileInfo.ModTime().UnixMicro())
 		)
 
 		// TODO: Remove lint ignore
