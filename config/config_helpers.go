@@ -79,8 +79,6 @@ const (
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
-
-	sopsCacheName = "sopsCache"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -879,14 +877,6 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 	return matches[1], nil
 }
 
-// A cache of the results of a decrypt operation via sops. Each decryption
-// operation can take several seconds, so this cache speeds up terragrunt executions
-// where the same sops files are referenced multiple times.
-//
-// The cache keys are the canonical paths to the encrypted files, and the values are the
-// plain-text result of the decrypt operation.
-var sopsCache = cache.NewCache[string](sopsCacheName)
-
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	numParams := len(params)
@@ -939,7 +929,7 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 		}
 	}
 
-	if val, ok := sopsCache.Get(ctx, path); ok {
+	if val, ok := GetSopsCache(ctx).Get(ctx, path); ok {
 		return val, nil
 	}
 
@@ -950,7 +940,7 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache.Put(ctx, path, value)
+		GetSopsCache(ctx).Put(ctx, path, value)
 
 		return value, nil
 	}
