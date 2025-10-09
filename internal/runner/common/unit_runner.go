@@ -84,14 +84,9 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 	runErr := opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
 
-	// Only merge final unit exit code when the unit run completed without error.
-	// This avoids poisoning the global exit code with a transient 1 from a retryable attempt.
-	if runErr == nil && globalExitCode != nil {
-		// Normalize: if the final attempt succeeded but the unit exit code is still 1 from a prior attempt, reset to 0.
-		if unitExitCode.Get() == tf.DetailedExitCodeError {
-			unitExitCode.ResetSuccess()
-		}
-
+	// Only merge the final unit exit code when the unit run completed without error
+	// and the exit code isn't stuck at 1 from a prior retry attempt.
+	if runErr == nil && globalExitCode != nil && unitExitCode.Get() != tf.DetailedExitCodeError {
 		globalExitCode.Set(unitExitCode.Get())
 	}
 
