@@ -8,7 +8,7 @@ import IconTerratest from '@assets/icon-terratest.svg';
 import IconBoilerplate from '@assets/icon-boilerplate.svg';
 import IconCloudnuke from '@assets/icon-cloudnuke.svg';
 import IconGitxargs from '@assets/icon-gitxargs.svg';
-import ButtonLink from '@components/ui/ButtonLink.tsx';
+import Button from '@components/ui/Button.tsx';
 import { ArrowRight } from 'lucide-react';
 
 ---
@@ -23,19 +23,19 @@ import { ArrowRight } from 'lucide-react';
         <div class="flex w-full md:w-[402px] items-center gap-3">
             <!-- Newsletter Form -->
             <form id="custom-subscribe-form" class="custom-form flex w-full items-center gap-3" data-form-id="437b604f-ae08-40cf-b68f-707ae19ab6e9" data-portal-id="8376079">
-                <label for="email" class="sr-only">Email address</label>
-                <input
-                    id="email"
-                    name="email"
-                    class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-white placeholder-gray-300 border border-transparent focus:border-white/20 focus:outline-none transition-colors"
-                    type="email"
-                    placeholder="Your email here"
-                    required
-                    aria-describedby="email-description"
-                />
-                <ButtonLink href="/docs/getting-started/quick-start" variant="primary" size="icon">
-                    <ArrowRight className="w-5 h-5" aria-label="External link icon" />
-                </ButtonLink>
+              <label for="email" class="sr-only">Email address</label>
+              <input
+                id="email"
+                name="email"
+                class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-white placeholder-gray-300 border border-transparent focus:border-white/20 focus:outline-none transition-colors"
+                type="email"
+                placeholder="Your email here"
+                required
+                aria-describedby="email-description"
+              />
+              <Button id="Newsletter-Submit" type="submit" variant="primary" size="icon">
+                <ArrowRight className="w-5 h-5" aria-label="External link icon" />
+              </Button>
             </form>
 
             <!-- Success Message -->
@@ -112,25 +112,20 @@ import { ArrowRight } from 'lucide-react';
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const customForm = document.getElementById("custom-subscribe-form");
-    const submitButton = document.querySelector('button[type="submit"]');
+    const submitButton = document.getElementById("Newsletter-Submit");
     const successMessage = document.querySelector(".success-message");
-    const buttonText = document.querySelector(".button-text");
-    const buttonLoader = document.querySelector(".button-loader");
-    const emailInput = document.querySelector('input[name="email"]') as HTMLInputElement;
+    const emailInput = document.querySelector('input[name="email"]');
 
-    if (customForm && submitButton && successMessage && buttonText && buttonLoader && emailInput) {
-      customForm.addEventListener("submit", function (e) {
+    if (customForm && submitButton && successMessage && emailInput) {
+      customForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        console.log("start fired");
 
-        // Show loading state
+        // Disable form while submitting
         submitButton.setAttribute('disabled', 'true');
-        buttonText.classList.add("hidden");
-        buttonLoader.classList.remove("hidden");
         emailInput.setAttribute('disabled', 'true');
 
-        const email = emailInput.value;
-
-        // Submit to HubSpot using their API
+        const email = (emailInput as HTMLInputElement).value;
         const portalId = customForm.getAttribute("data-portal-id");
         const formId = customForm.getAttribute("data-form-id");
 
@@ -142,65 +137,54 @@ import { ArrowRight } from 'lucide-react';
 
         const data = {
           submittedAt: Date.now(),
-          fields: [
-            {
-              name: "email",
-              value: email,
-            },
-          ],
+          fields: [{ name: "email", value: email }],
           context: {
             pageUri: window.location.href,
             pageName: document.title,
           },
         };
 
-        fetch(
-          `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formId}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(data),
-          },
-        )
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error("Network response was not ok");
+        try {
+          const response = await fetch(
+            `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formId}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(data),
             }
-            return response.json();
-          })
-                  .then((result) => {
-          console.log("Success:", result);
-          // Hide form and show success message with smooth transition
-          (customForm as HTMLElement).style.opacity = "0";
-          (customForm as HTMLElement).style.transform = "translateY(-10px)";
+          );
+
+          if (!response.ok) throw new Error("Network response was not ok");
+
+          console.log("Form submitted:", await response.json());
+
+          // Animate out the form and show success message
+          customForm.style.opacity = "0";
+          customForm.style.transform = "translateY(-10px)";
 
           setTimeout(() => {
             customForm.classList.add("hidden");
             successMessage.classList.remove("hidden");
             (successMessage as HTMLElement).style.opacity = "0";
             (successMessage as HTMLElement).style.transform = "translateY(10px)";
-
-            // Trigger reflow
-            (successMessage as HTMLElement).offsetHeight;
-
+            (successMessage as HTMLElement).offsetHeight; // trigger reflow
             (successMessage as HTMLElement).style.opacity = "1";
             (successMessage as HTMLElement).style.transform = "translateY(0)";
             (successMessage as HTMLElement).style.transition = "opacity 0.3s ease, transform 0.3s ease";
           }, 200);
-        })
-          .catch((error) => {
-            console.error("Error:", error);
-            resetFormState();
-          });
+        } catch (error) {
+          console.error("Error:", error);
+          resetFormState();
+        }
       });
 
       function resetFormState() {
-        if (submitButton) submitButton.removeAttribute('disabled');
-        if (buttonText) buttonText.classList.remove("hidden");
-        if (buttonLoader) buttonLoader.classList.add("hidden");
-        if (emailInput) emailInput.removeAttribute('disabled');
+        if (submitButton) {
+          submitButton.removeAttribute('disabled');
+        }
+        if (emailInput) {
+          emailInput.removeAttribute('disabled');
+        }
       }
     }
   });
