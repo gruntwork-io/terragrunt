@@ -8,7 +8,7 @@ type ButtonProps = React.ComponentProps<typeof Button>;
 
 interface ButtonLinkProps extends ButtonProps {
   buttonClassName?: string;
-  href: string;
+  href?: string;
   rel?: string;
   target?: "_blank" | "_self" | "_parent" | "_top";
 }
