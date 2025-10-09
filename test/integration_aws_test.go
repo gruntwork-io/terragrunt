@@ -1664,7 +1664,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	config.ClearOutputCache(t.Context())
 
 	// verify expected output
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, t.Context(), "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -1682,7 +1682,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 
 	fmt.Println("terragrunt output -no-color -json --log-level trace --non-interactive --working-dir " + livePath)
 
-	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	reout, reerr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, t.Context(), "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
