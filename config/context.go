@@ -26,12 +26,11 @@ const (
 	dependencyLocksCacheName      = "dependencyLocksCache"
 )
 
-// Global cache references for testing purposes
-// These allow ClearOutputCache to work without needing the context
+// Package-level cache instances that persist across command invocations
+// These are needed because each command creates a new context but we want caches to persist
 var (
-	globalDependencyJSONOutputCache *cache.Cache[[]byte]
-	globalDependencyLocksCache      *cache.Cache[*sync.Mutex]
-	globalCacheMutex                sync.RWMutex
+	persistentDependencyJSONOutputCache = cache.NewCache[[]byte](dependencyJSONOutputCacheName)
+	persistentDependencyLocksCache      = cache.NewCache[*sync.Mutex](dependencyLocksCacheName)
 )
 
 // WithConfigValues add to context default values for configuration.
@@ -41,20 +40,9 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string](runCmdCacheName))
 	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName))
 
-	// Create and store caches that need to be clearable from tests
-	jsonCache := cache.NewCache[[]byte](dependencyJSONOutputCacheName)
-	locksCache := cache.NewCache[*sync.Mutex](dependencyLocksCacheName)
-
-	ctx = context.WithValue(ctx, DependencyJSONOutputCacheContextKey, jsonCache)
-	ctx = context.WithValue(ctx, DependencyLocksContextKey, locksCache)
-
-	// Store global references for testing
-	globalCacheMutex.Lock()
-
-	globalDependencyJSONOutputCache = jsonCache
-	globalDependencyLocksCache = locksCache
-
-	globalCacheMutex.Unlock()
+	// Use persistent caches for dependency outputs so they survive across command invocations
+	ctx = context.WithValue(ctx, DependencyJSONOutputCacheContextKey, persistentDependencyJSONOutputCache)
+	ctx = context.WithValue(ctx, DependencyLocksContextKey, persistentDependencyLocksCache)
 
 	return ctx
 }
