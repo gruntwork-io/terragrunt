@@ -1164,13 +1164,8 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 // ClearOutputCache clears the output cache. Useful during testing.
 // Extracts the caches from context and clears them.
 func ClearOutputCache(ctx context.Context) {
-	if jsonCache, ok := ctx.Value(DependencyJSONOutputCacheContextKey).(*cache.Cache[[]byte]); ok && jsonCache != nil {
-		jsonCache.Clear()
-	}
-
-	if locksCache, ok := ctx.Value(DependencyLocksContextKey).(*cache.Cache[*sync.Mutex]); ok && locksCache != nil {
-		locksCache.Clear()
-	}
+	cache.ContextCache[[]byte](ctx, DependencyJSONOutputCacheContextKey).Clear()
+	cache.ContextCache[*sync.Mutex](ctx, DependencyLocksContextKey).Clear()
 }
 
 // runTerraformInitForDependencyOutput will run terraform init in a mode that doesn't pull down plugins or modules. Note
