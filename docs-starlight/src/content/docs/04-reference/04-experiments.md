@@ -69,6 +69,10 @@ The following experiments are available:
 
 - [symlinks](#symlinks)
 - [cas](#cas)
+- [report](#report)
+- [runner-pool](#runner-pool)
+- [azure-backend](#azure-backend)
+- [auto-provider-cache-dir](#auto-provider-cache-dir)
 
 ### symlinks
 
@@ -117,6 +121,137 @@ To transition the `cas` feature to a stable release, the following must be addre
 - [x] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
 
+### `report`
+
+Support for Terragrunt Run Reports and Summaries.
+
+#### `report` - What it does
+
+Allow usage of experimental run report generation, and summary displays.
+
+#### `report` - How to provide feedback
+
+Provide your feedback on the [Run Summary RFC](https://github.com/gruntwork-io/terragrunt/issues/3628).
+
+#### `report` - Criteria for stabilization
+
+To transition the `report` feature to a stable release, the following must be addressed:
+
+- [x] Add support for generating reports (in CSV format by default).
+- [x] Add support for displaying summaries of runs.
+- [x] Add ability to disable summary display.
+- [x] Add support for generating reports in JSON format.
+- [x] Add comprehensive integration tests for the `report` experiment.
+- [x] Finalize the design of run summaries and reports.
+
+### `runner-pool`
+
+Proposes replacing Terragrunt's group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
+This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
+
+#### `runner-pool` - What it does
+
+Allow usage of experimental runner pool implementation for units execution.
+
+#### `runner-pool` - How to provide feedback
+
+Provide your feedback on the [Runner Pool](https://github.com/gruntwork-io/terragrunt/issues/3629).
+
+#### `runner-pool` - Criteria for stabilization
+
+To transition the `runner-pool` feature to a stable release, the following must be addressed:
+
+- [x] Use new discovery and queue packages to discover units.
+- [x] Add support for including/excluding external units in the discovery process.
+- [x] Add runner pool implementation to execute discovered units.
+- [x] Add integration tests to track that the runner pool works in the same way as the current implementation.
+- [x] Add performance tests to track that the runner pool implementation is faster than the current implementation.
+- [x] Add support for fail fast behavior in the runner pool.
+- [x] Improve the UI to queue to apply.
+- [x] Add OpenTelemetry support to the runner pool.
+
+### `azure-backend`
+
+Support for using Azure Storage as a remote state backend.
+
+#### `azure-backend` - What it does
+
+Enables the Azure Storage backend (azurerm) for Terraform remote state. When this experiment is enabled, you can use Azure Storage as a backend for storing Terraform state files.
+
+The backend supports configuration options for:
+
+- Storage account details (name, resource group)
+- Container configuration
+- Key/blob path for state files
+- Access control via Azure AD authentication, Managed Identity, or Service Principal
+- Optional creation of storage accounts and containers if they don't exist
+
+#### `azure-backend` - How to provide feedback
+
+If you use the Azure backend, please share your experience in the [Azure Backend for Remote State](https://github.com/gruntwork-io/terragrunt/discussions) GitHub Discussions. Your feedback will help improve the stability and features of this backend.
+
+#### `azure-backend` - Criteria for stabilization
+
+To transition the `azure-backend` feature to a stable release, the following must be addressed:
+
+- [ ] Add comprehensive integration tests for Azure storage backend
+- [ ] Ensure proper error handling and helpful error messages
+- [ ] Document all configuration options and usage examples
+- [ ] Test performance with various state file sizes and configurations
+- [ ] Validate compatibility with different Azure credential providers
+- [ ] Implement thorough security testing for the backend
+
+### `auto-provider-cache-dir`
+
+Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
+
+#### `auto-provider-cache-dir` - What it does
+
+When enabled, this experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+
+**Requirements:**
+
+- OpenTofu version >= 1.10 is required
+- Only works when using OpenTofu (not Terraform)
+- If the requirements are not met, the experiment silently does nothing
+
+**Usage:**
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir
+```
+
+Or with environment variables:
+
+```bash
+TG_EXPERIMENT='auto-provider-cache-dir' \
+terragrunt run --all apply
+```
+
+**Disabling the feature:**
+
+Even when the experiment is enabled, you can still disable the auto-provider-cache-dir feature for specific runs using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir --no-auto-provider-cache-dir
+```
+
+This will be most important post-stabilization, when the feature is enabled by default.
+
+#### `auto-provider-cache-dir` - How to provide feedback
+
+Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: auto-provider-cache-dir` label.
+
+#### `auto-provider-cache-dir` - Criteria for stabilization
+
+To transition the `auto-provider-cache-dir` feature to a stable release, the following must be addressed:
+
+- [ ] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
+- [ ] Performance comparison with the existing provider cache server approach.
+- [ ] Documentation and examples of best practices for usage.
+- [ ] Community feedback on real-world usage and any edge cases discovered.
+
+Note that the current plan for stabilization is to have the feature be enabled by default, and to allow users to opt-out if they need to, or use the provider cache server if they want to do something more advanced, like store their provider cache in a different filesystem.
 
 ## Completed Experiments
 
