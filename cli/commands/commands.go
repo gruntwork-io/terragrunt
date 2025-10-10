@@ -27,7 +27,6 @@ import (
 	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
@@ -92,14 +91,13 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		hcl.NewCommand(l, opts),                // hcl
-		info.NewCommand(l, opts),               // info
-		dag.NewCommand(l, opts),                // dag
-		render.NewCommand(l, opts),             // render
-		helpCmd.NewCommand(l, opts),            // help (hidden)
-		versionCmd.NewCommand(opts),            // version (hidden)
-		awsproviderpatch.NewCommand(l, opts),   // aws-provider-patch (hidden)
-		outputmodulegroups.NewCommand(l, opts), // output-module-groups (hidden)
+		hcl.NewCommand(l, opts),              // hcl
+		info.NewCommand(l, opts),             // info
+		dag.NewCommand(l, opts),              // dag
+		render.NewCommand(l, opts),           // render
+		helpCmd.NewCommand(l, opts),          // help (hidden)
+		versionCmd.NewCommand(opts),          // version (hidden)
+		awsproviderpatch.NewCommand(l, opts), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -114,8 +112,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 		},
 	)
 
-	allCommands := NewDeprecatedCommands(l, opts).
-		Merge(mainCommands...).
+	allCommands := mainCommands.
 		Merge(catalogCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
