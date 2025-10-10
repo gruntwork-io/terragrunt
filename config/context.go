@@ -31,6 +31,14 @@ const (
 	iamRoleCacheName              = "iamRoleCache"
 )
 
+// Package-level cache instances that persist across command invocations
+var (
+	persistentDependencyJSONOutputCache = cache.NewCache[[]byte](dependencyJSONOutputCacheName)
+	persistentDependencyLocksCache      = cache.NewCache[*sync.Mutex](dependencyLocksCacheName)
+	persistentSopsCache                 = cache.NewCache[string](sopsCacheName)
+	persistentIAMRoleCache              = cache.NewCache[options.IAMRoleOptions](iamRoleCacheName)
+)
+
 // GetSopsCache returns the SOPS cache instance from context
 func GetSopsCache(ctx context.Context) *cache.Cache[string] {
 	return cache.ContextCache[string](ctx, SopsCacheContextKey)
@@ -47,10 +55,10 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig](configCacheName))
 	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string](runCmdCacheName))
 	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName))
-	ctx = context.WithValue(ctx, DependencyJSONOutputCacheContextKey, cache.NewCache[[]byte](dependencyJSONOutputCacheName))
-	ctx = context.WithValue(ctx, DependencyLocksContextKey, cache.NewCache[*sync.Mutex](dependencyLocksCacheName))
-	ctx = context.WithValue(ctx, SopsCacheContextKey, cache.NewCache[string](sopsCacheName))
-	ctx = context.WithValue(ctx, IAMRoleCacheContextKey, cache.NewCache[options.IAMRoleOptions](iamRoleCacheName))
+	ctx = context.WithValue(ctx, DependencyJSONOutputCacheContextKey, persistentDependencyJSONOutputCache)
+	ctx = context.WithValue(ctx, DependencyLocksContextKey, persistentDependencyLocksCache)
+	ctx = context.WithValue(ctx, SopsCacheContextKey, persistentSopsCache)
+	ctx = context.WithValue(ctx, IAMRoleCacheContextKey, persistentIAMRoleCache)
 
 	return ctx
 }
