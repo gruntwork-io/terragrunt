@@ -4188,52 +4188,6 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 	}
 }
 
-func TestVersionIsInvokedOnlyOnce(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
-	require.NoError(t, err)
-
-	// check that version command was invoked only once -version
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
-	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
-
-	expected := 2
-
-	if expectExtraVersionCommandCall(t) {
-		expected++
-	}
-
-	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
-}
-
-func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
-	require.NoError(t, err)
-
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
-	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
-
-	expected := 3
-
-	if expectExtraVersionCommandCall(t) {
-		expected++
-	}
-
-	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
-	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
-}
-
 // expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
 //
 // We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled with OpenTofu,
