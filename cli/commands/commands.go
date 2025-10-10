@@ -114,8 +114,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 		},
 	)
 
-	allCommands := NewDeprecatedCommands(l, opts).
-		Merge(mainCommands...).
+	allCommands := mainCommands.
 		Merge(catalogCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
