@@ -10,7 +10,7 @@ import '@styles/global.css';
     <div class="flex flex-col md:w-[680px] lg:w-[900px]">
         <!-- Header Section -->
         <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
-            <Eyebrow text="TERRAGRUNT DRIFT DETECTION" icon={IconTerragruntDriftEyebrow} />
+            <Eyebrow text="TERRAGRUNT DRIFT DETECTION" icon={IconTerragruntDriftEyebrow} href="https://docs.gruntwork.io/pipelines" />
             <h2 class="text-4xl md:text-[42px] font-sans m-0 text-primary">
               <span class="text-accent">Detect and resolve</span> drift</h2>
         </div>
@@ -21,6 +21,7 @@ import '@styles/global.css';
               title="Scheduled runs"
               titleSize="text-md"
               class="basis-1/3 border-b-0 lg:border-b border-x md:border-x-0"
+              href="https://docs.gruntwork.io/pipelines/guides/drift-detection"
             >
                 <p class="text-sm font-sans text-gray-1">Run drift detection as often as you like to ensure your live resources reflect your IaC.</p>
             </Card>
@@ -28,6 +29,7 @@ import '@styles/global.css';
               title="Automatic Pull Requests"
               titleSize="text-md"
               class="basis-1/3 border-b-0 lg:border-b border-x md:border-x-0 lg:border-x"
+              href="https://docs.gruntwork.io/pipelines/guides/drift-detection"
             >
                 <p class="text-sm font-sans text-gray-1">Get pull requests to automatically report and resolve drift. Nothing changes in your infrastructure without review and approval.</p>
             </Card>
@@ -35,6 +37,7 @@ import '@styles/global.css';
               title="Detect Drifted Stacks"
               titleSize="text-md"
               class="basis-1/3 border-x md:border-x-0"
+              href="https://docs.gruntwork.io/pipelines/guides/drift-detection"
             >
                 <p class="text-sm font-sans text-gray-1">Detect drift even against your `terragrunt.stack.hcl` files to ensure nothing slips through the cracks.</p>
             </Card>
