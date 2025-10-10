@@ -51,8 +51,6 @@ const (
 
 	FoundInFile = "found_in_file"
 
-	iamRoleCacheName = "iamRoleCache"
-
 	logMsgSeparator = "\n"
 
 	DefaultEngineType                   = "rpc"
@@ -1186,11 +1184,6 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
 		}
 
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -1200,10 +1193,15 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			return errors.Errorf("failed to get file info: %w", err)
 		}
 
-		var (
-			file     *hclparse.File
-			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
+			configPath,
+			ctx.TerragruntOptions.WorkingDir,
+			childKey,
+			decodeListKey,
+			fileInfo.ModTime().UnixMicro(),
 		)
+
+		var file *hclparse.File
 
 		// TODO: Remove lint ignore
 		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
@@ -1489,9 +1487,6 @@ func detectBareIncludeUsage(file *hclparse.File) bool {
 	}
 }
 
-// iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = cache.NewCache[options.IAMRoleOptions](iamRoleCacheName)
-
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) error {
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
@@ -1501,7 +1496,7 @@ func setIAMRole(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeF
 		// as key is considered HCL code and include configuration
 		var (
 			key           = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
-			config, found = iamRoleCache.Get(ctx, key)
+			config, found = GetIAMRoleCache(ctx).Get(ctx, key)
 		)
 
 		if !found {
@@ -1511,7 +1506,7 @@ func setIAMRole(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeF
 			}
 
 			config = iamConfig.GetIAMRoleOptions()
-			iamRoleCache.Put(ctx, key, config)
+			GetIAMRoleCache(ctx).Put(ctx, key, config)
 		}
 		// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 		// precedence.

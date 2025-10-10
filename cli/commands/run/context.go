@@ -13,13 +13,21 @@ const (
 	versionCacheName                 = "versionCache"
 )
 
+// Package-level cache instance that persists across command invocations
+var persistentVersionCache = cache.NewCache[string](versionCacheName)
+
 // WithRunVersionCache initializes the version cache in the context for the run package.
 func WithRunVersionCache(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, versionCacheContextKey, cache.NewCache[string](versionCacheName))
+	ctx = context.WithValue(ctx, versionCacheContextKey, persistentVersionCache)
 	return ctx
 }
 
 // GetRunVersionCache retrieves the version cache from the context for the run package.
 func GetRunVersionCache(ctx context.Context) *cache.Cache[string] {
 	return cache.ContextCache[string](ctx, versionCacheContextKey)
+}
+
+// ClearVersionCache clears the version cache. Useful during testing.
+func ClearVersionCache() {
+	persistentVersionCache.Clear()
 }
