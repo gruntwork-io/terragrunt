@@ -11,7 +11,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
+	hclformat "github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
@@ -498,7 +501,7 @@ func TestTerragruntHelp(t *testing.T) {
 		{
 			args:        []string{"terragrunt", awsproviderpatch.CommandName, "-h"},
 			expected:    run.ConfigFlagName,
-			notExpected: commands.CommandHCLFmtName,
+			notExpected: hcl.CommandName + " " + hclformat.CommandName,
 		},
 		{
 			args:     []string{"terragrunt", run.CommandName, "--help"},
@@ -578,9 +581,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.ErrWriter = &bytes.Buffer{}
 
 	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
-	app.Commands = append(
-		commands.NewDeprecatedCommands(l, opts),
-		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(l, opts))
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx *clipkg.Context) error {
 		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)

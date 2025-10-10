@@ -117,7 +117,7 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 
 	// validate the generated files
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hclvalidate --non-interactive --working-dir "+tmpEnvPath)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --non-interactive --working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 }
 
