@@ -13,7 +13,6 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	hclformat "github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -167,10 +166,6 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args:            []string{"plan", doubleDashed(run.InputsDebugFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, true),
-		},
-		{
-			args:            []string{outputmodulegroups.CommandName, outputmodulegroups.SubCommandApply},
-			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{outputmodulegroups.SubCommandApply}, false, "", false, false, defaultLogLevel, false),
 		},
 	}
 
