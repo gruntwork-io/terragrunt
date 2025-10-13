@@ -28,6 +28,6 @@ func GetRunVersionCache(ctx context.Context) *cache.Cache[string] {
 }
 
 // ClearVersionCache clears the version cache. Useful during testing.
-func ClearVersionCache() {
-	persistentVersionCache.Clear()
+func ClearVersionCache(ctx context.Context) {
+	cache.ContextCache[string](ctx, versionCacheContextKey).Clear()
 }

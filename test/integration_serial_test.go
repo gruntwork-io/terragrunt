@@ -828,7 +828,7 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 }
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
-	run.ClearVersionCache()
+	run.ClearVersionCache(t.Context())
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -851,7 +851,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
-	run.ClearVersionCache()
+	run.ClearVersionCache(t.Context())
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
