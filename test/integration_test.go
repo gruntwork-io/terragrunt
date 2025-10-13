@@ -115,6 +115,7 @@ const (
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
+	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
 
 	terraformFolder = ".terraform"
 
@@ -4439,4 +4440,22 @@ output "result" {
 		stderr,
 		`There is no variable named "dependency".`,
 	)
+}
+
+func TestRunAllDetectsHiddenDirectories(t *testing.T) {
+	// track that hidden directories are detected when using --queue-include-dir with a pattern that includes them
+	t.Parallel()
+	rootPath := helpers.CopyEnvironment(t, hiddenRunAllFixturePath, ".cloud/**")
+	modulePath := util.JoinPath(rootPath, hiddenRunAllFixturePath)
+	helpers.CleanupTerraformFolder(t, modulePath)
+
+	// Expect Terragrunt to discover modules under .cloud now that run contexts include hidden dirs
+	command := fmt.Sprintf(
+		"terragrunt run --all plan --queue-include-dir **/.cloud/**/** --non-interactive --log-level trace --working-dir %s",
+		modulePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hidden1")
+	assert.Contains(t, stdout, "hidden2")
 }
