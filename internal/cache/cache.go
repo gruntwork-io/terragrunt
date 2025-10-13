@@ -61,6 +61,22 @@ func (c *Cache[V]) Put(ctx context.Context, key string, value V) {
 	c.Cache[cacheKey] = value
 }
 
+// Size returns the current number of items in the cache
+func (c *Cache[V]) Size() int {
+	c.Mutex.RLock()
+	defer c.Mutex.RUnlock()
+
+	return len(c.Cache)
+}
+
+// Clear removes all entries from the cache
+func (c *Cache[V]) Clear() {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+
+	c.Cache = make(map[string]V)
+}
+
 // ExpiringItem - item with expiration time
 type ExpiringItem[V any] struct {
 	Value      V
@@ -119,10 +135,11 @@ func (c *ExpiringCache[V]) Put(ctx context.Context, key string, value V, expirat
 
 // ContextCache returns cache from the context. If the cache is nil, it creates a new instance.
 func ContextCache[T any](ctx context.Context, key any) *Cache[T] {
-	cacheInstance, ok := ctx.Value(key).(*Cache[T])
-	if !ok || cacheInstance == nil {
-		cacheInstance = NewCache[T](fmt.Sprintf("%v", key))
+	// Try to fetch cache from context
+	if cache, ok := ctx.Value(key).(*Cache[T]); ok && cache != nil {
+		return cache
 	}
 
-	return cacheInstance
+	// Create new cache if nothing found
+	return NewCache[T](fmt.Sprintf("%v", key))
 }

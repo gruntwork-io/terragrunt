@@ -91,7 +91,7 @@ func TestDestroyDependentModule(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+util.JoinPath(rootPath, "b"))
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+util.JoinPath(rootPath, "c"))
 
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
 	// destroy module which have outputs from other modules
 	stdout := bytes.Buffer{}

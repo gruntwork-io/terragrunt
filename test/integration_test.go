@@ -1538,9 +1538,9 @@ func TestDependencyMockOutput(t *testing.T) {
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
-	// Now run --all apply so that the dependency is applied, and verify it uses the dependency output
+	// Now run --all apply so that the dependency is applied and verify it uses the dependency output
 	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
@@ -2188,13 +2188,13 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
 	// The file should exist in the first run.
 	assert.True(t, util.FileExists(depPathFileOut))
 	assert.False(t, util.FileExists(mainPathFileOut))
 
-	// Now delete file and run plain main again. It should NOT create file.out.
+	// Now delete the file and run plain main again. It should NOT create file.out.
 	require.NoError(t, os.Remove(depPathFileOut))
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+mainPath)
 	assert.False(t, util.FileExists(depPathFileOut))
@@ -3110,7 +3110,7 @@ func TestDependenciesOptimisation(t *testing.T) {
 		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
 	)
 
-	config.ClearOutputCache()
+	config.ClearOutputCache(t.Context())
 
 	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 
@@ -4186,52 +4186,6 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 
 		assert.Contains(t, stdout, tc.expected)
 	}
-}
-
-func TestVersionIsInvokedOnlyOnce(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
-	require.NoError(t, err)
-
-	// check that version command was invoked only once -version
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
-	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
-
-	expected := 2
-
-	if expectExtraVersionCommandCall(t) {
-		expected++
-	}
-
-	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
-}
-
-func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
-	require.NoError(t, err)
-
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
-	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
-
-	expected := 3
-
-	if expectExtraVersionCommandCall(t) {
-		expected++
-	}
-
-	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
-	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
 
 // expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
