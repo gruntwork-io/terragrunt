@@ -843,7 +843,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 		expected++
 	}
 
-	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
 
@@ -865,5 +865,5 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 		expected++
 	}
 
-	assert.Len(t, matches, expected, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 }
