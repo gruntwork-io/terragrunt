@@ -4450,9 +4450,7 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	// Expect Terragrunt to discover modules under .cloud now that run contexts include hidden dirs
-	command := fmt.Sprintf(
-		"terragrunt run --all plan --queue-include-dir **/.cloud/**/** --non-interactive --log-level trace --working-dir %s",
-		modulePath)
+	command := "terragrunt run --all plan --queue-include-dir **/.cloud/**/** --non-interactive --log-level trace --working-dir " + modulePath
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 
 	require.NoError(t, err)
