@@ -25,7 +25,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -336,7 +335,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	runCommandCache := GetRunCmdCache(ctx)
 
 	if len(args) == 0 {
 		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))

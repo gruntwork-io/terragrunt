@@ -828,13 +828,14 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 }
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
-	run.ClearVersionCache()
+	// Create a context with a fresh version cache for this test
+	ctx := run.WithRunVersionCache(t.Context())
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)
 
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
@@ -851,13 +852,14 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
-	run.ClearVersionCache()
+	// Create a context with a fresh version cache for this test
+	ctx := run.WithRunVersionCache(t.Context())
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)
 
 	// check that version command was invoked only once -version

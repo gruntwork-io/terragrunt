@@ -15,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -228,7 +227,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 // decodeDependencies decode dependencies and fetch inputs
 func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency TerragruntDependency) (*TerragruntDependency, error) {
 	updatedDependencies := TerragruntDependency{}
-	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
+	depCache := GetDependencyOutputCache(ctx)
 
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
@@ -603,8 +602,8 @@ func isRenderCommand(ctx *ParsingContext) bool {
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
 func getOutputJSONWithCaching(ctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
 	// Use context-based caches instead of global sync.Map
-	outputLocksCache := cache.ContextCache[*sync.Mutex](ctx, DependencyLocksContextKey)
-	jsonCache := cache.ContextCache[[]byte](ctx, DependencyJSONOutputCacheContextKey)
+	outputLocksCache := GetDependencyLocksCache(ctx)
+	jsonCache := GetDependencyJSONOutputCache(ctx)
 
 	// Acquire synchronization lock to ensure only one instance of output is called per config.
 	// Get or create a lock for this specific target config
