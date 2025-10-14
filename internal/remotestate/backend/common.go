@@ -69,6 +69,13 @@ func (backend *CommonBackend) DeleteBucket(ctx context.Context, l log.Logger, co
 	return nil
 }
 
+// DeleteStorageAccount implements `backends.DeleteStorageAccount` interface.
+func (backend *CommonBackend) DeleteStorageAccount(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) error {
+	l.Warnf("Deleting storage account for %s backend not implemented.", backend.Name())
+
+	return nil
+}
+
 // GetTFInitArgs implements `backends.GetTFInitArgs` interface.
 func (backend *CommonBackend) GetTFInitArgs(config Config) map[string]any {
 	return config

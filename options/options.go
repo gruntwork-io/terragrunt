@@ -31,6 +31,26 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
+// Hook is a function that's called when TerragruntOptions are finalized
+// This allows packages to hook into options initialization to register functionality
+type Hook func(ctx context.Context, opts *TerragruntOptions)
+
+// Collection of hooks to call when options are finalized
+var optionsHooks []Hook
+
+// RegisterHook registers a function to be called when TerragruntOptions are finalized
+// This is typically used by packages that need to set up functionality based on options
+func RegisterHook(hook Hook) {
+	optionsHooks = append(optionsHooks, hook)
+}
+
+// RunHooks executes all registered hooks with the provided options
+func RunHooks(ctx context.Context, opts *TerragruntOptions) {
+	for _, hook := range optionsHooks {
+		hook(ctx, opts)
+	}
+}
+
 const ContextKey ctxKey = iota
 
 const (
@@ -381,11 +401,21 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
-	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
+	return NewTerragruntOptionsContext(context.Background())
+}
+
+// NewTerragruntOptionsContext creates a new TerragruntOptions object initialized with the supplied context.
+func NewTerragruntOptionsContext(ctx context.Context) *TerragruntOptions {
+	return NewTerragruntOptionsWithWritersContext(ctx, os.Stdout, os.Stderr)
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
-	return &TerragruntOptions{
+	return NewTerragruntOptionsWithWritersContext(context.Background(), stdout, stderr)
+}
+
+// NewTerragruntOptionsWithWritersContext creates a new TerragruntOptions object with the provided writers and context.
+func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr io.Writer) *TerragruntOptions {
+	opts := &TerragruntOptions{
 		TFPath:                         DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
 		OriginalTerraformCommand:       "",
@@ -439,10 +469,20 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		NoAutoProviderCacheDir:     false,
 		NoDependencyPrompt:         false,
 	}
+
+	// Run any registered options hooks
+	RunHooks(ctx, opts)
+
+	return opts
 }
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions()
+	return NewTerragruntOptionsWithConfigPathContext(context.Background(), terragruntConfigPath)
+}
+
+// NewTerragruntOptionsWithConfigPathContext creates a new TerragruntOptions configured with the given path and context.
+func NewTerragruntOptionsWithConfigPathContext(ctx context.Context, terragruntConfigPath string) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptionsContext(ctx)
 	opts.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
@@ -834,7 +874,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 		return err
 	}
 
-	const ownerPerms = 0644
+	const ownerPerms = 0o644
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
