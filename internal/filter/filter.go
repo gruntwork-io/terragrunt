@@ -1,8 +1,6 @@
 package filter
 
-import "github.com/gruntwork-io/terragrunt/internal/component"
-
-// Filter represents a parsed filter query that can be evaluated against discovered configs.
+// Filter represents a parsed filter query that can be evaluated against units.
 type Filter struct {
 	expr          Expression
 	originalQuery string
@@ -27,9 +25,9 @@ func Parse(filterString, workingDir string) (*Filter, error) {
 	}, nil
 }
 
-// Evaluate applies the filter to a list of components and returns the filtered result.
-func (f *Filter) Evaluate(components []*component.Component) ([]*component.Component, error) {
-	return Evaluate(f.expr, components)
+// Evaluate applies the filter to a list of units and returns the filtered result.
+func (f *Filter) Evaluate(allUnits []Unit) ([]Unit, error) {
+	return Evaluate(f.expr, allUnits)
 }
 
 // String returns the original filter query string.
@@ -45,11 +43,11 @@ func (f *Filter) Expression() Expression {
 
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
-func Apply(filterString, workingDir string, components component.Components) (component.Components, error) {
-	filter, err := Parse(filterString, workingDir)
+func Apply(filterString string, units []Unit) ([]Unit, error) {
+	filter, err := Parse(filterString)
 	if err != nil {
 		return nil, err
 	}
 
-	return filter.Evaluate(components)
+	return filter.Evaluate(units)
 }

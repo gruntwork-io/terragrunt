@@ -18,12 +18,8 @@ const (
 
 	// Operators
 	BANG  // negation operator (!)
-	PIPE  // intersection operator (|)
+	PIPE  // union operator (|)
 	EQUAL // attribute assignment (=)
-
-	// Delimiters
-	LBRACE // left brace ({)
-	RBRACE // right brace (})
 )
 
 // String returns a string representation of the token type for debugging.
@@ -43,10 +39,6 @@ func (t TokenType) String() string {
 		return "|"
 	case EQUAL:
 		return "="
-	case LBRACE:
-		return "{"
-	case RBRACE:
-		return "}"
 	default:
 		return "UNKNOWN"
 	}
@@ -54,9 +46,9 @@ func (t TokenType) String() string {
 
 // Token represents a lexical token with its type, literal value, and position.
 type Token struct {
-	Literal  string
-	Type     TokenType
-	Position int
+	Type     TokenType // The type of the token
+	Literal  string    // The literal value of the token
+	Position int       // The position in the input string where the token starts
 }
 
 // NewToken creates a new token with the given type, literal, and position.

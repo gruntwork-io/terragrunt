@@ -18,7 +18,6 @@ type Lexer struct {
 func NewLexer(input string) *Lexer {
 	l := &Lexer{input: input}
 	l.readChar() // Initialize by reading the first character
-
 	return l
 }
 
@@ -27,7 +26,6 @@ func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()
 
 	var tok Token
-
 	startPosition := l.position
 
 	switch l.ch {
@@ -40,49 +38,31 @@ func (l *Lexer) NextToken() Token {
 	case '=':
 		tok = NewToken(EQUAL, string(l.ch), startPosition)
 		l.readChar()
-		l.afterEqual = true
-
-		return tok
-	case '{':
-		tok = NewToken(LBRACE, string(l.ch), startPosition)
-		l.readChar()
-	case '}':
-		tok = NewToken(RBRACE, string(l.ch), startPosition)
-		l.readChar()
 	case 0:
 		tok = NewToken(EOF, "", startPosition)
 	case '.':
-		switch nextCh := l.peekChar(); {
-		case nextCh == '/':
+		// Check if this is the start of a path (./)
+		if l.peekChar() == '/' {
 			tok = l.readPath(startPosition)
-		case isIdentifierChar(nextCh):
+		} else if isIdentifierChar(l.peekChar()) {
+			// Hidden file like .gitignore, .hidden
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
-
 			return tok
-		default:
+		} else {
+			// Single dot alone is not valid in our syntax
 			tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 			l.readChar()
 		}
 	case '/':
+		// Absolute path
 		tok = l.readPath(startPosition)
 	default:
-		if l.afterEqual {
-			// After '=', read as attribute value (can contain slashes)
-			literal := l.readAttributeValue()
-			tok = NewToken(IDENT, literal, startPosition)
-			l.afterEqual = false
-
-			return tok
-		}
-
-		if isIdentifierChar(l.ch) {
+		if isIdentifierStart(l.ch) {
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
-
 			return tok
 		}
-
 		tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 		l.readChar()
 	}
@@ -98,7 +78,6 @@ func (l *Lexer) readChar() {
 		l.ch = 0 // ASCII code for "NUL", signifies end of input
 		l.position = l.readPosition
 		l.readPosition++
-
 		return
 	}
 
@@ -112,7 +91,6 @@ func (l *Lexer) peekChar() byte {
 	if l.readPosition >= len(l.input) {
 		return 0
 	}
-
 	return l.input[l.readPosition]
 }
 
@@ -132,10 +110,9 @@ func (l *Lexer) readIdentifier() string {
 	for isIdentifierChar(l.ch) {
 		l.readChar()
 	}
-
 	literal := l.input[position:l.position]
-
-	return strings.TrimSpace(literal)
+	// Trim trailing whitespace
+	return strings.TrimRight(literal, " \t\n\r")
 }
 
 // readAttributeValue reads an attribute value from the input.
@@ -161,17 +138,17 @@ func (l *Lexer) readPath(startPosition int) Token {
 	for isPathChar(l.ch) {
 		l.readChar()
 	}
-
 	literal := l.input[position:l.position]
-
+	// Trim trailing whitespace
 	literal = strings.TrimSpace(literal)
-
 	return NewToken(PATH, literal, startPosition)
 }
 
 // isSpecialChar returns true if the character is a special operator or delimiter.
+// Note: spaces are NOT special - they can be part of identifiers and paths.
+// Only the operators themselves act as delimiters.
 func isSpecialChar(ch byte) bool {
-	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == 0
+	return ch == '!' || ch == '|' || ch == '=' || ch == 0
 }
 
 // isPathSeparator returns true if the character is a path separator.
@@ -179,7 +156,14 @@ func isPathSeparator(ch byte) bool {
 	return ch == '/'
 }
 
+// isIdentifierStart returns true if the character can start an identifier.
+// Identifiers can start with letters, underscores, or dots (for hidden files).
+func isIdentifierStart(ch byte) bool {
+	return !isSpecialChar(ch) && !isPathSeparator(ch)
+}
+
 // isIdentifierChar returns true if the character can be part of an identifier.
+// Uses negative logic: anything that's not a special character or path separator is valid.
 func isIdentifierChar(ch byte) bool {
 	return !isSpecialChar(ch) && !isPathSeparator(ch)
 }
@@ -191,6 +175,7 @@ func isAttributeValueChar(ch byte) bool {
 }
 
 // isPathChar returns true if the character can be part of a path.
+// Paths can contain anything except special operators and whitespace.
 func isPathChar(ch byte) bool {
 	return !isSpecialChar(ch)
 }
