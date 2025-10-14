@@ -215,7 +215,12 @@ func TestRunCommand(t *testing.T) {
 		{
 			params:            []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
 			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			expectedErr:       config.ConflictingRunCmdCacheOptionsError{},
+		},
+		{
+			params:            []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedErr:       config.ConflictingRunCmdCacheOptionsError{},
 		},
 		{
 			terragruntOptions: terragruntOptionsForTest(t, homeDir),

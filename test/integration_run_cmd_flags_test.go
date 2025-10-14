@@ -19,6 +19,7 @@ const (
 	testFixtureRunCmdModuleGlobalA    = "fixtures/run-cmd-flags/module-global-cache-a"
 	testFixtureRunCmdModuleGlobalB    = "fixtures/run-cmd-flags/module-global-cache-b"
 	testFixtureRunCmdModuleNoCache    = "fixtures/run-cmd-flags/module-no-cache"
+	testFixtureRunCmdModuleConflict   = "fixtures/run-cmd-flags/module-conflict"
 	runCmdSecretValue                 = "TOP_SECRET_TOKEN"
 	expectedGlobalCachedValue         = "global-value-1"
 	unexpectedGlobalCachedSecondValue = "global-value-2"
@@ -39,12 +40,17 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 		testFixtureRunCmdModuleGlobalA,
 		testFixtureRunCmdModuleGlobalB,
 		testFixtureRunCmdModuleNoCache,
+		testFixtureRunCmdModuleConflict,
 	} {
 		helpers.CleanupTerraformFolder(t, modulePath)
 	}
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunCmdFlags)
+
+	// Remove the conflicting module so the happy-path tests can run `terragrunt run --all` without errors.
+	conflictDir := filepath.Join(rootPath, "module-conflict")
+	require.NoError(t, os.RemoveAll(conflictDir))
 
 	cmd := "terragrunt run --all plan --non-interactive --log-level debug --working-dir " + rootPath
 
@@ -90,4 +96,19 @@ func TestRunCmdNoCacheSkipsCachedValue(t *testing.T) {
 
 	assert.Contains(t, result.stderr, "run_cmd output: ["+expectedNoCacheFirstValue+"]")
 	assert.NotContains(t, result.stderr, "run_cmd, cached output: ["+expectedNoCacheFirstValue+"]")
+}
+
+func TestRunCmdConflictingCacheOptionsFails(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRunCmdModuleConflict)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunCmdFlags)
+
+	cmd := "terragrunt run --all plan --non-interactive --log-level debug --working-dir " + rootPath
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "--terragrunt-global-cache and --terragrunt-no-cache options cannot be used together")
 }

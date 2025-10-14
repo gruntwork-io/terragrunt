@@ -725,6 +725,7 @@ Terragrunt inspects the `run_cmd` arguments for special `--terragrunt-*` options
 | `--terragrunt-no-cache`     | Skips the cache entirely and forces the command to run on every evaluation. Use this when the output changes frequently (timestamps, tokens, random IDs, etc.).                               | `run_cmd("--terragrunt-no-cache", "date", "+%s")`                                                                     |
 
 Terragrunt caches `run_cmd` results by default to avoid running the same command multiple times during parsing. The cache key includes the directory of the `terragrunt.hcl` file and the command arguments unless you opt into global caching or disable caching entirely.
+Parameters `--terragrunt-global-cache` and `--terragrunt-no-cache` are mutually exclusive, Terragrunt will return an error if both are provided.
 
 #### Examples
 
@@ -759,10 +760,6 @@ timestamp = run_cmd("--terragrunt-no-cache", "date", "+%s")
 ```hcl
 # Disable cache AND suppress output for a sensitive dynamic value
 session_token = run_cmd("--terragrunt-no-cache", "--terragrunt-quiet", "./generate-temp-token.sh")
-
-# All three parameters together
-value = run_cmd("--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "./command.sh")
-```
 
 ### Caching Behavior
 

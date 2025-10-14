@@ -346,6 +346,7 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 
 	suppressOutput := false
 	disableCache := false
+	useGlobalCache := false
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 	cachePath := currentPath
 
@@ -357,10 +358,19 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 
 			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
+			if disableCache {
+				return "", errors.New(ConflictingRunCmdCacheOptionsError{})
+			}
+
+			useGlobalCache = true
 			cachePath = "_global_"
 
 			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-no-cache":
+			if useGlobalCache {
+				return "", errors.New(ConflictingRunCmdCacheOptionsError{})
+			}
+
 			disableCache = true
 
 			args = slices.Delete(args, 0, 1)
