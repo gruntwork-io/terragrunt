@@ -1,0 +1,17 @@
+---
+name: no-hooks
+description: "Disable hooks when using boilerplate templates during scaffolding."
+type: bool
+env:
+  - TG_NO_HOOKS
+---
+
+When enabled, Terragrunt will disable hooks when processing boilerplate templates during scaffolding operations.
+
+This is useful for security reasons when you want to prevent templates from executing arbitrary hooks on your system.
+
+Examples:
+
+```bash
+terragrunt scaffold github.com/org/repo//modules/mysql --no-hooks
+```
