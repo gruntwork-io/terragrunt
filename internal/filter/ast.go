@@ -1,0 +1,76 @@
+package filter
+
+import (
+	"path/filepath"
+	"sync"
+
+	"github.com/gobwas/glob"
+)
+
+// Expression is the interface that all AST nodes must implement.
+type Expression interface {
+	// expressionNode is a marker method to distinguish expression nodes.
+	expressionNode()
+	// String returns a string representation of the expression for debugging.
+	String() string
+}
+
+// PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
+type PathFilter struct {
+	Value string
+
+	// compiledGlob caches the compiled glob pattern for reuse.
+	compiledGlob glob.Glob
+	compileErr   error
+	compileOnce  sync.Once
+}
+
+// NewPathFilter creates a new PathFilter with lazy glob compilation.
+func NewPathFilter(value string) *PathFilter {
+	return &PathFilter{Value: value}
+}
+
+// CompileGlob returns the compiled glob pattern, compiling it on first call.
+// Subsequent calls return the cached compiled glob and any error.
+// Uses sync.Once for thread-safe lazy initialization.
+func (p *PathFilter) CompileGlob() (glob.Glob, error) {
+	p.compileOnce.Do(func() {
+		// Normalize the pattern for matching
+		pattern := filepath.ToSlash(p.Value)
+		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
+	})
+	return p.compiledGlob, p.compileErr
+}
+
+func (p *PathFilter) expressionNode() {}
+func (p *PathFilter) String() string  { return p.Value }
+
+// AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
+type AttributeFilter struct {
+	Key   string
+	Value string
+}
+
+func (a *AttributeFilter) expressionNode() {}
+func (a *AttributeFilter) String() string  { return a.Key + "=" + a.Value }
+
+// PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
+type PrefixExpression struct {
+	Operator string     // The prefix operator (e.g., "!")
+	Right    Expression // The expression to the right of the operator
+}
+
+func (p *PrefixExpression) expressionNode() {}
+func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String() }
+
+// InfixExpression represents an infix operator expression (e.g., "name=foo, name=bar").
+type InfixExpression struct {
+	Left     Expression // The expression to the left of the operator
+	Operator string     // The infix operator (e.g., ",")
+	Right    Expression // The expression to the right of the operator
+}
+
+func (i *InfixExpression) expressionNode() {}
+func (i *InfixExpression) String() string {
+	return i.Left.String() + " | " + i.Right.String()
+}
