@@ -90,17 +90,6 @@ The `run` command also supports the following flags that can be used to drive ru
 - `--all`: Run the provided OpenTofu/Terraform command against all units in the current stack.
 - `--graph`: Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory.
 
-<Aside type="note">
-Hidden directories (paths whose name begins with a dot like `.cloud/`) are not discovered by default. If your modules live under hidden directories, include them explicitly using [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir). For example:
-
-```bash
-terragrunt run --all plan \
-  --queue-include-dir "**/.cloud/**/**"
-```
-
-This tells Terragrunt to include any modules under hidden `.cloud` subtrees when building the run queue.
-</Aside>
-
 ## Separating Arguments
 
 You may, at times, need to explicitly separate the arguments used for Terragrunt from those used for OpenTofu/Terraform. In those circumstances, you can use the argument `--` to separate the Terragrunt flags from the OpenTofu/Terraform flags.

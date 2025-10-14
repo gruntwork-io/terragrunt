@@ -4443,14 +4443,13 @@ output "result" {
 }
 
 func TestRunAllDetectsHiddenDirectories(t *testing.T) {
-	// track that hidden directories are detected when using --queue-include-dir with a pattern that includes them
 	t.Parallel()
 	rootPath := helpers.CopyEnvironment(t, hiddenRunAllFixturePath, ".cloud/**")
 	modulePath := util.JoinPath(rootPath, hiddenRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	// Expect Terragrunt to discover modules under .cloud now that run contexts include hidden dirs
-	command := "terragrunt run --all plan --queue-include-dir **/.cloud/**/** --non-interactive --log-level trace --working-dir " + modulePath
+	// Expect Terragrunt to discover modules under .cloud directory
+	command := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + modulePath
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 
 	require.NoError(t, err)

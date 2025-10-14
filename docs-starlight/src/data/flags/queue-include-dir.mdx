@@ -21,16 +21,3 @@ Glob behavior for `**` and `**/*` will change in a future version of Terragrunt.
 
 See the [double-star strict control](/docs/reference/strict-controls/#double-star) for full details.
 </Aside>
-
-## Examples
-
-Include modules under a hidden directory (e.g., `.cloud/terraform/...`):
-
-```bash
-terragrunt run --all plan \
-  --queue-include-dir "**/.cloud/**/**"
-```
-
-When you specify one or more `--queue-include-dir` patterns,
-Terragrunt will exclude by default and include only matching modules and their dependencies
-(subject to other include/exclude flags).
