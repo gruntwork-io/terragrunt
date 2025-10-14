@@ -812,3 +812,120 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 	expected := []string{"C", "D", "E", "B", "A"}
 	assert.Equal(t, expected, processed)
 }
+
+// TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder tests that when IgnoreDependencyErrors is true,
+// the queue still respects dependency order for destroy operations. This is the bug reported in issue #4947.
+// When a dependent fails, we should still wait for it to be in a terminal state before destroying the dependency.
+func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
+	t.Parallel()
+
+	// Build a graph: A -> B -> C
+	// For destroy, the order should be: C (destroyed first), then B, then A
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+
+	// Set all configs to destroy (down) command
+	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// Enable IgnoreDependencyErrors - this is the --queue-ignore-errors flag
+	q.IgnoreDependencyErrors = true
+
+	// Step 1: Only C should be ready (it has no dependents)
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only C should be ready for destruction")
+	assert.Equal(t, "C", readyEntries[0].Config.Path, "C should be the first entry ready for destruction")
+
+	// Mark C as succeeded
+	entryC := readyEntries[0]
+	entryC.Status = queue.StatusSucceeded
+
+	// Step 2: After C is destroyed, B should be ready (but NOT A yet, as A is a dependency of B)
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After C is destroyed, only B should be ready")
+	assert.Equal(t, "B", readyEntries[0].Config.Path, "B should be ready after C is destroyed")
+
+	// Mark B as succeeded
+	entryB := readyEntries[0]
+	entryB.Status = queue.StatusSucceeded
+
+	// Step 3: After B is destroyed, A should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After B is destroyed, only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path, "A should be ready last")
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// Step 4: All entries should be finished
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "After all are destroyed, no entries should be ready")
+	assert.True(t, q.Finished(), "Queue should be finished")
+}
+
+// TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure tests that when IgnoreDependencyErrors is true
+// and a dependent fails, we can still destroy the dependency once the dependent is in a terminal state.
+func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	// Build a graph: A -> B -> C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+
+	// Set all configs to destroy (down) command
+	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	q.IgnoreDependencyErrors = true
+
+	// Step 1: Only C should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only C should be ready")
+	assert.Equal(t, "C", readyEntries[0].Config.Path)
+
+	// Mark C as FAILED (simulating a destroy failure)
+	entryC := readyEntries[0]
+	entryC.Status = queue.StatusRunning
+	q.FailEntry(entryC)
+
+	// With IgnoreDependencyErrors = true, B should NOT be marked as early exit
+	// Instead, B should still be ready to run
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status, "C should be failed")
+	assert.Equal(t, queue.StatusReady, q.EntryByPath("B").Status, "B should still be ready (not early exit)")
+
+	// Step 2: B should now be ready even though C failed
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After C fails, B should still be ready due to IgnoreDependencyErrors")
+	assert.Equal(t, "B", readyEntries[0].Config.Path)
+
+	// Mark B as succeeded
+	entryB := readyEntries[0]
+	entryB.Status = queue.StatusSucceeded
+
+	// Step 3: After B succeeds, A should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After B succeeds, A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// Queue should be finished
+	assert.True(t, q.Finished(), "Queue should be finished")
+}
