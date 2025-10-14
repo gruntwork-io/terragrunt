@@ -4,6 +4,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -25,7 +26,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
-	flags := cli.Flags{
+	flagSet := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FileFlagName,
 			EnvVars:     tgPrefix.EnvVars(FileFlagName),
@@ -77,7 +78,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		),
 	}
 
-	return flags
+	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
+
+	return flagSet
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
