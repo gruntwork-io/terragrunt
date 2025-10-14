@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -823,4 +824,46 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_creation\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_controller\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_task\"")
+}
+
+func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	expected := 3
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+func TestVersionIsInvokedOnlyOnce(t *testing.T) {
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	// check that version command was invoked only once -version
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	expected := 2
+
+	if expectExtraVersionCommandCall(t) {
+		expected++
+	}
+
+	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 }
