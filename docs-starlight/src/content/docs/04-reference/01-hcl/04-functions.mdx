@@ -716,13 +716,15 @@ remote_state {
 
 ### Special Parameters
 
-The `run_cmd` function supports special `--terragrunt-*` parameters that must be passed as the **first arguments** before the actual command. These parameters can be combined in any order:
+Terragrunt inspects the `run_cmd` arguments for special `--terragrunt-*` options **before** executing your command. Place these options before the command name—Terragrunt removes them, applies the requested behavior, and forwards the remaining arguments to your command. You can mix and match the options in any order:
 
-| Parameter                   | Description                                          | Use Case                                                                                      |
-|-----------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| `--terragrunt-quiet`        | Suppresses command output from appearing in logs     | For commands that output sensitive values (credentials, secrets, etc.)                        |
-| `--terragrunt-global-cache` | Uses global cache instead of directory-based cache   | For commands that produce the same output regardless of directory (e.g., AWS account lookup)  |
-| `--terragrunt-no-cache`     | Disables caching completely, runs command every time | For commands that produce dynamic/random values each time (e.g., UUID generation, timestamps) |
+| Parameter                   | Description                                                                                                                                                                                   | Example                                                                                                               |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `--terragrunt-quiet`        | Redacts `run_cmd` stdout from Terragrunt logs while still returning the value to HCL. This keeps sensitive information out of log files.                                                      | `run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")`                                                         |
+| `--terragrunt-global-cache` | Stores and reuses results in a global cache so the command only runs once per set of arguments, no matter which configuration references it. Useful when the output is directory-independent. | `run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")` |
+| `--terragrunt-no-cache`     | Skips the cache entirely and forces the command to run on every evaluation. Use this when the output changes frequently (timestamps, tokens, random IDs, etc.).                               | `run_cmd("--terragrunt-no-cache", "date", "+%s")`                                                                     |
+
+Terragrunt caches `run_cmd` results by default to avoid running the same command multiple times during parsing. The cache key includes the directory of the `terragrunt.hcl` file and the command arguments unless you opt into global caching or disable caching entirely.
 
 #### Examples
 
