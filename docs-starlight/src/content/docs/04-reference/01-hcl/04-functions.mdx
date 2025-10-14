@@ -716,7 +716,7 @@ remote_state {
 
 ### Special Parameters
 
-Terragrunt inspects the `run_cmd` arguments for special `--terragrunt-*` options **before** executing your command. Place these options before the command name—Terragrunt removes them, applies the requested behavior, and forwards the remaining arguments to your command. You can mix and match the options in any order:
+The `run_cmd` function accepts some special flags that can alter how the function evaluates commands on your behalf. Placing these `--terragrunt-` prefixed flags as the first argument(s) of a `run_cmd` call will result in the behavior of `run_cmd` being adjusted. You can mix and match the flags in any order, so long as they precede the command you are running with `run_cmd`.
 
 | Parameter                   | Description                                                                                                                                                                                   | Example                                                                                                               |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
@@ -751,7 +751,7 @@ account_id = run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-iden
 # Generates a new UUID every time run_cmd is evaluated
 build_id = run_cmd("--terragrunt-no-cache", "uuidgen")
 
-# Gets current timestamp on each run
+# Gets current timestamp on each parse of the Terragrunt configuration
 timestamp = run_cmd("--terragrunt-no-cache", "date", "+%s")
 ```
 
