@@ -315,18 +315,28 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		}
 
 		if e.IsUp() {
-			// Up logic: all dependencies must be succeeded
-			if q.IgnoreDependencyErrors {
-				// When ignoring dependency errors, allow scheduling regardless of dependency results
-				out = append(out, e)
-				continue
-			}
-
+			// Up logic: all dependencies must be succeeded (or terminal if ignoring errors)
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
 				depEntry := q.entryByPathUnsafe(dep.Path)
-				if depEntry == nil || depEntry.Status != StatusSucceeded {
+				if depEntry == nil {
+					allDepsReady = false
+					break
+				}
+
+				// When ignoring dependency errors, allow scheduling if dependencies are in a terminal state
+				// (succeeded OR failed), not just succeeded
+				if q.IgnoreDependencyErrors {
+					if !isTerminal(depEntry.Status) {
+						allDepsReady = false
+						break
+					}
+
+					continue
+				}
+
+				if depEntry.Status != StatusSucceeded {
 					allDepsReady = false
 					break
 				}
@@ -338,13 +348,8 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 
 			continue
 		}
-		// Down logic: all dependents must be succeeded
-		if q.IgnoreDependencyErrors {
-			// When ignoring dependency errors, allow scheduling regardless of dependents' results
-			out = append(out, e)
-			continue
-		}
 
+		// Down logic: all dependents must be succeeded (or terminal if ignoring errors)
 		allDependentsReady := true
 
 		for _, other := range q.Entries {
@@ -354,6 +359,17 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 
 			for _, dep := range other.Config.Dependencies {
 				if dep.Path == e.Config.Path {
+					// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
+					// (succeeded OR failed), not just succeeded
+					if q.IgnoreDependencyErrors {
+						if !isTerminal(other.Status) {
+							allDependentsReady = false
+							break
+						}
+
+						continue
+					}
+
 					if other.Status != StatusSucceeded {
 						allDependentsReady = false
 						break
