@@ -28,6 +28,7 @@ func Build(
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(opts...).
+		WithHidden().
 		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
