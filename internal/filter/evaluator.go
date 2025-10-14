@@ -2,67 +2,48 @@ package filter
 
 import (
 	"path/filepath"
-	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
-const (
-	AttributeName     = "name"
-	AttributeType     = "type"
-	AttributeExternal = "external"
-
-	AttributeTypeValueUnit  = string(component.Unit)
-	AttributeTypeValueStack = string(component.Stack)
-
-	AttributeExternalValueTrue  = "true"
-	AttributeExternalValueFalse = "false"
-)
-
-// Evaluate evaluates an expression against a list of components and returns the filtered components.
-func Evaluate(expr Expression, components component.Components) (component.Components, error) {
+// Evaluate evaluates an expression against a list of units and returns the filtered units.
+func Evaluate(expr Expression, units []Unit) ([]Unit, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
 
-	return evaluate(expr, components)
+	return evaluate(expr, units)
 }
 
 // evaluate is the internal recursive evaluation function.
-func evaluate(expr Expression, components component.Components) (component.Components, error) {
+func evaluate(expr Expression, units []Unit) ([]Unit, error) {
 	switch node := expr.(type) {
 	case *PathFilter:
-		return evaluatePathFilter(node, components)
+		return evaluatePathFilter(node, units)
 	case *AttributeFilter:
-		return evaluateAttributeFilter(node, components)
+		return evaluateAttributeFilter(node, units)
 	case *PrefixExpression:
-		return evaluatePrefixExpression(node, components)
+		return evaluatePrefixExpression(node, units)
 	case *InfixExpression:
-		return evaluateInfixExpression(node, components)
+		return evaluateInfixExpression(node, units)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, components component.Components) (component.Components, error) {
+func evaluatePathFilter(filter *PathFilter, units []Unit) ([]Unit, error) {
+	// Get the compiled glob (compiled once and cached)
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
 	}
 
-	var result component.Components
-
-	for _, component := range components {
-		normalizedPath := component.Path
-		if !filepath.IsAbs(normalizedPath) {
-			normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
-		}
-
-		normalizedPath = filepath.ToSlash(normalizedPath)
+	var result []Unit
+	for _, unit := range units {
+		// Normalize the unit path for matching
+		normalizedPath := filepath.ToSlash(unit.Path)
 
 		if g.Match(normalizedPath) {
-			result = append(result, component)
+			result = append(result, unit)
 		}
 	}
 
@@ -70,65 +51,23 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Component) ([]*component.Component, error) {
-	var result []*component.Component
+func evaluateAttributeFilter(filter *AttributeFilter, units []Unit) ([]Unit, error) {
+	var result []Unit
 
 	switch filter.Key {
-	case AttributeName:
-		if strings.ContainsAny(filter.Value, "*?[]") {
-			g, err := filter.CompileGlob()
-			if err != nil {
-				return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for name filter: "+filter.Value, err)
-			}
-
-			for _, c := range components {
-				if g.Match(filepath.Base(c.Path)) {
-					result = append(result, c)
-				}
-			}
-
-			break
-		}
-
-		for _, c := range components {
-			if filepath.Base(c.Path) == filter.Value {
-				result = append(result, c)
+	case "name":
+		// Match by unit name
+		for _, unit := range units {
+			if unit.Name == filter.Value {
+				result = append(result, unit)
 			}
 		}
-
-	case AttributeType:
-		switch filter.Value {
-		case AttributeTypeValueUnit:
-			for _, c := range components {
-				if c.Kind == component.Unit {
-					result = append(result, c)
-				}
-			}
-		case AttributeTypeValueStack:
-			for _, c := range components {
-				if c.Kind == component.Stack {
-					result = append(result, c)
-				}
-			}
-		default:
-			return nil, NewEvaluationError("invalid type value: " + filter.Value + " (expected 'unit' or 'stack')")
-		}
-	case AttributeExternal:
-		switch filter.Value {
-		case AttributeExternalValueTrue:
-			for _, c := range components {
-				if c.External {
-					result = append(result, c)
-				}
-			}
-		case AttributeExternalValueFalse:
-			for _, c := range components {
-				if !c.External {
-					result = append(result, c)
-				}
-			}
-		default:
-			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
+	case "type":
+		// For future extensibility - currently all are "unit"
+		// In the future this could distinguish between units and stacks
+		if filter.Value == "unit" {
+			// All units match "type=unit" for now
+			result = append(result, units...)
 		}
 	default:
 		return nil, NewEvaluationError("unknown attribute key: " + filter.Key)
@@ -138,47 +77,77 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(expr *PrefixExpression, components component.Components) (component.Components, error) {
+func evaluatePrefixExpression(expr *PrefixExpression, units []Unit) ([]Unit, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	toExclude, err := evaluate(expr.Right, components)
+	// Evaluate the right side to get units to exclude
+	toExclude, err := evaluate(expr.Right, units)
 	if err != nil {
 		return nil, err
 	}
 
-	excludeSet := make(map[string]struct{}, len(toExclude))
-	for _, c := range toExclude {
-		excludeSet[c.Path] = struct{}{}
+	// Create a set of paths to exclude for efficient lookup
+	excludeSet := make(map[string]bool, len(toExclude))
+	for _, unit := range toExclude {
+		excludeSet[unit.Path] = true
 	}
 
-	var result component.Components
-
-	for _, c := range components {
-		if _, ok := excludeSet[c.Path]; !ok {
-			result = append(result, c)
+	// Return all units NOT in the exclude set
+	var result []Unit
+	for _, unit := range units {
+		if !excludeSet[unit.Path] {
+			result = append(result, unit)
 		}
 	}
 
 	return result, nil
 }
 
-// evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(expr *InfixExpression, components component.Components) (component.Components, error) {
+// evaluateInfixExpression evaluates an infix expression (union).
+func evaluateInfixExpression(expr *InfixExpression, units []Unit) ([]Unit, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
-	leftResult, err := evaluate(expr.Left, components)
+	// Evaluate left side
+	leftResult, err := evaluate(expr.Left, units)
 	if err != nil {
 		return nil, err
 	}
 
-	rightResult, err := evaluate(expr.Right, leftResult)
+	// Evaluate right side
+	rightResult, err := evaluate(expr.Right, units)
 	if err != nil {
 		return nil, err
 	}
 
-	return rightResult, nil
+	// Return the union (deduplicated)
+	return unionUnits(leftResult, rightResult), nil
+}
+
+// unionUnits returns the union of two unit slices, removing duplicates based on path.
+func unionUnits(left, right []Unit) []Unit {
+	// Use a map to track unique paths
+	seen := make(map[string]bool)
+	var result []Unit
+
+	// Add all units from left
+	for _, unit := range left {
+		if !seen[unit.Path] {
+			seen[unit.Path] = true
+			result = append(result, unit)
+		}
+	}
+
+	// Add units from right that aren't already in the result
+	for _, unit := range right {
+		if !seen[unit.Path] {
+			seen[unit.Path] = true
+			result = append(result, unit)
+		}
+	}
+
+	return result
 }

@@ -1,10 +1,8 @@
-package filter_test
+package filter
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,58 +10,58 @@ import (
 func TestEvaluate_PathFilter(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
-		{Path: "./apps/subdir/nested", Kind: component.Unit},
+	units := []Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "legacy", Path: "./apps/legacy"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
+		{Name: "nested", Path: "./apps/subdir/nested"},
 	}
 
 	tests := []struct {
 		name     string
-		filter   *filter.PathFilter
-		expected []*component.Component
+		filter   *PathFilter
+		expected []Unit
 	}{
 		{
 			name:   "exact path match",
-			filter: &filter.PathFilter{Value: "./apps/app1"},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			filter: &PathFilter{Value: "./apps/app1"},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
 			},
 		},
 		{
 			name:   "glob with single wildcard",
-			filter: &filter.PathFilter{Value: "./apps/*"},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./apps/legacy", Kind: component.Unit},
-			},
-		},
-		{
-			name:   "glob with single wildcard and partial match",
-			filter: &filter.PathFilter{Value: "./apps/app*"},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
+			filter: &PathFilter{Value: "./apps/*"},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "legacy", Path: "./apps/legacy"},
 			},
 		},
 		{
 			name:   "glob with recursive wildcard",
-			filter: &filter.PathFilter{Value: "./apps/**"},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./apps/legacy", Kind: component.Unit},
-				{Path: "./apps/subdir/nested", Kind: component.Unit},
+			filter: &PathFilter{Value: "./apps/**"},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "legacy", Path: "./apps/legacy"},
+				{Name: "nested", Path: "./apps/subdir/nested"},
+			},
+		},
+		{
+			name:   "glob matching specific subdirectory",
+			filter: &PathFilter{Value: "./libs/*"},
+			expected: []Unit{
+				{Name: "db", Path: "./libs/db"},
+				{Name: "api", Path: "./libs/api"},
 			},
 		},
 		{
 			name:     "no matches",
-			filter:   &filter.PathFilter{Value: "./nonexistent/*"},
-			expected: []*component.Component{},
+			filter:   &PathFilter{Value: "./nonexistent/*"},
+			expected: []Unit{},
 		},
 	}
 
@@ -71,9 +69,10 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.filter, components)
+			result, err := evaluatePathFilter(tt.filter, units)
 			require.NoError(t, err)
 
+			// Sort for consistent comparison
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
@@ -82,55 +81,42 @@ func TestEvaluate_PathFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
-		{Path: "./apps/app", Kind: component.Unit},
-		{Path: "./libs/app", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Stack},
+	units := []Unit{
+		{Name: "app", Path: "./apps/app"},
+		{Name: "app", Path: "./libs/app"}, // Same name, different path
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
 	}
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
-		expected []*component.Component
+		filter   *AttributeFilter
+		expected []Unit
 	}{
 		{
 			name:   "name filter single match",
-			filter: &filter.AttributeFilter{Key: "name", Value: "db"},
-			expected: []*component.Component{
-				{Path: "./libs/db", Kind: component.Unit},
+			filter: &AttributeFilter{Key: "name", Value: "db"},
+			expected: []Unit{
+				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name:   "name filter multiple matches",
-			filter: &filter.AttributeFilter{Key: "name", Value: "app"},
-			expected: []*component.Component{
-				{Path: "./apps/app", Kind: component.Unit},
-				{Path: "./libs/app", Kind: component.Unit},
+			filter: &AttributeFilter{Key: "name", Value: "app"},
+			expected: []Unit{
+				{Name: "app", Path: "./apps/app"},
+				{Name: "app", Path: "./libs/app"},
 			},
 		},
 		{
 			name:     "name filter no matches",
-			filter:   &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
-			expected: []*component.Component{},
+			filter:   &AttributeFilter{Key: "name", Value: "nonexistent"},
+			expected: []Unit{},
 		},
 		{
-			name:   "type filter unit",
-			filter: &filter.AttributeFilter{Key: "type", Value: "unit"},
-			expected: []*component.Component{
-				{Path: "./apps/app", Kind: component.Unit},
-				{Path: "./libs/app", Kind: component.Unit},
-				{Path: "./libs/db", Kind: component.Unit},
-				{Path: "./libs/api", Kind: component.Unit},
-			},
-		},
-		{
-			name:   "type filter stack",
-			filter: &filter.AttributeFilter{Key: "type", Value: "stack"},
-			expected: []*component.Component{
-				{Path: "./libs/api", Kind: component.Stack},
-			},
+			name:     "type filter",
+			filter:   &AttributeFilter{Key: "type", Value: "unit"},
+			expected: units, // All units match type=unit
 		},
 	}
 
@@ -138,7 +124,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.filter, components)
+			result, err := evaluateAttributeFilter(tt.filter, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -148,14 +134,14 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
-		{Path: "./apps/app", Kind: component.Unit},
+	units := []Unit{
+		{Name: "app", Path: "./apps/app"},
 	}
 
-	attrFilter := &filter.AttributeFilter{Key: "invalid", Value: "foo"}
-	result, err := filter.Evaluate(attrFilter, components)
+	filter := &AttributeFilter{Key: "invalid", Value: "foo"}
+	result, err := evaluateAttributeFilter(filter, units)
 
-	require.Error(t, err)
+	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "unknown attribute key")
 }
@@ -163,67 +149,59 @@ func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 func TestEvaluate_PrefixExpression(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
+	units := []Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "legacy", Path: "./apps/legacy"},
+		{Name: "db", Path: "./libs/db"},
 	}
 
 	tests := []struct {
 		name     string
-		expr     *filter.PrefixExpression
-		expected []*component.Component
+		expr     *PrefixExpression
+		expected []Unit
 	}{
 		{
 			name: "exclude by name",
-			expr: &filter.PrefixExpression{
+			expr: &PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
+				Right:    &AttributeFilter{Key: "name", Value: "legacy"},
 			},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./libs/db", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name: "exclude by path",
-			expr: &filter.PrefixExpression{
+			expr: &PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathFilter{Value: "./apps/legacy"},
+				Right:    &PathFilter{Value: "./apps/legacy"},
 			},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./libs/db", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name: "exclude by glob",
-			expr: &filter.PrefixExpression{
+			expr: &PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathFilter{Value: "./apps/*"},
+				Right:    &PathFilter{Value: "./apps/*"},
 			},
-			expected: []*component.Component{
-				{Path: "./libs/db", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name: "exclude all (double negation effect)",
-			expr: &filter.PrefixExpression{
+			expr: &PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "type", Value: "unit"},
+				Right:    &AttributeFilter{Key: "type", Value: "unit"},
 			},
-			expected: []*component.Component{},
-		},
-		{
-			name: "exclude nothing",
-			expr: &filter.PrefixExpression{
-				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
-			},
-			expected: components,
+			expected: []Unit{}, // All excluded
 		},
 	}
 
@@ -231,7 +209,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, components)
+			result, err := evaluatePrefixExpression(tt.expr, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -241,58 +219,64 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 func TestEvaluate_InfixExpression(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
+	units := []Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "legacy", Path: "./apps/legacy"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
 	}
 
 	tests := []struct {
 		name     string
-		expr     *filter.InfixExpression
-		expected []*component.Component
+		expr     *InfixExpression
+		expected []Unit
 	}{
 		{
-			name: "intersection of path and name",
-			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+			name: "union of two names",
+			expr: &InfixExpression{
+				Left:     &AttributeFilter{Key: "name", Value: "app1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &AttributeFilter{Key: "name", Value: "db"},
 			},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
-			name: "intersection with no overlap",
-			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+			name: "union of path and name",
+			expr: &InfixExpression{
+				Left:     &PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "db"},
+				Right:    &AttributeFilter{Key: "name", Value: "db"},
 			},
-			expected: []*component.Component{},
-		},
-		{
-			name: "intersection of exact path and name",
-			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/app1"},
-				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
-			},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "legacy", Path: "./apps/legacy"},
+				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
-			name: "intersection of empty results",
-			expr: &filter.InfixExpression{
-				Left:     &filter.AttributeFilter{Key: "name", Value: "nonexistent1"},
+			name: "union with overlap (deduplication)",
+			expr: &InfixExpression{
+				Left:     &PathFilter{Value: "./apps/app1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &AttributeFilter{Key: "name", Value: "app1"},
 			},
-			expected: []*component.Component{},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"}, // Should appear only once
+			},
+		},
+		{
+			name: "union of empty results",
+			expr: &InfixExpression{
+				Left:     &AttributeFilter{Key: "name", Value: "nonexistent1"},
+				Operator: "|",
+				Right:    &AttributeFilter{Key: "name", Value: "nonexistent2"},
+			},
+			expected: []Unit{},
 		},
 	}
 
@@ -300,7 +284,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, components)
+			result, err := evaluateInfixExpression(tt.expr, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -310,66 +294,67 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 func TestEvaluate_ComplexExpressions(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
-		{Path: "./special/unit", Kind: component.Unit},
+	units := []Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "legacy", Path: "./apps/legacy"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
+		{Name: "special", Path: "./special/unit"},
 	}
 
 	tests := []struct {
 		name     string
-		expr     filter.Expression
-		expected []*component.Component
+		expr     Expression
+		expected []Unit
 	}{
 		{
-			name: "intersection with negation (refinement)",
-			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+			name: "union includes all from both sides",
+			expr: &InfixExpression{
+				Left:     &PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right: &filter.PrefixExpression{
-					Operator: "!",
-					Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
-				},
+				Right:    &PathFilter{Value: "./libs/*"},
 			},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "legacy", Path: "./apps/legacy"},
+				{Name: "db", Path: "./libs/db"},
+				{Name: "api", Path: "./libs/api"},
 			},
 		},
 		{
-			name: "negated intersection",
-			expr: &filter.PrefixExpression{
+			name: "negated union",
+			expr: &PrefixExpression{
 				Operator: "!",
-				Right: &filter.InfixExpression{
-					Left:     &filter.PathFilter{Value: "./apps/*"},
+				Right: &InfixExpression{
+					Left:     &AttributeFilter{Key: "name", Value: "app1"},
 					Operator: "|",
-					Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+					Right:    &AttributeFilter{Key: "name", Value: "db"},
 				},
 			},
-			expected: []*component.Component{
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./apps/legacy", Kind: component.Unit},
-				{Path: "./libs/db", Kind: component.Unit},
-				{Path: "./libs/api", Kind: component.Unit},
-				{Path: "./special/unit", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app2", Path: "./apps/app2"},
+				{Name: "legacy", Path: "./apps/legacy"},
+				{Name: "api", Path: "./libs/api"},
+				{Name: "special", Path: "./special/unit"},
 			},
 		},
 		{
-			name: "chained intersections (multiple refinements)",
-			expr: &filter.InfixExpression{
-				Left: &filter.InfixExpression{
-					Left:     &filter.PathFilter{Value: "./apps/*"},
+			name: "multiple unions",
+			expr: &InfixExpression{
+				Left: &InfixExpression{
+					Left:     &AttributeFilter{Key: "name", Value: "app1"},
 					Operator: "|",
-					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
+					Right:    &AttributeFilter{Key: "name", Value: "db"},
 				},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &AttributeFilter{Key: "name", Value: "special"},
 			},
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: []Unit{
+				{Name: "app1", Path: "./apps/app1"},
+				{Name: "db", Path: "./libs/db"},
+				{Name: "special", Path: "./special/unit"},
 			},
 		},
 	}
@@ -378,7 +363,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, components)
+			result, err := Evaluate(tt.expr, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -391,19 +376,19 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("nil expression", func(t *testing.T) {
 		t.Parallel()
 
-		components := []*component.Component{{Path: "./app", Kind: component.Unit}}
-		result, err := filter.Evaluate(nil, components)
+		units := []Unit{{Name: "app", Path: "./app"}}
+		result, err := Evaluate(nil, units)
 
-		require.Error(t, err)
+		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "expression is nil")
 	})
 
-	t.Run("empty components list", func(t *testing.T) {
+	t.Run("empty units list", func(t *testing.T) {
 		t.Parallel()
 
-		expr := &filter.AttributeFilter{Key: "name", Value: "foo"}
-		result, err := filter.Evaluate(expr, []*component.Component{})
+		expr := &AttributeFilter{Key: "name", Value: "foo"}
+		result, err := Evaluate(expr, []Unit{})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -412,12 +397,69 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("invalid glob pattern", func(t *testing.T) {
 		t.Parallel()
 
-		components := []*component.Component{{Path: "./app", Kind: component.Unit}}
-		expr := &filter.PathFilter{Value: "[invalid-glob"}
-		result, err := filter.Evaluate(expr, components)
+		units := []Unit{{Name: "app", Path: "./app"}}
+		expr := &PathFilter{Value: "[invalid-glob"}
+		result, err := Evaluate(expr, units)
 
-		require.Error(t, err)
+		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "failed to compile glob pattern")
 	})
+}
+
+func TestUnionUnits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		left     []Unit
+		right    []Unit
+		expected []Unit
+	}{
+		{
+			name:     "no overlap",
+			left:     []Unit{{Name: "a", Path: "./a"}},
+			right:    []Unit{{Name: "b", Path: "./b"}},
+			expected: []Unit{{Name: "a", Path: "./a"}, {Name: "b", Path: "./b"}},
+		},
+		{
+			name:     "complete overlap",
+			left:     []Unit{{Name: "a", Path: "./a"}},
+			right:    []Unit{{Name: "a", Path: "./a"}},
+			expected: []Unit{{Name: "a", Path: "./a"}},
+		},
+		{
+			name:     "partial overlap",
+			left:     []Unit{{Name: "a", Path: "./a"}, {Name: "b", Path: "./b"}},
+			right:    []Unit{{Name: "b", Path: "./b"}, {Name: "c", Path: "./c"}},
+			expected: []Unit{{Name: "a", Path: "./a"}, {Name: "b", Path: "./b"}, {Name: "c", Path: "./c"}},
+		},
+		{
+			name:     "empty left",
+			left:     []Unit{},
+			right:    []Unit{{Name: "a", Path: "./a"}},
+			expected: []Unit{{Name: "a", Path: "./a"}},
+		},
+		{
+			name:     "empty right",
+			left:     []Unit{{Name: "a", Path: "./a"}},
+			right:    []Unit{},
+			expected: []Unit{{Name: "a", Path: "./a"}},
+		},
+		{
+			name:     "both empty",
+			left:     []Unit{},
+			right:    []Unit{},
+			expected: []Unit{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := unionUnits(tt.left, tt.right)
+			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
 }
