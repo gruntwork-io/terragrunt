@@ -23,8 +23,8 @@ func NewParseError(message string, position int) error {
 
 // EvaluationError represents an error that occurred during evaluation.
 type EvaluationError struct {
-	Cause   error
 	Message string
+	Cause   error
 }
 
 func (e EvaluationError) Error() string {
@@ -32,7 +32,7 @@ func (e EvaluationError) Error() string {
 		return fmt.Sprintf("evaluation error: %s: %v", e.Message, e.Cause)
 	}
 
-	return "evaluation error: " + e.Message
+	return fmt.Sprintf("evaluation error: %s", e.Message)
 }
 
 // NewEvaluationError creates a new EvaluationError with the given message.

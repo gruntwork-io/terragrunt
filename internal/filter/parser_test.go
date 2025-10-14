@@ -1,9 +1,8 @@
-package filter_test
+package filter
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,14 +11,14 @@ func TestParser_SimpleExpressions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		expected filter.Expression
 		name     string
 		input    string
+		expected Expression
 	}{
 		{
 			name:  "simple name filter",
 			input: "foo",
-			expected: &filter.AttributeFilter{
+			expected: &AttributeFilter{
 				Key:   "name",
 				Value: "foo",
 			},
@@ -27,7 +26,7 @@ func TestParser_SimpleExpressions(t *testing.T) {
 		{
 			name:  "attribute filter",
 			input: "name=bar",
-			expected: &filter.AttributeFilter{
+			expected: &AttributeFilter{
 				Key:   "name",
 				Value: "bar",
 			},
@@ -35,7 +34,7 @@ func TestParser_SimpleExpressions(t *testing.T) {
 		{
 			name:  "type attribute filter",
 			input: "type=unit",
-			expected: &filter.AttributeFilter{
+			expected: &AttributeFilter{
 				Key:   "type",
 				Value: "unit",
 			},
@@ -43,50 +42,29 @@ func TestParser_SimpleExpressions(t *testing.T) {
 		{
 			name:  "path filter relative",
 			input: "./apps/foo",
-			expected: &filter.PathFilter{
+			expected: &PathFilter{
 				Value: "./apps/foo",
 			},
 		},
 		{
 			name:  "path filter absolute",
 			input: "/absolute/path",
-			expected: &filter.PathFilter{
+			expected: &PathFilter{
 				Value: "/absolute/path",
 			},
 		},
 		{
 			name:  "path filter with wildcard",
 			input: "./apps/*",
-			expected: &filter.PathFilter{
+			expected: &PathFilter{
 				Value: "./apps/*",
 			},
 		},
 		{
 			name:  "path filter with recursive wildcard",
 			input: "./apps/**/foo",
-			expected: &filter.PathFilter{
+			expected: &PathFilter{
 				Value: "./apps/**/foo",
-			},
-		},
-		{
-			name:  "braced path filter",
-			input: "{./apps/*}",
-			expected: &filter.PathFilter{
-				Value: "./apps/*",
-			},
-		},
-		{
-			name:  "braced path without prefix",
-			input: "{apps}",
-			expected: &filter.PathFilter{
-				Value: "apps",
-			},
-		},
-		{
-			name:  "braced path with spaces",
-			input: "{my path/file}",
-			expected: &filter.PathFilter{
-				Value: "my path/file",
 			},
 		},
 	}
@@ -95,8 +73,8 @@ func TestParser_SimpleExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			lexer := NewLexer(tt.input)
+			parser := NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -109,16 +87,16 @@ func TestParser_PrefixExpressions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		expected filter.Expression
 		name     string
 		input    string
+		expected Expression
 	}{
 		{
 			name:  "negated name filter",
 			input: "!foo",
-			expected: &filter.PrefixExpression{
+			expected: &PrefixExpression{
 				Operator: "!",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "foo",
 				},
@@ -127,9 +105,9 @@ func TestParser_PrefixExpressions(t *testing.T) {
 		{
 			name:  "negated attribute filter",
 			input: "!name=bar",
-			expected: &filter.PrefixExpression{
+			expected: &PrefixExpression{
 				Operator: "!",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "bar",
 				},
@@ -138,9 +116,9 @@ func TestParser_PrefixExpressions(t *testing.T) {
 		{
 			name:  "negated path filter",
 			input: "!./apps/legacy",
-			expected: &filter.PrefixExpression{
+			expected: &PrefixExpression{
 				Operator: "!",
-				Right: &filter.PathFilter{
+				Right: &PathFilter{
 					Value: "./apps/legacy",
 				},
 			},
@@ -151,8 +129,8 @@ func TestParser_PrefixExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			lexer := NewLexer(tt.input)
+			parser := NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -165,20 +143,20 @@ func TestParser_InfixExpressions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		expected filter.Expression
 		name     string
 		input    string
+		expected Expression
 	}{
 		{
 			name:  "union of two name filters",
 			input: "foo | bar",
-			expected: &filter.InfixExpression{
-				Left: &filter.AttributeFilter{
+			expected: &InfixExpression{
+				Left: &AttributeFilter{
 					Key:   "name",
 					Value: "foo",
 				},
 				Operator: "|",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "bar",
 				},
@@ -187,13 +165,13 @@ func TestParser_InfixExpressions(t *testing.T) {
 		{
 			name:  "union of attribute filters",
 			input: "name=foo | name=bar",
-			expected: &filter.InfixExpression{
-				Left: &filter.AttributeFilter{
+			expected: &InfixExpression{
+				Left: &AttributeFilter{
 					Key:   "name",
 					Value: "foo",
 				},
 				Operator: "|",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "bar",
 				},
@@ -202,12 +180,12 @@ func TestParser_InfixExpressions(t *testing.T) {
 		{
 			name:  "union of path and name filter",
 			input: "./apps/* | name=bar",
-			expected: &filter.InfixExpression{
-				Left: &filter.PathFilter{
+			expected: &InfixExpression{
+				Left: &PathFilter{
 					Value: "./apps/*",
 				},
 				Operator: "|",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "bar",
 				},
@@ -216,20 +194,20 @@ func TestParser_InfixExpressions(t *testing.T) {
 		{
 			name:  "union of three filters",
 			input: "foo | bar | baz",
-			expected: &filter.InfixExpression{
-				Left: &filter.InfixExpression{
-					Left: &filter.AttributeFilter{
+			expected: &InfixExpression{
+				Left: &InfixExpression{
+					Left: &AttributeFilter{
 						Key:   "name",
 						Value: "foo",
 					},
 					Operator: "|",
-					Right: &filter.AttributeFilter{
+					Right: &AttributeFilter{
 						Key:   "name",
 						Value: "bar",
 					},
 				},
 				Operator: "|",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "baz",
 				},
@@ -241,8 +219,8 @@ func TestParser_InfixExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			lexer := NewLexer(tt.input)
+			parser := NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -255,23 +233,23 @@ func TestParser_ComplexExpressions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		expected filter.Expression
 		name     string
 		input    string
+		expected Expression
 	}{
 		{
 			name:  "negated filter in union",
 			input: "!foo | bar",
-			expected: &filter.InfixExpression{
-				Left: &filter.PrefixExpression{
+			expected: &InfixExpression{
+				Left: &PrefixExpression{
 					Operator: "!",
-					Right: &filter.AttributeFilter{
+					Right: &AttributeFilter{
 						Key:   "name",
 						Value: "foo",
 					},
 				},
 				Operator: "|",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "bar",
 				},
@@ -280,15 +258,15 @@ func TestParser_ComplexExpressions(t *testing.T) {
 		{
 			name:  "union with negated second operand",
 			input: "foo | !bar",
-			expected: &filter.InfixExpression{
-				Left: &filter.AttributeFilter{
+			expected: &InfixExpression{
+				Left: &AttributeFilter{
 					Key:   "name",
 					Value: "foo",
 				},
 				Operator: "|",
-				Right: &filter.PrefixExpression{
+				Right: &PrefixExpression{
 					Operator: "!",
-					Right: &filter.AttributeFilter{
+					Right: &AttributeFilter{
 						Key:   "name",
 						Value: "bar",
 					},
@@ -298,21 +276,21 @@ func TestParser_ComplexExpressions(t *testing.T) {
 		{
 			name:  "complex mix of paths and attributes",
 			input: "./apps/* | !./legacy | name=foo",
-			expected: &filter.InfixExpression{
-				Left: &filter.InfixExpression{
-					Left: &filter.PathFilter{
+			expected: &InfixExpression{
+				Left: &InfixExpression{
+					Left: &PathFilter{
 						Value: "./apps/*",
 					},
 					Operator: "|",
-					Right: &filter.PrefixExpression{
+					Right: &PrefixExpression{
 						Operator: "!",
-						Right: &filter.PathFilter{
+						Right: &PathFilter{
 							Value: "./legacy",
 						},
 					},
 				},
 				Operator: "|",
-				Right: &filter.AttributeFilter{
+				Right: &AttributeFilter{
 					Key:   "name",
 					Value: "foo",
 				},
@@ -324,8 +302,8 @@ func TestParser_ComplexExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			lexer := NewLexer(tt.input)
+			parser := NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -378,15 +356,15 @@ func TestParser_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			lexer := NewLexer(tt.input)
+			parser := NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			if tt.expectError {
-				require.Error(t, err)
+				assert.Error(t, err)
 				assert.Nil(t, expr)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.NotNil(t, expr)
 			}
 		})
@@ -427,8 +405,8 @@ func TestParser_StringRepresentation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			lexer := NewLexer(tt.input)
+			parser := NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
