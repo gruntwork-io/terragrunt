@@ -6,6 +6,24 @@ env:
   - TG_JSON_OUT_DIR
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="note">
+
+This flag only does anything when used with the `--all` flag for stack runs. It does nothing in single-unit runs.
+
+To generate JSON plan files for a single unit run, use the standard OpenTofu/Terraform [-out flag](https://opentofu.org/docs/cli/commands/plan) like so:
+
+```bash
+terragrunt run -- plan -out=/tmp/tfplan
+```
+
+```bash
+terragrunt run -- show -json /tmp/tfplan > /tmp/tfplan.json
+```
+
+</Aside>
+
 Generates machine-readable plan outputs per unit as `tfplan.json` by invoking `show -json` after the plan is created.
 
 - Requires a plan to exist (e.g. created with `--out-dir`).
