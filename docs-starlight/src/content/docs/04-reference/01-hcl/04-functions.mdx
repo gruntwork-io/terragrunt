@@ -698,6 +698,8 @@ terraform {
 
 `run_cmd(command, arg1, arg2…​)` runs a shell command and returns the stdout as the result of the interpolation. The command is executed at the same folder as the `terragrunt.hcl` file. This is useful whenever you want to dynamically fill in arbitrary information in your Terragrunt configuration.
 
+### Basic Usage
+
 As an example, you could write a script that determines the bucket and DynamoDB table name based on the AWS account, instead of hardcoding the name of every account:
 
 ```hcl
@@ -712,15 +714,57 @@ remote_state {
 }
 ```
 
-If the command you are running has the potential to output sensitive values, you may wish to redact the output from appearing in the terminal. To do so, use the special `--terragrunt-quiet` argument which must be passed as one of the first arguments to `run_cmd()`:
+### Special Parameters
+
+The `run_cmd` function supports special `--terragrunt-*` parameters that must be passed as the **first arguments** before the actual command. These parameters can be combined in any order:
+
+| Parameter                   | Description                                          | Use Case                                                                                      |
+|-----------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `--terragrunt-quiet`        | Suppresses command output from appearing in logs     | For commands that output sensitive values (credentials, secrets, etc.)                        |
+| `--terragrunt-global-cache` | Uses global cache instead of directory-based cache   | For commands that produce the same output regardless of directory (e.g., AWS account lookup)  |
+| `--terragrunt-no-cache`     | Disables caching completely, runs command every time | For commands that produce dynamic/random values each time (e.g., UUID generation, timestamps) |
+
+#### Examples
+
+**Suppress output for sensitive values:**
 
 ```hcl
+# Output is redacted in logs, but still available to Terragrunt
 super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 ```
 
 **Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
 
-Invocations of `run_cmd` are cached based on directory and executed command, so cached values are reused later, rather than executed multiple times. Here's an example:
+**Use global cache for directory-independent commands:**
+
+```hcl
+# Same result regardless of which directory run_cmd is called from
+account_id = run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+```
+
+**Disable caching for dynamic values:**
+
+```hcl
+# Generates a new UUID every time run_cmd is evaluated
+build_id = run_cmd("--terragrunt-no-cache", "uuidgen")
+
+# Gets current timestamp on each run
+timestamp = run_cmd("--terragrunt-no-cache", "date", "+%s")
+```
+
+**Combine multiple parameters:**
+
+```hcl
+# Disable cache AND suppress output for a sensitive dynamic value
+session_token = run_cmd("--terragrunt-no-cache", "--terragrunt-quiet", "./generate-temp-token.sh")
+
+# All three parameters together
+value = run_cmd("--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "./command.sh")
+```
+
+### Caching Behavior
+
+By default, invocations of `run_cmd` are cached based on the current directory and executed command, so cached values are reused later rather than executed multiple times. Here's an example:
 
 ```hcl
 # terragrunt.hcl
@@ -760,18 +804,14 @@ uuid3 baa19863-1d99-e0ef-11f2-ede830d1c58a
 carrot
 ```
 
-**Notes:**
+**Key observations from the output:**
 
-- Output contains only contains one instance of `carrot` and `potato`, because other invocations got cached; caching works for all sections
-- Output contains multiple times `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` is evaluated multiple times and random argument generated from `uuid()` save cached value under different key each time
-- Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation
-- Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
+- `carrot` and `potato` appear only once because subsequent invocations used the cached value
+- `uuid1`, `uuid2`, and `uuid3` appear multiple times because each call includes a different UUID from `uuid()`, creating different cache keys
+- `uuid3` appears one extra time compared to `uuid1` and `uuid2` because it's declared in both `locals` and `inputs`
+- `uuid4` appears only once since it's declared only in `inputs`, which is evaluated once
 
-You can modify this caching behavior to ignore the existing directory if you know the command you are running is not dependent on the current directory path. To do so, use the special `--terragrunt-global-cache` argument which must be passed as one of the first arguments to `run_cmd()` (and can be combined with `--terragrunt-quiet` in any order):
-
-```hcl
-value = run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "/usr/local/bin/get-account-map")
-```
+This caching behavior can be modified using the special parameters described in the [Special Parameters](#special-parameters) section above.
 
 ## read_terragrunt_config
 

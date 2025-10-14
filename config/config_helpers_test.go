@@ -198,6 +198,26 @@ func TestRunCommand(t *testing.T) {
 			expectedOutput:    "foo",
 		},
 		{
+			params:            []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
+			params:            []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
+			params:            []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
+			params:            []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
 			terragruntOptions: terragruntOptionsForTest(t, homeDir),
 			expectedErr:       config.EmptyStringNotAllowedError("{run_cmd()}"),
 		},
