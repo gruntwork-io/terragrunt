@@ -718,7 +718,8 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 		return l, nil, err
 	}
 
-	if partialTerragruntConfig.TerraformBinary != "" {
+	// Only override TFPath if it was not explicitly set by the user via CLI or environment variable
+	if !targetOptions.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
 		targetOptions.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
