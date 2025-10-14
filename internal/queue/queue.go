@@ -315,79 +315,78 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		}
 
 		if e.IsUp() {
-			// Up logic: all dependencies must be succeeded (or terminal if ignoring errors)
-			allDepsReady := true
-
-			for _, dep := range e.Config.Dependencies {
-				depEntry := q.entryByPathUnsafe(dep.Path)
-				if depEntry == nil {
-					allDepsReady = false
-					break
-				}
-
-				// When ignoring dependency errors, allow scheduling if dependencies are in a terminal state
-				// (succeeded OR failed), not just succeeded
-				if q.IgnoreDependencyErrors {
-					if !isTerminal(depEntry.Status) {
-						allDepsReady = false
-						break
-					}
-
-					continue
-				}
-
-				if depEntry.Status != StatusSucceeded {
-					allDepsReady = false
-					break
-				}
-			}
-
-			if allDepsReady {
+			if q.areDependenciesReadyUnsafe(e) {
 				out = append(out, e)
 			}
 
 			continue
 		}
 
-		// Down logic: all dependents must be succeeded (or terminal if ignoring errors)
-		allDependentsReady := true
-
-		for _, other := range q.Entries {
-			if other == e || other.Config.Dependencies == nil {
-				continue
-			}
-
-			for _, dep := range other.Config.Dependencies {
-				if dep.Path == e.Config.Path {
-					// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
-					// (succeeded OR failed), not just succeeded
-					if q.IgnoreDependencyErrors {
-						if !isTerminal(other.Status) {
-							allDependentsReady = false
-							break
-						}
-
-						continue
-					}
-
-					if other.Status != StatusSucceeded {
-						allDependentsReady = false
-						break
-					}
-				}
-			}
-
-			if !allDependentsReady {
-				break
-			}
-		}
-
-		if allDependentsReady {
+		if q.areDependentsReadyUnsafe(e) {
 			out = append(out, e)
 		}
 	}
 
 	return out
+}
+
+// areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
+// For up commands, all dependencies must be in a succeeded state (or terminal if ignoring errors).
+// Should only be called when the caller already holds a read lock.
+func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
+	for _, dep := range e.Config.Dependencies {
+		depEntry := q.entryByPathUnsafe(dep.Path)
+		if depEntry == nil {
+			return false
+		}
+
+		// When ignoring dependency errors, allow scheduling if dependencies are in a terminal state
+		// (succeeded OR failed), not just succeeded
+		if q.IgnoreDependencyErrors {
+			if !isTerminal(depEntry.Status) {
+				return false
+			}
+
+			continue
+		}
+
+		if depEntry.Status != StatusSucceeded {
+			return false
+		}
+	}
+
+	return true
+}
+
+// areDependentsReadyUnsafe checks if all dependents of an entry are ready for "down" commands.
+// For down commands, all dependents must be in a succeeded state (or terminal if ignoring errors).
+// Should only be called when the caller already holds a read lock.
+func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
+	for _, other := range q.Entries {
+		if other == e || other.Config.Dependencies == nil {
+			continue
+		}
+
+		for _, dep := range other.Config.Dependencies {
+			if dep.Path == e.Config.Path {
+				// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
+				// (succeeded OR failed), not just succeeded
+				if q.IgnoreDependencyErrors {
+					if !isTerminal(other.Status) {
+						return false
+					}
+
+					continue
+				}
+
+				if other.Status != StatusSucceeded {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 // SetEntryStatus safely sets the status of an entry with proper synchronization.
