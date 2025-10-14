@@ -2,110 +2,109 @@ package filter_test
 
 import (
 	"fmt"
-	"path/filepath"
-	"sort"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 )
 
-// Example_basicPathFilter demonstrates filtering components by path with a glob pattern.
+// Example_basicPathFilter demonstrates filtering units by path with a glob pattern.
 func Example_basicPathFilter() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "db", Path: "./libs/db"},
 	}
 
-	result, _ := filter.Apply("./apps/*", ".", components)
+	result, _ := filter.Apply("./apps/*", units)
 
-	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+	for _, unit := range result {
+		fmt.Println(unit.Name)
 	}
 	// Output:
 	// app1
 	// app2
 }
 
-// Example_attributeFilter demonstrates filtering components by name attribute.
+// Example_attributeFilter demonstrates filtering units by name attribute.
 func Example_attributeFilter() {
-	components := []*component.Component{
-		{Path: "./apps/frontend", Kind: component.Unit},
-		{Path: "./apps/backend", Kind: component.Unit},
-		{Path: "./services/api", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "frontend", Path: "./apps/frontend"},
+		{Name: "backend", Path: "./apps/backend"},
+		{Name: "api", Path: "./services/api"},
 	}
 
-	result, _ := filter.Apply("name=api", ".", components)
+	result, _ := filter.Apply("name=api", units)
 
-	for _, c := range result {
-		fmt.Println(c.Path)
+	for _, unit := range result {
+		fmt.Println(unit.Path)
 	}
 	// Output:
 	// ./services/api
 }
 
-// Example_exclusionFilter demonstrates excluding components using the negation operator.
+// Example_exclusionFilter demonstrates excluding units using the negation operator.
 func Example_exclusionFilter() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "legacy", Path: "./apps/legacy"},
 	}
 
-	result, _ := filter.Apply("!legacy", ".", components)
+	result, _ := filter.Apply("!legacy", units)
 
-	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+	for _, unit := range result {
+		fmt.Println(unit.Name)
 	}
 	// Output:
 	// app1
 	// app2
 }
 
-// Example_intersectionFilter demonstrates refining results with the intersection operator.
-func Example_intersectionFilter() {
-	components := []*component.Component{
-		{Path: "./apps/frontend", Kind: component.Unit},
-		{Path: "./apps/backend", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
+// Example_unionFilter demonstrates combining multiple filters with the union operator.
+func Example_unionFilter() {
+	units := []filter.Unit{
+		{Name: "frontend", Path: "./apps/frontend"},
+		{Name: "backend", Path: "./apps/backend"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
 	}
 
-	// Select components in ./apps/ that are named "frontend"
-	result, _ := filter.Apply("./apps/* | frontend", ".", components)
+	result, _ := filter.Apply("frontend | db", units)
 
-	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+	for _, unit := range result {
+		fmt.Println(unit.Name)
 	}
 	// Output:
 	// frontend
+	// db
 }
 
-// Example_complexQuery demonstrates a complex filter combining paths and negation.
+// Example_complexQuery demonstrates a complex filter combining paths and names.
 func Example_complexQuery() {
-	components := []*component.Component{
-		{Path: "./services/web", Kind: component.Unit},
-		{Path: "./services/worker", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
-		{Path: "./libs/cache", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "web", Path: "./services/web"},
+		{Name: "worker", Path: "./services/worker"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
+		{Name: "cache", Path: "./libs/cache"},
 	}
 
-	// Select all services except worker
-	result, _ := filter.Apply("./services/* | !worker", ".", components)
+	// Select all services OR the db library
+	result, _ := filter.Apply("./services/* | db", units)
 
-	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+	for _, unit := range result {
+		fmt.Println(unit.Name)
 	}
 	// Output:
 	// web
+	// worker
+	// db
 }
 
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
 func Example_parseAndEvaluate() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
 	}
 
 	// Parse the filter once
@@ -115,31 +114,31 @@ func Example_parseAndEvaluate() {
 		return
 	}
 
-	// Evaluate multiple times with different config sets
-	result1, _ := f.Evaluate(components)
-	fmt.Printf("Found %d components\n", len(result1))
+	// Evaluate multiple times with different unit sets
+	result1, _ := f.Evaluate(units)
+	fmt.Printf("Found %d units\n", len(result1))
 
 	// You can also inspect the original query
 	fmt.Printf("Original query: %s\n", f.String())
 
 	// Output:
-	// Found 1 components
+	// Found 1 units
 	// Original query: app1
 }
 
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
-	components := []*component.Component{
-		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
-		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
-		{Path: "./infrastructure/compute/app-server", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "vpc", Path: "./infrastructure/networking/vpc"},
+		{Name: "subnets", Path: "./infrastructure/networking/subnets"},
+		{Name: "app-server", Path: "./infrastructure/compute/app-server"},
 	}
 
-	// Match all infrastructure components at any depth
-	result, _ := filter.Apply("./infrastructure/**", ".", components)
+	// Match all infrastructure units at any depth
+	result, _ := filter.Apply("./infrastructure/**", units)
 
-	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+	for _, unit := range result {
+		fmt.Println(unit.Name)
 	}
 	// Output:
 	// vpc
@@ -164,38 +163,4 @@ func Example_errorHandling() {
 	// Output:
 	// Error occurred
 	// Successfully parsed
-}
-
-// Example_multipleFilters demonstrates using multiple filters with union semantics.
-func Example_multipleFilters() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
-	}
-
-	// Parse multiple filters - results are unioned
-	filters, _ := filter.ParseFilterQueries([]string{
-		"./apps/*",
-		"name=db",
-	}, ".")
-
-	result, _ := filters.Evaluate(components)
-
-	// Sort for consistent output
-	names := make([]string, len(result))
-	for i, c := range result {
-		names[i] = filepath.Base(c.Path)
-	}
-
-	sort.Strings(names)
-
-	for _, name := range names {
-		fmt.Println(name)
-	}
-	// Output:
-	// app1
-	// app2
-	// db
 }
