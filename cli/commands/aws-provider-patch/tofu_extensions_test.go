@@ -251,7 +251,7 @@ func TestFindAllTerraformFilesIncludesTofuFiles(t *testing.T) {
 	}
 
 	for _, file := range files {
-		assert.NotEqual(t, filepath.Ext(file), ".json", "JSON file %s should be excluded", file)
+		assert.NotEqual(t, ".json", filepath.Ext(file), "JSON file %s should be excluded", file)
 	}
 }
 
