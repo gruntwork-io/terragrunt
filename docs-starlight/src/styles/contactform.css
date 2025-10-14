@@ -112,3 +112,9 @@ div.submitted-message {
   min-height: 600px;
   text-align: center;
 }
+
+/* Contact Landing Pages */
+
+.hs_landing_page_url {
+  display: none !important;
+}

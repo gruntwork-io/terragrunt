@@ -1,0 +1,42 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import PiranhaHero from '@components/PiranhaHero.astro';
+import PiranhaSignup from '@components/PiranhaSignup.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+import Testimonial from '@components/Testimonial.astro';
+import TSTerragruntDrift from '@components/TSTerragruntDrift.astro';
+import TSTerragruntPatcher from '@components/TSTerragruntPatcher.astro';
+import TSTerragruntPipelines from '@components/TSTerragruntPipelines.astro';
+
+import '@styles/global.css';
+import '@styles/custom-page.css';
+import CompactFooter from '@components/CompactFooter.astro';
+---
+<BaseLayout
+  title="Terragrunt Scale | Demo for Lego Piranha Plant"
+  description="Get a free Lego Super Mario Piranha Plant just for taking a demo of Terragrunt Scale. Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current."
+  url="https://terragrunt.gruntwork.io/lp/piranha"
+>
+  <Header showThemeToggle={false} />
+  <PiranhaHero />
+  <PageContainer>
+    <FeaturedBrands />
+    <SectionSpacer />
+    <TSTerragruntPipelines />
+    <SectionSpacer />
+    <TSTerragruntDrift />
+    <SectionSpacer />
+    <TSTerragruntPatcher />
+    <div id="piranha-signup">
+      <SectionSpacer />
+    </div>
+    <PiranhaSignup />
+    <SectionSpacer />
+    <Testimonial />
+    <SectionSpacer />
+    <CompactFooter />
+  </PageContainer>
+</BaseLayout>

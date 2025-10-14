@@ -1,0 +1,43 @@
+---
+import { Image } from 'astro:assets';
+
+import BackgroundPattern from '@assets/hero-bkgnd.svg';
+import ButtonLink from '@ui/ButtonLink';
+import ContactLandingPages from '@components/ContactLandingPages.astro';
+import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.svg';
+import IconPricingEnterprise from '@assets/icons/terragrunt-pricing-enterprise.svg';
+import PiranhaPlant from '@assets/piranha-plant.jpg';
+
+import '@styles/global.css';
+---
+
+<!-- Section -->
+<section class="relative px-5 w-full">
+  <div class="relative bg-bg-dark overflow-hidden border-[6px] border-[#E6E6E6] rounded-3xl">
+    <div class="flex flex-col p-8 md:p-20 justify-center items-center">
+
+      <!-- Wrapper - 2 col  -->
+      <div class="flex flex-col lg:flex-row gap-24">
+
+        <!-- Left Col - Text + Image -->
+        <div class="flex flex-col gap-8">
+          <h2 class="text-3xl md:text-6xl font-sans text-white m-0">
+            Ready to tame your pipelines?
+          </h2>
+          <p class="text-gray-1 font-sans">
+            Sign up for a demo with our team and we'll show you how you can scale your IaC estate with centralized pipelines.<br><br>
+            And to prove our pipelines won't bite, we'll send you a Lego Piranha Plant set after you complete the demo!
+          </p>
+          <Image
+            alt="Super Mario Piranha Plant Lego Set"
+            class="max-w-[250px] h-auto ml-6"
+            src={PiranhaPlant}
+          />
+        </div>
+
+        <!-- Right Col - Sign Up -->
+        <ContactLandingPages />
+      </div>
+    </div>
+  </div>
+</section>

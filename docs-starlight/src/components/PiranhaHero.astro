@@ -1,0 +1,120 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import BackgroundPattern from '@assets/boxes-bg.svg';
+import ButtonLink from '@components/ui/ButtonLink';
+import ColFeature from '@components/ColFeature.astro';
+import GithubIcon from '@assets/icons/github-icon.svg';
+import GitlabIcon from '@assets/icons/gitlab-icon.svg';
+import IconDriftDetection from '@assets/icons/drift-detection.svg';
+import IconLabel from '@components/dv-IconButton.astro';
+import IconPatcher from '@assets/icons/terragrunt-patcher.svg';
+import IconPipelines from '@assets/icons/terragrunt-pipelines.svg';
+import MobileHeroBackground from '@assets/hero-bkgnd.svg';
+import Piranha from '@assets/piranha.svg';
+import Terminal from '@components/dv-Terminal.astro';
+import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
+import ThreeColFeatures from '@components/ThreeColFeatures.astro';
+---
+
+<section class="relative md:pt-22 bg-[var(--color-bg-dark)] gap-10 overflow-hidden">
+    <!-- Background Image -->
+    <Image
+      src={BackgroundPattern}
+      alt="Isometric background pattern with terragrunt logo"
+      class="absolute bottom-[-12%] left-1/2 transform -translate-x-1/2 w-[100vw] h-auto z-0 pointer-events-none select-none"
+      decoding="async"
+      loading="eager"
+      width={1440}
+    />
+
+    <div class="relative z-10 pt-[200px] md:pt-[100px] px-5 md:px-20 max-w-[1440px] mx-auto">
+        <div class="max-w-[989px] flex flex-col gap-6">
+          <div class="flex flex-col justify-start gap-5 w-full">
+            <h1 class="text-4xl md:text-6xl text-white leading-12 m-0">
+              Our Pipelines Won’t Bite!
+            </h1>
+            <p class="max-w-[650px] text-lg text-[var(--color-gray-1)] z-20">
+              You've wrangled your infrastructure with Terragrunt. But what about your infrastructure pipelines? Are they a tangled mess of custom scripts and headaches?<br><br>
+              Terragrunt Scale standardizes infra operations without leaving your pipeline. It operates intelligently on top of Terragrunt’s abstractions, runs in your pre-existing CI solution, and integrates natively with your workflows.<br><br>
+              And we’ll send you a free <span class="font-bold">Lego Super Mario Piranha Plant</span> just for taking a demo.
+            </p>
+          </div>
+
+          <div class="flex gap-5 w-full pb-28 md:pb-20 z-10">
+            <ButtonLink href="#piranha-signup" variant="primary">
+              Get Demo
+            </ButtonLink>
+          </div>
+
+          <!-- Super Mario Piranha -->
+          <div class="absolute hidden lg:block lg:bottom-[110px] lg:right-9 xl:bottom-[70px] xl:right-6">
+            <Image
+              alt="Super Mario Piranha Plant Lego Set"
+              class={"lg:w-[370px] xl:w-[580px] h-auto"}
+              src={Piranha}
+            />
+          </div>
+        </div>
+
+        <ThreeColFeatures>
+          <ColFeature color="purple">
+            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+              <Image
+                alt="Pipelines Icon"
+                class={"aspect-[1/1] h-auto"}
+                src={IconPipelines}
+                height={20}
+                width={20}
+              />
+            </div>
+            <div class="relative flex flex-col z-20 select-none">
+              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Pipelines</h5>
+              <p class="text-sm text-[var(--color-gray-1)] m-0">Automate your CI/CD</p>
+            </div>
+          </ColFeature>
+
+          <!-- Super Mario Piranha Mobile -->
+          <div class="absolute lg:hidden right-0 w-[200px] top-[-180px] md:w-[240px] md:top-[-210px] z-[-1]">
+            <Image
+              alt="Super Mario Piranha Plant Lego Set"
+              class="max-w-[100%] h-auto"
+              src={Piranha}
+            />
+          </div>
+
+          <ColFeature color="red">
+            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+              <Image
+                alt="Pipelines Icon"
+                class={"aspect-[1/1] h-auto"}
+                src={IconDriftDetection}
+                height={20}
+                width={20}
+              />
+            </div>
+            <div class="relative flex flex-col z-20 select-none">
+              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Drift Detection</h5>
+              <p class="text-sm text-[var(--color-gray-1)] m-0">Reconcile infrastructure Drift</p>
+            </div>
+          </ColFeature>
+
+          <ColFeature color="green">
+            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+              <Image
+                alt="Pipelines Icon"
+                class={"aspect-[1/1] h-auto"}
+                src={IconPatcher}
+                height={20}
+                width={20}
+              />
+            </div>
+            <div class="relative flex flex-col z-20 select-none">
+              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Patcher</h5>
+              <p class="text-sm text-[var(--color-gray-1)] m-0">Keep your IaC up-to-date</p>
+            </div>
+          </ColFeature>
+        </ThreeColFeatures>
+    </div>
+</section>
