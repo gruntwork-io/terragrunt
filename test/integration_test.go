@@ -659,6 +659,29 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Unsupported attribute",
+			Detail:   "This object does not have an attribute named \"outputs\".",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 6, Column: 19, Byte: 86},
+				End:      diagnostic.Pos{Line: 6, Column: 27, Byte: 94},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "",
+				Code:                 "  c = dependency.a.outputs.z",
+				StartLine:            6,
+				HighlightStartOffset: 18,
+				HighlightEndOffset:   26,
+				Values: []diagnostic.ExpressionValue{
+					{
+						Traversal: "dependency.a",
+						Statement: "is object with no attributes",
+					},
+				},
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Unknown variable",
 			Detail:   "There is no variable named \"dependency\".",
 			Range: &diagnostic.Range{
