@@ -1,0 +1,44 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import Footer from '@components/dv-Footer.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+import Testimonial from '@components/Testimonial.astro';
+import TSAccelerator from '@components/TSAccelerator.astro';
+import PiranhaHero from '@components/PiranhaHero.astro';
+import PiranhaSignup from '@components/PiranhaSignup.astro';
+import TSTerragruntDrift from '@components/TSTerragruntDrift.astro';
+import TSTerragruntPipelines from '@components/TSTerragruntPipelines.astro';
+import TSTerragruntPatcher from '@components/TSTerragruntPatcher.astro';
+
+import '@styles/global.css';
+import '@styles/custom-page.css';
+import CompactFooter from '@components/CompactFooter.astro';
+---
+<BaseLayout
+  title="Terragrunt Scale | Secure GitOps Pipelines & Drift Detection"
+  description="Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current; built by the creators of Terragrunt."
+  url="https://terragrunt.gruntwork.io/lp/piranha"
+>
+  <Header showThemeToggle={false} />
+  <PiranhaHero />
+  <PageContainer>
+    <FeaturedBrands />
+    <SectionSpacer />
+    <TSTerragruntPipelines />
+    <SectionSpacer />
+    <TSTerragruntDrift />
+    <SectionSpacer />
+    <TSTerragruntPatcher />
+    <div id="piranha-signup">
+      <SectionSpacer />
+    </div>
+    <PiranhaSignup />
+    <SectionSpacer />
+    <Testimonial />
+    <SectionSpacer />
+    <CompactFooter />
+  </PageContainer>
+</BaseLayout>
