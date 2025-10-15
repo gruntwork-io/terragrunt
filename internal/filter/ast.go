@@ -62,7 +62,7 @@ type PrefixExpression struct {
 func (p *PrefixExpression) expressionNode() {}
 func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String() }
 
-// InfixExpression represents an infix operator expression (e.g., "name=foo, name=bar").
+// InfixExpression represents an infix operator expression (e.g., "./apps/* | name=bar").
 type InfixExpression struct {
 	Left     Expression
 	Right    Expression
@@ -71,5 +71,5 @@ type InfixExpression struct {
 
 func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
-	return i.Left.String() + " | " + i.Right.String()
+	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
 }

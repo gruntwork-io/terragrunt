@@ -25,9 +25,9 @@ func Parse(filterString string) (*Filter, error) {
 	}, nil
 }
 
-// Evaluate applies the filter to a list of discovered configs and returns the filtered result.
-func (f *Filter) Evaluate(allConfigs []*component.Component) ([]*component.Component, error) {
-	return Evaluate(f.expr, allConfigs)
+// Evaluate applies the filter to a list of components and returns the filtered result.
+func (f *Filter) Evaluate(components []*component.Component) ([]*component.Component, error) {
+	return Evaluate(f.expr, components)
 }
 
 // String returns the original filter query string.
@@ -43,11 +43,11 @@ func (f *Filter) Expression() Expression {
 
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
-func Apply(filterString string, configs []*component.Component) ([]*component.Component, error) {
+func Apply(filterString string, components []*component.Component) ([]*component.Component, error) {
 	filter, err := Parse(filterString)
 	if err != nil {
 		return nil, err
 	}
 
-	return filter.Evaluate(configs)
+	return filter.Evaluate(components)
 }

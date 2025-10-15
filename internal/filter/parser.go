@@ -49,7 +49,6 @@ func (p *Parser) ParseExpression() (Expression, error) {
 		return nil, NewParseError("failed to parse expression", p.curToken.Position)
 	}
 
-	// Verify we've consumed all input
 	if p.curToken.Type != EOF {
 		return nil, NewParseError("unexpected token after expression: "+p.curToken.Literal, p.curToken.Position)
 	}
@@ -70,7 +69,6 @@ func (p *Parser) nextToken() {
 
 // parseExpression is the core recursive descent parser.
 func (p *Parser) parseExpression(precedence int) Expression {
-	// Parse prefix expression
 	var leftExpr Expression
 
 	switch p.curToken.Type {
@@ -81,14 +79,14 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	case LBRACE:
 		leftExpr = p.parseBracedPath()
 	case IDENT:
-		// Check if this is an attribute filter (name=value) or just a name
 		if p.peekToken.Type == EQUAL {
 			leftExpr = p.parseAttributeFilter()
-		} else {
-			// Treat as a name filter (shorthand for name=value)
-			leftExpr = &AttributeFilter{Key: "name", Value: p.curToken.Literal}
-			p.nextToken()
+
+			break
 		}
+
+		leftExpr = &AttributeFilter{Key: "name", Value: p.curToken.Literal}
+		p.nextToken()
 	case ILLEGAL:
 		p.addError("illegal token: " + p.curToken.Literal)
 		return nil
@@ -107,7 +105,6 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		return nil
 	}
 
-	// Parse infix expressions
 	for p.curToken.Type != EOF && precedence < p.curPrecedence() {
 		switch p.curToken.Type {
 		case PIPE:
@@ -140,7 +137,7 @@ func (p *Parser) parsePrefixExpression() Expression {
 	return expression
 }
 
-// parseInfixExpression parses an infix expression (e.g., "name=foo, name=bar").
+// parseInfixExpression parses an infix expression (e.g., "./apps/* | name=bar").
 func (p *Parser) parseInfixExpression(left Expression) Expression {
 	expression := &InfixExpression{
 		Operator: p.curToken.Literal,

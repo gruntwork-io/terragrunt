@@ -80,7 +80,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 func TestFilters_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
@@ -88,15 +88,15 @@ func TestFilters_Evaluate(t *testing.T) {
 		{Path: "./libs/api", Kind: component.Unit},
 	}
 
-	t.Run("empty filters returns all configs", func(t *testing.T) {
+	t.Run("empty filters returns all components", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
-		assert.ElementsMatch(t, configs, result)
+		assert.ElementsMatch(t, components, result)
 	})
 
 	t.Run("single positive filter", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		expected := []*component.Component{
@@ -123,7 +123,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		expected := []*component.Component{
@@ -140,7 +140,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		expected := []*component.Component{
@@ -150,7 +150,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		}
 
 		assert.ElementsMatch(t, expected, result)
-		// Verify no duplicates - should have exactly 3 configs
+		// Verify no duplicates - should have exactly 3 components
 		assert.Len(t, result, 3)
 	})
 
@@ -160,7 +160,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		expected := []*component.Component{
@@ -177,7 +177,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		expected := []*component.Component{
@@ -193,7 +193,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		// When there are no positive filters, the combined result is empty,
@@ -214,7 +214,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(configs)
+		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
 		expected := []*component.Component{
@@ -312,17 +312,5 @@ func TestFilters_String(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"})
 		require.NoError(t, err)
 		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
-	})
-
-	t.Run("filter with quotes in query", func(t *testing.T) {
-		t.Parallel()
-
-		// This is a hypothetical case - our current syntax doesn't use quotes
-		// but this tests the escaping logic
-		filters := filter.Filters{}
-		// We can't easily create a filter with quotes in the query string
-		// through normal parsing, so we'll just verify the String method
-		// handles the empty case properly
-		assert.Equal(t, "[]", filters.String())
 	})
 }
