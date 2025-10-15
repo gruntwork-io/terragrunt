@@ -6,7 +6,8 @@ sidebar:
   order: 8
 ---
 
-import { Aside, Code, FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside, Code } from '@astrojs/starlight/components';
 
 In the last step, you took a massive leap forward in safety by breaking your Terralith into separate `dev` and `prod` root modules. The trade-off, however, is that you've created a significant amount of boilerplate and duplication. Your `dev` and `prod` directories are filled with nearly identical `.tf` files (if not completely identical), and managing them involves a lot of careful copy-pasting. You also can't conveniently manage multiple root modules at once. This isn't scalable and is prone to error.
 
