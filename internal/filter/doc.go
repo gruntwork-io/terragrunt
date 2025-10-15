@@ -38,9 +38,9 @@
 //
 // The negation operator excludes matching components:
 //
-//	!name=legacy            # Exclude configs named "legacy"
-//	!./apps/old             # Exclude configs at path ./apps/old
-//	!foo                    # Exclude configs named "foo"
+//	!name=legacy            # Exclude components named "legacy"
+//	!./apps/old             # Exclude components at path ./apps/old
+//	!foo                    # Exclude components named "foo"
 //	!external=true          # Exclude external dependencies
 //
 // ## Intersection Operator (|)
@@ -50,12 +50,12 @@
 // The pipe character (|) is the only delimiter between filter expressions.
 // Whitespace is optional around operators but is NOT a delimiter itself.
 //
-//	./apps/* | name=web     # Components in ./apps/* AND named "web"
-//	./apps/*|name=web       # Same as above (spaces optional)
-//	foo | !bar              # Components named foo AND NOT named bar
-//	type=unit | !external=true  # Internal units only
+//	./apps/* | name=web         # Components in ./apps/* AND named "web"
+//	./apps/*|name=web           # Same as above (spaces optional)
+//	./foo* | !./foobar*         # Components in ./foo* AND NOT in ./foobar*
+//	type=unit | !external=true  # Internal components only
 //
-// Spaces within unit names and paths are preserved:
+// Spaces within component names and paths are preserved:
 //
 //	my app                  # Component named "my app" (with space)
 //	./my path/file          # Path with spaces
@@ -90,14 +90,14 @@
 //	    log.Fatal(err)
 //	}
 //
-//	// Apply the filter to discovered configs
+//	// Apply the filter to discovered components
 //	// (typically obtained from discovery.Discover())
-//	configs := []*component.Component{
+//	components := []*component.Component{
 //	    {Path: "./apps/app1", Kind: component.Unit},
 //	    {Path: "./apps/legacy", Kind: component.Unit},
 //	    {Path: "./libs/db", Kind: component.Unit},
 //	}
-//	result, err := filter.Evaluate(configs)
+//	result, err := filter.Evaluate(components)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -117,12 +117,12 @@
 //	    log.Fatal(err)
 //	}
 //
-//	result, err := filters.Evaluate(configs)
-//	// Returns: all configs in ./apps/* OR configs named "db"
+//	result, err := filters.Evaluate(components)
+//	// Returns: all components in ./apps/* OR components named "db"
 //
 // Multiple filters are evaluated in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
-//  2. Negative filters (starting with !) are applied to remove matching units
+//  2. Negative filters (starting with !) are applied to remove matching components
 //
 // The ExcludeByDefault() method signals whether filters operate in exclude-by-default
 // mode. This is true if ANY filter doesn't start with a negation expression:
@@ -130,13 +130,13 @@
 //	filters.ExcludeByDefault() // true if any filter is positive
 //
 // When true, discovery should start with an empty set and add matches.
-// When false (all filters are negated), discovery should start with all units
+// When false (all filters are negated), discovery should start with all components
 // and remove matches.
 //
 // ## One-Shot Usage
 //
 //	// Parse and evaluate in one step
-//	result, err := filter.Apply("./apps/* | name=web", configs)
+//	result, err := filter.Apply("./apps/* | name=web", components)
 //
 // # Implementation Details
 //
@@ -167,9 +167,9 @@
 //   - PathFilter: Uses glob matching (github.com/gobwas/glob) with eager compilation
 //     and caching via sync.Once for performance
 //   - AttributeFilter: Matches attributes by key-value pairs:
-//   - name: Matches filepath.Base(config.Path)
-//   - type: Matches config.Type (unit or stack)
-//   - external: Matches config.External (true or false)
+//   - name: Matches filepath.Base(component.Path)
+//   - type: Matches component.Kind (unit or stack)
+//   - external: Matches component.External (true or false)
 //   - PrefixExpression: Returns the complement of the right side
 //   - InfixExpression: Returns the intersection by applying right filter to left results
 //

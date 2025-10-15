@@ -36,7 +36,6 @@ func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, err
 		filters = append(filters, filter)
 	}
 
-	// Return Filters with successfully parsed filters, plus any errors
 	result := Filters(filters)
 
 	if len(parseErrors) > 0 {
@@ -44,15 +43,6 @@ func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, err
 	}
 
 	return result, nil
-}
-
-// startsWithNegation checks if an expression starts with a negation operator.
-func startsWithNegation(expr Expression) bool {
-	if prefixExpr, ok := expr.(*PrefixExpression); ok {
-		return prefixExpr.Operator == "!"
-	}
-
-	return false
 }
 
 // ExcludeByDefault returns true if the filters operate in exclude-by-default mode.
@@ -72,45 +62,48 @@ func (f Filters) ExcludeByDefault() bool {
 // Evaluate applies all filters with union (OR) semantics in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
-//     results and remove matching configs
-func (f Filters) Evaluate(configs []*component.Component) ([]*component.Component, error) {
+//     results and remove matching components
+func (f Filters) Evaluate(components []*component.Component) ([]*component.Component, error) {
 	if len(f) == 0 {
-		return configs, nil
+		return components, nil
 	}
 
-	// Separate filters into positive and negative
-	var positiveFilters, negativeFilters []*Filter
+	var (
+		positiveFilters = make([]*Filter, 0, len(f))
+		negativeFilters = make([]*Filter, 0, len(f))
+	)
 
 	for _, filter := range f {
 		if startsWithNegation(filter.expr) {
 			negativeFilters = append(negativeFilters, filter)
-		} else {
-			positiveFilters = append(positiveFilters, filter)
+
+			continue
 		}
+
+		positiveFilters = append(positiveFilters, filter)
 	}
 
 	// Phase 1: Union positive filters
-	seen := make(map[string]*component.Component, len(configs))
+	seen := make(map[string]*component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(configs)
+		result, err := filter.Evaluate(components)
 		if err != nil {
 			return nil, err
 		}
 
-		// Add results to seen map (union)
-		for _, cfg := range result {
-			seen[cfg.Path] = cfg
+		for _, c := range result {
+			seen[c.Path] = c
 		}
 	}
 
 	// Convert to slice for phase 2
 	combined := make([]*component.Component, 0, len(seen))
-	for _, cfg := range seen {
-		combined = append(combined, cfg)
+	for _, c := range seen {
+		combined = append(combined, c)
 	}
 
-	// Phase 2: Apply negative filters to remove configs
+	// Phase 2: Apply negative filters to remove components
 	for _, filter := range negativeFilters {
 		result, err := filter.Evaluate(combined)
 		if err != nil {
@@ -162,4 +155,13 @@ func (f Filters) String() string {
 	}
 
 	return string(jsonBytes)
+}
+
+// startsWithNegation checks if an expression starts with a negation operator.
+func startsWithNegation(expr Expression) bool {
+	if prefixExpr, ok := expr.(*PrefixExpression); ok {
+		return prefixExpr.Operator == "!"
+	}
+
+	return false
 }

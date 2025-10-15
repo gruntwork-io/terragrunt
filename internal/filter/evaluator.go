@@ -6,34 +6,33 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
-// Evaluate evaluates an expression against a list of configs and returns the filtered configs.
-func Evaluate(expr Expression, configs []*component.Component) ([]*component.Component, error) {
+// Evaluate evaluates an expression against a list of components and returns the filtered components.
+func Evaluate(expr Expression, components []*component.Component) ([]*component.Component, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
 
-	return evaluate(expr, configs)
+	return evaluate(expr, components)
 }
 
 // evaluate is the internal recursive evaluation function.
-func evaluate(expr Expression, configs []*component.Component) ([]*component.Component, error) {
+func evaluate(expr Expression, components []*component.Component) ([]*component.Component, error) {
 	switch node := expr.(type) {
 	case *PathFilter:
-		return evaluatePathFilter(node, configs)
+		return evaluatePathFilter(node, components)
 	case *AttributeFilter:
-		return evaluateAttributeFilter(node, configs)
+		return evaluateAttributeFilter(node, components)
 	case *PrefixExpression:
-		return evaluatePrefixExpression(node, configs)
+		return evaluatePrefixExpression(node, components)
 	case *InfixExpression:
-		return evaluateInfixExpression(node, configs)
+		return evaluateInfixExpression(node, components)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, configs []*component.Component) ([]*component.Component, error) {
-	// Get the compiled glob (compiled once and cached)
+func evaluatePathFilter(filter *PathFilter, components []*component.Component) ([]*component.Component, error) {
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
@@ -41,61 +40,69 @@ func evaluatePathFilter(filter *PathFilter, configs []*component.Component) ([]*
 
 	var result []*component.Component
 
-	for _, cfg := range configs {
-		// Normalize the config path for matching
-		normalizedPath := filepath.ToSlash(cfg.Path)
+	for _, component := range components {
+		normalizedPath := filepath.ToSlash(component.Path)
 
 		if g.Match(normalizedPath) {
-			result = append(result, cfg)
+			result = append(result, component)
 		}
 	}
 
 	return result, nil
 }
 
+const (
+	AttributeName     = "name"
+	AttributeType     = "type"
+	AttributeExternal = "external"
+
+	AttributeTypeValueUnit  = string(component.Unit)
+	AttributeTypeValueStack = string(component.Stack)
+
+	AttributeExternalValueTrue  = "true"
+	AttributeExternalValueFalse = "false"
+)
+
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, configs []*component.Component) ([]*component.Component, error) {
+func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Component) ([]*component.Component, error) {
 	var result []*component.Component
 
 	switch filter.Key {
-	case "name":
-		// Match by config name (derived from directory basename)
-		for _, cfg := range configs {
-			if filepath.Base(cfg.Path) == filter.Value {
-				result = append(result, cfg)
+	case AttributeName:
+		for _, c := range components {
+			if filepath.Base(c.Path) == filter.Value {
+				result = append(result, c)
 			}
 		}
-	case "type":
-		// Match by config type (unit or stack)
+	case AttributeType:
 		switch filter.Value {
-		case string(component.Unit):
-			for _, cfg := range configs {
-				if cfg.Kind == component.Unit {
-					result = append(result, cfg)
+		case AttributeTypeValueUnit:
+			for _, c := range components {
+				if c.Kind == component.Unit {
+					result = append(result, c)
 				}
 			}
-		case string(component.Stack):
-			for _, cfg := range configs {
-				if cfg.Kind == component.Stack {
-					result = append(result, cfg)
+		case AttributeTypeValueStack:
+			for _, c := range components {
+				if c.Kind == component.Stack {
+					result = append(result, c)
 				}
 			}
 		default:
 			return nil, NewEvaluationError("invalid type value: " + filter.Value + " (expected 'unit' or 'stack')")
 		}
-	case "external":
-		// Match by external flag
+	case AttributeExternal:
 		switch filter.Value {
-		case "true":
-			for _, cfg := range configs {
-				if cfg.External {
-					result = append(result, cfg)
+		case AttributeExternalValueTrue:
+			for _, c := range components {
+				if c.External {
+					result = append(result, c)
 				}
 			}
-		case "false":
-			for _, cfg := range configs {
-				if !cfg.External {
-					result = append(result, cfg)
+		case AttributeExternalValueFalse:
+			for _, c := range components {
+				if !c.External {
+					result = append(result, c)
 				}
 			}
 		default:
@@ -109,29 +116,26 @@ func evaluateAttributeFilter(filter *AttributeFilter, configs []*component.Compo
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(expr *PrefixExpression, configs []*component.Component) ([]*component.Component, error) {
+func evaluatePrefixExpression(expr *PrefixExpression, components []*component.Component) ([]*component.Component, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	// Evaluate the right side to get configs to exclude
-	toExclude, err := evaluate(expr.Right, configs)
+	toExclude, err := evaluate(expr.Right, components)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a set of paths to exclude for efficient lookup
-	excludeSet := make(map[string]bool, len(toExclude))
-	for _, cfg := range toExclude {
-		excludeSet[cfg.Path] = true
+	excludeSet := make(map[string]struct{}, len(toExclude))
+	for _, c := range toExclude {
+		excludeSet[c.Path] = struct{}{}
 	}
 
-	// Return all configs NOT in the exclude set
 	var result []*component.Component
 
-	for _, cfg := range configs {
-		if !excludeSet[cfg.Path] {
-			result = append(result, cfg)
+	for _, c := range components {
+		if _, ok := excludeSet[c.Path]; !ok {
+			result = append(result, c)
 		}
 	}
 
@@ -139,24 +143,20 @@ func evaluatePrefixExpression(expr *PrefixExpression, configs []*component.Compo
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(expr *InfixExpression, configs []*component.Component) ([]*component.Component, error) {
+func evaluateInfixExpression(expr *InfixExpression, components []*component.Component) ([]*component.Component, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
-	// Evaluate left side
-	leftResult, err := evaluate(expr.Left, configs)
+	leftResult, err := evaluate(expr.Left, components)
 	if err != nil {
 		return nil, err
 	}
 
-	// Evaluate right side against the left result (refine/narrow)
-	// The right filter only evaluates configs that passed the left filter
 	rightResult, err := evaluate(expr.Right, leftResult)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return the intersection (configs that passed both filters)
 	return rightResult, nil
 }
