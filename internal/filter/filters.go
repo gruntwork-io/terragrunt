@@ -1,11 +1,9 @@
 package filter
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"strings"
 )
 
 // Filters represents multiple filter queries that are evaluated with union (OR) semantics.
@@ -36,6 +34,7 @@ func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, err
 		filters = append(filters, filter)
 	}
 
+	// Return Filters with successfully parsed filters, plus any errors
 	result := Filters(filters)
 
 	if len(parseErrors) > 0 {
@@ -45,8 +44,20 @@ func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, err
 	return result, nil
 }
 
-// HasPositiveFilter returns true if the filters have any positive filters.
-func (f Filters) HasPositiveFilter() bool {
+// startsWithNegation checks if an expression starts with a negation operator.
+func startsWithNegation(expr Expression) bool {
+	if prefixExpr, ok := expr.(*PrefixExpression); ok {
+		return prefixExpr.Operator == "!"
+	}
+
+	return false
+}
+
+// ExcludeByDefault returns true if the filters operate in exclude-by-default mode.
+// This is true if ANY filter doesn't start with a negation expression.
+// When true, discovery should start with an empty set and add matches.
+// When false, discovery should start with all units and remove matches.
+func (f Filters) ExcludeByDefault() bool {
 	for _, filter := range f {
 		if !startsWithNegation(filter.expr) {
 			return true
@@ -59,34 +70,45 @@ func (f Filters) HasPositiveFilter() bool {
 // Evaluate applies all filters with union (OR) semantics in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
-//     results and remove matching components
-func (f Filters) Evaluate(components component.Components) (component.Components, error) {
+//     results and remove matching units
+func (f Filters) Evaluate(units []Unit) ([]Unit, error) {
 	if len(f) == 0 {
-		return components, nil
+		return units, nil
 	}
 
-	var (
-		positiveFilters = make([]*Filter, 0, len(f))
-		negativeFilters = make([]*Filter, 0, len(f))
-	)
+	// Separate filters into positive and negative
+	var positiveFilters, negativeFilters []*Filter
 
 	for _, filter := range f {
 		if startsWithNegation(filter.expr) {
 			negativeFilters = append(negativeFilters, filter)
+		} else {
+			positiveFilters = append(positiveFilters, filter)
+		}
+	}
 
-			continue
+	// Phase 1: Union positive filters
+	seen := make(map[string]Unit, len(units))
+
+	for _, filter := range positiveFilters {
+		result, err := filter.Evaluate(units)
+		if err != nil {
+			return nil, err
 		}
 
-		positiveFilters = append(positiveFilters, filter)
+		// Add results to seen map (union)
+		for _, unit := range result {
+			seen[unit.Path] = unit
+		}
 	}
 
-	// Phase 1: Get initial set of components, which might need to be filtered further by negative filters
-	combined, err := initialComponents(positiveFilters, components)
-	if err != nil {
-		return nil, err
+	// Convert to slice for phase 2
+	combined := make([]Unit, 0, len(seen))
+	for _, unit := range seen {
+		combined = append(combined, unit)
 	}
 
-	// Phase 2: Apply negative filters to remove components
+	// Phase 2: Apply negative filters to remove units
 	for _, filter := range negativeFilters {
 		result, err := filter.Evaluate(combined)
 		if err != nil {
@@ -132,19 +154,23 @@ func (f Filters) String() string {
 		filterStrings[i] = filter.String()
 	}
 
-	jsonBytes, err := json.Marshal(filterStrings)
-	if err != nil {
+	// Create JSON array manually (simpler than importing encoding/json)
+	if len(filterStrings) == 0 {
 		return "[]"
 	}
 
-	return string(jsonBytes)
-}
+	result := "["
 
-// startsWithNegation checks if an expression starts with a negation operator.
-func startsWithNegation(expr Expression) bool {
-	if prefixExpr, ok := expr.(*PrefixExpression); ok {
-		return prefixExpr.Operator == "!"
+	for i, s := range filterStrings {
+		if i > 0 {
+			result += ", "
+		}
+		// Escape quotes in filter string
+		escaped := strings.ReplaceAll(s, `"`, `\"`)
+		result += `"` + escaped + `"`
 	}
 
-	return false
+	result += "]"
+
+	return result
 }
