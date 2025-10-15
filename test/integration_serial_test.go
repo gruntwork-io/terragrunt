@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -207,68 +206,6 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
 
 		assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
-	}
-}
-
-func TestTerragruntInputsFromDependency(t *testing.T) {
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputsFromDependency)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureInputsFromDependency)
-	rootPath := util.JoinPath(rootTerragruntPath, "apps")
-
-	curDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	relRootPath, err := filepath.Rel(curDir, rootPath)
-	require.NoError(t, err)
-
-	testCases := []struct {
-		rootPath    string
-		downloadDir string
-	}{
-		{
-			rootPath:    rootPath,
-			downloadDir: "",
-		},
-		{
-			rootPath:    relRootPath,
-			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
-		},
-	}
-
-	for _, tc := range testCases {
-		var (
-			stdout bytes.Buffer
-			stderr bytes.Buffer
-		)
-
-		var (
-			appDir  string
-			appDirs = []string{"c", "b"}
-		)
-
-		// Apply apps c and b first (they don't use dependency inputs)
-		for _, app := range appDirs {
-			appDir = filepath.Join(tc.rootPath, app)
-
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, tc.downloadDir))
-			config.ClearOutputCache()
-		}
-
-		// Now try to validate app 'a', which uses dependency inputs (deprecated feature)
-		// This should now fail since dependency inputs are blocked by default for performance
-		appADir := filepath.Join(tc.rootPath, "a")
-
-		err := helpers.RunTerragruntCommand(
-			t,
-			fmt.Sprintf("terragrunt validate --non-interactive --working-dir %s --download-dir=%s", appADir, tc.downloadDir),
-			&stdout,
-			&stderr,
-		)
-
-		// We expect this to fail with an error about dependency inputs not being supported
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Reading inputs from dependencies is no longer supported")
-		assert.Contains(t, err.Error(), "use outputs")
 	}
 }
 

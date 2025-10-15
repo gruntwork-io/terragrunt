@@ -75,7 +75,6 @@ const (
 	testFixtureInitError                      = "fixtures/init-error"
 	testFixtureInitOnce                       = "fixtures/init-once"
 	testFixtureInputs                         = "fixtures/inputs"
-	testFixtureInputsFromDependency           = "fixtures/inputs-from-dependency"
 	testFixtureLogFormatter                   = "fixtures/log/formatter"
 	testFixtureLogStdoutLevel                 = "fixtures/log/levels"
 	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
