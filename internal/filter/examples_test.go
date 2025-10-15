@@ -59,8 +59,8 @@ func Example_exclusionFilter() {
 	// app2
 }
 
-// Example_unionFilter demonstrates combining multiple filters with the union operator.
-func Example_unionFilter() {
+// Example_intersectionFilter demonstrates refining results with the intersection operator.
+func Example_intersectionFilter() {
 	units := []filter.Unit{
 		{Name: "frontend", Path: "./apps/frontend"},
 		{Name: "backend", Path: "./apps/backend"},
@@ -68,17 +68,17 @@ func Example_unionFilter() {
 		{Name: "api", Path: "./libs/api"},
 	}
 
-	result, _ := filter.Apply("frontend | db", units)
+	// Select units in ./apps/ that are named "frontend"
+	result, _ := filter.Apply("./apps/* | frontend", units)
 
 	for _, unit := range result {
 		fmt.Println(unit.Name)
 	}
 	// Output:
 	// frontend
-	// db
 }
 
-// Example_complexQuery demonstrates a complex filter combining paths and names.
+// Example_complexQuery demonstrates a complex filter combining paths and negation.
 func Example_complexQuery() {
 	units := []filter.Unit{
 		{Name: "web", Path: "./services/web"},
@@ -88,16 +88,14 @@ func Example_complexQuery() {
 		{Name: "cache", Path: "./libs/cache"},
 	}
 
-	// Select all services OR the db library
-	result, _ := filter.Apply("./services/* | db", units)
+	// Select all services except worker
+	result, _ := filter.Apply("./services/* | !worker", units)
 
 	for _, unit := range result {
 		fmt.Println(unit.Name)
 	}
 	// Output:
 	// web
-	// worker
-	// db
 }
 
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
