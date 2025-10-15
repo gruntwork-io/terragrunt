@@ -1260,7 +1260,6 @@ dependency "rds" {
 }
 
 inputs = {
-  region = dependency.vpn.inputs.region
   vpc_id = dependency.vpc.outputs.vpc_id
   db_url = dependency.rds.outputs.db_url
 }
