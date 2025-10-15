@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/term"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -56,13 +57,13 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			args = args[1:]
 		}
 
-		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
+		d = d.WithDiscoveryContext(&discoveredconfig.DiscoveryContext{
 			Cmd:  cmd,
 			Args: args,
 		})
 	}
 
-	var cfgs discovery.DiscoveredConfigs
+	var cfgs discoveredconfig.DiscoveredConfigs
 
 	var discoverErr error
 
@@ -156,7 +157,7 @@ func shouldDiscoverDependencies(opts *Options) bool {
 type ListedConfigs []*ListedConfig
 
 type ListedConfig struct {
-	Type discovery.ConfigType
+	Type discoveredconfig.ConfigType
 	Path string
 
 	Dependencies []*ListedConfig
@@ -184,7 +185,7 @@ func (l ListedConfigs) Get(path string) *ListedConfig {
 	return nil
 }
 
-func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
+func discoveredToListed(configs discoveredconfig.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
 	listedCfgs := make(ListedConfigs, 0, len(configs))
 	errs := []error{}
 
@@ -281,9 +282,9 @@ func (c *Colorizer) Colorize(config *ListedConfig) string {
 	if dir == "" {
 		// No directory part, color the whole path
 		switch config.Type {
-		case discovery.ConfigTypeUnit:
+		case discoveredconfig.ConfigTypeUnit:
 			return c.unitColorizer(path)
-		case discovery.ConfigTypeStack:
+		case discoveredconfig.ConfigTypeStack:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -294,22 +295,22 @@ func (c *Colorizer) Colorize(config *ListedConfig) string {
 	coloredPath := c.pathColorizer(dir)
 
 	switch config.Type {
-	case discovery.ConfigTypeUnit:
+	case discoveredconfig.ConfigTypeUnit:
 		return coloredPath + c.unitColorizer(base)
-	case discovery.ConfigTypeStack:
+	case discoveredconfig.ConfigTypeStack:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path
 	}
 }
 
-func (c *Colorizer) ColorizeType(t discovery.ConfigType) string {
+func (c *Colorizer) ColorizeType(t discoveredconfig.ConfigType) string {
 	switch t {
-	case discovery.ConfigTypeUnit:
+	case discoveredconfig.ConfigTypeUnit:
 		// This extra space is to keep unit and stack
 		// output equally spaced.
 		return c.unitColorizer("unit ")
-	case discovery.ConfigTypeStack:
+	case discoveredconfig.ConfigTypeStack:
 		return c.stackColorizer("stack")
 	default:
 		return string(t)
@@ -513,10 +514,10 @@ func generateTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 		for i, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
-				configType := discovery.ConfigTypeStack
+				configType := discoveredconfig.ConfigTypeStack
 
-				if config.Type == discovery.ConfigTypeUnit && i == len(parts.segments)-1 {
-					configType = discovery.ConfigTypeUnit
+				if config.Type == discoveredconfig.ConfigTypeUnit && i == len(parts.segments)-1 {
+					configType = discoveredconfig.ConfigTypeUnit
 				}
 
 				tmpCfg := &ListedConfig{

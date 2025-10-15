@@ -3,7 +3,7 @@ package queue_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,10 +13,10 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 	t.Parallel()
 
 	// Create configs with no dependencies - should maintain alphabetical order at front
-	configs := []*discovery.DiscoveredConfig{
-		{Path: "c", Dependencies: []*discovery.DiscoveredConfig{}},
-		{Path: "a", Dependencies: []*discovery.DiscoveredConfig{}},
-		{Path: "b", Dependencies: []*discovery.DiscoveredConfig{}},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "c", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "a", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "b", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -34,11 +34,11 @@ func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 	t.Parallel()
 
 	// Create configs with dependencies - should order by dependency level
-	aCfg := &discovery.DiscoveredConfig{Path: "a", Dependencies: []*discovery.DiscoveredConfig{}}
-	bCfg := &discovery.DiscoveredConfig{Path: "b", Dependencies: []*discovery.DiscoveredConfig{aCfg}}
-	cCfg := &discovery.DiscoveredConfig{Path: "c", Dependencies: []*discovery.DiscoveredConfig{bCfg}}
+	aCfg := &discoveredconfig.DiscoveredConfig{Path: "a", Dependencies: []*discoveredconfig.DiscoveredConfig{}}
+	bCfg := &discoveredconfig.DiscoveredConfig{Path: "b", Dependencies: []*discoveredconfig.DiscoveredConfig{aCfg}}
+	cCfg := &discoveredconfig.DiscoveredConfig{Path: "c", Dependencies: []*discoveredconfig.DiscoveredConfig{bCfg}}
 
-	configs := []*discovery.DiscoveredConfig{aCfg, bCfg, cCfg}
+	configs := []*discoveredconfig.DiscoveredConfig{aCfg, bCfg, cCfg}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -64,13 +64,13 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 	//   D -> A,B
 	//   E -> C
 	//   F -> C
-	configs := []*discovery.DiscoveredConfig{
-		{Path: "F", Dependencies: []*discovery.DiscoveredConfig{{Path: "C"}}},
-		{Path: "E", Dependencies: []*discovery.DiscoveredConfig{{Path: "C"}}},
-		{Path: "D", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}, {Path: "B"}}},
-		{Path: "C", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
-		{Path: "B", Dependencies: []*discovery.DiscoveredConfig{}},
-		{Path: "A", Dependencies: []*discovery.DiscoveredConfig{}},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "F", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}}},
+		{Path: "E", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}}},
+		{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}, {Path: "B"}}},
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -116,11 +116,11 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 	//   B -> A
 	//   C -> A
 	//   D -> A
-	configs := []*discovery.DiscoveredConfig{
-		{Path: "D", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
-		{Path: "C", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
-		{Path: "B", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
-		{Path: "A", Dependencies: []*discovery.DiscoveredConfig{}},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
 	}
 
 	// Run multiple times to verify deterministic ordering
@@ -150,12 +150,12 @@ func TestDepthBasedOrderingVerification(t *testing.T) {
 	//   C -> A (depth 1)
 	//   D -> B (depth 1)
 	//   E -> C,D (depth 2)
-	configs := []*discovery.DiscoveredConfig{
-		{Path: "E", Dependencies: []*discovery.DiscoveredConfig{{Path: "C"}, {Path: "D"}}},
-		{Path: "D", Dependencies: []*discovery.DiscoveredConfig{{Path: "B"}}},
-		{Path: "C", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
-		{Path: "B", Dependencies: []*discovery.DiscoveredConfig{}},
-		{Path: "A", Dependencies: []*discovery.DiscoveredConfig{}},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "E", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}, {Path: "D"}}},
+		{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "B"}}},
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -195,10 +195,10 @@ func TestErrorHandlingCycle(t *testing.T) {
 
 	// Create a cycle: A -> B -> C -> A
 	// Create a cycle: A -> B -> C -> A
-	configs := []*discovery.DiscoveredConfig{
-		{Path: "C", Dependencies: []*discovery.DiscoveredConfig{{Path: "B"}}},
-		{Path: "B", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
-		{Path: "A", Dependencies: []*discovery.DiscoveredConfig{{Path: "C"}}},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "B"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}}},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -210,7 +210,7 @@ func TestErrorHandlingEmptyConfigList(t *testing.T) {
 	t.Parallel()
 
 	// Create an empty config list
-	configs := []*discovery.DiscoveredConfig{}
+	configs := []*discoveredconfig.DiscoveredConfig{}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -231,10 +231,10 @@ func findIndex(entries queue.Entries, path string) int {
 func TestQueue_LinearDependencyExecution(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -284,10 +284,10 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	//   A
 	//  / \
 	// B   C
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -347,10 +347,10 @@ func TestQueue_FailFast(t *testing.T) {
 	//   A
 	//  / \
 	// B   C
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -404,13 +404,13 @@ func TestQueue_FailFast(t *testing.T) {
 //
 // / \
 // D   E
-func buildMultiLevelDependencyTree() []*discovery.DiscoveredConfig {
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	cfgE := &discovery.DiscoveredConfig{Path: "E", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD, cfgE}
+func buildMultiLevelDependencyTree() []*discoveredconfig.DiscoveredConfig {
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgE := &discoveredconfig.DiscoveredConfig{Path: "E", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD, cfgE}
 
 	return configs
 }
@@ -613,10 +613,10 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C, where A fails and fail-fast is enabled
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -670,11 +670,11 @@ func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -704,15 +704,15 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
 	for _, cfg := range configs {
-		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+		cfg.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -732,15 +732,15 @@ func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
-	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
 	for _, cfg := range configs {
-		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+		cfg.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 	}
 
 	// Only test fail-fast mode here
@@ -761,16 +761,16 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 	t.Parallel()
 
 	// Create a simple chain: A -> B -> C
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
 
 	// Set all configs to destroy (down) command
-	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
-	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
-	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgA.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -788,7 +788,7 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 
 	configs := buildMultiLevelDependencyTree()
 	for _, cfg := range configs {
-		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+		cfg.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -821,16 +821,16 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 
 	// Build a graph: A -> B -> C
 	// For destroy, the order should be: C (destroyed first), then B, then A
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
 
 	// Set all configs to destroy (down) command
-	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
-	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
-	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgA.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -877,16 +877,16 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	t.Parallel()
 
 	// Build a graph: A -> B -> C
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
-	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
 
 	// Set all configs to destroy (down) command
-	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
-	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
-	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgA.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)

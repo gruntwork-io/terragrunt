@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -35,7 +36,7 @@ func Build(
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithConfigFilenames([]string{filepath.Base(terragruntOptions.TerragruntConfigPath)}).
-		WithDiscoveryContext(&discovery.DiscoveryContext{
+		WithDiscoveryContext(&discoveredconfig.DiscoveryContext{
 			Cmd:  terragruntOptions.TerraformCliArgs.First(),
 			Args: terragruntOptions.TerraformCliArgs.Tail(),
 		})
@@ -66,7 +67,7 @@ func Build(
 	}
 
 	// Wrap discovery with telemetry
-	var discovered discovery.DiscoveredConfigs
+	var discovered discoveredconfig.DiscoveredConfigs
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_discovery", map[string]any{
 		"working_dir":       terragruntOptions.WorkingDir,

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -491,23 +491,23 @@ func TestColorizer(t *testing.T) {
 		config *list.ListedConfig
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
-		shouldBeDifferent []discovery.ConfigType
+		shouldBeDifferent []discoveredconfig.ConfigType
 	}{
 		{
 			name: "unit config",
 			config: &list.ListedConfig{
-				Type: discovery.ConfigTypeUnit,
+				Type: discoveredconfig.ConfigTypeUnit,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeStack},
+			shouldBeDifferent: []discoveredconfig.ConfigType{discoveredconfig.ConfigTypeStack},
 		},
 		{
 			name: "stack config",
 			config: &list.ListedConfig{
-				Type: discovery.ConfigTypeStack,
+				Type: discoveredconfig.ConfigTypeStack,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeUnit},
+			shouldBeDifferent: []discoveredconfig.ConfigType{discoveredconfig.ConfigTypeUnit},
 		},
 	}
 
