@@ -6,6 +6,20 @@ env:
   - TG_OUT_DIR
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="note">
+
+This flag only does anything when used with the `--all` flag for stack runs. It does nothing in single-unit runs.
+
+To generate plan files for a single unit run, use the standard OpenTofu/Terraform [-out flag](https://opentofu.org/docs/cli/commands/plan) like so:
+
+```bash
+terragrunt run -- plan -out=/tmp/tfplan
+```
+
+</Aside>
+
 Specifies where Terragrunt writes native OpenTofu/Terraform plan files for each unit when running stack operations.
 
 - Plans are written as `tfplan.tfplan` per unit.
