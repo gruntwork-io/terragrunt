@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -36,10 +36,29 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return errors.New(err)
 	}
 
-	var (
-		components  component.Components
-		discoverErr error
-	)
+	if opts.QueueConstructAs != "" {
+		d = d.WithParseExclude()
+
+		parser := shellwords.NewParser()
+
+		args, err := parser.Parse(opts.QueueConstructAs)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		cmd := args[0]
+
+		if len(args) > 1 {
+			args = args[1:]
+		}
+
+		d = d.WithDiscoveryContext(&discoveredconfig.DiscoveryContext{
+			Cmd:  cmd,
+			Args: args,
+		})
+	}
+
+	var cfgs discoveredconfig.DiscoveredConfigs
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
@@ -112,9 +131,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 type FoundComponents []*FoundComponent
 
-type FoundComponent struct {
-	Type component.Kind `json:"type"`
-	Path string         `json:"path"`
+type FoundConfig struct {
+	Type discoveredconfig.ConfigType `json:"type"`
+	Path string                      `json:"path"`
 
 	Exclude *config.ExcludeConfig `json:"exclude,omitempty"`
 	Include map[string]string     `json:"include,omitempty"`
@@ -123,8 +142,8 @@ type FoundComponent struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
-	foundComponents := make(FoundComponents, 0, len(components))
+func discoveredToFound(configs discoveredconfig.DiscoveredConfigs, opts *Options) (FoundConfigs, error) {
+	foundCfgs := make(FoundConfigs, 0, len(configs))
 	errs := []error{}
 
 	for _, c := range components {
@@ -247,10 +266,10 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 
 	if dir == "" {
 		// No directory part, color the whole path
-		switch foundComponent.Type {
-		case component.Unit:
+		switch config.Type {
+		case discoveredconfig.ConfigTypeUnit:
 			return c.unitColorizer(path)
-		case component.Stack:
+		case discoveredconfig.ConfigTypeStack:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -260,10 +279,10 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
 
-	switch foundComponent.Type {
-	case component.Unit:
+	switch config.Type {
+	case discoveredconfig.ConfigTypeUnit:
 		return coloredPath + c.unitColorizer(base)
-	case component.Stack:
+	case discoveredconfig.ConfigTypeStack:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path

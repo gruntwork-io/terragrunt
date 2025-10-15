@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/term"
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -36,10 +36,32 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return errors.New(err)
 	}
 
-	var (
-		components  component.Components
-		discoverErr error
-	)
+	if opts.QueueConstructAs != "" {
+		d = d.WithParseExclude()
+		d = d.WithDiscoverDependencies()
+
+		parser := shellwords.NewParser()
+
+		args, err := parser.Parse(opts.QueueConstructAs)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		cmd := args[0]
+
+		if len(args) > 1 {
+			args = args[1:]
+		}
+
+		d = d.WithDiscoveryContext(&discoveredconfig.DiscoveryContext{
+			Cmd:  cmd,
+			Args: args,
+		})
+	}
+
+	var cfgs discoveredconfig.DiscoveredConfigs
+
+	var discoverErr error
 
 	// Wrap discovery with telemetry
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
@@ -130,8 +152,8 @@ func shouldDiscoverDependencies(opts *Options) bool {
 
 type ListedComponents []*ListedComponent
 
-type ListedComponent struct {
-	Type component.Kind
+type ListedConfig struct {
+	Type discoveredconfig.ConfigType
 	Path string
 
 	Dependencies []*ListedComponent
@@ -159,8 +181,8 @@ func (l ListedComponents) Get(path string) *ListedComponent {
 	return nil
 }
 
-func discoveredToListed(components component.Components, opts *Options) (ListedComponents, error) {
-	listedComponents := make(ListedComponents, 0, len(components))
+func discoveredToListed(configs discoveredconfig.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
+	listedCfgs := make(ListedConfigs, 0, len(configs))
 	errs := []error{}
 
 	for _, c := range components {
@@ -255,10 +277,10 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 
 	if dir == "" {
 		// No directory part, color the whole path
-		switch listedComponent.Type {
-		case component.Unit:
+		switch config.Type {
+		case discoveredconfig.ConfigTypeUnit:
 			return c.unitColorizer(path)
-		case component.Stack:
+		case discoveredconfig.ConfigTypeStack:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -268,23 +290,23 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
 
-	switch listedComponent.Type {
-	case component.Unit:
+	switch config.Type {
+	case discoveredconfig.ConfigTypeUnit:
 		return coloredPath + c.unitColorizer(base)
-	case component.Stack:
+	case discoveredconfig.ConfigTypeStack:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path
 	}
 }
 
-func (c *Colorizer) ColorizeType(t component.Kind) string {
+func (c *Colorizer) ColorizeType(t discoveredconfig.ConfigType) string {
 	switch t {
-	case component.Unit:
+	case discoveredconfig.ConfigTypeUnit:
 		// This extra space is to keep unit and stack
 		// output equally spaced.
 		return c.unitColorizer("unit ")
-	case component.Stack:
+	case discoveredconfig.ConfigTypeStack:
 		return c.stackColorizer("stack")
 	default:
 		return string(t)
@@ -488,10 +510,10 @@ func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 		for i, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
-				componentType := component.Stack
+				configType := discoveredconfig.ConfigTypeStack
 
-				if c.Type == component.Unit && i == len(parts.segments)-1 {
-					componentType = component.Unit
+				if config.Type == discoveredconfig.ConfigTypeUnit && i == len(parts.segments)-1 {
+					configType = discoveredconfig.ConfigTypeUnit
 				}
 
 				tmpCfg := &ListedComponent{

@@ -3,7 +3,7 @@ package queue_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,10 +13,10 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 	t.Parallel()
 
 	// Create configs with no dependencies - should maintain alphabetical order at front
-	configs := []*component.Component{
-		{Path: "c"},
-		{Path: "a"},
-		{Path: "b"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "c", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "a", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "b", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -34,14 +34,11 @@ func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 	t.Parallel()
 
 	// Create configs with dependencies - should order by dependency level
-	aCfg := &component.Component{Path: "a"}
-	bCfg := &component.Component{Path: "b"}
-	bCfg.AddDependency(aCfg)
+	aCfg := &discoveredconfig.DiscoveredConfig{Path: "a", Dependencies: []*discoveredconfig.DiscoveredConfig{}}
+	bCfg := &discoveredconfig.DiscoveredConfig{Path: "b", Dependencies: []*discoveredconfig.DiscoveredConfig{aCfg}}
+	cCfg := &discoveredconfig.DiscoveredConfig{Path: "c", Dependencies: []*discoveredconfig.DiscoveredConfig{bCfg}}
 
-	cCfg := &component.Component{Path: "c"}
-	cCfg.AddDependency(bCfg)
-
-	configs := []*component.Component{aCfg, bCfg, cCfg}
+	configs := []*discoveredconfig.DiscoveredConfig{aCfg, bCfg, cCfg}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -67,22 +64,14 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 	//   D -> A,B
 	//   E -> C
 	//   F -> C
-	A := &component.Component{Path: "A"}
-	B := &component.Component{Path: "B"}
-	C := &component.Component{Path: "C"}
-	C.AddDependency(A)
-
-	D := &component.Component{Path: "D"}
-	D.AddDependency(A)
-	D.AddDependency(B)
-
-	E := &component.Component{Path: "E"}
-	E.AddDependency(C)
-
-	F := &component.Component{Path: "F"}
-	F.AddDependency(C)
-
-	configs := []*component.Component{F, E, D, C, B, A}
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "F", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}}},
+		{Path: "E", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}}},
+		{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}, {Path: "B"}}},
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+	}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -127,16 +116,12 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 	//   B -> A
 	//   C -> A
 	//   D -> A
-	A := &component.Component{Path: "A"}
-	B := &component.Component{Path: "B"}
-	B.AddDependency(A)
-
-	C := &component.Component{Path: "C"}
-	C.AddDependency(A)
-
-	D := &component.Component{Path: "D"}
-	D.AddDependency(A)
-	configs := []*component.Component{D, C, B, A}
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+	}
 
 	// Run multiple times to verify deterministic ordering
 	for range 5 {
@@ -165,18 +150,13 @@ func TestDepthBasedOrderingVerification(t *testing.T) {
 	//   C -> A (depth 1)
 	//   D -> B (depth 1)
 	//   E -> C,D (depth 2)
-	A := &component.Component{Path: "A"}
-	B := &component.Component{Path: "B"}
-	C := &component.Component{Path: "C"}
-	C.AddDependency(A)
-
-	D := &component.Component{Path: "D"}
-	D.AddDependency(B)
-
-	E := &component.Component{Path: "E"}
-	E.AddDependency(C)
-	E.AddDependency(D)
-	configs := []*component.Component{E, D, C, B, A}
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "E", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}, {Path: "D"}}},
+		{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "B"}}},
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{}},
+	}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -215,13 +195,11 @@ func TestErrorHandlingCycle(t *testing.T) {
 
 	// Create a cycle: A -> B -> C -> A
 	// Create a cycle: A -> B -> C -> A
-	A := &component.Component{Path: "A"}
-	B := &component.Component{Path: "B"}
-	C := &component.Component{Path: "C"}
-	C.AddDependency(B)
-	B.AddDependency(A)
-	A.AddDependency(C) // Creates the cycle
-	configs := []*component.Component{C, B, A}
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "B"}}},
+		{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "A"}}},
+		{Path: "A", Dependencies: []*discoveredconfig.DiscoveredConfig{{Path: "C"}}},
+	}
 
 	q, err := queue.NewQueue(configs)
 	require.Error(t, err)
@@ -232,7 +210,7 @@ func TestErrorHandlingEmptyConfigList(t *testing.T) {
 	t.Parallel()
 
 	// Create an empty config list
-	configs := []*component.Component{}
+	configs := []*discoveredconfig.DiscoveredConfig{}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -253,13 +231,10 @@ func findIndex(entries queue.Entries, path string) int {
 func TestQueue_LinearDependencyExecution(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -309,13 +284,10 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	//   A
 	//  / \
 	// B   C
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgA)
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -375,13 +347,10 @@ func TestQueue_FailFast(t *testing.T) {
 	//   A
 	//  / \
 	// B   C
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgA)
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -435,20 +404,13 @@ func TestQueue_FailFast(t *testing.T) {
 //
 // / \
 // D   E
-func buildMultiLevelDependencyTree() []*component.Component {
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgA)
-
-	cfgD := &component.Component{Path: "D"}
-	cfgD.AddDependency(cfgB)
-
-	cfgE := &component.Component{Path: "E"}
-	cfgE.AddDependency(cfgB)
-	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD, cfgE}
+func buildMultiLevelDependencyTree() []*discoveredconfig.DiscoveredConfig {
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgE := &discoveredconfig.DiscoveredConfig{Path: "E", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD, cfgE}
 
 	return configs
 }
@@ -651,13 +613,10 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C, where A fails and fail-fast is enabled
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -711,16 +670,11 @@ func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
-
-	cfgD := &component.Component{Path: "D"}
-	cfgD.AddDependency(cfgA)
-	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -750,20 +704,15 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
-
-	cfgD := &component.Component{Path: "D"}
-	cfgD.AddDependency(cfgA)
-	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
 	for _, cfg := range configs {
-		cfg.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
+		cfg.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -783,20 +732,15 @@ func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
-
-	cfgD := &component.Component{Path: "D"}
-	cfgD.AddDependency(cfgA)
-	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
+	cfgD := &discoveredconfig.DiscoveredConfig{Path: "D", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
 	for _, cfg := range configs {
-		cfg.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
+		cfg.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 	}
 
 	// Only test fail-fast mode here
@@ -817,19 +761,16 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 	t.Parallel()
 
 	// Create a simple chain: A -> B -> C
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
 
 	// Set all configs to destroy (down) command
-	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
-	cfgB.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
-	cfgC.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
+	cfgA.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -847,7 +788,7 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 
 	configs := buildMultiLevelDependencyTree()
 	for _, cfg := range configs {
-		cfg.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
+		cfg.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -880,19 +821,16 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 
 	// Build a graph: A -> B -> C
 	// For destroy, the order should be: C (destroyed first), then B, then A
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
 
 	// Set all configs to destroy (down) command
-	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
-	cfgB.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
-	cfgC.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
+	cfgA.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -939,19 +877,16 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	t.Parallel()
 
 	// Build a graph: A -> B -> C
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
-
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgA}}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C", Dependencies: []*discoveredconfig.DiscoveredConfig{cfgB}}
 
 	// Set all configs to destroy (down) command
-	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
-	cfgB.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
-	cfgC.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
+	cfgA.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discoveredconfig.DiscoveryContext{Cmd: "destroy"}
 
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
