@@ -1,0 +1,115 @@
+---
+import { getCollection } from 'astro:content';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import TestimonialCard from '@components/dv-TestimonialCard.astro';
+
+import '@styles/global.css';
+
+// Get all testimonials from the content collection
+const testimonialsCollection = await getCollection('testimonials');
+
+// The JSON file contains an array of testimonials, so we get the first entry's data
+const testimonials = Array.isArray(testimonialsCollection) ? testimonialsCollection : [];
+const sortedtestimonials = testimonials.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
+
+---
+
+<section class="max-w-dvw justify-center items-center px-5 md:px-0 max-h-[80dvh] md:max-h-[90dvh] overflow-hidden relative">
+  <div class="flex flex-col w-full md:w-[680px] lg:w-[900px] mx-auto">
+    <!-- Header Section -->
+    <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+      <Eyebrow text="TESTIMONIALS" />
+      <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">
+        <span class="text-accent">Beloved </span>by the Community
+      </h2>
+    </div>
+  </div>
+
+  <!-- Testimonial Grid -->
+  <div class="relative lg:w-[958px] gap-6 mx-auto">
+
+    <!-- Top Fade -->
+    <div class="pointer-events-none absolute top-0 w-full h-[50px] md:h-[75px] z-10 bg-gradient-to-b from-[#FAFAFA] to-transparent"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 overflow-hidden">
+      <div class="space-y-6 scroll-up">
+        {sortedtestimonials.slice().reverse().map((testimonials, i) => (
+          <TestimonialCard
+            class="shadow-[0_0_0_2px_white]"
+            key={i}
+            author={testimonials.data.author}
+            title={testimonials.data.title}
+            company={testimonials.data.company}
+            logo={testimonials.data.logo}
+            alt={testimonials.data.alt}
+            content={testimonials.data.content}
+          />
+        ))}
+      </div>
+      <div class="space-y-6 scroll-down hidden md:block">
+        {sortedtestimonials.map((testimonials, i) => (
+          <TestimonialCard
+            class="shadow-[0_0_0_2px_white]"
+            key={i}
+            author={testimonials.data.author}
+            title={testimonials.data.title}
+            company={testimonials.data.company}
+            logo={testimonials.data.logo}
+            alt={testimonials.data.alt}
+            content={testimonials.data.content}
+          />
+        ))}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Fade -->
+  <div class="pointer-events-none absolute bottom-0 left-0 right-0 w-full h-[50px] md:h-[75px] z-10 bg-gradient-to-t from-[#FAFAFA] to-transparent"></div>
+
+</section>
+
+<style>
+  /* Scroll animations for testimonials */
+  @keyframes scrollUp {
+    0% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(-50%);
+    }
+  }
+
+  @keyframes scrollDown {
+    0% {
+      transform: translateY(-50%);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+
+  .scroll-up {
+    animation: scrollUp 90s linear infinite;
+  }
+
+  .scroll-down {
+    animation: scrollDown 90s linear infinite;
+  }
+
+  /* Pause animations on hover */
+  .scroll-up:hover {
+    animation-play-state: paused;
+  }
+
+  .scroll-down:hover {
+    animation-play-state: paused;
+  }
+
+  /* Add background color to hovered testimonial cards */
+  .scroll-up .shadow-\[0_0_0_2px_white\]:hover,
+  .scroll-down .shadow-\[0_0_0_2px_white\]:hover {
+    background-color: var(--color-dark-blue-1) !important;
+  }
+</style>

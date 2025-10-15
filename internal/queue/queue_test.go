@@ -224,6 +224,7 @@ func findIndex(entries queue.Entries, path string) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -307,20 +308,24 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	paths := []string{readyEntries[0].Config.Path, readyEntries[1].Config.Path}
 	assert.Contains(t, paths, "B")
 	assert.Contains(t, paths, "C")
+
 	for _, entry := range readyEntries {
 		assert.Equal(t, queue.StatusReady, entry.Status, "Entry %s should have StatusReady", entry.Config.Path)
 	}
 
 	// Mark B as running and complete it
 	var entryB, entryC *queue.Entry
+
 	for _, entry := range readyEntries {
 		if entry.Config.Path == "B" {
 			entryB = entry
 		}
+
 		if entry.Config.Path == "C" {
 			entryC = entry
 		}
 	}
+
 	entryB.Status = queue.StatusSucceeded
 
 	// After B is done, C should still be ready (if not already marked)
@@ -328,6 +333,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	if entryC.Status != queue.StatusSucceeded {
 		assert.Len(t, readyEntries, 1, "After B is done, C should still be ready")
 		assert.Equal(t, "C", readyEntries[0].Config.Path)
+
 		entryC.Status = queue.StatusSucceeded
 	}
 
@@ -348,18 +354,21 @@ func TestQueue_FailFast(t *testing.T) {
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = true
 
 	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// Simulate A failing
 	var entryA *queue.Entry
+
 	for _, entry := range q.Entries {
 		if entry.Config.Path == "A" {
 			entryA = entry
 			break
 		}
 	}
+
 	require.NotNil(t, entryA, "Entry A should exist")
 	entryA.Status = queue.StatusRunning
 	q.FailEntry(entryA)
@@ -402,11 +411,13 @@ func buildMultiLevelDependencyTree() []*discovery.DiscoveredConfig {
 	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
 	cfgE := &discovery.DiscoveredConfig{Path: "E", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
 	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD, cfgE}
+
 	return configs
 }
 
 func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	t.Parallel()
+
 	configs := buildMultiLevelDependencyTree()
 
 	q, err := queue.NewQueue(configs)
@@ -430,18 +441,22 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 
 	// Mark B as succeeded
 	var entryB, entryC *queue.Entry
+
 	for _, entry := range readyEntries {
 		if entry.Config.Path == "B" {
 			entryB = entry
 		}
+
 		if entry.Config.Path == "C" {
 			entryC = entry
 		}
 	}
+
 	entryB.Status = queue.StatusSucceeded
 
 	// 3. After B is done, C should still be ready (if not already marked), and D and E should be ready
 	readyEntries = q.GetReadyWithDependencies()
+
 	readyPaths := map[string]bool{}
 	for _, entry := range readyEntries {
 		readyPaths[entry.Config.Path] = true
@@ -457,14 +472,17 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 
 	// Mark D and E as succeeded
 	var entryD, entryE *queue.Entry
+
 	for _, entry := range readyEntries {
 		if entry.Config.Path == "D" {
 			entryD = entry
 		}
+
 		if entry.Config.Path == "E" {
 			entryE = entry
 		}
 	}
+
 	entryD.Status = queue.StatusSucceeded
 	entryE.Status = queue.StatusSucceeded
 
@@ -475,10 +493,12 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 
 func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	t.Parallel()
+
 	configs := buildMultiLevelDependencyTree()
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = true
 
 	// 1. Initially, only A should be ready
@@ -492,15 +512,19 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
+
 	var entryB, entryC *queue.Entry
+
 	for _, entry := range readyEntries {
 		if entry.Config.Path == "B" {
 			entryB = entry
 		}
+
 		if entry.Config.Path == "C" {
 			entryC = entry
 		}
 	}
+
 	assert.NotNil(t, entryB)
 	assert.NotNil(t, entryC)
 
@@ -520,10 +544,12 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 
 func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	t.Parallel()
+
 	configs := buildMultiLevelDependencyTree()
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = false
 
 	assert.False(t, q.Finished(), "Finished should be false at start")
@@ -541,15 +567,19 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
+
 	var entryB, entryC *queue.Entry
+
 	for _, entry := range readyEntries {
 		if entry.Config.Path == "B" {
 			entryB = entry
 		}
+
 		if entry.Config.Path == "C" {
 			entryC = entry
 		}
 	}
+
 	assert.NotNil(t, entryB)
 	assert.NotNil(t, entryC)
 
@@ -590,6 +620,7 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = true
 
 	assert.False(t, q.Finished(), "Finished should be false at start")
@@ -624,10 +655,12 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 
 func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 	t.Parallel()
+
 	configs := buildMultiLevelDependencyTree()
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.IgnoreDependencyOrder = true
 
 	readyEntries := q.GetReadyWithDependencies()
@@ -658,6 +691,7 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	// Reset statuses for fail-fast test
 	q, err = queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = true
 	entryA = q.EntryByPath("A")
 	q.FailEntry(entryA)
@@ -683,6 +717,7 @@ func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = false
 
 	// Fail C (should mark B and A as early exit, D should remain ready)
@@ -711,6 +746,7 @@ func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 	// Only test fail-fast mode here
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+
 	q.FailFast = true
 	entryC := q.EntryByPath("C")
 	q.FailEntry(entryC)
@@ -759,11 +795,13 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 	require.NoError(t, err)
 
 	var processed []string
+
 	for {
 		ready := q.GetReadyWithDependencies()
 		if len(ready) == 0 {
 			break
 		}
+
 		for _, entry := range ready {
 			processed = append(processed, entry.Config.Path)
 			entry.Status = queue.StatusSucceeded
@@ -773,4 +811,121 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 	// For destruction, the queue should be in reverse dependency order: E, D, C, B, A
 	expected := []string{"C", "D", "E", "B", "A"}
 	assert.Equal(t, expected, processed)
+}
+
+// TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder tests that when IgnoreDependencyErrors is true,
+// the queue still respects dependency order for destroy operations. This is the bug reported in issue #4947.
+// When a dependent fails, we should still wait for it to be in a terminal state before destroying the dependency.
+func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
+	t.Parallel()
+
+	// Build a graph: A -> B -> C
+	// For destroy, the order should be: C (destroyed first), then B, then A
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+
+	// Set all configs to destroy (down) command
+	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// Enable IgnoreDependencyErrors - this is the --queue-ignore-errors flag
+	q.IgnoreDependencyErrors = true
+
+	// Step 1: Only C should be ready (it has no dependents)
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only C should be ready for destruction")
+	assert.Equal(t, "C", readyEntries[0].Config.Path, "C should be the first entry ready for destruction")
+
+	// Mark C as succeeded
+	entryC := readyEntries[0]
+	entryC.Status = queue.StatusSucceeded
+
+	// Step 2: After C is destroyed, B should be ready (but NOT A yet, as A is a dependency of B)
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After C is destroyed, only B should be ready")
+	assert.Equal(t, "B", readyEntries[0].Config.Path, "B should be ready after C is destroyed")
+
+	// Mark B as succeeded
+	entryB := readyEntries[0]
+	entryB.Status = queue.StatusSucceeded
+
+	// Step 3: After B is destroyed, A should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After B is destroyed, only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path, "A should be ready last")
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// Step 4: All entries should be finished
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "After all are destroyed, no entries should be ready")
+	assert.True(t, q.Finished(), "Queue should be finished")
+}
+
+// TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure tests that when IgnoreDependencyErrors is true
+// and a dependent fails, we can still destroy the dependency once the dependent is in a terminal state.
+func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	// Build a graph: A -> B -> C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+
+	// Set all configs to destroy (down) command
+	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	q.IgnoreDependencyErrors = true
+
+	// Step 1: Only C should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only C should be ready")
+	assert.Equal(t, "C", readyEntries[0].Config.Path)
+
+	// Mark C as FAILED (simulating a destroy failure)
+	entryC := readyEntries[0]
+	entryC.Status = queue.StatusRunning
+	q.FailEntry(entryC)
+
+	// With IgnoreDependencyErrors = true, B should NOT be marked as early exit
+	// Instead, B should still be ready to run
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status, "C should be failed")
+	assert.Equal(t, queue.StatusReady, q.EntryByPath("B").Status, "B should still be ready (not early exit)")
+
+	// Step 2: B should now be ready even though C failed
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After C fails, B should still be ready due to IgnoreDependencyErrors")
+	assert.Equal(t, "B", readyEntries[0].Config.Path)
+
+	// Mark B as succeeded
+	entryB := readyEntries[0]
+	entryB.Status = queue.StatusSucceeded
+
+	// Step 3: After B succeeds, A should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After B succeeds, A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// Queue should be finished
+	assert.True(t, q.Finished(), "Queue should be finished")
 }

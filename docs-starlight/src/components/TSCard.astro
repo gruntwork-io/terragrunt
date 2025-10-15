@@ -1,0 +1,29 @@
+---
+
+import '@styles/global.css';
+
+export interface Props {
+  title?: string | null;
+  titleSize?: string;
+  class?: string;
+}
+
+const {
+  title = null,
+  titleSize = "text-xl",
+  class: customClass = "",
+  ...attrs
+} = Astro.props as Props;
+
+---
+
+<div class={`p-6 bg-white border-dashed border border-gray-3 ${customClass}`}>
+  <div class="flex flex-col gap-4">
+    {title && (
+      <p class={`font-sans ${titleSize} text-dark-blue-1 font-medium m-0`}>
+        {title}
+      </p>
+    )}
+    <slot />
+  </div>
+</div>

@@ -114,10 +114,6 @@ Skipping dependency inputs is a performance optimization. For more details on pe
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
 
-### require-explicit-bootstrap
-
-Require explicit usage of `--backend-bootstrap` to automatically bootstrap backend resources.
-
 ### root-terragrunt-hcl
 
 Throw an error when users try to reference a root `terragrunt.hcl` file using `find_in_parent_folders`.
@@ -170,6 +166,32 @@ Throw an error when using commands that were deprecated as part of the CLI redes
 Throw an error when using a bare include.
 
 **Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/docs/migrate/bare-include/).
+
+### double-star
+
+Opts in to a breaking change to `**` and `**/*` behavior in [queue-exclude-dir](/docs/reference/cli/commands/run#queue-exclude-dir)
+and [queue-include-dir](/docs/reference/cli/commands/run#queue-include-dir).
+
+Without the strict control enabled, to match units in all subdirectories a glob pattern must end in `**/*`.
+With the strict control enabled, the pattern `**/*` will match all subdirectories with a depth of at least one
+as indicated by the `/` character. The glob pattern `**` will now match all subdirectories regardless of depth.
+
+With the following directory layout, glob behavior for * characters with the strict control enabled is:
+
+```
+└── units
+    ├── subdir1
+    │   └── subdir2
+    │       └── unit-c
+    ├── unit-a
+    └── unit-b
+```
+
+The `*` wildcard indicates any character except `/` e.g. `units/*` matches unit-a
+and unit-b.
+
+The `**` double wildcard indicates any character including `/`, this allows
+matching multiple directory depths e.g. `units/**` matches unit-a, unit-b, and unit-c.
 
 ## Control Categories
 
@@ -224,6 +246,14 @@ The following strict controls have been completed and are no longer needed:
 - [destroy-all](#destroy-all)
 - [output-all](#output-all)
 - [validate-all](#validate-all)
+
+### require-explicit-bootstrap
+
+**Status**: Completed - Backend provisioning is no longer performed automatically by default.
+
+Terragrunt now requires explicit opt-in to bootstrap backend infrastructure. Use `terragrunt backend bootstrap` or pass `--backend-bootstrap` to a `run` command (e.g., `terragrunt run apply --backend-bootstrap`) to provision or update backend resources referenced by the [`remote_state`](/docs/reference/hcl/blocks/#remote_state) block.
+
+This strict control is no longer necessary because the default behavior already requires explicit bootstrapping.
 
 ### legacy-all
 

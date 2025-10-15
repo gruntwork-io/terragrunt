@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/mattn/go-shellwords"
 )
 
 // Provider runs external command that returns a json string with credentials.
@@ -35,15 +36,21 @@ func (provider *Provider) Name() string {
 
 // GetCredentials implements providers.GetCredentials
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
-	command := provider.terragruntOptions.AuthProviderCmd
-	if command == "" {
+	if provider.terragruntOptions.AuthProviderCmd == "" {
 		return nil, nil
 	}
 
-	var args []string
+	parser := shellwords.NewParser()
 
-	if parts := strings.Fields(command); len(parts) > 1 {
-		command = parts[0]
+	parts, err := parser.Parse(provider.terragruntOptions.AuthProviderCmd)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse auth provider command: %w", err)
+	}
+
+	command := parts[0]
+
+	args := []string{}
+	if len(parts) > 1 {
 		args = parts[1:]
 	}
 
@@ -53,7 +60,10 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}
 
 	if output.Stdout.String() == "" {
-		return nil, errors.Errorf("command %s completed successfully, but the response does not contain JSON string", command)
+		return nil, errors.Errorf(
+			"command %s completed successfully, but the response does not contain JSON string",
+			provider.terragruntOptions.AuthProviderCmd,
+		)
 	}
 
 	resp := &Response{Envs: make(map[string]string)}

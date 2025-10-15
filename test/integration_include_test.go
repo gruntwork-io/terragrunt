@@ -30,10 +30,15 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	files, err := os.ReadDir(includeExposeFixturePath)
+	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
+	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+
+	files, err := os.ReadDir(tmpEnvPath)
 	require.NoError(t, err)
 
 	testCases := []string{}
+
 	for _, finfo := range files {
 		if finfo.IsDir() {
 			testCases = append(testCases, finfo.Name())
@@ -44,7 +49,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeExposeFixturePath, tc, includeChildFixturePath)
+			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
 
@@ -117,9 +122,11 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 		if strings.Contains(line, "alpha") {
 			assert.Contains(t, line, "prefix=a")
 		}
+
 		if strings.Contains(line, "beta") {
 			assert.Contains(t, line, "prefix=b")
 		}
+
 		if strings.Contains(line, "charlie") {
 			assert.Contains(t, line, "prefix=c")
 		}
@@ -171,6 +178,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []string{}
+
 	for _, finfo := range files {
 		if finfo.IsDir() && filepath.Base(finfo.Name()) != "modules" {
 			testCases = append(testCases, finfo.Name())

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/mattn/go-shellwords"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
@@ -41,8 +42,23 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	if opts.QueueConstructAs != "" {
 		d = d.WithParseExclude()
 		d = d.WithDiscoverDependencies()
+
+		parser := shellwords.NewParser()
+
+		args, err := parser.Parse(opts.QueueConstructAs)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		cmd := args[0]
+
+		if len(args) > 1 {
+			args = args[1:]
+		}
+
 		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
-			Cmd: opts.QueueConstructAs,
+			Cmd:  cmd,
+			Args: args,
 		})
 	}
 
@@ -60,7 +76,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
-
 	if err != nil {
 		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
@@ -82,7 +97,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 			return nil
 		})
-
 		if err != nil {
 			return errors.New(err)
 		}
@@ -104,7 +118,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 		return convErr
 	})
-
 	if err != nil {
 		return errors.New(err)
 	}

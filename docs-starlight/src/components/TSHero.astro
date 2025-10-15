@@ -1,0 +1,159 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import BackgroundPattern from '@assets/boxes-bg.svg';
+import ColFeature from '@components/ColFeature.astro';
+import Grunty2 from '@assets/grunty/grunty-2.svg';
+import IconDriftDetection from '@assets/icons/drift-detection.svg';
+import IconLabel from '@components/dv-IconButton.astro';
+import IconPatcher from '@assets/icons/terragrunt-patcher.svg';
+import IconPipelines from '@assets/icons/terragrunt-pipelines.svg';
+
+import MobileHeroBackground from '@assets/hero-bkgnd.svg';
+import Terminal from '@components/dv-Terminal.astro';
+import ThreeColFeatures from '@components/ThreeColFeatures.astro';
+import ButtonLink from '@components/ui/ButtonLink';
+
+import TerragruntIcon from '@assets/icons/terragrunt-icon.svg';
+import GithubIcon from '@assets/icons/github-icon.svg';
+import GitlabIcon from '@assets/icons/gitlab-icon.svg';
+---
+
+<section class="relative md:pt-22 bg-[var(--color-bg-dark)] gap-10 overflow-hidden">
+    <!-- Background Image -->
+    <Image
+      src={BackgroundPattern}
+      alt="Isometric background pattern with terragrunt logo"
+      class="absolute bottom-[-12%] left-1/2 transform -translate-x-1/2 w-[100vw] h-auto z-0 pointer-events-none select-none"
+      decoding="async"
+      loading="eager"
+      width={1440}
+    />
+
+    <div class="relative z-10 pt-[200px] md:pt-[100px] px-5 md:px-20 max-w-[1440px] mx-auto">
+
+        <div class="max-w-[989px] flex flex-col gap-6">
+          <div class="flex flex-col justify-start gap-5 w-full">
+            <h1 class="text-4xl md:text-6xl text-white leading-12 m-0">
+              Terragrunt Scale
+            </h1>
+            <p class="max-w-[650px] text-lg text-[var(--color-gray-1)]">
+              Standardize infra operations without leaving your pipeline: plan on PR, apply on merge, dependency-aware across workspaces, with automated drift detection and version-bump PRs to keep resources current.
+            </p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center w-full gap-4">
+              <p class="font-mono text-xs text-white md:pr-4 m-0 select-none">BUILT FOR:</p>
+              <div class="flex gap-1 uppercase select-none">
+                <IconLabel
+                  alt="Github Icon"
+                  bgcolor="bg-[var(--color-bg-dark)]"
+                  src={GithubIcon}
+                  text="Github"
+                  textColor="text-white"
+                  eager
+                  />
+                <IconLabel
+                  alt="Gitlab Icon"
+                  bgcolor="bg-[var(--color-bg-dark)]"
+                  src={GitlabIcon}
+                  text="Gitlab"
+                  textColor="text-white"
+                  eager
+                />
+                <IconLabel
+                  alt="Terragrunt"
+                  bgcolor="bg-[var(--color-bg-dark)]"
+                  src={TerragruntIcon}
+                  text="Terragrunt"
+                  textColor="text-white"
+                  eager
+                />
+              </div>
+          </div>
+          <div class="flex gap-5 w-full pb-28 md:pb-20 z-10">
+            <ButtonLink href="/contact-tgs" variant="primary">
+              Get Demo
+            </ButtonLink>
+
+            <ButtonLink href="#view-plans" variant="secondary">
+              View Plans
+            </ButtonLink>
+          </div>
+        </div>
+
+        <ThreeColFeatures>
+          <ColFeature color="purple">
+            <!-- Grunty Mobile -->
+            <div class="lg:hidden absolute top-[-155px] lg:top-[-346px] h-[154px] lg:h-[345px] w-[161px] lg:w-[361px] right-0 z-10">
+              <Image
+                alt="Grunty"
+                class="max-w-[100%] h-auto"
+                src={Grunty2}
+              />
+            </div>
+
+            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+              <Image
+                alt="Pipelines Icon"
+                class={"aspect-[1/1] h-auto"}
+                src={IconPipelines}
+                height={20}
+                width={20}
+              />
+            </div>
+            <div class="relative flex flex-col z-20 select-none">
+              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Pipelines</h5>
+              <p class="text-sm text-[var(--color-gray-1)] m-0">Automate your CI/CD</p>
+            </div>
+          </ColFeature>
+
+          <ColFeature color="red">
+            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+              <Image
+                alt="Pipelines Icon"
+                class={"aspect-[1/1] h-auto"}
+                src={IconDriftDetection}
+                height={20}
+                width={20}
+              />
+            </div>
+            <div class="relative flex flex-col z-20 select-none">
+              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Drift Detection</h5>
+              <p class="text-sm text-[var(--color-gray-1)] m-0">Reconcile infrastructure Drift</p>
+            </div>
+          </ColFeature>
+
+          <ColFeature color="green">
+            <div class="hidden lg:block absolute top-[-346px] right-0 z-10">
+              <Image
+                alt="Grunty"
+                src={Grunty2}
+                height={345}
+                width={361}
+              />
+            </div>
+            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+              <Image
+                alt="Pipelines Icon"
+                class={"aspect-[1/1] h-auto"}
+                src={IconPatcher}
+                height={20}
+                width={20}
+              />
+            </div>
+            <div class="relative flex flex-col z-20 select-none">
+              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Patcher</h5>
+              <p class="text-sm text-[var(--color-gray-1)] m-0">Keep your IaC up-to-date</p>
+            </div>
+          </ColFeature>
+        </ThreeColFeatures>
+    </div>
+
+    <!-- Install Widget
+    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-200">
+      <Terminal />
+    </div>
+    -->
+</section>

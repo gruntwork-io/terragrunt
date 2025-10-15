@@ -53,6 +53,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// without going through terragrunt.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
+
 	mockOptions.WorkingDir = rootPath
 
 	l := logger.CreateLogger()
@@ -76,6 +77,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// Also make sure the undefined variable is not included in the json file
 	debugJSONContents, err := os.ReadFile(debugFile)
 	require.NoError(t, err)
+
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(debugJSONContents, &data))
 	_, isDefined := data["undefined_var"]
@@ -99,15 +101,12 @@ func TestTerragruntValidateInputs(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, module := range moduleDirs {
-		// capture range var within range scope so it doesn't change as the tests are spun to the background in the
-		// t.Parallel call.
-
 		name := filepath.Base(module)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			nameDashSplit := strings.Split(name, "-")
-			helpers.RunTerragruntValidateInputs(t, module, []string{"--strict-validate"}, nameDashSplit[0] == "success")
+			helpers.RunTerragruntValidateInputs(t, module, []string{"--strict"}, nameDashSplit[0] == "success")
 		})
 	}
 }
@@ -151,7 +150,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T)
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixtures/validate-inputs", "success-inputs-only")
-	args := []string{"-var=testvariable=testvalue", "--strict-validate"}
+	args := []string{"-var=testvariable=testvalue", "--strict"}
 	helpers.RunTerragruntValidateInputs(t, moduleDir, args, false)
 }
 
@@ -163,7 +162,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, moduleDir))
 	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
 
-	args := []string{"--strict-validate"}
+	args := []string{"--strict"}
 	helpers.RunTerragruntValidateInputs(t, rootPath, args, false)
 }
 
@@ -311,7 +310,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+workDir+" -- apply -auto-approve")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --non-interactive --log-level trace --working-dir %s --json-out ", workDir)+jsonOut)
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --log-level trace --working-dir %s --json-out ", workDir)+jsonOut)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)

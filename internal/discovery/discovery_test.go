@@ -264,6 +264,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Sort the configs and their dependencies to ensure consistent ordering
@@ -461,6 +462,7 @@ exclude {
 				return cfg
 			}
 		}
+
 		return nil
 	}
 
@@ -479,6 +481,7 @@ exclude {
 
 	unit3 := findConfig("unit3")
 	require.NotNil(t, unit3)
+
 	if unit3.Parsed != nil {
 		assert.Nil(t, unit3.Parsed.Exclude)
 	}
@@ -494,13 +497,226 @@ func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
 	err = os.WriteFile(filepath.Join(unit1Dir, "custom1.hcl"), []byte(""), 0644)
 	require.NoError(t, err)
 
-	discoveryObj := discovery.NewDiscovery(tmpDir).WithConfigFilenames([]string{"custom1.hcl"})
+	d := discovery.NewDiscovery(tmpDir).WithConfigFilenames([]string{"custom1.hcl"})
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
-	configs, err := discoveryObj.Discover(t.Context(), logger.CreateLogger(), opts)
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	units := configs.Filter(discovery.ConfigTypeUnit).Paths()
 	assert.ElementsMatch(t, []string{unit1Dir}, units)
+}
+
+func TestDiscoveryWithStackConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	stackDir := filepath.Join(tmpDir, "stack")
+	unitDir := filepath.Join(tmpDir, "unit")
+
+	testDirs := []string{
+		stackDir,
+		unitDir,
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create a stack file with unit blocks (which would cause parsing errors if parsed as unit config)
+	stackContent := `
+unit "unit_a" {
+  source = "${get_repo_root()}/unit_a"
+  path   = "unit_a"
+}
+
+unit "unit_b" {
+  source = "${get_repo_root()}/unit_b"
+  path   = "unit_b"
+}
+`
+
+	// Create a unit file with valid unit configuration
+	unitContent := `
+terraform {
+  source = "."
+}
+
+inputs = {
+  test = "value"
+}
+`
+
+	// Create test files
+	testFiles := map[string]string{
+		filepath.Join(stackDir, "terragrunt.stack.hcl"): stackContent,
+		filepath.Join(unitDir, "terragrunt.hcl"):        unitContent,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	// Test that d with parsing enabled doesn't fail on stack files
+	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Verify that both stack and unit configurations are discovered
+	units := configs.Filter(discovery.ConfigTypeUnit)
+	stacks := configs.Filter(discovery.ConfigTypeStack)
+
+	assert.Len(t, units, 1)
+	assert.Len(t, stacks, 1)
+
+	// Verify that stack configuration is not parsed (Parsed should be nil)
+	stackConfig := stacks[0]
+	assert.Nil(t, stackConfig.Parsed, "Stack configuration should not be parsed")
+
+	// Verify that unit configuration is parsed (Parsed should not be nil)
+	unitConfig := units[0]
+	assert.NotNil(t, unitConfig.Parsed, "Unit configuration should be parsed")
+}
+
+func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	unit1Dir := filepath.Join(tmpDir, "unit1")
+	unit2Dir := filepath.Join(tmpDir, "unit2")
+	unit3Dir := filepath.Join(tmpDir, "unit3")
+
+	for _, d := range []string{unit1Dir, unit2Dir, unit3Dir} {
+		require.NoError(t, os.MkdirAll(d, 0755))
+	}
+
+	for _, f := range []string{
+		filepath.Join(unit1Dir, "terragrunt.hcl"),
+		filepath.Join(unit2Dir, "terragrunt.hcl"),
+		filepath.Join(unit3Dir, "terragrunt.hcl"),
+	} {
+		require.NoError(t, os.WriteFile(f, []byte(""), 0644))
+	}
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	// Exclude unit2
+	d := discovery.NewDiscovery(tmpDir).WithExcludeDirs([]string{unit2Dir})
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(discovery.ConfigTypeUnit).Paths())
+
+	// Exclude-by-default and include only unit1
+	d = discovery.NewDiscovery(tmpDir).WithExcludeByDefault().WithIncludeDirs([]string{unit1Dir})
+	cfgs, err = d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(discovery.ConfigTypeUnit).Paths())
+
+	// Strict include behaves the same
+	d = discovery.NewDiscovery(tmpDir).WithStrictInclude().WithIncludeDirs([]string{unit3Dir})
+	cfgs, err = d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{unit3Dir}, cfgs.Filter(discovery.ConfigTypeUnit).Paths())
+}
+
+func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	hiddenUnitDir := filepath.Join(tmpDir, ".hidden", "hunit")
+	require.NoError(t, os.MkdirAll(hiddenUnitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	// Without hidden, but included via includeDirs pattern
+	d := discovery.NewDiscovery(tmpDir).WithIncludeDirs([]string{filepath.Join(tmpDir, ".hidden", "**")})
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{hiddenUnitDir}, cfgs.Filter(discovery.ConfigTypeUnit).Paths())
+}
+
+func TestDiscoveryStackHiddenAllowed(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackHiddenDir := filepath.Join(tmpDir, ".terragrunt-stack", "u")
+	require.NoError(t, os.MkdirAll(stackHiddenDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	// Should be discovered even without WithHidden()
+	d := discovery.NewDiscovery(tmpDir)
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.Contains(t, cfgs.Filter(discovery.ConfigTypeUnit).Paths(), stackHiddenDir)
+}
+
+func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	internalDir := filepath.Join(tmpDir, "internal")
+	externalDir := filepath.Join(tmpDir, "external")
+	appDir := filepath.Join(internalDir, "app")
+	dbDir := filepath.Join(internalDir, "db")
+	vpcDir := filepath.Join(internalDir, "vpc")
+	extApp := filepath.Join(externalDir, "app")
+
+	for _, d := range []string{appDir, dbDir, vpcDir, extApp} {
+		require.NoError(t, os.MkdirAll(d, 0755))
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+	dependency "db" { config_path = "../db" }
+	dependency "external" { config_path = "../../external/app" }
+	`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	dependency "vpc" { config_path = "../vpc" }
+	`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl"), []byte(""), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = internalDir
+	opts.RootWorkingDir = internalDir
+
+	l := logger.CreateLogger()
+
+	d := discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithIgnoreExternalDependencies()
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Find app config and assert it only has internal deps
+	var appCfg *discovery.DiscoveredConfig
+
+	for _, c := range cfgs {
+		if c.Path == appDir {
+			appCfg = c
+			break
+		}
+	}
+
+	require.NotNil(t, appCfg)
+	depPaths := appCfg.Dependencies.Paths()
+	assert.Contains(t, depPaths, dbDir)
+	assert.NotContains(t, depPaths, extApp)
 }

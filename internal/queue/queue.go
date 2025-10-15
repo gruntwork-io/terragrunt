@@ -26,6 +26,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
@@ -140,10 +141,14 @@ func (e *Entry) IsUp() bool {
 
 type Queue struct {
 	Entries  Entries
+	mu       sync.RWMutex
 	FailFast bool
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
 	IgnoreDependencyOrder bool
+	// IgnoreDependencyErrors, if set to true, allows scheduling and running entries even if their
+	// dependencies failed. Additionally, failures will not propagate EarlyExit to dependents/dependencies.
+	IgnoreDependencyErrors bool
 }
 
 type Entries []*Entry
@@ -171,6 +176,15 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 
 // EntryByPath returns the entry with the given config path, or nil if not found.
 func (q *Queue) EntryByPath(path string) *Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	return q.entryByPathUnsafe(path)
+}
+
+// entryByPathUnsafe returns the entry with the given config path without locking.
+// Should only be called when the caller already holds a lock.
+func (q *Queue) entryByPathUnsafe(path string) *Entry {
 	for _, entry := range q.Entries {
 		if entry.Config.Path == path {
 			return entry
@@ -278,6 +292,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	if q.IgnoreDependencyOrder {
 		out := make([]*Entry, 0, len(q.Entries))
 
@@ -298,46 +315,14 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		}
 
 		if e.IsUp() {
-			// Up logic: all dependencies must be succeeded
-			allDepsReady := true
-
-			for _, dep := range e.Config.Dependencies {
-				depEntry := q.EntryByPath(dep.Path)
-				if depEntry == nil || depEntry.Status != StatusSucceeded {
-					allDepsReady = false
-					break
-				}
-			}
-
-			if allDepsReady {
+			if q.areDependenciesReadyUnsafe(e) {
 				out = append(out, e)
 			}
 
 			continue
 		}
-		// Down logic: all dependents must be succeeded
-		allDependentsReady := true
 
-		for _, other := range q.Entries {
-			if other == e || other.Config.Dependencies == nil {
-				continue
-			}
-
-			for _, dep := range other.Config.Dependencies {
-				if dep.Path == e.Config.Path {
-					if other.Status != StatusSucceeded {
-						allDependentsReady = false
-						break
-					}
-				}
-			}
-
-			if !allDependentsReady {
-				break
-			}
-		}
-
-		if allDependentsReady {
+		if q.areDependentsReadyUnsafe(e) {
 			out = append(out, e)
 		}
 	}
@@ -345,11 +330,81 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 	return out
 }
 
+// areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
+// For up commands, all dependencies must be in a succeeded state (or terminal if ignoring errors).
+// Should only be called when the caller already holds a read lock.
+func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
+	for _, dep := range e.Config.Dependencies {
+		depEntry := q.entryByPathUnsafe(dep.Path)
+		if depEntry == nil {
+			return false
+		}
+
+		// When ignoring dependency errors, allow scheduling if dependencies are in a terminal state
+		// (succeeded OR failed), not just succeeded
+		if q.IgnoreDependencyErrors {
+			if !isTerminal(depEntry.Status) {
+				return false
+			}
+
+			continue
+		}
+
+		if depEntry.Status != StatusSucceeded {
+			return false
+		}
+	}
+
+	return true
+}
+
+// areDependentsReadyUnsafe checks if all dependents of an entry are ready for "down" commands.
+// For down commands, all dependents must be in a succeeded state (or terminal if ignoring errors).
+// Should only be called when the caller already holds a read lock.
+func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
+	for _, other := range q.Entries {
+		if other == e || other.Config.Dependencies == nil {
+			continue
+		}
+
+		for _, dep := range other.Config.Dependencies {
+			if dep.Path == e.Config.Path {
+				// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
+				// (succeeded OR failed), not just succeeded
+				if q.IgnoreDependencyErrors {
+					if !isTerminal(other.Status) {
+						return false
+					}
+
+					continue
+				}
+
+				if other.Status != StatusSucceeded {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
+}
+
+// SetEntryStatus safely sets the status of an entry with proper synchronization.
+func (q *Queue) SetEntryStatus(e *Entry, status Status) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	e.Status = status
+}
+
 // FailEntry marks the entry as failed and updates related entries if needed.
 // For up commands, this marks entries that come after this one as early exit.
 // For destroy/down commands, this marks entries that come before this one as early exit.
 // Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	e.Status = StatusFailed
 
 	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
@@ -362,6 +417,11 @@ func (q *Queue) FailEntry(e *Entry) {
 			n.Status = StatusEarlyExit
 		}
 
+		return
+	}
+
+	// If ignoring dependency errors, do not propagate early exit to other entries.
+	if q.IgnoreDependencyErrors {
 		return
 	}
 
@@ -403,7 +463,7 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 	}
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path)
 		if depEntry == nil {
 			continue
 		}
@@ -419,6 +479,9 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 
 // Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
 func (q *Queue) Finished() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	for _, e := range q.Entries {
 		if !isTerminal(e.Status) {
 			return false
@@ -434,10 +497,13 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 		return 0
 	}
 
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	count := 0
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path)
 		if depEntry == nil || depEntry.Status != StatusSucceeded {
 			count++
 		}

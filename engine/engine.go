@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,8 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-
-	"github.com/hashicorp/go-getter"
+	"github.com/gruntwork-io/terragrunt/internal/github"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -54,8 +52,10 @@ const (
 	latestVersionsContextKey   engineLocksKey   = iota
 )
 
-type engineClientsKey byte
-type engineLocksKey byte
+type (
+	engineClientsKey byte
+	engineLocksKey   byte
+)
 
 type ExecutionOptions struct {
 	CmdStdout         io.Writer
@@ -94,9 +94,9 @@ func Run(
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, err := createEngine(l, runOptions.TerragruntOptions)
-		if err != nil {
-			return nil, errors.New(err)
+		terragruntEngine, client, createEngineErr := createEngine(ctx, l, runOptions.TerragruntOptions)
+		if createEngineErr != nil {
+			return nil, errors.New(createEngineErr)
 		}
 
 		engineClients.Store(workingDir, &engineInstance{
@@ -107,7 +107,7 @@ func Run(
 
 		instance, _ = engineClients.Load(workingDir)
 
-		if err := initialize(ctx, l, runOptions, terragruntEngine); err != nil {
+		if err = initialize(ctx, l, runOptions, terragruntEngine); err != nil {
 			return nil, errors.New(err)
 		}
 	}
@@ -166,8 +166,8 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 		return errors.New(err)
 	}
 
-	if err := util.EnsureDirectory(path); err != nil {
-		return errors.New(err)
+	if ensureErr := util.EnsureDirectory(path); ensureErr != nil {
+		return errors.New(ensureErr)
 	}
 
 	localEngineFile := filepath.Join(path, engineFileName(e))
@@ -188,38 +188,35 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 
 	downloadFile := filepath.Join(path, enginePackageName(e))
 
-	downloads := make(map[string]string)
-	checksumFile := ""
-	checksumSigFile := ""
+	// Prepare download assets
+	assets := &github.ReleaseAssets{
+		Repository:  e.Source,
+		Version:     e.Version,
+		PackageFile: downloadFile,
+	}
 
-	if strings.Contains(e.Source, "://") {
-		// if source starts with absolute path, download as is
-		downloads[e.Source] = downloadFile
-	} else {
-		baseURL := fmt.Sprintf("https://%s/releases/download/%s", e.Source, e.Version)
+	var checksumFile, checksumSigFile string
 
-		// URLs and their corresponding local paths
+	// Only add checksum files for GitHub releases (not direct URLs)
+	if !strings.Contains(e.Source, "://") {
 		checksumFile = filepath.Join(path, engineChecksumName(e))
 		checksumSigFile = filepath.Join(path, engineChecksumSigName(e))
-		downloads[fmt.Sprintf("%s/%s", baseURL, enginePackageName(e))] = downloadFile
-		downloads[fmt.Sprintf("%s/%s", baseURL, engineChecksumName(e))] = checksumFile
-		downloads[fmt.Sprintf("%s/%s.sig", baseURL, engineChecksumName(e))] = checksumSigFile
+		assets.ChecksumFile = checksumFile
+		assets.ChecksumSigFile = checksumSigFile
 	}
 
-	for url, path := range downloads {
-		l.Infof("Downloading %s to %s", url, path)
-		client := &getter.Client{
-			Ctx:           ctx,
-			Src:           url,
-			Dst:           path,
-			Mode:          getter.ClientModeFile,
-			Decompressors: map[string]getter.Decompressor{},
-		}
+	// Create download client and download assets
+	downloadClient := github.NewGitHubReleasesDownloadClient(github.WithLogger(l))
 
-		if err := client.Get(); err != nil {
-			return errors.New(err)
-		}
+	result, err := downloadClient.DownloadReleaseAssets(ctx, assets)
+	if err != nil {
+		return errors.Errorf("failed to download engine assets: %w", err)
 	}
+
+	// Update file paths from result
+	downloadFile = result.PackageFile
+	checksumFile = result.ChecksumFile
+	checksumSigFile = result.ChecksumSigFile
 
 	if !opts.EngineSkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
 		l.Infof("Verifying checksum for %s", downloadFile)
@@ -241,50 +238,28 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 }
 
 func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot))
+	repository := strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
-
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	if val, found := versionCache.Get(ctx, url); found {
+	cacheKey := "github_release_" + repository
+	if val, found := versionCache.Get(ctx, cacheKey); found {
 		return val, nil
 	}
 
-	type release struct {
-		Tag string `json:"tag_name"`
-	}
-	// query tag from https://api.github.com/repos/{owner}/{repo}/releases/latest
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	githubClient := github.NewGitHubAPIClient()
 
+	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {
-		return "", errors.New(err)
+		return "", errors.Errorf("failed to get latest release for repository %s: %w", repository, err)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	versionCache.Put(ctx, cacheKey, tag)
 
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	defer resp.Body.Close() //nolint:errcheck
-	body, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	var r release
-	if err := json.Unmarshal(body, &r); err != nil {
-		return "", errors.New(err)
-	}
-
-	versionCache.Put(ctx, url, r.Tag)
-
-	return r.Tag, nil
+	return tag, nil
 }
 
 func extractArchive(l log.Logger, downloadFile string, engineFile string) error {
@@ -306,14 +281,15 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 	}
 
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
+		if err = os.RemoveAll(tempDir); err != nil {
 			l.Warnf("Failed to clean temp dir %s: %v", tempDir, err)
 		}
 	}()
 	// extract archive
-	if err := extract(l, downloadFile, tempDir); err != nil {
+	if err = extract(l, downloadFile, tempDir); err != nil {
 		return errors.New(err)
 	}
+
 	// process files
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
@@ -482,7 +458,7 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 }
 
 // createEngine create engine for working directory
-func createEngine(l log.Logger, terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
+func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	path, err := engineDir(terragruntOptions)
 	if err != nil {
 		return nil, nil, errors.New(err)
@@ -496,7 +472,7 @@ func createEngine(l log.Logger, terragruntOptions *options.TerragruntOptions) (*
 	skipCheck := terragruntOptions.EngineSkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
-		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
 			return nil, nil, errors.New(err)
 		}
 	} else {
@@ -523,7 +499,7 @@ func createEngine(l log.Logger, terragruntOptions *options.TerragruntOptions) (*
 		Output: l.Writer(),
 	})
 
-	cmd := exec.Command(localEnginePath)
+	cmd := exec.CommandContext(ctx, localEnginePath)
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
@@ -592,27 +568,27 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 	)
 
 	for {
-		runResp, err := response.Recv()
-		if err != nil || runResp == nil {
+		runResp, recvErr := response.Recv()
+		if recvErr != nil || runResp == nil {
 			break
 		}
 
-		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
+		if err = processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
 			return nil, errors.New(err)
 		}
 
-		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
+		if err = processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
 			return nil, errors.New(err)
 		}
 
 		resultCode = int(runResp.GetResultCode())
 	}
 
-	if err := flushBuffer(&stdoutLineBuf, stdout); err != nil {
+	if err = flushBuffer(&stdoutLineBuf, stdout); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := flushBuffer(&stderrLineBuf, stderr); err != nil {
+	if err = flushBuffer(&stderrLineBuf, stderr); err != nil {
 		return nil, errors.New(err)
 	}
 
@@ -721,7 +697,6 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 		Meta:       meta,
 		EnvVars:    runOptions.TerragruntOptions.Env,
 	})
-
 	if err != nil {
 		return errors.New(err)
 	}
@@ -841,7 +816,7 @@ func extract(l log.Logger, zipFile, destDir string) error {
 	}()
 
 	const dirPerm = 0755
-	if err := os.MkdirAll(destDir, dirPerm); err != nil {
+	if err = os.MkdirAll(destDir, dirPerm); err != nil {
 		return errors.New(err)
 	}
 
@@ -913,6 +888,7 @@ func detectFileType(l log.Logger, filePath string) (string, error) {
 	}()
 
 	const headerSize = 4 // 4 bytes are enough for common formats
+
 	header := make([]byte, headerSize)
 
 	if _, err := file.Read(header); err != nil {

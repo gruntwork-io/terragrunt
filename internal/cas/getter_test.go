@@ -76,6 +76,7 @@ func TestCASGetterDetect(t *testing.T) {
 				Src: tt.src,
 				Pwd: tt.pwd,
 			}
+
 			ok, err := g.Detect(req)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)

@@ -1,0 +1,128 @@
+---
+import { Image } from 'astro:assets';
+
+import BackgroundPattern from '@assets/hero-bkgnd.svg';
+import ButtonLink from '@ui/ButtonLink';
+import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.svg';
+import IconPricingEnterprise from '@assets/icons/terragrunt-pricing-enterprise.svg';
+
+import '@styles/global.css';
+---
+
+<!-- Section -->
+<section class="relative px-5 w-full">
+    <!-- upsell -->
+    <div class="relative bg-bg-dark overflow-hidden border-[6px] border-[#E6E6E6] rounded-3xl">
+        <Image
+            alt="Isometric background pattern"
+            class="absolute bottom-0 transform -translate-x-36 lg:-translate-x-10 xl:-translate-x-40 min-w-[200vw] h-auto max-w-none z-0 pointer-events-none select-none opacity-40"
+            src={BackgroundPattern}
+        />
+        <div class="flex flex-col py-8 md:py-0 md:pt-20 md:pb-[100px] justify-center items-center">
+
+            <!-- Header Section -->
+            <div class="flex flex-col px-5 md:px-12 lg:px-8 xl:px-20 pb-10 md:pb-[60px] gap-4 md:text-center lg:items-center">
+                <h3 class="text-4xl md:text-[42px] font-sans text-white m-0">
+                  <span class="text-accent-3">Terragrunt Scale</span> Pricing
+                </h3>
+                <p class="text-gray-1 font-sans lg:w-[594px]">
+                  Pricing that’s fair and predictable. Your costs only increase as you add more users or git repos. Get unlimited runs, runners, and resources with either plan.
+                </p>
+            </div>
+
+            <!-- Wrapper - 2 col  -->
+            <div class="flex flex-col md:flex-row px-5 md:px-12 lg:px-8 lg:w-[820px] xl:w-[900px] gap-12">
+
+                <!-- Card -->
+                <div class="relative z-10 w-full md:w-1/2 bg-bg-dark border border-card-border py-6 px-8 rounded-lg">
+                  <div class="flex flex-col gap-6 justify-between h-full">
+
+                    <div>
+                      <div class="flex flex-row items-center justify-between gap-2 mb-6">
+                          <Image
+                              alt="Pipelines Icon"
+                              class={"aspect-[1/1] h-auto size-16"}
+                              src={IconPricingTeam}
+                          />
+                          <p class="text-gray-1 text-2xl m-0">
+                            <span class="text-[42px] text-accent-3">$500</span>/mo*
+                          </p>
+                      </div>
+
+                      <div class="flex flex-col gap-1">
+                          <p class="text-white font-sans text-xl font-medium m-0">Team</p>
+                          <p class="text-gray-1 font-sans text-sm m-0">For most platform teams</p>
+                      </div>
+
+                      <ul class="list-none pl-0 flex flex-col gap-2">
+                        <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                          Terragrunt Pipelines
+                        </li>
+                        <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                          Terragrunt Patcher
+                        </li>
+                        <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                          Terragrunt Drift Detection
+                        </li>
+                        <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                          Standard Support
+                        </li>
+                      </ul>
+                    </div>
+
+                    <p class="text-gray-1 font-sans text-sm">* Price reflects a 17% annual contract discount, and includes a license for 1 repo and 2 users.</p>
+                    <ButtonLink
+                      href="/terragrunt-scale/checkout"
+                      size='full'
+                      variant="primary"
+                    >
+                      Buy Now
+                    </ButtonLink>
+                  </div>
+                </div>
+
+                <!-- Card -->
+                <div class="relative z-10 w-full md:w-1/2 bg-bg-dark border border-card-border py-6 px-8 rounded-lg">
+                  <div class="flex flex-col gap-6 justify-between h-full">
+
+                    <div>
+                      <div class="flex flex-row items-center justify-between gap-2 mb-6">
+                          <Image
+                              alt="Pipelines Icon"
+                              class={"aspect-[1/1] h-auto size-16"}
+                              src={IconPricingEnterprise}
+                          />
+                          <p class="text-gray-1 text-2xl m-0">
+                            Custom Pricing
+                          </p>
+                      </div>
+
+                      <div class="flex flex-col gap-1">
+                          <p class="text-white font-sans text-xl font-medium m-0">Enterprise</p>
+                          <p class="text-gray-1 font-sans text-sm m-0 max-w-[266px]">For enterprises seeking additional flexibility and enterprise support</p>
+                      </div>
+
+                      <ul class="list-none pl-0 flex flex-col gap-2">
+                        <p class="text-white font-sans text-sm">Everything in Team, plus…</p>
+                        <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                          GitHub/GitLab Enterprise Self-hosted
+                        </li>
+                        <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                          Premium support
+                        </li>
+                      </ul>
+
+                    </div>
+                    <ButtonLink
+                      href="/contact-tgs"
+                      size='full'
+                      variant="secondary"
+                    >
+                      Contact Us
+                    </ButtonLink>
+                  </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

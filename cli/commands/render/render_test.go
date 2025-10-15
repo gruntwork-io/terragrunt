@@ -18,8 +18,10 @@ func TestRenderJSON_Basic(t *testing.T) {
 	t.Parallel()
 
 	opts, _ := setupTest(t)
+
 	var outputBuffer bytes.Buffer
-	opts.TerragruntOptions.Writer = &outputBuffer
+
+	opts.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
 	opts.DisableDependentModules = true
 	opts.RenderMetadata = false
@@ -29,6 +31,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal(outputBuffer.Bytes(), &result)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -40,8 +43,10 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	t.Parallel()
 
 	opts, _ := setupTest(t)
+
 	var outputBuffer bytes.Buffer
-	opts.TerragruntOptions.Writer = &outputBuffer
+
+	opts.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
 	opts.DisableDependentModules = true
 	opts.RenderMetadata = true
@@ -51,6 +56,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal(outputBuffer.Bytes(), &result)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -77,6 +83,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal(content, &result)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -102,7 +109,8 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	opts.Format = render.FormatHCL
 
 	var renderedBuffer bytes.Buffer
-	opts.TerragruntOptions.Writer = &renderedBuffer
+
+	opts.Writer = &renderedBuffer
 
 	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)

@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	MovedGlobalFlagsCategoryNameFmt = "Global flags moved to `%s` command"
-	GlobalFlagsCategoryName         = "Global flags"
-	CommandFlagsCategoryNameFmt     = "`%s` command flags"
+	GlobalFlagsCategoryName     = "Global flags"
+	CommandFlagsCategoryNameFmt = "`%s` command flags"
 )
 
 var _ = strict.Control(new(DeprecatedFlagName))
@@ -26,26 +25,6 @@ type DeprecatedFlagName struct {
 	*Control
 	ErrorFmt   string
 	WarningFmt string
-}
-
-func NewDeprecatedMovedFlagName(deprecatedFlag, newFlag cli.Flag, commandName string) *DeprecatedFlagName {
-	var (
-		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.Names()))
-		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
-	)
-
-	return &DeprecatedFlagName{
-		Control: &Control{
-			Name:        deprecatedName,
-			Description: "replaced with: " + newName,
-		},
-		ErrorFmt: "The global `--%s` flag has moved to the `" + commandName + "` command and is no longer supported as a global flag. Use `%s` instead.",
-		// The second argument to fmt comes with the command name. Output example:
-		// The global `--terragrunt-no-auto-init` flag has moved to the `run` command and will not be accessible as a global flag in a future version of Terragrunt. Use `run --no-auto-init` instead.
-		WarningFmt:     "The global `--%s` flag has moved to the `" + commandName + "` command and will not be accessible as a global flag in a future version of Terragrunt. Use `%s` instead.",
-		deprecatedFlag: deprecatedFlag,
-		newFlag:        newFlag,
-	}
 }
 
 // NewDeprecatedFlagName returns a new `DeprecatedFlagName` instance.
@@ -108,7 +87,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		return errors.Errorf(ctrl.ErrorFmt, valueName, flagName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
+	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.isSuppressed() {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, flagName)
 		})

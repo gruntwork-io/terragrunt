@@ -1,0 +1,82 @@
+name: Gopls Quickfix Check
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'
+
+  workflow_dispatch:
+
+jobs:
+  gopls-quickfix:
+    name: Gopls Quickfix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.8.16
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISE_PROFILE: cicd
+
+      - name: Find Go files
+        id: gofiles
+        run: |
+          find . -type f -name '*.go' -not -path './vendor/*' > gofiles.txt
+
+      - name: Install parallel
+        run: sudo apt-get update && sudo apt-get install -y parallel
+
+      - name: Run gopls quickfixes
+        id: gopls_run
+        run: ./.github/scripts/gopls/run.sh
+
+      - name: Check for changes
+        id: check-changes
+        run: ./.github/scripts/gopls/check-for-changes.sh
+        env:
+          HAS_FIXES: ${{ steps.gopls_run.outputs.has_fixes }}
+
+      - name: Create issue for problems found
+        id: create_issue_for_problems
+        if: steps.gopls_run.outputs.has_fixes == 'true'
+        uses: actions/github-script@v8
+        env:
+          FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
+          OUTPUT_FILE_PATH: ${{ steps.gopls_run.outputs.output_file_path }}
+        with:
+          script: |
+            const createIssue = require('./.github/scripts/gopls/create-issue.js');
+            const fixedFilesPath = process.env.FIXED_FILES_PATH;
+            const outputFilePath = process.env.OUTPUT_FILE_PATH;
+            await createIssue({ github, context, core, fixedFilesPath, outputFilePath });
+
+      - name: Create pull request for fixes
+        if: steps.check-changes.outputs.has_changes == 'true'
+        uses: actions/github-script@v8
+        env:
+          ISSUE_NUMBER: ${{ steps.create_issue_for_problems.outputs.issue_number }}
+          FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
+        with:
+          script: |
+            const createPR = require('./.github/scripts/gopls/create-pr.js');
+            const issueNumber = process.env.ISSUE_NUMBER;
+            const fixedFilesPath = process.env.FIXED_FILES_PATH;
+            await createPR({ github, context, core, exec, issueNumber, fixedFilesPath });
+
+      - name: Success message
+        if: steps.gopls_run.outputs.has_fixes == 'false'
+        run: |
+          echo "✅ No gopls quickfix issues found!"
+          echo "All Go files are up to date with gopls recommendations."

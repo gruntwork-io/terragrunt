@@ -18,6 +18,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 	// Set environment variable format based on OS
 	envVarChar := "$"
 	closeEnvVarChar := ""
+
 	if runtime.GOOS == "windows" {
 		envVarChar = "%"
 		closeEnvVarChar = "%"
@@ -75,6 +76,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 	}
 
 	var out bytes.Buffer
+
 	app.Writer = &out
 
 	ctx := cli.NewAppContext(t.Context(), app, nil).NewCommandContext(cmd, nil)

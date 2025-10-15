@@ -308,7 +308,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 	q := sourceURL.Query()
 
 	ref := q.Get("ref")
-	if ref != "" {
+	if ref == "" {
 		q.Set("ref", "HEAD")
 	}
 

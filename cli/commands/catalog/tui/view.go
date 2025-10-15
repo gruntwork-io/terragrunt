@@ -42,6 +42,7 @@ func (m Model) pagerView() string {
 
 func (m Model) footerView() string {
 	var percent float64 = 100
+
 	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", m.viewport.ScrollPercent()*percent))
 
 	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))

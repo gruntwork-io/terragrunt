@@ -2,6 +2,7 @@ package getproviders
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -51,9 +53,7 @@ func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string
 		}
 
 		// Merge constraints from this file
-		for addr, constraint := range fileConstraints {
-			constraints[addr] = constraint
-		}
+		maps.Copy(constraints, fileConstraints)
 	}
 
 	return constraints, nil
@@ -95,9 +95,7 @@ func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename 
 			providerConstraints := parseProvidersFromRequiredProvidersBlock(opts, nestedBlock)
 
 			// Merge constraints from this required_providers block
-			for addr, constraint := range providerConstraints {
-				constraints[addr] = constraint
-			}
+			maps.Copy(constraints, providerConstraints)
 		}
 	}
 
@@ -217,15 +215,45 @@ func normalizeProviderAddress(opts *options.TerragruntOptions, source string) st
 	}
 }
 
-// normalizeVersionConstraint normalizes version constraints by removing the "=" prefix if present
-// OpenTofu/Terraform expects constraints in normalized form without the "=" prefix
+// normalizeVersionConstraint normalizes version constraints to the format expected by OpenTofu/Terraform lockfiles.
+//
+// This includes:
+// 1. Removing the "=" prefix if present
+// 2. Normalizing version numbers to full 3-part format (e.g., "2.2" becomes "2.2.0")
 func normalizeVersionConstraint(constraint string) string {
 	constraint = strings.TrimSpace(constraint)
 
-	// If constraint starts with "=" followed by whitespace, remove it
+	// If constraint starts with "=", remove it
 	if after, ok := strings.CutPrefix(constraint, "="); ok {
-		return strings.TrimSpace(after)
+		constraint = strings.TrimSpace(after)
 	}
 
+	// Split the constraint into operator and version parts
+	parts := strings.Fields(constraint)
+
+	// This is just a version number without an operator (e.g., "1.2.3")
+	const justVersionParts = 1
+	if len(parts) == justVersionParts {
+		if v, err := version.NewVersion(parts[0]); err == nil {
+			return v.String()
+		}
+
+		return constraint
+	}
+
+	// This has an operator and version (e.g., ">= 2.2")
+	const operatorAndVersionParts = 2
+	if len(parts) == operatorAndVersionParts {
+		operator := parts[0]
+		versionStr := parts[1]
+
+		// Parse the version to normalize it
+		if v, err := version.NewVersion(versionStr); err == nil {
+			// The version library normalizes "2.2" to "2.2.0"
+			return fmt.Sprintf("%s %s", operator, v.String())
+		}
+	}
+
+	// If parsing fails or unexpected format, return the original constraint
 	return constraint
 }

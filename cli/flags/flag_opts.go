@@ -1,64 +1,11 @@
 package flags
 
 import (
-	"fmt"
-	"slices"
-
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 )
 
 // Option is used to set options to the `Flag`.
 type Option func(*Flag)
-
-// WithDeprecatedMovedFlag returns an `Option` that will register the given `deprecatedFlag`
-// as a deprecated flag that is moved to the given `commandName`. For example:
-//
-//	NewFlag(nil, WithDeprecatedMovedFlag(&cli.BoolFlag{
-//	  Name:    "no-auto-init",
-//	}, "run", nil))
-//
-// Log output:
-// WARN The `--no-auto-init` global flag is moved to `run` command and will be removed from the global flags in a future version. Use `run --no-auto-init` instead.
-func WithDeprecatedMovedFlag(deprecatedFlag cli.Flag, commandName string, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(newFlag *Flag) {
-		deprecatedNames := deprecatedFlag.Names()
-
-		if flag, ok := deprecatedFlag.(*Flag); ok {
-			for _, deprecatedFlag := range flag.deprecatedFlags {
-				deprecatedNames = append(deprecatedNames, deprecatedFlag.Names()...)
-			}
-		}
-
-		deprecatedFlag := &DeprecatedFlag{
-			Flag:  deprecatedFlag,
-			names: slices.Clone(deprecatedNames),
-		}
-		slices.Reverse(deprecatedFlag.names)
-
-		flag := &DeprecatedFlag{
-			Flag:  deprecatedFlag,
-			names: slices.Clone(deprecatedNames),
-		}
-
-		for i, name := range flag.names {
-			flag.names[i] = fmt.Sprintf("%s --%s", commandName, name)
-		}
-
-		newFlag.Flag = flag
-
-		flagNameControl := controls.NewDeprecatedMovedFlagName(deprecatedFlag, newFlag, commandName)
-
-		if regControlsFn == nil {
-			return
-		}
-
-		if ok := regControlsFn(flagNameControl, nil); ok {
-			flag.controls = strict.Controls{flagNameControl}
-		}
-	}
-}
 
 // WithDeprecatedFlag returns an `Option` that will register the given `deprecatedFlag` as a deprecated flag.
 // `newValueFn` is called to get a value for the new flag when this deprecated flag triggers. For example:
@@ -98,8 +45,8 @@ func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFun
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
-			names:                  prefix.FlagNames(newFlag.Flag.Names()...),
-			envVars:                prefix.EnvVars(newFlag.Flag.Names()...),
+			names:                  prefix.FlagNames(newFlag.Names()...),
+			envVars:                prefix.EnvVars(newFlag.Names()...),
 			allowedSubcommandScope: true,
 		}
 		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)

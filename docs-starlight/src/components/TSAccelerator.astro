@@ -1,0 +1,105 @@
+---
+import { Image } from 'astro:assets';
+
+import BackgroundPattern from '@assets/boxes-bg.svg';
+import ExternalLinkIcon from '@assets/icons/external-link.svg';
+import GitlabIcon from '@assets/icons/gitlab-icon.svg';
+import Grunty from '@assets/grunty/flag-grunty.svg';
+import IconLabel from '@components/dv-IconButton.astro';
+import OpentofuIcon from '@assets/opentofu-logo.svg';
+import TerraformIcon from '@assets/terraform-logo.svg';
+import TerragruntLogo from '@assets/icons/terragrunt-icon-dark.svg';
+import Button from '@components/ui/Button';
+import ButtonLink from '@components/ui/ButtonLink';
+
+import '@styles/global.css';
+---
+
+<!-- Section -->
+<section class="relative w-full px-5 py-6 md:p-20">
+    <!-- upsell -->
+    <div class="relative bg-white overflow-hidden border-[6px] border-[#E6E6E6] rounded-3xl">
+        <Image
+            alt=""
++           aria-hidden="true"
+            class="absolute bottom-[-80px] pointer-events-none select-none opacity-50"
+            src={BackgroundPattern}
+        />
+        <div class="flex flex-col justify-center items-center max-w-[616px] mx-auto gap-10 px-5 py-6">
+
+          <div class="flex flex-col gap-4 md:text-center lg:items-center">
+              <h3 class="text-4xl md:text-[42px] font-sans text-dark m-0">
+                <span class="text-acc-text">Terragrunt Accelerator</span> for AWS
+              </h3>
+              <p class="text-gray-1 font-sans lg:w-[594px]">
+                Stand up a well-architected infrastructure on AWS, complete with Terragrunt Scale, just in days.
+              </p>
+
+              <div class="flex flex-col md:flex-row items-start md:items-center gap-4 md:mx-auto">
+                <p class="font-mono text-xs select-none text-gray-4 md:pr-4 m-0">BUILT FOR:</p>
+                <div class="flex gap-1 flex-col sm:flex-row items-start md:items-center uppercase text-bg-dark select-none">
+                  <IconLabel
+                      src={TerragruntLogo}
+                      alt="Terragrunt"
+                      text="Terragrunt"
+                      textColor='text-bg-dark'
+                      eager
+                  />
+                  <IconLabel
+                      src={OpentofuIcon}
+                      alt="OpenTofu Icon"
+                      text="OpenTofu"
+                      textColor='text-bg-dark'
+                      eager
+                  />
+                  <IconLabel
+                      src={TerraformIcon}
+                      alt="Terraform Icon"
+                      text="Terraform"
+                      textColor='text-bg-dark'
+                      eager
+                  />
+                </div>
+              </div>
+          </div>
+
+          <div class="relative bg-white border border-gray-border rounded-2xl w-full p-8">
+            <p><span class="text-accent">Terragrunt Scale</span>, plus...</p>
+
+            <ul class="list-none pl-0 flex flex-col gap-2">
+              <li class="flex items-center gap-2 text-gray-4 text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-orange.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                A library of 300+ production-ready OpenTofu/Terraform modules
+              </li>
+              <li class="flex items-center gap-2 text-gray-4 text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-orange.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                Terragrunt foundational patterns
+              </li>
+              <li class="flex items-center gap-2 text-gray-4 text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-orange.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                AWS Platform Architecture designed by Gruntwork
+              </li>
+              <li class="flex items-center gap-2 text-gray-4 text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-orange.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                AWS Landing Zone with Control Tower integration
+              </li>
+               <li class="flex items-center gap-2 text-gray-4 text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-orange.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                Account Factory to quickly spin up new AWS accounts
+              </li>
+               <li class="flex items-center gap-2 text-gray-4 text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-orange.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+                Guided setup with a Gruntwork Solutions Architect
+              </li>
+            </ul>
+            <!-- Flag Grunty -->
+            <Image class="hidden md:block absolute right-[-160px] bottom-[-70px]" src={Grunty} alt="Grunty" />
+          </div>
+
+          <!-- CTA -->
+          <ButtonLink 
+            href="https://www.gruntwork.io/accelerator" 
+            variant="primary" 
+            buttonClassName="w-full bg-[var(--color-primary-button-light)] hover:bg-[var(--color-acc-text)] shadow-[0_0_15px_#896bff4d,0_0_1px_4px_#34311b38,0_0_1px_4px_#34312f38] relative z-10"
+            isExternalLink={true}
+          >
+            Learn More
+          </ButtonLink>
+
+        </div>
+    </div>
+</section>

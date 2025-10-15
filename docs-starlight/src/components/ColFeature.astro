@@ -1,0 +1,24 @@
+---
+import Green from '@assets/gradients/3-col-gradient-green.svg';
+import Image from "astro/components/Image.astro";
+import Purple from '@assets/gradients/3-col-gradient-purple.svg';
+import Red from '@assets/gradients/3-col-gradient-red.svg';
+
+const { color = "red" } = Astro.props;
+
+let gradientSrc = Red;
+if (color === "purple") gradientSrc = Purple;
+if (color === "green") gradientSrc = Green;
+---
+
+<div class="flex items-center px-8 py-6 bg-[var(--color-feature-container)] border border-[var(--color-feature-container-stroke)] rounded-[12px] relative">
+  <slot />
+  <div class="absolute w-full h-full right-0 rounded-[12px] overflow-hidden z-10">
+    <Image
+      alt=""
+      aria-hidden="true"
+      class="absolute -top-10 right-0 w-[305px] h-[201px] opacity-100 pointer-events-none select-none"
+      src={gradientSrc}
+    />
+  </div>
+</div>

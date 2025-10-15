@@ -1,0 +1,120 @@
+#contact-form,
+#book-a-call {
+  background-color: var(--color-bg-dark);
+  border: 1px solid #343956;
+  border-radius: 12px;
+  height: auto;
+  min-height: 600px;
+  padding: 10px 8px;
+}
+
+/* Buttons */
+#form-toggle,
+#iframe-toggle {
+  background-color: transparent;
+  border: 1px dashed #343956;
+  color: #A0A1AC;
+}
+
+#form-toggle:hover,
+#iframe-toggle:hover {
+  color: #c0eaeb;
+}
+
+#form-toggle.active,
+#iframe-toggle.active {
+  background-color: var(--color-contact-form-button-bg);
+  color: white;
+}
+
+
+/* Form Elements */
+#contact-form form {
+  color: white;
+  display: flex;
+  font-family: var(--font-sans);
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 600px;
+}
+
+#contact-form ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+#contact-form ul, #contact-form li {
+  margin-top: 0;
+}
+
+#contact-form form.hs-form label {
+  color: #d6d7db;
+  padding-left: 10px;
+}
+
+#contact-form label.hs-error-msg {
+  color: #ff6b6b !important;
+}
+
+#contact-form form.hs-form input,
+#contact-form form textarea {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  min-height: 40px;
+}
+
+#contact-form form.hs-form .input {
+  margin: 10px 0 0 0;
+  width: 100%;
+}
+
+#contact-form form.hs-form .input input {
+  padding-inline-start: 12px;
+  width: 100%;
+}
+
+#contact-form form textarea {
+  min-height: 170px;
+  width: 100%;
+}
+
+#contact-form form input:focus,
+#contact-form form textarea:focus {
+  outline: 1px solid #448daf;
+}
+
+#contact-form form ::placeholder {
+  font-family: var(--font-sans);
+}
+
+#contact-form .hs-form textarea {
+  padding: 10px 12px;
+}
+
+#contact-form .hs-button.primary  {
+  border: 3px solid #48b7d0;
+  background-color: #49b8d0;
+  background-image: radial-gradient(circle,#87e0e1,#48b7d0);
+  color: #191c35;
+  cursor: pointer;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+div.submitted-message {
+  color: white;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+  justify-content: center;
+  min-height: 600px;
+  text-align: center;
+}
+
+/* Contact Landing Pages */
+
+.hs_landing_page_url {
+  display: none !important;
+}

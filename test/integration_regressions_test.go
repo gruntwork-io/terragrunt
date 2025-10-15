@@ -93,7 +93,7 @@ func TestIncludeError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "include-error", "project", "app")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "include blocks without label")
 }

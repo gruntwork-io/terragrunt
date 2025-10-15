@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/puzpuzpuz/xsync/v3"
 )
@@ -80,111 +81,117 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 
 // Run executes the Queue return error summarizing all entries that failed to run.
 func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
-	var (
-		wg      sync.WaitGroup
-		sem     = make(chan struct{}, dr.concurrency)
-		results = xsync.NewMapOf[string, error]()
-	)
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_controller", map[string]any{
+		"total_tasks":             len(dr.q.Entries),
+		"concurrency":             dr.concurrency,
+		"fail_fast":               dr.q.FailFast,
+		"ignore_dependency_order": dr.q.IgnoreDependencyOrder,
+	}, func(childCtx context.Context) error {
+		var (
+			wg      sync.WaitGroup
+			sem     = make(chan struct{}, dr.concurrency)
+			results = xsync.NewMapOf[string, error]()
+		)
 
-	if dr.runner == nil {
-		return errors.Errorf("Runner Pool Controller: runner is not set, cannot run")
-	}
-
-	l.Debugf("Runner Pool Controller: starting with %d tasks, concurrency %d",
-		len(dr.q.Entries), dr.concurrency)
-
-	// Initial signal to start scheduling
-	select {
-	case dr.readyCh <- struct{}{}:
-	default:
-	}
-
-	for {
-		readyEntries := dr.q.GetReadyWithDependencies()
-		l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
-
-		for _, e := range readyEntries {
-			// log debug which entry is running
-			l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
-			e.Status = queue.StatusRunning
-			sem <- struct{}{}
-
-			wg.Add(1)
-
-			go func(ent *queue.Entry) {
-				defer func() {
-					<-sem
-					wg.Done()
-					select {
-					case dr.readyCh <- struct{}{}:
-					default:
-					}
-				}()
-
-				unit := dr.unitsMap[ent.Config.Path]
-				if unit == nil {
-					err := errors.Errorf("unit for path %s not found in discovered units", ent.Config.Path)
-					l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Config.Path)
-					dr.q.FailEntry(ent)
-					results.Store(ent.Config.Path, err)
-
-					return
-				}
-
-				err := dr.runner(ctx, unit)
-				results.Store(ent.Config.Path, err)
-
-				if err != nil {
-					l.Debugf("Runner Pool Controller: %s failed", ent.Config.Path)
-					dr.q.FailEntry(ent)
-
-					return
-				}
-
-				l.Debugf("Runner Pool Controller: %s succeeded", ent.Config.Path)
-				ent.Status = queue.StatusSucceeded
-			}(e)
+		if dr.runner == nil {
+			return errors.Errorf("Runner Pool Controller: runner is not set, cannot run")
 		}
 
-		if len(readyEntries) == 0 {
-			// If no goroutines are running, break
-			if len(sem) == 0 {
+		l.Debugf("Runner Pool Controller: starting with %d tasks, concurrency %d",
+			len(dr.q.Entries), dr.concurrency)
+
+		// Initial signal to start scheduling
+		select {
+		case dr.readyCh <- struct{}{}:
+		default:
+		}
+
+		for {
+			readyEntries := dr.q.GetReadyWithDependencies()
+			l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
+
+			for _, e := range readyEntries {
+				// log debug which entry is running
+				l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
+				dr.q.SetEntryStatus(e, queue.StatusRunning)
+
+				sem <- struct{}{}
+
+				wg.Add(1)
+
+				go func(ent *queue.Entry) {
+					defer func() {
+						<-sem
+						wg.Done()
+
+						select {
+						case dr.readyCh <- struct{}{}:
+						default:
+						}
+					}()
+
+					unit := dr.unitsMap[ent.Config.Path]
+					if unit == nil {
+						err := errors.Errorf("unit for path %s not found in discovered units", ent.Config.Path)
+						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Config.Path)
+						dr.q.FailEntry(ent)
+						results.Store(ent.Config.Path, err)
+
+						return
+					}
+
+					err := dr.runner(childCtx, unit)
+					results.Store(ent.Config.Path, err)
+
+					if err != nil {
+						l.Debugf("Runner Pool Controller: %s failed", ent.Config.Path)
+						dr.q.FailEntry(ent)
+
+						return
+					}
+
+					l.Debugf("Runner Pool Controller: %s succeeded", ent.Config.Path)
+					dr.q.SetEntryStatus(ent, queue.StatusSucceeded)
+				}(e)
+			}
+
+			if len(readyEntries) == 0 && len(sem) == 0 {
 				break
+			}
+
+			select {
+			case <-dr.readyCh:
+			case <-childCtx.Done():
+				wg.Wait()
+				return nil
 			}
 		}
 
-		select {
-		case <-dr.readyCh:
-		case <-ctx.Done():
-			wg.Wait()
-			return nil
-		}
-	}
+		wg.Wait()
 
-	wg.Wait()
+		// Collect errors from results map and check for errors
+		errCollector := &errors.MultiError{}
 
-	// Collect errors from results map and check for errors
-	errCollector := &errors.MultiError{}
+		for _, entry := range dr.q.Entries {
+			if err, ok := results.Load(entry.Config.Path); ok {
+				if err == nil {
+					continue
+				}
 
-	for _, entry := range dr.q.Entries {
-		if err, ok := results.Load(entry.Config.Path); ok {
-			if err == nil {
+				errCollector = errCollector.Append(err)
+
 				continue
 			}
 
-			errCollector = errCollector.Append(err)
+			if entry.Status == queue.StatusEarlyExit {
+				errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
+			}
 
-			continue
+			if entry.Status == queue.StatusFailed {
+				errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Config.Path))
+			}
 		}
 
-		if entry.Status == queue.StatusEarlyExit {
-			errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
-		}
-
-		if entry.Status == queue.StatusFailed {
-			errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Config.Path))
-		}
-	}
-
-	return errCollector.ErrorOrNil()
+		return errCollector.ErrorOrNil()
+	})
 }

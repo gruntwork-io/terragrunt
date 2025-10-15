@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -28,7 +27,6 @@ import (
 	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
@@ -93,14 +91,13 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		hcl.NewCommand(l, opts),                // hcl
-		info.NewCommand(l, opts),               // info
-		dag.NewCommand(l, opts),                // dag
-		render.NewCommand(l, opts),             // render
-		helpCmd.NewCommand(l, opts),            // help (hidden)
-		versionCmd.NewCommand(opts),            // version (hidden)
-		awsproviderpatch.NewCommand(l, opts),   // aws-provider-patch (hidden)
-		outputmodulegroups.NewCommand(l, opts), // output-module-groups (hidden)
+		hcl.NewCommand(l, opts),              // hcl
+		info.NewCommand(l, opts),             // info
+		dag.NewCommand(l, opts),              // dag
+		render.NewCommand(l, opts),           // render
+		helpCmd.NewCommand(l, opts),          // help (hidden)
+		versionCmd.NewCommand(opts),          // version (hidden)
+		awsproviderpatch.NewCommand(l, opts), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -115,8 +112,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 		},
 	)
 
-	allCommands := NewDeprecatedCommands(l, opts).
-		Merge(mainCommands...).
+	allCommands := mainCommands.
 		Merge(catalogCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
@@ -150,8 +146,8 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// Handle auto provider cache dir experiment
-	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) && !opts.NoAutoProviderCacheDir {
+	// Set up automatic provider caching if enabled
+	if !opts.NoAutoProviderCacheDir {
 		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
@@ -164,7 +160,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 			return err
 		}
 
-		ln, err := server.Listen()
+		ln, err := server.Listen(ctx)
 		if err != nil {
 			return err
 		}
@@ -360,11 +356,6 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
-	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
-	if err != nil {
-		return err
-	}
-
 	if len(opts.IncludeDirs) > 0 {
 		l.Debugf("Included directories set. Excluding by default.")
 
@@ -389,20 +380,38 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
-	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
+	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
+
+	// Sort and compact opts.IncludeDirs to make them unique
+	slices.Sort(opts.IncludeDirs)
+	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
+
+	if !doubleStarEnabled {
+		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return fmt.Errorf("invalid include dirs: %w", err)
+		}
+	}
+
+	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
-	if err != nil {
-		return err
-	}
+	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
+	// Sort and compact opts.ExcludeDirs to make them unique
+	slices.Sort(opts.ExcludeDirs)
+	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
+	if !doubleStarEnabled {
+		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return fmt.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
 
 	// --- Terragrunt Version
-	terragruntVersion, err := version.NewVersion(cliCtx.App.Version)
+	terragruntVersion, err := version.NewVersion(cliCtx.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {

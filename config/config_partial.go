@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -219,7 +220,6 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 			}
 
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -229,7 +229,6 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	}
 
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
-
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -301,6 +300,8 @@ func PartialParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string
 		if err != nil {
 			return nil, err
 		}
+
+		hclCache.Put(ctx, cacheKey, file)
 	}
 
 	return TerragruntConfigFromPartialConfig(ctx, l, file, include)
@@ -501,12 +502,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			// Skip dependency inputs by default for performance.
-			// Dependency input parsing is a deprecated feature that causes significant
-			// performance overhead due to recursive parsing. Most users don't need this
-			// feature and should use dependency outputs instead.
-
 			allControls := ctx.TerragruntOptions.StrictControls
+
 			skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
 			if skipDependenciesInputs == nil {
 				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
@@ -514,13 +511,49 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 			skipDependenciesInputs.SuppressWarning()
 
-			l.Debugf(
-				"Skipping inputs parse from %v in dependency for better performance (default behavior). "+
-					"Dependency input parsing is deprecated - use dependency outputs instead.",
-				file.ConfigPath,
-			)
-			// Skip the rest of the inputs parsing logic
-			break
+			if err := skipDependenciesInputs.Evaluate(ctx); err != nil {
+				l.Debugf(
+					"Skipping inputs parse from %v in dependency for better performance, due to usage of %s strict control",
+					file.ConfigPath,
+					controls.SkipDependenciesInputs,
+				)
+
+				break
+			}
+
+			decoded := terragruntInputs{}
+
+			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
+				// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
+				retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, file)
+				if err != nil {
+					return nil, err
+				}
+
+				evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
+			}
+
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				var diagErr hcl.Diagnostics
+
+				ok := errors.As(err, &diagErr)
+
+				// in case of render-json command and inputs reference error, we update the inputs with default value
+				if !ok || !isRenderJSONCommand(ctx) || !isRenderCommand(ctx) || !isAttributeAccessError(diagErr) {
+					return nil, err
+				}
+
+				l.Warnf("Failed to decode inputs %v", diagErr)
+			}
+
+			if decoded.Inputs != nil {
+				inputs, err := ctyhelper.ParseCtyValueToMap(*decoded.Inputs)
+				if err != nil {
+					return nil, err
+				}
+
+				output.Inputs = inputs
+			}
 
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
@@ -561,8 +594,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
-			err := file.Decode(&decoded, evalParsingContext)
 
+			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
@@ -592,8 +625,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 		case ErrorsBlock:
 			decoded := terragruntErrors{}
-			err := file.Decode(&decoded, evalParsingContext)
 
+			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
@@ -673,12 +706,23 @@ func partialParseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfi
 		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	return PartialParseConfigFile(
+	config, err := PartialParseConfigFile(
 		ctx,
 		l,
 		includePath,
 		includedConfig,
 	)
+	if err != nil {
+		// Convert generic config not found error to include-specific error
+		var configNotFoundError TerragruntConfigNotFoundError
+		if errors.As(err, &configNotFoundError) {
+			return nil, IncludeConfigNotFoundError{IncludePath: includePath, SourcePath: ctx.TerragruntOptions.TerragruntConfigPath}
+		}
+
+		return nil, err
+	}
+
+	return config, nil
 }
 
 // This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of

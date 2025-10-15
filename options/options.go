@@ -62,7 +62,7 @@ const (
 )
 
 var (
-	DefaultWrappedPath = identifyDefaultWrappedExecutable()
+	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
 
 	defaultProviderCacheRegistryNames = []string{
 		"registry.terraform.io",
@@ -523,6 +523,17 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
+	// Ensure configPath is absolute and normalized for consistent path handling
+	configPath = util.CleanPath(configPath)
+	if !filepath.IsAbs(configPath) {
+		absConfigPath, err := filepath.Abs(configPath)
+		if err != nil {
+			return l, nil, err
+		}
+
+		configPath = util.CleanPath(absConfigPath)
+	}
+
 	workingDir := filepath.Dir(configPath)
 
 	newOpts.TerragruntConfigPath = configPath
@@ -573,6 +584,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Options must be inserted after command but before the other args
 	// command is either 1 word or 2 words
 	var args []string
+
 	args = append(args, opts.TerraformCliArgs[:commandLength]...)
 	args = append(args, restArgs...)
 	args = append(args, opts.TerraformCliArgs[commandLength:]...)
@@ -672,8 +684,8 @@ func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []s
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
-func identifyDefaultWrappedExecutable() string {
-	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
+func identifyDefaultWrappedExecutable(ctx context.Context) string {
+	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
 	// fallback to Terraform if tofu is not available
@@ -723,6 +735,12 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 
 	currentAttempt := 1
 
+	// convert working dir to an absolute path for reporting
+	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
 	for {
 		err := operation()
 		if err == nil {
@@ -749,20 +767,18 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
-			if opts.Experiments.Evaluate(experiment.Report) {
-				run, err := r.GetRun(opts.WorkingDir)
-				if err != nil {
-					return err
-				}
+			run, err := r.EnsureRun(absWorkingDir)
+			if err != nil {
+				return err
+			}
 
-				if err := r.EndRun(
-					run.Path,
-					report.WithResult(report.ResultSucceeded),
-					report.WithReason(report.ReasonErrorIgnored),
-					report.WithCauseIgnoreBlock(action.IgnoreBlockName),
-				); err != nil {
-					return err
-				}
+			if err := r.EndRun(
+				run.Path,
+				report.WithResult(report.ResultSucceeded),
+				report.WithReason(report.ReasonErrorIgnored),
+				report.WithCauseIgnoreBlock(action.IgnoreBlockName),
+			); err != nil {
+				return err
 			}
 
 			return nil
@@ -777,21 +793,19 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				action.RetrySleepSecs,
 			)
 
-			if opts.Experiments.Evaluate(experiment.Report) {
-				// Assume the retry will succeed.
-				run, err := r.GetRun(opts.WorkingDir)
-				if err != nil {
-					return err
-				}
+			// Record that a retry will be attempted without prematurely marking success.
+			run, err := r.EnsureRun(absWorkingDir)
+			if err != nil {
+				return err
+			}
 
-				if err := r.EndRun(
-					run.Path,
-					report.WithResult(report.ResultSucceeded),
-					report.WithReason(report.ReasonRetrySucceeded),
-					report.WithCauseRetryBlock(action.RetryBlockName),
-				); err != nil {
-					return err
-				}
+			if err := r.EndRun(
+				run.Path,
+				report.WithResult(report.ResultSucceeded),
+				report.WithReason(report.ReasonRetrySucceeded),
+				report.WithCauseRetryBlock(action.RetryBlockName),
+			); err != nil {
+				return err
 			}
 
 			// Sleep before retry
@@ -814,8 +828,8 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
-	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 
+	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 	if err != nil {
 		return err
 	}

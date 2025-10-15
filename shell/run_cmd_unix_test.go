@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,6 +44,15 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	})
 
 	actualErr := <-errCh
-	expectedErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nexit status %d", cmdPath, expectedWait)
-	assert.EqualError(t, actualErr, expectedErr)
+	require.Error(t, actualErr, "Expected an error but got none")
+
+	// The process might either exit with the expected status code or be killed by a signal
+	// depending on timing and system conditions
+	expectedExitStatusErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nexit status %d", cmdPath, expectedWait)
+	expectedKilledErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nsignal: killed", cmdPath)
+
+	if actualErr.Error() != expectedExitStatusErr && actualErr.Error() != expectedKilledErr {
+		t.Errorf("Expected error to be either:\n  %s\nor:\n  %s\nbut got:\n  %s",
+			expectedExitStatusErr, expectedKilledErr, actualErr.Error())
+	}
 }

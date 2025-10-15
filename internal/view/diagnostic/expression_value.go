@@ -52,15 +52,17 @@ Traversals:
 			if _, exists := seen[traversalStr]; exists {
 				continue Traversals
 			}
+
 			value := ExpressionValue{
 				Traversal: traversalStr,
 			}
-			switch {
 
+			switch {
 			case val.HasMark(Sensitive):
 				if !includeSensitive {
 					continue Traversals
 				}
+
 				value.Statement = "has a sensitive value"
 			case !val.IsKnown():
 				if ty := val.Type(); ty != cty.DynamicPseudoType {
@@ -73,15 +75,18 @@ Traversals:
 					if !includeUnknown {
 						continue Traversals
 					}
+
 					value.Statement = "will be known only after apply"
 				}
 			default:
 				value.Statement = "is " + valueStr(val)
 			}
+
 			values = append(values, value)
 			seen[traversalStr] = struct{}{}
 		}
 	}
+
 	sort.Slice(values, func(i, j int) bool {
 		return values[i].Traversal < values[j].Traversal
 	})

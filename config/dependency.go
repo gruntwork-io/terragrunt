@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -22,8 +22,6 @@ import (
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -319,8 +317,8 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, l log.Logger, configPath
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
-		l, dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, l, dependencyPath)
 
+		l, dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -426,7 +424,9 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
+
 				paths = append(paths, dependencyConfig.ConfigPath.AsString())
+
 				lock.Unlock()
 
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
@@ -589,9 +589,9 @@ func getTerragruntOutput(ctx *ParsingContext, l log.Logger, dependencyConfig Dep
 }
 
 func isAwsS3NoSuchKey(err error) bool {
-	var awsErr awserr.Error
-	if errors.As(err, &awsErr) {
-		return awsErr.Code() == "NoSuchKey"
+	if err != nil {
+		errStr := err.Error()
+		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
 	}
 
 	return false
@@ -611,8 +611,10 @@ func isRenderCommand(ctx *ParsingContext) bool {
 func getOutputJSONWithCaching(ctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
 	// Acquire synchronization lock to ensure only one instance of output is called per config.
 	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
+
 	actualLock.Lock()
 
 	// This debug log is useful for validating if the locking mechanism is working. If the locking mechanism is working,
@@ -716,7 +718,8 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 		return l, nil, err
 	}
 
-	if partialTerragruntConfig.TerraformBinary != "" {
+	// Only override TFPath if it was not explicitly set by the user via CLI or environment variable
+	if !targetOptions.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
 		targetOptions.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
@@ -946,6 +949,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		switch backend := remoteState.BackendName; backend {
 		case s3backend.BackendName:
 			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateS3(
+				ctx,
 				l,
 				targetTGOptions,
 				remoteState,
@@ -1004,7 +1008,7 @@ func getTerragruntOutputJSONFromRemoteState(
 }
 
 // getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+func getTerragruntOutputJSONFromRemoteStateS3(ctx *ParsingContext, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
 	l.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.BackendConfig["bucket"], remoteState.BackendConfig["key"])
 
 	s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).ParseExtendedS3Config()
@@ -1014,16 +1018,15 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := awshelper.CreateS3Client(l, sessionConfig, opts)
+	s3Client, err := awshelper.CreateS3Client(ctx, l, sessionConfig, opts)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
-	result, err := s3Client.GetObject(&s3.GetObjectInput{
+	result, err := s3Client.GetObject(ctx.Context, &s3.GetObjectInput{
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),
 		Key:    aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["key"])),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1092,6 +1095,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, l log.Logger, w
 func runTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
+
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 
 	newOpts := *ctx.TerragruntOptions

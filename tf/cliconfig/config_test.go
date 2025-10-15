@@ -101,6 +101,7 @@ disable_checkpoint_signature = false
 			for _, host := range tc.hosts {
 				tc.config.AddHost(host.Name, host.Services)
 			}
+
 			tc.config.AddProviderInstallationMethods(tc.providerInstallationMethods...)
 
 			err := tc.config.Save(configFile)

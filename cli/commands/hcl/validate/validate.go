@@ -36,6 +36,11 @@ import (
 
 const splitCount = 2
 
+// diagnostics to skip because they are not relevant for terragrunt validation
+var skipHCLDiagnostics = []string{
+	"there is no variable named \"dependency\"",
+}
+
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
@@ -62,11 +67,41 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	parseOptions := []hclparse.Option{
 		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			for _, hclDiag := range hclDiags {
+				// Only apply skip list when using --show-config-path flag
+				// This flag is used by the deprecated hclvalidate command to show only file paths
+				if opts.HCLValidateShowConfigPath {
+					skip := false
+
+					for _, skipMsg := range skipHCLDiagnostics {
+						// check if the diagnostic message contains any of the skip messages in lower case
+						if strings.Contains(strings.ToLower(hclDiag.Detail), strings.ToLower(skipMsg)) {
+							skip = true
+							break
+						}
+					}
+
+					if skip {
+						continue
+					}
+				}
+
+				// Only report diagnostics that are actually in the file being parsed,
+				// not errors from dependencies or other files
+				if hclDiag.Subject != nil && file != nil {
+					fileFilename := file.Body.MissingItemRange().Filename
+
+					diagFilename := hclDiag.Subject.Filename
+					if diagFilename != fileFilename {
+						continue
+					}
+				}
+
 				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
 				if !diags.Contains(newDiag) {
 					diags = append(diags, newDiag)
 				}
 			}
+
 			return nil, nil
 		}),
 	}
@@ -78,42 +113,55 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return err
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
+	stack, err := runner.FindStackInSubfolders(
+		ctx,
+		l,
+		opts,
+		common.WithParseOptions(parseOptions),
+		common.WithReport(report.NewReport()),
+	)
 	if err != nil {
-		return err
+		return processDiagnostics(l, opts, diags, err)
 	}
 
 	stackErr := stack.Run(ctx, l, opts)
 
-	if len(diags) > 0 {
-		sort.Slice(diags, func(i, j int) bool {
-			var a, b string
+	return processDiagnostics(l, opts, diags, stackErr)
+}
 
-			if diags[i].Range != nil {
-				a = diags[i].Range.Filename
-			}
-
-			if diags[j].Range != nil {
-				b = diags[j].Range.Filename
-			}
-
-			return a < b
-		})
-
-		if err := writeDiagnostics(l, opts, diags); err != nil {
-			return err
-		}
-
-		// If there were diagnostics and stackErr is currently nil,
-		// create a new error to signal overall validation failure.
-		//
-		// This also ensures a non-zero exit code is returned by Terragrunt.
-		if stackErr == nil {
-			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
-		}
+func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+	if len(diags) == 0 {
+		return callErr
 	}
 
-	return stackErr
+	sort.Slice(diags, func(i, j int) bool {
+		var a, b string
+
+		if diags[i].Range != nil {
+			a = diags[i].Range.Filename
+		}
+
+		if diags[j].Range != nil {
+			b = diags[j].Range.Filename
+		}
+
+		return a < b
+	})
+
+	if err := writeDiagnostics(l, opts, diags); err != nil {
+		return err
+	}
+
+	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
+
+	// If diagnostics exist and no other error was returned,
+	// return a synthetic error to mark validation as failed and
+	// ensure a non-zero exit code from Terragrunt.
+	if callErr == nil {
+		return diagError
+	}
+
+	return errors.Join(callErr, diagError)
 }
 
 func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {

@@ -5,7 +5,7 @@
 name: OIDC Integration Tests
 
 on:
-  push:
+  workflow_call:
 
 permissions:
   id-token: write
@@ -33,7 +33,7 @@ jobs:
               - .github/scripts/setup/tofu-switch.sh
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -47,7 +47,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
-          version: 2025.4.4
+          version: 2025.8.16
           experimental: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

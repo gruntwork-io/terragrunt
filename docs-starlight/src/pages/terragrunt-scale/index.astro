@@ -1,0 +1,49 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import Footer from '@components/dv-Footer.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+import Testimonial from '@components/Testimonial.astro';
+import TSAccelerator from '@components/TSAccelerator.astro';
+import TSHero from '@components/TSHero.astro';
+import TSPricing from '@components/TSPricing.astro';
+import TSTerragruntDrift from '@components/TSTerragruntDrift.astro';
+import TSTerragruntPipelines from '@components/TSTerragruntPipelines.astro';
+import TSTerragruntPatcher from '@components/TSTerragruntPatcher.astro';
+import Vimeo from '@components/Vimeo.astro';
+
+import '@styles/global.css';
+import '@styles/custom-page.css';
+---
+<BaseLayout
+  title="Terragrunt Scale | Secure GitOps Pipelines & Drift Detection"
+  description="Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current; built by the creators of Terragrunt."
+  url="https://terragrunt.gruntwork.io/terragrunt-scale/"
+>
+  <Header showThemeToggle={false} />
+  <TSHero />
+  <PageContainer>
+    <FeaturedBrands />
+    <SectionSpacer />
+    <Vimeo url="https://player.vimeo.com/video/1118246701" />
+    <SectionSpacer />
+    <TSTerragruntPipelines />
+    <SectionSpacer />
+    <TSTerragruntDrift />
+    <SectionSpacer />
+    <TSTerragruntPatcher />
+    <div id="view-plans">
+      <SectionSpacer />
+    </div>
+    <TSPricing />
+    <TSAccelerator />
+    <SectionSpacer />
+    <Testimonial />
+    <SectionSpacer />
+    <div class="flex flex-col gap-44 z-10">
+      <Footer />
+    </div>
+  </PageContainer>
+</BaseLayout>

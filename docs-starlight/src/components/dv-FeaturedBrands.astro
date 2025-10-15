@@ -1,0 +1,79 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+import { getCollection } from 'astro:content';
+
+// Get all brands from the content collection
+const brandsCollection = await getCollection('brands');
+
+// The JSON file contains an array of brands, so we get the first entry's data
+const brands = Array.isArray(brandsCollection) ? brandsCollection : [];
+
+const sortedBrands = brands.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
+---
+<!-- Logos Container -->
+<section class="w-full bg-[#FAFAFA] border-b border-gray-3 py-6 lg:py-9 z-10">
+    <!-- Logos Wrapper -->
+    <div class="relative flex flex-col lg:flex-row justify-center items-center gap-8 lg:gap-auto lg:px-0 lg:pr-10 lg:pl-20">
+        <p class="text-center text-xs font-mono text-gray-2">
+            MANAGING INFRASTRUCTURE AT
+        </p>
+
+        <!-- Div with left and right fade -->
+        <div class="relative flex-1 px-0 md:px-20 lg:px-0 overflow-hidden">
+            <!-- Left Fade -->
+            <div class="pointer-events-none absolute left-0 top-0 h-full w-20 md:w-40 z-10 bg-gradient-to-r from-[#FAFAFA] to-transparent"></div>
+
+            <!-- Right Fade -->
+            <div class="pointer-events-none absolute right-0 top-0 h-full w-20 md:w-40 z-10 bg-gradient-to-l from-[#FAFAFA] to-transparent"></div>
+
+            <!-- Brand Logos -->
+            <div id="LogoContainer" class="flex flex-row">
+                <div id="Scroller" class="flex flex-row">
+                    <div id="LogoScroll" class="flex animate-marquee items-center justify-start gap-6 no-scrollbar">
+                        {[...sortedBrands, ...sortedBrands].map((brand, i) => (
+                            <Image src={brand.data.logo} alt={brand.data.alt} class="h-8 flex-shrink-0" />
+                        ))}
+                    </div>
+                    <div id="LogoScroll" class="flex animate-marquee items-center justify-start gap-6 no-scrollbar">
+                        {[...sortedBrands, ...sortedBrands].map((brand, i) => (
+                            <Image src={brand.data.logo} alt={brand.data.alt} class="h-8 flex-shrink-0" />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+  const scroller = document.getElementById("Scroller");
+
+  // select both scroll tracks
+  const logoScrolls = scroller.querySelectorAll("[id^='LogoScroll']");
+
+  // calculate the width of one track
+  const scrollWidth = logoScrolls[0].offsetWidth;
+
+  // total distance to scroll
+  const distance = scrollWidth;
+
+  // speed in pixels per second
+  const speed = 60; // adjust as needed
+
+  let start = null;
+
+  function animate(timestamp) {
+    if (!start) start = timestamp;
+    const elapsed = timestamp - start;
+
+    // calculate current offset
+    const offset = -(elapsed / 1000) * speed % distance;
+
+    scroller.style.transform = `translateX(${offset}px)`;
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+</script>

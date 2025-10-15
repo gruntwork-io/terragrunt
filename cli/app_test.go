@@ -11,10 +11,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
+	hclformat "github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/config"
 	clipkg "github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -36,8 +39,6 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows")
 	}
-
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	workingDir, err := os.Getwd()
 	if err != nil {
@@ -79,7 +80,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"apply", doubleDashed(terragruntPrefix.FlagName("include-external-dependencies"))},
+			args:            []string{"apply", doubleDashed(shared.QueueIncludeExternalFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply"}, false, "", false, true, defaultLogLevel, false),
 		},
 
@@ -104,17 +105,17 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.QueueIgnoreErrorsFlagName)},
+			args:            []string{"plan", doubleDashed(shared.QueueIgnoreErrorsFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", true, false, defaultLogLevel, false),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("ignore-external-dependencies"))},
+			args:            []string{"plan", doubleDashed(shared.QueueExcludeExternalFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, false),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("iam-role")), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
+			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleFlagName), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
 			expectedOptions: mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 		},
 
@@ -129,7 +130,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("iam-web-identity-token")), "web-identity-token"},
+			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleWebIdentityTokenFlagName), "web-identity-token"},
 			expectedOptions: mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "web-identity-token"),
 		},
 
@@ -165,10 +166,6 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args:            []string{"plan", doubleDashed(run.InputsDebugFlagName)},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, true),
-		},
-		{
-			args:            []string{outputmodulegroups.CommandName, outputmodulegroups.SubCommandApply},
-			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{outputmodulegroups.SubCommandApply}, false, "", false, false, defaultLogLevel, false),
 		},
 	}
 
@@ -279,6 +276,7 @@ func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath strin
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
 	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
+
 	return opts
 }
 
@@ -287,6 +285,7 @@ func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, working
 
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.SourceMap = sourceMap
+
 	return opts
 }
 
@@ -310,6 +309,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
+
 			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -382,9 +382,7 @@ func TestParseMultiStringArg(t *testing.T) {
 func TestParseMutliStringKeyValueArg(t *testing.T) {
 	t.Parallel()
 
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-
-	flagName := doubleDashed(terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName))
+	flagName := doubleDashed(awsproviderpatch.OverrideAttrFlagName)
 
 	testCases := []struct {
 		expectedErr  error
@@ -498,7 +496,7 @@ func TestTerragruntHelp(t *testing.T) {
 		{
 			args:        []string{"terragrunt", awsproviderpatch.CommandName, "-h"},
 			expected:    run.ConfigFlagName,
-			notExpected: commands.CommandHCLFmtName,
+			notExpected: hcl.CommandName + " " + hclformat.CommandName,
 		},
 		{
 			args:     []string{"terragrunt", run.CommandName, "--help"},
@@ -517,6 +515,7 @@ func TestTerragruntHelp(t *testing.T) {
 			require.NoError(t, err, tc)
 
 			assert.Contains(t, output.String(), tc.expected)
+
 			if tc.notExpected != "" {
 				assert.NotContains(t, output.String(), tc.notExpected)
 			}
@@ -575,10 +574,9 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
+
 	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
-	app.Commands = append(
-		commands.NewDeprecatedCommands(l, opts),
-		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(l, opts))
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx *clipkg.Context) error {
 		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)
@@ -587,6 +585,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.ExitErrHandler = cli.ExitErrHandler
 
 	err := app.Run(append([]string{"--"}, args...))
+
 	return opts, err
 }
 
