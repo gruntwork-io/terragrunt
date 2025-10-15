@@ -2,58 +2,60 @@ package filter_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 )
 
-// Example_basicPathFilter demonstrates filtering units by path with a glob pattern.
+// Example_basicPathFilter demonstrates filtering configs by path with a glob pattern.
 func Example_basicPathFilter() {
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "db", Path: "./libs/db"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
-	result, _ := filter.Apply("./apps/*", units)
+	result, _ := filter.Apply("./apps/*", configs)
 
-	for _, unit := range result {
-		fmt.Println(unit.Name)
+	for _, cfg := range result {
+		fmt.Println(filepath.Base(cfg.Path))
 	}
 	// Output:
 	// app1
 	// app2
 }
 
-// Example_attributeFilter demonstrates filtering units by name attribute.
+// Example_attributeFilter demonstrates filtering configs by name attribute.
 func Example_attributeFilter() {
-	units := []filter.Unit{
-		{Name: "frontend", Path: "./apps/frontend"},
-		{Name: "backend", Path: "./apps/backend"},
-		{Name: "api", Path: "./services/api"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/frontend", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/backend", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./services/api", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
-	result, _ := filter.Apply("name=api", units)
+	result, _ := filter.Apply("name=api", configs)
 
-	for _, unit := range result {
-		fmt.Println(unit.Path)
+	for _, cfg := range result {
+		fmt.Println(cfg.Path)
 	}
 	// Output:
 	// ./services/api
 }
 
-// Example_exclusionFilter demonstrates excluding units using the negation operator.
+// Example_exclusionFilter demonstrates excluding configs using the negation operator.
 func Example_exclusionFilter() {
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "legacy", Path: "./apps/legacy"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
-	result, _ := filter.Apply("!legacy", units)
+	result, _ := filter.Apply("!legacy", configs)
 
-	for _, unit := range result {
-		fmt.Println(unit.Name)
+	for _, cfg := range result {
+		fmt.Println(filepath.Base(cfg.Path))
 	}
 	// Output:
 	// app1
@@ -62,18 +64,18 @@ func Example_exclusionFilter() {
 
 // Example_intersectionFilter demonstrates refining results with the intersection operator.
 func Example_intersectionFilter() {
-	units := []filter.Unit{
-		{Name: "frontend", Path: "./apps/frontend"},
-		{Name: "backend", Path: "./apps/backend"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/frontend", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/backend", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
-	// Select units in ./apps/ that are named "frontend"
-	result, _ := filter.Apply("./apps/* | frontend", units)
+	// Select configs in ./apps/ that are named "frontend"
+	result, _ := filter.Apply("./apps/* | frontend", configs)
 
-	for _, unit := range result {
-		fmt.Println(unit.Name)
+	for _, cfg := range result {
+		fmt.Println(filepath.Base(cfg.Path))
 	}
 	// Output:
 	// frontend
@@ -81,19 +83,19 @@ func Example_intersectionFilter() {
 
 // Example_complexQuery demonstrates a complex filter combining paths and negation.
 func Example_complexQuery() {
-	units := []filter.Unit{
-		{Name: "web", Path: "./services/web"},
-		{Name: "worker", Path: "./services/worker"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
-		{Name: "cache", Path: "./libs/cache"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/cache", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	// Select all services except worker
-	result, _ := filter.Apply("./services/* | !worker", units)
+	result, _ := filter.Apply("./services/* | !worker", configs)
 
-	for _, unit := range result {
-		fmt.Println(unit.Name)
+	for _, cfg := range result {
+		fmt.Println(filepath.Base(cfg.Path))
 	}
 	// Output:
 	// web
@@ -101,9 +103,9 @@ func Example_complexQuery() {
 
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
 func Example_parseAndEvaluate() {
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	// Parse the filter once
@@ -113,31 +115,31 @@ func Example_parseAndEvaluate() {
 		return
 	}
 
-	// Evaluate multiple times with different unit sets
-	result1, _ := f.Evaluate(units)
-	fmt.Printf("Found %d units\n", len(result1))
+	// Evaluate multiple times with different config sets
+	result1, _ := f.Evaluate(configs)
+	fmt.Printf("Found %d configs\n", len(result1))
 
 	// You can also inspect the original query
 	fmt.Printf("Original query: %s\n", f.String())
 
 	// Output:
-	// Found 1 units
+	// Found 1 configs
 	// Original query: app1
 }
 
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
-	units := []filter.Unit{
-		{Name: "vpc", Path: "./infrastructure/networking/vpc"},
-		{Name: "subnets", Path: "./infrastructure/networking/subnets"},
-		{Name: "app-server", Path: "./infrastructure/compute/app-server"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./infrastructure/networking/vpc", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./infrastructure/networking/subnets", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./infrastructure/compute/app-server", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
-	// Match all infrastructure units at any depth
-	result, _ := filter.Apply("./infrastructure/**", units)
+	// Match all infrastructure configs at any depth
+	result, _ := filter.Apply("./infrastructure/**", configs)
 
-	for _, unit := range result {
-		fmt.Println(unit.Name)
+	for _, cfg := range result {
+		fmt.Println(filepath.Base(cfg.Path))
 	}
 	// Output:
 	// vpc
@@ -166,11 +168,11 @@ func Example_errorHandling() {
 
 // Example_multipleFilters demonstrates using multiple filters with union semantics.
 func Example_multipleFilters() {
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	// Parse multiple filters - results are unioned
@@ -179,13 +181,14 @@ func Example_multipleFilters() {
 		"name=db",
 	})
 
-	result, _ := filters.Evaluate(units)
+	result, _ := filters.Evaluate(configs)
 
 	// Sort for consistent output
 	names := make([]string, len(result))
-	for i, unit := range result {
-		names[i] = unit.Name
+	for i, cfg := range result {
+		names[i] = filepath.Base(cfg.Path)
 	}
+
 	sort.Strings(names)
 
 	for _, name := range names {

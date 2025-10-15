@@ -1,115 +1,117 @@
 package filter_test
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Test data used across tests
-var testUnits = []filter.Unit{
-	{Name: "app1", Path: "./apps/app1"},
-	{Name: "app2", Path: "./apps/app2"},
-	{Name: "legacy", Path: "./apps/legacy"},
-	{Name: "db", Path: "./libs/db"},
-	{Name: "api", Path: "./libs/api"},
-	{Name: "web", Path: "./services/web"},
-	{Name: "worker", Path: "./services/worker"},
+var testConfigs = []*discoveredconfig.DiscoveredConfig{
+	{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+	{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+	{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+	{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+	{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+	{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
+	{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
 }
 
 func TestFilter_ParseAndEvaluate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		filterString  string
-		expectedUnits []filter.Unit
-		expectError   bool
+		name            string
+		filterString    string
+		expectedConfigs []*discoveredconfig.DiscoveredConfig
+		expectError     bool
 	}{
 		{
 			name:         "simple name filter",
 			filterString: "app1",
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
-			expectedUnits: []filter.Unit{
-				{Name: "db", Path: "./libs/db"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "db", Path: "./libs/db"},
-				{Name: "api", Path: "./libs/api"},
-				{Name: "web", Path: "./services/web"},
-				{Name: "worker", Path: "./services/worker"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "intersection of path and name",
 			filterString: "./apps/* | app1",
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "intersection with negation",
 			filterString: "./apps/* | !legacy",
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "chained intersections",
 			filterString: "./apps/* | !legacy | app1",
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
-			expectedUnits: []filter.Unit{
-				{Name: "web", Path: "./services/web"},
-				{Name: "worker", Path: "./services/worker"},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
-			name:          "parse error - empty",
-			filterString:  "",
-			expectedUnits: nil,
-			expectError:   true,
+			name:            "parse error - empty",
+			filterString:    "",
+			expectedConfigs: nil,
+			expectError:     true,
 		},
 		{
-			name:          "parse error - invalid syntax",
-			filterString:  "foo |",
-			expectedUnits: nil,
-			expectError:   true,
+			name:            "parse error - invalid syntax",
+			filterString:    "foo |",
+			expectedConfigs: nil,
+			expectError:     true,
 		},
 		{
-			name:          "parse error - incomplete expression",
-			filterString:  "name=",
-			expectedUnits: nil,
-			expectError:   true,
+			name:            "parse error - incomplete expression",
+			filterString:    "name=",
+			expectedConfigs: nil,
+			expectError:     true,
 		},
 	}
 
@@ -130,10 +132,10 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 
 			require.NotNil(t, filter)
 
-			result, err := filter.Evaluate(testUnits)
+			result, err := filter.Evaluate(testConfigs)
 			require.NoError(t, err)
 
-			assert.ElementsMatch(t, tt.expectedUnits, result)
+			assert.ElementsMatch(t, tt.expectedConfigs, result)
 
 			// Verify String() returns original query
 			assert.Equal(t, tt.filterString, filter.String())
@@ -145,41 +147,41 @@ func TestFilter_Apply(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		filterString  string
-		units         []filter.Unit
-		expectedUnits []filter.Unit
-		expectError   bool
+		name            string
+		filterString    string
+		configs         []*discoveredconfig.DiscoveredConfig
+		expectedConfigs []*discoveredconfig.DiscoveredConfig
+		expectError     bool
 	}{
 		{
 			name:         "apply with simple filter",
 			filterString: "app1",
-			units:        testUnits,
-			expectedUnits: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			configs:      testConfigs,
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:         "apply with path filter",
 			filterString: "./libs/*",
-			units:        testUnits,
-			expectedUnits: []filter.Unit{
-				{Name: "db", Path: "./libs/db"},
-				{Name: "api", Path: "./libs/api"},
+			configs:      testConfigs,
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
-			name:          "apply with empty units",
-			filterString:  "anything",
-			units:         []filter.Unit{},
-			expectedUnits: []filter.Unit{},
+			name:            "apply with empty configs",
+			filterString:    "anything",
+			configs:         []*discoveredconfig.DiscoveredConfig{},
+			expectedConfigs: []*discoveredconfig.DiscoveredConfig{},
 		},
 		{
-			name:          "apply with parse error",
-			filterString:  "!",
-			units:         testUnits,
-			expectedUnits: nil,
-			expectError:   true,
+			name:            "apply with parse error",
+			filterString:    "!",
+			configs:         testConfigs,
+			expectedConfigs: nil,
+			expectError:     true,
 		},
 	}
 
@@ -187,7 +189,7 @@ func TestFilter_Apply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, tt.units)
+			result, err := filter.Apply(tt.filterString, tt.configs)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -198,7 +200,7 @@ func TestFilter_Apply(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.ElementsMatch(t, tt.expectedUnits, result)
+			assert.ElementsMatch(t, tt.expectedConfigs, result)
 		})
 	}
 }
@@ -224,16 +226,16 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 	t.Parallel()
 
 	// Simulate a real-world repository structure
-	repoUnits := []filter.Unit{
-		{Name: "vpc", Path: "./infrastructure/networking/vpc"},
-		{Name: "subnets", Path: "./infrastructure/networking/subnets"},
-		{Name: "security-groups", Path: "./infrastructure/networking/security-groups"},
-		{Name: "app-server", Path: "./infrastructure/compute/app-server"},
-		{Name: "db-server", Path: "./infrastructure/compute/db-server"},
-		{Name: "frontend", Path: "./apps/frontend"},
-		{Name: "backend", Path: "./apps/backend"},
-		{Name: "api", Path: "./apps/api"},
-		{Name: "test-app", Path: "./test/test-app"},
+	repoConfigs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./infrastructure/networking/vpc", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./infrastructure/networking/subnets", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./infrastructure/networking/security-groups", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./infrastructure/compute/app-server", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./infrastructure/compute/db-server", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/frontend", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/backend", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/api", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./test/test-app", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	tests := []struct {
@@ -278,13 +280,13 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, repoUnits)
+			result, err := filter.Apply(tt.filterString, repoConfigs)
 			require.NoError(t, err)
 
 			// Extract just the names for easier comparison
 			var resultNames []string
-			for _, unit := range result {
-				resultNames = append(resultNames, unit.Name)
+			for _, cfg := range result {
+				resultNames = append(resultNames, filepath.Base(cfg.Path))
 			}
 
 			assert.ElementsMatch(t, tt.expected, resultNames, tt.description)
@@ -298,7 +300,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("filter with no matches", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := filter.Apply("nonexistent", testUnits)
+		result, err := filter.Apply("nonexistent", testConfigs)
 		require.NoError(t, err)
 
 		assert.Empty(t, result)
@@ -311,10 +313,10 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 
 		// Evaluate multiple times to ensure statelessness
-		result1, err := filter.Evaluate(testUnits)
+		result1, err := filter.Evaluate(testConfigs)
 		require.NoError(t, err)
 
-		result2, err := filter.Evaluate(testUnits)
+		result2, err := filter.Evaluate(testConfigs)
 		require.NoError(t, err)
 
 		assert.Equal(t, result1, result2)
@@ -331,13 +333,13 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 			{"./apps/* | !legacy"},
 		}
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
-			{Name: "app2", Path: "./apps/app2"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		for _, tt := range tests {
-			result, err := filter.Apply(tt.filterString, testUnits)
+			result, err := filter.Apply(tt.filterString, testConfigs)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, result)
