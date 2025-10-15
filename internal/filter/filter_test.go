@@ -1,14 +1,15 @@
-package filter
+package filter_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Test data used across tests
-var testUnits = []Unit{
+var testUnits = []filter.Unit{
 	{Name: "app1", Path: "./apps/app1"},
 	{Name: "app2", Path: "./apps/app2"},
 	{Name: "legacy", Path: "./apps/legacy"},
@@ -24,27 +25,27 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 	tests := []struct {
 		name          string
 		filterString  string
-		expectedUnits []Unit
+		expectedUnits []filter.Unit
 		expectError   bool
 	}{
 		{
 			name:         "simple name filter",
 			filterString: "app1",
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "legacy", Path: "./apps/legacy"},
@@ -53,7 +54,7 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "db", Path: "./libs/db"},
@@ -63,36 +64,31 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 			},
 		},
 		{
-			name:         "union of two filters",
-			filterString: "app1 | db",
-			expectedUnits: []Unit{
+			name:         "intersection of path and name",
+			filterString: "./apps/* | app1",
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
-				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
-			name:         "complex filter with path and attribute",
-			filterString: "./apps/* | db",
-			expectedUnits: []Unit{
+			name:         "intersection with negation",
+			filterString: "./apps/* | !legacy",
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
-				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
-			name:         "multiple unions",
-			filterString: "app1 | db | web",
-			expectedUnits: []Unit{
+			name:         "chained intersections",
+			filterString: "./apps/* | !legacy | app1",
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
-				{Name: "db", Path: "./libs/db"},
-				{Name: "web", Path: "./services/web"},
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "web", Path: "./services/web"},
 				{Name: "worker", Path: "./services/worker"},
 			},
@@ -121,11 +117,12 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := Parse(tt.filterString)
+			filter, err := filter.Parse(tt.filterString)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, filter)
+
 				return
 			}
 
@@ -148,15 +145,15 @@ func TestFilter_Apply(t *testing.T) {
 	tests := []struct {
 		name          string
 		filterString  string
-		units         []Unit
-		expectedUnits []Unit
+		units         []filter.Unit
+		expectedUnits []filter.Unit
 		expectError   bool
 	}{
 		{
 			name:         "apply with simple filter",
 			filterString: "app1",
 			units:        testUnits,
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 			},
 		},
@@ -164,7 +161,7 @@ func TestFilter_Apply(t *testing.T) {
 			name:         "apply with path filter",
 			filterString: "./libs/*",
 			units:        testUnits,
-			expectedUnits: []Unit{
+			expectedUnits: []filter.Unit{
 				{Name: "db", Path: "./libs/db"},
 				{Name: "api", Path: "./libs/api"},
 			},
@@ -172,8 +169,8 @@ func TestFilter_Apply(t *testing.T) {
 		{
 			name:          "apply with empty units",
 			filterString:  "anything",
-			units:         []Unit{},
-			expectedUnits: []Unit{},
+			units:         []filter.Unit{},
+			expectedUnits: []filter.Unit{},
 		},
 		{
 			name:          "apply with parse error",
@@ -188,11 +185,12 @@ func TestFilter_Apply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := Apply(tt.filterString, tt.units)
+			result, err := filter.Apply(tt.filterString, tt.units)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
+
 				return
 			}
 
@@ -206,14 +204,14 @@ func TestFilter_Expression(t *testing.T) {
 	t.Parallel()
 
 	filterString := "name=foo"
-	filter, err := Parse(filterString)
+	f, err := filter.Parse(filterString)
 	require.NoError(t, err)
 
-	expr := filter.Expression()
+	expr := f.Expression()
 	assert.NotNil(t, expr)
 
 	// Verify it's the correct type
-	attrFilter, ok := expr.(*AttributeFilter)
+	attrFilter, ok := expr.(*filter.AttributeFilter)
 	assert.True(t, ok)
 	assert.Equal(t, "name", attrFilter.Key)
 	assert.Equal(t, "foo", attrFilter.Value)
@@ -223,7 +221,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 	t.Parallel()
 
 	// Simulate a real-world repository structure
-	repoUnits := []Unit{
+	repoUnits := []filter.Unit{
 		{Name: "vpc", Path: "./infrastructure/networking/vpc"},
 		{Name: "subnets", Path: "./infrastructure/networking/subnets"},
 		{Name: "security-groups", Path: "./infrastructure/networking/security-groups"},
@@ -248,16 +246,16 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 			expected:     []string{"vpc", "subnets", "security-groups"},
 		},
 		{
-			name:         "apps and compute infrastructure",
-			filterString: "./apps/* | ./infrastructure/compute/*",
-			description:  "Select all apps and compute infrastructure",
-			expected:     []string{"frontend", "backend", "api", "app-server", "db-server"},
+			name:         "apps excluding test-app",
+			filterString: "./apps/* | !test-app",
+			description:  "Select all apps except test-app",
+			expected:     []string{"frontend", "backend", "api"},
 		},
 		{
-			name:         "specific units by name",
-			filterString: "vpc | app-server | frontend",
-			description:  "Select specific units by their names",
-			expected:     []string{"vpc", "app-server", "frontend"},
+			name:         "compute infrastructure excluding db-server",
+			filterString: "./infrastructure/compute/* | !db-server",
+			description:  "Select compute infrastructure except db-server",
+			expected:     []string{"app-server"},
 		},
 		{
 			name:         "everything in infrastructure",
@@ -277,7 +275,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := Apply(tt.filterString, repoUnits)
+			result, err := filter.Apply(tt.filterString, repoUnits)
 			require.NoError(t, err)
 
 			// Extract just the names for easier comparison
@@ -297,7 +295,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("filter with no matches", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := Apply("nonexistent", testUnits)
+		result, err := filter.Apply("nonexistent", testUnits)
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
@@ -305,7 +303,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("multiple parse and evaluate calls", func(t *testing.T) {
 		t.Parallel()
 
-		filter, err := Parse("app1")
+		filter, err := filter.Parse("app1")
 		require.NoError(t, err)
 
 		// Evaluate multiple times to ensure statelessness
@@ -324,18 +322,18 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		tests := []struct {
 			filterString string
 		}{
-			{"app1 |   app2"},
-			{"  app1  |  app2  "},
-			{"app1 | app2"},
+			{"./apps/* |   !legacy"},
+			{"  ./apps/*  |  !legacy  "},
+			{"./apps/* | !legacy"},
 		}
 
-		expected := []Unit{
+		expected := []filter.Unit{
 			{Name: "app1", Path: "./apps/app1"},
 			{Name: "app2", Path: "./apps/app2"},
 		}
 
 		for _, tt := range tests {
-			result, err := Apply(tt.filterString, testUnits)
+			result, err := filter.Apply(tt.filterString, testUnits)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, expected, result)
 		}
