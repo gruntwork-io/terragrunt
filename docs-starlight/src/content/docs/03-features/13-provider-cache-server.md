@@ -78,8 +78,8 @@ terragrunt apply
 
   - Create local CLI config file `.terraformrc` for each module that concatenates the user configuration from the OpenTofu/Terraform [CLI config file](https://opentofu.org/docs/cli/config/config-file/) with additional sections:
 
-  - [provider-installation](https://opentofu.org/docs/cli/config/config-file/#provider-installation) forces OpenTofu/Terraform to look for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
-  - [host](https://github.com/hashicorp/terraform/issues/28309) forces OpenTofu/Terraform to [forward](#how-forwarding-requests-through-the-provider-cache-server-works) all provider requests through the Terragrunt Provider Cache server. The address link contains [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) and is unique for each module, used by Terragrunt Provider Cache server to associate modules with the requested providers.
+    - [provider-installation](https://opentofu.org/docs/cli/config/config-file/#provider-installation) forces OpenTofu/Terraform to look for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
+    - [host](https://github.com/hashicorp/terraform/issues/28309) forces OpenTofu/Terraform to [forward](#how-forwarding-requests-through-the-provider-cache-server-works) all provider requests through the Terragrunt Provider Cache server. The address link contains [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) and is unique for each module, used by Terragrunt Provider Cache server to associate modules with the requested providers.
   - Set environment variables:
     - [TF_CLI_CONFIG_FILE](https://opentofu.org/docs/cli/config/environment-variables/#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
     - [TF*TOKEN*\*](https://opentofu.org/docs/cli/config/config-file/#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Provider Cache server.
