@@ -345,6 +345,8 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 	}
 
 	suppressOutput := false
+	disableCache := false
+	useGlobalCache := false
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 	cachePath := currentPath
 
@@ -356,7 +358,20 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 
 			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
+			if disableCache {
+				return "", errors.New(ConflictingRunCmdCacheOptionsError{})
+			}
+
+			useGlobalCache = true
 			cachePath = "_global_"
+
+			args = slices.Delete(args, 0, 1)
+		case "--terragrunt-no-cache":
+			if useGlobalCache {
+				return "", errors.New(ConflictingRunCmdCacheOptionsError{})
+			}
+
+			disableCache = true
 
 			args = slices.Delete(args, 0, 1)
 		default:
@@ -368,15 +383,18 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
 
-	cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
-	if foundInCache {
-		if suppressOutput {
-			l.Debugf("run_cmd, cached output: [REDACTED]")
-		} else {
-			l.Debugf("run_cmd, cached output: [%s]", cachedValue)
-		}
+	// Skip cache lookup if --terragrunt-no-cache is set
+	if !disableCache {
+		cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
+		if foundInCache {
+			if suppressOutput {
+				l.Debugf("run_cmd, cached output: [REDACTED]")
+			} else {
+				l.Debugf("run_cmd, cached output: [%s]", cachedValue)
+			}
 
-		return cachedValue, nil
+			return cachedValue, nil
+		}
 	}
 
 	cmdOutput, err := shell.RunCommandWithOutput(ctx, l, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
@@ -392,9 +410,11 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 		l.Debugf("run_cmd output: [%s]", value)
 	}
 
-	// Persisting result in cache to avoid future re-evaluation
+	// Persisting result in cache to avoid future re-evaluation, unless --terragrunt-no-cache is set
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache.Put(ctx, cacheKey, value)
+	if !disableCache {
+		runCommandCache.Put(ctx, cacheKey, value)
+	}
 
 	return value, nil
 }
