@@ -1282,7 +1282,7 @@ func ParseConfig(
 ) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
-	if err := detectDeprecatedConfigurations(ctx, l, file); err != nil {
+	if err := DetectDeprecatedConfigurations(ctx, l, file); err != nil {
 		return nil, err
 	}
 
@@ -1370,9 +1370,9 @@ func ParseConfig(
 	return config, errs.ErrorOrNil()
 }
 
-// detectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
-func detectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hclparse.File) error {
-	if detectInputsCtyUsage(file) {
+// DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
+func DetectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hclparse.File) error {
+	if DetectInputsCtyUsage(file) {
 		// Dependency inputs (dependency.foo.inputs.bar) are now blocked by default for performance.
 		// This deprecated feature causes significant performance overhead due to recursive parsing.
 		return errors.New("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.")
@@ -1395,10 +1395,10 @@ func detectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hcl
 	return nil
 }
 
-// detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
+// DetectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
 //
 // This is deprecated functionality, so we look for this to determine if we should throw an error or warning.
-func detectInputsCtyUsage(file *hclparse.File) bool {
+func DetectInputsCtyUsage(file *hclparse.File) bool {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		return false

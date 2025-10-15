@@ -1,8 +1,9 @@
-package config
+package config_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -30,7 +31,7 @@ inputs = {
 	require.NoError(t, err)
 
 	// Create a parsing context with strict controls
-	ctx := &ParsingContext{
+	ctx := &config.ParsingContext{
 		TerragruntOptions: &options.TerragruntOptions{
 			StrictControls: controls.New(),
 		},
@@ -39,7 +40,7 @@ inputs = {
 	logger := log.New()
 
 	// Test that the deprecated configuration is detected and blocked
-	err = detectDeprecatedConfigurations(ctx, logger, file)
+	err = config.DetectDeprecatedConfigurations(ctx, logger, file)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Reading inputs from dependencies is no longer supported")
 	assert.Contains(t, err.Error(), "use outputs")
@@ -64,7 +65,7 @@ inputs = {
 	require.NoError(t, err)
 
 	// Create a parsing context with strict controls
-	ctx := &ParsingContext{
+	ctx := &config.ParsingContext{
 		TerragruntOptions: &options.TerragruntOptions{
 			StrictControls: controls.New(),
 		},
@@ -73,7 +74,7 @@ inputs = {
 	logger := log.New()
 
 	// Test that the dependency outputs are allowed (no error)
-	err = detectDeprecatedConfigurations(ctx, logger, file)
+	err = config.DetectDeprecatedConfigurations(ctx, logger, file)
 	require.NoError(t, err)
 }
 
@@ -126,11 +127,13 @@ inputs = {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			parser := hclparse.NewParser()
 			file, err := parser.ParseFromString(tc.config, "terragrunt.hcl")
 			require.NoError(t, err)
 
-			result := detectInputsCtyUsage(file)
+			result := config.DetectInputsCtyUsage(file)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

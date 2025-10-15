@@ -498,8 +498,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			// Dependency input parsing is a deprecated feature that causes significant
 			// performance overhead due to recursive parsing. Most users don't need this
 			// feature and should use dependency outputs instead.
-
 			allControls := ctx.TerragruntOptions.StrictControls
+
 			skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
 			if skipDependenciesInputs == nil {
 				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
@@ -512,8 +512,6 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 					"Dependency input parsing is deprecated - use dependency outputs instead.",
 				file.ConfigPath,
 			)
-			// Skip the rest of the inputs parsing logic
-			break
 
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}

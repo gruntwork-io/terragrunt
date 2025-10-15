@@ -3127,7 +3127,7 @@ inputs = {
 	// Try to parse this config - it should fail with an error about dependency inputs
 	err := helpers.RunTerragruntCommand(
 		t,
-		fmt.Sprintf("terragrunt validate --non-interactive --working-dir %s", tmpDir),
+		"terragrunt validate --non-interactive --working-dir "+tmpDir,
 		&stdout,
 		&stderr,
 	)
