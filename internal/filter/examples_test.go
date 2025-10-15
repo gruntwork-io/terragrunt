@@ -9,53 +9,53 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 )
 
-// Example_basicPathFilter demonstrates filtering configs by path with a glob pattern.
+// Example_basicPathFilter demonstrates filtering components by path with a glob pattern.
 func Example_basicPathFilter() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./libs/db", Kind: component.Unit},
 	}
 
-	result, _ := filter.Apply("./apps/*", configs)
+	result, _ := filter.Apply("./apps/*", components)
 
-	for _, cfg := range result {
-		fmt.Println(filepath.Base(cfg.Path))
+	for _, c := range result {
+		fmt.Println(filepath.Base(c.Path))
 	}
 	// Output:
 	// app1
 	// app2
 }
 
-// Example_attributeFilter demonstrates filtering configs by name attribute.
+// Example_attributeFilter demonstrates filtering components by name attribute.
 func Example_attributeFilter() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/frontend", Kind: component.Unit},
 		{Path: "./apps/backend", Kind: component.Unit},
 		{Path: "./services/api", Kind: component.Unit},
 	}
 
-	result, _ := filter.Apply("name=api", configs)
+	result, _ := filter.Apply("name=api", components)
 
-	for _, cfg := range result {
-		fmt.Println(cfg.Path)
+	for _, c := range result {
+		fmt.Println(c.Path)
 	}
 	// Output:
 	// ./services/api
 }
 
-// Example_exclusionFilter demonstrates excluding configs using the negation operator.
+// Example_exclusionFilter demonstrates excluding components using the negation operator.
 func Example_exclusionFilter() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
 	}
 
-	result, _ := filter.Apply("!legacy", configs)
+	result, _ := filter.Apply("!legacy", components)
 
-	for _, cfg := range result {
-		fmt.Println(filepath.Base(cfg.Path))
+	for _, c := range result {
+		fmt.Println(filepath.Base(c.Path))
 	}
 	// Output:
 	// app1
@@ -64,18 +64,18 @@ func Example_exclusionFilter() {
 
 // Example_intersectionFilter demonstrates refining results with the intersection operator.
 func Example_intersectionFilter() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/frontend", Kind: component.Unit},
 		{Path: "./apps/backend", Kind: component.Unit},
 		{Path: "./libs/db", Kind: component.Unit},
 		{Path: "./libs/api", Kind: component.Unit},
 	}
 
-	// Select configs in ./apps/ that are named "frontend"
-	result, _ := filter.Apply("./apps/* | frontend", configs)
+	// Select components in ./apps/ that are named "frontend"
+	result, _ := filter.Apply("./apps/* | frontend", components)
 
-	for _, cfg := range result {
-		fmt.Println(filepath.Base(cfg.Path))
+	for _, c := range result {
+		fmt.Println(filepath.Base(c.Path))
 	}
 	// Output:
 	// frontend
@@ -83,7 +83,7 @@ func Example_intersectionFilter() {
 
 // Example_complexQuery demonstrates a complex filter combining paths and negation.
 func Example_complexQuery() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./services/web", Kind: component.Unit},
 		{Path: "./services/worker", Kind: component.Unit},
 		{Path: "./libs/db", Kind: component.Unit},
@@ -92,10 +92,10 @@ func Example_complexQuery() {
 	}
 
 	// Select all services except worker
-	result, _ := filter.Apply("./services/* | !worker", configs)
+	result, _ := filter.Apply("./services/* | !worker", components)
 
-	for _, cfg := range result {
-		fmt.Println(filepath.Base(cfg.Path))
+	for _, c := range result {
+		fmt.Println(filepath.Base(c.Path))
 	}
 	// Output:
 	// web
@@ -103,7 +103,7 @@ func Example_complexQuery() {
 
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
 func Example_parseAndEvaluate() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 	}
@@ -116,30 +116,30 @@ func Example_parseAndEvaluate() {
 	}
 
 	// Evaluate multiple times with different config sets
-	result1, _ := f.Evaluate(configs)
-	fmt.Printf("Found %d configs\n", len(result1))
+	result1, _ := f.Evaluate(components)
+	fmt.Printf("Found %d components\n", len(result1))
 
 	// You can also inspect the original query
 	fmt.Printf("Original query: %s\n", f.String())
 
 	// Output:
-	// Found 1 configs
+	// Found 1 components
 	// Original query: app1
 }
 
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
 		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
 		{Path: "./infrastructure/compute/app-server", Kind: component.Unit},
 	}
 
-	// Match all infrastructure configs at any depth
-	result, _ := filter.Apply("./infrastructure/**", configs)
+	// Match all infrastructure components at any depth
+	result, _ := filter.Apply("./infrastructure/**", components)
 
-	for _, cfg := range result {
-		fmt.Println(filepath.Base(cfg.Path))
+	for _, c := range result {
+		fmt.Println(filepath.Base(c.Path))
 	}
 	// Output:
 	// vpc
@@ -168,7 +168,7 @@ func Example_errorHandling() {
 
 // Example_multipleFilters demonstrates using multiple filters with union semantics.
 func Example_multipleFilters() {
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./libs/db", Kind: component.Unit},
@@ -181,12 +181,12 @@ func Example_multipleFilters() {
 		"name=db",
 	})
 
-	result, _ := filters.Evaluate(configs)
+	result, _ := filters.Evaluate(components)
 
 	// Sort for consistent output
 	names := make([]string, len(result))
-	for i, cfg := range result {
-		names[i] = filepath.Base(cfg.Path)
+	for i, c := range result {
+		names[i] = filepath.Base(c.Path)
 	}
 
 	sort.Strings(names)

@@ -12,7 +12,7 @@ import (
 func TestEvaluate_PathFilter(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
@@ -43,6 +43,14 @@ func TestEvaluate_PathFilter(t *testing.T) {
 			},
 		},
 		{
+			name:   "glob with single wildcard and partial match",
+			filter: &filter.PathFilter{Value: "./apps/app*"},
+			expected: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
+				{Path: "./apps/app2", Kind: component.Unit},
+			},
+		},
+		{
 			name:   "glob with recursive wildcard",
 			filter: &filter.PathFilter{Value: "./apps/**"},
 			expected: []*component.Component{
@@ -50,14 +58,6 @@ func TestEvaluate_PathFilter(t *testing.T) {
 				{Path: "./apps/app2", Kind: component.Unit},
 				{Path: "./apps/legacy", Kind: component.Unit},
 				{Path: "./apps/subdir/nested", Kind: component.Unit},
-			},
-		},
-		{
-			name:   "glob matching specific subdirectory",
-			filter: &filter.PathFilter{Value: "./libs/*"},
-			expected: []*component.Component{
-				{Path: "./libs/db", Kind: component.Unit},
-				{Path: "./libs/api", Kind: component.Unit},
 			},
 		},
 		{
@@ -71,10 +71,9 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.filter, configs)
+			result, err := filter.Evaluate(tt.filter, components)
 			require.NoError(t, err)
 
-			// Sort for consistent comparison
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
@@ -83,11 +82,12 @@ func TestEvaluate_PathFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app", Kind: component.Unit},
-		{Path: "./libs/app", Kind: component.Unit}, // Same name, different path
+		{Path: "./libs/app", Kind: component.Unit},
 		{Path: "./libs/db", Kind: component.Unit},
 		{Path: "./libs/api", Kind: component.Unit},
+		{Path: "./libs/api", Kind: component.Stack},
 	}
 
 	tests := []struct {
@@ -116,9 +116,21 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 			expected: []*component.Component{},
 		},
 		{
-			name:     "type filter",
-			filter:   &filter.AttributeFilter{Key: "type", Value: "unit"},
-			expected: configs, // All configs match type=unit
+			name:   "type filter unit",
+			filter: &filter.AttributeFilter{Key: "type", Value: "unit"},
+			expected: []*component.Component{
+				{Path: "./apps/app", Kind: component.Unit},
+				{Path: "./libs/app", Kind: component.Unit},
+				{Path: "./libs/db", Kind: component.Unit},
+				{Path: "./libs/api", Kind: component.Unit},
+			},
+		},
+		{
+			name:   "type filter stack",
+			filter: &filter.AttributeFilter{Key: "type", Value: "stack"},
+			expected: []*component.Component{
+				{Path: "./libs/api", Kind: component.Stack},
+			},
 		},
 	}
 
@@ -126,7 +138,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.filter, configs)
+			result, err := filter.Evaluate(tt.filter, components)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -136,12 +148,12 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app", Kind: component.Unit},
 	}
 
 	attrFilter := &filter.AttributeFilter{Key: "invalid", Value: "foo"}
-	result, err := filter.Evaluate(attrFilter, configs)
+	result, err := filter.Evaluate(attrFilter, components)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -266,7 +278,7 @@ func TestEvaluate_AttributeFilter_Reading_ComponentAddedOnlyOnce(t *testing.T) {
 func TestEvaluate_PrefixExpression(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
@@ -318,7 +330,15 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Operator: "!",
 				Right:    &filter.AttributeFilter{Key: "type", Value: "unit"},
 			},
-			expected: []*component.Component{}, // All excluded
+			expected: []*component.Component{},
+		},
+		{
+			name: "exclude nothing",
+			expr: &filter.PrefixExpression{
+				Operator: "!",
+				Right:    &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+			},
+			expected: components,
 		},
 	}
 
@@ -326,7 +346,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, configs)
+			result, err := filter.Evaluate(tt.expr, components)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -336,7 +356,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 func TestEvaluate_InfixExpression(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
@@ -365,7 +385,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 			expr: &filter.InfixExpression{
 				Left:     &filter.PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "db"}, // db is in ./libs/, not ./apps/
+				Right:    &filter.AttributeFilter{Key: "name", Value: "db"},
 			},
 			expected: []*component.Component{},
 		},
@@ -385,7 +405,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 			expr: &filter.InfixExpression{
 				Left:     &filter.AttributeFilter{Key: "name", Value: "nonexistent1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"}, // Can't refine empty set
+				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
 			expected: []*component.Component{},
 		},
@@ -395,7 +415,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, configs)
+			result, err := filter.Evaluate(tt.expr, components)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -405,7 +425,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 func TestEvaluate_ComplexExpressions(t *testing.T) {
 	t.Parallel()
 
-	configs := []*component.Component{
+	components := []*component.Component{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
@@ -424,12 +444,14 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			expr: &filter.InfixExpression{
 				Left:     &filter.PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
+				Right: &filter.PrefixExpression{
+					Operator: "!",
+					Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
+				},
 			},
 			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 				{Path: "./apps/app2", Kind: component.Unit},
-				// legacy excluded
 			},
 		},
 		{
@@ -448,7 +470,6 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				{Path: "./libs/db", Kind: component.Unit},
 				{Path: "./libs/api", Kind: component.Unit},
 				{Path: "./special/unit", Kind: component.Unit},
-				// Everything except app1
 			},
 		},
 		{
@@ -464,7 +485,6 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			},
 			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
-				// Only app1 from ./apps/* after excluding legacy
 			},
 		},
 	}
@@ -473,7 +493,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, configs)
+			result, err := filter.Evaluate(tt.expr, components)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -486,15 +506,15 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("nil expression", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []*component.Component{{Path: "./app", Kind: component.Unit}}
-		result, err := filter.Evaluate(nil, configs)
+		components := []*component.Component{{Path: "./app", Kind: component.Unit}}
+		result, err := filter.Evaluate(nil, components)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "expression is nil")
 	})
 
-	t.Run("empty configs list", func(t *testing.T) {
+	t.Run("empty components list", func(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.AttributeFilter{Key: "name", Value: "foo"}
@@ -507,9 +527,9 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("invalid glob pattern", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []*component.Component{{Path: "./app", Kind: component.Unit}}
+		components := []*component.Component{{Path: "./app", Kind: component.Unit}}
 		expr := &filter.PathFilter{Value: "[invalid-glob"}
-		result, err := filter.Evaluate(expr, configs)
+		result, err := filter.Evaluate(expr, components)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
