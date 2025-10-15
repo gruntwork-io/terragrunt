@@ -1,8 +1,9 @@
-package filter
+package filter_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -10,7 +11,7 @@ import (
 func TestEvaluate_PathFilter(t *testing.T) {
 	t.Parallel()
 
-	units := []Unit{
+	units := []filter.Unit{
 		{Name: "app1", Path: "./apps/app1"},
 		{Name: "app2", Path: "./apps/app2"},
 		{Name: "legacy", Path: "./apps/legacy"},
@@ -21,20 +22,20 @@ func TestEvaluate_PathFilter(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *PathFilter
-		expected []Unit
+		filter   *filter.PathFilter
+		expected []filter.Unit
 	}{
 		{
 			name:   "exact path match",
-			filter: &PathFilter{Value: "./apps/app1"},
-			expected: []Unit{
+			filter: &filter.PathFilter{Value: "./apps/app1"},
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 			},
 		},
 		{
 			name:   "glob with single wildcard",
-			filter: &PathFilter{Value: "./apps/*"},
-			expected: []Unit{
+			filter: &filter.PathFilter{Value: "./apps/*"},
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "legacy", Path: "./apps/legacy"},
@@ -42,8 +43,8 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with recursive wildcard",
-			filter: &PathFilter{Value: "./apps/**"},
-			expected: []Unit{
+			filter: &filter.PathFilter{Value: "./apps/**"},
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "legacy", Path: "./apps/legacy"},
@@ -52,16 +53,16 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob matching specific subdirectory",
-			filter: &PathFilter{Value: "./libs/*"},
-			expected: []Unit{
+			filter: &filter.PathFilter{Value: "./libs/*"},
+			expected: []filter.Unit{
 				{Name: "db", Path: "./libs/db"},
 				{Name: "api", Path: "./libs/api"},
 			},
 		},
 		{
 			name:     "no matches",
-			filter:   &PathFilter{Value: "./nonexistent/*"},
-			expected: []Unit{},
+			filter:   &filter.PathFilter{Value: "./nonexistent/*"},
+			expected: []filter.Unit{},
 		},
 	}
 
@@ -69,7 +70,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := evaluatePathFilter(tt.filter, units)
+			result, err := filter.Evaluate(tt.filter, units)
 			require.NoError(t, err)
 
 			// Sort for consistent comparison
@@ -81,7 +82,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter(t *testing.T) {
 	t.Parallel()
 
-	units := []Unit{
+	units := []filter.Unit{
 		{Name: "app", Path: "./apps/app"},
 		{Name: "app", Path: "./libs/app"}, // Same name, different path
 		{Name: "db", Path: "./libs/db"},
@@ -90,32 +91,32 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *AttributeFilter
-		expected []Unit
+		filter   *filter.AttributeFilter
+		expected []filter.Unit
 	}{
 		{
 			name:   "name filter single match",
-			filter: &AttributeFilter{Key: "name", Value: "db"},
-			expected: []Unit{
+			filter: &filter.AttributeFilter{Key: "name", Value: "db"},
+			expected: []filter.Unit{
 				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name:   "name filter multiple matches",
-			filter: &AttributeFilter{Key: "name", Value: "app"},
-			expected: []Unit{
+			filter: &filter.AttributeFilter{Key: "name", Value: "app"},
+			expected: []filter.Unit{
 				{Name: "app", Path: "./apps/app"},
 				{Name: "app", Path: "./libs/app"},
 			},
 		},
 		{
 			name:     "name filter no matches",
-			filter:   &AttributeFilter{Key: "name", Value: "nonexistent"},
-			expected: []Unit{},
+			filter:   &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+			expected: []filter.Unit{},
 		},
 		{
 			name:     "type filter",
-			filter:   &AttributeFilter{Key: "type", Value: "unit"},
+			filter:   &filter.AttributeFilter{Key: "type", Value: "unit"},
 			expected: units, // All units match type=unit
 		},
 	}
@@ -124,7 +125,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := evaluateAttributeFilter(tt.filter, units)
+			result, err := filter.Evaluate(tt.filter, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -134,14 +135,14 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	units := []Unit{
+	units := []filter.Unit{
 		{Name: "app", Path: "./apps/app"},
 	}
 
-	filter := &AttributeFilter{Key: "invalid", Value: "foo"}
-	result, err := evaluateAttributeFilter(filter, units)
+	attrFilter := &filter.AttributeFilter{Key: "invalid", Value: "foo"}
+	result, err := filter.Evaluate(attrFilter, units)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "unknown attribute key")
 }
@@ -149,7 +150,7 @@ func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 func TestEvaluate_PrefixExpression(t *testing.T) {
 	t.Parallel()
 
-	units := []Unit{
+	units := []filter.Unit{
 		{Name: "app1", Path: "./apps/app1"},
 		{Name: "app2", Path: "./apps/app2"},
 		{Name: "legacy", Path: "./apps/legacy"},
@@ -158,16 +159,16 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		expr     *PrefixExpression
-		expected []Unit
+		expr     *filter.PrefixExpression
+		expected []filter.Unit
 	}{
 		{
 			name: "exclude by name",
-			expr: &PrefixExpression{
+			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &AttributeFilter{Key: "name", Value: "legacy"},
+				Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "db", Path: "./libs/db"},
@@ -175,11 +176,11 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		},
 		{
 			name: "exclude by path",
-			expr: &PrefixExpression{
+			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &PathFilter{Value: "./apps/legacy"},
+				Right:    &filter.PathFilter{Value: "./apps/legacy"},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "db", Path: "./libs/db"},
@@ -187,21 +188,21 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		},
 		{
 			name: "exclude by glob",
-			expr: &PrefixExpression{
+			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &PathFilter{Value: "./apps/*"},
+				Right:    &filter.PathFilter{Value: "./apps/*"},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
 			name: "exclude all (double negation effect)",
-			expr: &PrefixExpression{
+			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &AttributeFilter{Key: "type", Value: "unit"},
+				Right:    &filter.AttributeFilter{Key: "type", Value: "unit"},
 			},
-			expected: []Unit{}, // All excluded
+			expected: []filter.Unit{}, // All excluded
 		},
 	}
 
@@ -209,7 +210,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := evaluatePrefixExpression(tt.expr, units)
+			result, err := filter.Evaluate(tt.expr, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -219,7 +220,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 func TestEvaluate_InfixExpression(t *testing.T) {
 	t.Parallel()
 
-	units := []Unit{
+	units := []filter.Unit{
 		{Name: "app1", Path: "./apps/app1"},
 		{Name: "app2", Path: "./apps/app2"},
 		{Name: "legacy", Path: "./apps/legacy"},
@@ -229,54 +230,48 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		expr     *InfixExpression
-		expected []Unit
+		expr     *filter.InfixExpression
+		expected []filter.Unit
 	}{
 		{
-			name: "union of two names",
-			expr: &InfixExpression{
-				Left:     &AttributeFilter{Key: "name", Value: "app1"},
+			name: "intersection of path and name",
+			expr: &filter.InfixExpression{
+				Left:     &filter.PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &AttributeFilter{Key: "name", Value: "db"},
+				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
-				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
-			name: "union of path and name",
-			expr: &InfixExpression{
-				Left:     &PathFilter{Value: "./apps/*"},
+			name: "intersection with no overlap",
+			expr: &filter.InfixExpression{
+				Left:     &filter.PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &AttributeFilter{Key: "name", Value: "db"},
+				Right:    &filter.AttributeFilter{Key: "name", Value: "db"}, // db is in ./libs/, not ./apps/
 			},
-			expected: []Unit{
+			expected: []filter.Unit{},
+		},
+		{
+			name: "intersection of exact path and name",
+			expr: &filter.InfixExpression{
+				Left:     &filter.PathFilter{Value: "./apps/app1"},
+				Operator: "|",
+				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+			},
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
-				{Name: "db", Path: "./libs/db"},
 			},
 		},
 		{
-			name: "union with overlap (deduplication)",
-			expr: &InfixExpression{
-				Left:     &PathFilter{Value: "./apps/app1"},
+			name: "intersection of empty results",
+			expr: &filter.InfixExpression{
+				Left:     &filter.AttributeFilter{Key: "name", Value: "nonexistent1"},
 				Operator: "|",
-				Right:    &AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"}, // Can't refine empty set
 			},
-			expected: []Unit{
-				{Name: "app1", Path: "./apps/app1"}, // Should appear only once
-			},
-		},
-		{
-			name: "union of empty results",
-			expr: &InfixExpression{
-				Left:     &AttributeFilter{Key: "name", Value: "nonexistent1"},
-				Operator: "|",
-				Right:    &AttributeFilter{Key: "name", Value: "nonexistent2"},
-			},
-			expected: []Unit{},
+			expected: []filter.Unit{},
 		},
 	}
 
@@ -284,7 +279,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := evaluateInfixExpression(tt.expr, units)
+			result, err := filter.Evaluate(tt.expr, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -294,7 +289,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 func TestEvaluate_ComplexExpressions(t *testing.T) {
 	t.Parallel()
 
-	units := []Unit{
+	units := []filter.Unit{
 		{Name: "app1", Path: "./apps/app1"},
 		{Name: "app2", Path: "./apps/app2"},
 		{Name: "legacy", Path: "./apps/legacy"},
@@ -305,56 +300,55 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		expr     Expression
-		expected []Unit
+		expr     filter.Expression
+		expected []filter.Unit
 	}{
 		{
-			name: "union includes all from both sides",
-			expr: &InfixExpression{
-				Left:     &PathFilter{Value: "./apps/*"},
+			name: "intersection with negation (refinement)",
+			expr: &filter.InfixExpression{
+				Left:     &filter.PathFilter{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &PathFilter{Value: "./libs/*"},
+				Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
 				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
-				{Name: "db", Path: "./libs/db"},
-				{Name: "api", Path: "./libs/api"},
+				// legacy excluded
 			},
 		},
 		{
-			name: "negated union",
-			expr: &PrefixExpression{
+			name: "negated intersection",
+			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &InfixExpression{
-					Left:     &AttributeFilter{Key: "name", Value: "app1"},
+				Right: &filter.InfixExpression{
+					Left:     &filter.PathFilter{Value: "./apps/*"},
 					Operator: "|",
-					Right:    &AttributeFilter{Key: "name", Value: "db"},
+					Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 				},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "app2", Path: "./apps/app2"},
 				{Name: "legacy", Path: "./apps/legacy"},
+				{Name: "db", Path: "./libs/db"},
 				{Name: "api", Path: "./libs/api"},
 				{Name: "special", Path: "./special/unit"},
+				// Everything except app1
 			},
 		},
 		{
-			name: "multiple unions",
-			expr: &InfixExpression{
-				Left: &InfixExpression{
-					Left:     &AttributeFilter{Key: "name", Value: "app1"},
+			name: "chained intersections (multiple refinements)",
+			expr: &filter.InfixExpression{
+				Left: &filter.InfixExpression{
+					Left:     &filter.PathFilter{Value: "./apps/*"},
 					Operator: "|",
-					Right:    &AttributeFilter{Key: "name", Value: "db"},
+					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
 				},
 				Operator: "|",
-				Right:    &AttributeFilter{Key: "name", Value: "special"},
+				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
-			expected: []Unit{
+			expected: []filter.Unit{
 				{Name: "app1", Path: "./apps/app1"},
-				{Name: "db", Path: "./libs/db"},
-				{Name: "special", Path: "./special/unit"},
+				// Only app1 from ./apps/* after excluding legacy
 			},
 		},
 	}
@@ -363,7 +357,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := Evaluate(tt.expr, units)
+			result, err := filter.Evaluate(tt.expr, units)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -376,10 +370,10 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("nil expression", func(t *testing.T) {
 		t.Parallel()
 
-		units := []Unit{{Name: "app", Path: "./app"}}
-		result, err := Evaluate(nil, units)
+		units := []filter.Unit{{Name: "app", Path: "./app"}}
+		result, err := filter.Evaluate(nil, units)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "expression is nil")
 	})
@@ -387,8 +381,8 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("empty units list", func(t *testing.T) {
 		t.Parallel()
 
-		expr := &AttributeFilter{Key: "name", Value: "foo"}
-		result, err := Evaluate(expr, []Unit{})
+		expr := &filter.AttributeFilter{Key: "name", Value: "foo"}
+		result, err := filter.Evaluate(expr, []filter.Unit{})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -397,69 +391,12 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("invalid glob pattern", func(t *testing.T) {
 		t.Parallel()
 
-		units := []Unit{{Name: "app", Path: "./app"}}
-		expr := &PathFilter{Value: "[invalid-glob"}
-		result, err := Evaluate(expr, units)
+		units := []filter.Unit{{Name: "app", Path: "./app"}}
+		expr := &filter.PathFilter{Value: "[invalid-glob"}
+		result, err := filter.Evaluate(expr, units)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "failed to compile glob pattern")
 	})
-}
-
-func TestUnionUnits(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		left     []Unit
-		right    []Unit
-		expected []Unit
-	}{
-		{
-			name:     "no overlap",
-			left:     []Unit{{Name: "a", Path: "./a"}},
-			right:    []Unit{{Name: "b", Path: "./b"}},
-			expected: []Unit{{Name: "a", Path: "./a"}, {Name: "b", Path: "./b"}},
-		},
-		{
-			name:     "complete overlap",
-			left:     []Unit{{Name: "a", Path: "./a"}},
-			right:    []Unit{{Name: "a", Path: "./a"}},
-			expected: []Unit{{Name: "a", Path: "./a"}},
-		},
-		{
-			name:     "partial overlap",
-			left:     []Unit{{Name: "a", Path: "./a"}, {Name: "b", Path: "./b"}},
-			right:    []Unit{{Name: "b", Path: "./b"}, {Name: "c", Path: "./c"}},
-			expected: []Unit{{Name: "a", Path: "./a"}, {Name: "b", Path: "./b"}, {Name: "c", Path: "./c"}},
-		},
-		{
-			name:     "empty left",
-			left:     []Unit{},
-			right:    []Unit{{Name: "a", Path: "./a"}},
-			expected: []Unit{{Name: "a", Path: "./a"}},
-		},
-		{
-			name:     "empty right",
-			left:     []Unit{{Name: "a", Path: "./a"}},
-			right:    []Unit{},
-			expected: []Unit{{Name: "a", Path: "./a"}},
-		},
-		{
-			name:     "both empty",
-			left:     []Unit{},
-			right:    []Unit{},
-			expected: []Unit{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := unionUnits(tt.left, tt.right)
-			assert.ElementsMatch(t, tt.expected, result)
-		})
-	}
 }

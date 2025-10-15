@@ -18,11 +18,9 @@ type Expression interface {
 
 // PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
 type PathFilter struct {
-	Value string
-
-	// compiledGlob caches the compiled glob pattern for reuse.
 	compiledGlob glob.Glob
 	compileErr   error
+	Value        string
 	compileOnce  sync.Once
 }
 
@@ -45,6 +43,7 @@ func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 		pattern = filepath.ToSlash(pattern)
 		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
 	})
+
 	return p.compiledGlob, p.compileErr
 }
 
@@ -81,8 +80,8 @@ func (a *AttributeFilter) String() string  { return a.Key + "=" + a.Value }
 
 // PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
 type PrefixExpression struct {
-	Operator string     // The prefix operator (e.g., "!")
-	Right    Expression // The expression to the right of the operator
+	Right    Expression
+	Operator string
 }
 
 func (p *PrefixExpression) expressionNode() {}
@@ -90,9 +89,9 @@ func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String
 
 // InfixExpression represents an infix operator expression (e.g., "name=foo, name=bar").
 type InfixExpression struct {
-	Left     Expression // The expression to the left of the operator
-	Operator string     // The infix operator (e.g., ",")
-	Right    Expression // The expression to the right of the operator
+	Left     Expression
+	Right    Expression
+	Operator string
 }
 
 func (i *InfixExpression) expressionNode() {}

@@ -17,6 +17,7 @@ type Lexer struct {
 func NewLexer(input string) *Lexer {
 	l := &Lexer{input: input}
 	l.readChar() // Initialize by reading the first character
+
 	return l
 }
 
@@ -25,6 +26,7 @@ func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()
 
 	var tok Token
+
 	startPosition := l.position
 
 	switch l.ch {
@@ -37,18 +39,26 @@ func (l *Lexer) NextToken() Token {
 	case '=':
 		tok = NewToken(EQUAL, string(l.ch), startPosition)
 		l.readChar()
+	case '{':
+		tok = NewToken(LBRACE, string(l.ch), startPosition)
+		l.readChar()
+	case '}':
+		tok = NewToken(RBRACE, string(l.ch), startPosition)
+		l.readChar()
 	case 0:
 		tok = NewToken(EOF, "", startPosition)
 	case '.':
-		// Check if this is the start of a path (./)
-		if l.peekChar() == '/' {
+		// Check if this is the start of a path (./) or a hidden file
+		switch nextCh := l.peekChar(); {
+		case nextCh == '/':
 			tok = l.readPath(startPosition)
-		} else if isIdentifierChar(l.peekChar()) {
+		case isIdentifierChar(nextCh):
 			// Hidden file like .gitignore, .hidden
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
+
 			return tok
-		} else {
+		default:
 			// Single dot alone is not valid in our syntax
 			tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 			l.readChar()
@@ -60,8 +70,10 @@ func (l *Lexer) NextToken() Token {
 		if isIdentifierStart(l.ch) {
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
+
 			return tok
 		}
+
 		tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 		l.readChar()
 	}
@@ -75,6 +87,7 @@ func (l *Lexer) readChar() {
 		l.ch = 0 // ASCII code for "NUL", signifies end of input
 		l.position = l.readPosition
 		l.readPosition++
+
 		return
 	}
 
@@ -88,6 +101,7 @@ func (l *Lexer) peekChar() byte {
 	if l.readPosition >= len(l.input) {
 		return 0
 	}
+
 	return l.input[l.readPosition]
 }
 
@@ -107,6 +121,7 @@ func (l *Lexer) readIdentifier() string {
 	for isIdentifierChar(l.ch) {
 		l.readChar()
 	}
+
 	literal := l.input[position:l.position]
 	// Trim trailing whitespace
 	return strings.TrimRight(literal, " \t\n\r")
@@ -120,17 +135,19 @@ func (l *Lexer) readPath(startPosition int) Token {
 	for isPathChar(l.ch) {
 		l.readChar()
 	}
+
 	literal := l.input[position:l.position]
 	// Trim trailing whitespace
 	literal = strings.TrimSpace(literal)
+
 	return NewToken(PATH, literal, startPosition)
 }
 
 // isSpecialChar returns true if the character is a special operator or delimiter.
 // Note: spaces are NOT special - they can be part of identifiers and paths.
-// Only the operators themselves act as delimiters.
+// Only the operators and delimiters themselves act as separators.
 func isSpecialChar(ch byte) bool {
-	return ch == '!' || ch == '|' || ch == '=' || ch == 0
+	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == 0
 }
 
 // isPathSeparator returns true if the character is a path separator.
