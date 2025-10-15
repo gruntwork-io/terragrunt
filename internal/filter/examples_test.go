@@ -2,6 +2,7 @@ package filter_test
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 )
@@ -161,4 +162,37 @@ func Example_errorHandling() {
 	// Output:
 	// Error occurred
 	// Successfully parsed
+}
+
+// Example_multipleFilters demonstrates using multiple filters with union semantics.
+func Example_multipleFilters() {
+	units := []filter.Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
+	}
+
+	// Parse multiple filters - results are unioned
+	filters, _ := filter.ParseFilterQueries([]string{
+		"./apps/*",
+		"name=db",
+	})
+
+	result, _ := filters.Evaluate(units)
+
+	// Sort for consistent output
+	names := make([]string, len(result))
+	for i, unit := range result {
+		names[i] = unit.Name
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		fmt.Println(name)
+	}
+	// Output:
+	// app1
+	// app2
+	// db
 }
