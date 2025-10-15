@@ -39,29 +39,41 @@
 //	!./apps/old             # Exclude units at path ./apps/old
 //	!foo                    # Exclude units named "foo"
 //
-// ## Union Operator (|)
+// ## Intersection Operator (|)
 //
-// The union operator combines multiple filters with OR semantics.
+// The intersection operator refines/narrows results by applying filters from left to right.
+// Each filter in the chain further restricts the results from the previous filter.
 // The pipe character (|) is the only delimiter between filter expressions.
 // Whitespace is optional around operators but is NOT a delimiter itself.
 //
-//	foo | bar               # Units named foo OR bar
-//	foo|bar                 # Same as above (spaces optional)
-//	./apps/* | ./libs/*     # Units in apps OR libs directory
-//	name=a | name=b | name=c # Units named a OR b OR c
+//	./apps/* | name=web     # Units in ./apps/* AND named "web"
+//	./apps/*|name=web       # Same as above (spaces optional)
+//	foo | !bar              # Units named foo AND NOT named bar
 //
 // Spaces within unit names and paths are preserved:
 //
 //	my app                  # Unit named "my app" (with space)
 //	./my path/file          # Path with spaces
 //
+// ## Braced Path Syntax ({})
+//
+// Use braces to explicitly mark a path expression. This is useful when:
+// - The path doesn't start with ./ or /
+// - You want to be explicit that something is a path, not an identifier
+//
+//	{./apps/*}              # Explicitly a path
+//	{my path/file}          # Path without ./ prefix
+//	{apps}                  # Treat "apps" as a path, not a name filter
+//
 // # Operator Precedence
 //
 // Operators are evaluated with the following precedence (highest to lowest):
 //  1. Prefix operators (!)
-//  2. Infix operators (|)
+//  2. Infix operators (| - intersection/refinement, left-to-right)
 //
 // This means !foo | bar is evaluated as (!foo) | bar, not !(foo | bar).
+// The intersection operator applies filters left-to-right, each filter
+// refining/narrowing the results from the previous filter.
 //
 // # Usage Examples
 //
@@ -87,7 +99,7 @@
 // ## One-Shot Usage
 //
 //	// Parse and evaluate in one step
-//	result, err := filter.Apply("name=foo | name=bar", units)
+//	result, err := filter.Apply("./apps/* | name=web", units)
 //
 // # Implementation Details
 //
@@ -97,8 +109,10 @@
 //   - IDENT: Identifiers (foo, name, etc.)
 //   - PATH: Paths (./apps/*, /absolute, etc.)
 //   - BANG: Negation operator (!)
-//   - PIPE: Union operator (|)
+//   - PIPE: Intersection operator (|)
 //   - EQUAL: Assignment operator (=)
+//   - LBRACE: Left brace ({)
+//   - RBRACE: Right brace (})
 //   - EOF: End of input
 //
 // ## Parser
