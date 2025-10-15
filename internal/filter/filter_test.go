@@ -4,21 +4,21 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Test data used across tests
-var testConfigs = []*discoveredconfig.DiscoveredConfig{
-	{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-	{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-	{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
-	{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-	{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
-	{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
-	{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
+var testConfigs = []*component.Component{
+	{Path: "./apps/app1", Kind: component.Unit},
+	{Path: "./apps/app2", Kind: component.Unit},
+	{Path: "./apps/legacy", Kind: component.Unit},
+	{Path: "./libs/db", Kind: component.Unit},
+	{Path: "./libs/api", Kind: component.Unit},
+	{Path: "./services/web", Kind: component.Unit},
+	{Path: "./services/worker", Kind: component.Unit},
 }
 
 func TestFilter_ParseAndEvaluate(t *testing.T) {
@@ -27,72 +27,72 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 	tests := []struct {
 		name            string
 		filterString    string
-		expectedConfigs []*discoveredconfig.DiscoveredConfig
+		expectedConfigs []*component.Component
 		expectError     bool
 	}{
 		{
 			name:         "simple name filter",
 			filterString: "app1",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./libs/db", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
+				{Path: "./apps/app2", Kind: component.Unit},
+				{Path: "./apps/legacy", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
+				{Path: "./apps/app2", Kind: component.Unit},
+				{Path: "./libs/db", Kind: component.Unit},
+				{Path: "./libs/api", Kind: component.Unit},
+				{Path: "./services/web", Kind: component.Unit},
+				{Path: "./services/worker", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "intersection of path and name",
 			filterString: "./apps/* | app1",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "intersection with negation",
 			filterString: "./apps/* | !legacy",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
+				{Path: "./apps/app2", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "chained intersections",
 			filterString: "./apps/* | !legacy | app1",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./services/web", Kind: component.Unit},
+				{Path: "./services/worker", Kind: component.Unit},
 			},
 		},
 		{
@@ -149,32 +149,32 @@ func TestFilter_Apply(t *testing.T) {
 	tests := []struct {
 		name            string
 		filterString    string
-		configs         []*discoveredconfig.DiscoveredConfig
-		expectedConfigs []*discoveredconfig.DiscoveredConfig
+		configs         []*component.Component
+		expectedConfigs []*component.Component
 		expectError     bool
 	}{
 		{
 			name:         "apply with simple filter",
 			filterString: "app1",
 			configs:      testConfigs,
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "apply with path filter",
 			filterString: "./libs/*",
 			configs:      testConfigs,
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{
-				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-				{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+			expectedConfigs: []*component.Component{
+				{Path: "./libs/db", Kind: component.Unit},
+				{Path: "./libs/api", Kind: component.Unit},
 			},
 		},
 		{
 			name:            "apply with empty configs",
 			filterString:    "anything",
-			configs:         []*discoveredconfig.DiscoveredConfig{},
-			expectedConfigs: []*discoveredconfig.DiscoveredConfig{},
+			configs:         []*component.Component{},
+			expectedConfigs: []*component.Component{},
 		},
 		{
 			name:            "apply with parse error",
@@ -226,16 +226,16 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 	t.Parallel()
 
 	// Simulate a real-world repository structure
-	repoConfigs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./infrastructure/networking/vpc", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./infrastructure/networking/subnets", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./infrastructure/networking/security-groups", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./infrastructure/compute/app-server", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./infrastructure/compute/db-server", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/frontend", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/backend", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/api", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./test/test-app", Type: discoveredconfig.ConfigTypeUnit},
+	repoConfigs := []*component.Component{
+		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
+		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
+		{Path: "./infrastructure/networking/security-groups", Kind: component.Unit},
+		{Path: "./infrastructure/compute/app-server", Kind: component.Unit},
+		{Path: "./infrastructure/compute/db-server", Kind: component.Unit},
+		{Path: "./apps/frontend", Kind: component.Unit},
+		{Path: "./apps/backend", Kind: component.Unit},
+		{Path: "./apps/api", Kind: component.Unit},
+		{Path: "./test/test-app", Kind: component.Unit},
 	}
 
 	tests := []struct {
@@ -333,9 +333,9 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 			{"./apps/* | !legacy"},
 		}
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
 		}
 
 		for _, tt := range tests {
