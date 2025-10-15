@@ -28,7 +28,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 )
 
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
@@ -36,7 +36,7 @@ import (
 type Entry struct {
 	// Config is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
 	// including its path, dependencies, and discovery context (such as the command being run).
-	Config *component.Component
+	Config *discoveredconfig.DiscoveredConfig
 
 	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
 	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
@@ -154,7 +154,7 @@ type Queue struct {
 type Entries []*Entry
 
 // Entry returns a given entry from the queue.
-func (e Entries) Entry(cfg *component.Component) *Entry {
+func (e Entries) Entry(cfg *discoveredconfig.DiscoveredConfig) *Entry {
 	for _, entry := range e {
 		if entry.Config.Path == cfg.Path {
 			return entry
@@ -165,8 +165,8 @@ func (e Entries) Entry(cfg *component.Component) *Entry {
 }
 
 // Configs returns the queue configs.
-func (q *Queue) Configs() component.Components {
-	result := make(component.Components, 0, len(q.Entries))
+func (q *Queue) Configs() discoveredconfig.DiscoveredConfigs {
+	result := make(discoveredconfig.DiscoveredConfigs, 0, len(q.Entries))
 	for _, entry := range q.Entries {
 		result = append(result, entry.Config)
 	}
@@ -210,7 +210,7 @@ func (q *Queue) entryByPathUnsafe(path string) *Entry {
 // Passing configurations that haven't been checked for cycles in their dependency graph is unsafe.
 // If any cycles are present, the queue construction will halt after N
 // iterations, where N is the number of discovered configs, and throw an error.
-func NewQueue(discovered component.Components) (*Queue, error) {
+func NewQueue(discovered discoveredconfig.DiscoveredConfigs) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
 			Entries: Entries{},

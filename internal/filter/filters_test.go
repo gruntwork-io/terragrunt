@@ -3,6 +3,7 @@ package filter_test
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,23 +80,23 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 func TestFilters_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "legacy", Path: "./apps/legacy"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
-	t.Run("empty filters returns all units", func(t *testing.T) {
+	t.Run("empty filters returns all configs", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
-		assert.ElementsMatch(t, units, result)
+		assert.ElementsMatch(t, configs, result)
 	})
 
 	t.Run("single positive filter", func(t *testing.T) {
@@ -104,13 +105,13 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
-			{Name: "app2", Path: "./apps/app2"},
-			{Name: "legacy", Path: "./apps/legacy"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -122,12 +123,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
-			{Name: "db", Path: "./libs/db"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -139,17 +140,17 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
-			{Name: "app2", Path: "./apps/app2"},
-			{Name: "legacy", Path: "./apps/legacy"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
-		// Verify no duplicates - should have exactly 3 units
+		// Verify no duplicates - should have exactly 3 configs
 		assert.Len(t, result, 3)
 	})
 
@@ -159,12 +160,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
-			{Name: "app2", Path: "./apps/app2"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -176,11 +177,11 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -192,12 +193,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
 		// When there are no positive filters, the combined result is empty,
 		// so negative filters have nothing to remove from
-		expected := []filter.Unit{}
+		expected := []*discoveredconfig.DiscoveredConfig{}
 
 		assert.ElementsMatch(t, expected, result)
 	})
@@ -213,13 +214,13 @@ func TestFilters_Evaluate(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(units)
+		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []filter.Unit{
-			{Name: "app1", Path: "./apps/app1"},
-			{Name: "app2", Path: "./apps/app2"},
-			{Name: "db", Path: "./libs/db"},
+		expected := []*discoveredconfig.DiscoveredConfig{
+			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+			{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
