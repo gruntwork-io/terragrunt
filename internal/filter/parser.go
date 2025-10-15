@@ -1,26 +1,26 @@
 package filter
 
+import "strings"
+
 // Parser parses a filter query string into an AST.
 type Parser struct {
-	lexer *Lexer
-
+	lexer     *Lexer
+	errors    []error
 	curToken  Token
 	peekToken Token
-
-	errors []error
 }
 
 // Operator precedence levels
 const (
 	_ int = iota
 	LOWEST
-	UNION  // |
-	PREFIX // !
+	INTERSECTION // |
+	PREFIX       // !
 )
 
 // precedences maps token types to their precedence levels
 var precedences = map[TokenType]int{
-	PIPE: UNION,
+	PIPE: INTERSECTION,
 }
 
 // NewParser creates a new Parser for the given lexer.
@@ -46,6 +46,7 @@ func (p *Parser) ParseExpression() (Expression, error) {
 		if len(p.errors) > 0 {
 			return nil, p.errors[0]
 		}
+
 		return nil, NewParseError("failed to parse expression", p.curToken.Position)
 	}
 
@@ -78,6 +79,8 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		leftExpr = p.parsePrefixExpression()
 	case PATH:
 		leftExpr = p.parsePathFilter()
+	case LBRACE:
+		leftExpr = p.parseBracedPath()
 	case IDENT:
 		// Check if this is an attribute filter (name=value) or just a name
 		if p.peekToken.Type == EQUAL {
@@ -93,6 +96,9 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	case EOF:
 		p.addError("unexpected end of input")
 		return nil
+	case PIPE, EQUAL, RBRACE:
+		p.addError("unexpected token: " + p.curToken.Literal)
+		return nil
 	default:
 		p.addError("unexpected token: " + p.curToken.Literal)
 		return nil
@@ -107,6 +113,8 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		switch p.curToken.Type {
 		case PIPE:
 			leftExpr = p.parseInfixExpression(leftExpr)
+		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE:
+			return leftExpr
 		default:
 			return leftExpr
 		}
@@ -156,7 +164,39 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 func (p *Parser) parsePathFilter() Expression {
 	expr := NewPathFilter(p.curToken.Literal, p.workingDir)
 	p.nextToken()
+
 	return expr
+}
+
+// parseBracedPath parses a braced path filter (e.g., "{./apps/*}" or "{my path}").
+func (p *Parser) parseBracedPath() Expression {
+	// We're currently at LBRACE, move to the content
+	p.nextToken()
+
+	if p.curToken.Type == RBRACE {
+		p.addError("empty braced path expression")
+		return nil
+	}
+
+	// Read everything until RBRACE as the path
+	var pathParts []string
+	for p.curToken.Type != RBRACE && p.curToken.Type != EOF {
+		pathParts = append(pathParts, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	if p.curToken.Type != RBRACE {
+		p.addError("expected '}' to close braced path")
+		return nil
+	}
+
+	// Move past RBRACE
+	p.nextToken()
+
+	// Join all parts to form the complete path
+	pathValue := strings.Join(pathParts, "")
+
+	return NewPathFilter(pathValue)
 }
 
 // parseAttributeFilter parses an attribute filter (e.g., "name=foo").
@@ -189,7 +229,9 @@ func (p *Parser) expectPeek(t TokenType) bool {
 		p.nextToken()
 		return true
 	}
+
 	p.addError("expected next token to be " + t.String() + ", got " + p.peekToken.Type.String())
+
 	return false
 }
 
@@ -198,6 +240,7 @@ func (p *Parser) curPrecedence() int {
 	if p, ok := precedences[p.curToken.Type]; ok {
 		return p
 	}
+
 	return LOWEST
 }
 

@@ -38,6 +38,7 @@ func evaluatePathFilter(filter *PathFilter, units []Unit) ([]Unit, error) {
 	}
 
 	var result []Unit
+
 	for _, unit := range units {
 		// Normalize the unit path for matching
 		normalizedPath := filepath.ToSlash(unit.Path)
@@ -96,6 +97,7 @@ func evaluatePrefixExpression(expr *PrefixExpression, units []Unit) ([]Unit, err
 
 	// Return all units NOT in the exclude set
 	var result []Unit
+
 	for _, unit := range units {
 		if !excludeSet[unit.Path] {
 			result = append(result, unit)
@@ -105,7 +107,7 @@ func evaluatePrefixExpression(expr *PrefixExpression, units []Unit) ([]Unit, err
 	return result, nil
 }
 
-// evaluateInfixExpression evaluates an infix expression (union).
+// evaluateInfixExpression evaluates an infix expression (intersection).
 func evaluateInfixExpression(expr *InfixExpression, units []Unit) ([]Unit, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
@@ -117,37 +119,13 @@ func evaluateInfixExpression(expr *InfixExpression, units []Unit) ([]Unit, error
 		return nil, err
 	}
 
-	// Evaluate right side
-	rightResult, err := evaluate(expr.Right, units)
+	// Evaluate right side against the left result (refine/narrow)
+	// The right filter only evaluates units that passed the left filter
+	rightResult, err := evaluate(expr.Right, leftResult)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return the union (deduplicated)
-	return unionUnits(leftResult, rightResult), nil
-}
-
-// unionUnits returns the union of two unit slices, removing duplicates based on path.
-func unionUnits(left, right []Unit) []Unit {
-	// Use a map to track unique paths
-	seen := make(map[string]bool)
-	var result []Unit
-
-	// Add all units from left
-	for _, unit := range left {
-		if !seen[unit.Path] {
-			seen[unit.Path] = true
-			result = append(result, unit)
-		}
-	}
-
-	// Add units from right that aren't already in the result
-	for _, unit := range right {
-		if !seen[unit.Path] {
-			seen[unit.Path] = true
-			result = append(result, unit)
-		}
-	}
-
-	return result
+	// Return the intersection (units that passed both filters)
+	return rightResult, nil
 }
