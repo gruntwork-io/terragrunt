@@ -47,6 +47,12 @@ const (
 	// This is a hack, and there should be a better way of handling this...
 	skipNoVariableNamedDependencyDiagnostic = `There is no variable named "dependency".`
 
+	// skipNullValueDiagnostic is a string used to identify diagnostics about accessing
+	// attributes on null values, which commonly happens during discovery when dependency
+	// outputs or other values haven't been resolved yet, and the configuration is being
+	// converted to a cty value.
+	skipNullValueDiagnostic = "null value"
+
 	// Default number of concurrent workers for discovery operations
 	defaultDiscoveryWorkers = 4
 
@@ -464,11 +470,19 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 			for _, hclDiag := range hclDiags {
 				filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
 					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
-					strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic)
+					strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
+					strings.Contains(strings.ToLower(hclDiag.Summary), skipNullValueDiagnostic) ||
+					strings.Contains(strings.ToLower(hclDiag.Detail), skipNullValueDiagnostic)
 
 				if !filterOut {
 					filteredDiags = append(filteredDiags, hclDiag)
 				}
+			}
+
+			// If all diagnostics were filtered out, return nil instead of an empty slice
+			// to prevent the parser from treating it as an error
+			if len(filteredDiags) == 0 {
+				return nil, nil
 			}
 
 			return filteredDiags, nil
