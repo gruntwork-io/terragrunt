@@ -67,12 +67,12 @@ func New() strict.Controls {
 	}
 
 	skipDependenciesInputsControl := &Control{
-		// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
 		Name:        SkipDependenciesInputs,
 		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
 		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
 		Warning:     "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
 		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
 	}
 
 	requireExplicitBootstrapControl := &Control{
