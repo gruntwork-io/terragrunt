@@ -249,7 +249,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 					return nil, err
 				}
 
-				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
+				depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
 
 				if depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil); err == nil {
 					if depConfig.Skip != nil && *depConfig.Skip {

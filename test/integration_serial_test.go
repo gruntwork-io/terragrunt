@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -207,77 +206,6 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
 
 		assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
-	}
-}
-
-func TestTerragruntInputsFromDependency(t *testing.T) {
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputsFromDependency)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureInputsFromDependency)
-	rootPath := util.JoinPath(rootTerragruntPath, "apps")
-
-	curDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	relRootPath, err := filepath.Rel(curDir, rootPath)
-	require.NoError(t, err)
-
-	testCases := []struct {
-		rootPath    string
-		downloadDir string
-	}{
-		{
-			rootPath:    rootPath,
-			downloadDir: "",
-		},
-		{
-			rootPath:    relRootPath,
-			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
-		},
-	}
-
-	for _, tc := range testCases {
-		var (
-			stdout bytes.Buffer
-			stderr bytes.Buffer
-		)
-
-		var (
-			appDir  string
-			appDirs = []string{"c", "b", "a"}
-		)
-
-		for _, app := range appDirs {
-			appDir = filepath.Join(tc.rootPath, app)
-
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, tc.downloadDir))
-			config.ClearOutputCache()
-		}
-
-		if tc.downloadDir != "" {
-			entries, err := os.ReadDir(tc.downloadDir)
-			require.NoError(t, err)
-			assert.Len(t, entries, len(appDirs))
-		}
-
-		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)
-
-		expectedOutpus := map[string]string{
-			"bar": "parent-bar",
-			"baz": "b-baz",
-			"foo": "c-foo",
-		}
-
-		output := stdout.String()
-		for key, value := range expectedOutpus {
-			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-		}
-
-		// Check that we're getting a warning for usage of deprecated functionality.
-		assert.Contains(
-			t,
-			stderr.String(),
-			"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
-		)
 	}
 }
 

@@ -1260,11 +1260,11 @@ dependency "rds" {
 }
 
 inputs = {
-  region = dependency.vpn.inputs.region
   vpc_id = dependency.vpc.outputs.vpc_id
   db_url = dependency.rds.outputs.db_url
 }
 ```
+**IMPORTANT**: The `dependency.<name>.inputs` field has been deprecated and removed. You can only access dependency outputs via `dependency.<name>.outputs`. If you were previously using `dependency.<name>.inputs`, you should refactor your configuration to use `dependency.<name>.outputs` instead.
 
 **Can I speed up dependency fetching?**
 
