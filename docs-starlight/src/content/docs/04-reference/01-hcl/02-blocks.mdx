@@ -1205,8 +1205,6 @@ section](/docs/features/stacks#dependencies-between-units) of the
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`
 that you can reference in your config.
 
-**IMPORTANT**: The `dependency.<name>.inputs` field has been deprecated and removed. You can only access dependency outputs via `dependency.<name>.outputs`. If you were previously using `dependency.<name>.inputs`, you should refactor your configuration to use `dependency.<name>.outputs` instead.
-
 The `dependency` block supports the following arguments:
 
 - `name` (label): You can define multiple `dependency` blocks in a single terragrunt config. As such, each block needs a
@@ -1266,6 +1264,7 @@ inputs = {
   db_url = dependency.rds.outputs.db_url
 }
 ```
+**IMPORTANT**: The `dependency.<name>.inputs` field has been deprecated and removed. You can only access dependency outputs via `dependency.<name>.outputs`. If you were previously using `dependency.<name>.inputs`, you should refactor your configuration to use `dependency.<name>.outputs` instead.
 
 **Can I speed up dependency fetching?**
 
