@@ -96,6 +96,37 @@
 //	    log.Fatal(err)
 //	}
 //
+// ## Multiple Filters (Union)
+//
+// Multiple filter queries can be combined using the Filters type, which applies
+// union (OR) semantics. This is different from using | within a single filter,
+// which applies intersection (AND) semantics.
+//
+//	// Parse multiple filter queries
+//	filters, err := filter.ParseFilterQueries([]string{
+//	    "./apps/*",      // Select all apps
+//	    "name=db",       // OR select db
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	result, err := filters.Evaluate(units)
+//	// Returns: all units in ./apps/* OR units named "db"
+//
+// Multiple filters are evaluated in two phases:
+//  1. Positive filters (non-negated) are evaluated and their results are unioned
+//  2. Negative filters (starting with !) are applied to remove matching units
+//
+// The ExcludeByDefault() method signals whether filters operate in exclude-by-default
+// mode. This is true if ANY filter doesn't start with a negation expression:
+//
+//	filters.ExcludeByDefault() // true if any filter is positive
+//
+// When true, discovery should start with an empty set and add matches.
+// When false (all filters are negated), discovery should start with all units
+// and remove matches.
+//
 // ## One-Shot Usage
 //
 //	// Parse and evaluate in one step
