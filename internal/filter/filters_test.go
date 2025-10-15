@@ -36,7 +36,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
 		require.NoError(t, err)
 		assert.NotNil(t, filters)
-		assert.Equal(t, `["./apps/*", "name=db", "!legacy"]`, filters.String())
+		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
 	})
 
 	t.Run("single invalid filter", func(t *testing.T) {
@@ -311,7 +311,7 @@ func TestFilters_String(t *testing.T) {
 
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
 		require.NoError(t, err)
-		assert.Equal(t, `["./apps/*", "name=db", "!legacy"]`, filters.String())
+		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
 	})
 
 	t.Run("filter with quotes in query", func(t *testing.T) {
