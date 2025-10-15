@@ -119,8 +119,8 @@ func TestTofuModuleDetectionWithRegex(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		description   string
 		files         map[string]string
+		description   string
 		expectModules bool
 	}{
 		{
@@ -219,8 +219,8 @@ func TestTofuCodeCheck(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		description string
 		files       map[string]string
+		description string
 		expectValid bool
 	}{
 		{
@@ -337,8 +337,8 @@ func TestTofuCacheValidation(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		description    string
 		files          map[string]string
+		description    string
 		expectHasFiles bool
 		expectError    bool
 	}{

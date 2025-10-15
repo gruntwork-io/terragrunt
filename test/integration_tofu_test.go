@@ -3,6 +3,8 @@
 package test_test
 
 import (
+	"fmt"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 
 const (
 	testFixtureAutoProviderCacheDir = "fixtures/auto-provider-cache-dir"
+	testFixtureTfPathDependency     = "fixtures/tf-path/dependency"
 )
 
 func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
@@ -72,4 +75,30 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 
 	assert.NotContains(t, stderr, "Auto provider cache dir enabled")
 	assert.NotRegexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
+}
+
+func TestTfPathRespectedForDependencies(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathDependency)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathDependency)
+	testPath := util.JoinPath(rootPath, testFixtureTfPathDependency)
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --tf-path %s --working-dir %s -- apply",
+			util.JoinPath(testPath, "custom-tf.sh"),
+			testPath,
+		),
+	)
+	require.NoError(
+		t,
+		err,
+		"Expected tf-path to be respected for dependency lookups, but it was overridden by terraform_binary in config",
+	)
+	assert.Contains(t, stderr, "Custom TF script used in ./app")
+	assert.Contains(t, stderr, "Custom TF script used in ./dep")
 }
