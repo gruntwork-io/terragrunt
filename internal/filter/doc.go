@@ -178,9 +178,9 @@
 //
 // # Future Enhancements
 //
-// Future versions may support:
+// Future versions will support:
 //   - Git-based filtering ([main...HEAD])
-//   - Dependency traversal (...name=foo)
-//   - Read-based filtering (reads:path/to/file)
-//   - AND operator (&)
+//   - Dependency traversal (name=foo...)
+//   - Dependents traversal (...name=foo)
+//   - Read-based filtering (reads=path/to/file)
 package filter
