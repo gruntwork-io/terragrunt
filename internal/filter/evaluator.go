@@ -2,49 +2,51 @@ package filter
 
 import (
 	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 )
 
-// Evaluate evaluates an expression against a list of units and returns the filtered units.
-func Evaluate(expr Expression, units []Unit) ([]Unit, error) {
+// Evaluate evaluates an expression against a list of configs and returns the filtered configs.
+func Evaluate(expr Expression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
 
-	return evaluate(expr, units)
+	return evaluate(expr, configs)
 }
 
 // evaluate is the internal recursive evaluation function.
-func evaluate(expr Expression, units []Unit) ([]Unit, error) {
+func evaluate(expr Expression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
 	switch node := expr.(type) {
 	case *PathFilter:
-		return evaluatePathFilter(node, units)
+		return evaluatePathFilter(node, configs)
 	case *AttributeFilter:
-		return evaluateAttributeFilter(node, units)
+		return evaluateAttributeFilter(node, configs)
 	case *PrefixExpression:
-		return evaluatePrefixExpression(node, units)
+		return evaluatePrefixExpression(node, configs)
 	case *InfixExpression:
-		return evaluateInfixExpression(node, units)
+		return evaluateInfixExpression(node, configs)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, units []Unit) ([]Unit, error) {
+func evaluatePathFilter(filter *PathFilter, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
 	// Get the compiled glob (compiled once and cached)
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
 	}
 
-	var result []Unit
+	var result []*discoveredconfig.DiscoveredConfig
 
-	for _, unit := range units {
-		// Normalize the unit path for matching
-		normalizedPath := filepath.ToSlash(unit.Path)
+	for _, cfg := range configs {
+		// Normalize the config path for matching
+		normalizedPath := filepath.ToSlash(cfg.Path)
 
 		if g.Match(normalizedPath) {
-			result = append(result, unit)
+			result = append(result, cfg)
 		}
 	}
 
@@ -52,23 +54,52 @@ func evaluatePathFilter(filter *PathFilter, units []Unit) ([]Unit, error) {
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, units []Unit) ([]Unit, error) {
-	var result []Unit
+func evaluateAttributeFilter(filter *AttributeFilter, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+	var result []*discoveredconfig.DiscoveredConfig
 
 	switch filter.Key {
 	case "name":
-		// Match by unit name
-		for _, unit := range units {
-			if unit.Name == filter.Value {
-				result = append(result, unit)
+		// Match by config name (derived from directory basename)
+		for _, cfg := range configs {
+			if filepath.Base(cfg.Path) == filter.Value {
+				result = append(result, cfg)
 			}
 		}
 	case "type":
-		// For future extensibility - currently all are "unit"
-		// In the future this could distinguish between units and stacks
-		if filter.Value == "unit" {
-			// All units match "type=unit" for now
-			result = append(result, units...)
+		// Match by config type (unit or stack)
+		switch filter.Value {
+		case string(discoveredconfig.ConfigTypeUnit):
+			for _, cfg := range configs {
+				if cfg.Type == discoveredconfig.ConfigTypeUnit {
+					result = append(result, cfg)
+				}
+			}
+		case string(discoveredconfig.ConfigTypeStack):
+			for _, cfg := range configs {
+				if cfg.Type == discoveredconfig.ConfigTypeStack {
+					result = append(result, cfg)
+				}
+			}
+		default:
+			return nil, NewEvaluationError("invalid type value: " + filter.Value + " (expected 'unit' or 'stack')")
+		}
+	case "external":
+		// Match by external flag
+		switch filter.Value {
+		case "true":
+			for _, cfg := range configs {
+				if cfg.External {
+					result = append(result, cfg)
+				}
+			}
+		case "false":
+			for _, cfg := range configs {
+				if !cfg.External {
+					result = append(result, cfg)
+				}
+			}
+		default:
+			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
 		}
 	default:
 		return nil, NewEvaluationError("unknown attribute key: " + filter.Key)
@@ -78,29 +109,29 @@ func evaluateAttributeFilter(filter *AttributeFilter, units []Unit) ([]Unit, err
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(expr *PrefixExpression, units []Unit) ([]Unit, error) {
+func evaluatePrefixExpression(expr *PrefixExpression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	// Evaluate the right side to get units to exclude
-	toExclude, err := evaluate(expr.Right, units)
+	// Evaluate the right side to get configs to exclude
+	toExclude, err := evaluate(expr.Right, configs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a set of paths to exclude for efficient lookup
 	excludeSet := make(map[string]bool, len(toExclude))
-	for _, unit := range toExclude {
-		excludeSet[unit.Path] = true
+	for _, cfg := range toExclude {
+		excludeSet[cfg.Path] = true
 	}
 
-	// Return all units NOT in the exclude set
-	var result []Unit
+	// Return all configs NOT in the exclude set
+	var result []*discoveredconfig.DiscoveredConfig
 
-	for _, unit := range units {
-		if !excludeSet[unit.Path] {
-			result = append(result, unit)
+	for _, cfg := range configs {
+		if !excludeSet[cfg.Path] {
+			result = append(result, cfg)
 		}
 	}
 
@@ -108,24 +139,24 @@ func evaluatePrefixExpression(expr *PrefixExpression, units []Unit) ([]Unit, err
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(expr *InfixExpression, units []Unit) ([]Unit, error) {
+func evaluateInfixExpression(expr *InfixExpression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
 	// Evaluate left side
-	leftResult, err := evaluate(expr.Left, units)
+	leftResult, err := evaluate(expr.Left, configs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Evaluate right side against the left result (refine/narrow)
-	// The right filter only evaluates units that passed the left filter
+	// The right filter only evaluates configs that passed the left filter
 	rightResult, err := evaluate(expr.Right, leftResult)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return the intersection (units that passed both filters)
+	// Return the intersection (configs that passed both filters)
 	return rightResult, nil
 }

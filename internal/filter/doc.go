@@ -1,14 +1,17 @@
-// Package filter provides a parser and evaluator for filter query strings used to select Terragrunt units.
+// Package filter provides a parser and evaluator for filter query strings used to select Terragrunt configurations.
 //
 // # Overview
 //
 // The filter package implements a three-stage compiler architecture:
 //  1. Lexer: Tokenizes the input filter query string
 //  2. Parser: Builds an Abstract Syntax Tree (AST) from tokens
-//  3. Evaluator: Applies the filter logic to a list of units
+//  3. Evaluator: Applies the filter logic to discovered Terragrunt configurations
 //
 // This design follows the classic compiler pattern and provides a clean separation of concerns
 // between syntax analysis and semantic evaluation.
+//
+// The package operates on discoveredconfig.DiscoveredConfig types from the internal/discoveredconfig package,
+// which represent Terragrunt configurations discovered during filesystem traversal.
 //
 // # Filter Syntax
 //
@@ -25,19 +28,23 @@
 //
 // ## Attribute Filters
 //
-// Attribute filters match units by their attributes:
+// Attribute filters match configurations by their attributes:
 //
-//	name=my-app             # Match by unit name
-//	type=unit               # Match by unit type
+//	name=my-app             # Match by config name (directory basename)
+//	type=unit               # Match configurations of type "unit"
+//	type=stack              # Match configurations of type "stack"
+//	external=true           # Match external dependencies
+//	external=false          # Match internal dependencies (not external)
 //	foo                     # Shorthand for name=foo
 //
 // ## Negation Operator (!)
 //
-// The negation operator excludes matching units:
+// The negation operator excludes matching configurations:
 //
-//	!name=legacy            # Exclude units named "legacy"
-//	!./apps/old             # Exclude units at path ./apps/old
-//	!foo                    # Exclude units named "foo"
+//	!name=legacy            # Exclude configs named "legacy"
+//	!./apps/old             # Exclude configs at path ./apps/old
+//	!foo                    # Exclude configs named "foo"
+//	!external=true          # Exclude external dependencies
 //
 // ## Intersection Operator (|)
 //
@@ -46,9 +53,10 @@
 // The pipe character (|) is the only delimiter between filter expressions.
 // Whitespace is optional around operators but is NOT a delimiter itself.
 //
-//	./apps/* | name=web     # Units in ./apps/* AND named "web"
+//	./apps/* | name=web     # Configs in ./apps/* AND named "web"
 //	./apps/*|name=web       # Same as above (spaces optional)
-//	foo | !bar              # Units named foo AND NOT named bar
+//	foo | !bar              # Configs named foo AND NOT named bar
+//	type=unit | !external=true  # Internal units only
 //
 // Spaces within unit names and paths are preserved:
 //
@@ -85,13 +93,14 @@
 //	    log.Fatal(err)
 //	}
 //
-//	// Apply the filter to units
-//	units := []filter.Unit{
-//	    {Name: "app1", Path: "./apps/app1"},
-//	    {Name: "legacy", Path: "./apps/legacy"},
-//	    {Name: "db", Path: "./libs/db"},
+//	// Apply the filter to discovered configs
+//	// (typically obtained from discovery.Discover())
+//	configs := []*discoveredconfig.DiscoveredConfig{
+//	    {Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+//	    {Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+//	    {Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 //	}
-//	result, err := filter.Evaluate(units)
+//	result, err := filter.Evaluate(configs)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -111,8 +120,8 @@
 //	    log.Fatal(err)
 //	}
 //
-//	result, err := filters.Evaluate(units)
-//	// Returns: all units in ./apps/* OR units named "db"
+//	result, err := filters.Evaluate(configs)
+//	// Returns: all configs in ./apps/* OR configs named "db"
 //
 // Multiple filters are evaluated in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
@@ -130,7 +139,7 @@
 // ## One-Shot Usage
 //
 //	// Parse and evaluate in one step
-//	result, err := filter.Apply("./apps/* | name=web", units)
+//	result, err := filter.Apply("./apps/* | name=web", configs)
 //
 // # Implementation Details
 //
@@ -159,10 +168,13 @@
 //
 // The evaluator (evaluator.go) walks the AST and applies the filter logic:
 //   - PathFilter: Uses glob matching (github.com/gobwas/glob) with eager compilation
-//     and caching via sync.OnceValue for performance
-//   - AttributeFilter: Matches attributes by key-value pairs
+//     and caching via sync.Once for performance
+//   - AttributeFilter: Matches attributes by key-value pairs:
+//   - name: Matches filepath.Base(config.Path)
+//   - type: Matches config.Type (unit or stack)
+//   - external: Matches config.External (true or false)
 //   - PrefixExpression: Returns the complement of the right side
-//   - InfixExpression: Returns the union (deduplicated) of both sides
+//   - InfixExpression: Returns the intersection by applying right filter to left results
 //
 // Path filters compile their glob pattern once on first evaluation and cache
 // the compiled result for reuse in subsequent evaluations, providing significant

@@ -3,6 +3,7 @@ package filter_test
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,58 +12,58 @@ import (
 func TestEvaluate_PathFilter(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "legacy", Path: "./apps/legacy"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
-		{Name: "nested", Path: "./apps/subdir/nested"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/subdir/nested", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	tests := []struct {
 		name     string
 		filter   *filter.PathFilter
-		expected []filter.Unit
+		expected []*discoveredconfig.DiscoveredConfig
 	}{
 		{
 			name:   "exact path match",
 			filter: &filter.PathFilter{Value: "./apps/app1"},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:   "glob with single wildcard",
 			filter: &filter.PathFilter{Value: "./apps/*"},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:   "glob with recursive wildcard",
 			filter: &filter.PathFilter{Value: "./apps/**"},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
-				{Name: "nested", Path: "./apps/subdir/nested"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/subdir/nested", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:   "glob matching specific subdirectory",
 			filter: &filter.PathFilter{Value: "./libs/*"},
-			expected: []filter.Unit{
-				{Name: "db", Path: "./libs/db"},
-				{Name: "api", Path: "./libs/api"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:     "no matches",
 			filter:   &filter.PathFilter{Value: "./nonexistent/*"},
-			expected: []filter.Unit{},
+			expected: []*discoveredconfig.DiscoveredConfig{},
 		},
 	}
 
@@ -70,7 +71,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.filter, units)
+			result, err := filter.Evaluate(tt.filter, configs)
 			require.NoError(t, err)
 
 			// Sort for consistent comparison
@@ -82,42 +83,42 @@ func TestEvaluate_PathFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app", Path: "./apps/app"},
-		{Name: "app", Path: "./libs/app"}, // Same name, different path
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/app", Type: discoveredconfig.ConfigTypeUnit}, // Same name, different path
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	tests := []struct {
 		name     string
 		filter   *filter.AttributeFilter
-		expected []filter.Unit
+		expected []*discoveredconfig.DiscoveredConfig
 	}{
 		{
 			name:   "name filter single match",
 			filter: &filter.AttributeFilter{Key: "name", Value: "db"},
-			expected: []filter.Unit{
-				{Name: "db", Path: "./libs/db"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:   "name filter multiple matches",
 			filter: &filter.AttributeFilter{Key: "name", Value: "app"},
-			expected: []filter.Unit{
-				{Name: "app", Path: "./apps/app"},
-				{Name: "app", Path: "./libs/app"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/app", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
 			name:     "name filter no matches",
 			filter:   &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
-			expected: []filter.Unit{},
+			expected: []*discoveredconfig.DiscoveredConfig{},
 		},
 		{
 			name:     "type filter",
 			filter:   &filter.AttributeFilter{Key: "type", Value: "unit"},
-			expected: units, // All units match type=unit
+			expected: configs, // All configs match type=unit
 		},
 	}
 
@@ -125,7 +126,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.filter, units)
+			result, err := filter.Evaluate(tt.filter, configs)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -135,12 +136,12 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app", Path: "./apps/app"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	attrFilter := &filter.AttributeFilter{Key: "invalid", Value: "foo"}
-	result, err := filter.Evaluate(attrFilter, units)
+	result, err := filter.Evaluate(attrFilter, configs)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -150,17 +151,17 @@ func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 func TestEvaluate_PrefixExpression(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "legacy", Path: "./apps/legacy"},
-		{Name: "db", Path: "./libs/db"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	tests := []struct {
 		name     string
 		expr     *filter.PrefixExpression
-		expected []filter.Unit
+		expected []*discoveredconfig.DiscoveredConfig
 	}{
 		{
 			name: "exclude by name",
@@ -168,10 +169,10 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Operator: "!",
 				Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
 			},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "db", Path: "./libs/db"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
@@ -180,10 +181,10 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Operator: "!",
 				Right:    &filter.PathFilter{Value: "./apps/legacy"},
 			},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "db", Path: "./libs/db"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
@@ -192,8 +193,8 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Operator: "!",
 				Right:    &filter.PathFilter{Value: "./apps/*"},
 			},
-			expected: []filter.Unit{
-				{Name: "db", Path: "./libs/db"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
@@ -202,7 +203,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Operator: "!",
 				Right:    &filter.AttributeFilter{Key: "type", Value: "unit"},
 			},
-			expected: []filter.Unit{}, // All excluded
+			expected: []*discoveredconfig.DiscoveredConfig{}, // All excluded
 		},
 	}
 
@@ -210,7 +211,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, units)
+			result, err := filter.Evaluate(tt.expr, configs)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -220,18 +221,18 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 func TestEvaluate_InfixExpression(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "legacy", Path: "./apps/legacy"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	tests := []struct {
 		name     string
 		expr     *filter.InfixExpression
-		expected []filter.Unit
+		expected []*discoveredconfig.DiscoveredConfig
 	}{
 		{
 			name: "intersection of path and name",
@@ -240,8 +241,8 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Operator: "|",
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
@@ -251,7 +252,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Operator: "|",
 				Right:    &filter.AttributeFilter{Key: "name", Value: "db"}, // db is in ./libs/, not ./apps/
 			},
-			expected: []filter.Unit{},
+			expected: []*discoveredconfig.DiscoveredConfig{},
 		},
 		{
 			name: "intersection of exact path and name",
@@ -260,8 +261,8 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Operator: "|",
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 			},
 		},
 		{
@@ -271,7 +272,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Operator: "|",
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"}, // Can't refine empty set
 			},
-			expected: []filter.Unit{},
+			expected: []*discoveredconfig.DiscoveredConfig{},
 		},
 	}
 
@@ -279,7 +280,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, units)
+			result, err := filter.Evaluate(tt.expr, configs)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -289,19 +290,19 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 func TestEvaluate_ComplexExpressions(t *testing.T) {
 	t.Parallel()
 
-	units := []filter.Unit{
-		{Name: "app1", Path: "./apps/app1"},
-		{Name: "app2", Path: "./apps/app2"},
-		{Name: "legacy", Path: "./apps/legacy"},
-		{Name: "db", Path: "./libs/db"},
-		{Name: "api", Path: "./libs/api"},
-		{Name: "special", Path: "./special/unit"},
+	configs := []*discoveredconfig.DiscoveredConfig{
+		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+		{Path: "./special/unit", Type: discoveredconfig.ConfigTypeUnit},
 	}
 
 	tests := []struct {
 		name     string
 		expr     filter.Expression
-		expected []filter.Unit
+		expected []*discoveredconfig.DiscoveredConfig
 	}{
 		{
 			name: "intersection with negation (refinement)",
@@ -310,9 +311,9 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				Operator: "|",
 				Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
 			},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
-				{Name: "app2", Path: "./apps/app2"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
 				// legacy excluded
 			},
 		},
@@ -326,12 +327,12 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 					Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 				},
 			},
-			expected: []filter.Unit{
-				{Name: "app2", Path: "./apps/app2"},
-				{Name: "legacy", Path: "./apps/legacy"},
-				{Name: "db", Path: "./libs/db"},
-				{Name: "api", Path: "./libs/api"},
-				{Name: "special", Path: "./special/unit"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+				{Path: "./special/unit", Type: discoveredconfig.ConfigTypeUnit},
 				// Everything except app1
 			},
 		},
@@ -346,8 +347,8 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				Operator: "|",
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
-			expected: []filter.Unit{
-				{Name: "app1", Path: "./apps/app1"},
+			expected: []*discoveredconfig.DiscoveredConfig{
+				{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
 				// Only app1 from ./apps/* after excluding legacy
 			},
 		},
@@ -357,7 +358,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Evaluate(tt.expr, units)
+			result, err := filter.Evaluate(tt.expr, configs)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -370,19 +371,19 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("nil expression", func(t *testing.T) {
 		t.Parallel()
 
-		units := []filter.Unit{{Name: "app", Path: "./app"}}
-		result, err := filter.Evaluate(nil, units)
+		configs := []*discoveredconfig.DiscoveredConfig{{Path: "./app", Type: discoveredconfig.ConfigTypeUnit}}
+		result, err := filter.Evaluate(nil, configs)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "expression is nil")
 	})
 
-	t.Run("empty units list", func(t *testing.T) {
+	t.Run("empty configs list", func(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.AttributeFilter{Key: "name", Value: "foo"}
-		result, err := filter.Evaluate(expr, []filter.Unit{})
+		result, err := filter.Evaluate(expr, []*discoveredconfig.DiscoveredConfig{})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -391,9 +392,9 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("invalid glob pattern", func(t *testing.T) {
 		t.Parallel()
 
-		units := []filter.Unit{{Name: "app", Path: "./app"}}
+		configs := []*discoveredconfig.DiscoveredConfig{{Path: "./app", Type: discoveredconfig.ConfigTypeUnit}}
 		expr := &filter.PathFilter{Value: "[invalid-glob"}
-		result, err := filter.Evaluate(expr, units)
+		result, err := filter.Evaluate(expr, configs)
 
 		require.Error(t, err)
 		assert.Nil(t, result)

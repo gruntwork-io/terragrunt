@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 )
 
 // Filters represents multiple filter queries that are evaluated with union (OR) semantics.
@@ -70,10 +72,10 @@ func (f Filters) ExcludeByDefault() bool {
 // Evaluate applies all filters with union (OR) semantics in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
-//     results and remove matching units
-func (f Filters) Evaluate(units []Unit) ([]Unit, error) {
+//     results and remove matching configs
+func (f Filters) Evaluate(configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
 	if len(f) == 0 {
-		return units, nil
+		return configs, nil
 	}
 
 	// Separate filters into positive and negative
@@ -88,27 +90,27 @@ func (f Filters) Evaluate(units []Unit) ([]Unit, error) {
 	}
 
 	// Phase 1: Union positive filters
-	seen := make(map[string]Unit, len(units))
+	seen := make(map[string]*discoveredconfig.DiscoveredConfig, len(configs))
 
 	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(units)
+		result, err := filter.Evaluate(configs)
 		if err != nil {
 			return nil, err
 		}
 
 		// Add results to seen map (union)
-		for _, unit := range result {
-			seen[unit.Path] = unit
+		for _, cfg := range result {
+			seen[cfg.Path] = cfg
 		}
 	}
 
 	// Convert to slice for phase 2
-	combined := make([]Unit, 0, len(seen))
-	for _, unit := range seen {
-		combined = append(combined, unit)
+	combined := make([]*discoveredconfig.DiscoveredConfig, 0, len(seen))
+	for _, cfg := range seen {
+		combined = append(combined, cfg)
 	}
 
-	// Phase 2: Apply negative filters to remove units
+	// Phase 2: Apply negative filters to remove configs
 	for _, filter := range negativeFilters {
 		result, err := filter.Evaluate(combined)
 		if err != nil {
