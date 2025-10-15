@@ -1,9 +1,9 @@
 package filter
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 )
@@ -130,23 +130,10 @@ func (f Filters) String() string {
 		filterStrings[i] = filter.String()
 	}
 
-	// Create JSON array manually (simpler than importing encoding/json)
-	if len(filterStrings) == 0 {
+	jsonBytes, err := json.Marshal(filterStrings)
+	if err != nil {
 		return "[]"
 	}
 
-	result := "["
-
-	for i, s := range filterStrings {
-		if i > 0 {
-			result += ", "
-		}
-		// Escape quotes in filter string
-		escaped := strings.ReplaceAll(s, `"`, `\"`)
-		result += `"` + escaped + `"`
-	}
-
-	result += "]"
-
-	return result
+	return string(jsonBytes)
 }
