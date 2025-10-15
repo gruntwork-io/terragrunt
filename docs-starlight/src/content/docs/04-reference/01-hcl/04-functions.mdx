@@ -805,10 +805,10 @@ carrot
 
 **Key observations from the output:**
 
-- `carrot` and `potato` appear only once because subsequent invocations used the cached value
-- `uuid1`, `uuid2`, and `uuid3` appear multiple times because each call includes a different UUID from `uuid()`, creating different cache keys
-- `uuid3` appears one extra time compared to `uuid1` and `uuid2` because it's declared in both `locals` and `inputs`
-- `uuid4` appears only once since it's declared only in `inputs`, which is evaluated once
+- `carrot` and `potato` appear once because subsequent invocations used cached values
+- `uuid1`, `uuid2`, and `uuid3` appear multiple times because each call to `uuid()` generates a different cache key
+- `uuid3` appears one extra time because it's declared in both `locals` and `inputs`
+- `uuid4` appears once since it's declared in `inputs`, which is evaluated once
 
 This caching behavior can be modified using the special parameters described in the [Special Parameters](#special-parameters) section above.
 
