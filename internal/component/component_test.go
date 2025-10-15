@@ -1,21 +1,21 @@
-package discoveredconfig_test
+package component_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiscoveredConfigsSort(t *testing.T) {
+func TestComponentsSort(t *testing.T) {
 	t.Parallel()
 
 	// Setup
-	configs := discoveredconfig.DiscoveredConfigs{
-		{Path: "c", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "a", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "b", Type: discoveredconfig.ConfigTypeStack},
+	configs := component.Components{
+		{Path: "c", Kind: component.Unit},
+		{Path: "a", Kind: component.Unit},
+		{Path: "b", Kind: component.Stack},
 	}
 
 	// Act
@@ -28,24 +28,24 @@ func TestDiscoveredConfigsSort(t *testing.T) {
 	assert.Equal(t, "c", sorted[2].Path)
 }
 
-func TestDiscoveredConfigsFilter(t *testing.T) {
+func TestComponentsFilter(t *testing.T) {
 	t.Parallel()
 
 	// Setup
-	configs := discoveredconfig.DiscoveredConfigs{
-		{Path: "unit1", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "stack1", Type: discoveredconfig.ConfigTypeStack},
-		{Path: "unit2", Type: discoveredconfig.ConfigTypeUnit},
+	configs := component.Components{
+		{Path: "unit1", Kind: component.Unit},
+		{Path: "stack1", Kind: component.Stack},
+		{Path: "unit2", Kind: component.Unit},
 	}
 
 	// Test unit filtering
 	t.Run("filter units", func(t *testing.T) {
 		t.Parallel()
 
-		units := configs.Filter(discoveredconfig.ConfigTypeUnit)
+		units := configs.Filter(component.Unit)
 		require.Len(t, units, 2)
-		assert.Equal(t, discoveredconfig.ConfigTypeUnit, units[0].Type)
-		assert.Equal(t, discoveredconfig.ConfigTypeUnit, units[1].Type)
+		assert.Equal(t, component.Unit, units[0].Kind)
+		assert.Equal(t, component.Unit, units[1].Kind)
 		assert.ElementsMatch(t, []string{"unit1", "unit2"}, units.Paths())
 	})
 
@@ -53,27 +53,27 @@ func TestDiscoveredConfigsFilter(t *testing.T) {
 	t.Run("filter stacks", func(t *testing.T) {
 		t.Parallel()
 
-		stacks := configs.Filter(discoveredconfig.ConfigTypeStack)
+		stacks := configs.Filter(component.Stack)
 		require.Len(t, stacks, 1)
-		assert.Equal(t, discoveredconfig.ConfigTypeStack, stacks[0].Type)
+		assert.Equal(t, component.Stack, stacks[0].Kind)
 		assert.Equal(t, "stack1", stacks[0].Path)
 	})
 }
 
-func TestDiscoveredConfigsCycleCheck(t *testing.T) {
+func TestComponentsCycleCheck(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name          string
-		configs       discoveredconfig.DiscoveredConfigs
+		configs       component.Components
 		errorExpected bool
 	}{
 		{
 			name: "no cycles",
-			configs: discoveredconfig.DiscoveredConfigs{
+			configs: component.Components{
 				{
 					Path: "a",
-					Dependencies: discoveredconfig.DiscoveredConfigs{
+					Dependencies: component.Components{
 						{Path: "b"},
 					},
 				},
@@ -83,13 +83,13 @@ func TestDiscoveredConfigsCycleCheck(t *testing.T) {
 		},
 		{
 			name: "direct cycle",
-			configs: discoveredconfig.DiscoveredConfigs{
+			configs: component.Components{
 				{
 					Path: "a",
-					Dependencies: discoveredconfig.DiscoveredConfigs{
+					Dependencies: component.Components{
 						{
 							Path: "b",
-							Dependencies: discoveredconfig.DiscoveredConfigs{
+							Dependencies: component.Components{
 								{Path: "a"},
 							},
 						},
@@ -101,16 +101,16 @@ func TestDiscoveredConfigsCycleCheck(t *testing.T) {
 		},
 		{
 			name: "indirect cycle",
-			configs: discoveredconfig.DiscoveredConfigs{
+			configs: component.Components{
 				{
 					Path: "a",
-					Dependencies: discoveredconfig.DiscoveredConfigs{
+					Dependencies: component.Components{
 						{
 							Path: "b",
-							Dependencies: discoveredconfig.DiscoveredConfigs{
+							Dependencies: component.Components{
 								{
 									Path: "c",
-									Dependencies: discoveredconfig.DiscoveredConfigs{
+									Dependencies: component.Components{
 										{Path: "a"},
 									},
 								},
@@ -125,23 +125,23 @@ func TestDiscoveredConfigsCycleCheck(t *testing.T) {
 		},
 		{
 			name: "diamond dependency - no cycle",
-			configs: discoveredconfig.DiscoveredConfigs{
+			configs: component.Components{
 				{
 					Path: "a",
-					Dependencies: discoveredconfig.DiscoveredConfigs{
+					Dependencies: component.Components{
 						{Path: "b"},
 						{Path: "c"},
 					},
 				},
 				{
 					Path: "b",
-					Dependencies: discoveredconfig.DiscoveredConfigs{
+					Dependencies: component.Components{
 						{Path: "d"},
 					},
 				},
 				{
 					Path: "c",
-					Dependencies: discoveredconfig.DiscoveredConfigs{
+					Dependencies: component.Components{
 						{Path: "d"},
 					},
 				},

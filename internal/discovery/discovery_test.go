@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -86,8 +86,8 @@ func TestDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			units := configs.Filter(discoveredconfig.ConfigTypeUnit).Paths()
-			stacks := configs.Filter(discoveredconfig.ConfigTypeStack).Paths()
+			units := configs.Filter(component.Unit).Paths()
+			stacks := configs.Filter(component.Stack).Paths()
 
 			assert.ElementsMatch(t, units, tt.wantUnits)
 			assert.ElementsMatch(t, stacks, tt.wantStacks)
@@ -157,49 +157,49 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		// Note that when comparing against this,
 		// we'll nil out the parsed configurations,
 		// as it doesn't matter for this test
-		wantDiscovery discoveredconfig.DiscoveredConfigs
+		wantDiscovery component.Components
 		errorExpected bool
 	}{
 		{
 			name:      "discovery without dependencies",
 			discovery: discovery.NewDiscovery(internalDir),
-			wantDiscovery: discoveredconfig.DiscoveredConfigs{
-				{Path: appDir, Type: discoveredconfig.ConfigTypeUnit},
-				{Path: dbDir, Type: discoveredconfig.ConfigTypeUnit},
-				{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
+			wantDiscovery: component.Components{
+				{Path: appDir, Kind: component.Unit},
+				{Path: dbDir, Kind: component.Unit},
+				{Path: vpcDir, Kind: component.Unit},
 			},
 		},
 		{
 			name:      "discovery with dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies(),
-			wantDiscovery: discoveredconfig.DiscoveredConfigs{
-				{Path: appDir, Type: discoveredconfig.ConfigTypeUnit, Dependencies: discoveredconfig.DiscoveredConfigs{
-					{Path: dbDir, Type: discoveredconfig.ConfigTypeUnit, Dependencies: discoveredconfig.DiscoveredConfigs{
-						{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
+			wantDiscovery: component.Components{
+				{Path: appDir, Kind: component.Unit, Dependencies: component.Components{
+					{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
+						{Path: vpcDir, Kind: component.Unit},
 					}},
-					{Path: externalAppDir, Type: discoveredconfig.ConfigTypeUnit, External: true},
+					{Path: externalAppDir, Kind: component.Unit, External: true},
 				}},
-				{Path: dbDir, Type: discoveredconfig.ConfigTypeUnit, Dependencies: discoveredconfig.DiscoveredConfigs{
-					{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
+				{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
+					{Path: vpcDir, Kind: component.Unit},
 				}},
-				{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
+				{Path: vpcDir, Kind: component.Unit},
 			},
 		},
 		{
 			name:      "discovery with external dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithDiscoverExternalDependencies(),
-			wantDiscovery: discoveredconfig.DiscoveredConfigs{
-				{Path: appDir, Type: discoveredconfig.ConfigTypeUnit, Dependencies: discoveredconfig.DiscoveredConfigs{
-					{Path: dbDir, Type: discoveredconfig.ConfigTypeUnit, Dependencies: discoveredconfig.DiscoveredConfigs{
-						{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
+			wantDiscovery: component.Components{
+				{Path: appDir, Kind: component.Unit, Dependencies: component.Components{
+					{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
+						{Path: vpcDir, Kind: component.Unit},
 					}},
-					{Path: externalAppDir, Type: discoveredconfig.ConfigTypeUnit, External: true},
+					{Path: externalAppDir, Kind: component.Unit, External: true},
 				}},
-				{Path: dbDir, Type: discoveredconfig.ConfigTypeUnit, Dependencies: discoveredconfig.DiscoveredConfigs{
-					{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
+				{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
+					{Path: vpcDir, Kind: component.Unit},
 				}},
-				{Path: vpcDir, Type: discoveredconfig.ConfigTypeUnit},
-				{Path: externalAppDir, Type: discoveredconfig.ConfigTypeUnit, External: true},
+				{Path: vpcDir, Kind: component.Unit},
+				{Path: externalAppDir, Kind: component.Unit, External: true},
 			},
 		},
 	}
@@ -297,7 +297,7 @@ exclude {
 	assert.Len(t, cfgs, 3)
 
 	// Helper to find config by path
-	findConfig := func(path string) *discoveredconfig.DiscoveredConfig {
+	findConfig := func(path string) *component.Component {
 		for _, cfg := range cfgs {
 			if filepath.Base(cfg.Path) == path {
 				return cfg
@@ -345,7 +345,7 @@ func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
 	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
-	units := configs.Filter(discoveredconfig.ConfigTypeUnit).Paths()
+	units := configs.Filter(component.Unit).Paths()
 	assert.ElementsMatch(t, []string{unit1Dir}, units)
 }
 
@@ -414,8 +414,8 @@ inputs = {
 	require.NoError(t, err)
 
 	// Verify that both stack and unit configurations are discovered
-	units := configs.Filter(discoveredconfig.ConfigTypeUnit)
-	stacks := configs.Filter(discoveredconfig.ConfigTypeStack)
+	units := configs.Filter(component.Unit)
+	stacks := configs.Filter(component.Stack)
 
 	assert.Len(t, units, 1)
 	assert.Len(t, stacks, 1)
@@ -458,19 +458,19 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).WithExcludeDirs([]string{unit2Dir})
 	cfgs, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(discoveredconfig.ConfigTypeUnit).Paths())
+	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(component.Unit).Paths())
 
 	// Exclude-by-default and include only unit1
 	d = discovery.NewDiscovery(tmpDir).WithExcludeByDefault().WithIncludeDirs([]string{unit1Dir})
 	cfgs, err = d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(discoveredconfig.ConfigTypeUnit).Paths())
+	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(component.Unit).Paths())
 
 	// Strict include behaves the same
 	d = discovery.NewDiscovery(tmpDir).WithStrictInclude().WithIncludeDirs([]string{unit3Dir})
 	cfgs, err = d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{unit3Dir}, cfgs.Filter(discoveredconfig.ConfigTypeUnit).Paths())
+	assert.ElementsMatch(t, []string{unit3Dir}, cfgs.Filter(component.Unit).Paths())
 }
 
 func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
@@ -489,7 +489,7 @@ func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).WithIncludeDirs([]string{filepath.Join(tmpDir, ".hidden", "**")})
 	cfgs, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{hiddenUnitDir}, cfgs.Filter(discoveredconfig.ConfigTypeUnit).Paths())
+	assert.ElementsMatch(t, []string{hiddenUnitDir}, cfgs.Filter(component.Unit).Paths())
 }
 
 func TestDiscoveryStackHiddenAllowed(t *testing.T) {
@@ -508,7 +508,7 @@ func TestDiscoveryStackHiddenAllowed(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir)
 	cfgs, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
-	assert.Contains(t, cfgs.Filter(discoveredconfig.ConfigTypeUnit).Paths(), stackHiddenDir)
+	assert.Contains(t, cfgs.Filter(component.Unit).Paths(), stackHiddenDir)
 }
 
 func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
@@ -547,7 +547,7 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	// Find app config and assert it only has internal deps
-	var appCfg *discoveredconfig.DiscoveredConfig
+	var appCfg *component.Component
 
 	for _, c := range cfgs {
 		if c.Path == appDir {
