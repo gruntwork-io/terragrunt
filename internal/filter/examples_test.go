@@ -5,16 +5,16 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 )
 
 // Example_basicPathFilter demonstrates filtering configs by path with a glob pattern.
 func Example_basicPathFilter() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/app1", Kind: component.Unit},
+		{Path: "./apps/app2", Kind: component.Unit},
+		{Path: "./libs/db", Kind: component.Unit},
 	}
 
 	result, _ := filter.Apply("./apps/*", configs)
@@ -29,10 +29,10 @@ func Example_basicPathFilter() {
 
 // Example_attributeFilter demonstrates filtering configs by name attribute.
 func Example_attributeFilter() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/frontend", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/backend", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./services/api", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/frontend", Kind: component.Unit},
+		{Path: "./apps/backend", Kind: component.Unit},
+		{Path: "./services/api", Kind: component.Unit},
 	}
 
 	result, _ := filter.Apply("name=api", configs)
@@ -46,10 +46,10 @@ func Example_attributeFilter() {
 
 // Example_exclusionFilter demonstrates excluding configs using the negation operator.
 func Example_exclusionFilter() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/app1", Kind: component.Unit},
+		{Path: "./apps/app2", Kind: component.Unit},
+		{Path: "./apps/legacy", Kind: component.Unit},
 	}
 
 	result, _ := filter.Apply("!legacy", configs)
@@ -64,11 +64,11 @@ func Example_exclusionFilter() {
 
 // Example_intersectionFilter demonstrates refining results with the intersection operator.
 func Example_intersectionFilter() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/frontend", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/backend", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/frontend", Kind: component.Unit},
+		{Path: "./apps/backend", Kind: component.Unit},
+		{Path: "./libs/db", Kind: component.Unit},
+		{Path: "./libs/api", Kind: component.Unit},
 	}
 
 	// Select configs in ./apps/ that are named "frontend"
@@ -83,12 +83,12 @@ func Example_intersectionFilter() {
 
 // Example_complexQuery demonstrates a complex filter combining paths and negation.
 func Example_complexQuery() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./services/web", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./services/worker", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/cache", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./services/web", Kind: component.Unit},
+		{Path: "./services/worker", Kind: component.Unit},
+		{Path: "./libs/db", Kind: component.Unit},
+		{Path: "./libs/api", Kind: component.Unit},
+		{Path: "./libs/cache", Kind: component.Unit},
 	}
 
 	// Select all services except worker
@@ -103,9 +103,9 @@ func Example_complexQuery() {
 
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
 func Example_parseAndEvaluate() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/app1", Kind: component.Unit},
+		{Path: "./apps/app2", Kind: component.Unit},
 	}
 
 	// Parse the filter once
@@ -129,10 +129,10 @@ func Example_parseAndEvaluate() {
 
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./infrastructure/networking/vpc", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./infrastructure/networking/subnets", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./infrastructure/compute/app-server", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
+		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
+		{Path: "./infrastructure/compute/app-server", Kind: component.Unit},
 	}
 
 	// Match all infrastructure configs at any depth
@@ -168,11 +168,11 @@ func Example_errorHandling() {
 
 // Example_multipleFilters demonstrates using multiple filters with union semantics.
 func Example_multipleFilters() {
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/app1", Kind: component.Unit},
+		{Path: "./apps/app2", Kind: component.Unit},
+		{Path: "./libs/db", Kind: component.Unit},
+		{Path: "./libs/api", Kind: component.Unit},
 	}
 
 	// Parse multiple filters - results are unioned

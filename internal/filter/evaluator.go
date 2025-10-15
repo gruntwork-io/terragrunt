@@ -3,11 +3,11 @@ package filter
 import (
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
 // Evaluate evaluates an expression against a list of configs and returns the filtered configs.
-func Evaluate(expr Expression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func Evaluate(expr Expression, configs []*component.Component) ([]*component.Component, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
@@ -16,7 +16,7 @@ func Evaluate(expr Expression, configs []*discoveredconfig.DiscoveredConfig) ([]
 }
 
 // evaluate is the internal recursive evaluation function.
-func evaluate(expr Expression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func evaluate(expr Expression, configs []*component.Component) ([]*component.Component, error) {
 	switch node := expr.(type) {
 	case *PathFilter:
 		return evaluatePathFilter(node, configs)
@@ -32,14 +32,14 @@ func evaluate(expr Expression, configs []*discoveredconfig.DiscoveredConfig) ([]
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func evaluatePathFilter(filter *PathFilter, configs []*component.Component) ([]*component.Component, error) {
 	// Get the compiled glob (compiled once and cached)
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
 	}
 
-	var result []*discoveredconfig.DiscoveredConfig
+	var result []*component.Component
 
 	for _, cfg := range configs {
 		// Normalize the config path for matching
@@ -54,8 +54,8 @@ func evaluatePathFilter(filter *PathFilter, configs []*discoveredconfig.Discover
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
-	var result []*discoveredconfig.DiscoveredConfig
+func evaluateAttributeFilter(filter *AttributeFilter, configs []*component.Component) ([]*component.Component, error) {
+	var result []*component.Component
 
 	switch filter.Key {
 	case "name":
@@ -68,15 +68,15 @@ func evaluateAttributeFilter(filter *AttributeFilter, configs []*discoveredconfi
 	case "type":
 		// Match by config type (unit or stack)
 		switch filter.Value {
-		case string(discoveredconfig.ConfigTypeUnit):
+		case string(component.Unit):
 			for _, cfg := range configs {
-				if cfg.Type == discoveredconfig.ConfigTypeUnit {
+				if cfg.Kind == component.Unit {
 					result = append(result, cfg)
 				}
 			}
-		case string(discoveredconfig.ConfigTypeStack):
+		case string(component.Stack):
 			for _, cfg := range configs {
-				if cfg.Type == discoveredconfig.ConfigTypeStack {
+				if cfg.Kind == component.Stack {
 					result = append(result, cfg)
 				}
 			}
@@ -109,7 +109,7 @@ func evaluateAttributeFilter(filter *AttributeFilter, configs []*discoveredconfi
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(expr *PrefixExpression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func evaluatePrefixExpression(expr *PrefixExpression, configs []*component.Component) ([]*component.Component, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
@@ -127,7 +127,7 @@ func evaluatePrefixExpression(expr *PrefixExpression, configs []*discoveredconfi
 	}
 
 	// Return all configs NOT in the exclude set
-	var result []*discoveredconfig.DiscoveredConfig
+	var result []*component.Component
 
 	for _, cfg := range configs {
 		if !excludeSet[cfg.Path] {
@@ -139,7 +139,7 @@ func evaluatePrefixExpression(expr *PrefixExpression, configs []*discoveredconfi
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(expr *InfixExpression, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func evaluateInfixExpression(expr *InfixExpression, configs []*component.Component) ([]*component.Component, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}

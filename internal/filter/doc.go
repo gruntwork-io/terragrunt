@@ -1,17 +1,14 @@
-// Package filter provides a parser and evaluator for filter query strings used to select Terragrunt configurations.
+// Package filter provides a parser and evaluator for filter query strings used to select Terragrunt components.
 //
 // # Overview
 //
 // The filter package implements a three-stage compiler architecture:
 //  1. Lexer: Tokenizes the input filter query string
 //  2. Parser: Builds an Abstract Syntax Tree (AST) from tokens
-//  3. Evaluator: Applies the filter logic to discovered Terragrunt configurations
+//  3. Evaluator: Applies the filter logic to discovered Terragrunt components
 //
 // This design follows the classic compiler pattern and provides a clean separation of concerns
 // between syntax analysis and semantic evaluation.
-//
-// The package operates on discoveredconfig.DiscoveredConfig types from the internal/discoveredconfig package,
-// which represent Terragrunt configurations discovered during filesystem traversal.
 //
 // # Filter Syntax
 //
@@ -19,7 +16,7 @@
 //
 // ## Path Filters
 //
-// Path filters match units by their file system path. They support glob patterns:
+// Path filters match components by their file system path. They support glob patterns:
 //
 //	./apps/frontend         # Exact path match
 //	./apps/*                # Single-level wildcard
@@ -28,18 +25,18 @@
 //
 // ## Attribute Filters
 //
-// Attribute filters match configurations by their attributes:
+// Attribute filters match components by their attributes:
 //
 //	name=my-app             # Match by config name (directory basename)
-//	type=unit               # Match configurations of type "unit"
-//	type=stack              # Match configurations of type "stack"
+//	type=unit               # Match components of type "unit"
+//	type=stack              # Match components of type "stack"
 //	external=true           # Match external dependencies
 //	external=false          # Match internal dependencies (not external)
 //	foo                     # Shorthand for name=foo
 //
 // ## Negation Operator (!)
 //
-// The negation operator excludes matching configurations:
+// The negation operator excludes matching components:
 //
 //	!name=legacy            # Exclude configs named "legacy"
 //	!./apps/old             # Exclude configs at path ./apps/old
@@ -53,14 +50,14 @@
 // The pipe character (|) is the only delimiter between filter expressions.
 // Whitespace is optional around operators but is NOT a delimiter itself.
 //
-//	./apps/* | name=web     # Configs in ./apps/* AND named "web"
+//	./apps/* | name=web     # Components in ./apps/* AND named "web"
 //	./apps/*|name=web       # Same as above (spaces optional)
-//	foo | !bar              # Configs named foo AND NOT named bar
+//	foo | !bar              # Components named foo AND NOT named bar
 //	type=unit | !external=true  # Internal units only
 //
 // Spaces within unit names and paths are preserved:
 //
-//	my app                  # Unit named "my app" (with space)
+//	my app                  # Component named "my app" (with space)
 //	./my path/file          # Path with spaces
 //
 // ## Braced Path Syntax ({})
@@ -95,10 +92,10 @@
 //
 //	// Apply the filter to discovered configs
 //	// (typically obtained from discovery.Discover())
-//	configs := []*discoveredconfig.DiscoveredConfig{
-//	    {Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-//	    {Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
-//	    {Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+//	configs := []*component.Component{
+//	    {Path: "./apps/app1", Kind: component.Unit},
+//	    {Path: "./apps/legacy", Kind: component.Unit},
+//	    {Path: "./libs/db", Kind: component.Unit},
 //	}
 //	result, err := filter.Evaluate(configs)
 //	if err != nil {

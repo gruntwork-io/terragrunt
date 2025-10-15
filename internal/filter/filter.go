@@ -1,6 +1,6 @@
 package filter
 
-import "github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+import "github.com/gruntwork-io/terragrunt/internal/component"
 
 // Filter represents a parsed filter query that can be evaluated against discovered configs.
 type Filter struct {
@@ -28,7 +28,7 @@ func Parse(filterString, workingDir string) (*Filter, error) {
 }
 
 // Evaluate applies the filter to a list of discovered configs and returns the filtered result.
-func (f *Filter) Evaluate(allConfigs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func (f *Filter) Evaluate(allConfigs []*component.Component) ([]*component.Component, error) {
 	return Evaluate(f.expr, allConfigs)
 }
 
@@ -45,7 +45,7 @@ func (f *Filter) Expression() Expression {
 
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
-func Apply(filterString string, configs []*discoveredconfig.DiscoveredConfig) ([]*discoveredconfig.DiscoveredConfig, error) {
+func Apply(filterString string, configs []*component.Component) ([]*component.Component, error) {
 	filter, err := Parse(filterString)
 	if err != nil {
 		return nil, err

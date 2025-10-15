@@ -3,7 +3,7 @@ package filter_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,12 +80,12 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 func TestFilters_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	configs := []*discoveredconfig.DiscoveredConfig{
-		{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
-		{Path: "./libs/api", Type: discoveredconfig.ConfigTypeUnit},
+	configs := []*component.Component{
+		{Path: "./apps/app1", Kind: component.Unit},
+		{Path: "./apps/app2", Kind: component.Unit},
+		{Path: "./apps/legacy", Kind: component.Unit},
+		{Path: "./libs/db", Kind: component.Unit},
+		{Path: "./libs/api", Kind: component.Unit},
 	}
 
 	t.Run("empty filters returns all configs", func(t *testing.T) {
@@ -108,10 +108,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./apps/legacy", Kind: component.Unit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -126,9 +126,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./libs/db", Kind: component.Unit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -143,10 +143,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/legacy", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./apps/legacy", Kind: component.Unit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -163,9 +163,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -180,8 +180,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -198,7 +198,7 @@ func TestFilters_Evaluate(t *testing.T) {
 
 		// When there are no positive filters, the combined result is empty,
 		// so negative filters have nothing to remove from
-		expected := []*discoveredconfig.DiscoveredConfig{}
+		expected := []*component.Component{}
 
 		assert.ElementsMatch(t, expected, result)
 	})
@@ -217,10 +217,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(configs)
 		require.NoError(t, err)
 
-		expected := []*discoveredconfig.DiscoveredConfig{
-			{Path: "./apps/app1", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./apps/app2", Type: discoveredconfig.ConfigTypeUnit},
-			{Path: "./libs/db", Type: discoveredconfig.ConfigTypeUnit},
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./libs/db", Kind: component.Unit},
 		}
 
 		assert.ElementsMatch(t, expected, result)
