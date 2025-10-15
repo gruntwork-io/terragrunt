@@ -6,7 +6,8 @@ env:
   - TG_QUEUE_INCLUDE_UNITS_READING
 ---
 
-import { Aside, FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 This flag works very similarly to the [`--queue-units-that-include`](/docs/reference/cli/commands/run#queue-units-that-include) flag, but instead of looking only for included configurations,
 it also looks for configurations that read a given file.

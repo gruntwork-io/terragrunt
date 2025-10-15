@@ -6,7 +6,8 @@ sidebar:
   order: 7
 ---
 
-import { Code, FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 In the previous step, you successfully duplicated your `prod` environment as a new `dev` environment by replicating your `prod` module declaration as a new `dev` module instance in your `live/main.tf` file. While this demonstrated the power of reusable modules, it also introduced significant risk: the ***Terralith***. You've tightly coupled management of both your `dev` and `prod` environments in a single state file, and you introduce risk to one whenever you attempt to make changes to another.
 

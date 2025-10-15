@@ -6,7 +6,8 @@ sidebar:
   order: 4
 ---
 
-import { Code, FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 During this step we're going to take the contents of the `dist` directory, and deploy the application in AWS using OpenTofu. The content that we're going to create here is not intended to be a best-practices IaC setup, but rather what one might do if they were to naively put together the IaC for this application from scratch without knowledge of best practices, or planning for future modifications.
 

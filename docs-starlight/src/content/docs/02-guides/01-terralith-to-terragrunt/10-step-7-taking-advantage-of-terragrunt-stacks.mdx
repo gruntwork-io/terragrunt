@@ -6,7 +6,8 @@ sidebar:
   order: 10
 ---
 
-import { Code, FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 Up until relatively recently in the history of Terragrunt, the proliferation of `terragrunt.hcl` files was the trade-off platform engineers had to accept for state segmentation. Luckily, with the advent of [Terragrunt Stacks](/docs/features/stacks/), that's not the case anymore. Collections of units, like the ones you created in the last step, can be generated on-demand using `terragrunt.stack.hcl` files. This saves you from having to duplicate `terragrunt.hcl` files across your codebase.
 

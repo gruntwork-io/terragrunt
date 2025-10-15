@@ -6,7 +6,8 @@ env:
   - TG_QUEUE_STRICT_INCLUDE
 ---
 
-import { Aside, FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 When enabled, Terragrunt will only process directories that match the patterns specified by [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir).
 
