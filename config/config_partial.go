@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
@@ -30,7 +28,6 @@ const (
 	TerraformBlock
 	TerraformSource
 	TerragruntFlags
-	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
@@ -493,26 +490,6 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			if decoded.IamWebIdentityToken != nil {
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
-		case TerragruntInputs:
-			// Skip dependency inputs by default for performance.
-			// Dependency input parsing is a deprecated feature that causes significant
-			// performance overhead due to recursive parsing. Most users don't need this
-			// feature and should use dependency outputs instead.
-			allControls := ctx.TerragruntOptions.StrictControls
-
-			skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
-			if skipDependenciesInputs == nil {
-				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
-			}
-
-			skipDependenciesInputs.SuppressWarning()
-
-			l.Debugf(
-				"Skipping inputs parse from %v in dependency for better performance (default behavior). "+
-					"Dependency input parsing is deprecated - use dependency outputs instead.",
-				file.ConfigPath,
-			)
-
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
 
