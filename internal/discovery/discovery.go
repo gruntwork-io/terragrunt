@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -81,7 +81,7 @@ type Sort string
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
-	discoveryContext *component.DiscoveryContext
+	discoveryContext *discoveredconfig.DiscoveryContext
 
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
@@ -254,7 +254,7 @@ func (d *Discovery) WithSuppressParseErrors() *Discovery {
 }
 
 // WithDiscoveryContext sets the DiscoveryContext flag to the given context.
-func (d *Discovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *Discovery {
+func (d *Discovery) WithDiscoveryContext(discoveryContext *discoveredconfig.DiscoveryContext) *Discovery {
 	d.discoveryContext = discoveryContext
 
 	return d
@@ -378,15 +378,15 @@ func (d *Discovery) compileExcludePatterns(l log.Logger) {
 	}
 }
 
-// String returns a string representation of a Component.
-// String returns the path of the Component.
-func String(c *component.Component) string {
+// String returns a string representation of a DiscoveredConfig.
+// String returns the path of the DiscoveredConfig.
+func String(c *discoveredconfig.DiscoveredConfig) string {
 	return c.Path
 }
 
 // ContainsDependencyInAncestry returns true if the Component or any of
 // its dependencies contains the given path as a dependency.
-func ContainsDependencyInAncestry(c *component.Component, path string) bool {
+func ContainsDependencyInAncestry(c *discoveredconfig.DiscoveredConfig, path string) bool {
 	for _, dep := range c.Dependencies {
 		if dep.Path == path {
 			return true
@@ -401,14 +401,7 @@ func ContainsDependencyInAncestry(c *component.Component, path string) bool {
 }
 
 // Parse parses the discovered configuration.
-func Parse(
-	c *component.Component,
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	suppressParseErrors bool,
-	parserOptions []hclparse.Option,
-) error {
+func Parse(c *discoveredconfig.DiscoveredConfig, ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool, parserOptions []hclparse.Option) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
@@ -427,7 +420,7 @@ func Parse(
 	}
 
 	// For stack configurations, always use the default stack config filename
-	if c.Kind == component.Stack {
+	if c.Type == discoveredconfig.ConfigTypeStack {
 		filename = config.DefaultStackFile
 	}
 
@@ -534,12 +527,12 @@ func (d *Discovery) discoverConcurrently(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	filenames []string,
-) (component.Components, error) {
+) (discoveredconfig.DiscoveredConfigs, error) {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(d.numWorkers + 1) // +1 for the file walker
 
 	filePaths := make(chan string, d.numWorkers*channelBufferMultiplier)
-	results := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
+	results := make(chan *discoveredconfig.DiscoveredConfig, d.numWorkers*channelBufferMultiplier)
 
 	g.Go(func() error {
 		defer close(filePaths)
@@ -559,7 +552,7 @@ func (d *Discovery) discoverConcurrently(
 		_ = g.Wait() // We handle errors in the main thread below
 	}()
 
-	cfgs := make(component.Components, 0, len(results))
+	cfgs := make(discoveredconfig.DiscoveredConfigs, 0, len(results))
 
 	for config := range results {
 		cfgs = append(cfgs, config)
@@ -638,7 +631,7 @@ func (d *Discovery) configWorker(
 	ctx context.Context,
 	l log.Logger,
 	filePaths <-chan string,
-	results chan<- *component.Component,
+	results chan<- *discoveredconfig.DiscoveredConfig,
 	filenames []string,
 ) error {
 	for path := range filePaths {
@@ -663,7 +656,7 @@ func (d *Discovery) configWorker(
 }
 
 // processFile processes a single file to determine if it's a Terragrunt configuration.
-func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *component.Component {
+func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *discoveredconfig.DiscoveredConfig {
 	dir := filepath.Dir(path)
 
 	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
@@ -723,13 +716,13 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	base := filepath.Base(path)
 	for _, fname := range filenames {
 		if base == fname {
-			componentKind := component.Unit
+			cfgType := discoveredconfig.ConfigTypeUnit
 			if fname == config.DefaultStackFile {
-				componentKind = component.Stack
+				cfgType = discoveredconfig.ConfigTypeStack
 			}
 
-			cfg := &component.Component{
-				Kind: componentKind,
+			cfg := &discoveredconfig.DiscoveredConfig{
+				Type: cfgType,
 				Path: filepath.Dir(path),
 			}
 			if d.discoveryContext != nil {
@@ -743,20 +736,15 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	return nil
 }
 
-// parseConcurrently parses components concurrently to improve performance using errgroup.
-func (d *Discovery) parseConcurrently(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	components component.Components,
-) []error {
+// parseConcurrently parses configurations concurrently to improve performance using errgroup.
+func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfgs discoveredconfig.DiscoveredConfigs) []error {
 	// Filter out configs that don't need parsing
 	// Pre-allocate with estimated capacity to reduce reallocation
-	componentsToParse := make([]*component.Component, 0, len(components))
-	for _, c := range components {
+	configsToParse := make([]*discoveredconfig.DiscoveredConfig, 0, len(cfgs))
+	for _, cfg := range cfgs {
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
-		if c.Kind == component.Stack {
+		if cfg.Type == discoveredconfig.ConfigTypeStack {
 			continue
 		}
 
@@ -772,8 +760,8 @@ func (d *Discovery) parseConcurrently(
 	g.SetLimit(d.numWorkers)
 
 	// Use channels to coordinate parsing work
-	componentChan := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
-	errorChan := make(chan error, len(componentsToParse))
+	configChan := make(chan *discoveredconfig.DiscoveredConfig, d.numWorkers*channelBufferMultiplier)
+	errorChan := make(chan error, len(configsToParse))
 
 	// Start component sender
 	g.Go(func() error {
@@ -822,14 +810,8 @@ func (d *Discovery) parseConcurrently(
 }
 
 // parseWorker is a worker that parses configurations concurrently.
-func (d *Discovery) parseWorker(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	componentChan <-chan *component.Component,
-	errorChan chan<- error,
-) error {
-	for cfg := range componentChan {
+func (d *Discovery) parseWorker(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, configChan <-chan *discoveredconfig.DiscoveredConfig, errorChan chan<- error) error {
+	for cfg := range configChan {
 		// Context cancellation check
 		select {
 		case <-ctx.Done():
@@ -851,11 +833,7 @@ func (d *Discovery) parseWorker(
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
-func (d *Discovery) Discover(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-) (component.Components, error) {
+func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (discoveredconfig.DiscoveredConfigs, error) {
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
@@ -1016,8 +994,8 @@ func (d *Discovery) Discover(
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
-	discoveryContext    *component.DiscoveryContext
-	cfgs                component.Components
+	discoveryContext    *discoveredconfig.DiscoveryContext
+	cfgs                discoveredconfig.DiscoveredConfigs
 	parserOptions       []hclparse.Option
 	depthRemaining      int
 	discoverExternal    bool
@@ -1028,7 +1006,7 @@ type DependencyDiscovery struct {
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.
 type DependencyDiscoveryOption func(*DependencyDiscovery)
 
-func NewDependencyDiscovery(cfgs component.Components, depthRemaining int) *DependencyDiscovery {
+func NewDependencyDiscovery(cfgs discoveredconfig.DiscoveredConfigs, depthRemaining int) *DependencyDiscovery {
 	return &DependencyDiscovery{
 		cfgs:           cfgs,
 		depthRemaining: depthRemaining,
@@ -1061,7 +1039,7 @@ func (d *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *Depe
 	return d
 }
 
-func (d *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependencyDiscovery {
+func (d *DependencyDiscovery) WithDiscoveryContext(discoveryContext *discoveredconfig.DiscoveryContext) *DependencyDiscovery {
 	d.discoveryContext = discoveryContext
 
 	return d
@@ -1071,7 +1049,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log
 	errs := []error{}
 
 	for _, cfg := range d.cfgs {
-		if cfg.Kind == component.Stack {
+		if cfg.Type == discoveredconfig.ConfigTypeStack {
 			continue
 		}
 
@@ -1088,7 +1066,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log
 	return nil
 }
 
-func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dCfg *component.Component) error {
+func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dCfg *discoveredconfig.DiscoveredConfig) error {
 	if d.depthRemaining <= 0 {
 		return errors.New("max dependency depth reached while discovering dependencies")
 	}
@@ -1099,7 +1077,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.
-	if dCfg.Kind == component.Stack {
+	if dCfg.Type == discoveredconfig.ConfigTypeStack {
 		return nil
 	}
 
@@ -1176,8 +1154,8 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 				continue
 			}
 
-			ext := &component.Component{
-				Kind:     component.Unit,
+			ext := &discoveredconfig.DiscoveredConfig{
+				Type:     discoveredconfig.ConfigTypeUnit,
 				Path:     depPath,
 				External: true,
 			}
@@ -1207,10 +1185,10 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 }
 
 // RemoveCycles removes cycles from the dependency graph.
-func RemoveCycles(c component.Components) (component.Components, error) {
+func RemoveCycles(c discoveredconfig.DiscoveredConfigs) (discoveredconfig.DiscoveredConfigs, error) {
 	var (
 		err error
-		cfg *component.Component
+		cfg *discoveredconfig.DiscoveredConfig
 	)
 
 	for range maxCycleRemovalAttempts {
