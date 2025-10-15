@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
@@ -26,18 +26,18 @@ func mockUnit(path string, deps ...*common.Unit) *common.Unit {
 }
 
 // Add a helper to convert units to discovered configs
-func discoveryFromUnits(units []*common.Unit) []*component.Component {
-	discovered := make([]*component.Component, 0, len(units))
-	unitMap := make(map[*common.Unit]*component.Component)
+func discoveryFromUnits(units []*common.Unit) []*discoveredconfig.DiscoveredConfig {
+	discovered := make([]*discoveredconfig.DiscoveredConfig, 0, len(units))
+	unitMap := make(map[*common.Unit]*discoveredconfig.DiscoveredConfig)
 	// First pass: create configs
 	for _, u := range units {
-		cfg := &component.Component{Path: u.Path}
+		cfg := &discoveredconfig.DiscoveredConfig{Path: u.Path}
 		unitMap[u] = cfg
 		discovered = append(discovered, cfg)
 	}
 	// Second pass: wire dependencies
 	for i, u := range units {
-		var deps []*component.Component
+		var deps []*discoveredconfig.DiscoveredConfig
 
 		for _, dep := range u.Dependencies {
 			if depCfg, ok := unitMap[dep]; ok {
@@ -55,13 +55,13 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	t.Parallel()
 
 	// A -> B -> C
-	// Build Component objects directly
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgC := &component.Component{Path: "C"}
-	cfgB.Dependencies = []*component.Component{cfgA}
-	cfgC.Dependencies = []*component.Component{cfgB}
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	// Build DiscoveredConfig objects directly
+	cfgA := &discoveredconfig.DiscoveredConfig{Path: "A"}
+	cfgB := &discoveredconfig.DiscoveredConfig{Path: "B"}
+	cfgC := &discoveredconfig.DiscoveredConfig{Path: "C"}
+	cfgB.Dependencies = []*discoveredconfig.DiscoveredConfig{cfgA}
+	cfgC.Dependencies = []*discoveredconfig.DiscoveredConfig{cfgB}
+	configs := []*discoveredconfig.DiscoveredConfig{cfgA, cfgB, cfgC}
 
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)

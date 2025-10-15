@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -164,7 +164,7 @@ func TestRun(t *testing.T) {
 				// Verify each config has a valid type
 				for _, config := range configs {
 					assert.NotEmpty(t, config.Type)
-					assert.True(t, config.Type == component.Unit || config.Type == component.Stack)
+					assert.True(t, config.Type == discoveredconfig.ConfigTypeUnit || config.Type == discoveredconfig.ConfigTypeStack)
 				}
 			},
 		},
@@ -467,23 +467,23 @@ func TestColorizer(t *testing.T) {
 		config *find.FoundConfig
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
-		shouldBeDifferent []component.Kind
+		shouldBeDifferent []discoveredconfig.ConfigType
 	}{
 		{
 			name: "unit config",
 			config: &find.FoundConfig{
-				Type: component.Unit,
+				Type: discoveredconfig.ConfigTypeUnit,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []component.Kind{component.Stack},
+			shouldBeDifferent: []discoveredconfig.ConfigType{discoveredconfig.ConfigTypeStack},
 		},
 		{
 			name: "stack config",
 			config: &find.FoundConfig{
-				Type: component.Stack,
+				Type: discoveredconfig.ConfigTypeStack,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []component.Kind{component.Unit},
+			shouldBeDifferent: []discoveredconfig.ConfigType{discoveredconfig.ConfigTypeUnit},
 		},
 	}
 
