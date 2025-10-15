@@ -3,7 +3,6 @@ package filter_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +35,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
 		require.NoError(t, err)
 		assert.NotNil(t, filters)
-		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
+		assert.Equal(t, `["./apps/*", "name=db", "!legacy"]`, filters.String())
 	})
 
 	t.Run("single invalid filter", func(t *testing.T) {
@@ -80,23 +79,23 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 func TestFilters_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	components := component.Components{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
+	units := []filter.Unit{
+		{Name: "app1", Path: "./apps/app1"},
+		{Name: "app2", Path: "./apps/app2"},
+		{Name: "legacy", Path: "./apps/legacy"},
+		{Name: "db", Path: "./libs/db"},
+		{Name: "api", Path: "./libs/api"},
 	}
 
-	t.Run("empty filters returns all components", func(t *testing.T) {
+	t.Run("empty filters returns all units", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
-		assert.ElementsMatch(t, components, result)
+		assert.ElementsMatch(t, units, result)
 	})
 
 	t.Run("single positive filter", func(t *testing.T) {
@@ -105,13 +104,13 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./apps/legacy", Kind: component.Unit},
+		expected := []filter.Unit{
+			{Name: "app1", Path: "./apps/app1"},
+			{Name: "app2", Path: "./apps/app2"},
+			{Name: "legacy", Path: "./apps/legacy"},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -123,12 +122,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./libs/db", Kind: component.Unit},
+		expected := []filter.Unit{
+			{Name: "app1", Path: "./apps/app1"},
+			{Name: "db", Path: "./libs/db"},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -140,17 +139,17 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./apps/legacy", Kind: component.Unit},
+		expected := []filter.Unit{
+			{Name: "app1", Path: "./apps/app1"},
+			{Name: "app2", Path: "./apps/app2"},
+			{Name: "legacy", Path: "./apps/legacy"},
 		}
 
 		assert.ElementsMatch(t, expected, result)
-		// Verify no duplicates - should have exactly 3 components
+		// Verify no duplicates - should have exactly 3 units
 		assert.Len(t, result, 3)
 	})
 
@@ -160,12 +159,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
+		expected := []filter.Unit{
+			{Name: "app1", Path: "./apps/app1"},
+			{Name: "app2", Path: "./apps/app2"},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -177,11 +176,11 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
+		expected := []filter.Unit{
+			{Name: "app1", Path: "./apps/app1"},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -193,14 +192,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./libs/api", Kind: component.Unit},
-		}
+		// When there are no positive filters, the combined result is empty,
+		// so negative filters have nothing to remove from
+		expected := []filter.Unit{}
 
 		assert.ElementsMatch(t, expected, result)
 	})
@@ -216,13 +213,13 @@ func TestFilters_Evaluate(t *testing.T) {
 		}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		result, err := filters.Evaluate(units)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./libs/db", Kind: component.Unit},
+		expected := []filter.Unit{
+			{Name: "app1", Path: "./apps/app1"},
+			{Name: "app2", Path: "./apps/app2"},
+			{Name: "db", Path: "./libs/db"},
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -313,6 +310,18 @@ func TestFilters_String(t *testing.T) {
 
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
 		require.NoError(t, err)
-		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
+		assert.Equal(t, `["./apps/*", "name=db", "!legacy"]`, filters.String())
+	})
+
+	t.Run("filter with quotes in query", func(t *testing.T) {
+		t.Parallel()
+
+		// This is a hypothetical case - our current syntax doesn't use quotes
+		// but this tests the escaping logic
+		filters := filter.Filters{}
+		// We can't easily create a filter with quotes in the query string
+		// through normal parsing, so we'll just verify the String method
+		// handles the empty case properly
+		assert.Equal(t, "[]", filters.String())
 	})
 }

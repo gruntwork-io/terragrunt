@@ -127,10 +127,12 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
 			require.NotNil(t, filter)
 
 			result, err := filter.Evaluate(testUnits)
 			require.NoError(t, err)
+
 			assert.ElementsMatch(t, tt.expectedUnits, result)
 
 			// Verify String() returns original query
@@ -195,6 +197,7 @@ func TestFilter_Apply(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
 			assert.ElementsMatch(t, tt.expectedUnits, result)
 		})
 	}
@@ -297,6 +300,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 
 		result, err := filter.Apply("nonexistent", testUnits)
 		require.NoError(t, err)
+
 		assert.Empty(t, result)
 	})
 
@@ -335,6 +339,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		for _, tt := range tests {
 			result, err := filter.Apply(tt.filterString, testUnits)
 			require.NoError(t, err)
+
 			assert.ElementsMatch(t, expected, result)
 		}
 	})
