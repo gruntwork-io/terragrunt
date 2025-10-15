@@ -48,26 +48,22 @@ func (l *Lexer) NextToken() Token {
 	case 0:
 		tok = NewToken(EOF, "", startPosition)
 	case '.':
-		// Check if this is the start of a path (./) or a hidden file
 		switch nextCh := l.peekChar(); {
 		case nextCh == '/':
 			tok = l.readPath(startPosition)
 		case isIdentifierChar(nextCh):
-			// Hidden file like .gitignore, .hidden
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
 
 			return tok
 		default:
-			// Single dot alone is not valid in our syntax
 			tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 			l.readChar()
 		}
 	case '/':
-		// Absolute path
 		tok = l.readPath(startPosition)
 	default:
-		if isIdentifierStart(l.ch) {
+		if isIdentifierChar(l.ch) {
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
 
@@ -123,8 +119,8 @@ func (l *Lexer) readIdentifier() string {
 	}
 
 	literal := l.input[position:l.position]
-	// Trim trailing whitespace
-	return strings.TrimRight(literal, " \t\n\r")
+
+	return strings.TrimSpace(literal)
 }
 
 // readPath reads a path from the input.
@@ -137,15 +133,13 @@ func (l *Lexer) readPath(startPosition int) Token {
 	}
 
 	literal := l.input[position:l.position]
-	// Trim trailing whitespace
+
 	literal = strings.TrimSpace(literal)
 
 	return NewToken(PATH, literal, startPosition)
 }
 
 // isSpecialChar returns true if the character is a special operator or delimiter.
-// Note: spaces are NOT special - they can be part of identifiers and paths.
-// Only the operators and delimiters themselves act as separators.
 func isSpecialChar(ch byte) bool {
 	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == 0
 }
@@ -155,20 +149,12 @@ func isPathSeparator(ch byte) bool {
 	return ch == '/'
 }
 
-// isIdentifierStart returns true if the character can start an identifier.
-// Identifiers can start with letters, underscores, or dots (for hidden files).
-func isIdentifierStart(ch byte) bool {
-	return !isSpecialChar(ch) && !isPathSeparator(ch)
-}
-
 // isIdentifierChar returns true if the character can be part of an identifier.
-// Uses negative logic: anything that's not a special character or path separator is valid.
 func isIdentifierChar(ch byte) bool {
 	return !isSpecialChar(ch) && !isPathSeparator(ch)
 }
 
 // isPathChar returns true if the character can be part of a path.
-// Paths can contain anything except special operators and whitespace.
 func isPathChar(ch byte) bool {
 	return !isSpecialChar(ch)
 }

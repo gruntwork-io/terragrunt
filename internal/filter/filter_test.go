@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test data used across tests
-var testConfigs = []*component.Component{
+var testComponents = []*component.Component{
 	{Path: "./apps/app1", Kind: component.Unit},
 	{Path: "./apps/app2", Kind: component.Unit},
 	{Path: "./apps/legacy", Kind: component.Unit},
@@ -25,29 +24,29 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		filterString    string
-		expectedConfigs []*component.Component
-		expectError     bool
+		name         string
+		filterString string
+		expected     []*component.Component
+		expectError  bool
 	}{
 		{
 			name:         "simple name filter",
 			filterString: "app1",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./libs/db", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 				{Path: "./apps/app2", Kind: component.Unit},
 				{Path: "./apps/legacy", Kind: component.Unit},
@@ -56,7 +55,7 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 				{Path: "./apps/app2", Kind: component.Unit},
 				{Path: "./libs/db", Kind: component.Unit},
@@ -68,14 +67,14 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		{
 			name:         "intersection of path and name",
 			filterString: "./apps/* | app1",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "intersection with negation",
 			filterString: "./apps/* | !legacy",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 				{Path: "./apps/app2", Kind: component.Unit},
 			},
@@ -83,35 +82,35 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		{
 			name:         "chained intersections",
 			filterString: "./apps/* | !legacy | app1",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
-			expectedConfigs: []*component.Component{
+			expected: []*component.Component{
 				{Path: "./services/web", Kind: component.Unit},
 				{Path: "./services/worker", Kind: component.Unit},
 			},
 		},
 		{
-			name:            "parse error - empty",
-			filterString:    "",
-			expectedConfigs: nil,
-			expectError:     true,
+			name:         "parse error - empty",
+			filterString: "",
+			expected:     nil,
+			expectError:  true,
 		},
 		{
-			name:            "parse error - invalid syntax",
-			filterString:    "foo |",
-			expectedConfigs: nil,
-			expectError:     true,
+			name:         "parse error - invalid syntax",
+			filterString: "foo |",
+			expected:     nil,
+			expectError:  true,
 		},
 		{
-			name:            "parse error - incomplete expression",
-			filterString:    "name=",
-			expectedConfigs: nil,
-			expectError:     true,
+			name:         "parse error - incomplete expression",
+			filterString: "name=",
+			expected:     nil,
+			expectError:  true,
 		},
 	}
 
@@ -132,10 +131,10 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 
 			require.NotNil(t, filter)
 
-			result, err := filter.Evaluate(testConfigs)
+			result, err := filter.Evaluate(testComponents)
 			require.NoError(t, err)
 
-			assert.ElementsMatch(t, tt.expectedConfigs, result)
+			assert.ElementsMatch(t, tt.expected, result)
 
 			// Verify String() returns original query
 			assert.Equal(t, tt.filterString, filter.String())
@@ -147,41 +146,41 @@ func TestFilter_Apply(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		filterString    string
-		configs         []*component.Component
-		expectedConfigs []*component.Component
-		expectError     bool
+		name         string
+		filterString string
+		components   []*component.Component
+		expected     []*component.Component
+		expectError  bool
 	}{
 		{
 			name:         "apply with simple filter",
 			filterString: "app1",
-			configs:      testConfigs,
-			expectedConfigs: []*component.Component{
+			components:   testComponents,
+			expected: []*component.Component{
 				{Path: "./apps/app1", Kind: component.Unit},
 			},
 		},
 		{
 			name:         "apply with path filter",
 			filterString: "./libs/*",
-			configs:      testConfigs,
-			expectedConfigs: []*component.Component{
+			components:   testComponents,
+			expected: []*component.Component{
 				{Path: "./libs/db", Kind: component.Unit},
 				{Path: "./libs/api", Kind: component.Unit},
 			},
 		},
 		{
-			name:            "apply with empty configs",
-			filterString:    "anything",
-			configs:         []*component.Component{},
-			expectedConfigs: []*component.Component{},
+			name:         "apply with empty components",
+			filterString: "anything",
+			components:   []*component.Component{},
+			expected:     []*component.Component{},
 		},
 		{
-			name:            "apply with parse error",
-			filterString:    "!",
-			configs:         testConfigs,
-			expectedConfigs: nil,
-			expectError:     true,
+			name:         "apply with parse error",
+			filterString: "!",
+			components:   testComponents,
+			expected:     nil,
+			expectError:  true,
 		},
 	}
 
@@ -189,7 +188,7 @@ func TestFilter_Apply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, tt.configs)
+			result, err := filter.Apply(tt.filterString, tt.components)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -200,7 +199,7 @@ func TestFilter_Apply(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.ElementsMatch(t, tt.expectedConfigs, result)
+			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
 }
@@ -225,8 +224,7 @@ func TestFilter_Expression(t *testing.T) {
 func TestFilter_RealWorldScenarios(t *testing.T) {
 	t.Parallel()
 
-	// Simulate a real-world repository structure
-	repoConfigs := []*component.Component{
+	repoComponents := []*component.Component{
 		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
 		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
 		{Path: "./infrastructure/networking/security-groups", Kind: component.Unit},
@@ -242,7 +240,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		name         string
 		filterString string
 		description  string
-		expected     []string // Just unit names for simplicity
+		expected     []string
 	}{
 		{
 			name:         "all networking infrastructure",
@@ -280,13 +278,12 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, repoConfigs)
+			result, err := filter.Apply(tt.filterString, repoComponents)
 			require.NoError(t, err)
 
-			// Extract just the names for easier comparison
 			var resultNames []string
-			for _, cfg := range result {
-				resultNames = append(resultNames, filepath.Base(cfg.Path))
+			for _, c := range result {
+				resultNames = append(resultNames, filepath.Base(c.Path))
 			}
 
 			assert.ElementsMatch(t, tt.expected, resultNames, tt.description)
@@ -300,7 +297,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("filter with no matches", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := filter.Apply("nonexistent", testConfigs)
+		result, err := filter.Apply("nonexistent", testComponents)
 		require.NoError(t, err)
 
 		assert.Empty(t, result)
@@ -312,11 +309,10 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		filter, err := filter.Parse("app1")
 		require.NoError(t, err)
 
-		// Evaluate multiple times to ensure statelessness
-		result1, err := filter.Evaluate(testConfigs)
+		result1, err := filter.Evaluate(testComponents)
 		require.NoError(t, err)
 
-		result2, err := filter.Evaluate(testConfigs)
+		result2, err := filter.Evaluate(testComponents)
 		require.NoError(t, err)
 
 		assert.Equal(t, result1, result2)
@@ -339,7 +335,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			result, err := filter.Apply(tt.filterString, testConfigs)
+			result, err := filter.Apply(tt.filterString, testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, result)
