@@ -11,7 +11,7 @@ import (
 	"github.com/mattn/go-shellwords"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/discoveredconfig"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -51,13 +51,13 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			args = args[1:]
 		}
 
-		d = d.WithDiscoveryContext(&discoveredconfig.DiscoveryContext{
+		d = d.WithDiscoveryContext(&component.DiscoveryContext{
 			Cmd:  cmd,
 			Args: args,
 		})
 	}
 
-	var cfgs discoveredconfig.DiscoveredConfigs
+	var cfgs component.Components
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
@@ -131,8 +131,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 type FoundConfigs []*FoundConfig
 
 type FoundConfig struct {
-	Type discoveredconfig.ConfigType `json:"type"`
-	Path string                      `json:"path"`
+	Type component.Kind `json:"type"`
+	Path string         `json:"path"`
 
 	Exclude *config.ExcludeConfig `json:"exclude,omitempty"`
 	Include map[string]string     `json:"include,omitempty"`
@@ -140,7 +140,7 @@ type FoundConfig struct {
 	Dependencies []string `json:"dependencies,omitempty"`
 }
 
-func discoveredToFound(configs discoveredconfig.DiscoveredConfigs, opts *Options) (FoundConfigs, error) {
+func discoveredToFound(configs component.Components, opts *Options) (FoundConfigs, error) {
 	foundCfgs := make(FoundConfigs, 0, len(configs))
 	errs := []error{}
 
@@ -256,9 +256,9 @@ func (c *Colorizer) Colorize(config *FoundConfig) string {
 	if dir == "" {
 		// No directory part, color the whole path
 		switch config.Type {
-		case discoveredconfig.ConfigTypeUnit:
+		case component.Unit:
 			return c.unitColorizer(path)
-		case discoveredconfig.ConfigTypeStack:
+		case component.Stack:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -269,9 +269,9 @@ func (c *Colorizer) Colorize(config *FoundConfig) string {
 	coloredPath := c.pathColorizer(dir)
 
 	switch config.Type {
-	case discoveredconfig.ConfigTypeUnit:
+	case component.Unit:
 		return coloredPath + c.unitColorizer(base)
-	case discoveredconfig.ConfigTypeStack:
+	case component.Stack:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path
