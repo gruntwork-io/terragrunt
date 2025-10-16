@@ -1,7 +1,9 @@
 package test_test
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -292,4 +294,301 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 
 	// Clean up
 	helpers.RunTerragrunt(t, "terragrunt stack run destroy --non-interactive --working-dir "+livePath)
+}
+
+func TestFilterDocumentationExamples(t *testing.T) {
+	t.Parallel()
+
+	// Skip if experiment mode is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	// Create temporary directory for dynamic fixtures
+	tmpDir := t.TempDir()
+
+	// Generate fixtures for testing
+	generateNameBasedFixture(t, tmpDir)
+	generateAttributeBasedFixture(t, tmpDir)
+
+	// Test cases based on the documentation examples
+	// Note: These tests demonstrate the intended functionality and will be updated
+	// as the filter feature matures and becomes fully functional
+	testCases := []struct {
+		name           string
+		fixtureDir     string
+		filterQuery    string
+		expectedOutput string
+	}{
+		// Name-based filtering
+		{
+			name:           "name-based-exact-match",
+			fixtureDir:     "name-based",
+			filterQuery:    "app1",
+			expectedOutput: "app1\n",
+		},
+		{
+			name:           "name-based-glob-pattern",
+			fixtureDir:     "name-based",
+			filterQuery:    "app*",
+			expectedOutput: "app1\napp2\n",
+		},
+
+		// Path-based filtering
+		{
+			name:           "path-based-relative-exact-match",
+			fixtureDir:     "path-based",
+			filterQuery:    "./envs/prod/apps/app1",
+			expectedOutput: "envs/prod/apps/app1\n",
+		},
+		{
+			name:           "path-based-relative-glob-pattern",
+			fixtureDir:     "path-based",
+			filterQuery:    "./envs/stage/**",
+			expectedOutput: "envs/stage/apps/app1\nenvs/stage/apps/app2\n",
+		},
+		{
+			name:           "path-based-absolute-exact-match",
+			fixtureDir:     "path-based",
+			filterQuery:    filepath.Join(tmpDir, "envs", "prod", "apps", "app1"),
+			expectedOutput: "envs/prod/apps/app1\n",
+		},
+		{
+			name:           "path-based-braced-exact-match",
+			fixtureDir:     "path-based",
+			filterQuery:    "{./envs/prod/apps/app2}",
+			expectedOutput: "envs/prod/apps/app2\n",
+		},
+
+		// Attribute-based filtering
+		{
+			name:           "attribute-type-unit",
+			fixtureDir:     "attribute-based",
+			filterQuery:    "type=unit",
+			expectedOutput: "unit1\n",
+		},
+		{
+			name:           "attribute-type-stack",
+			fixtureDir:     "attribute-based",
+			filterQuery:    "type=stack",
+			expectedOutput: "stack1\n",
+		},
+		{
+			name:           "attribute-based-external-false",
+			fixtureDir:     "attribute-based",
+			filterQuery:    "external=false",
+			expectedOutput: "unit1\nstack1\n",
+		},
+		{
+			name:           "attribute-based-external-true",
+			fixtureDir:     "attribute-based",
+			filterQuery:    "external=true",
+			expectedOutput: "unit1\nstack1\n../dependencies/dependency-of-app1\n",
+		},
+		{
+			name:           "attribute-based-name-glob",
+			fixtureDir:     "attribute-based",
+			filterQuery:    "name=stack*",
+			expectedOutput: "stack1\n",
+		},
+
+		// Negation
+		{
+			name:           "negation-by-name",
+			fixtureDir:     "negation",
+			filterQuery:    "!app1",
+			expectedOutput: "app2\nstack1\n",
+		},
+		{
+			name:           "negation-by-path",
+			fixtureDir:     "negation",
+			filterQuery:    "!./prod/**",
+			expectedOutput: "envs/stage/apps/app1\nenvs/stage/apps/app2\nstack1\n",
+		},
+		{
+			name:           "negation-by-attribute",
+			fixtureDir:     "negation",
+			filterQuery:    "!type=stack",
+			expectedOutput: "unit1\nstack1\n",
+		},
+
+		// Intersection
+		{
+			name:           "intersection-by-path-and-attribute",
+			fixtureDir:     "intersection",
+			filterQuery:    "./prod/** | type=unit",
+			expectedOutput: "unit1\nunit2\n",
+		},
+		{
+			name:           "intersection-by-path-and-negation",
+			fixtureDir:     "intersection",
+			filterQuery:    "./prod/** | !type=unit",
+			expectedOutput: "stack1\nstack2\n",
+		},
+		{
+			name:           "intersection-by-path-type-and-negation",
+			fixtureDir:     "intersection",
+			filterQuery:    "./dev/** | type=unit | !name=unit1",
+			expectedOutput: "unit2\n",
+		},
+	}
+
+	// Run all test cases
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixturePath := filepath.Join(tmpDir, tc.fixtureDir)
+			workingDir := filepath.Join(fixturePath, "root")
+
+			// Run the find command with the filter
+			command := fmt.Sprintf("terragrunt find --filter '%s' --working-dir %s", tc.filterQuery, workingDir)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
+
+			if err != nil {
+				t.Logf("Command failed: %s", command)
+				t.Logf("Error: %v", err)
+				t.Logf("Output: %s", stdout)
+			}
+
+			require.NoError(t, err, "Command should succeed")
+			assert.Equal(t, tc.expectedOutput, stdout, "Output should match expected result")
+		})
+	}
+
+	// Add a test that verifies the basic find command works without filters
+	t.Run("basic-find-without-filter", func(t *testing.T) {
+		t.Parallel()
+
+		fixturePath := filepath.Join(tmpDir, "name-based")
+		workingDir := filepath.Join(fixturePath, "root")
+
+		// Test basic find command without filters
+		command := fmt.Sprintf("terragrunt find --working-dir %s", workingDir)
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
+
+		require.NoError(t, err, "Basic find command should work")
+		// Should find all directories with terragrunt.hcl files
+		assert.Contains(t, stdout, "app1", "Should find app1 directory")
+		assert.Contains(t, stdout, "app2", "Should find app2 directory")
+		assert.Contains(t, stdout, "other", "Should find other directory")
+	})
+}
+
+func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
+	t.Parallel()
+
+	// Skip if experiment mode is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	// Create temporary directory for dynamic fixtures
+	tmpDir := t.TempDir()
+
+	// Generate fixtures for testing
+	generateUnionFixture(t, tmpDir)
+
+	// Test cases based on the documentation examples
+	// Note: These tests demonstrate the intended functionality and will be updated
+	// as the filter feature matures and becomes fully functional
+	testCases := []struct {
+		name           string
+		fixtureDir     string
+		filterQueries  []string
+		expectedOutput string
+	}{
+		{
+			name:           "union-by-two-names",
+			fixtureDir:     "union",
+			filterQueries:  []string{"unit1", "stack1"},
+			expectedOutput: "unit1\nunit2\n",
+		},
+		{
+			name:           "union-by-two-paths",
+			fixtureDir:     "union",
+			filterQueries:  []string{"./envs/prod/*", "./envs/stage/*"},
+			expectedOutput: "stack1\nstack2\n",
+		},
+		{
+			name:           "union-by-name-and-negation",
+			fixtureDir:     "union",
+			filterQueries:  []string{"stack2", "!./envs/prod/**", "!./envs/stage/**"},
+			expectedOutput: "stack2\n",
+		},
+	}
+
+	// Run all test cases
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixturePath := filepath.Join(tmpDir, tc.fixtureDir)
+			workingDir := filepath.Join(fixturePath, "root")
+
+			// Run the find command with the filter
+			command := fmt.Sprintf("terragrunt find --filter '%s' --working-dir %s", tc.filterQueries, workingDir)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
+			require.NoError(t, err, "Command should succeed")
+
+			assert.Equal(t, tc.expectedOutput, stdout, "Output should match expected result")
+		})
+	}
+}
+
+// Helper functions to generate dynamic fixtures based on documentation examples
+
+func generateNameBasedFixture(t *testing.T, baseDir string) {
+	fixtureDir := filepath.Join(baseDir, "name-based", "root", "apps")
+	require.NoError(t, os.MkdirAll(fixtureDir, 0755))
+
+	// Create app1
+	createTerragruntUnit(t, filepath.Join(fixtureDir, "app1"))
+	// Create app2
+	createTerragruntUnit(t, filepath.Join(fixtureDir, "app2"))
+	// Create other (not matching the patterns)
+	createTerragruntUnit(t, filepath.Join(fixtureDir, "other"))
+}
+
+func generateAttributeBasedFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "attribute-based", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "unit1"))
+	// Create stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "stack1"))
+
+	// Create external dependency
+	depsDir := filepath.Join(baseDir, "attribute-based", "dependencies")
+	require.NoError(t, os.MkdirAll(depsDir, 0755))
+	createTerragruntUnit(t, filepath.Join(depsDir, "dependency-of-app1"))
+}
+
+func generateUnionFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "union", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "unit1"))
+	// Create unit2
+	createTerragruntUnit(t, filepath.Join(rootDir, "unit2"))
+	// Create stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "stack1"))
+	// Create stack2
+	createTerragruntStack(t, filepath.Join(rootDir, "stack2"))
+}
+
+// Helper functions to create Terragrunt configuration files
+
+func createTerragruntUnit(t *testing.T, dir string) {
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	// Create empty terragrunt.hcl file
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(""), 0644))
+}
+
+func createTerragruntStack(t *testing.T, dir string) {
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	// Create empty terragrunt.stack.hcl file
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(""), 0644))
 }
