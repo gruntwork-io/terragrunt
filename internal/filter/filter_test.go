@@ -118,7 +118,7 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := filter.Parse(tt.filterString)
+			filter, err := filter.Parse(tt.filterString, ".")
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -188,7 +188,7 @@ func TestFilter_Apply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, tt.components)
+			result, err := filter.Apply(tt.filterString, ".", tt.components)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -208,7 +208,7 @@ func TestFilter_Expression(t *testing.T) {
 	t.Parallel()
 
 	filterString := "name=foo"
-	f, err := filter.Parse(filterString)
+	f, err := filter.Parse(filterString, ".")
 	require.NoError(t, err)
 
 	expr := f.Expression()
@@ -278,7 +278,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, repoComponents)
+			result, err := filter.Apply(tt.filterString, ".", repoComponents)
 			require.NoError(t, err)
 
 			var resultNames []string
@@ -297,7 +297,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("filter with no matches", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := filter.Apply("nonexistent", testComponents)
+		result, err := filter.Apply("nonexistent", ".", testComponents)
 		require.NoError(t, err)
 
 		assert.Empty(t, result)
@@ -306,7 +306,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("multiple parse and evaluate calls", func(t *testing.T) {
 		t.Parallel()
 
-		filter, err := filter.Parse("app1")
+		filter, err := filter.Parse("app1", ".")
 		require.NoError(t, err)
 
 		result1, err := filter.Evaluate(testComponents)
@@ -335,7 +335,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			result, err := filter.Apply(tt.filterString, testComponents)
+			result, err := filter.Apply(tt.filterString, ".", testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, result)

@@ -45,8 +45,8 @@ func (f *Filter) Expression() Expression {
 
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
-func Apply(filterString string, components []*component.Component) ([]*component.Component, error) {
-	filter, err := Parse(filterString)
+func Apply(filterString, workingDir string, components component.Components) (component.Components, error) {
+	filter, err := Parse(filterString, workingDir)
 	if err != nil {
 		return nil, err
 	}

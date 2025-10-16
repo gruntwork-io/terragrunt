@@ -4,10 +4,11 @@ import "strings"
 
 // Parser parses a filter query string into an AST.
 type Parser struct {
-	lexer     *Lexer
-	errors    []error
-	curToken  Token
-	peekToken Token
+	lexer      *Lexer
+	workingDir string
+	errors     []error
+	curToken   Token
+	peekToken  Token
 }
 
 // Operator precedence levels
@@ -193,7 +194,7 @@ func (p *Parser) parseBracedPath() Expression {
 	// Join all parts to form the complete path
 	pathValue := strings.Join(pathParts, "")
 
-	return NewPathFilter(pathValue)
+	return NewPathFilter(pathValue, p.workingDir)
 }
 
 // parseAttributeFilter parses an attribute filter (e.g., "name=foo").
