@@ -82,6 +82,7 @@ flags:
   - find-include
   - find-external
   - queue-construct-as
+  - filter
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -280,3 +281,56 @@ You can change the working directory for `find` by using the global `--working-d
 ```bash
 terragrunt find --working-dir=/path/to/working/dir
 ```
+
+## Filtering Results
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --filter 'foo'
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+</Aside>
+
+The `find` command supports the `--filter` flag to target specific configurations using a flexible query language. This is particularly useful for discovering configurations that match specific criteria before running operations on them.
+
+### Basic Filtering Examples
+
+```bash
+# Filter by name using glob patterns
+terragrunt find --filter 'app*'
+
+# Filter by path
+terragrunt find --filter './prod/**'
+
+# Filter by type
+terragrunt find --filter 'type=unit'
+
+# Combine filters with intersection
+terragrunt find --filter './prod/** | type=unit'
+```
+
+### Advanced Filtering
+
+The filter syntax supports negation, multiple filters, and complex queries:
+
+```bash
+# Exclude specific configurations
+terragrunt find --experiment filter-flag --filter '!./test/**'
+
+# Multiple filters (OR logic)
+terragrunt find --experiment filter-flag --filter 'app1' --filter 'app2'
+
+# Complex queries with chaining
+terragrunt find --experiment filter-flag --filter './dev/** | type=unit | !name=unit1'
+```
+
+<Aside type="tip" title="Learn More About Filtering">
+
+For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter).
+
+</Aside>
