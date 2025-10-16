@@ -154,6 +154,9 @@ type Discovery struct {
 
 	// useDefaultExcludes determines whether to use default exclude patterns.
 	useDefaultExcludes bool
+
+	// filters contains filter queries for component selection
+	filters filter.Filters
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -920,14 +923,13 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 		errs = append(errs, parseErrs...)
 	}
 
-	// Apply filters if configured and not doing dependency discovery
-	// When dependency discovery is enabled, we defer filtering until after dependencies are discovered
-	if len(d.filters) > 0 && !d.discoverDependencies {
-		filtered, err := d.filters.Evaluate(components)
+	// Apply filters if configured
+	if len(d.filters) > 0 {
+		filtered, err := d.filters.Evaluate(cfgs)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 		} else {
-			components = filtered
+			cfgs = filtered
 		}
 	}
 
