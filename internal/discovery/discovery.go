@@ -922,11 +922,11 @@ func (d *Discovery) Discover(
 
 	// Apply filters if configured
 	if len(d.filters) > 0 {
-		filtered, err := d.filters.Evaluate(cfgs)
+		filtered, err := d.filters.Evaluate(components)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 		} else {
-			cfgs = filtered
+			components = filtered
 		}
 	}
 
@@ -996,16 +996,6 @@ func (d *Discovery) Discover(
 		})
 		if err != nil {
 			return components, errors.New(err)
-		}
-	}
-
-	// Apply filters at the end if dependency discovery was enabled
-	if len(d.filters) > 0 && d.discoverDependencies {
-		filtered, err := d.filters.Evaluate(components)
-		if err != nil {
-			errs = append(errs, errors.New(err))
-		} else {
-			components = filtered
 		}
 	}
 
