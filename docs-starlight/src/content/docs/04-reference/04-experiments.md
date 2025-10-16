@@ -69,6 +69,7 @@ The following experiments are available:
 
 - [symlinks](#symlinks)
 - [cas](#cas)
+- [filter-flag](#filter-flag)
 
 ### symlinks
 
@@ -117,6 +118,75 @@ To transition the `cas` feature to a stable release, the following must be addre
 - [x] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
 
+### `filter-flag`
+
+Support for sophisticated unit and stack filtering using the `--filter` flag.
+
+#### `filter-flag` - What it does
+
+The `--filter` flag provides a sophisticated querying syntax for targeting units and stacks in Terragrunt commands. This unified approach replaces the need for multiple queue control flags and offers powerful filtering capabilities.
+
+**Current Support Status:**
+
+- ✅ Available in `find` and `list` commands
+- ❌ **Not yet available in `run` command** - this is planned for future implementation
+
+**Supported Filtering Types:**
+
+1. **Name-based filtering**: Target units/stacks by their directory name (exact match or glob patterns)
+2. **Path-based filtering**: Target units/stacks by their file system path (relative, absolute, or glob patterns)
+3. **Attribute-based filtering**: Target units by configuration attributes:
+   - `type=unit` or `type=stack` - Filter by component type
+   - `external=true` or `external=false` - Filter by whether the unit/stack is an external dependency (outside the current working directory)
+   - `name=pattern` - Filter by name using glob patterns
+4. **Negation filters**: Exclude units using the `!` prefix
+5. **Filter intersection**: Combine filters using the `|` operator for results pruning
+6. **Multiple filters**: Specify multiple `--filter` flags to union results
+
+**Not Yet Implemented:**
+
+- Git-based filtering (`[ref...ref]` syntax)
+- Dependency/dependent traversal (`...` syntax)
+- Integration with `run` command
+
+#### `filter-flag` - How to provide feedback
+
+Provide your feedback on the [Filter Flag RFC](https://github.com/gruntwork-io/terragrunt/issues/4060) GitHub issue.
+
+#### `filter-flag` - Criteria for stabilization
+
+To transition the `filter-flag` feature to a stable release, the following must be addressed, at a minimum:
+
+- [x] Add support for name-based filtering
+- [x] Add support for path-based filtering (relative, absolute, glob)
+- [x] Add support for attribute-based filtering (type, external, name)
+- [x] Add support for negation filters (!)
+- [x] Add support for filter intersection (|)
+- [x] Add support for multiple filters (union/OR semantics)
+- [x] Integrate with the `find` command
+- [x] Integrate with the `list` command
+- [ ] Integrate with the `run` command
+- [ ] Add support for git-based filtering ([ref...ref] syntax)
+- [ ] Add support for dependency/dependent traversal (... syntax)
+- [ ] Add support for `--filters-file` flag
+- [ ] Add support for `--filter-allow-destroy` flag
+- [ ] Add support for `--filter-affected` shorthand
+- [ ] Comprehensive integration testing across all commands
+- [ ] Deprecate legacy queue control flags (queue-exclude-dir, queue-include-dir, etc.)
+
+**Future Deprecations:**
+
+When this experiment stabilizes, the following queue control flags will be deprecated in favor of the unified `--filter` flag:
+
+- `--queue-exclude-dir`
+- `--queue-excludes-file`
+- `--queue-exclude-external`
+- `--queue-include-dir`
+- `--queue-include-external`
+- `--queue-include-units-including`
+- `--queue-strict-include`
+
+The current plan is to continue to support the flags as aliases for particular `--filter` patterns.
 
 ## Completed Experiments
 
