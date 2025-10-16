@@ -21,7 +21,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -43,7 +43,7 @@ func (r *Runner) SetQueue(q *queue.Queue) {
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
+func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered component.Components, opts ...common.Option) (common.StackRunner, error) {
 	if len(discovered) == 0 {
 		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
 		isFilteringEnabled := terragruntOptions.StrictInclude ||
@@ -61,7 +61,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			}
 
 			// Create an empty queue
-			q, queueErr := queue.NewQueue(discovery.DiscoveredConfigs{})
+			q, queueErr := queue.NewQueue(component.Components{})
 			if queueErr != nil {
 				return nil, queueErr
 			}
@@ -100,7 +100,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 		// Determine per-unit config filename
 		var fname string
-		if cfg.Type == discovery.ConfigTypeStack {
+		if cfg.Kind == component.Stack {
 			fname = config.DefaultStackFile
 		} else {
 			fname = config.DefaultTerragruntConfigPath
@@ -486,7 +486,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 //   - For each included config, its Dependencies list is filtered to only include included configs.
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
-func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.Units) discovery.DiscoveredConfigs {
+func FilterDiscoveredUnits(discovered component.Components, units common.Units) component.Components {
 	// Build allowlist from non-excluded unit paths
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
@@ -496,8 +496,8 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 	}
 
 	// First pass: keep only allowed configs and prune their dependencies to allowed ones
-	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
-	present := make(map[string]*discovery.DiscoveredConfig, len(discovered))
+	filtered := make(component.Components, 0, len(discovered))
+	present := make(map[string]*component.Component, len(discovered))
 
 	for _, cfg := range discovered {
 		if _, ok := allowed[cfg.Path]; !ok {
@@ -510,7 +510,7 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		copyCfg := &copyVal
 
 		if cfg.Dependencies != nil {
-			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
+			deps := make(component.Components, 0, len(cfg.Dependencies))
 			for _, dep := range cfg.Dependencies {
 				if _, ok := allowed[dep.Path]; ok {
 					deps = append(deps, dep)
@@ -535,8 +535,8 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		}
 
 		// Create a minimal discovered config for the missing unit
-		copyCfg := &discovery.DiscoveredConfig{
-			Type: discovery.ConfigTypeUnit,
+		copyCfg := &component.Component{
+			Kind: component.Unit,
 			Path: u.Path,
 		}
 
@@ -578,7 +578,7 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 			// Ensure the dependency config exists in the filtered set
 			depCfg, ok := present[depUnit.Path]
 			if !ok {
-				depCfg = &discovery.DiscoveredConfig{Type: discovery.ConfigTypeUnit, Path: depUnit.Path}
+				depCfg = &component.Component{Kind: component.Unit, Path: depUnit.Path}
 				filtered = append(filtered, depCfg)
 				present[depUnit.Path] = depCfg
 			}
