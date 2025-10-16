@@ -134,7 +134,7 @@ terragrunt find --filter 'name=stack*'
     - terragrunt.stack.hcl
 - ..
   - dependencies \<-- Note that this directory is sibling to the current working directory
-    - **dependency-of-app1** \<-- Matched by the third filter, but not the fourth filter
+    - **dependency-of-app1** \<-- Matched by the fourth filter, but not the third filter
         - terragrunt.hcl
 </FileTree>
 
@@ -221,11 +221,14 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
 Specify multiple `--filter` flags to combine results using OR logic.
 
 ```bash
-# Find units named 'unit1' OR 'stack1'
+# Find components named 'unit1' OR 'stack1'
 terragrunt find --filter unit1 --filter stack1
 
-# Find units in ./envs/prod/* OR ./envs/stage/*
+# Find components in ./envs/prod/* OR ./envs/stage/*
 terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
+
+# Find components named 'stack2' _except_ those in ./envs/prod/* and ./envs/stage/*
+terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/stage/**'
 ```
 
 <FileTree>
@@ -255,7 +258,7 @@ terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
       - terragrunt.hcl
     - **stack1** \<-- Matched by the first filter
       - terragrunt.stack.hcl
-    - stack2
+    - **stack2** \<-- Matched by the third filter
       - terragrunt.stack.hcl
 </FileTree>
 
