@@ -1050,6 +1050,9 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		return errors.New("max dependency depth reached while discovering dependencies")
 	}
 
+	d.depthRemaining--
+	defer func() { d.depthRemaining++ }()
+
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.
 	if dCfg.Kind == component.Stack {
