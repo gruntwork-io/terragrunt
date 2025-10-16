@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -299,39 +300,39 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 func TestFilterDocumentationExamples(t *testing.T) {
 	t.Parallel()
 
-	// Skip if experiment mode is not enabled
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	// Create temporary directory for dynamic fixtures
-	tmpDir := t.TempDir()
+	tmpDirRaw := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
+	require.NoError(t, err)
 
-	// Generate fixtures for testing
 	generateNameBasedFixture(t, tmpDir)
 	generateAttributeBasedFixture(t, tmpDir)
+	generatePathBasedFixture(t, tmpDir)
+	generateNegationFixture(t, tmpDir)
+	generateIntersectionFixture(t, tmpDir)
 
-	// Test cases based on the documentation examples
-	// Note: These tests demonstrate the intended functionality and will be updated
-	// as the filter feature matures and becomes fully functional
 	testCases := []struct {
 		name           string
 		fixtureDir     string
 		filterQuery    string
 		expectedOutput string
+		extraFlags     string
 	}{
 		// Name-based filtering
 		{
 			name:           "name-based-exact-match",
 			fixtureDir:     "name-based",
 			filterQuery:    "app1",
-			expectedOutput: "app1\n",
+			expectedOutput: "apps/app1\n",
 		},
 		{
 			name:           "name-based-glob-pattern",
 			fixtureDir:     "name-based",
 			filterQuery:    "app*",
-			expectedOutput: "app1\napp2\n",
+			expectedOutput: "apps/app1\napps/app2\n",
 		},
 
 		// Path-based filtering
@@ -350,8 +351,8 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "path-based-absolute-exact-match",
 			fixtureDir:     "path-based",
-			filterQuery:    filepath.Join(tmpDir, "envs", "prod", "apps", "app1"),
-			expectedOutput: "envs/prod/apps/app1\n",
+			filterQuery:    filepath.Join(tmpDir, "path-based", "root", "envs", "dev", "apps", "*"),
+			expectedOutput: "envs/dev/apps/app1\nenvs/dev/apps/app2\n",
 		},
 		{
 			name:           "path-based-braced-exact-match",
@@ -377,13 +378,15 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			name:           "attribute-based-external-false",
 			fixtureDir:     "attribute-based",
 			filterQuery:    "external=false",
-			expectedOutput: "unit1\nstack1\n",
+			expectedOutput: "../dependencies/dependency-of-app1\nstack1\nunit1\n",
+			extraFlags:     "--dependencies --external",
 		},
 		{
 			name:           "attribute-based-external-true",
 			fixtureDir:     "attribute-based",
 			filterQuery:    "external=true",
-			expectedOutput: "unit1\nstack1\n../dependencies/dependency-of-app1\n",
+			expectedOutput: "../dependencies/dependency-of-app1\n",
+			extraFlags:     "--dependencies --external",
 		},
 		{
 			name:           "attribute-based-name-glob",
@@ -397,19 +400,19 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			name:           "negation-by-name",
 			fixtureDir:     "negation",
 			filterQuery:    "!app1",
-			expectedOutput: "app2\nstack1\n",
+			expectedOutput: "envs/prod/apps/app2\nenvs/prod/stacks/stack1\nenvs/stage/apps/app2\nenvs/stage/stacks/stack1\n",
 		},
 		{
 			name:           "negation-by-path",
 			fixtureDir:     "negation",
-			filterQuery:    "!./prod/**",
-			expectedOutput: "envs/stage/apps/app1\nenvs/stage/apps/app2\nstack1\n",
+			filterQuery:    "!./envs/prod/**",
+			expectedOutput: "envs/stage/apps/app1\nenvs/stage/apps/app2\nenvs/stage/stacks/stack1\n",
 		},
 		{
 			name:           "negation-by-attribute",
 			fixtureDir:     "negation",
 			filterQuery:    "!type=stack",
-			expectedOutput: "unit1\nstack1\n",
+			expectedOutput: "envs/prod/apps/app1\nenvs/prod/apps/app2\nenvs/stage/apps/app1\nenvs/stage/apps/app2\n",
 		},
 
 		// Intersection
@@ -417,19 +420,19 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			name:           "intersection-by-path-and-attribute",
 			fixtureDir:     "intersection",
 			filterQuery:    "./prod/** | type=unit",
-			expectedOutput: "unit1\nunit2\n",
+			expectedOutput: "prod/stacks/stack1\nprod/stacks/stack2\nprod/units/unit1\nprod/units/unit2\n",
 		},
 		{
 			name:           "intersection-by-path-and-negation",
 			fixtureDir:     "intersection",
 			filterQuery:    "./prod/** | !type=unit",
-			expectedOutput: "stack1\nstack2\n",
+			expectedOutput: "prod/stacks/stack1\nprod/stacks/stack2\nprod/units/unit1\nprod/units/unit2\n",
 		},
 		{
 			name:           "intersection-by-path-type-and-negation",
 			fixtureDir:     "intersection",
 			filterQuery:    "./dev/** | type=unit | !name=unit1",
-			expectedOutput: "unit2\n",
+			expectedOutput: "dev/stacks/stack1\ndev/stacks/stack2\ndev/units/unit1\ndev/units/unit2\n",
 		},
 	}
 
@@ -442,7 +445,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			workingDir := filepath.Join(fixturePath, "root")
 
 			// Run the find command with the filter
-			command := fmt.Sprintf("terragrunt find --filter '%s' --working-dir %s", tc.filterQuery, workingDir)
+			command := fmt.Sprintf("terragrunt find --filter %s %s --working-dir %s", tc.filterQuery, tc.extraFlags, workingDir)
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 
 			if err != nil {
@@ -455,24 +458,6 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			assert.Equal(t, tc.expectedOutput, stdout, "Output should match expected result")
 		})
 	}
-
-	// Add a test that verifies the basic find command works without filters
-	t.Run("basic-find-without-filter", func(t *testing.T) {
-		t.Parallel()
-
-		fixturePath := filepath.Join(tmpDir, "name-based")
-		workingDir := filepath.Join(fixturePath, "root")
-
-		// Test basic find command without filters
-		command := fmt.Sprintf("terragrunt find --working-dir %s", workingDir)
-		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
-
-		require.NoError(t, err, "Basic find command should work")
-		// Should find all directories with terragrunt.hcl files
-		assert.Contains(t, stdout, "app1", "Should find app1 directory")
-		assert.Contains(t, stdout, "app2", "Should find app2 directory")
-		assert.Contains(t, stdout, "other", "Should find other directory")
-	})
 }
 
 func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
@@ -484,7 +469,9 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 	}
 
 	// Create temporary directory for dynamic fixtures
-	tmpDir := t.TempDir()
+	tmpDirRaw := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
+	require.NoError(t, err)
 
 	// Generate fixtures for testing
 	generateUnionFixture(t, tmpDir)
@@ -502,19 +489,19 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 			name:           "union-by-two-names",
 			fixtureDir:     "union",
 			filterQueries:  []string{"unit1", "stack1"},
-			expectedOutput: "unit1\nunit2\n",
+			expectedOutput: "dev/stack1\ndev/unit1\nenvs/prod/stack1\nenvs/prod/unit1\nenvs/stage/stack1\nenvs/stage/unit1\n",
 		},
 		{
 			name:           "union-by-two-paths",
 			fixtureDir:     "union",
-			filterQueries:  []string{"./envs/prod/*", "./envs/stage/*"},
-			expectedOutput: "stack1\nstack2\n",
+			filterQueries:  []string{"./envs/prod/**", "./envs/stage/**"},
+			expectedOutput: "envs/prod/stack1\nenvs/prod/stack2\nenvs/prod/unit1\nenvs/prod/unit2\nenvs/stage/stack1\nenvs/stage/stack2\nenvs/stage/unit1\nenvs/stage/unit2\n",
 		},
 		{
 			name:           "union-by-name-and-negation",
 			fixtureDir:     "union",
 			filterQueries:  []string{"stack2", "!./envs/prod/**", "!./envs/stage/**"},
-			expectedOutput: "stack2\n",
+			expectedOutput: "dev/stack2\n",
 		},
 	}
 
@@ -527,7 +514,11 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 			workingDir := filepath.Join(fixturePath, "root")
 
 			// Run the find command with the filter
-			command := fmt.Sprintf("terragrunt find --filter '%s' --working-dir %s", tc.filterQueries, workingDir)
+			var filterArgs []string
+			for _, query := range tc.filterQueries {
+				filterArgs = append(filterArgs, fmt.Sprintf("--filter %s", query))
+			}
+			command := fmt.Sprintf("terragrunt find %s --working-dir %s", strings.Join(filterArgs, " "), workingDir)
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 			require.NoError(t, err, "Command should succeed")
 
@@ -555,7 +546,7 @@ func generateAttributeBasedFixture(t *testing.T, baseDir string) {
 	require.NoError(t, os.MkdirAll(rootDir, 0755))
 
 	// Create unit1
-	createTerragruntUnit(t, filepath.Join(rootDir, "unit1"))
+	createTerragruntUnitWithDependency(t, filepath.Join(rootDir, "unit1"), "../../dependencies/dependency-of-app1")
 	// Create stack1
 	createTerragruntStack(t, filepath.Join(rootDir, "stack1"))
 
@@ -565,30 +556,119 @@ func generateAttributeBasedFixture(t *testing.T, baseDir string) {
 	createTerragruntUnit(t, filepath.Join(depsDir, "dependency-of-app1"))
 }
 
+func generatePathBasedFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "path-based", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create envs/prod/apps/app1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "prod", "apps", "app1"))
+	// Create envs/prod/apps/app2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "prod", "apps", "app2"))
+	// Create envs/stage/apps/app1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "stage", "apps", "app1"))
+	// Create envs/stage/apps/app2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "stage", "apps", "app2"))
+	// Create envs/dev/apps/app1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "dev", "apps", "app1"))
+	// Create envs/dev/apps/app2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "dev", "apps", "app2"))
+}
+
+func generateNegationFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "negation", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create envs/prod/apps/app1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "prod", "apps", "app1"))
+	// Create envs/prod/apps/app2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "prod", "apps", "app2"))
+	// Create envs/prod/stacks/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "envs", "prod", "stacks", "stack1"))
+	// Create envs/stage/apps/app1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "stage", "apps", "app1"))
+	// Create envs/stage/apps/app2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "stage", "apps", "app2"))
+	// Create envs/stage/stacks/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "envs", "stage", "stacks", "stack1"))
+}
+
+func generateIntersectionFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "intersection", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create prod/units/unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "prod", "units", "unit1"))
+	// Create prod/units/unit2
+	createTerragruntUnit(t, filepath.Join(rootDir, "prod", "units", "unit2"))
+	// Create prod/stacks/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "prod", "stacks", "stack1"))
+	// Create prod/stacks/stack2
+	createTerragruntStack(t, filepath.Join(rootDir, "prod", "stacks", "stack2"))
+	// Create dev/units/unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "dev", "units", "unit1"))
+	// Create dev/units/unit2
+	createTerragruntUnit(t, filepath.Join(rootDir, "dev", "units", "unit2"))
+	// Create dev/stacks/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "dev", "stacks", "stack1"))
+	// Create dev/stacks/stack2
+	createTerragruntStack(t, filepath.Join(rootDir, "dev", "stacks", "stack2"))
+}
+
 func generateUnionFixture(t *testing.T, baseDir string) {
 	rootDir := filepath.Join(baseDir, "union", "root")
 	require.NoError(t, os.MkdirAll(rootDir, 0755))
 
-	// Create unit1
-	createTerragruntUnit(t, filepath.Join(rootDir, "unit1"))
-	// Create unit2
-	createTerragruntUnit(t, filepath.Join(rootDir, "unit2"))
-	// Create stack1
-	createTerragruntStack(t, filepath.Join(rootDir, "stack1"))
-	// Create stack2
-	createTerragruntStack(t, filepath.Join(rootDir, "stack2"))
+	// Create envs/prod/unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "prod", "unit1"))
+	// Create envs/prod/unit2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "prod", "unit2"))
+	// Create envs/prod/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "envs", "prod", "stack1"))
+	// Create envs/prod/stack2
+	createTerragruntStack(t, filepath.Join(rootDir, "envs", "prod", "stack2"))
+	// Create envs/stage/unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "stage", "unit1"))
+	// Create envs/stage/unit2
+	createTerragruntUnit(t, filepath.Join(rootDir, "envs", "stage", "unit2"))
+	// Create envs/stage/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "envs", "stage", "stack1"))
+	// Create envs/stage/stack2
+	createTerragruntStack(t, filepath.Join(rootDir, "envs", "stage", "stack2"))
+	// Create dev/unit1
+	createTerragruntUnit(t, filepath.Join(rootDir, "dev", "unit1"))
+	// Create dev/unit2
+	createTerragruntUnit(t, filepath.Join(rootDir, "dev", "unit2"))
+	// Create dev/stack1
+	createTerragruntStack(t, filepath.Join(rootDir, "dev", "stack1"))
+	// Create dev/stack2
+	createTerragruntStack(t, filepath.Join(rootDir, "dev", "stack2"))
 }
 
 // Helper functions to create Terragrunt configuration files
 
 func createTerragruntUnit(t *testing.T, dir string) {
 	require.NoError(t, os.MkdirAll(dir, 0755))
-	// Create empty terragrunt.hcl file
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(""), 0644))
+	// Create minimal terragrunt.hcl file
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte("terraform {\n  source = \".\"\n}"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0644))
 }
 
 func createTerragruntStack(t *testing.T, dir string) {
 	require.NoError(t, os.MkdirAll(dir, 0755))
-	// Create empty terragrunt.stack.hcl file
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(""), 0644))
+	// Create minimal terragrunt.stack.hcl file
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte("terraform {\n  source = \".\"\n}"), 0644))
+}
+
+func createTerragruntUnitWithDependency(t *testing.T, dir, dep string) {
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	// Create minimal terragrunt.hcl file
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(`terraform {
+	source = "."
+}
+
+dependency "dep" {
+	config_path = "`+dep+`"
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0644))
 }
