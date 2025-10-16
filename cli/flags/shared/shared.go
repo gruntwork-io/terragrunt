@@ -150,8 +150,8 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 }
 
 // NewFilterFlag creates a flag for specifying filter queries.
-func NewFilterFlag(opts *options.TerragruntOptions) *flags.Flag {
-	tgPrefix := flags.Prefix{flags.TgPrefix}
+func NewFilterFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	return flags.NewFlag(
 		&cli.SliceFlag[string]{
@@ -159,13 +159,6 @@ func NewFilterFlag(opts *options.TerragruntOptions) *flags.Flag {
 			EnvVars:     tgPrefix.EnvVars(FilterFlagName),
 			Destination: &opts.FilterQueries,
 			Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
-			Action: func(_ *cli.Context, val []string) error {
-				// Check if the filter-flag experiment is enabled
-				if !opts.Experiments.Evaluate("filter-flag") {
-					return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-				}
-				return nil
-			},
 		},
 	)
 }
