@@ -150,8 +150,8 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 }
 
 // NewFilterFlag creates a flag for specifying filter queries.
-func NewFilterFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+func NewFilterFlag(opts *options.TerragruntOptions) *flags.Flag {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 
 	return flags.NewFlag(
 		&cli.SliceFlag[string]{
