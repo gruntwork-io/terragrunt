@@ -902,9 +902,9 @@ func (d *Discovery) Discover(
 	}
 
 	// Use concurrent discovery for better performance
-	cfgs, err := d.discoverConcurrently(ctx, l, opts, filenames)
+	components, err := d.discoverConcurrently(ctx, l, opts, filenames)
 	if err != nil {
-		return cfgs, err
+		return components, err
 	}
 
 	errs := []error{}
@@ -913,28 +913,28 @@ func (d *Discovery) Discover(
 	// as we might need to parse configurations for multiple reasons.
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
-		parseErrs := d.parseConcurrently(ctx, l, opts, cfgs)
+		parseErrs := d.parseConcurrently(ctx, l, opts, components)
 		errs = append(errs, parseErrs...)
 	}
 
 	// Apply filters if configured
 	if len(d.filters) > 0 {
-		filtered, err := d.filters.Evaluate(cfgs)
+		filtered, err := d.filters.Evaluate(components)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 		} else {
-			cfgs = filtered
+			components = filtered
 		}
 	}
 
 	if d.discoverDependencies {
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
 			"working_dir":                    d.workingDir,
-			"config_count":                   len(cfgs),
+			"config_count":                   len(components),
 			"discover_external_dependencies": d.discoverExternalDependencies,
 			"max_dependency_depth":           d.maxDependencyDepth,
 		}, func(ctx context.Context) error {
-			dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
+			dependencyDiscovery := NewDependencyDiscovery(components, d.maxDependencyDepth)
 
 			if d.discoveryContext != nil {
 				dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
@@ -964,26 +964,26 @@ func (d *Discovery) Discover(
 				l.Debugf("Errors: %w", err)
 			}
 
-			cfgs = dependencyDiscovery.cfgs
+			components = dependencyDiscovery.cfgs
 
 			return nil
 		})
 		if err != nil {
-			return cfgs, errors.New(err)
+			return components, errors.New(err)
 		}
 
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
 			"working_dir":  d.workingDir,
-			"config_count": len(cfgs),
+			"config_count": len(components),
 		}, func(ctx context.Context) error {
-			if _, cycleErr := cfgs.CycleCheck(); cycleErr != nil {
+			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
 				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
 				l.Debugf("Cycle: %w", cycleErr)
 
 				var removeErr error
 
-				cfgs, removeErr = RemoveCycles(cfgs)
+				components, removeErr = RemoveCycles(components)
 				if removeErr != nil {
 					errs = append(errs, errors.New(removeErr))
 				}
@@ -992,15 +992,15 @@ func (d *Discovery) Discover(
 			return nil
 		})
 		if err != nil {
-			return cfgs, errors.New(err)
+			return components, errors.New(err)
 		}
 	}
 
 	if len(errs) > 0 {
-		return cfgs, errors.Join(errs...)
+		return components, errors.Join(errs...)
 	}
 
-	return cfgs, nil
+	return components, nil
 }
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
