@@ -80,7 +80,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 func TestFilters_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	components := []*component.Component{
+	components := component.Components{
 		{Path: "./apps/app1", Kind: component.Unit},
 		{Path: "./apps/app2", Kind: component.Unit},
 		{Path: "./apps/legacy", Kind: component.Unit},
@@ -196,9 +196,11 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		// When there are no positive filters, the combined result is empty,
-		// so negative filters have nothing to remove from
-		expected := []*component.Component{}
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./libs/api", Kind: component.Unit},
+		}
 
 		assert.ElementsMatch(t, expected, result)
 	})

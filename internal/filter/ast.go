@@ -53,10 +53,10 @@ func (p *PathFilter) String() string  { return p.Value }
 
 // AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeFilter struct {
-	compiledGlob glob.Glob
-	compileErr   error
 	Key          string
 	Value        string
+	compiledGlob glob.Glob
+	compileErr   error
 	compileOnce  sync.Once
 }
 
