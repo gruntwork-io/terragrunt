@@ -22,7 +22,7 @@
     "astro-d2": "^0.8.0",
     "clsx": "^2.1.1",
     "gray-matter": "^4.0.3",
-    "lucide-react": "^0.544.0",
+    "lucide-react": "^0.546.0",
     "sharp": "^0.34.4",
     "starlight-links-validator": "^0.18.0",
     "tailwind-merge": "^3.3.1"
