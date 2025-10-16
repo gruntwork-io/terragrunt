@@ -96,7 +96,7 @@ func TestParser_SimpleExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			parser := filter.NewParser(lexer, ".")
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			parser := filter.NewParser(lexer, ".")
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestParser_InfixExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			parser := filter.NewParser(lexer, ".")
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -325,7 +325,7 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			parser := filter.NewParser(lexer, ".")
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -379,7 +379,7 @@ func TestParser_ErrorCases(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			parser := filter.NewParser(lexer, ".")
 			expr, err := parser.ParseExpression()
 
 			if tt.expectError {
@@ -428,7 +428,7 @@ func TestParser_StringRepresentation(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer)
+			parser := filter.NewParser(lexer, ".")
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)

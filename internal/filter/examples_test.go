@@ -17,7 +17,7 @@ func Example_basicPathFilter() {
 		{Path: "./libs/db", Kind: component.Unit},
 	}
 
-	result, _ := filter.Apply("./apps/*", components)
+	result, _ := filter.Apply("./apps/*", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path))
@@ -35,7 +35,7 @@ func Example_attributeFilter() {
 		{Path: "./services/api", Kind: component.Unit},
 	}
 
-	result, _ := filter.Apply("name=api", components)
+	result, _ := filter.Apply("name=api", ".", components)
 
 	for _, c := range result {
 		fmt.Println(c.Path)
@@ -52,7 +52,7 @@ func Example_exclusionFilter() {
 		{Path: "./apps/legacy", Kind: component.Unit},
 	}
 
-	result, _ := filter.Apply("!legacy", components)
+	result, _ := filter.Apply("!legacy", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path))
@@ -72,7 +72,7 @@ func Example_intersectionFilter() {
 	}
 
 	// Select components in ./apps/ that are named "frontend"
-	result, _ := filter.Apply("./apps/* | frontend", components)
+	result, _ := filter.Apply("./apps/* | frontend", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path))
@@ -92,7 +92,7 @@ func Example_complexQuery() {
 	}
 
 	// Select all services except worker
-	result, _ := filter.Apply("./services/* | !worker", components)
+	result, _ := filter.Apply("./services/* | !worker", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path))
@@ -136,7 +136,7 @@ func Example_recursiveWildcard() {
 	}
 
 	// Match all infrastructure components at any depth
-	result, _ := filter.Apply("./infrastructure/**", components)
+	result, _ := filter.Apply("./infrastructure/**", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path))
@@ -179,7 +179,7 @@ func Example_multipleFilters() {
 	filters, _ := filter.ParseFilterQueries([]string{
 		"./apps/*",
 		"name=db",
-	})
+	}, ".")
 
 	result, _ := filters.Evaluate(components)
 

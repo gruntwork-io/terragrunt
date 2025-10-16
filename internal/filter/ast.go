@@ -21,6 +21,7 @@ type PathFilter struct {
 	compiledGlob glob.Glob
 	compileErr   error
 	Value        string
+	WorkingDir   string
 	compileOnce  sync.Once
 }
 
