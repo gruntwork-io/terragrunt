@@ -8,6 +8,7 @@
 
 /* Starlight Fixes */
 @import "./starlight-search.css" layer(components);
+@import "./starlight-right-sidebar.css" layer(components);
 
 @font-face {
   font-family: 'Inter';
