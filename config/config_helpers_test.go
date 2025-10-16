@@ -378,6 +378,41 @@ unit "test" {
 	require.Equal(t, "us-east-1", region)
 }
 
+func TestFindInParentFoldersFallsBackToOriginalConfigPath(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("requires symlink support")
+	}
+
+	tempDir := t.TempDir()
+
+	templateDir := filepath.Join(tempDir, "global", "template", "namespace")
+	projectNamespaceDir := filepath.Join(tempDir, "project", "namespace")
+	require.NoError(t, os.MkdirAll(templateDir, 0o755))
+	require.NoError(t, os.MkdirAll(projectNamespaceDir, 0o755))
+
+	templateConfigPath := filepath.Join(templateDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(templateConfigPath, []byte{}, 0o644))
+
+	subYamlPath := filepath.Join(tempDir, "project", "sub.yaml")
+	require.NoError(t, os.WriteFile(subYamlPath, []byte("data"), 0o644))
+
+	symlinkPath := filepath.Join(projectNamespaceDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.Symlink(templateConfigPath, symlinkPath))
+
+	opts := terragruntOptionsForTest(t, templateConfigPath)
+	opts.OriginalTerragruntConfigPath = symlinkPath
+
+	l := logger.CreateLogger()
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+
+	foundPath, err := config.FindInParentFolders(ctx, l, []string{"sub.yaml"})
+	require.NoError(t, err)
+
+	require.Equal(t, filepath.ToSlash(subYamlPath), foundPath)
+}
+
 func TestResolveTerragruntInterpolation(t *testing.T) {
 	t.Parallel()
 

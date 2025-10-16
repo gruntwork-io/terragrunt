@@ -3,6 +3,8 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -12,8 +14,35 @@ import (
 )
 
 const (
-	testFixtureRegressions = "fixtures/regressions"
+	testFixtureRegressions         = "fixtures/regressions"
+	testFixtureSymlinkDestroyNoise = "fixtures/regressions/symlink-destroy-noise"
 )
+
+func TestDestroyWithSymlinkedConfigDoesNotEmitParentFileNotFound(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Symlink tests require additional permissions on Windows")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureSymlinkDestroyNoise)
+
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureSymlinkDestroyNoise))
+	require.NoError(t, err)
+
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureSymlinkDestroyNoise)
+	templatePath := filepath.Join(rootPath, "global", "template", "namespace", "terragrunt.hcl")
+	namespacePath := filepath.Join(rootPath, "project", "namespace")
+	symlinkPath := filepath.Join(namespacePath, "terragrunt.hcl")
+
+	require.NoError(t, os.RemoveAll(symlinkPath))
+	require.NoError(t, os.Symlink(templatePath, symlinkPath))
+	helpers.ExecWithTestLogger(t, rootPath, "git", "init")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy --auto-approve --non-interactive --working-dir "+namespacePath)
+	require.NoError(t, err)
+	assert.NotContains(t, stdout+stderr, "ParentFileNotFoundError")
+}
 
 func TestNoAutoInit(t *testing.T) {
 	t.Parallel()

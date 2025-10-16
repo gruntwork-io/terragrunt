@@ -94,7 +94,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	for _, cfg := range discovered {
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
-			l.Warnf("Skipping unit at %s due to parse error", cfg.Path)
+			l.Debugf("Skipping unit at %s due to suppressed parse error", cfg.Path)
 			continue
 		}
 

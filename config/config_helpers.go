@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	stdErrors "errors"
 	"fmt"
 	"maps"
 	"os"
@@ -444,13 +445,6 @@ func FindInParentFolders(
 		return "", errors.New(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
-	previousDir, err := filepath.Abs(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	previousDir = filepath.ToSlash(previousDir)
-
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
 		allControls := ctx.TerragruntOptions.StrictControls
 		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
@@ -470,7 +464,57 @@ func FindInParentFolders(
 		fileToFindStr = fileToFindParam
 	}
 
-	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
+	baseConfigPaths := []string{ctx.TerragruntOptions.TerragruntConfigPath}
+
+	if originalConfigPath := ctx.TerragruntOptions.OriginalTerragruntConfigPath; originalConfigPath != "" {
+		currentClean := util.CleanPath(ctx.TerragruntOptions.TerragruntConfigPath)
+		originalClean := util.CleanPath(originalConfigPath)
+
+		if originalClean != "" && originalClean != currentClean {
+			baseConfigPaths = append(baseConfigPaths, originalConfigPath)
+		}
+	}
+
+	var lastErr error
+
+	for _, baseConfigPath := range baseConfigPaths {
+		foundPath, err := findInParentFoldersFromBase(ctx, baseConfigPath, fileToFindParam, fileToFindStr, fallbackParam, numParams)
+		if err == nil {
+			return foundPath, nil
+		}
+
+		unwrappedErr := errors.Unwrap(err)
+		if unwrappedErr == nil {
+			return "", err
+		}
+
+		var parentErr ParentFileNotFoundError
+		if !stdErrors.As(unwrappedErr, &parentErr) {
+			return "", err
+		}
+
+		lastErr = err
+	}
+
+	return "", lastErr
+}
+
+func findInParentFoldersFromBase(
+	ctx *ParsingContext,
+	baseConfigPath string,
+	fileToFindParam string,
+	fileToFindStr string,
+	fallbackParam string,
+	numParams int,
+) (string, error) {
+	previousDir, err := filepath.Abs(filepath.Dir(baseConfigPath))
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	previousDir = filepath.ToSlash(previousDir)
+
+	// To avoid getting into an accidental infinite loop (e.g. due to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for range ctx.TerragruntOptions.MaxFoldersToCheck {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))

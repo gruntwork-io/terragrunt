@@ -3,6 +3,7 @@ package discovery
 
 import (
 	"context"
+	stdErrors "errors"
 	"io"
 	"io/fs"
 	"os"
@@ -46,6 +47,9 @@ const (
 	//
 	// This is a hack, and there should be a better way of handling this...
 	skipNoVariableNamedDependencyDiagnostic = `There is no variable named "dependency".`
+
+	// skipParentFileDiagnostic is a string used to identify diagnostics that reference ParentFileNotFoundError.
+	skipParentFileDiagnostic = "ParentFileNotFoundError"
 
 	// Default number of concurrent workers for discovery operations
 	defaultDiscoveryWorkers = 4
@@ -460,11 +464,19 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		// while leaving other diagnostics as is.
 		parseOptions := append(parsingCtx.ParserOptions, hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			filteredDiags := hcl.Diagnostics{}
+			parentFileToken := strings.ToLower(skipParentFileDiagnostic)
 
 			for _, hclDiag := range hclDiags {
-				filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
-					strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic)
+				lowerSummary := strings.ToLower(hclDiag.Summary)
+				lowerDetail := strings.ToLower(hclDiag.Detail)
+				lowerError := strings.ToLower(hclDiag.Error())
+
+				filterOut := strings.Contains(lowerSummary, skipOutputDiagnostics) ||
+					strings.Contains(lowerDetail, skipOutputDiagnostics) ||
+					strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
+					strings.Contains(lowerDetail, parentFileToken) ||
+					strings.Contains(lowerSummary, parentFileToken) ||
+					strings.Contains(lowerError, parentFileToken)
 
 				if !filterOut {
 					filteredDiags = append(filteredDiags, hclDiag)
@@ -479,18 +491,30 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	//nolint: contextcheck
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
-		if !suppressParseErrors || cfg == nil {
+		if suppressParseErrors && (cfg != nil || shouldSuppressParentFileError(err)) {
+			l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+		} else {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 
 			return errors.New(err)
 		}
-
-		l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 	}
 
 	c.Parsed = cfg
 
 	return nil
+}
+
+func shouldSuppressParentFileError(err error) bool {
+	for _, unwrappedErr := range errors.UnwrapMultiErrors(err) {
+		var parentErr config.ParentFileNotFoundError
+
+		if stdErrors.As(unwrappedErr, &parentErr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
@@ -1060,6 +1084,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 		if err != nil {
 			return errors.New(err)
+		}
+
+		if dCfg.Parsed == nil {
+			l.Debugf("Skipping dependency discovery for %s due to suppressed parse error", dCfg.Path)
+			return nil
 		}
 	}
 

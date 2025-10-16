@@ -3,6 +3,7 @@ package runner
 
 import (
 	"context"
+	"io"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -83,8 +84,12 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 	cfgOptions.TerraformCommand = opts.TerraformCommand
 	cfgOptions.NonInteractive = true
+	cfgOptions.Writer = io.Discard
+	cfgOptions.ErrWriter = io.Discard
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
+	discoveryLogger := l.WithOptions(log.WithOutput(io.Discard))
+
+	runner, err := FindStackInSubfolders(ctx, discoveryLogger, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
 		return matchedModulesMap
