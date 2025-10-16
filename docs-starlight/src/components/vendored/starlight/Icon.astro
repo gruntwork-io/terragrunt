@@ -1,0 +1,42 @@
+---
+import { Icons, type StarlightIcon } from './Icons';
+
+interface Props {
+	name: StarlightIcon;
+	label?: string;
+	color?: string;
+	size?: string;
+	class?: string;
+}
+
+const { name, label, size = '1em', color } = Astro.props;
+const a11yAttrs = label ? ({ 'aria-label': label } as const) : ({ 'aria-hidden': 'true' } as const);
+
+/**
+ * The fragment around the element is used as a workaround to avoid a trailing whitespace in the output.
+ * @see https://github.com/withastro/compiler/issues/1003
+ */
+---
+
+<>
+	<svg
+		{...a11yAttrs}
+		class={Astro.props.class}
+		width="16"
+		height="16"
+		viewBox="0 0 24 24"
+		fill="currentColor"
+		set:html={Icons[name]}
+	/>
+</>
+
+<style define:vars={{ 'sl-icon-color': color, 'sl-icon-size': size }}>
+	@layer starlight.components {
+		svg {
+			color: var(--sl-icon-color);
+			font-size: var(--sl-icon-size, 1em);
+			width: 1em;
+			height: 1em;
+		}
+	}
+</style>
