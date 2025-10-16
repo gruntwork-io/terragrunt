@@ -57,8 +57,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		})
 	}
 
-	var cfgs component.Components
-	var discoverErr error
+	var (
+		cfgs        component.Components
+		discoverErr error
+	)
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
