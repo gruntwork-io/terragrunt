@@ -32,8 +32,8 @@ const (
 	//
 	// Only works with OpenTofu version >= 1.10.
 	AutoProviderCacheDir = "auto-provider-cache-dir"
-	// Filter is the experiment that enables filter syntax for component selection
-	Filter = "filter"
+	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
+	FilterFlag = "filter-flag"
 )
 
 const (
@@ -77,7 +77,7 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: Filter,
+			Name: FilterFlag,
 		},
 	}
 }
