@@ -44,49 +44,56 @@ func TestParser_SimpleExpressions(t *testing.T) {
 			name:  "path filter relative",
 			input: "./apps/foo",
 			expected: &filter.PathFilter{
-				Value: "./apps/foo",
+				Value:      "./apps/foo",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "path filter absolute",
 			input: "/absolute/path",
 			expected: &filter.PathFilter{
-				Value: "/absolute/path",
+				Value:      "/absolute/path",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "path filter with wildcard",
 			input: "./apps/*",
 			expected: &filter.PathFilter{
-				Value: "./apps/*",
+				Value:      "./apps/*",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "path filter with recursive wildcard",
 			input: "./apps/**/foo",
 			expected: &filter.PathFilter{
-				Value: "./apps/**/foo",
+				Value:      "./apps/**/foo",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "braced path filter",
 			input: "{./apps/*}",
 			expected: &filter.PathFilter{
-				Value: "./apps/*",
+				Value:      "./apps/*",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "braced path without prefix",
 			input: "{apps}",
 			expected: &filter.PathFilter{
-				Value: "apps",
+				Value:      "apps",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "braced path with spaces",
 			input: "{my path/file}",
 			expected: &filter.PathFilter{
-				Value: "my path/file",
+				Value:      "my path/file",
+				WorkingDir: ".",
 			},
 		},
 	}
@@ -141,7 +148,8 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.PathFilter{
-					Value: "./apps/legacy",
+					Value:      "./apps/legacy",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -204,7 +212,8 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "./apps/* | name=bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.PathFilter{
-					Value: "./apps/*",
+					Value:      "./apps/*",
+					WorkingDir: ".",
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
@@ -301,13 +310,15 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
 					Left: &filter.PathFilter{
-						Value: "./apps/*",
+						Value:      "./apps/*",
+						WorkingDir: ".",
 					},
 					Operator: "|",
 					Right: &filter.PrefixExpression{
 						Operator: "!",
 						Right: &filter.PathFilter{
-							Value: "./legacy",
+							Value:      "./legacy",
+							WorkingDir: ".",
 						},
 					},
 				},
