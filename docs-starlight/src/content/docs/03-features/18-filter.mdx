@@ -119,8 +119,8 @@ terragrunt find --filter 'type=unit'
 terragrunt find --filter 'type=stack'
 
 # Filter by external dependency status
-terragrunt find --external --filter 'external=false'
-terragrunt find --external --filter 'external=true'
+terragrunt find --dependencies --external --filter 'external=false'
+terragrunt find --dependencies --external --filter 'external=true'
 
 # Explicitly filter by name (useful for explicitly indicating that an expression is for a name if ambiguous)
 terragrunt find --filter 'name=stack*'
