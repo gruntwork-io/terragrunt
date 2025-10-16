@@ -79,7 +79,7 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithReadFiles()
 	}
 
-	if opts.Experiments.Evaluate(experiment.Filter) && len(opts.FilterQueries) > 0 {
+	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 		if err != nil {
 			return nil, err
