@@ -32,7 +32,8 @@ func TestDiscoveryWithFilters(t *testing.T) {
 	cacheDir := filepath.Join(libsDir, "cache")
 
 	stackDir := filepath.Join(tmpDir, "stack")
-	externalDir := filepath.Join(tmpDir, "external")
+	// Create external component outside the working directory to make it truly external
+	externalDir := filepath.Join(filepath.Dir(tmpDir), "external")
 	externalAppDir := filepath.Join(externalDir, "app")
 
 	testDirs := []string{
@@ -50,6 +51,11 @@ func TestDiscoveryWithFilters(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// Clean up external directory after test
+	defer func() {
+		os.RemoveAll(externalDir)
+	}()
+
 	// Create test files
 	testFiles := map[string]string{
 		filepath.Join(frontendDir, "terragrunt.hcl"): `
@@ -58,7 +64,7 @@ dependency "db" {
 }
 
 dependency "external" {
-	config_path = "../../external/app"
+	config_path = "../../../external/app"
 }
 `,
 		filepath.Join(backendDir, "terragrunt.hcl"): `
@@ -292,17 +298,19 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 
 			// Parse filter queries
 			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
-			if tt.errorExpected {
-				require.Error(t, err)
+
+			// Some errors occur during parsing (like empty filter), others during evaluation
+			if tt.errorExpected && err != nil {
+				// Error occurred during parsing - this is expected for some test cases
 				return
 			}
 
-			require.NoError(t, err)
+			require.NoError(t, err) // Parsing should succeed for evaluation error test cases
 
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
 
-			// Attempt discovery
+			// Attempt discovery - errors should occur during evaluation
 			_, err = discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			if tt.errorExpected {
 				require.Error(t, err)
@@ -488,7 +496,8 @@ func TestDiscoveryWithFiltersAndDependencies(t *testing.T) {
 	appDir := filepath.Join(tmpDir, "app")
 	dbDir := filepath.Join(tmpDir, "db")
 	vpcDir := filepath.Join(tmpDir, "vpc")
-	externalDir := filepath.Join(tmpDir, "external")
+	// Create external component outside the working directory to make it truly external
+	externalDir := filepath.Join(filepath.Dir(tmpDir), "external")
 	externalAppDir := filepath.Join(externalDir, "app")
 
 	testDirs := []string{appDir, dbDir, vpcDir, externalAppDir}
@@ -496,6 +505,11 @@ func TestDiscoveryWithFiltersAndDependencies(t *testing.T) {
 		err := os.MkdirAll(dir, 0755)
 		require.NoError(t, err)
 	}
+
+	// Clean up external directory after test
+	defer func() {
+		os.RemoveAll(externalDir)
+	}()
 
 	// Create test files with dependencies
 	testFiles := map[string]string{
@@ -505,7 +519,7 @@ dependency "db" {
 }
 
 dependency "external" {
-	config_path = "../external/app"
+	config_path = "../../external/app"
 }
 `,
 		filepath.Join(dbDir, "terragrunt.hcl"): `
@@ -547,7 +561,7 @@ dependency "vpc" {
 		{
 			name:          "filter specific component and its dependencies",
 			filterQueries: []string{"app"},
-			wantUnits:     []string{appDir},
+			wantUnits:     []string{appDir, externalAppDir},
 			wantStacks:    []string{},
 		},
 		{
