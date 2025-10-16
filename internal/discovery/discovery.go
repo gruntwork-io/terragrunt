@@ -942,8 +942,9 @@ func (d *Discovery) Discover(
 		errs = append(errs, parseErrs...)
 	}
 
-	// Apply filters if configured
-	if len(d.filters) > 0 {
+	// Apply filters if configured and not doing dependency discovery
+	// When dependency discovery is enabled, we defer filtering until after dependencies are discovered
+	if len(d.filters) > 0 && !d.discoverDependencies {
 		filtered, err := d.filters.Evaluate(components)
 		if err != nil {
 			errs = append(errs, errors.New(err))
@@ -1018,6 +1019,16 @@ func (d *Discovery) Discover(
 		})
 		if err != nil {
 			return components, errors.New(err)
+		}
+	}
+
+	// Apply filters at the end if dependency discovery was enabled
+	if len(d.filters) > 0 && d.discoverDependencies {
+		filtered, err := d.filters.Evaluate(components)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+		} else {
+			components = filtered
 		}
 	}
 
