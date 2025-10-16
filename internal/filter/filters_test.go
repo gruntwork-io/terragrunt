@@ -227,63 +227,63 @@ func TestFilters_Evaluate(t *testing.T) {
 	})
 }
 
-func TestFilters_ExcludeByDefault(t *testing.T) {
+func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty filters - exclude by default is false", func(t *testing.T) {
+	t.Run("empty filters - has positive filter is false", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
-		assert.False(t, filters.ExcludeByDefault())
+		assert.False(t, filters.HasPositiveFilter())
 	})
 
-	t.Run("single positive filter - exclude by default is true", func(t *testing.T) {
+	t.Run("single positive filter - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
-		assert.True(t, filters.ExcludeByDefault())
+		assert.True(t, filters.HasPositiveFilter())
 	})
 
-	t.Run("single negative filter - exclude by default is false", func(t *testing.T) {
+	t.Run("single negative filter - has positive filter is false", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{"!legacy"})
 		require.NoError(t, err)
-		assert.False(t, filters.ExcludeByDefault())
+		assert.False(t, filters.HasPositiveFilter())
 	})
 
-	t.Run("multiple negative filters - exclude by default is false", func(t *testing.T) {
+	t.Run("multiple negative filters - has positive filter is false", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!test"})
 		require.NoError(t, err)
-		assert.False(t, filters.ExcludeByDefault())
+		assert.False(t, filters.HasPositiveFilter())
 	})
 
-	t.Run("multiple positive filters - exclude by default is true", func(t *testing.T) {
+	t.Run("multiple positive filters - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "./libs/*"})
 		require.NoError(t, err)
-		assert.True(t, filters.ExcludeByDefault())
+		assert.True(t, filters.HasPositiveFilter())
 	})
 
-	t.Run("mixed positive and negative - exclude by default is true", func(t *testing.T) {
+	t.Run("mixed positive and negative - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"})
 		require.NoError(t, err)
-		assert.True(t, filters.ExcludeByDefault())
+		assert.True(t, filters.HasPositiveFilter())
 	})
 
-	t.Run("negative then positive - exclude by default is true", func(t *testing.T) {
+	t.Run("negative then positive - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
 		filters, err := filter.ParseFilterQueries([]string{"!legacy", "./apps/*"})
 		require.NoError(t, err)
-		assert.True(t, filters.ExcludeByDefault())
+		assert.True(t, filters.HasPositiveFilter())
 	})
 }
 

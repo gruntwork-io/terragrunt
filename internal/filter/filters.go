@@ -45,11 +45,8 @@ func ParseFilterQueries(filterStrings []string) (Filters, error) {
 	return result, nil
 }
 
-// ExcludeByDefault returns true if the filters operate in exclude-by-default mode.
-// This is true if ANY filter doesn't start with a negation expression.
-// When true, discovery should start with an empty set and add matches.
-// When false, discovery should start with all units and remove matches.
-func (f Filters) ExcludeByDefault() bool {
+// HasPositiveFilter returns true if the filters have any positive filters.
+func (f Filters) HasPositiveFilter() bool {
 	for _, filter := range f {
 		if !startsWithNegation(filter.expr) {
 			return true
