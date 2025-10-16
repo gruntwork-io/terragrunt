@@ -24,20 +24,16 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d := discovery.
-		NewDiscovery(opts.WorkingDir).
-		WithSuppressParseErrors()
-
-	if opts.Hidden {
-		d = d.WithHidden()
-	}
-
-	if shouldDiscoverDependencies(opts) {
-		d = d.WithDiscoverDependencies()
-	}
-
-	if opts.External {
-		d = d.WithDiscoverExternalDependencies()
+	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		Hidden:        opts.Hidden,
+		Dependencies:  shouldDiscoverDependencies(opts),
+		External:      opts.External,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return errors.New(err)
 	}
 
 	if opts.QueueConstructAs != "" {
@@ -64,11 +60,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}
 
 	var cfgs component.Components
-
 	var discoverErr error
 
 	// Wrap discovery with telemetry
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": shouldDiscoverDependencies(opts),
@@ -77,8 +72,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
-	if err != nil {
-		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
+	if telemetryErr != nil {
+		l.Debugf("Errors encountered while discovering configurations:\n%s", telemetryErr)
 	}
 
 	switch opts.Mode {

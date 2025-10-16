@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -147,6 +148,9 @@ type Discovery struct {
 
 	// useDefaultExcludes determines whether to use default exclude patterns.
 	useDefaultExcludes bool
+
+	// filters contains filter queries for component selection
+	filters filter.Filters
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -334,6 +338,13 @@ func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
 // WithoutDefaultExcludes disables the use of default exclude patterns (e.g. .git, .terraform, .terragrunt-cache).
 func (d *Discovery) WithoutDefaultExcludes() *Discovery {
 	d.useDefaultExcludes = false
+	return d
+}
+
+// WithFilters sets filter queries for component selection.
+// When filters are set, only components matching the filters will be included.
+func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
+	d.filters = filters
 	return d
 }
 
@@ -872,6 +883,16 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	if d.requiresParse {
 		parseErrs := d.parseConcurrently(ctx, l, opts, cfgs)
 		errs = append(errs, parseErrs...)
+	}
+
+	// Apply filters if configured
+	if len(d.filters) > 0 {
+		filtered, err := d.filters.Evaluate(cfgs)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+		} else {
+			cfgs = filtered
+		}
 	}
 
 	if d.discoverDependencies {

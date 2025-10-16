@@ -209,6 +209,8 @@ type TerragruntOptions struct {
 	ModulesThatInclude []string
 	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
 	UnitsReading []string
+	// FilterQueries contains filter query strings for component selection
+	FilterQueries []string
 	// When set, it will be used to compute the cache key for `-version` checks.
 	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.

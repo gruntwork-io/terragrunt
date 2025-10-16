@@ -15,7 +15,6 @@ const (
 	TFPathFlagName = "tf-path"
 
 	// Queue related flags.
-
 	QueueIgnoreErrorsFlagName        = "queue-ignore-errors"
 	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
 	QueueExcludeExternalFlagName     = "queue-exclude-external"
@@ -25,6 +24,9 @@ const (
 	QueueIncludeExternalFlagName     = "queue-include-external"
 	QueueStrictIncludeFlagName       = "queue-strict-include"
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
+
+	// Filter related flags.
+	FilterFlagName = "filter"
 )
 
 // NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
@@ -145,4 +147,18 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), terragruntPrefixControl),
 		),
 	}
+}
+
+// NewFilterFlag creates a flag for specifying filter queries.
+func NewFilterFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	return flags.NewFlag(
+		&cli.SliceFlag[string]{
+			Name:        FilterFlagName,
+			EnvVars:     tgPrefix.EnvVars(FilterFlagName),
+			Destination: &opts.FilterQueries,
+			Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
+		},
+	)
 }
