@@ -52,9 +52,9 @@ func TestDiscoveryWithFilters(t *testing.T) {
 	}
 
 	// Clean up external directory after test
-	defer func() {
+	t.Cleanup(func() {
 		os.RemoveAll(externalDir)
-	}()
+	})
 
 	// Create test files
 	testFiles := map[string]string{
@@ -507,9 +507,9 @@ func TestDiscoveryWithFiltersAndDependencies(t *testing.T) {
 	}
 
 	// Clean up external directory after test
-	defer func() {
+	t.Cleanup(func() {
 		os.RemoveAll(externalDir)
-	}()
+	})
 
 	// Create test files with dependencies
 	testFiles := map[string]string{
