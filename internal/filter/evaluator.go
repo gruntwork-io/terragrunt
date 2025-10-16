@@ -7,6 +7,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
+const (
+	AttributeName     = "name"
+	AttributeType     = "type"
+	AttributeExternal = "external"
+
+	AttributeTypeValueUnit  = string(component.Unit)
+	AttributeTypeValueStack = string(component.Stack)
+
+	AttributeExternalValueTrue  = "true"
+	AttributeExternalValueFalse = "false"
+)
+
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 func Evaluate(expr Expression, components component.Components) (component.Components, error) {
 	if expr == nil {
@@ -56,18 +68,6 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 
 	return result, nil
 }
-
-const (
-	AttributeName     = "name"
-	AttributeType     = "type"
-	AttributeExternal = "external"
-
-	AttributeTypeValueUnit  = string(component.Unit)
-	AttributeTypeValueStack = string(component.Stack)
-
-	AttributeExternalValueTrue  = "true"
-	AttributeExternalValueFalse = "false"
-)
 
 // evaluateAttributeFilter evaluates an attribute filter.
 func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Component) ([]*component.Component, error) {
