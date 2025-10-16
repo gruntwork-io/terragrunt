@@ -10,14 +10,14 @@ import (
 // DiscoveryCommandOptions contains options for discovery commands like find and list.
 type DiscoveryCommandOptions struct {
 	WorkingDir       string
+	QueueConstructAs string
+	FilterQueries    []string
+	Experiments      experiment.Experiments
 	Hidden           bool
 	Dependencies     bool
 	External         bool
 	Exclude          bool
 	Include          bool
-	QueueConstructAs string
-	FilterQueries    []string
-	Experiments      experiment.Experiments
 }
 
 // NewForCommand creates a Discovery configured for discovery commands (find/list).
@@ -84,6 +84,7 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		d = d.WithFilters(filters)
 	}
 
