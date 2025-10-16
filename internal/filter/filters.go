@@ -60,7 +60,7 @@ func (f Filters) HasPositiveFilter() bool {
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
 //     results and remove matching components
-func (f Filters) Evaluate(components []*component.Component) ([]*component.Component, error) {
+func (f Filters) Evaluate(components component.Components) (component.Components, error) {
 	if len(f) == 0 {
 		return components, nil
 	}
@@ -95,7 +95,7 @@ func (f Filters) Evaluate(components []*component.Component) ([]*component.Compo
 	}
 
 	// Convert to slice for phase 2
-	combined := make([]*component.Component, 0, len(seen))
+	combined := make(component.Components, 0, len(seen))
 	for _, c := range seen {
 		combined = append(combined, c)
 	}
