@@ -219,6 +219,7 @@ dependency "db" {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Create discovery with filters
@@ -295,6 +296,7 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Create discovery with filters

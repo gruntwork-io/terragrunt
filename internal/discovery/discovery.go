@@ -151,9 +151,6 @@ type Discovery struct {
 
 	// useDefaultExcludes determines whether to use default exclude patterns.
 	useDefaultExcludes bool
-
-	// filters contains filter queries for component selection
-	filters filter.Filters
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -1086,6 +1083,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 	}
 
 	d.depthRemaining--
+
 	defer func() { d.depthRemaining++ }()
 
 	// Stack configs don't have dependencies (at least for now),
