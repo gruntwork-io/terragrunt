@@ -516,8 +516,9 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		expectedOutput string
+		workingDir     string
 		filterQueries  []string
+		expectedOutput string
 		expectError    bool
 	}{
 		{
