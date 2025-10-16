@@ -89,7 +89,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
-		shared.NewFilterFlag(opts.TerragruntOptions, prefix),
+		shared.NewFilterFlag(opts.TerragruntOptions),
 	}
 }
 

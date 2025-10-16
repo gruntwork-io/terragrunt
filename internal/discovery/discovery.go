@@ -404,7 +404,14 @@ func ContainsDependencyInAncestry(c *component.Component, path string) bool {
 }
 
 // Parse parses the discovered configuration.
-func Parse(c *component.Component, ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool, parserOptions []hclparse.Option) error {
+func Parse(
+	c *component.Component,
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	suppressParseErrors bool,
+	parserOptions []hclparse.Option,
+) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
@@ -719,13 +726,13 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	base := filepath.Base(path)
 	for _, fname := range filenames {
 		if base == fname {
-			cfgType := component.Unit
+			componentKind := component.Unit
 			if fname == config.DefaultStackFile {
-				cfgType = component.Stack
+				componentKind = component.Stack
 			}
 
 			cfg := &component.Component{
-				Kind: cfgType,
+				Kind: componentKind,
 				Path: filepath.Dir(path),
 			}
 			if d.discoveryContext != nil {
@@ -739,15 +746,20 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	return nil
 }
 
-// parseConcurrently parses configurations concurrently to improve performance using errgroup.
-func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfgs component.Components) []error {
+// parseConcurrently parses components concurrently to improve performance using errgroup.
+func (d *Discovery) parseConcurrently(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	components component.Components,
+) []error {
 	// Filter out configs that don't need parsing
 	// Pre-allocate with estimated capacity to reduce reallocation
-	configsToParse := make([]*component.Component, 0, len(cfgs))
-	for _, cfg := range cfgs {
+	componentsToParse := make([]*component.Component, 0, len(components))
+	for _, c := range components {
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
-		if cfg.Kind == component.Stack {
+		if c.Kind == component.Stack {
 			continue
 		}
 
@@ -763,8 +775,8 @@ func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *o
 	g.SetLimit(d.numWorkers)
 
 	// Use channels to coordinate parsing work
-	configChan := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
-	errorChan := make(chan error, len(configsToParse))
+	componentChan := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
+	errorChan := make(chan error, len(componentsToParse))
 
 	// Start component sender
 	g.Go(func() error {
@@ -813,8 +825,14 @@ func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *o
 }
 
 // parseWorker is a worker that parses configurations concurrently.
-func (d *Discovery) parseWorker(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, configChan <-chan *component.Component, errorChan chan<- error) error {
-	for cfg := range configChan {
+func (d *Discovery) parseWorker(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	componentChan <-chan *component.Component,
+	errorChan chan<- error,
+) error {
+	for cfg := range componentChan {
 		// Context cancellation check
 		select {
 		case <-ctx.Done():
@@ -836,7 +854,11 @@ func (d *Discovery) parseWorker(ctx context.Context, l log.Logger, opts *options
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
-func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (component.Components, error) {
+func (d *Discovery) Discover(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (component.Components, error) {
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
