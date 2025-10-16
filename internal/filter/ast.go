@@ -20,12 +20,13 @@ type PathFilter struct {
 	compiledGlob glob.Glob
 	compileErr   error
 	Value        string
+	WorkingDir   string
 	compileOnce  sync.Once
 }
 
 // NewPathFilter creates a new PathFilter with lazy glob compilation.
-func NewPathFilter(value string) *PathFilter {
-	return &PathFilter{Value: value}
+func NewPathFilter(value string, workingDir string) *PathFilter {
+	return &PathFilter{Value: value, WorkingDir: workingDir}
 }
 
 // CompileGlob returns the compiled glob pattern, compiling it on first call.
@@ -34,7 +35,12 @@ func NewPathFilter(value string) *PathFilter {
 func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	p.compileOnce.Do(func() {
 		// Normalize the pattern for matching
-		pattern := filepath.ToSlash(p.Value)
+		pattern := p.Value
+		if !filepath.IsAbs(pattern) {
+			pattern = filepath.Join(p.WorkingDir, pattern)
+		}
+
+		pattern = filepath.ToSlash(pattern)
 		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
 	})
 

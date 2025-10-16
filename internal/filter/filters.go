@@ -16,7 +16,7 @@ type Filters []*Filter
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
-func ParseFilterQueries(filterStrings []string) (Filters, error) {
+func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, error) {
 	if len(filterStrings) == 0 {
 		return Filters{}, nil
 	}
@@ -26,7 +26,7 @@ func ParseFilterQueries(filterStrings []string) (Filters, error) {
 	var parseErrors []error
 
 	for i, filterString := range filterStrings {
-		filter, err := Parse(filterString)
+		filter, err := Parse(filterString, workingDir)
 		if err != nil {
 			parseErrors = append(parseErrors, fmt.Errorf("filter %d (%q): %w", i, filterString, err))
 
