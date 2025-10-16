@@ -1099,7 +1099,6 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 	}
 
 	d.depthRemaining--
-
 	defer func() { d.depthRemaining++ }()
 
 	// Stack configs don't have dependencies (at least for now),
