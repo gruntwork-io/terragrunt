@@ -80,24 +80,10 @@ func (f Filters) Evaluate(components component.Components) (component.Components
 		positiveFilters = append(positiveFilters, filter)
 	}
 
-	// Phase 1: Union positive filters
-	seen := make(map[string]*component.Component, len(components))
-
-	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(components)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, c := range result {
-			seen[c.Path] = c
-		}
-	}
-
-	// Convert to slice for phase 2
-	combined := make(component.Components, 0, len(seen))
-	for _, c := range seen {
-		combined = append(combined, c)
+	// Phase 1: Get initial set of components, which might need to be filtered further by negative filters
+	combined, err := initialComponents(positiveFilters, components)
+	if err != nil {
+		return nil, err
 	}
 
 	// Phase 2: Apply negative filters to remove components
@@ -111,6 +97,32 @@ func (f Filters) Evaluate(components component.Components) (component.Components
 	}
 
 	return combined, nil
+}
+
+func initialComponents(positiveFilters []*Filter, components component.Components) (component.Components, error) {
+	if len(positiveFilters) == 0 {
+		return components, nil
+	}
+
+	seen := make(map[string]*component.Component, len(components))
+
+	for _, filter := range positiveFilters {
+		result, err := filter.Evaluate(components)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, c := range result {
+			seen[c.Path] = c
+		}
+	}
+
+	remaining := make(component.Components, 0, len(seen))
+	for _, c := range seen {
+		remaining = append(remaining, c)
+	}
+
+	return remaining, nil
 }
 
 // String returns a JSON array representation of all filter strings.

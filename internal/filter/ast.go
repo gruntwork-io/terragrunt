@@ -2,6 +2,7 @@ package filter
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gobwas/glob"
@@ -52,8 +53,27 @@ func (p *PathFilter) String() string  { return p.Value }
 
 // AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeFilter struct {
-	Key   string
-	Value string
+	Key          string
+	Value        string
+	compiledGlob glob.Glob
+	compileErr   error
+	compileOnce  sync.Once
+}
+
+// CompileGlob returns the compiled glob pattern for name filters, compiling it on first call.
+// Returns nil glob and nil error for non-glob patterns or non-name attributes.
+// Uses sync.Once for thread-safe lazy initialization.
+func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
+	// Only compile globs for name attribute with glob patterns
+	if a.Key != AttributeName || !containsGlobChars(a.Value) {
+		return nil, nil
+	}
+
+	a.compileOnce.Do(func() {
+		a.compiledGlob, a.compileErr = glob.Compile(a.Value)
+	})
+
+	return a.compiledGlob, a.compileErr
 }
 
 func (a *AttributeFilter) expressionNode() {}
@@ -78,4 +98,9 @@ type InfixExpression struct {
 func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
+}
+
+// containsGlobChars checks if a string contains glob pattern characters.
+func containsGlobChars(s string) bool {
+	return strings.ContainsAny(s, "*?[]")
 }
