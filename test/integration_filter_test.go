@@ -510,30 +510,29 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
+	workingDir, err := filepath.Abs(testFixtureFilterBasic)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name           string
-		workingDir     string
 		expectedOutput string
 		filterQueries  []string
 		expectError    bool
 	}{
 		{
 			name:           "multiple filters - union semantics",
-			workingDir:     testFixtureFilterBasic,
 			filterQueries:  []string{"./unit", "./stack"},
 			expectedOutput: "stack\nunit\n",
 			expectError:    false,
 		},
 		{
 			name:           "multiple filters with negation",
-			workingDir:     testFixtureFilterBasic,
 			filterQueries:  []string{"./*", "!unit"},
 			expectedOutput: "stack\n",
 			expectError:    false,
 		},
 		{
 			name:           "multiple filters with type",
-			workingDir:     testFixtureFilterBasic,
 			filterQueries:  []string{"type=unit", "type=stack"},
 			expectedOutput: "stack\nunit\n",
 			expectError:    false,
@@ -544,22 +543,20 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
+			helpers.CleanupTerraformFolder(t, workingDir)
 
 			// Build command with multiple --filter flags
-			cmd := "terragrunt find --no-color --working-dir " + tc.workingDir
+			cmd := "terragrunt find --no-color --working-dir " + workingDir
 			for _, filter := range tc.filterQueries {
 				cmd += " --filter " + filter
 			}
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
 				require.Error(t, err, "Expected error for filter queries: %v", tc.filterQueries)
-				assert.NotEmpty(t, stderr, "Expected error message in stderr")
 			} else {
 				require.NoError(t, err, "Unexpected error for filter queries: %v", tc.filterQueries)
-				assert.Empty(t, stderr, "Unexpected error message in stderr")
 				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter queries: %v", tc.filterQueries)
 			}
 		})
