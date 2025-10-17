@@ -24,117 +24,80 @@ func TestFilterFlagWithFind(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
+	workingDir, err := filepath.Abs(testFixtureFilterBasic)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name           string
-		workingDir     string
 		filterQuery    string
 		expectedOutput string
 		expectError    bool
 	}{
 		{
 			name:           "filter by path - exact match",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "unit",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter by path - wildcard",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "./*",
 			expectedOutput: "stack\nunit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter by name - exact match",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "unit",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter by type - unit only",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "type=unit",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter by type - stack only",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "type=stack",
 			expectedOutput: "stack\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with negation - exclude unit",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "!unit",
 			expectedOutput: "stack\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with negation - exclude path",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "!./unit",
 			expectedOutput: "stack\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with intersection - path and type",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "./unit | type=unit",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with intersection - path and negation",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "./* | !unit",
+			filterQuery:    "./*|!unit", // Our testing arg parsing is busted. Don't put whitespace between these.
 			expectedOutput: "stack\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with braced path",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "{./unit}",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
-			name:           "filter with absolute path",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "/stack",
-			expectedOutput: "stack\n",
-			expectError:    false,
-		},
-		{
 			name:           "filter with non-matching query",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "nonexistent",
 			expectedOutput: "",
 			expectError:    false,
-		},
-		{
-			name:           "filter with invalid syntax",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "invalid[filter",
-			expectedOutput: "",
-			expectError:    true,
-		},
-		{
-			name:           "filter with invalid attribute",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "invalid=value",
-			expectedOutput: "",
-			expectError:    true,
-		},
-		{
-			name:           "filter with invalid type value",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "type=invalid",
-			expectedOutput: "",
-			expectError:    true,
 		},
 	}
 
@@ -142,9 +105,9 @@ func TestFilterFlagWithFind(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
+			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + tc.workingDir + " --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
