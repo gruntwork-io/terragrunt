@@ -479,11 +479,10 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 		includeArgs         string
 		includedUnitOutputs []string
 	}{
-		// FIXME: This shouldn't be broken. Fix it before merging.
-		// {
-		// 	includeArgs:           "--filter xyz",
-		// 	includedModuleOutputs: []string{},
-		// },
+		{
+			includeArgs:         "--filter xyz",
+			includedUnitOutputs: []string{},
+		},
 		{
 			includeArgs:         "--filter ./*/aws/*",
 			includedUnitOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
