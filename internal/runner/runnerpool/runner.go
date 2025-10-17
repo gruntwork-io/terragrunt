@@ -47,7 +47,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	if len(discovered) == 0 {
 		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
 		isFilteringEnabled := terragruntOptions.StrictInclude ||
-			len(terragruntOptions.ModulesThatInclude) > 0
+			len(terragruntOptions.ModulesThatInclude) > 0 ||
+			len(terragruntOptions.FilterQueries) > 0
 
 		if isFilteringEnabled {
 			// Create an empty runner that will process no units
