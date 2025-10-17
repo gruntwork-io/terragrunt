@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -105,6 +106,9 @@ type Discovery struct {
 
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
+
+	// filters contains filter queries for component selection
+	filters filter.Filters
 
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
@@ -337,6 +341,13 @@ func (d *Discovery) WithoutDefaultExcludes() *Discovery {
 	return d
 }
 
+// WithFilters sets filter queries for component selection.
+// When filters are set, only components matching the filters will be included.
+func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
+	d.filters = filters
+	return d
+}
+
 // compileIncludePatterns compiles the include directory patterns for faster matching.
 func (d *Discovery) compileIncludePatterns(l log.Logger) {
 	d.compiledIncludePatterns = make([]CompiledPattern, 0, len(d.includeDirs))
@@ -390,7 +401,14 @@ func ContainsDependencyInAncestry(c *component.Component, path string) bool {
 }
 
 // Parse parses the discovered configuration.
-func Parse(c *component.Component, ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool, parserOptions []hclparse.Option) error {
+func Parse(
+	c *component.Component,
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	suppressParseErrors bool,
+	parserOptions []hclparse.Option,
+) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
@@ -430,29 +448,34 @@ func Parse(c *component.Component, ctx context.Context, l log.Logger, opts *opti
 	if suppressParseErrors {
 		// If suppressing parse errors, we want to filter diagnostics that contain references to outputs,
 		// while leaving other diagnostics as is.
-		parseOptions := append(parsingCtx.ParserOptions, hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			filteredDiags := hcl.Diagnostics{}
+		parseOptions := append(
+			parsingCtx.ParserOptions,
+			hclparse.WithDiagnosticsHandler(func(
+				file *hcl.File,
+				hclDiags hcl.Diagnostics,
+			) (hcl.Diagnostics, error) {
+				filteredDiags := hcl.Diagnostics{}
 
-			for _, hclDiag := range hclDiags {
-				filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
-					strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
-					strings.Contains(strings.ToLower(hclDiag.Summary), skipNullValueDiagnostic) ||
-					strings.Contains(strings.ToLower(hclDiag.Detail), skipNullValueDiagnostic)
+				for _, hclDiag := range hclDiags {
+					filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
+						strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
+						strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
+						strings.Contains(strings.ToLower(hclDiag.Summary), skipNullValueDiagnostic) ||
+						strings.Contains(strings.ToLower(hclDiag.Detail), skipNullValueDiagnostic)
 
-				if !filterOut {
-					filteredDiags = append(filteredDiags, hclDiag)
+					if !filterOut {
+						filteredDiags = append(filteredDiags, hclDiag)
+					}
 				}
-			}
 
-			// If all diagnostics were filtered out, return nil instead of an empty slice
-			// to prevent the parser from treating it as an error
-			if len(filteredDiags) == 0 {
-				return nil, nil
-			}
+				// If all diagnostics were filtered out, return nil instead of an empty slice
+				// to prevent the parser from treating it as an error
+				if len(filteredDiags) == 0 {
+					return nil, nil
+				}
 
-			return filteredDiags, nil
-		}))
+				return filteredDiags, nil
+			}))
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
@@ -550,7 +573,12 @@ func (d *Discovery) discoverConcurrently(
 }
 
 // walkDirectoryConcurrently walks the directory tree and sends file paths to workers.
-func (d *Discovery) walkDirectoryConcurrently(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filePaths chan<- string) error {
+func (d *Discovery) walkDirectoryConcurrently(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	filePaths chan<- string,
+) error {
 	walkFn := filepath.WalkDir
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
 		walkFn = util.WalkDirWithSymlinks
@@ -695,13 +723,13 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	base := filepath.Base(path)
 	for _, fname := range filenames {
 		if base == fname {
-			cfgType := component.Unit
+			componentKind := component.Unit
 			if fname == config.DefaultStackFile {
-				cfgType = component.Stack
+				componentKind = component.Stack
 			}
 
 			cfg := &component.Component{
-				Kind: cfgType,
+				Kind: componentKind,
 				Path: filepath.Dir(path),
 			}
 			if d.discoveryContext != nil {
@@ -715,22 +743,27 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	return nil
 }
 
-// parseConcurrently parses configurations concurrently to improve performance using errgroup.
-func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfgs component.Components) []error {
+// parseConcurrently parses components concurrently to improve performance using errgroup.
+func (d *Discovery) parseConcurrently(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	components component.Components,
+) []error {
 	// Filter out configs that don't need parsing
 	// Pre-allocate with estimated capacity to reduce reallocation
-	configsToParse := make([]*component.Component, 0, len(cfgs))
-	for _, cfg := range cfgs {
+	componentsToParse := make([]*component.Component, 0, len(components))
+	for _, c := range components {
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
-		if cfg.Kind == component.Stack {
+		if c.Kind == component.Stack {
 			continue
 		}
 
-		configsToParse = append(configsToParse, cfg)
+		componentsToParse = append(componentsToParse, c)
 	}
 
-	if len(configsToParse) == 0 {
+	if len(componentsToParse) == 0 {
 		return nil
 	}
 
@@ -739,16 +772,16 @@ func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *o
 	g.SetLimit(d.numWorkers)
 
 	// Use channels to coordinate parsing work
-	configChan := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
-	errorChan := make(chan error, len(configsToParse))
+	componentChan := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
+	errorChan := make(chan error, len(componentsToParse))
 
-	// Start config sender
+	// Start component sender
 	g.Go(func() error {
-		defer close(configChan)
+		defer close(componentChan)
 
-		for _, cfg := range configsToParse {
+		for _, c := range componentsToParse {
 			select {
-			case configChan <- cfg:
+			case componentChan <- c:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -760,7 +793,7 @@ func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *o
 	// Start parser workers
 	for range d.numWorkers {
 		g.Go(func() error {
-			return d.parseWorker(ctx, l, opts, configChan, errorChan)
+			return d.parseWorker(ctx, l, opts, componentChan, errorChan)
 		})
 	}
 
@@ -789,8 +822,14 @@ func (d *Discovery) parseConcurrently(ctx context.Context, l log.Logger, opts *o
 }
 
 // parseWorker is a worker that parses configurations concurrently.
-func (d *Discovery) parseWorker(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, configChan <-chan *component.Component, errorChan chan<- error) error {
-	for cfg := range configChan {
+func (d *Discovery) parseWorker(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	componentChan <-chan *component.Component,
+	errorChan chan<- error,
+) error {
+	for cfg := range componentChan {
 		// Context cancellation check
 		select {
 		case <-ctx.Done():
@@ -812,7 +851,11 @@ func (d *Discovery) parseWorker(ctx context.Context, l log.Logger, opts *options
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
-func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (component.Components, error) {
+func (d *Discovery) Discover(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (component.Components, error) {
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
@@ -859,9 +902,9 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	}
 
 	// Use concurrent discovery for better performance
-	cfgs, err := d.discoverConcurrently(ctx, l, opts, filenames)
+	components, err := d.discoverConcurrently(ctx, l, opts, filenames)
 	if err != nil {
-		return cfgs, err
+		return components, err
 	}
 
 	errs := []error{}
@@ -870,18 +913,29 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 	// as we might need to parse configurations for multiple reasons.
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
-		parseErrs := d.parseConcurrently(ctx, l, opts, cfgs)
+		parseErrs := d.parseConcurrently(ctx, l, opts, components)
 		errs = append(errs, parseErrs...)
+	}
+
+	// Apply filters if configured and not doing dependency discovery
+	// When dependency discovery is enabled, we defer filtering until after dependencies are discovered
+	if len(d.filters) > 0 && !d.discoverDependencies {
+		filtered, err := d.filters.Evaluate(components)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+		} else {
+			components = filtered
+		}
 	}
 
 	if d.discoverDependencies {
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
 			"working_dir":                    d.workingDir,
-			"config_count":                   len(cfgs),
+			"config_count":                   len(components),
 			"discover_external_dependencies": d.discoverExternalDependencies,
 			"max_dependency_depth":           d.maxDependencyDepth,
 		}, func(ctx context.Context) error {
-			dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
+			dependencyDiscovery := NewDependencyDiscovery(components, d.maxDependencyDepth)
 
 			if d.discoveryContext != nil {
 				dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
@@ -911,26 +965,26 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				l.Debugf("Errors: %w", err)
 			}
 
-			cfgs = dependencyDiscovery.cfgs
+			components = dependencyDiscovery.cfgs
 
 			return nil
 		})
 		if err != nil {
-			return cfgs, errors.New(err)
+			return components, errors.New(err)
 		}
 
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
 			"working_dir":  d.workingDir,
-			"config_count": len(cfgs),
+			"config_count": len(components),
 		}, func(ctx context.Context) error {
-			if _, cycleErr := cfgs.CycleCheck(); cycleErr != nil {
+			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
 				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
 				l.Debugf("Cycle: %w", cycleErr)
 
 				var removeErr error
 
-				cfgs, removeErr = RemoveCycles(cfgs)
+				components, removeErr = RemoveCycles(components)
 				if removeErr != nil {
 					errs = append(errs, errors.New(removeErr))
 				}
@@ -939,15 +993,25 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			return nil
 		})
 		if err != nil {
-			return cfgs, errors.New(err)
+			return components, errors.New(err)
+		}
+	}
+
+	// Apply filters at the end if dependency discovery was enabled
+	if len(d.filters) > 0 && d.discoverDependencies {
+		filtered, err := d.filters.Evaluate(components)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+		} else {
+			components = filtered
 		}
 	}
 
 	if len(errs) > 0 {
-		return cfgs, errors.Join(errs...)
+		return components, errors.Join(errs...)
 	}
 
-	return cfgs, nil
+	return components, nil
 }
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
@@ -1028,6 +1092,10 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 	if d.depthRemaining <= 0 {
 		return errors.New("max dependency depth reached while discovering dependencies")
 	}
+
+	d.depthRemaining--
+
+	defer func() { d.depthRemaining++ }()
 
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.

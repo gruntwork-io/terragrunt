@@ -2,12 +2,25 @@ package filter
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
+const (
+	AttributeName     = "name"
+	AttributeType     = "type"
+	AttributeExternal = "external"
+
+	AttributeTypeValueUnit  = string(component.Unit)
+	AttributeTypeValueStack = string(component.Stack)
+
+	AttributeExternalValueTrue  = "true"
+	AttributeExternalValueFalse = "false"
+)
+
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
-func Evaluate(expr Expression, components []*component.Component) ([]*component.Component, error) {
+func Evaluate(expr Expression, components component.Components) (component.Components, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
@@ -16,7 +29,7 @@ func Evaluate(expr Expression, components []*component.Component) ([]*component.
 }
 
 // evaluate is the internal recursive evaluation function.
-func evaluate(expr Expression, components []*component.Component) ([]*component.Component, error) {
+func evaluate(expr Expression, components component.Components) (component.Components, error) {
 	switch node := expr.(type) {
 	case *PathFilter:
 		return evaluatePathFilter(node, components)
@@ -32,16 +45,21 @@ func evaluate(expr Expression, components []*component.Component) ([]*component.
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, components []*component.Component) ([]*component.Component, error) {
+func evaluatePathFilter(filter *PathFilter, components component.Components) (component.Components, error) {
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
 	}
 
-	var result []*component.Component
+	var result component.Components
 
 	for _, component := range components {
-		normalizedPath := filepath.ToSlash(component.Path)
+		normalizedPath := component.Path
+		if !filepath.IsAbs(normalizedPath) {
+			normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+		}
+
+		normalizedPath = filepath.ToSlash(normalizedPath)
 
 		if g.Match(normalizedPath) {
 			result = append(result, component)
@@ -51,29 +69,33 @@ func evaluatePathFilter(filter *PathFilter, components []*component.Component) (
 	return result, nil
 }
 
-const (
-	AttributeName     = "name"
-	AttributeType     = "type"
-	AttributeExternal = "external"
-
-	AttributeTypeValueUnit  = string(component.Unit)
-	AttributeTypeValueStack = string(component.Stack)
-
-	AttributeExternalValueTrue  = "true"
-	AttributeExternalValueFalse = "false"
-)
-
 // evaluateAttributeFilter evaluates an attribute filter.
 func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Component) ([]*component.Component, error) {
 	var result []*component.Component
 
 	switch filter.Key {
 	case AttributeName:
+		if strings.ContainsAny(filter.Value, "*?[]") {
+			g, err := filter.CompileGlob()
+			if err != nil {
+				return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for name filter: "+filter.Value, err)
+			}
+
+			for _, c := range components {
+				if g.Match(filepath.Base(c.Path)) {
+					result = append(result, c)
+				}
+			}
+
+			break
+		}
+
 		for _, c := range components {
 			if filepath.Base(c.Path) == filter.Value {
 				result = append(result, c)
 			}
 		}
+
 	case AttributeType:
 		switch filter.Value {
 		case AttributeTypeValueUnit:
@@ -116,7 +138,7 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(expr *PrefixExpression, components []*component.Component) ([]*component.Component, error) {
+func evaluatePrefixExpression(expr *PrefixExpression, components component.Components) (component.Components, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
@@ -131,7 +153,7 @@ func evaluatePrefixExpression(expr *PrefixExpression, components []*component.Co
 		excludeSet[c.Path] = struct{}{}
 	}
 
-	var result []*component.Component
+	var result component.Components
 
 	for _, c := range components {
 		if _, ok := excludeSet[c.Path]; !ok {
@@ -143,7 +165,7 @@ func evaluatePrefixExpression(expr *PrefixExpression, components []*component.Co
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(expr *InfixExpression, components []*component.Component) ([]*component.Component, error) {
+func evaluateInfixExpression(expr *InfixExpression, components component.Components) (component.Components, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}

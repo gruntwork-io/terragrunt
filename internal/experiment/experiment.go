@@ -32,6 +32,8 @@ const (
 	//
 	// Only works with OpenTofu version >= 1.10.
 	AutoProviderCacheDir = "auto-provider-cache-dir"
+	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
+	FilterFlag = "filter-flag"
 )
 
 const (
@@ -73,6 +75,9 @@ func NewExperiments() Experiments {
 		{
 			Name:   AutoProviderCacheDir,
 			Status: StatusCompleted,
+		},
+		{
+			Name: FilterFlag,
 		},
 	}
 }

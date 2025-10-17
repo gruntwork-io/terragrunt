@@ -21,28 +21,18 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d := discovery.
-		NewDiscovery(opts.WorkingDir).
-		WithSuppressParseErrors()
-
-	if opts.Hidden {
-		d = d.WithHidden()
-	}
-
-	if opts.Dependencies || opts.External || opts.Mode == ModeDAG {
-		d = d.WithDiscoverDependencies()
-	}
-
-	if opts.External {
-		d = d.WithDiscoverExternalDependencies()
-	}
-
-	if opts.Exclude {
-		d = d.WithParseExclude()
-	}
-
-	if opts.Include {
-		d = d.WithParseInclude()
+	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		Hidden:        opts.Hidden,
+		Dependencies:  opts.Dependencies || opts.External || opts.Mode == ModeDAG,
+		External:      opts.External,
+		Exclude:       opts.Exclude,
+		Include:       opts.Include,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return errors.New(err)
 	}
 
 	if opts.QueueConstructAs != "" {
@@ -67,11 +57,12 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		})
 	}
 
-	var cfgs component.Components
+	var (
+		cfgs        component.Components
+		discoverErr error
+	)
 
-	var discoverErr error
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": opts.Dependencies,
@@ -82,8 +73,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
-	if err != nil {
-		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
+	if telemetryErr != nil {
+		l.Debugf("Errors encountered while discovering configurations:\n%s", telemetryErr)
 	}
 
 	switch opts.Mode {

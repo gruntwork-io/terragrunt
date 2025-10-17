@@ -85,7 +85,7 @@
 // ## Basic Usage
 //
 //	// Parse a filter query
-//	filter, err := filter.Parse("./apps/* | !legacy")
+//	filter, err := filter.Parse("./apps/* | !legacy", ".")
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -112,7 +112,7 @@
 //	filters, err := filter.ParseFilterQueries([]string{
 //	    "./apps/*",      // Select all apps
 //	    "name=db",       // OR select db
-//	})
+//	}, ".")
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -136,7 +136,7 @@
 // ## One-Shot Usage
 //
 //	// Parse and evaluate in one step
-//	result, err := filter.Apply("./apps/* | name=web", components)
+//	result, err := filter.Apply("./apps/* | name=web", ".", components)
 //
 // # Implementation Details
 //

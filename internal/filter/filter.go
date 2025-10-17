@@ -6,13 +6,14 @@ import "github.com/gruntwork-io/terragrunt/internal/component"
 type Filter struct {
 	expr          Expression
 	originalQuery string
+	workingDir    string
 }
 
 // Parse parses a filter query string and returns a Filter object.
 // Returns an error if the query cannot be parsed.
-func Parse(filterString string) (*Filter, error) {
+func Parse(filterString, workingDir string) (*Filter, error) {
 	lexer := NewLexer(filterString)
-	parser := NewParser(lexer)
+	parser := NewParser(lexer, workingDir)
 
 	expr, err := parser.ParseExpression()
 	if err != nil {
@@ -22,6 +23,7 @@ func Parse(filterString string) (*Filter, error) {
 	return &Filter{
 		expr:          expr,
 		originalQuery: filterString,
+		workingDir:    workingDir,
 	}, nil
 }
 
@@ -43,8 +45,8 @@ func (f *Filter) Expression() Expression {
 
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
-func Apply(filterString string, components []*component.Component) ([]*component.Component, error) {
-	filter, err := Parse(filterString)
+func Apply(filterString, workingDir string, components component.Components) (component.Components, error) {
+	filter, err := Parse(filterString, workingDir)
 	if err != nil {
 		return nil, err
 	}

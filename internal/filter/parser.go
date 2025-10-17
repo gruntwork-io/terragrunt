@@ -4,10 +4,11 @@ import "strings"
 
 // Parser parses a filter query string into an AST.
 type Parser struct {
-	lexer     *Lexer
-	errors    []error
-	curToken  Token
-	peekToken Token
+	lexer      *Lexer
+	workingDir string
+	errors     []error
+	curToken   Token
+	peekToken  Token
 }
 
 // Operator precedence levels
@@ -24,10 +25,11 @@ var precedences = map[TokenType]int{
 }
 
 // NewParser creates a new Parser for the given lexer.
-func NewParser(lexer *Lexer) *Parser {
+func NewParser(lexer *Lexer, workingDir string) *Parser {
 	p := &Parser{
-		lexer:  lexer,
-		errors: []error{},
+		lexer:      lexer,
+		errors:     []error{},
+		workingDir: workingDir,
 	}
 
 	// Read two tokens to initialize curToken and peekToken
@@ -158,7 +160,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 
 // parsePathFilter parses a path filter (e.g., "./apps/*").
 func (p *Parser) parsePathFilter() Expression {
-	expr := NewPathFilter(p.curToken.Literal)
+	expr := NewPathFilter(p.curToken.Literal, p.workingDir)
 	p.nextToken()
 
 	return expr
@@ -192,7 +194,7 @@ func (p *Parser) parseBracedPath() Expression {
 	// Join all parts to form the complete path
 	pathValue := strings.Join(pathParts, "")
 
-	return NewPathFilter(pathValue)
+	return NewPathFilter(pathValue, p.workingDir)
 }
 
 // parseAttributeFilter parses an attribute filter (e.g., "name=foo").

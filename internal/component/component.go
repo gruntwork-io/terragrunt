@@ -88,6 +88,10 @@ func (c Components) FilterByPath(path string) Components {
 
 // RemoveByPath removes the Component with the given path from the Components.
 func (c Components) RemoveByPath(path string) Components {
+	if len(c) == 0 {
+		return c
+	}
+
 	filtered := make(Components, 0, len(c)-1)
 
 	for _, component := range c {
