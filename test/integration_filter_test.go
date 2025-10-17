@@ -474,51 +474,47 @@ func TestFilterFlagWithDAG(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
+	workingDir, err := filepath.Abs(testFixtureFilterDAG)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name           string
-		workingDir     string
 		filterQuery    string
 		expectedOutput string
 		expectError    bool
 	}{
 		{
 			name:           "filter by path - specific component",
-			workingDir:     testFixtureFilterDAG,
 			filterQuery:    "./a-dependent",
 			expectedOutput: "a-dependent\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter by name - specific component",
-			workingDir:     testFixtureFilterDAG,
 			filterQuery:    "a-dependent",
 			expectedOutput: "a-dependent\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter by type - unit only",
-			workingDir:     testFixtureFilterDAG,
 			filterQuery:    "type=unit",
 			expectedOutput: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with negation - exclude specific component",
-			workingDir:     testFixtureFilterDAG,
 			filterQuery:    "!a-dependent",
 			expectedOutput: "b-dependency\nc-mixed-deps\nd-dependencies-only\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with wildcard - all components",
-			workingDir:     testFixtureFilterDAG,
 			filterQuery:    "./*",
 			expectedOutput: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with intersection - path and type",
-			workingDir:     testFixtureFilterDAG,
 			filterQuery:    "./a-dependent | type=unit",
 			expectedOutput: "a-dependent\n",
 			expectError:    false,
@@ -529,9 +525,9 @@ func TestFilterFlagWithDAG(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
+			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + tc.workingDir + " --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
