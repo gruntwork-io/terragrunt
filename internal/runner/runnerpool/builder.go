@@ -6,6 +6,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -59,11 +61,20 @@ func Build(
 
 	// We intentionally do NOT set ExcludeByDefault during discovery, even if it's enabled in options.
 	// The filtering will happen later in the unit resolver after all modules have been discovered.
-	// This ensures that dependency resolution works correctly and modules aren't prematurely excluded.
+	// This ensures that dependency resolution works correctly and units aren't prematurely excluded.
 
 	// Pass dependency behavior flags
 	if terragruntOptions.IgnoreExternalDependencies {
 		d = d.WithIgnoreExternalDependencies()
+	}
+
+	// Apply filter queries if the filter-flag experiment is enabled
+	if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(terragruntOptions.FilterQueries, workingDir)
+		if err != nil {
+			return nil, err
+		}
+		d = d.WithFilters(filters)
 	}
 
 	// Wrap discovery with telemetry

@@ -513,10 +513,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 	}
 
-	// Add shared backend and feature flags
+	// Add shared flags
 	flags = flags.Add(NewBackendFlags(l, opts, prefix)...)
 	flags = flags.Add(NewFeatureFlags(l, opts, prefix)...)
 	flags = flags.Add(shared.NewQueueFlags(opts, prefix)...)
+	flags = flags.Add(shared.NewFilterFlag(opts))
 
 	return flags.Sort()
 }
