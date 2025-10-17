@@ -286,6 +286,7 @@ func TestFilterFlagWithList(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 
 			results := strings.Fields(stdout)
