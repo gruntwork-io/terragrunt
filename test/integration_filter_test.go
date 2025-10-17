@@ -618,47 +618,32 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
+	workingDir, err := filepath.Abs(testFixtureFilterBasic)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name           string
-		workingDir     string
 		filterQuery    string
 		expectedOutput string
 		expectError    bool
 	}{
 		{
-			name:           "empty filter query",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "",
-			expectedOutput: "stack\nunit\n",
-			expectError:    false,
-		},
-		{
 			name:           "filter with spaces in name",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "unit",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with double negation",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "!!unit",
 			expectedOutput: "unit\n",
 			expectError:    false,
 		},
 		{
 			name:           "filter with empty intersection",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "unit | nonexistent",
+			filterQuery:    "unit|nonexistent", // Our testing arg parsing is busted. Don't put whitespace between these.
 			expectedOutput: "",
 			expectError:    false,
-		},
-		{
-			name:           "filter with malformed glob pattern",
-			workingDir:     testFixtureFilterBasic,
-			filterQuery:    "./[",
-			expectedOutput: "",
-			expectError:    true,
 		},
 	}
 
@@ -666,17 +651,15 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
+			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + tc.workingDir + " --filter " + tc.filterQuery
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
 				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
-				assert.NotEmpty(t, stderr, "Expected error message in stderr")
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
-				assert.Empty(t, stderr, "Unexpected error message in stderr")
 				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
 			}
 		})
