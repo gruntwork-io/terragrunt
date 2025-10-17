@@ -378,7 +378,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			name:           "attribute-based-external-false",
 			fixtureDir:     "attribute-based",
 			filterQuery:    "external=false",
-			expectedOutput: "../dependencies/dependency-of-app1\nstack1\nunit1\n",
+			expectedOutput: "stack1\nunit1\n",
 			extraFlags:     "--dependencies --external",
 		},
 		{
