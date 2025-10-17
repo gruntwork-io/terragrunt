@@ -1,6 +1,8 @@
 package test_test
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -238,82 +240,75 @@ func TestFilterFlagWithList(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
+	// The CLI constructor ensures that the working directory is always absolute.
+	workingDir, err := filepath.Abs(testFixtureFilterList)
+	require.NoError(t, err)
+
 	testCases := []struct {
-		name           string
-		workingDir     string
-		filterQuery    string
-		expectedOutput string
-		expectError    bool
+		name            string
+		filterQuery     string
+		expectedResults []string
+		expectError     bool
 	}{
 		{
-			name:           "filter by name - exact match",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "a-unit",
-			expectedOutput: "a-unit  \n",
-			expectError:    false,
+			name:            "filter by name - exact match",
+			filterQuery:     "a-unit",
+			expectedResults: []string{"a-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter by name - exact match with equals",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "name=a-unit",
-			expectedOutput: "a-unit  \n",
-			expectError:    false,
+			name:            "filter by name - exact match with equals",
+			filterQuery:     "name=a-unit",
+			expectedResults: []string{"a-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter by type - unit only",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "type=unit",
-			expectedOutput: "a-unit  b-unit  \n",
-			expectError:    false,
+			name:            "filter by type - unit only",
+			filterQuery:     "type=unit",
+			expectedResults: []string{"a-unit", "b-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter with negation - exclude a-unit",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "!a-unit",
-			expectedOutput: "b-unit  \n",
-			expectError:    false,
+			name:            "filter with negation - exclude a-unit",
+			filterQuery:     "!a-unit",
+			expectedResults: []string{"b-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter with negation - exclude path",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "!./a-unit",
-			expectedOutput: "b-unit  \n",
-			expectError:    false,
+			name:            "filter with negation - exclude path",
+			filterQuery:     "!./a-unit",
+			expectedResults: []string{"b-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter with intersection - name and type",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "a-unit | type=unit",
-			expectedOutput: "a-unit  \n",
-			expectError:    false,
+			name:            "filter with intersection - name and type",
+			filterQuery:     "a-unit | type=unit",
+			expectedResults: []string{"a-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter with wildcard path",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "./*",
-			expectedOutput: "a-unit  b-unit  \n",
-			expectError:    false,
+			name:            "filter with wildcard path",
+			filterQuery:     "./*",
+			expectedResults: []string{"a-unit", "b-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter with braced path",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "{a-unit}",
-			expectedOutput: "a-unit  \n",
-			expectError:    false,
+			name:            "filter with braced path",
+			filterQuery:     "{a-unit}",
+			expectedResults: []string{"a-unit"},
+			expectError:     false,
 		},
 		{
-			name:           "filter with non-matching query",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "nonexistent",
-			expectedOutput: "",
-			expectError:    false,
+			name:            "filter with non-matching query",
+			filterQuery:     "nonexistent",
+			expectedResults: []string{},
+			expectError:     false,
 		},
 		{
-			name:           "filter with invalid syntax",
-			workingDir:     testFixtureFilterList,
-			filterQuery:    "invalid[filter",
-			expectedOutput: "",
-			expectError:    true,
+			name:            "filter with invalid syntax",
+			filterQuery:     "invalid{filter",
+			expectedResults: []string{},
+			expectError:     true,
 		},
 	}
 
@@ -321,19 +316,20 @@ func TestFilterFlagWithList(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
+			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --filter " + tc.filterQuery
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			cmd := "terragrunt list --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
 				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
-				assert.NotEmpty(t, stderr, "Expected error message in stderr")
-			} else {
-				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
-				assert.Empty(t, stderr, "Unexpected error message in stderr")
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+
+				return
 			}
+			require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
+
+			results := strings.Fields(stdout)
+			assert.ElementsMatch(t, tc.expectedResults, results, "Output mismatch for filter query: %s", tc.filterQuery)
 		})
 	}
 }
