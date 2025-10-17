@@ -259,13 +259,13 @@ func TestRunnerPoolNestedStacksBug(t *testing.T) {
 	// EXPECTED BEHAVIOR IF BUG EXISTS: missingCount should be 4
 	// ACTUAL BEHAVIOR: missingCount is 0 (all units are included)
 
-	// Bug #4977: When a nested stack has a dependencies block pointing to another stack,
+	// Bug When a nested stack has a dependencies block pointing to another stack,
 	// only the first unit in the nested stack is included in the runner pool.
 	// The remaining units are generated but not executed.
 
 	if missingCount > 0 {
 		// Bug is reproduced - units are missing from runner pool
-		t.Errorf("BUG #4977 REPRODUCED: %d units were generated but NOT included in runner pool execution:", missingCount)
+		t.Errorf("%d units were generated but NOT included in runner pool execution:", missingCount)
 
 		for _, unit := range criticalUnits {
 			if !strings.Contains(stderr, unit) {
@@ -273,7 +273,7 @@ func TestRunnerPoolNestedStacksBug(t *testing.T) {
 			}
 		}
 
-		t.Fatalf("Bug #4977 exists: Nested stack with dependencies block causes units to be excluded from runner pool. "+
+		t.Fatalf("Nested stack with dependencies block causes units to be excluded from runner pool. "+
 			"All 11 units are generated, but only %d are included in execution. "+
 			"This is caused by adding 'dependencies { paths = [\"../network\"] }' to the k8s stack.",
 			11-missingCount)
@@ -281,5 +281,5 @@ func TestRunnerPoolNestedStacksBug(t *testing.T) {
 
 	// If we reach here, bug is fixed - all units are included
 	require.NoError(t, err)
-	t.Logf("Bug #4977 is FIXED: All %d generated units are correctly included in runner pool", generatedUnitsCount)
+	t.Logf("All %d generated units are correctly included in runner pool", generatedUnitsCount)
 }
