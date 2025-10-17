@@ -167,44 +167,41 @@ func TestFilterFlagWithFindJSON(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
+	workingDir, err := filepath.Abs(testFixtureFilterBasic)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name           string
-		workingDir     string
 		filterQuery    string
 		expectedOutput string
 		expectError    bool
 	}{
 		{
 			name:           "filter by type - unit only JSON",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "type=unit",
 			expectedOutput: `[{"type": "unit", "path": "unit"}]`,
 			expectError:    false,
 		},
 		{
 			name:           "filter by type - stack only JSON",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "type=stack",
 			expectedOutput: `[{"type": "stack", "path": "stack"}]`,
 			expectError:    false,
 		},
 		{
 			name:           "filter by name - exact match JSON",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "unit",
 			expectedOutput: `[{"type": "unit", "path": "unit"}]`,
 			expectError:    false,
 		},
 		{
 			name:           "filter with negation - exclude unit JSON",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "!unit",
 			expectedOutput: `[{"type": "stack", "path": "stack"}]`,
 			expectError:    false,
 		},
 		{
 			name:           "filter with intersection JSON",
-			workingDir:     testFixtureFilterBasic,
 			filterQuery:    "./unit | type=unit",
 			expectedOutput: `[{"type": "unit", "path": "unit"}]`,
 			expectError:    false,
@@ -215,9 +212,9 @@ func TestFilterFlagWithFindJSON(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
+			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + tc.workingDir + " --json --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --json --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
