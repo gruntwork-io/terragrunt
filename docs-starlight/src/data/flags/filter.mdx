@@ -2,20 +2,32 @@
 name: filter
 description: Filter configurations using a flexible query language
 type: list(string)
-experimental: true
-experiment: filter-flag
 ---
+
+import {Aside} from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --filter 'foo'
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+
+Currently, the `--filter` flag is only available in the `find` and `list` commands. Support for the `run` command is planned for a future release.
+</Aside>
 
 The `--filter` flag provides a sophisticated querying syntax for targeting specific [units](/docs/features/units) and [stacks](/docs/features/stacks) in Terragrunt commands.
 
 ## Usage
 
 ```bash
-terragrunt find --experiment filter-flag --filter 'app*'
-terragrunt list --experiment filter-flag --filter './prod/** | type=unit'
+terragrunt find --filter 'app*'
+terragrunt list --filter './prod/** | type=unit'
 ```
-
-## Filter Types
 
 ### Name-Based Filtering
 Match configurations by their name using exact matches or glob patterns:
