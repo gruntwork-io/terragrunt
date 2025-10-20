@@ -32,8 +32,6 @@ type Component struct {
 	Kind Kind
 	Path string
 
-	Reading []string
-
 	dependencies Components
 	dependents   Components
 
@@ -49,6 +47,7 @@ func (c *Component) AddDependency(dependency *Component) {
 	c.dependencies = append(c.dependencies, dependency)
 
 	dependency.dependents = append(dependency.dependents, c)
+
 }
 
 // AddDependent adds a dependent to the Component and vice versa.
