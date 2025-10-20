@@ -1,11 +1,6 @@
 # K8s nested stack with multiple units
 # This is where the bug manifests - units after eks-cluster are not included in runner pool
 
-# Add dependency on network stack - this might trigger the bug
-dependencies {
-  paths = ["../network"]
-}
-
 unit "eks-cluster" {
   source = "${path_relative_from_include()}/../../units/eks-cluster"
   path   = "eks-cluster"

@@ -183,17 +183,27 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 // TestRunnerPoolNestedStacksBug reproduces and tracks bug #4977.
 // https://github.com/gruntwork-io/terragrunt/issues/4977
 //
-// Root cause: When a nested stack contains a `dependencies` block pointing to another stack,
-// only the FIRST unit in that nested stack is included in the runner pool.
-// All other units in the stack are generated but NOT executed.
+// BUG DESCRIPTION:
+// When units in a nested stack have dependencies passed via `values` that point to units
+// in other stacks, those dependencies are NOT discovered by terragrunt. This causes the
+// runner pool to execute units in the wrong order, ignoring the dependency relationships.
 //
 // Test fixture structure:
-// - Top-level stack with 2 units: id, ecr-cache
-// - Nested stack "network" with 4 units: vpc, tailscale-router, vpc-endpoints, vpc-nat
-// - Nested stack "k8s" with 5 units AND a dependencies block: eks-cluster, eks-baseline, grafana-baseline, rancher-bootstrap, rancher-baseline
+//   - Top-level stack with 2 units: id, ecr-cache
+//   - Nested stack "network" with 4 units: vpc, tailscale-router, vpc-endpoints, vpc-nat
+//   - Nested stack "k8s" with 5 units that should depend on network units via values:
+//     eks-cluster, eks-baseline, grafana-baseline, rancher-bootstrap, rancher-baseline
 //
-// Expected behavior (bug): Only eks-cluster from k8s stack is included, 4 others are missing
-// This test FAILS when the bug exists, demonstrating it needs to be fixed.
+// The k8s units have `dependencies { paths = try(values.dependencies, []) }` in their terragrunt.hcl
+// and receive network unit paths via values from the parent stack.
+//
+// EXPECTED BEHAVIOR:
+// 1. Network units run first
+// 2. After network units complete, k8s units can run (respecting dependencies)
+//
+// ACTUAL BEHAVIOR (BUG):
+// All units run in parallel - the dependencies passed via values are ignored!
+// This means k8s units start before network units complete, violating dependencies.
 func TestRunnerPoolNestedStacksBug(t *testing.T) {
 	t.Parallel()
 
@@ -206,80 +216,58 @@ func TestRunnerPoolNestedStacksBug(t *testing.T) {
 		t,
 		"terragrunt run --all --non-interactive --queue-include-external --log-level debug --working-dir "+testPath+" -- plan",
 	)
+	require.NoError(t, err)
 
-	// The bug symptom according to issue #4977:
-	// 1. All units are GENERATED (shown in "Generating unit X from" messages)
-	// 2. But NOT all units are INCLUDED in runner pool execution
-	// 3. Specifically, 4 units from k8s nested stack should be missing
-	// 4. A "Cycle detected in dependency graph" warning may appear
+	// Parse the runner pool execution to check if dependencies are respected
+	// Extract which units started in the first batch (before any completions)
 
-	// Count how many units are generated
-	generatedUnitsCount := 0
-	generatingUnits := []string{
-		"Generating unit id from",
-		"Generating unit ecr-cache from",
-		"Generating unit vpc from",
-		"Generating unit tailscale-router from",
-		"Generating unit vpc-endpoints from",
-		"Generating unit vpc-nat from",
-		"Generating unit eks-cluster from",
-		"Generating unit eks-baseline from",
-		"Generating unit grafana-baseline from",
-		"Generating unit rancher-bootstrap from",
-		"Generating unit rancher-baseline from",
-	}
+	lines := strings.Split(stderr, "\n")
+	var firstBatch []string
+	var foundStart bool
+	inFirstBatch := true
 
-	for _, msg := range generatingUnits {
-		if strings.Contains(stderr, msg) {
-			generatedUnitsCount++
+	for _, line := range lines {
+		if strings.Contains(line, "Runner Pool Controller: starting with") {
+			foundStart = true
+			continue
 		}
-	}
-
-	// All 11 units should be generated
-	assert.Equal(t, 11, generatedUnitsCount, "All 11 units should be generated")
-
-	// Check for the units that should be missing according to bug report
-	criticalUnits := []string{
-		".terragrunt-stack/k8s/.terragrunt-stack/eks-baseline",
-		".terragrunt-stack/k8s/.terragrunt-stack/grafana-baseline",
-		".terragrunt-stack/k8s/.terragrunt-stack/rancher-bootstrap",
-		".terragrunt-stack/k8s/.terragrunt-stack/rancher-baseline",
-	}
-
-	missingCount := 0
-
-	for _, unit := range criticalUnits {
-		if !strings.Contains(stderr, unit) {
-			t.Logf("Unit missing from runner pool (expected if bug exists): %s", unit)
-
-			missingCount++
-		}
-	}
-
-	// EXPECTED BEHAVIOR IF BUG EXISTS: missingCount should be 4
-	// ACTUAL BEHAVIOR: missingCount is 0 (all units are included)
-
-	// Bug When a nested stack has a dependencies block pointing to another stack,
-	// only the first unit in the nested stack is included in the runner pool.
-	// The remaining units are generated but not executed.
-
-	if missingCount > 0 {
-		// Bug is reproduced - units are missing from runner pool
-		t.Errorf("%d units were generated but NOT included in runner pool execution:", missingCount)
-
-		for _, unit := range criticalUnits {
-			if !strings.Contains(stderr, unit) {
-				t.Errorf("  - Missing unit: %s", unit)
+		if foundStart && inFirstBatch {
+			if strings.Contains(line, "Runner Pool Controller: running") {
+				// Extract the unit path
+				parts := strings.Split(line, "Runner Pool Controller: running ")
+				if len(parts) == 2 {
+					unitPath := strings.TrimSpace(parts[1])
+					firstBatch = append(firstBatch, unitPath)
+				}
+			}
+			// Stop collecting after we see the first "succeeded" or "found 0 readyEntries"
+			if strings.Contains(line, "succeeded") || strings.Contains(line, "found 0 readyEntries") {
+				inFirstBatch = false
 			}
 		}
-
-		t.Fatalf("Nested stack with dependencies block causes units to be excluded from runner pool. "+
-			"All 11 units are generated, but only %d are included in execution. "+
-			"This is caused by adding 'dependencies { paths = [\"../network\"] }' to the k8s stack.",
-			11-missingCount)
 	}
 
-	// If we reach here, bug is fixed - all units are included
-	require.NoError(t, err)
-	t.Logf("All %d generated units are correctly included in runner pool", generatedUnitsCount)
+	t.Logf("Units that started in first batch: %v", firstBatch)
+
+	// BUG CHECK: The k8s units should NOT be in the first batch because they depend on network units
+	// If they ARE in the first batch, the bug exists (dependencies are being ignored)
+
+	k8sUnitsInFirstBatch := []string{}
+	for _, unit := range firstBatch {
+		if strings.Contains(unit, "/k8s/") && (strings.Contains(unit, "eks-") || strings.Contains(unit, "grafana-") || strings.Contains(unit, "rancher-")) {
+			k8sUnitsInFirstBatch = append(k8sUnitsInFirstBatch, unit)
+		}
+	}
+
+	if len(k8sUnitsInFirstBatch) > 0 {
+		t.Errorf("BUG #4977 REPRODUCED: K8s units started before their network dependencies completed!")
+		t.Errorf("K8s units that incorrectly ran in first batch (should wait for network): %v", k8sUnitsInFirstBatch)
+		t.Fatalf("\nExpected behavior: Network units run first, then k8s units\n" +
+			"Actual behavior: K8s units ran immediately, ignoring dependencies\n\n" +
+			"Root cause: Dependencies passed via 'values' in nested stacks (dependencies { paths = try(values.dependencies, []) }) " +
+			"are not being discovered during the dependency discovery phase. The runner pool treats these units as having no dependencies.")
+	}
+
+	// If we reach here, dependencies are being properly discovered and respected
+	t.Log("SUCCESS: Dependencies passed via values are properly discovered and execution order is correct")
 }
