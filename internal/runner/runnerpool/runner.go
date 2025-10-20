@@ -43,8 +43,16 @@ func (r *Runner) SetQueue(q *queue.Queue) {
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered component.Components, opts ...common.Option) (common.StackRunner, error) {
+func NewRunnerPoolStack(
+	ctx context.Context,
+	l log.Logger,
+	terragruntOptions *options.TerragruntOptions,
+	discovered component.Components,
+	opts ...common.Option,
+) (common.StackRunner, error) {
 	if len(discovered) == 0 {
+		l.Warnf("No units discovered. Creating an empty runner.")
+
 		// Create an empty runner that will process no units
 		stack := common.Stack{
 			TerragruntOptions: terragruntOptions,
