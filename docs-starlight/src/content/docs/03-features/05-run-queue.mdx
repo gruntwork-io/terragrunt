@@ -91,7 +91,13 @@ Those flags will be discussed in the next section.
 
 ### Filtering Units
 
-You can control which units are included or excluded from the queue:
+You can control which units are included or excluded from the queue using several approaches:
+
+<Aside type="tip" title="New: Unified Filtering">
+The experimental [`--filter` flag](/docs/features/filter) provides a unified approach to filtering units and stacks using a sophisticated query syntax. This will eventually replace the queue control flags listed below.
+</Aside>
+
+**Queue Control Flags:**
 
 - [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir): Specify glob patterns for directories to *include*. Can be used multiple times.
 
