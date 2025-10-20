@@ -166,8 +166,8 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		if opts.Reading && len(c.Reading) > 0 {
-			foundComponent.Reading = make([]string, len(c.Reading))
+		if !opts.Dependencies || len(config.Dependencies()) == 0 {
+			foundCfgs = append(foundCfgs, foundCfg)
 
 			for i, reading := range c.Reading {
 				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
@@ -175,7 +175,14 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 					errs = append(errs, errors.New(err))
 				}
 
-				foundComponent.Reading[i] = relReadingPath
+		foundCfg.Dependencies = make([]string, len(config.Dependencies()))
+
+		for i, dep := range config.Dependencies() {
+			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+			if err != nil {
+				errs = append(errs, errors.New(err))
+
+				continue
 			}
 		}
 
