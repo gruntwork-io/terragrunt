@@ -123,38 +123,32 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 	// First, apply the "other" module to create the outputs
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-
-	require.NoError(
+	err := helpers.RunTerragruntCommand(
 		t,
-		helpers.RunTerragruntCommand(
-			t,
-			"terragrunt apply -auto-approve --non-interactive --working-dir "+otherPath,
-			&stdout,
-			&stderr,
-		),
+		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
+		&stdout,
+		&stderr,
 	)
-
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
+	require.NoError(t, err)
 
 	// Now run plan on "testing" module using run --all
-	// This should work - dependency outputs should be available in generate blocks
-	err := helpers.RunTerragruntCommand(
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(
 		t,
 		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
 		&stdout,
 		&stderr,
 	)
-
-	errOutput := stderr.String()
+	require.NoError(t, err)
 
 	// The test should pass - no "Unsuitable value" errors
-	require.NoError(t, err, "run --all plan should succeed")
+	require.NoErrorf(t, err, "run --all plan should succeed:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 
 	// Should not contain the regression error
-	assert.NotContains(t, errOutput, "Unsuitable value: value must be known",
+	assert.NotContains(t, stderr.String(), "Unsuitable value: value must be known",
 		"Should not fail with 'Unsuitable value' error when using dependency outputs in generate blocks")
-	assert.NotContains(t, errOutput, "Unsuitable value type",
+	assert.NotContains(t, stderr.String(), "Unsuitable value type",
 		"Should not fail with 'Unsuitable value type' error")
 
 	// Verify the generate block was created successfully
@@ -177,39 +171,32 @@ func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
 	// First, apply the "other" module to create the outputs
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-
-	require.NoError(
+	err := helpers.RunTerragruntCommand(
 		t,
-		helpers.RunTerragruntCommand(
-			t,
-			"terragrunt apply -auto-approve --non-interactive --working-dir "+otherPath,
-			&stdout,
-			&stderr,
-		),
+		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
+		&stdout,
+		&stderr,
 	)
-
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
+	require.NoError(t, err)
 
 	// Now run plan directly on "testing" module (without --all)
-	// This should work even in the broken version
-	err := helpers.RunTerragruntCommand(
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(
 		t,
 		"terragrunt plan --non-interactive --working-dir "+testingPath,
 		&stdout,
 		&stderr,
 	)
-
-	errOutput := stderr.String()
+	require.NoError(t, err)
 
 	// This should always work
-	require.NoError(t, err, "Direct plan should succeed")
-	assert.NotContains(t, errOutput, "Unsuitable value",
+	require.NoErrorf(t, err, "Direct plan should succeed:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+	assert.NotContains(t, stderr.String(), "Unsuitable value",
 		"Direct run should never fail with 'Unsuitable value' error")
 }
 
-// TestDependencyOutputInInputsStillWorks verifies that using dependency outputs in inputs
-// works even when generate blocks are broken
+// TestDependencyOutputInInputsStillWorks verifies that dependency outputs can be used in inputs
 func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	t.Parallel()
 
@@ -217,42 +204,35 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
 	otherPath := util.JoinPath(rootPath, "other")
 
+	// Apply the "other" module
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	// Apply the "other" module
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-
-	require.NoError(
-		t,
-		helpers.RunTerragruntCommand(
-			t,
-			"terragrunt apply -auto-approve --non-interactive --working-dir "+otherPath,
-			&stdout,
-			&stderr,
-		),
-	)
-
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-
-	// Apply the "testing" module with run --all
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt run --all apply -auto-approve --non-interactive --working-dir "+rootPath,
+		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
 		&stdout,
 		&stderr,
 	)
+	require.NoError(t, err)
 
-	output := stdout.String()
-	errOutput := stderr.String()
+	// Apply the "testing" module with run --all
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath+" -- --auto-approve",
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
 
-	// Even if the generate block fails, inputs should work
-	// So we check if the variable was passed correctly
-	if err == nil {
-		// If no error, verify the file was created with the correct token
-		assert.True(t, strings.Contains(output, "test-token-12345") ||
-			strings.Contains(errOutput, "test-token-12345"),
-			"Token should be passed via inputs")
-	}
+	assert.True(t, strings.Contains(stdout.String(), "test-token-12345") ||
+		strings.Contains(stderr.String(), "test-token-12345"),
+		"Token should be passed via inputs")
+
+	assert.True(t, strings.Contains(stdout.String(), "test-token-12345") ||
+		strings.Contains(stderr.String(), "test-token-12345"),
+		"Token should be passed via inputs")
 }
