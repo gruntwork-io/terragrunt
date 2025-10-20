@@ -64,88 +64,56 @@ func TestComponentsCycleCheck(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		setupFunc     func() component.Components
 		name          string
-		configs       component.Components
 		errorExpected bool
 	}{
 		{
 			name: "no cycles",
-			configs: component.Components{
-				{
-					Path: "a",
-					Dependencies: component.Components{
-						{Path: "b"},
-					},
-				},
-				{Path: "b"},
+			setupFunc: func() component.Components {
+				a := &component.Component{Path: "a"}
+				b := &component.Component{Path: "b"}
+				a.AddDependency(b)
+				return component.Components{a, b}
 			},
 			errorExpected: false,
 		},
 		{
 			name: "direct cycle",
-			configs: component.Components{
-				{
-					Path: "a",
-					Dependencies: component.Components{
-						{
-							Path: "b",
-							Dependencies: component.Components{
-								{Path: "a"},
-							},
-						},
-					},
-				},
-				{Path: "b"},
+			setupFunc: func() component.Components {
+				a := &component.Component{Path: "a"}
+				b := &component.Component{Path: "b"}
+				a.AddDependency(b)
+				b.AddDependency(a)
+				return component.Components{a, b}
 			},
 			errorExpected: true,
 		},
 		{
 			name: "indirect cycle",
-			configs: component.Components{
-				{
-					Path: "a",
-					Dependencies: component.Components{
-						{
-							Path: "b",
-							Dependencies: component.Components{
-								{
-									Path: "c",
-									Dependencies: component.Components{
-										{Path: "a"},
-									},
-								},
-							},
-						},
-					},
-				},
-				{Path: "b"},
-				{Path: "c"},
+			setupFunc: func() component.Components {
+				a := &component.Component{Path: "a"}
+				b := &component.Component{Path: "b"}
+				c := &component.Component{Path: "c"}
+				a.AddDependency(b)
+				b.AddDependency(c)
+				c.AddDependency(a)
+				return component.Components{a, b, c}
 			},
 			errorExpected: true,
 		},
 		{
 			name: "diamond dependency - no cycle",
-			configs: component.Components{
-				{
-					Path: "a",
-					Dependencies: component.Components{
-						{Path: "b"},
-						{Path: "c"},
-					},
-				},
-				{
-					Path: "b",
-					Dependencies: component.Components{
-						{Path: "d"},
-					},
-				},
-				{
-					Path: "c",
-					Dependencies: component.Components{
-						{Path: "d"},
-					},
-				},
-				{Path: "d"},
+			setupFunc: func() component.Components {
+				a := &component.Component{Path: "a"}
+				b := &component.Component{Path: "b"}
+				c := &component.Component{Path: "c"}
+				d := &component.Component{Path: "d"}
+				a.AddDependency(b)
+				a.AddDependency(c)
+				b.AddDependency(d)
+				c.AddDependency(d)
+				return component.Components{a, b, c, d}
 			},
 			errorExpected: false,
 		},
@@ -155,7 +123,9 @@ func TestComponentsCycleCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := tt.configs.CycleCheck()
+			configs := tt.setupFunc()
+
+			cfg, err := configs.CycleCheck()
 			if tt.errorExpected {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "cycle detected")

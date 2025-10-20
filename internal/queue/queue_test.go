@@ -14,9 +14,9 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 
 	// Create configs with no dependencies - should maintain alphabetical order at front
 	configs := []*component.Component{
-		{Path: "c", Dependencies: []*component.Component{}},
-		{Path: "a", Dependencies: []*component.Component{}},
-		{Path: "b", Dependencies: []*component.Component{}},
+		{Path: "c"},
+		{Path: "a"},
+		{Path: "b"},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -25,18 +25,20 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 	entries := q.Entries
 
 	// Should be sorted alphabetically at front since none have dependencies
-	assert.Equal(t, "a", entries[0].Config.Path)
-	assert.Equal(t, "b", entries[1].Config.Path)
-	assert.Equal(t, "c", entries[2].Config.Path)
+	assert.Equal(t, "a", entries[0].Component.Path)
+	assert.Equal(t, "b", entries[1].Component.Path)
+	assert.Equal(t, "c", entries[2].Component.Path)
 }
 
 func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 	t.Parallel()
 
 	// Create configs with dependencies - should order by dependency level
-	aCfg := &component.Component{Path: "a", Dependencies: []*component.Component{}}
-	bCfg := &component.Component{Path: "b", Dependencies: []*component.Component{aCfg}}
-	cCfg := &component.Component{Path: "c", Dependencies: []*component.Component{bCfg}}
+	aCfg := &component.Component{Path: "a"}
+	bCfg := &component.Component{Path: "b"}
+	bCfg.AddDependency(aCfg)
+	cCfg := &component.Component{Path: "c"}
+	cCfg.AddDependency(bCfg)
 
 	configs := []*component.Component{aCfg, bCfg, cCfg}
 
@@ -48,9 +50,9 @@ func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 	// 'a' has no deps so should be at front
 	// 'b' depends on 'a' so should be after
 	// 'c' depends on 'b' so should be at back
-	assert.Equal(t, "a", entries[0].Config.Path)
-	assert.Equal(t, "b", entries[1].Config.Path)
-	assert.Equal(t, "c", entries[2].Config.Path)
+	assert.Equal(t, "a", entries[0].Component.Path)
+	assert.Equal(t, "b", entries[1].Component.Path)
+	assert.Equal(t, "c", entries[2].Component.Path)
 }
 
 func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
@@ -64,14 +66,19 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 	//   D -> A,B
 	//   E -> C
 	//   F -> C
-	configs := []*component.Component{
-		{Path: "F", Dependencies: []*component.Component{{Path: "C"}}},
-		{Path: "E", Dependencies: []*component.Component{{Path: "C"}}},
-		{Path: "D", Dependencies: []*component.Component{{Path: "A"}, {Path: "B"}}},
-		{Path: "C", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "B", Dependencies: []*component.Component{}},
-		{Path: "A", Dependencies: []*component.Component{}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	C := &component.Component{Path: "C"}
+	C.AddDependency(A)
+	D := &component.Component{Path: "D"}
+	D.AddDependency(A)
+	D.AddDependency(B)
+	E := &component.Component{Path: "E"}
+	E.AddDependency(C)
+	F := &component.Component{Path: "F"}
+	F.AddDependency(C)
+
+	configs := []*component.Component{F, E, D, C, B, A}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -82,12 +89,12 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 	// Level 0 (no deps): A, B
 	// Level 1 (depends on level 0): C, D
 	// Level 2 (depends on level 1): E, F
-	assert.Equal(t, "A", entries[0].Config.Path)
-	assert.Equal(t, "B", entries[1].Config.Path)
-	assert.Equal(t, "C", entries[2].Config.Path)
-	assert.Equal(t, "D", entries[3].Config.Path)
-	assert.Equal(t, "E", entries[4].Config.Path)
-	assert.Equal(t, "F", entries[5].Config.Path)
+	assert.Equal(t, "A", entries[0].Component.Path)
+	assert.Equal(t, "B", entries[1].Component.Path)
+	assert.Equal(t, "C", entries[2].Component.Path)
+	assert.Equal(t, "D", entries[3].Component.Path)
+	assert.Equal(t, "E", entries[4].Component.Path)
+	assert.Equal(t, "F", entries[5].Component.Path)
 
 	// Also verify relative ordering
 	aIndex := findIndex(entries, "A")
@@ -116,12 +123,14 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 	//   B -> A
 	//   C -> A
 	//   D -> A
-	configs := []*component.Component{
-		{Path: "D", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "C", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "B", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "A", Dependencies: []*component.Component{}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	B.AddDependency(A)
+	C := &component.Component{Path: "C"}
+	C.AddDependency(A)
+	D := &component.Component{Path: "D"}
+	D.AddDependency(A)
+	configs := []*component.Component{D, C, B, A}
 
 	// Run multiple times to verify deterministic ordering
 	for range 5 {
@@ -131,12 +140,12 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 		entries := q.Entries
 
 		// A should be first (no deps)
-		assert.Equal(t, "A", entries[0].Config.Path)
+		assert.Equal(t, "A", entries[0].Component.Path)
 
 		// B, C, D should maintain alphabetical order since they're all at the same level
-		assert.Equal(t, "B", entries[1].Config.Path)
-		assert.Equal(t, "C", entries[2].Config.Path)
-		assert.Equal(t, "D", entries[3].Config.Path)
+		assert.Equal(t, "B", entries[1].Component.Path)
+		assert.Equal(t, "C", entries[2].Component.Path)
+		assert.Equal(t, "D", entries[3].Component.Path)
 	}
 }
 
@@ -150,13 +159,16 @@ func TestDepthBasedOrderingVerification(t *testing.T) {
 	//   C -> A (depth 1)
 	//   D -> B (depth 1)
 	//   E -> C,D (depth 2)
-	configs := []*component.Component{
-		{Path: "E", Dependencies: []*component.Component{{Path: "C"}, {Path: "D"}}},
-		{Path: "D", Dependencies: []*component.Component{{Path: "B"}}},
-		{Path: "C", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "B", Dependencies: []*component.Component{}},
-		{Path: "A", Dependencies: []*component.Component{}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	C := &component.Component{Path: "C"}
+	C.AddDependency(A)
+	D := &component.Component{Path: "D"}
+	D.AddDependency(B)
+	E := &component.Component{Path: "E"}
+	E.AddDependency(C)
+	E.AddDependency(D)
+	configs := []*component.Component{E, D, C, B, A}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -195,11 +207,13 @@ func TestErrorHandlingCycle(t *testing.T) {
 
 	// Create a cycle: A -> B -> C -> A
 	// Create a cycle: A -> B -> C -> A
-	configs := []*component.Component{
-		{Path: "C", Dependencies: []*component.Component{{Path: "B"}}},
-		{Path: "B", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "A", Dependencies: []*component.Component{{Path: "C"}}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	C := &component.Component{Path: "C"}
+	C.AddDependency(B)
+	B.AddDependency(A)
+	A.AddDependency(C) // Creates the cycle
+	configs := []*component.Component{C, B, A}
 
 	q, err := queue.NewQueue(configs)
 	require.Error(t, err)
@@ -220,7 +234,7 @@ func TestErrorHandlingEmptyConfigList(t *testing.T) {
 // findIndex returns the index of the config with the given path in the slice
 func findIndex(entries queue.Entries, path string) int {
 	for i, cfg := range entries {
-		if cfg.Config.Path == path {
+		if cfg.Component.Path == path {
 			return i
 		}
 	}
@@ -232,8 +246,10 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -245,8 +261,8 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	// Check that all entries are ready initially and in order A, B, C
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Config.Path)
-	assert.Equal(t, "A", readyEntries[0].Config.Path, "First ready entry should be A")
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path, "First ready entry should be A")
 
 	// Mark A as running and complete it
 	entryA := readyEntries[0]
@@ -256,7 +272,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After A is done, only B should be ready")
-	assert.Equal(t, "B", readyEntries[0].Config.Path, "Second ready entry should be B")
+	assert.Equal(t, "B", readyEntries[0].Component.Path, "Second ready entry should be B")
 
 	// Mark B as running and complete it
 	entryB := readyEntries[0]
@@ -266,7 +282,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After B is done, only C should be ready")
-	assert.Equal(t, "C", readyEntries[0].Config.Path, "Third ready entry should be C")
+	assert.Equal(t, "C", readyEntries[0].Component.Path, "Third ready entry should be C")
 
 	// Mark C as running and complete it
 	entryC := readyEntries[0]
@@ -285,8 +301,10 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	//  / \
 	// B   C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -295,8 +313,8 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Config.Path)
-	assert.Equal(t, "A", readyEntries[0].Config.Path, "First ready entry should be A")
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path, "First ready entry should be A")
 
 	// Mark A as running and complete it
 	entryA := readyEntries[0]
@@ -305,23 +323,23 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	// 2. After A is done, both B and C should be ready (order doesn't matter)
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 2, "After A is done, B and C should be ready")
-	paths := []string{readyEntries[0].Config.Path, readyEntries[1].Config.Path}
+	paths := []string{readyEntries[0].Component.Path, readyEntries[1].Component.Path}
 	assert.Contains(t, paths, "B")
 	assert.Contains(t, paths, "C")
 
 	for _, entry := range readyEntries {
-		assert.Equal(t, queue.StatusReady, entry.Status, "Entry %s should have StatusReady", entry.Config.Path)
+		assert.Equal(t, queue.StatusReady, entry.Status, "Entry %s should have StatusReady", entry.Component.Path)
 	}
 
 	// Mark B as running and complete it
 	var entryB, entryC *queue.Entry
 
 	for _, entry := range readyEntries {
-		if entry.Config.Path == "B" {
+		if entry.Component.Path == "B" {
 			entryB = entry
 		}
 
-		if entry.Config.Path == "C" {
+		if entry.Component.Path == "C" {
 			entryC = entry
 		}
 	}
@@ -332,7 +350,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	readyEntries = q.GetReadyWithDependencies()
 	if entryC.Status != queue.StatusSucceeded {
 		assert.Len(t, readyEntries, 1, "After B is done, C should still be ready")
-		assert.Equal(t, "C", readyEntries[0].Config.Path)
+		assert.Equal(t, "C", readyEntries[0].Component.Path)
 
 		entryC.Status = queue.StatusSucceeded
 	}
@@ -348,8 +366,10 @@ func TestQueue_FailFast(t *testing.T) {
 	//  / \
 	// B   C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -363,7 +383,7 @@ func TestQueue_FailFast(t *testing.T) {
 	var entryA *queue.Entry
 
 	for _, entry := range q.Entries {
-		if entry.Config.Path == "A" {
+		if entry.Component.Path == "A" {
 			entryA = entry
 			break
 		}
@@ -375,17 +395,17 @@ func TestQueue_FailFast(t *testing.T) {
 
 	// B and C should be marked as early exit due to fail-fast
 	for _, entry := range q.Entries {
-		switch entry.Config.Path {
+		switch entry.Component.Path {
 		case "A":
-			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Component.Path)
 		case "B", "C":
-			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
+			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Component.Path)
 		}
 	}
 
 	// All entries should be listed as terminal (A: Failed, B/C: EarlyExit)
 	for _, entry := range q.Entries {
-		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit, "Entry %s should be terminal", entry.Config.Path)
+		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit, "Entry %s should be terminal", entry.Component.Path)
 	}
 
 	// Now all should be terminal
@@ -406,10 +426,14 @@ func TestQueue_FailFast(t *testing.T) {
 // D   E
 func buildMultiLevelDependencyTree() []*component.Component {
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgA}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgB}}
-	cfgE := &component.Component{Path: "E", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgA)
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgB)
+	cfgE := &component.Component{Path: "E"}
+	cfgE.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD, cfgE}
 
 	return configs
@@ -426,7 +450,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, "A", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path)
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
@@ -435,7 +459,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 2, "After A, B and C should be ready")
-	paths := []string{readyEntries[0].Config.Path, readyEntries[1].Config.Path}
+	paths := []string{readyEntries[0].Component.Path, readyEntries[1].Component.Path}
 	assert.Contains(t, paths, "B")
 	assert.Contains(t, paths, "C")
 
@@ -443,11 +467,11 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	var entryB, entryC *queue.Entry
 
 	for _, entry := range readyEntries {
-		if entry.Config.Path == "B" {
+		if entry.Component.Path == "B" {
 			entryB = entry
 		}
 
-		if entry.Config.Path == "C" {
+		if entry.Component.Path == "C" {
 			entryC = entry
 		}
 	}
@@ -459,7 +483,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 
 	readyPaths := map[string]bool{}
 	for _, entry := range readyEntries {
-		readyPaths[entry.Config.Path] = true
+		readyPaths[entry.Component.Path] = true
 	}
 	// C may still be ready if not yet marked as succeeded
 	assert.Contains(t, readyPaths, "C")
@@ -474,11 +498,11 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	var entryD, entryE *queue.Entry
 
 	for _, entry := range readyEntries {
-		if entry.Config.Path == "D" {
+		if entry.Component.Path == "D" {
 			entryD = entry
 		}
 
-		if entry.Config.Path == "E" {
+		if entry.Component.Path == "E" {
 			entryE = entry
 		}
 	}
@@ -504,7 +528,7 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, "A", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path)
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
@@ -516,11 +540,11 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	var entryB, entryC *queue.Entry
 
 	for _, entry := range readyEntries {
-		if entry.Config.Path == "B" {
+		if entry.Component.Path == "B" {
 			entryB = entry
 		}
 
-		if entry.Config.Path == "C" {
+		if entry.Component.Path == "C" {
 			entryC = entry
 		}
 	}
@@ -557,7 +581,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, "A", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path)
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
@@ -571,11 +595,11 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	var entryB, entryC *queue.Entry
 
 	for _, entry := range readyEntries {
-		if entry.Config.Path == "B" {
+		if entry.Component.Path == "B" {
 			entryB = entry
 		}
 
-		if entry.Config.Path == "C" {
+		if entry.Component.Path == "C" {
 			entryC = entry
 		}
 	}
@@ -597,7 +621,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	// C should still be ready
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Only C should be ready after B fails")
-	assert.Equal(t, "C", readyEntries[0].Config.Path)
+	assert.Equal(t, "C", readyEntries[0].Component.Path)
 
 	// Mark C as succeeded
 	entryC.Status = queue.StatusSucceeded
@@ -614,8 +638,10 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C, where A fails and fail-fast is enabled
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -628,7 +654,7 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	// Only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, "A", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path)
 
 	// Mark A as running and then failed
 	entryA := readyEntries[0]
@@ -637,11 +663,11 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 
 	// After fail-fast, B and C should be early exit, A should be failed
 	for _, entry := range q.Entries {
-		switch entry.Config.Path {
+		switch entry.Component.Path {
 		case "A":
-			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Component.Path)
 		case "B", "C":
-			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
+			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Component.Path)
 		}
 	}
 
@@ -671,9 +697,12 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
 
 	q, err := queue.NewQueue(configs)
@@ -705,9 +734,12 @@ func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
@@ -733,9 +765,12 @@ func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
@@ -762,8 +797,10 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 
 	// Create a simple chain: A -> B -> C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
 	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
@@ -778,9 +815,9 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 	entries := q.Entries
 
 	// For destroy, the queue should be in reverse dependency order: C, B, A
-	assert.Equal(t, "C", entries[0].Config.Path)
-	assert.Equal(t, "B", entries[1].Config.Path)
-	assert.Equal(t, "A", entries[2].Config.Path)
+	assert.Equal(t, "C", entries[0].Component.Path)
+	assert.Equal(t, "B", entries[1].Component.Path)
+	assert.Equal(t, "A", entries[2].Component.Path)
 }
 
 func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
@@ -803,7 +840,7 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 		}
 
 		for _, entry := range ready {
-			processed = append(processed, entry.Config.Path)
+			processed = append(processed, entry.Component.Path)
 			entry.Status = queue.StatusSucceeded
 		}
 	}
@@ -822,8 +859,10 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	// Build a graph: A -> B -> C
 	// For destroy, the order should be: C (destroyed first), then B, then A
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
 	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
@@ -841,7 +880,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	// Step 1: Only C should be ready (it has no dependents)
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only C should be ready for destruction")
-	assert.Equal(t, "C", readyEntries[0].Config.Path, "C should be the first entry ready for destruction")
+	assert.Equal(t, "C", readyEntries[0].Component.Path, "C should be the first entry ready for destruction")
 
 	// Mark C as succeeded
 	entryC := readyEntries[0]
@@ -850,7 +889,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	// Step 2: After C is destroyed, B should be ready (but NOT A yet, as A is a dependency of B)
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After C is destroyed, only B should be ready")
-	assert.Equal(t, "B", readyEntries[0].Config.Path, "B should be ready after C is destroyed")
+	assert.Equal(t, "B", readyEntries[0].Component.Path, "B should be ready after C is destroyed")
 
 	// Mark B as succeeded
 	entryB := readyEntries[0]
@@ -859,7 +898,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	// Step 3: After B is destroyed, A should be ready
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After B is destroyed, only A should be ready")
-	assert.Equal(t, "A", readyEntries[0].Config.Path, "A should be ready last")
+	assert.Equal(t, "A", readyEntries[0].Component.Path, "A should be ready last")
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
@@ -878,8 +917,10 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 
 	// Build a graph: A -> B -> C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
 	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
@@ -896,7 +937,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	// Step 1: Only C should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only C should be ready")
-	assert.Equal(t, "C", readyEntries[0].Config.Path)
+	assert.Equal(t, "C", readyEntries[0].Component.Path)
 
 	// Mark C as FAILED (simulating a destroy failure)
 	entryC := readyEntries[0]
@@ -911,7 +952,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	// Step 2: B should now be ready even though C failed
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After C fails, B should still be ready due to IgnoreDependencyErrors")
-	assert.Equal(t, "B", readyEntries[0].Config.Path)
+	assert.Equal(t, "B", readyEntries[0].Component.Path)
 
 	// Mark B as succeeded
 	entryB := readyEntries[0]
@@ -920,7 +961,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	// Step 3: After B succeeds, A should be ready
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After B succeeds, A should be ready")
-	assert.Equal(t, "A", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Component.Path)
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
