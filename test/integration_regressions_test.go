@@ -120,35 +120,20 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	// First, apply the "other" module to create the outputs
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
+	helpers.RunTerragrunt(
 		t,
 		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
-		&stdout,
-		&stderr,
 	)
-	require.NoError(t, err)
 
-	// Now run plan on "testing" module using run --all
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(
+	_, runAllStderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
-		&stdout,
-		&stderr,
 	)
 	require.NoError(t, err)
 
-	// The test should pass - no "Unsuitable value" errors
-	require.NoErrorf(t, err, "run --all plan should succeed:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
-
-	// Should not contain the regression error
-	assert.NotContains(t, stderr.String(), "Unsuitable value: value must be known",
+	assert.NotContains(t, runAllStderr, "Unsuitable value: value must be known",
 		"Should not fail with 'Unsuitable value' error when using dependency outputs in generate blocks")
-	assert.NotContains(t, stderr.String(), "Unsuitable value type",
+	assert.NotContains(t, runAllStderr, "Unsuitable value type",
 		"Should not fail with 'Unsuitable value type' error")
 
 	// Verify the generate block was created successfully
@@ -168,31 +153,18 @@ func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	// First, apply the "other" module to create the outputs
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
+	helpers.RunTerragrunt(
 		t,
 		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
-		&stdout,
-		&stderr,
 	)
-	require.NoError(t, err)
 
-	// Now run plan directly on "testing" module (without --all)
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(
+	_, planStderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt plan --non-interactive --working-dir "+testingPath,
-		&stdout,
-		&stderr,
 	)
 	require.NoError(t, err)
 
-	// This should always work
-	require.NoErrorf(t, err, "Direct plan should succeed:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
-	assert.NotContains(t, stderr.String(), "Unsuitable value",
+	assert.NotContains(t, planStderr, "Unsuitable value",
 		"Direct run should never fail with 'Unsuitable value' error")
 }
 
@@ -207,32 +179,17 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	// Apply the "other" module
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
+	helpers.RunTerragrunt(t,
 		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
-		&stdout,
-		&stderr,
 	)
-	require.NoError(t, err)
 
-	// Apply the "testing" module with run --all
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(
+	runAllStdout, runAllStderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all apply --non-interactive --working-dir "+rootPath+" -- --auto-approve",
-		&stdout,
-		&stderr,
 	)
 	require.NoError(t, err)
 
-	assert.True(t, strings.Contains(stdout.String(), "test-token-12345") ||
-		strings.Contains(stderr.String(), "test-token-12345"),
-		"Token should be passed via inputs")
-
-	assert.True(t, strings.Contains(stdout.String(), "test-token-12345") ||
-		strings.Contains(stderr.String(), "test-token-12345"),
+	assert.True(t, strings.Contains(runAllStdout, "test-token-12345") ||
+		strings.Contains(runAllStderr, "test-token-12345"),
 		"Token should be passed via inputs")
 }
