@@ -134,11 +134,11 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 		),
 	)
 
-	// Now run plan on "testing" module using run --all
-	// This should work - dependency outputs should be available in generate blocks
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
+	// Now run plan on "testing" module using run --all
+	// This should work - dependency outputs should be available in generate blocks
 	err := helpers.RunTerragruntCommand(
 		t,
 		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
@@ -146,12 +146,7 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 		&stderr,
 	)
 
-	output := stdout.String()
 	errOutput := stderr.String()
-
-	// Log the full output for debugging
-	t.Logf("STDOUT:\n%s", output)
-	t.Logf("STDERR:\n%s", errOutput)
 
 	// The test should pass - no "Unsuitable value" errors
 	require.NoError(t, err, "run --all plan should succeed")
@@ -193,11 +188,11 @@ func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
 		),
 	)
 
-	// Now run plan directly on "testing" module (without --all)
-	// This should work even in the broken version
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
+	// Now run plan directly on "testing" module (without --all)
+	// This should work even in the broken version
 	err := helpers.RunTerragruntCommand(
 		t,
 		"terragrunt plan --non-interactive --working-dir "+testingPath,
@@ -205,12 +200,7 @@ func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
 		&stderr,
 	)
 
-	output := stdout.String()
 	errOutput := stderr.String()
-
-	// Log the full output for debugging
-	t.Logf("STDOUT:\n%s", output)
-	t.Logf("STDERR:\n%s", errOutput)
 
 	// This should always work
 	require.NoError(t, err, "Direct plan should succeed")
@@ -243,10 +233,10 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 		),
 	)
 
-	// Apply the "testing" module with run --all
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
+	// Apply the "testing" module with run --all
 	err := helpers.RunTerragruntCommand(
 		t,
 		"terragrunt run --all apply -auto-approve --non-interactive --working-dir "+rootPath,
@@ -257,10 +247,7 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	output := stdout.String()
 	errOutput := stderr.String()
 
-	t.Logf("STDOUT:\n%s", output)
-	t.Logf("STDERR:\n%s", errOutput)
-
-	// Even if generate block fails, inputs should work
+	// Even if the generate block fails, inputs should work
 	// So we check if the variable was passed correctly
 	if err == nil {
 		// If no error, verify the file was created with the correct token
