@@ -479,8 +479,17 @@ func Parse(
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
+	// Use PartialParseConfigFile instead of ParseConfigFile to avoid evaluating generate blocks during discovery.
+	// During discovery, we set WithSkipOutputsResolution() to skip resolving dependency outputs for performance.
+	// However, generate blocks may reference dependency outputs (e.g., dependency.other.outputs.x).
+	// If we use ParseConfigFile here, it would evaluate generate blocks with unknown dependency values,
+	// causing "Unsuitable value: value must be known" errors.
+	// PartialParseConfigFile respects the WithDecodeList() and only decodes the blocks we need for discovery
+	// (dependencies, feature flags, excludes), skipping generate blocks. Generate blocks will be properly
+	// evaluated later when each unit runs individually with full dependency resolution.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/4962
 	//nolint: contextcheck
-	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err := config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)

@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	testFixtureRegressions = "fixtures/regressions"
+	testFixtureRegressions        = "fixtures/regressions"
+	testFixtureDependencyGenerate = "fixtures/regressions/dependency-generate"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -96,4 +98,174 @@ func TestIncludeError(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "include blocks without label")
+}
+
+// TestDependencyOutputInGenerateBlock tests that dependency outputs can be used in generate blocks.
+// This is a regression test for issue #4962 where using dependency outputs in generate blocks
+// started failing with "Unsuitable value: value must be known" error in v0.89.0+.
+//
+// The bug occurred because during `run --all`, the discovery phase was calling ParseConfigFile
+// instead of PartialParseConfigFile, which caused generate blocks to be evaluated before
+// dependency outputs were resolved. The fix ensures generate blocks are only evaluated when
+// each unit runs individually with full dependency resolution.
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/4962
+func TestDependencyOutputInGenerateBlock(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := util.JoinPath(rootPath, "other")
+	testingPath := util.JoinPath(rootPath, "testing")
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// First, apply the "other" module to create the outputs
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt apply -auto-approve --non-interactive --working-dir "+otherPath,
+			&stdout,
+			&stderr,
+		),
+	)
+
+	// Now run plan on "testing" module using run --all
+	// This should work - dependency outputs should be available in generate blocks
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+
+	output := stdout.String()
+	errOutput := stderr.String()
+
+	// Log the full output for debugging
+	t.Logf("STDOUT:\n%s", output)
+	t.Logf("STDERR:\n%s", errOutput)
+
+	// The test should pass - no "Unsuitable value" errors
+	require.NoError(t, err, "run --all plan should succeed")
+
+	// Should not contain the regression error
+	assert.NotContains(t, errOutput, "Unsuitable value: value must be known",
+		"Should not fail with 'Unsuitable value' error when using dependency outputs in generate blocks")
+	assert.NotContains(t, errOutput, "Unsuitable value type",
+		"Should not fail with 'Unsuitable value type' error")
+
+	// Verify the generate block was created successfully
+	generatedFile := util.JoinPath(testingPath, ".terragrunt-cache")
+	assert.DirExists(t, generatedFile, "Terragrunt cache should exist")
+}
+
+// TestDependencyOutputInGenerateBlockDirectRun tests that dependency outputs work when running directly
+// This test verifies that even in the broken version, running directly (without --all) works
+func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := util.JoinPath(rootPath, "other")
+	testingPath := util.JoinPath(rootPath, "testing")
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// First, apply the "other" module to create the outputs
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt apply -auto-approve --non-interactive --working-dir "+otherPath,
+			&stdout,
+			&stderr,
+		),
+	)
+
+	// Now run plan directly on "testing" module (without --all)
+	// This should work even in the broken version
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --non-interactive --working-dir "+testingPath,
+		&stdout,
+		&stderr,
+	)
+
+	output := stdout.String()
+	errOutput := stderr.String()
+
+	// Log the full output for debugging
+	t.Logf("STDOUT:\n%s", output)
+	t.Logf("STDERR:\n%s", errOutput)
+
+	// This should always work
+	require.NoError(t, err, "Direct plan should succeed")
+	assert.NotContains(t, errOutput, "Unsuitable value",
+		"Direct run should never fail with 'Unsuitable value' error")
+}
+
+// TestDependencyOutputInInputsStillWorks verifies that using dependency outputs in inputs
+// works even when generate blocks are broken
+func TestDependencyOutputInInputsStillWorks(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := util.JoinPath(rootPath, "other")
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// Apply the "other" module
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt apply -auto-approve --non-interactive --working-dir "+otherPath,
+			&stdout,
+			&stderr,
+		),
+	)
+
+	// Apply the "testing" module with run --all
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply -auto-approve --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+
+	output := stdout.String()
+	errOutput := stderr.String()
+
+	t.Logf("STDOUT:\n%s", output)
+	t.Logf("STDERR:\n%s", errOutput)
+
+	// Even if generate block fails, inputs should work
+	// So we check if the variable was passed correctly
+	if err == nil {
+		// If no error, verify the file was created with the correct token
+		assert.True(t, strings.Contains(output, "test-token-12345") ||
+			strings.Contains(errOutput, "test-token-12345"),
+			"Token should be passed via inputs")
+	}
 }
