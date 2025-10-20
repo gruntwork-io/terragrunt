@@ -74,6 +74,7 @@ func Build(
 		if err != nil {
 			return nil, err
 		}
+
 		d = d.WithFilters(filters)
 	}
 
