@@ -45,33 +45,25 @@ func (r *Runner) SetQueue(q *queue.Queue) {
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered component.Components, opts ...common.Option) (common.StackRunner, error) {
 	if len(discovered) == 0 {
-		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
-		isFilteringEnabled := terragruntOptions.StrictInclude ||
-			len(terragruntOptions.ModulesThatInclude) > 0
-
-		if isFilteringEnabled {
-			// Create an empty runner that will process no units
-			stack := common.Stack{
-				TerragruntOptions: terragruntOptions,
-				ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-			}
-
-			runner := &Runner{
-				Stack: &stack,
-			}
-
-			// Create an empty queue
-			q, queueErr := queue.NewQueue(component.Components{})
-			if queueErr != nil {
-				return nil, queueErr
-			}
-
-			runner.queue = q
-
-			return runner.WithOptions(opts...), nil
+		// Create an empty runner that will process no units
+		stack := common.Stack{
+			TerragruntOptions: terragruntOptions,
+			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		}
 
-		return nil, common.ErrNoUnitsFound
+		runner := &Runner{
+			Stack: &stack,
+		}
+
+		// Create an empty queue
+		q, queueErr := queue.NewQueue(component.Components{})
+		if queueErr != nil {
+			return nil, queueErr
+		}
+
+		runner.queue = q
+
+		return runner.WithOptions(opts...), nil
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
