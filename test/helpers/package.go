@@ -31,6 +31,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/mattn/go-shellwords"
 
 	"os"
 	"path/filepath"
@@ -910,10 +911,20 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntCommandWithContext(
+	t *testing.T,
+	ctx context.Context,
+	command string,
+	writer,
+	errwriter io.Writer,
+	extraArgs ...string,
+) error {
 	t.Helper()
 
-	args := splitCommand(command)
+	parser := shellwords.NewParser()
+
+	args, err := parser.Parse(command)
+	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
 		var builtinCmd []string
@@ -1067,39 +1078,6 @@ func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 	CopyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	return childTerragruntDestPath
-}
-
-func splitCommand(command string) []string {
-	var (
-		next   int
-		quoted byte
-		args   []string
-	)
-
-	for index := range len(command) {
-		char := command[index]
-
-		if char == '"' || char == '\'' {
-			if quoted == 0 {
-				quoted = char
-			} else if quoted == char && index > 0 && command[index-1] != '\\' {
-				quoted = 0
-			}
-		}
-
-		if quoted != 0 || char != ' ' {
-			continue
-		}
-
-		arg := strings.TrimSpace(command[next:index])
-		next = index + 1
-
-		if arg != "" {
-			args = append(args, arg)
-		}
-	}
-
-	return append(args, command[next:])
 }
 
 func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
