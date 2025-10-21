@@ -11,12 +11,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
@@ -35,6 +40,10 @@ var excludePaths = []string{
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		return runWithDiscovery(ctx, l, opts)
+	}
+
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
 	stdIn := opts.HclFromStdin
@@ -103,6 +112,154 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			formatErrors = formatErrors.Append(err)
 		}
 	}
+
+	return formatErrors.ErrorOrNil()
+}
+
+// shouldSkipFile checks if a file should be skipped based on exclusion rules and whether it was already processed.
+func shouldSkipFile(l log.Logger, filePath string, processedFiles map[string]bool, hclExclude []string) bool {
+	if processedFiles[filePath] {
+		return true
+	}
+
+	pathList := strings.Split(filePath, string(filepath.Separator))
+
+	for _, excludePath := range excludePaths {
+		if slices.Contains(pathList, excludePath) {
+			l.Debugf("%s was ignored", filePath)
+			return true
+		}
+	}
+
+	for _, excludeDir := range hclExclude {
+		if slices.Contains(pathList, excludeDir) {
+			l.Debugf("%s was ignored", filePath)
+			return true
+		}
+	}
+
+	return false
+}
+
+func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	workingDir := opts.WorkingDir
+	targetFile := opts.HclFile
+	stdIn := opts.HclFromStdin
+
+	if stdIn {
+		if targetFile != "" {
+			return errors.Errorf("both stdin and path flags are specified")
+		}
+
+		return formatFromStdin(l, opts)
+	}
+
+	if targetFile != "" {
+		if !filepath.IsAbs(targetFile) {
+			targetFile = util.JoinPath(workingDir, targetFile)
+		}
+
+		l.Debugf("Formatting hcl file at: %s.", targetFile)
+
+		return formatTgHCL(ctx, l, opts, targetFile)
+	}
+
+	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+		WorkingDir:    workingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return errors.New(err)
+	}
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU())
+
+	var (
+		formatErrors *errors.MultiError
+		mu           sync.Mutex
+	)
+
+	processedFiles := make(map[string]bool)
+
+	for _, comp := range components {
+		compDir := filepath.Dir(comp.Path)
+
+		entries, err := os.ReadDir(compDir)
+		if err != nil {
+			formatErrors = formatErrors.Append(err)
+			continue
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".hcl") {
+				continue
+			}
+
+			hclFile := filepath.Join(compDir, entry.Name())
+
+			if shouldSkipFile(l, hclFile, processedFiles, opts.HclExclude) {
+				continue
+			}
+
+			processedFiles[hclFile] = true
+
+			g.Go(func() error {
+				err := formatTgHCL(gctx, l, opts, hclFile)
+				if err != nil {
+					mu.Lock()
+
+					formatErrors = formatErrors.Append(err)
+
+					mu.Unlock()
+				}
+
+				return nil
+			})
+		}
+
+		if opts.HclNoReadFiles {
+			continue
+		}
+
+		for _, readingPath := range comp.Reading {
+			if !strings.HasSuffix(readingPath, ".hcl") {
+				continue
+			}
+
+			if shouldSkipFile(l, readingPath, processedFiles, opts.HclExclude) {
+				continue
+			}
+
+			processedFiles[readingPath] = true
+
+			filePath := readingPath
+			compPath := comp.Path
+
+			g.Go(func() error {
+				l.Warnf("Formatting %s (included because it was read by %s)", filePath, compPath)
+
+				err := formatTgHCL(gctx, l, opts, filePath)
+				if err != nil {
+					mu.Lock()
+
+					formatErrors = formatErrors.Append(err)
+
+					mu.Unlock()
+				}
+
+				return nil
+			})
+		}
+	}
+
+	_ = g.Wait()
 
 	return formatErrors.ErrorOrNil()
 }
@@ -196,11 +353,11 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 }
 
 // checkErrors takes in the contents of a hcl file and looks for syntax errors.
-func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFile string) error {
+func checkErrors(l log.Logger, disableColor bool, contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 
-	writer := writer.New(writer.WithLogger(logger), writer.WithDefaultLevel(log.ErrorLevel))
+	writer := writer.New(writer.WithLogger(l), writer.WithDefaultLevel(log.ErrorLevel))
 	diagWriter := parser.GetDiagnosticsWriter(writer, disableColor)
 
 	err := diagWriter.WriteDiagnostics(diags)
@@ -223,11 +380,11 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 	}
 
 	defer func() {
-		if err := f1.Close(); err != nil {
+		if err = f1.Close(); err != nil {
 			l.Warnf("Failed to close file %s %v", f1.Name(), err)
 		}
 
-		if err := os.Remove(f1.Name()); err != nil {
+		if err = os.Remove(f1.Name()); err != nil {
 			l.Warnf("Failed to remove file %s %v", f1.Name(), err)
 		}
 	}()
@@ -238,20 +395,20 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 	}
 
 	defer func() {
-		if err := f2.Close(); err != nil {
+		if err = f2.Close(); err != nil {
 			l.Warnf("Failed to close file %s %v", f2.Name(), err)
 		}
 
-		if err := os.Remove(f2.Name()); err != nil {
+		if err = os.Remove(f2.Name()); err != nil {
 			l.Warnf("Failed to remove file %s %v", f2.Name(), err)
 		}
 	}()
 
-	if _, err := f1.Write(b1); err != nil {
+	if _, err = f1.Write(b1); err != nil {
 		return nil, err
 	}
 
-	if _, err := f2.Write(b2); err != nil {
+	if _, err = f2.Write(b2); err != nil {
 		return nil, err
 	}
 
