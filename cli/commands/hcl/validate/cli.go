@@ -76,6 +76,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	}
 
 	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
+	flagSet = flagSet.Add(shared.NewFilterFlag(opts))
 
 	return flagSet
 }
