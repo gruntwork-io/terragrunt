@@ -512,6 +512,7 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 			DiscoveryContext: cfg.DiscoveryContext,
 			Parsed:           cfg.Parsed,
 			External:         cfg.External,
+			Reading:          cfg.Reading,
 		}
 
 		if len(cfg.Dependencies()) > 0 {
