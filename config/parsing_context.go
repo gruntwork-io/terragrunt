@@ -43,6 +43,10 @@ type ParsingContext struct {
 	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
 	ConvertToTerragruntConfigFunc func(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
+	// FilesRead tracks files that were read during parsing (absolute paths).
+	// This is a pointer so that it's shared across all parsing context copies.
+	FilesRead *[]string
+
 	// PartialParseDecodeList is the list of sections that are being decoded in the current config. This can be used to
 	// indicate/detect that the current parsing ctx is partial, meaning that not all configuration values are
 	// expected to be available.
@@ -58,10 +62,13 @@ type ParsingContext struct {
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
+	filesRead := make([]string, 0)
+
 	return &ParsingContext{
 		Context:           ctx,
 		TerragruntOptions: opts,
 		ParserOptions:     DefaultParserOptions(l, opts),
+		FilesRead:         &filesRead,
 	}
 }
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {

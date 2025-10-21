@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/go-commons/collections"
@@ -383,7 +384,11 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 		return nil, err
 	}
 
-	r.Stack.TerragruntOptions.CloneReadFiles(opts.ReadFiles)
+	// Extract files read by this unit from the parsing context
+	var readFiles []string
+	if parseCtx.FilesRead != nil {
+		readFiles = *parseCtx.FilesRead
+	}
 
 	terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
 	if err != nil {
@@ -406,7 +411,7 @@ func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, t
 		return nil, nil
 	}
 
-	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: readFiles}, nil
 }
 
 // resolveUnitPath converts a Terragrunt configuration file path to its corresponding unit path.
@@ -889,7 +894,7 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 		}
 
 		for _, unit := range units {
-			if opts.DidReadFile(path, unit.Path) {
+			if slices.Contains(unit.Reading, path) {
 				unit.FlagExcluded = false
 			}
 		}
