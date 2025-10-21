@@ -11,6 +11,7 @@ type Lexer struct {
 	position     int    // Current position in input (points to current char)
 	readPosition int    // Current reading position in input (after current char)
 	ch           byte   // Current char under examination
+	afterEqual   bool   // True if the last token was EQUAL (for parsing attribute values)
 }
 
 // NewLexer creates a new Lexer for the given input string.
@@ -39,6 +40,8 @@ func (l *Lexer) NextToken() Token {
 	case '=':
 		tok = NewToken(EQUAL, string(l.ch), startPosition)
 		l.readChar()
+		l.afterEqual = true
+		return tok
 	case '{':
 		tok = NewToken(LBRACE, string(l.ch), startPosition)
 		l.readChar()
@@ -63,6 +66,15 @@ func (l *Lexer) NextToken() Token {
 	case '/':
 		tok = l.readPath(startPosition)
 	default:
+		if l.afterEqual {
+			// After '=', read as attribute value (can contain slashes)
+			literal := l.readAttributeValue()
+			tok = NewToken(IDENT, literal, startPosition)
+			l.afterEqual = false
+
+			return tok
+		}
+
 		if isIdentifierChar(l.ch) {
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
@@ -73,6 +85,8 @@ func (l *Lexer) NextToken() Token {
 		tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 		l.readChar()
 	}
+
+	l.afterEqual = false
 
 	return tok
 }
@@ -123,6 +137,21 @@ func (l *Lexer) readIdentifier() string {
 	return strings.TrimSpace(literal)
 }
 
+// readAttributeValue reads an attribute value from the input.
+// Attribute values can contain slashes, letters, numbers, underscores, hyphens, dots, etc.
+// They stop at special operators (|, !, {, }) or end of input.
+// Trailing whitespace is trimmed.
+func (l *Lexer) readAttributeValue() string {
+	position := l.position
+	for isAttributeValueChar(l.ch) {
+		l.readChar()
+	}
+
+	literal := l.input[position:l.position]
+
+	return strings.TrimSpace(literal)
+}
+
 // readPath reads a path from the input.
 // Paths can contain any characters except special operators.
 // Trailing whitespace is trimmed.
@@ -152,6 +181,12 @@ func isPathSeparator(ch byte) bool {
 // isIdentifierChar returns true if the character can be part of an identifier.
 func isIdentifierChar(ch byte) bool {
 	return !isSpecialChar(ch) && !isPathSeparator(ch)
+}
+
+// isAttributeValueChar returns true if the character can be part of an attribute value.
+// Attribute values can contain slashes (unlike regular identifiers).
+func isAttributeValueChar(ch byte) bool {
+	return !isSpecialChar(ch)
 }
 
 // isPathChar returns true if the character can be part of a path.

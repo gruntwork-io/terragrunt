@@ -2,7 +2,6 @@ package filter
 
 import (
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -140,17 +139,42 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 			}
 
 			for _, c := range components {
-				if slices.ContainsFunc(c.Reading, g.Match) {
-					result = append(result, c)
+				for _, readFile := range c.Reading {
+					normalizedPath := readFile
+					if !filepath.IsAbs(normalizedPath) {
+						normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+					}
+					normalizedPath = filepath.ToSlash(normalizedPath)
+
+					if g.Match(normalizedPath) {
+						result = append(result, c)
+						break
+					}
 				}
 			}
 
 			break
 		}
 
+		// Exact match - also normalize paths
+		matchPath := filter.Value
+		if !filepath.IsAbs(matchPath) {
+			matchPath = filepath.Join(filter.WorkingDir, matchPath)
+		}
+		matchPath = filepath.ToSlash(matchPath)
+
 		for _, c := range components {
-			if slices.Contains(c.Reading, filter.Value) {
-				result = append(result, c)
+			for _, readFile := range c.Reading {
+				normalizedPath := readFile
+				if !filepath.IsAbs(normalizedPath) {
+					normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+				}
+				normalizedPath = filepath.ToSlash(normalizedPath)
+
+				if normalizedPath == matchPath {
+					result = append(result, c)
+					break // Only add component once
+				}
 			}
 		}
 	default:
