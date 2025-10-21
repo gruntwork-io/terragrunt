@@ -141,6 +141,7 @@ type FoundComponent struct {
 	Include map[string]string     `json:"include,omitempty"`
 
 	Dependencies []string `json:"dependencies,omitempty"`
+	Reading      []string `json:"reading,omitempty"`
 }
 
 func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
@@ -186,23 +187,32 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		if !opts.Dependencies || len(config.Dependencies()) == 0 {
-			foundCfgs = append(foundCfgs, foundCfg)
+		if opts.Dependencies && len(c.Dependencies()) > 0 {
+			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
-			continue
+			for i, dep := range c.Dependencies() {
+				relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+				if err != nil {
+					errs = append(errs, errors.New(err))
+
+					continue
+				}
+
+				foundComponent.Dependencies[i] = relDepPath
+			}
 		}
 
-		foundCfg.Dependencies = make([]string, len(config.Dependencies()))
+		if opts.Reading && len(c.Reading) > 0 {
+			foundComponent.Reading = make([]string, len(c.Reading))
 
-		for i, dep := range config.Dependencies() {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
-			if err != nil {
-				errs = append(errs, errors.New(err))
+			for i, reading := range c.Reading {
+				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
+				if err != nil {
+					errs = append(errs, errors.New(err))
+				}
 
-				continue
+				foundComponent.Reading[i] = relReadingPath
 			}
-
-			foundComponent.Dependencies[i] = relDepPath
 		}
 
 		foundComponents = append(foundComponents, foundComponent)
