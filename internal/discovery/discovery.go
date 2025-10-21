@@ -110,9 +110,6 @@ type Discovery struct {
 	// filters contains filter queries for component selection
 	filters filter.Filters
 
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
-
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
 
