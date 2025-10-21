@@ -455,6 +455,7 @@ func (r *UnitResolver) createParsingContext(ctx context.Context, l log.Logger, o
 			config.DependenciesBlock,
 			config.DependencyBlock,
 			config.FeatureFlagsBlock,
+			config.ExcludeBlock,
 			config.ErrorsBlock,
 		)
 }

@@ -479,17 +479,30 @@ func Parse(
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
-	// Use PartialParseConfigFile instead of ParseConfigFile to avoid evaluating generate blocks during discovery.
-	// During discovery, we set WithSkipOutputsResolution() to skip resolving dependency outputs for performance.
-	// However, generate blocks may reference dependency outputs (e.g., dependency.other.outputs.x).
-	// If we use ParseConfigFile here, it would evaluate generate blocks with unknown dependency values,
-	// causing "Unsuitable value: value must be known" errors.
-	// PartialParseConfigFile respects the WithDecodeList() and only decodes the blocks we need for discovery
-	// (dependencies, feature flags, excludes), skipping generate blocks. Generate blocks will be properly
-	// evaluated later when each unit runs individually with full dependency resolution.
+	// Choose between full and partial parsing based on context:
+	// - For validation (when parserOptions are provided), use ParseConfigFile to parse ALL blocks
+	//   including locals, inputs, and generate blocks. This ensures validation catches all errors.
+	// - For execution (when parserOptions are empty), use PartialParseConfigFile to parse only
+	//   the blocks specified in WithDecodeList() (dependencies, feature flags, excludes).
+	//   This avoids evaluating generate blocks during discovery when dependency outputs aren't
+	//   resolved yet, which would cause "Unsuitable value: value must be known" errors.
+	//   Generate blocks will be properly evaluated later when each unit runs individually.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/4962
-	//nolint: contextcheck
-	cfg, err := config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	var (
+		cfg *config.TerragruntConfig
+		err error
+	)
+
+	if len(parserOptions) > 0 {
+		// Full parsing for validation
+		//nolint: contextcheck
+		cfg, err = config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	} else {
+		// Partial parsing for execution
+		//nolint: contextcheck
+		cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	}
+
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
