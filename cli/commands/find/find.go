@@ -194,19 +194,6 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		if opts.Reading && len(c.Reading) > 0 {
-			foundComponent.Reading = make([]string, len(c.Reading))
-
-			for i, reading := range c.Reading {
-				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
-				if err != nil {
-					errs = append(errs, errors.New(err))
-				}
-
-				foundComponent.Reading[i] = relReadingPath
-			}
-		}
-
 		foundComponents = append(foundComponents, foundComponent)
 	}
 
