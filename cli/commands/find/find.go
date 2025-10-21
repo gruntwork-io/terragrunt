@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/mattn/go-shellwords"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -22,39 +21,19 @@ import (
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		Hidden:        opts.Hidden,
-		Dependencies:  opts.Dependencies || opts.External || opts.Mode == ModeDAG,
-		External:      opts.External,
-		Exclude:       opts.Exclude,
-		Include:       opts.Include,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:       opts.WorkingDir,
+		QueueConstructAs: opts.QueueConstructAs,
+		Hidden:           opts.Hidden,
+		Dependencies:     opts.Dependencies || opts.External || opts.Mode == ModeDAG,
+		External:         opts.External,
+		Exclude:          opts.Exclude,
+		Include:          opts.Include,
+		Reading:          opts.Reading,
+		FilterQueries:    opts.FilterQueries,
+		Experiments:      opts.Experiments,
 	})
 	if err != nil {
 		return errors.New(err)
-	}
-
-	if opts.QueueConstructAs != "" {
-		d = d.WithParseExclude()
-
-		parser := shellwords.NewParser()
-
-		args, parseErr := parser.Parse(opts.QueueConstructAs)
-		if parseErr != nil {
-			return errors.New(parseErr)
-		}
-
-		cmd := args[0]
-
-		if len(args) > 1 {
-			args = args[1:]
-		}
-
-		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
-		})
 	}
 
 	var (
