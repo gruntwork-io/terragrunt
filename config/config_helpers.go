@@ -721,7 +721,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	}
 
 	// Track that this file was read during parsing
-	*ctx.FilesRead = append(*ctx.FilesRead, path)
+	trackFileRead(ctx.FilesRead, path)
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	l, opts, err := ctx.TerragruntOptions.CloneWithConfigPath(l, targetConfig)
@@ -940,7 +940,7 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 	}
 
 	// Track that this file was read during parsing
-	*ctx.FilesRead = append(*ctx.FilesRead, path)
+	trackFileRead(ctx.FilesRead, path)
 
 	// Set environment variables from the TerragruntOptions.Env map.
 	// This is especially useful for integrations with things like the `auth-provider` flag,
@@ -1139,7 +1139,7 @@ func readTFVarsFile(ctx *ParsingContext, l log.Logger, args []string) (string, e
 	}
 
 	// Track that this file was read during parsing
-	*ctx.FilesRead = append(*ctx.FilesRead, varFile)
+	trackFileRead(ctx.FilesRead, varFile)
 
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
@@ -1188,7 +1188,7 @@ func markAsRead(ctx *ParsingContext, l log.Logger, args []string) (string, error
 	}
 
 	// Track that this file was read during parsing
-	*ctx.FilesRead = append(*ctx.FilesRead, path)
+	trackFileRead(ctx.FilesRead, path)
 
 	return file, nil
 }
