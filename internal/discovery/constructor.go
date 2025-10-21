@@ -45,6 +45,7 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithDiscoverDependencies()
 
 		parser := shellwords.NewParser()
+
 		args, err := parser.Parse(opts.QueueConstructAs)
 		if err != nil {
 			return nil, err
