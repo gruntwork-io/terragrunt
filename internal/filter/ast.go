@@ -2,7 +2,6 @@ package filter
 
 import (
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/gobwas/glob"
@@ -61,11 +60,12 @@ type AttributeFilter struct {
 }
 
 // CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
-// Returns nil glob and nil error for non-glob patterns or unsupported attributes.
+// Returns an error if called on unsupported attributes (e.g. type, external).
 // Uses sync.Once for thread-safe lazy initialization.
 func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
-	if !a.IsGlob() {
-		return nil, nil
+	// Only compile for attributes that support glob matching
+	if !a.supportsGlob() {
+		return nil, NewEvaluationError("attribute '" + a.Key + "' does not support glob patterns")
 	}
 
 	a.compileOnce.Do(func() {
@@ -75,6 +75,7 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 			if !filepath.IsAbs(pattern) {
 				pattern = filepath.Join(a.WorkingDir, pattern)
 			}
+
 			pattern = filepath.ToSlash(pattern)
 		}
 
@@ -84,11 +85,9 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 	return a.compiledGlob, a.compileErr
 }
 
-// IsGlob returns true if the attribute filter is a glob pattern.
-//
-// Only returns true if the key of the attribute filter is one that supports glob patterns.
-func (a *AttributeFilter) IsGlob() bool {
-	return (a.Key == AttributeReading || a.Key == AttributeName) && containsGlobChars(a.Value)
+// supportsGlob returns true if the attribute filter supports glob patterns.
+func (a *AttributeFilter) supportsGlob() bool {
+	return a.Key == AttributeReading || a.Key == AttributeName
 }
 
 func (a *AttributeFilter) expressionNode() {}
@@ -113,9 +112,4 @@ type InfixExpression struct {
 func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
-}
-
-// containsGlobChars checks if a string contains glob pattern characters.
-func containsGlobChars(s string) bool {
-	return strings.ContainsAny(s, "*?[]")
 }

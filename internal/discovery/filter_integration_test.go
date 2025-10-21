@@ -833,7 +833,7 @@ locals {
 	opts.RootWorkingDir = tmpDir
 
 	// Test with absolute path filter
-	filterQueries := []string{fmt.Sprintf("reading=%s", sharedFile)}
+	filterQueries := []string{"reading=" + sharedFile}
 	filters, err := filter.ParseFilterQueries(filterQueries, tmpDir)
 	require.NoError(t, err)
 
