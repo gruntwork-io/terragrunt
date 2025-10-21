@@ -164,8 +164,8 @@ func (e Entries) Entry(cfg *component.Component) *Entry {
 	return nil
 }
 
-// Configs returns the queue configs.
-func (q *Queue) Configs() component.Components {
+// Components returns the queue components.
+func (q *Queue) Components() component.Components {
 	result := make(component.Components, 0, len(q.Entries))
 	for _, entry := range q.Entries {
 		result = append(result, entry.Component)

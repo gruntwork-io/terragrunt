@@ -139,7 +139,7 @@ func TestRun(t *testing.T) {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs find.FoundConfigs
+				var configs find.FoundComponents
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -353,7 +353,7 @@ dependency "B" {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs []find.FoundConfig
+				var configs []find.FoundComponent
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -464,14 +464,14 @@ func TestColorizer(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *find.FoundConfig
+		config *find.FoundComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
 		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &find.FoundConfig{
+			config: &find.FoundComponent{
 				Type: component.Unit,
 				Path: "path/to/unit",
 			},
@@ -479,7 +479,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &find.FoundConfig{
+			config: &find.FoundComponent{
 				Type: component.Stack,
 				Path: "path/to/stack",
 			},
@@ -496,7 +496,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &find.FoundConfig{
+				diffConfig := &find.FoundComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}
