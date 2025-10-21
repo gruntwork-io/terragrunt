@@ -493,16 +493,13 @@ func Parse(
 		err error
 	)
 
+	// Select parse function: full parsing for validation, partial for execution
+	parseFunc := config.PartialParseConfigFile
 	if len(parserOptions) > 0 {
-		// Full parsing for validation
-		//nolint: contextcheck
-		cfg, err = config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
-	} else {
-		// Partial parsing for execution
-		//nolint: contextcheck
-		cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+		parseFunc = config.ParseConfigFile
 	}
-
+	//nolint: contextcheck
+	cfg, err = parseFunc(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
