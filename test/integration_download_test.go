@@ -324,13 +324,10 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", tc.workingDir, tc.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
+		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-		if err != nil {
-			t.Fatalf("run --all apply in TestExcludeDirs failed with error: %v. Full std", err)
-		}
 
 		// Check that the excluded module output is not present
 		for _, modulePath := range modulePaths {
@@ -415,13 +412,10 @@ func TestIncludeDirs(t *testing.T) {
 			&applyAllStdout,
 			&applyAllStderr,
 		)
+		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-		if err != nil {
-			t.Fatalf("run --all apply in TestIncludeDirs failed with error: %v. Full std", err)
-		}
 
 		// Check that the included module output is present
 		for _, modulePath := range unitPaths {
@@ -523,13 +517,10 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 			&applyAllStdout,
 			&applyAllStderr,
 		)
+		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-		if err != nil {
-			t.Fatalf("run --all apply in TestIncludeDirsWithFilter failed with error: %v. Full std", err)
-		}
 
 		// Check that the included module output is present
 		for _, unitPath := range unitPaths {
@@ -707,13 +698,16 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies,
+		&applyAllStdout,
+		&applyAllStderr,
+	)
+	require.NoError(t, err)
+
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-	if err != nil {
-		t.Fatalf("run --all apply in TestPreventDestroyDependencies failed with error: %v. Full std", err)
-	}
 
 	var (
 		destroyAllStdout bytes.Buffer
