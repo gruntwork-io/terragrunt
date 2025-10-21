@@ -11,6 +11,7 @@
 package test_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -277,25 +278,23 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 				"reading-tfvars",
 			},
 		},
-		// FIXME: Restore this once `run` supports `reading` filter queries
-		//
-		// {
-		// 	name: "reading_from_hcl_with_include_and_exclude",
-		// 	unitsReading: []string{
-		// 		"shared.hcl",
-		// 		"shared.tfvars",
-		// 	},
-		// 	unitsIncluding: []string{
-		// 		"reading-tfvars",
-		// 	},
-		// 	unitsExcluding: []string{
-		// 		"reading-hcl-and-tfvars",
-		// 	},
-		// 	expectedUnits: []string{
-		// 		"reading-hcl",
-		// 		"reading-tfvars",
-		// 	},
-		// },
+		{
+			name: "reading_from_hcl_with_include_and_exclude",
+			unitsReading: []string{
+				"shared.hcl",
+				"shared.tfvars",
+			},
+			unitsIncluding: []string{
+				"reading-tfvars",
+			},
+			unitsExcluding: []string{
+				"reading-hcl-and-tfvars",
+			},
+			expectedUnits: []string{
+				"reading-hcl",
+				"reading-tfvars",
+			},
+		},
 		{
 			name: "indirect",
 			unitsReading: []string{
@@ -326,7 +325,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
 
 			for _, f := range tc.unitsReading {
-				cmd = cmd + " --queue-include-units-reading " + f
+				cmd = cmd + fmt.Sprintf(" --filter reading=%s", filepath.Join(rootPath, f))
 			}
 
 			for _, unit := range tc.unitsIncluding {
