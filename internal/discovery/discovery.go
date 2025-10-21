@@ -387,7 +387,7 @@ func String(c *component.Component) string {
 // ContainsDependencyInAncestry returns true if the Component or any of
 // its dependencies contains the given path as a dependency.
 func ContainsDependencyInAncestry(c *component.Component, path string) bool {
-	for _, dep := range c.Dependencies {
+	for _, dep := range c.Dependencies() {
 		if dep.Path == path {
 			return true
 		}
@@ -974,7 +974,7 @@ func (d *Discovery) Discover(
 				l.Debugf("Errors: %w", err)
 			}
 
-			components = dependencyDiscovery.cfgs
+			components = dependencyDiscovery.components
 
 			return nil
 		})
@@ -1026,7 +1026,7 @@ func (d *Discovery) Discover(
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
 	discoveryContext    *component.DiscoveryContext
-	cfgs                component.Components
+	components          component.Components
 	parserOptions       []hclparse.Option
 	depthRemaining      int
 	discoverExternal    bool
@@ -1037,9 +1037,9 @@ type DependencyDiscovery struct {
 // DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.
 type DependencyDiscoveryOption func(*DependencyDiscovery)
 
-func NewDependencyDiscovery(cfgs component.Components, depthRemaining int) *DependencyDiscovery {
+func NewDependencyDiscovery(components component.Components, depthRemaining int) *DependencyDiscovery {
 	return &DependencyDiscovery{
-		cfgs:           cfgs,
+		components:     components,
 		depthRemaining: depthRemaining,
 	}
 }
@@ -1079,7 +1079,7 @@ func (d *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.D
 func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	errs := []error{}
 
-	for _, cfg := range d.cfgs {
+	for _, cfg := range d.components {
 		if cfg.Kind == component.Stack {
 			continue
 		}
@@ -1097,7 +1097,12 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log
 	return nil
 }
 
-func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dCfg *component.Component) error {
+func (d *DependencyDiscovery) DiscoverDependencies(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	dComponent *component.Component,
+) error {
 	if d.depthRemaining <= 0 {
 		return errors.New("max dependency depth reached while discovering dependencies")
 	}
@@ -1108,19 +1113,19 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.
-	if dCfg.Kind == component.Stack {
+	if dComponent.Kind == component.Stack {
 		return nil
 	}
 
 	// This should only happen if we're discovering an ancestor dependency.
-	if dCfg.Parsed == nil {
-		err := Parse(dCfg, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
+	if dComponent.Parsed == nil {
+		err := Parse(dComponent, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 		if err != nil {
 			return errors.New(err)
 		}
 	}
 
-	dependencyBlocks := dCfg.Parsed.TerragruntDependencies
+	dependencyBlocks := dComponent.Parsed.TerragruntDependencies
 
 	depPaths := make([]string, 0, len(dependencyBlocks))
 
@@ -1136,16 +1141,16 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		depPath := dependency.ConfigPath.AsString()
 
 		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Join(dCfg.Path, depPath)
+			depPath = filepath.Join(dComponent.Path, depPath)
 		}
 
 		depPaths = append(depPaths, depPath)
 	}
 
-	if dCfg.Parsed.Dependencies != nil {
-		for _, dependency := range dCfg.Parsed.Dependencies.Paths {
+	if dComponent.Parsed.Dependencies != nil {
+		for _, dependency := range dComponent.Parsed.Dependencies.Paths {
 			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Join(dCfg.Path, dependency)
+				dependency = filepath.Join(dComponent.Path, dependency)
 			}
 
 			depPaths = append(depPaths, dependency)
@@ -1169,11 +1174,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 	for depPath := range deduped {
 		external := true
 
-		for _, c := range d.cfgs {
+		for _, c := range d.components {
 			if c.Path == depPath {
 				external = false
 
-				dCfg.Dependencies = append(dCfg.Dependencies, c)
+				dComponent.AddDependency(c)
 
 				continue
 			}
@@ -1195,10 +1200,10 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 				ext.DiscoveryContext = d.discoveryContext
 			}
 
-			dCfg.Dependencies = append(dCfg.Dependencies, ext)
+			dComponent.AddDependency(ext)
 
 			if d.discoverExternal {
-				d.cfgs = append(d.cfgs, ext)
+				d.components = append(d.components, ext)
 
 				err := d.DiscoverDependencies(ctx, l, opts, ext)
 				if err != nil {

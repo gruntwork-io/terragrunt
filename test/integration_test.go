@@ -359,19 +359,19 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		},
 		{
 			logCustomFormat: "%time(color=green) %level %wrong",
-			expectedErr:     errors.Errorf(`invalid value "\"%%time(color=green) %%level %%wrong\"" for flag -log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
+			expectedErr:     errors.Errorf(`invalid value "%%time(color=green) %%level %%wrong" for flag -log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
 		},
 		{
 			logCustomFormat: "%time(colorr=green) %level",
-			expectedErr:     errors.Errorf(`invalid value "\"%%time(colorr=green) %%level\"" for flag -log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
+			expectedErr:     errors.Errorf(`invalid value "%%time(colorr=green) %%level" for flag -log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
 		},
 		{
 			logCustomFormat: "%time(color=green) %level(format=tinyy)",
-			expectedErr:     errors.New(`invalid value "\"%time(color=green) %level(format=tinyy)\"" for flag -log-custom-format: placeholder "level", option "format", invalid value "tinyy", available values: full,short,tiny`),
+			expectedErr:     errors.New(`invalid value "%time(color=green) %level(format=tinyy)" for flag -log-custom-format: placeholder "level", option "format", invalid value "tinyy", available values: full,short,tiny`),
 		},
 		{
 			logCustomFormat: "%time(=green) %level(format=tiny)",
-			expectedErr:     errors.New(`invalid value "\"%time(=green) %level(format=tiny)\"" for flag -log-custom-format: placeholder "time", empty option name "=green) %level(format=tiny)\""`),
+			expectedErr:     errors.New(`invalid value "%time(=green) %level(format=tiny)" for flag -log-custom-format: placeholder "time", empty option name "=green) %level(format=tiny)"`),
 		},
 	}
 
@@ -3129,7 +3129,7 @@ func TestDependencyInputsBlockedByDefault(t *testing.T) {
 	// Create a terragrunt.hcl that uses the deprecated dependency.foo.inputs syntax
 	dependencyConfig := `
 dependency "dep" {
-  config_path = "../dep" 
+  config_path = "../dep"
 }
 
 inputs = {

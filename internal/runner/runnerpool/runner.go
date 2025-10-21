@@ -43,35 +43,35 @@ func (r *Runner) SetQueue(q *queue.Queue) {
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered component.Components, opts ...common.Option) (common.StackRunner, error) {
+func NewRunnerPoolStack(
+	ctx context.Context,
+	l log.Logger,
+	terragruntOptions *options.TerragruntOptions,
+	discovered component.Components,
+	opts ...common.Option,
+) (common.StackRunner, error) {
 	if len(discovered) == 0 {
-		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
-		isFilteringEnabled := terragruntOptions.StrictInclude ||
-			len(terragruntOptions.ModulesThatInclude) > 0
+		l.Warnf("No units discovered. Creating an empty runner.")
 
-		if isFilteringEnabled {
-			// Create an empty runner that will process no units
-			stack := common.Stack{
-				TerragruntOptions: terragruntOptions,
-				ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-			}
-
-			runner := &Runner{
-				Stack: &stack,
-			}
-
-			// Create an empty queue
-			q, queueErr := queue.NewQueue(component.Components{})
-			if queueErr != nil {
-				return nil, queueErr
-			}
-
-			runner.queue = q
-
-			return runner.WithOptions(opts...), nil
+		// Create an empty runner that will process no units
+		stack := common.Stack{
+			TerragruntOptions: terragruntOptions,
+			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		}
 
-		return nil, common.ErrNoUnitsFound
+		runner := &Runner{
+			Stack: &stack,
+		}
+
+		// Create an empty queue
+		q, queueErr := queue.NewQueue(component.Components{})
+		if queueErr != nil {
+			return nil, queueErr
+		}
+
+		runner.queue = q
+
+		return runner.WithOptions(opts...), nil
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
@@ -260,14 +260,14 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
 		for _, qe := range r.queue.Entries {
-			statusByPath[qe.Config.Path] = qe.Status
+			statusByPath[qe.Component.Path] = qe.Status
 		}
 
 		for _, entry := range r.queue.Entries {
 			if entry.Status == queue.StatusEarlyExit {
-				unit := r.getUnitByPath(entry.Config.Path)
+				unit := r.getUnitByPath(entry.Component.Path)
 				if unit == nil {
-					l.Warnf("Could not find unit for early exit entry: %s", entry.Config.Path)
+					l.Warnf("Could not find unit for early exit entry: %s", entry.Component.Path)
 					continue
 				}
 
@@ -293,7 +293,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// If a dependency failed, use it; otherwise if a dependency exited early, use it
 				var failedAncestor string
 
-				for _, dep := range entry.Config.Dependencies {
+				for _, dep := range entry.Component.Dependencies() {
 					status := statusByPath[dep.Path]
 					if status == queue.StatusFailed {
 						failedAncestor = filepath.Base(dep.Path)
@@ -364,7 +364,7 @@ func (r *Runner) getUnitByPath(path string) *common.Unit {
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 	for _, unit := range r.queue.Entries {
-		outStr += fmt.Sprintf("- Unit %s\n", unit.Config.Path)
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.Path)
 	}
 
 	l.Info(outStr)
@@ -376,7 +376,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
-		orderedUnits = append(orderedUnits, unit.Config.Path)
+		orderedUnits = append(orderedUnits, unit.Component.Path)
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")
@@ -392,9 +392,9 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, unit := range r.queue.Entries {
-		if len(unit.Config.Dependencies) != 0 {
-			for _, dep := range unit.Config.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Config.Path))
+		if len(unit.Component.Dependencies()) != 0 {
+			for _, dep := range unit.Component.Dependencies() {
+				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Component.Path))
 			}
 		}
 	}
@@ -505,19 +505,21 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 			continue
 		}
 
-		// Shallow copy unit struct to avoid field drift as values update
-		copyVal := *cfg
-		copyCfg := &copyVal
+		// Create a new component with filtered dependencies
+		copyCfg := &component.Component{
+			Kind:             cfg.Kind,
+			Path:             cfg.Path,
+			DiscoveryContext: cfg.DiscoveryContext,
+			Parsed:           cfg.Parsed,
+			External:         cfg.External,
+		}
 
-		if cfg.Dependencies != nil {
-			deps := make(component.Components, 0, len(cfg.Dependencies))
-			for _, dep := range cfg.Dependencies {
+		if len(cfg.Dependencies()) > 0 {
+			for _, dep := range cfg.Dependencies() {
 				if _, ok := allowed[dep.Path]; ok {
-					deps = append(deps, dep)
+					copyCfg.AddDependency(dep)
 				}
 			}
-
-			copyCfg.Dependencies = deps
 		}
 
 		filtered = append(filtered, copyCfg)
@@ -556,8 +558,8 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 		}
 
 		// Build a set of existing dependency paths on cfg to avoid duplicates
-		existing := make(map[string]struct{}, len(cfg.Dependencies))
-		for _, dep := range cfg.Dependencies {
+		existing := make(map[string]struct{}, len(cfg.Dependencies()))
+		for _, dep := range cfg.Dependencies() {
 			existing[dep.Path] = struct{}{}
 		}
 
@@ -583,7 +585,7 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 				present[depUnit.Path] = depCfg
 			}
 
-			cfg.Dependencies = append(cfg.Dependencies, depCfg)
+			cfg.AddDependency(depCfg)
 		}
 	}
 

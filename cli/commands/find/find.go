@@ -186,15 +186,15 @@ func discoveredToFound(configs component.Components, opts *Options) (FoundConfig
 			}
 		}
 
-		if !opts.Dependencies || len(config.Dependencies) == 0 {
+		if !opts.Dependencies || len(config.Dependencies()) == 0 {
 			foundCfgs = append(foundCfgs, foundCfg)
 
 			continue
 		}
 
-		foundCfg.Dependencies = make([]string, len(config.Dependencies))
+		foundCfg.Dependencies = make([]string, len(config.Dependencies()))
 
-		for i, dep := range config.Dependencies {
+		for i, dep := range config.Dependencies() {
 			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
 			if err != nil {
 				errs = append(errs, errors.New(err))
