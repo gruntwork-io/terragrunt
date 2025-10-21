@@ -42,9 +42,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 		parser := shellwords.NewParser()
 
-		args, err := parser.Parse(opts.QueueConstructAs)
-		if err != nil {
-			return errors.New(err)
+		args, parseErr := parser.Parse(opts.QueueConstructAs)
+		if parseErr != nil {
+			return errors.New(parseErr)
 		}
 
 		cmd := args[0]
@@ -65,7 +65,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	)
 
 	// Wrap discovery with telemetry
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": shouldDiscoverDependencies(opts),
@@ -74,15 +74,15 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
-	if telemetryErr != nil {
-		l.Debugf("Errors encountered while discovering configurations:\n%s", telemetryErr)
+	if err != nil {
+		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
 	case ModeNormal:
 		cfgs = cfgs.Sort()
 	case ModeDAG:
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
 			"config_count": len(cfgs),
 		}, func(ctx context.Context) error {
@@ -368,7 +368,7 @@ func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
 
 			dependenciesPadding := (longestPathLen - len(config.Path)) + extraDependenciesPadding
 			for range dependenciesPadding {
-				_, err := opts.Writer.Write([]byte(" "))
+				_, err = opts.Writer.Write([]byte(" "))
 				if err != nil {
 					return errors.New(err)
 				}
@@ -401,7 +401,7 @@ func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
 
 		dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
 		for range dependenciesPadding {
-			_, err := opts.Writer.Write([]byte(" "))
+			_, err = opts.Writer.Write([]byte(" "))
 			if err != nil {
 				return errors.New(err)
 			}

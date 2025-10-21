@@ -40,9 +40,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 		parser := shellwords.NewParser()
 
-		args, err := parser.Parse(opts.QueueConstructAs)
-		if err != nil {
-			return errors.New(err)
+		args, parseErr := parser.Parse(opts.QueueConstructAs)
+		if parseErr != nil {
+			return errors.New(parseErr)
 		}
 
 		cmd := args[0]
@@ -81,7 +81,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	case ModeNormal:
 		cfgs = cfgs.Sort()
 	case ModeDAG:
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
 			"config_count": len(cfgs),
 		}, func(ctx context.Context) error {
