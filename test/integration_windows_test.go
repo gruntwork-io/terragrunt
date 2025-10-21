@@ -119,7 +119,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 				),
 			)
 			tgPath := filepath.Join(rootPath, tc.name)
-			tgArgs := "terragrunt run --all apply --non-interactive --log-level trace --working-dir " + tgPath
+			tgArgs := fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir '%s'", tgPath)
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}
@@ -202,7 +202,7 @@ func TestWindowsScaffold(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	assert.NoError(t, err)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --working-dir %s", tmpDir))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --working-dir '%s'", tmpDir))
 
 	// check that terragrunt.hcl was created
 	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -216,7 +216,7 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	assert.NoError(t, err)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --working-dir %s", tmpDir))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --working-dir '%s'", tmpDir))
 
 	// check that terragrunt.hcl was created
 	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
