@@ -75,7 +75,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return discoverErr
 	})
 	if err != nil {
-		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
+		l.Debugf("Errors encountered while discovering components:\n%s", err)
 	}
 
 	switch opts.Mode {
