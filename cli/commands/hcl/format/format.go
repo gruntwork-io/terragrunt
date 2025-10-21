@@ -116,31 +116,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return formatErrors.ErrorOrNil()
 }
 
-// shouldSkipFile checks if a file should be skipped based on exclusion rules and whether it was already processed.
-func shouldSkipFile(l log.Logger, filePath string, processedFiles map[string]bool, hclExclude []string) bool {
-	if processedFiles[filePath] {
-		return true
-	}
-
-	pathList := strings.Split(filePath, string(filepath.Separator))
-
-	for _, excludePath := range excludePaths {
-		if slices.Contains(pathList, excludePath) {
-			l.Debugf("%s was ignored", filePath)
-			return true
-		}
-	}
-
-	for _, excludeDir := range hclExclude {
-		if slices.Contains(pathList, excludeDir) {
-			l.Debugf("%s was ignored", filePath)
-			return true
-		}
-	}
-
-	return false
-}
-
 func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
@@ -262,6 +237,31 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 	_ = g.Wait()
 
 	return formatErrors.ErrorOrNil()
+}
+
+// shouldSkipFile checks if a file should be skipped based on exclusion rules and whether it was already processed.
+func shouldSkipFile(l log.Logger, filePath string, processedFiles map[string]bool, hclExclude []string) bool {
+	if processedFiles[filePath] {
+		return true
+	}
+
+	pathList := strings.Split(filePath, string(filepath.Separator))
+
+	for _, excludePath := range excludePaths {
+		if slices.Contains(pathList, excludePath) {
+			l.Debugf("%s was ignored", filePath)
+			return true
+		}
+	}
+
+	for _, excludeDir := range hclExclude {
+		if slices.Contains(pathList, excludeDir) {
+			l.Debugf("%s was ignored", filePath)
+			return true
+		}
+	}
+
+	return false
 }
 
 func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
