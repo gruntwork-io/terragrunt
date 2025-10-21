@@ -1,0 +1,47 @@
+---
+name: reading
+description: Include the list of files that are read by components in the output.
+type: boolean
+env:
+  - TG_READING
+---
+
+When enabled, JSON output will include a list of files that were read during the parsing of each component. This is useful for understanding configuration dependencies and tracking which shared files are consumed by your Terragrunt configurations.
+
+```bash
+$ terragrunt find --reading --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "app",
+    "reading": [
+      "shared.hcl",
+      "shared.tfvars",
+      "common/variables.hcl"
+    ]
+  }
+]
+```
+
+The `reading` field includes files read by Terragrunt helper functions such as:
+- `read_terragrunt_config()` - Reading other Terragrunt configuration files
+- `read_tfvars_file()` - Reading Terraform variable files
+- `sops_decrypt_file()` - Reading encrypted files via SOPS
+- `mark_as_read()` - Explicitly marking files as read
+
+You can use tools like `jq` to analyze which components read specific files:
+
+```bash
+$ terragrunt find --reading --format=json | jq '[.[] | select(.reading[]? | contains("shared.hcl"))]'
+[
+  {
+    "type": "unit",
+    "path": "app",
+    "reading": [
+      "shared.hcl",
+      "shared.tfvars"
+    ]
+  }
+]
+```
+
