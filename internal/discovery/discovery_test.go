@@ -573,3 +573,63 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	assert.Contains(t, depPaths, dbDir)
 	assert.NotContains(t, depPaths, extApp)
 }
+
+func TestDiscoveryPopulatesReadingField(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	appDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+
+	// Create shared files that will be read
+	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
+	sharedTFVars := filepath.Join(tmpDir, "shared.tfvars")
+
+	require.NoError(t, os.WriteFile(sharedHCL, []byte(`
+		locals {
+			common_value = "test"
+		}
+	`), 0644))
+
+	require.NoError(t, os.WriteFile(sharedTFVars, []byte(`
+		test_var = "value"
+	`), 0644))
+
+	// Create terragrunt config that reads both files
+	terragruntConfig := filepath.Join(appDir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(terragruntConfig, []byte(`
+		locals {
+			shared_config = read_terragrunt_config("../shared.hcl")
+			tfvars = read_tfvars_file("../shared.tfvars")
+		}
+	`), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	l := logger.CreateLogger()
+
+	// Discover and parse components
+	d := discovery.NewDiscovery(tmpDir).WithParseInclude()
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Find the app component
+	var appComponent *component.Component
+
+	for _, c := range cfgs {
+		if c.Path == appDir {
+			appComponent = c
+			break
+		}
+	}
+
+	require.NotNil(t, appComponent, "app component should be discovered")
+	require.NotNil(t, appComponent.Reading, "Reading field should be initialized")
+
+	// Verify Reading field contains the files that were read
+	assert.Len(t, appComponent.Reading, 2, "should have read 2 files")
+	assert.Contains(t, appComponent.Reading, sharedHCL, "should contain shared.hcl")
+	assert.Contains(t, appComponent.Reading, sharedTFVars, "should contain shared.tfvars")
+}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -492,6 +493,23 @@ func Parse(
 	}
 
 	c.Parsed = cfg
+
+	// Populate the Reading field with files read during parsing.
+	// ReadFiles is a shared map across all parseOpts clones, mapping file paths to units that read them.
+	// Extract files where this component's path appears in the units list.
+	if opts.ReadFiles != nil {
+		var readFiles []string
+
+		opts.ReadFiles.Range(func(file string, units []string) bool {
+			if slices.Contains(units, c.Path) {
+				readFiles = append(readFiles, file)
+			}
+
+			return true
+		})
+
+		c.Reading = readFiles
+	}
 
 	return nil
 }
