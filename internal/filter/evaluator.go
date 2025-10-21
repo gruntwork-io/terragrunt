@@ -2,6 +2,7 @@ package filter
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -11,6 +12,7 @@ const (
 	AttributeName     = "name"
 	AttributeType     = "type"
 	AttributeExternal = "external"
+	AttributeReading  = "reading"
 
 	AttributeTypeValueUnit  = string(component.Unit)
 	AttributeTypeValueStack = string(component.Stack)
@@ -129,6 +131,27 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 			}
 		default:
 			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
+		}
+	case AttributeReading:
+		if strings.ContainsAny(filter.Value, "*?[]") {
+			g, err := filter.CompileGlob()
+			if err != nil {
+				return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for reading filter: "+filter.Value, err)
+			}
+
+			for _, c := range components {
+				if slices.ContainsFunc(c.Reading, g.Match) {
+					result = append(result, c)
+				}
+			}
+
+			break
+		}
+
+		for _, c := range components {
+			if slices.Contains(c.Reading, filter.Value) {
+				result = append(result, c)
+			}
 		}
 	default:
 		return nil, NewEvaluationError("unknown attribute key: " + filter.Key)

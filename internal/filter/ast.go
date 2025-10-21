@@ -60,12 +60,11 @@ type AttributeFilter struct {
 	compileOnce  sync.Once
 }
 
-// CompileGlob returns the compiled glob pattern for name filters, compiling it on first call.
-// Returns nil glob and nil error for non-glob patterns or non-name attributes.
+// CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
+// Returns nil glob and nil error for non-glob patterns or unsupported attributes.
 // Uses sync.Once for thread-safe lazy initialization.
 func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
-	// Only compile globs for name attribute with glob patterns
-	if a.Key != AttributeName || !containsGlobChars(a.Value) {
+	if !a.IsGlob() {
 		return nil, nil
 	}
 
@@ -74,6 +73,13 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 	})
 
 	return a.compiledGlob, a.compileErr
+}
+
+// IsGlob returns true if the attribute filter is a glob pattern.
+//
+// Only returns true if the key of the attribute filter is one that supports glob patterns.
+func (a *AttributeFilter) IsGlob() bool {
+	return (a.Key == AttributeReading || a.Key == AttributeName) && containsGlobChars(a.Value)
 }
 
 func (a *AttributeFilter) expressionNode() {}
