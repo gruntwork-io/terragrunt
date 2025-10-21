@@ -41,6 +41,7 @@ func (l *Lexer) NextToken() Token {
 		tok = NewToken(EQUAL, string(l.ch), startPosition)
 		l.readChar()
 		l.afterEqual = true
+
 		return tok
 	case '{':
 		tok = NewToken(LBRACE, string(l.ch), startPosition)
