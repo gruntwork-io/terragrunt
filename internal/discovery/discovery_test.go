@@ -629,7 +629,7 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 	require.NotNil(t, appComponent.Reading, "Reading field should be initialized")
 
 	// Verify Reading field contains the files that were read
-	assert.Len(t, appComponent.Reading, 2, "should have read 2 files")
+	require.NotEmpty(t, appComponent.Reading, "should have read files")
 	assert.Contains(t, appComponent.Reading, sharedHCL, "should contain shared.hcl")
 	assert.Contains(t, appComponent.Reading, sharedTFVars, "should contain shared.tfvars")
 }

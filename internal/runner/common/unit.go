@@ -25,6 +25,7 @@ type Unit struct {
 	TerragruntOptions    *options.TerragruntOptions
 	Logger               log.Logger
 	Path                 string
+	Reading              []string
 	Dependencies         Units
 	Config               config.TerragruntConfig
 	AssumeAlreadyApplied bool

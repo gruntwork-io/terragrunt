@@ -51,6 +51,10 @@ type ParsingContext struct {
 	// ParserOptions is used to configure hcl Parser.
 	ParserOptions []hclparse.Option
 
+	// FilesRead tracks files that were read during parsing (absolute paths).
+	// This is a pointer so that it's shared across all parsing context copies.
+	FilesRead *[]string
+
 	// SkipOutputsResolution is used to optionally opt-out of resolving outputs.
 	SkipOutputsResolution bool
 }
@@ -58,10 +62,13 @@ type ParsingContext struct {
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
+	filesRead := make([]string, 0)
+
 	return &ParsingContext{
 		Context:           ctx,
 		TerragruntOptions: opts,
 		ParserOptions:     DefaultParserOptions(l, opts),
+		FilesRead:         &filesRead,
 	}
 }
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {

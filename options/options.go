@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -116,8 +115,6 @@ type TerragruntOptions struct {
 	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
-	// ReadFiles is a map of files to the Units that read them using HCL functions in the unit.
-	ReadFiles *xsync.MapOf[string, []string] `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
 	// Map to replace terraform source locations.
@@ -431,7 +428,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
 		FeatureFlags:               xsync.NewMapOf[string, string](),
-		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
 		Telemetry:                  new(telemetry.Options),
@@ -622,67 +618,6 @@ func (opts *TerragruntOptions) DataDir() string {
 	}
 
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
-}
-
-// AppendReadFile appends to the list of files read by a given unit.
-func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
-	if opts.ReadFiles == nil {
-		opts.ReadFiles = xsync.NewMapOf[string, []string]()
-	}
-
-	units, ok := opts.ReadFiles.Load(file)
-	if !ok {
-		opts.ReadFiles.Store(file, []string{unit})
-		return
-	}
-
-	if slices.Contains(units, unit) {
-		return
-	}
-
-	// Atomic insert
-	// https://github.com/puzpuzpuz/xsync/issues/123#issuecomment-1963458519
-	_, _ = opts.ReadFiles.Compute(file, func(oldUnits []string, loaded bool) ([]string, bool) {
-		var newUnits []string
-
-		if loaded {
-			newUnits = append(make([]string, 0, len(oldUnits)+1), oldUnits...)
-			newUnits = append(newUnits, unit)
-		} else {
-			newUnits = []string{unit}
-		}
-
-		return newUnits, false
-	})
-}
-
-// DidReadFile checks if a given file was read by a given unit.
-func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
-	if opts.ReadFiles == nil {
-		return false
-	}
-
-	units, ok := opts.ReadFiles.Load(file)
-	if !ok {
-		return false
-	}
-
-	return slices.Contains(units, unit)
-}
-
-// CloneReadFiles creates a copy of the ReadFiles map.
-func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []string]) {
-	if readFiles == nil {
-		return
-	}
-
-	readFiles.Range(func(key string, units []string) bool {
-		for _, unit := range units {
-			opts.AppendReadFile(key, unit)
-		}
-
-		return true
-	})
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
