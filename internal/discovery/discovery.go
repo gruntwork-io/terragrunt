@@ -493,6 +493,12 @@ func Parse(
 
 	c.Parsed = cfg
 
+	// Populate the Reading field with files read during parsing.
+	// The parsing context tracks all files that were read.
+	if parsingCtx.FilesRead != nil {
+		c.Reading = *parsingCtx.FilesRead
+	}
+
 	return nil
 }
 

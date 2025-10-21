@@ -32,6 +32,8 @@ type Component struct {
 	Kind Kind
 	Path string
 
+	Reading []string
+
 	dependencies Components
 	dependents   Components
 
