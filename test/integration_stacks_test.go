@@ -209,12 +209,14 @@ func TestStacksNoGenerate(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, entry := range entries {
-		err := os.RemoveAll(filepath.Join(path, entry.Name()))
+		err = os.RemoveAll(filepath.Join(path, entry.Name()))
 		require.NoError(t, err)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath)
-	require.Error(t, err)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "No units discovered. Creating an empty runner.")
 }
 
 func TestStacksInputs(t *testing.T) {
