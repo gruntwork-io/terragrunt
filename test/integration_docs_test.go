@@ -313,6 +313,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 	generatePathBasedFixture(t, tmpDir)
 	generateNegationFixture(t, tmpDir)
 	generateIntersectionFixture(t, tmpDir)
+	generateReadingFixture(t, tmpDir)
 
 	testCases := []struct {
 		name           string
@@ -433,6 +434,38 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			fixtureDir:     "intersection",
 			filterQuery:    "./dev/**|type=unit|!name=unit1", // Our testing arg parsing is busted. Don't put whitespace between these.
 			expectedOutput: "dev/units/unit2\n",
+		},
+
+		// Reading attribute filtering
+		{
+			name:           "reading-exact-file-match",
+			fixtureDir:     "reading",
+			filterQuery:    "reading=shared.hcl",
+			expectedOutput: "apps/app1\napps/app2\n",
+		},
+		{
+			name:           "reading-glob-pattern",
+			fixtureDir:     "reading",
+			filterQuery:    "reading=shared*",
+			expectedOutput: "apps/app1\napps/app2\n",
+		},
+		{
+			name:           "reading-nested-path",
+			fixtureDir:     "reading",
+			filterQuery:    "reading=common/vars.hcl",
+			expectedOutput: "apps/app3\n",
+		},
+		{
+			name:           "reading-negation",
+			fixtureDir:     "reading",
+			filterQuery:    "!reading=shared.hcl",
+			expectedOutput: "apps/app3\nlibs/lib1\n",
+		},
+		{
+			name:           "reading-intersection",
+			fixtureDir:     "reading",
+			filterQuery:    "./apps/**|reading=shared.hcl", // Our testing arg parsing is busted. Don't put whitespace between these.
+			expectedOutput: "apps/app1\napps/app2\n",
 		},
 	}
 
@@ -648,6 +681,77 @@ func generateUnionFixture(t *testing.T, baseDir string) {
 	createTerragruntStack(t, filepath.Join(rootDir, "dev", "stack1"))
 	// Create dev/stack2
 	createTerragruntStack(t, filepath.Join(rootDir, "dev", "stack2"))
+}
+
+func generateReadingFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "reading", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create shared configuration files
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "shared.hcl"), []byte(`
+locals {
+  common_value = "shared"
+}
+`), 0644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "shared.tfvars"), []byte(`
+test_var = "value"
+`), 0644))
+
+	commonDir := filepath.Join(rootDir, "common")
+	require.NoError(t, os.MkdirAll(commonDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(commonDir, "vars.hcl"), []byte(`
+locals {
+  vpc_cidr = "10.0.0.0/16"
+}
+`), 0644))
+
+	// Create apps/app1 - reads shared.hcl
+	app1Dir := filepath.Join(rootDir, "apps", "app1")
+	require.NoError(t, os.MkdirAll(app1Dir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(app1Dir, "terragrunt.hcl"), []byte(`
+locals {
+  shared = read_terragrunt_config("../../shared.hcl")
+}
+
+terraform {
+  source = "."
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(app1Dir, "main.tf"), []byte(""), 0644))
+
+	// Create apps/app2 - reads shared.hcl and shared.tfvars
+	app2Dir := filepath.Join(rootDir, "apps", "app2")
+	require.NoError(t, os.MkdirAll(app2Dir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(app2Dir, "terragrunt.hcl"), []byte(`
+locals {
+  shared = read_terragrunt_config("../../shared.hcl")
+  vars = read_tfvars_file("../../shared.tfvars")
+}
+
+terraform {
+  source = "."
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(app2Dir, "main.tf"), []byte(""), 0644))
+
+	// Create apps/app3 - reads common/vars.hcl
+	app3Dir := filepath.Join(rootDir, "apps", "app3")
+	require.NoError(t, os.MkdirAll(app3Dir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(app3Dir, "terragrunt.hcl"), []byte(`
+locals {
+  common = read_terragrunt_config("../../common/vars.hcl")
+}
+
+terraform {
+  source = "."
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(app3Dir, "main.tf"), []byte(""), 0644))
+
+	// Create libs/lib1 - doesn't read any files
+	lib1Dir := filepath.Join(rootDir, "libs", "lib1")
+	createTerragruntUnit(t, lib1Dir)
 }
 
 // Helper functions to create Terragrunt configuration files
