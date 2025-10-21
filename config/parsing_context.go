@@ -55,10 +55,6 @@ type ParsingContext struct {
 	// ParserOptions is used to configure hcl Parser.
 	ParserOptions []hclparse.Option
 
-	// FilesRead tracks files that were read during parsing (absolute paths).
-	// This is a pointer so that it's shared across all parsing context copies.
-	FilesRead *[]string
-
 	// SkipOutputsResolution is used to optionally opt-out of resolving outputs.
 	SkipOutputsResolution bool
 }
