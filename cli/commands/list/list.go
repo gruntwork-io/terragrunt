@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/mattn/go-shellwords"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
@@ -25,38 +24,16 @@ import (
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		Hidden:        opts.Hidden,
-		Dependencies:  shouldDiscoverDependencies(opts),
-		External:      opts.External,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:       opts.WorkingDir,
+		QueueConstructAs: opts.QueueConstructAs,
+		Hidden:           opts.Hidden,
+		Dependencies:     shouldDiscoverDependencies(opts),
+		External:         opts.External,
+		FilterQueries:    opts.FilterQueries,
+		Experiments:      opts.Experiments,
 	})
 	if err != nil {
 		return errors.New(err)
-	}
-
-	if opts.QueueConstructAs != "" {
-		d = d.WithParseExclude()
-		d = d.WithDiscoverDependencies()
-
-		parser := shellwords.NewParser()
-
-		args, parseErr := parser.Parse(opts.QueueConstructAs)
-		if parseErr != nil {
-			return errors.New(parseErr)
-		}
-
-		cmd := args[0]
-
-		if len(args) > 1 {
-			args = args[1:]
-		}
-
-		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
-		})
 	}
 
 	var (
