@@ -152,54 +152,47 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts.RootWorkingDir = internalDir
 
 	tests := []struct {
-		name      string
-		discovery *discovery.Discovery
-		// Note that when comparing against this,
-		// we'll nil out the parsed configurations,
-		// as it doesn't matter for this test
-		wantDiscovery component.Components
+		discovery     *discovery.Discovery
+		setupExpected func() component.Components
+		name          string
 		errorExpected bool
 	}{
 		{
 			name:      "discovery without dependencies",
 			discovery: discovery.NewDiscovery(internalDir),
-			wantDiscovery: component.Components{
-				{Path: appDir, Kind: component.Unit},
-				{Path: dbDir, Kind: component.Unit},
-				{Path: vpcDir, Kind: component.Unit},
+			setupExpected: func() component.Components {
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies(),
-			wantDiscovery: component.Components{
-				{Path: appDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-						{Path: vpcDir, Kind: component.Unit},
-					}},
-					{Path: externalAppDir, Kind: component.Unit, External: true},
-				}},
-				{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: vpcDir, Kind: component.Unit},
-				}},
-				{Path: vpcDir, Kind: component.Unit},
+			setupExpected: func() component.Components {
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				db.AddDependency(vpc)
+				externalApp := &component.Component{Path: externalAppDir, Kind: component.Unit, External: true}
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
+				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with external dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithDiscoverExternalDependencies(),
-			wantDiscovery: component.Components{
-				{Path: appDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-						{Path: vpcDir, Kind: component.Unit},
-					}},
-					{Path: externalAppDir, Kind: component.Unit, External: true},
-				}},
-				{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: vpcDir, Kind: component.Unit},
-				}},
-				{Path: vpcDir, Kind: component.Unit},
-				{Path: externalAppDir, Kind: component.Unit, External: true},
+			setupExpected: func() component.Components {
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				db.AddDependency(vpc)
+				externalApp := &component.Component{Path: externalAppDir, Kind: component.Unit, External: true}
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
+				return component.Components{app, db, vpc, externalApp}
 			},
 		},
 	}
@@ -216,29 +209,48 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Sort the configs and their dependencies to ensure consistent ordering
-			configs = configs.Sort()
-			for _, cfg := range configs {
-				cfg.Dependencies = cfg.Dependencies.Sort()
-				for _, dep := range cfg.Dependencies {
-					dep.Dependencies = dep.Dependencies.Sort()
-				}
-			}
-
-			tt.wantDiscovery = tt.wantDiscovery.Sort()
-			for _, cfg := range tt.wantDiscovery {
-				cfg.Dependencies = cfg.Dependencies.Sort()
-				for _, dep := range cfg.Dependencies {
-					dep.Dependencies = dep.Dependencies.Sort()
-				}
-			}
+			// Build expected results
+			wantDiscovery := tt.setupExpected()
 
 			// nil out the parsed configurations, as it doesn't matter for this test
 			for _, cfg := range configs {
 				cfg.Parsed = nil
 			}
 
-			assert.Equal(t, tt.wantDiscovery, configs)
+			// Compare basic component properties
+			require.Len(t, configs, len(wantDiscovery))
+
+			configs = configs.Sort()
+			wantDiscovery = wantDiscovery.Sort()
+
+			for i, cfg := range configs {
+				want := wantDiscovery[i]
+				assert.Equal(t, want.Path, cfg.Path, "Component path mismatch at index %d", i)
+				assert.Equal(t, want.Kind, cfg.Kind, "Component kind mismatch at index %d", i)
+				assert.Equal(t, want.External, cfg.External, "Component external flag mismatch at index %d", i)
+
+				// Compare dependencies
+				cfgDeps := cfg.Dependencies().Sort()
+				wantDeps := want.Dependencies().Sort()
+				require.Len(t, cfgDeps, len(wantDeps), "Dependencies count mismatch for %s", cfg.Path)
+
+				for j, dep := range cfgDeps {
+					wantDep := wantDeps[j]
+					assert.Equal(t, wantDep.Path, dep.Path, "Dependency path mismatch at component %d, dependency %d", i, j)
+					assert.Equal(t, wantDep.Kind, dep.Kind, "Dependency kind mismatch at component %d, dependency %d", i, j)
+					assert.Equal(t, wantDep.External, dep.External, "Dependency external flag mismatch at component %d, dependency %d", i, j)
+
+					// Compare nested dependencies (one level deep)
+					depDeps := dep.Dependencies().Sort()
+					wantDepDeps := wantDep.Dependencies().Sort()
+					require.Len(t, depDeps, len(wantDepDeps), "Nested dependencies count mismatch for %s -> %s", cfg.Path, dep.Path)
+
+					for k, nestedDep := range depDeps {
+						wantNestedDep := wantDepDeps[k]
+						assert.Equal(t, wantNestedDep.Path, nestedDep.Path, "Nested dependency path mismatch")
+					}
+				}
+			}
 		})
 	}
 }
@@ -557,7 +569,7 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	}
 
 	require.NotNil(t, appCfg)
-	depPaths := appCfg.Dependencies.Paths()
+	depPaths := appCfg.Dependencies().Paths()
 	assert.Contains(t, depPaths, dbDir)
 	assert.NotContains(t, depPaths, extApp)
 }

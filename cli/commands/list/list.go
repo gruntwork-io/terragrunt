@@ -211,15 +211,15 @@ func discoveredToListed(configs component.Components, opts *Options) (ListedConf
 			Path: relPath,
 		}
 
-		if len(config.Dependencies) == 0 {
+		if len(config.Dependencies()) == 0 {
 			listedCfgs = append(listedCfgs, listedCfg)
 
 			continue
 		}
 
-		listedCfg.Dependencies = make([]*ListedConfig, len(config.Dependencies))
+		listedCfg.Dependencies = make([]*ListedConfig, len(config.Dependencies()))
 
-		for i, dep := range config.Dependencies {
+		for i, dep := range config.Dependencies() {
 			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
 			if err != nil {
 				errs = append(errs, errors.New(err))

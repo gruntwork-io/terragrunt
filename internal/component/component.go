@@ -32,9 +32,42 @@ type Component struct {
 	Kind Kind
 	Path string
 
-	Dependencies Components
+	dependencies Components
+	dependents   Components
 
 	External bool
+}
+
+// AddDependency adds a dependency to the Component and vice versa.
+//
+// Using this method ensure that the dependency graph is properly maintained,
+// making it easier to look up dependents and dependencies on a given component
+// without the entire graph available.
+func (c *Component) AddDependency(dependency *Component) {
+	c.dependencies = append(c.dependencies, dependency)
+
+	dependency.dependents = append(dependency.dependents, c)
+}
+
+// AddDependent adds a dependent to the Component and vice versa.
+//
+// Using this method ensure that the dependency graph is properly maintained,
+// making it easier to look up dependents and dependencies on a given component
+// without the entire graph available.
+func (c *Component) AddDependent(dependent *Component) {
+	c.dependents = append(c.dependents, dependent)
+
+	dependent.dependencies = append(dependent.dependencies, c)
+}
+
+// Dependencies returns the dependencies of the Component.
+func (c *Component) Dependencies() Components {
+	return c.dependencies
+}
+
+// Dependents returns the dependents of the Component.
+func (c *Component) Dependents() Components {
+	return c.dependents
 }
 
 // DiscoveryContext is the context in which
@@ -134,7 +167,7 @@ func (c Components) CycleCheck() (*Component, error) {
 		visited[component.Path] = true
 		inPath[component.Path] = true
 
-		for _, dep := range component.Dependencies {
+		for _, dep := range component.Dependencies() {
 			if err := checkCycle(dep); err != nil {
 				return err
 			}
