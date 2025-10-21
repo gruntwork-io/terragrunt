@@ -47,26 +47,9 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	if len(discovered) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
-		if isFilteringEnabled {
-			// Create an empty runner that will process no units
-			stack := common.Stack{
-				TerragruntOptions: terragruntOptions,
-				ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-			}
-
-			runner := &Runner{
-				Stack: &stack,
-			}
-
-			// Create an empty queue
-			q, queueErr := queue.NewQueue(component.Components{})
-			if queueErr != nil {
-				return nil, queueErr
-			}
-
-			runner.queue = q
-
-			return runner.WithOptions(opts...), nil
+		stack := common.Stack{
+			TerragruntOptions: terragruntOptions,
+			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		}
 
 		runner := &Runner{
