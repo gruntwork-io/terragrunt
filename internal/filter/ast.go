@@ -35,7 +35,6 @@ func NewPathFilter(value string, workingDir string) *PathFilter {
 // Uses sync.Once for thread-safe lazy initialization.
 func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	p.compileOnce.Do(func() {
-		// Normalize the pattern for matching
 		pattern := p.Value
 		if !filepath.IsAbs(pattern) {
 			pattern = filepath.Join(p.WorkingDir, pattern)
@@ -57,6 +56,7 @@ type AttributeFilter struct {
 	compileErr   error
 	Key          string
 	Value        string
+	WorkingDir   string
 	compileOnce  sync.Once
 }
 
@@ -69,7 +69,16 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 	}
 
 	a.compileOnce.Do(func() {
-		a.compiledGlob, a.compileErr = glob.Compile(a.Value)
+		pattern := a.Value
+
+		if a.Key == AttributeReading {
+			if !filepath.IsAbs(pattern) {
+				pattern = filepath.Join(a.WorkingDir, pattern)
+			}
+			pattern = filepath.ToSlash(pattern)
+		}
+
+		a.compiledGlob, a.compileErr = glob.Compile(pattern, '/')
 	})
 
 	return a.compiledGlob, a.compileErr
