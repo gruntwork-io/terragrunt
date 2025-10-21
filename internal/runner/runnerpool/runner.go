@@ -53,7 +53,6 @@ func NewRunnerPoolStack(
 	if len(discovered) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
-		// Create an empty runner that will process no units
 		stack := common.Stack{
 			TerragruntOptions: terragruntOptions,
 			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
