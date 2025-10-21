@@ -40,6 +40,18 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithDiscoverExternalDependencies()
 	}
 
+	if opts.Exclude {
+		d = d.WithParseExclude()
+	}
+
+	if opts.Include {
+		d = d.WithParseInclude()
+	}
+
+	if opts.Reading {
+		d = d.WithReadFiles()
+	}
+
 	if opts.QueueConstructAs != "" {
 		d = d.WithParseExclude()
 		d = d.WithDiscoverDependencies()
@@ -62,10 +74,6 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 			Cmd:  cmd,
 			Args: args,
 		})
-	}
-
-	if opts.Reading {
-		d = d.WithReadFiles()
 	}
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
