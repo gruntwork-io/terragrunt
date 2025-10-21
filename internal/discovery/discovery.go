@@ -138,10 +138,35 @@ type Discovery struct {
 	discoverDependencies bool
 
 	// parseExclude determines whether to parse exclude configurations.
+	//
+	// This doesn't really do anything, but it's here to explicitly indicate
+	// that we're parsing Terragrunt configurations for the sake of determining
+	// that excludes need to be evaluated.
+	//
+	// Terragrunt parsing isn't modular enough to selectively only parse for the sake
+	// of determining excludes, however, so we don't read this later for enabling exclude parsing or anything.
 	parseExclude bool
 
 	// parseInclude determines whether to parse include configurations.
+	//
+	// This doesn't really do anything, but it's here to explicitly indicate
+	// that we're parsing Terragrunt configurations for the sake of determining
+	// that includes need to be evaluated.
+	//
+	// Terragrunt parsing isn't modular enough to selectively only parse for the sake
+	// of determining includes, however, so we don't read this later for enabling include parsing or anything.
 	parseInclude bool
+
+	// readFiles determines whether to read files during discovery.
+	//
+	// This doesn't really do anything, but it's here to explicitly indicate
+	// that we're parsing Terragrunt configurations for the sake of determining
+	// what files are read.
+	//
+	// Terragrunt parsing isn't modular enough to selectively only parse for the sake
+	// of determining what files are read, however, so we don't read this later for enabling read tracking in parsing
+	// or anything.
+	readFiles bool
 
 	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
@@ -203,9 +228,9 @@ func (d *Discovery) WithSort(sort Sort) *Discovery {
 
 // WithDiscoverDependencies sets the DiscoverDependencies flag to true.
 func (d *Discovery) WithDiscoverDependencies() *Discovery {
-	d.discoverDependencies = true
+	d.WithRequiresParse()
 
-	d.requiresParse = true
+	d.discoverDependencies = true
 
 	if d.maxDependencyDepth == 0 {
 		d.maxDependencyDepth = defaultMaxDependencyDepth
@@ -214,19 +239,35 @@ func (d *Discovery) WithDiscoverDependencies() *Discovery {
 	return d
 }
 
-// WithParseExclude sets the ParseExclude flag to true.
+// WithParseExclude sets the parseExclude flag to true.
 func (d *Discovery) WithParseExclude() *Discovery {
-	d.parseExclude = true
+	d.WithRequiresParse()
 
-	d.requiresParse = true
+	d.parseExclude = true
 
 	return d
 }
 
-// WithParseInclude sets the ParseExclude flag to true.
+// WithParseInclude sets the parseInclude flag to true.
 func (d *Discovery) WithParseInclude() *Discovery {
+	d.WithRequiresParse()
+
 	d.parseInclude = true
 
+	return d
+}
+
+// WithReadFiles sets the readFiles flag to true.
+func (d *Discovery) WithReadFiles() *Discovery {
+	d.WithRequiresParse()
+
+	d.readFiles = true
+
+	return d
+}
+
+// WithRequiresParse sets the requiresParse flag to true.
+func (d *Discovery) WithRequiresParse() *Discovery {
 	d.requiresParse = true
 
 	return d

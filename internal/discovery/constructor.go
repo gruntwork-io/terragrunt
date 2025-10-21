@@ -37,14 +37,6 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithDiscoverExternalDependencies()
 	}
 
-	if opts.Exclude {
-		d = d.WithParseExclude()
-	}
-
-	if opts.Include {
-		d = d.WithParseInclude()
-	}
-
 	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
 		if err != nil {
