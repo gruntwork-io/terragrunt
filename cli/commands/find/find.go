@@ -166,26 +166,6 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		if !opts.Dependencies || len(config.Dependencies()) == 0 {
-			foundCfgs = append(foundCfgs, foundCfg)
-
-			for i, reading := range c.Reading {
-				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
-				if err != nil {
-					errs = append(errs, errors.New(err))
-				}
-
-		foundCfg.Dependencies = make([]string, len(config.Dependencies()))
-
-		for i, dep := range config.Dependencies() {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
-			if err != nil {
-				errs = append(errs, errors.New(err))
-
-				continue
-			}
-		}
-
 		if opts.Dependencies && len(c.Dependencies()) > 0 {
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
@@ -198,6 +178,19 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 				}
 
 				foundComponent.Dependencies[i] = relDepPath
+			}
+		}
+
+		if opts.Reading && len(c.Reading) > 0 {
+			foundComponent.Reading = make([]string, len(c.Reading))
+
+			for i, reading := range c.Reading {
+				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
+				if err != nil {
+					errs = append(errs, errors.New(err))
+				}
+
+				foundComponent.Reading[i] = relReadingPath
 			}
 		}
 
