@@ -57,12 +57,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	// Branch based on filter-flag experiment
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return runValidateWithDiscovery(ctx, l, opts)
-	}
-
-	// Existing runner-based implementation continues...
 	var diags diagnostic.Diagnostics
 
 	parseOptions := []hclparse.Option{
@@ -87,6 +81,10 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			return nil, nil
 		}),
+	}
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		return runValidateWithDiscovery(ctx, l, opts, parseOptions)
 	}
 
 	opts.SkipOutput = true
@@ -162,43 +160,8 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 	return errors.Join(callErr, diagError)
 }
 
-func runValidateWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runValidateWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parseOptions []hclparse.Option) error {
 	var diags diagnostic.Diagnostics
-
-	parseOptions := []hclparse.Option{
-		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, hclDiag := range hclDiags {
-				// Apply skip list for --show-config-path flag
-				if opts.HCLValidateShowConfigPath {
-					skip := false
-					for _, skipMsg := range skipHCLDiagnostics {
-						if strings.Contains(strings.ToLower(hclDiag.Detail), strings.ToLower(skipMsg)) {
-							skip = true
-							break
-						}
-					}
-					if skip {
-						continue
-					}
-				}
-
-				if hclDiag.Subject != nil && file != nil {
-					fileFilename := file.Body.MissingItemRange().Filename
-					diagFilename := hclDiag.Subject.Filename
-					if diagFilename != fileFilename {
-						continue
-					}
-				}
-
-				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
-				if !diags.Contains(newDiag) {
-					diags = append(diags, newDiag)
-				}
-			}
-
-			return nil, nil
-		}),
-	}
 
 	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
 		WorkingDir:    opts.WorkingDir,

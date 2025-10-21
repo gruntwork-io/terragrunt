@@ -48,6 +48,8 @@ func TestHclValidateWithFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
@@ -105,6 +107,8 @@ func TestHclFormatWithFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
@@ -139,11 +143,13 @@ func TestHclFormatFilterAccepted(t *testing.T) {
 	// system and properly respects filter queries. This test verifies filtering works.
 
 	t.Run("filter actually works - only processes filtered directories", func(t *testing.T) {
+		t.Parallel()
+
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 
 		// Filter only app directory
-		cmd := fmt.Sprintf("terragrunt hcl format --experiment=filter-flag --filter ./app --check --working-dir %s", rootPath)
+		cmd := "terragrunt hcl format --experiment=filter-flag --filter ./app --check --working-dir " + rootPath
 		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 
 		output := stdout.String() + stderr.String()
@@ -175,8 +181,7 @@ func TestHclFormatWithFilterDiff(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	// Filter only app directory
-	cmd := fmt.Sprintf("terragrunt hcl format --experiment=filter-flag --filter ./app --diff --working-dir %s",
-		rootPath)
+	cmd := "terragrunt hcl format --experiment=filter-flag --filter ./app --diff --working-dir " + rootPath
 
 	// Run the command
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
