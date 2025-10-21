@@ -55,6 +55,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	cfgA := &component.Component{Path: "A"}
 	cfgB := &component.Component{Path: "B"}
 	cfgB.AddDependency(cfgA)
+
 	cfgC := &component.Component{Path: "C"}
 	cfgC.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
