@@ -89,9 +89,6 @@ type Discovery struct {
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
-
 	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
 	includeDirs []string
 
@@ -110,11 +107,17 @@ type Discovery struct {
 	// filters contains filter queries for component selection
 	filters filter.Filters
 
+	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
+	configFilenames []string
+
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
 
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
+	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
+	maxDependencyDepth int
+
+	// numWorkers determines the number of concurrent workers for discovery operations.
+	numWorkers int
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
@@ -122,11 +125,8 @@ type Discovery struct {
 	// ignoreExternalDependencies determines whether to drop dependencies that are outside the working directory.
 	ignoreExternalDependencies bool
 
-	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
-	maxDependencyDepth int
-
-	// numWorkers determines the number of concurrent workers for discovery operations.
-	numWorkers int
+	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
+	strictInclude bool
 
 	// hidden determines whether to detect configurations in hidden directories.
 	hidden bool
@@ -138,34 +138,12 @@ type Discovery struct {
 	discoverDependencies bool
 
 	// parseExclude determines whether to parse exclude configurations.
-	//
-	// This doesn't really do anything, but it's here to explicitly indicate
-	// that we're parsing Terragrunt configurations for the sake of determining
-	// that excludes need to be evaluated.
-	//
-	// Terragrunt parsing isn't modular enough to selectively only parse for the sake
-	// of determining excludes, however, so we don't read this later for enabling exclude parsing or anything.
 	parseExclude bool
 
 	// parseInclude determines whether to parse include configurations.
-	//
-	// This doesn't really do anything, but it's here to explicitly indicate
-	// that we're parsing Terragrunt configurations for the sake of determining
-	// that includes need to be evaluated.
-	//
-	// Terragrunt parsing isn't modular enough to selectively only parse for the sake
-	// of determining includes, however, so we don't read this later for enabling include parsing or anything.
 	parseInclude bool
 
-	// readFiles determines whether to read files during discovery.
-	//
-	// This doesn't really do anything, but it's here to explicitly indicate
-	// that we're parsing Terragrunt configurations for the sake of determining
-	// what files are read.
-	//
-	// Terragrunt parsing isn't modular enough to selectively only parse for the sake
-	// of determining what files are read, however, so we don't read this later for enabling read tracking in parsing
-	// or anything.
+	// readFiles determines whether to parse for reading files.
 	readFiles bool
 
 	// discoverExternalDependencies determines whether to discover external dependencies.
