@@ -55,6 +55,7 @@ type AttributeFilter struct {
 	compileErr   error
 	Key          string
 	Value        string
+	WorkingDir   string
 	compileOnce  sync.Once
 }
 

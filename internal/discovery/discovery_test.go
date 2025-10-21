@@ -152,54 +152,47 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts.RootWorkingDir = internalDir
 
 	tests := []struct {
-		name      string
-		discovery *discovery.Discovery
-		// Note that when comparing against this,
-		// we'll nil out the parsed configurations,
-		// as it doesn't matter for this test
-		wantDiscovery component.Components
+		discovery     *discovery.Discovery
+		setupExpected func() component.Components
+		name          string
 		errorExpected bool
 	}{
 		{
 			name:      "discovery without dependencies",
 			discovery: discovery.NewDiscovery(internalDir),
-			wantDiscovery: component.Components{
-				{Path: appDir, Kind: component.Unit},
-				{Path: dbDir, Kind: component.Unit},
-				{Path: vpcDir, Kind: component.Unit},
+			setupExpected: func() component.Components {
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies(),
-			wantDiscovery: component.Components{
-				{Path: appDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-						{Path: vpcDir, Kind: component.Unit},
-					}},
-					{Path: externalAppDir, Kind: component.Unit, External: true},
-				}},
-				{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: vpcDir, Kind: component.Unit},
-				}},
-				{Path: vpcDir, Kind: component.Unit},
+			setupExpected: func() component.Components {
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				db.AddDependency(vpc)
+				externalApp := &component.Component{Path: externalAppDir, Kind: component.Unit, External: true}
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
+				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with external dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithDiscoverExternalDependencies(),
-			wantDiscovery: component.Components{
-				{Path: appDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-						{Path: vpcDir, Kind: component.Unit},
-					}},
-					{Path: externalAppDir, Kind: component.Unit, External: true},
-				}},
-				{Path: dbDir, Kind: component.Unit, Dependencies: component.Components{
-					{Path: vpcDir, Kind: component.Unit},
-				}},
-				{Path: vpcDir, Kind: component.Unit},
-				{Path: externalAppDir, Kind: component.Unit, External: true},
+			setupExpected: func() component.Components {
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				db.AddDependency(vpc)
+				externalApp := &component.Component{Path: externalAppDir, Kind: component.Unit, External: true}
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
+				return component.Components{app, db, vpc, externalApp}
 			},
 		},
 	}

@@ -14,9 +14,9 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 
 	// Create configs with no dependencies - should maintain alphabetical order at front
 	configs := []*component.Component{
-		{Path: "c", Dependencies: []*component.Component{}},
-		{Path: "a", Dependencies: []*component.Component{}},
-		{Path: "b", Dependencies: []*component.Component{}},
+		{Path: "c"},
+		{Path: "a"},
+		{Path: "b"},
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -34,9 +34,12 @@ func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 	t.Parallel()
 
 	// Create configs with dependencies - should order by dependency level
-	aCfg := &component.Component{Path: "a", Dependencies: []*component.Component{}}
-	bCfg := &component.Component{Path: "b", Dependencies: []*component.Component{aCfg}}
-	cCfg := &component.Component{Path: "c", Dependencies: []*component.Component{bCfg}}
+	aCfg := &component.Component{Path: "a"}
+	bCfg := &component.Component{Path: "b"}
+	bCfg.AddDependency(aCfg)
+
+	cCfg := &component.Component{Path: "c"}
+	cCfg.AddDependency(bCfg)
 
 	configs := []*component.Component{aCfg, bCfg, cCfg}
 
@@ -64,14 +67,22 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 	//   D -> A,B
 	//   E -> C
 	//   F -> C
-	configs := []*component.Component{
-		{Path: "F", Dependencies: []*component.Component{{Path: "C"}}},
-		{Path: "E", Dependencies: []*component.Component{{Path: "C"}}},
-		{Path: "D", Dependencies: []*component.Component{{Path: "A"}, {Path: "B"}}},
-		{Path: "C", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "B", Dependencies: []*component.Component{}},
-		{Path: "A", Dependencies: []*component.Component{}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	C := &component.Component{Path: "C"}
+	C.AddDependency(A)
+
+	D := &component.Component{Path: "D"}
+	D.AddDependency(A)
+	D.AddDependency(B)
+
+	E := &component.Component{Path: "E"}
+	E.AddDependency(C)
+
+	F := &component.Component{Path: "F"}
+	F.AddDependency(C)
+
+	configs := []*component.Component{F, E, D, C, B, A}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -116,12 +127,16 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 	//   B -> A
 	//   C -> A
 	//   D -> A
-	configs := []*component.Component{
-		{Path: "D", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "C", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "B", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "A", Dependencies: []*component.Component{}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	B.AddDependency(A)
+
+	C := &component.Component{Path: "C"}
+	C.AddDependency(A)
+
+	D := &component.Component{Path: "D"}
+	D.AddDependency(A)
+	configs := []*component.Component{D, C, B, A}
 
 	// Run multiple times to verify deterministic ordering
 	for range 5 {
@@ -150,13 +165,18 @@ func TestDepthBasedOrderingVerification(t *testing.T) {
 	//   C -> A (depth 1)
 	//   D -> B (depth 1)
 	//   E -> C,D (depth 2)
-	configs := []*component.Component{
-		{Path: "E", Dependencies: []*component.Component{{Path: "C"}, {Path: "D"}}},
-		{Path: "D", Dependencies: []*component.Component{{Path: "B"}}},
-		{Path: "C", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "B", Dependencies: []*component.Component{}},
-		{Path: "A", Dependencies: []*component.Component{}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	C := &component.Component{Path: "C"}
+	C.AddDependency(A)
+
+	D := &component.Component{Path: "D"}
+	D.AddDependency(B)
+
+	E := &component.Component{Path: "E"}
+	E.AddDependency(C)
+	E.AddDependency(D)
+	configs := []*component.Component{E, D, C, B, A}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
@@ -195,11 +215,13 @@ func TestErrorHandlingCycle(t *testing.T) {
 
 	// Create a cycle: A -> B -> C -> A
 	// Create a cycle: A -> B -> C -> A
-	configs := []*component.Component{
-		{Path: "C", Dependencies: []*component.Component{{Path: "B"}}},
-		{Path: "B", Dependencies: []*component.Component{{Path: "A"}}},
-		{Path: "A", Dependencies: []*component.Component{{Path: "C"}}},
-	}
+	A := &component.Component{Path: "A"}
+	B := &component.Component{Path: "B"}
+	C := &component.Component{Path: "C"}
+	C.AddDependency(B)
+	B.AddDependency(A)
+	A.AddDependency(C) // Creates the cycle
+	configs := []*component.Component{C, B, A}
 
 	q, err := queue.NewQueue(configs)
 	require.Error(t, err)
@@ -232,8 +254,11 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -285,8 +310,11 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	//  / \
 	// B   C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -348,8 +376,11 @@ func TestQueue_FailFast(t *testing.T) {
 	//  / \
 	// B   C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -406,10 +437,17 @@ func TestQueue_FailFast(t *testing.T) {
 // D   E
 func buildMultiLevelDependencyTree() []*component.Component {
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgA}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgB}}
-	cfgE := &component.Component{Path: "E", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgA)
+
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgB)
+
+	cfgE := &component.Component{Path: "E"}
+	cfgE.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD, cfgE}
 
 	return configs
@@ -614,8 +652,11 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C, where A fails and fail-fast is enabled
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	q, err := queue.NewQueue(configs)
@@ -671,9 +712,14 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
+
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
 
 	q, err := queue.NewQueue(configs)
@@ -705,9 +751,14 @@ func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
+
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
@@ -733,9 +784,14 @@ func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 	t.Parallel()
 	// Build a graph: A -> B -> C, A -> D
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
-	cfgD := &component.Component{Path: "D", Dependencies: []*component.Component{cfgA}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
+
+	cfgD := &component.Component{Path: "D"}
+	cfgD.AddDependency(cfgA)
 	configs := []*component.Component{cfgA, cfgB, cfgC, cfgD}
 
 	// Set all configs to destroy (down) command
@@ -762,8 +818,11 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 
 	// Create a simple chain: A -> B -> C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
 	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
@@ -822,8 +881,11 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	// Build a graph: A -> B -> C
 	// For destroy, the order should be: C (destroyed first), then B, then A
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
 	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}
@@ -878,8 +940,11 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 
 	// Build a graph: A -> B -> C
 	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B", Dependencies: []*component.Component{cfgA}}
-	cfgC := &component.Component{Path: "C", Dependencies: []*component.Component{cfgB}}
+	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
+	cfgC := &component.Component{Path: "C"}
+	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
 	cfgA.DiscoveryContext = &component.DiscoveryContext{Cmd: "destroy"}

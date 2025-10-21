@@ -36,30 +36,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return errors.New(err)
 	}
 
-	if opts.QueueConstructAs != "" {
-		d = d.WithParseExclude()
-
-		parser := shellwords.NewParser()
-
-		args, err := parser.Parse(opts.QueueConstructAs)
-		if err != nil {
-			return errors.New(err)
-		}
-
-		cmd := args[0]
-
-		if len(args) > 1 {
-			args = args[1:]
-		}
-
-		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
-		})
-	}
-
 	var (
-		cfgs        component.Components
+		components  component.Components
 		discoverErr error
 	)
 
@@ -134,7 +112,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 type FoundComponents []*FoundComponent
 
-type FoundConfig struct {
+type FoundComponent struct {
 	Type component.Kind `json:"type"`
 	Path string         `json:"path"`
 
@@ -145,8 +123,8 @@ type FoundConfig struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(configs component.Components, opts *Options) (FoundConfigs, error) {
-	foundCfgs := make(FoundConfigs, 0, len(configs))
+func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
+	foundComponents := make(FoundComponents, 0, len(components))
 	errs := []error{}
 
 	for _, c := range components {
@@ -269,7 +247,7 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 
 	if dir == "" {
 		// No directory part, color the whole path
-		switch config.Type {
+		switch foundComponent.Type {
 		case component.Unit:
 			return c.unitColorizer(path)
 		case component.Stack:
@@ -282,7 +260,7 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
 
-	switch config.Type {
+	switch foundComponent.Type {
 	case component.Unit:
 		return coloredPath + c.unitColorizer(base)
 	case component.Stack:

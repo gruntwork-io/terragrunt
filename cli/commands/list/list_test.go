@@ -495,7 +495,7 @@ func TestColorizer(t *testing.T) {
 	}{
 		{
 			name: "unit config",
-			config: &list.ListedConfig{
+			config: &list.ListedComponent{
 				Type: component.Unit,
 				Path: "path/to/unit",
 			},
@@ -503,7 +503,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &list.ListedConfig{
+			config: &list.ListedComponent{
 				Type: component.Stack,
 				Path: "path/to/stack",
 			},

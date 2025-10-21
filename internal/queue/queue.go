@@ -36,7 +36,7 @@ import (
 type Entry struct {
 	// Component is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
 	// including its path, dependencies, and discovery context (such as the command being run).
-	Config *component.Component
+	Component *component.Component
 
 	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
 	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
@@ -164,8 +164,8 @@ func (e Entries) Entry(cfg *component.Component) *Entry {
 	return nil
 }
 
-// Configs returns the queue configs.
-func (q *Queue) Configs() component.Components {
+// Components returns the queue components.
+func (q *Queue) Components() component.Components {
 	result := make(component.Components, 0, len(q.Entries))
 	for _, entry := range q.Entries {
 		result = append(result, entry.Component)

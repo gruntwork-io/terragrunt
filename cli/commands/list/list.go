@@ -36,31 +36,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return errors.New(err)
 	}
 
-	if opts.QueueConstructAs != "" {
-		d = d.WithParseExclude()
-		d = d.WithDiscoverDependencies()
-
-		parser := shellwords.NewParser()
-
-		args, err := parser.Parse(opts.QueueConstructAs)
-		if err != nil {
-			return errors.New(err)
-		}
-
-		cmd := args[0]
-
-		if len(args) > 1 {
-			args = args[1:]
-		}
-
-		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
-		})
-	}
-
 	var (
-		cfgs        component.Components
+		components  component.Components
 		discoverErr error
 	)
 
@@ -153,7 +130,7 @@ func shouldDiscoverDependencies(opts *Options) bool {
 
 type ListedComponents []*ListedComponent
 
-type ListedConfig struct {
+type ListedComponent struct {
 	Type component.Kind
 	Path string
 
@@ -182,8 +159,8 @@ func (l ListedComponents) Get(path string) *ListedComponent {
 	return nil
 }
 
-func discoveredToListed(configs component.Components, opts *Options) (ListedConfigs, error) {
-	listedCfgs := make(ListedConfigs, 0, len(configs))
+func discoveredToListed(components component.Components, opts *Options) (ListedComponents, error) {
+	listedComponents := make(ListedComponents, 0, len(components))
 	errs := []error{}
 
 	for _, c := range components {
@@ -278,7 +255,7 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 
 	if dir == "" {
 		// No directory part, color the whole path
-		switch config.Type {
+		switch listedComponent.Type {
 		case component.Unit:
 			return c.unitColorizer(path)
 		case component.Stack:
@@ -291,7 +268,7 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
 
-	switch config.Type {
+	switch listedComponent.Type {
 	case component.Unit:
 		return coloredPath + c.unitColorizer(base)
 	case component.Stack:
@@ -511,10 +488,10 @@ func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 		for i, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
-				configType := component.Stack
+				componentType := component.Stack
 
-				if config.Type == component.Unit && i == len(parts.segments)-1 {
-					configType = component.Unit
+				if c.Type == component.Unit && i == len(parts.segments)-1 {
+					componentType = component.Unit
 				}
 
 				tmpCfg := &ListedComponent{

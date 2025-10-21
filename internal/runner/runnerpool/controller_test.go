@@ -37,8 +37,6 @@ func discoveryFromUnits(units []*common.Unit) []*component.Component {
 	}
 	// Second pass: wire dependencies
 	for i, u := range units {
-		var deps []*component.Component
-
 		for _, dep := range u.Dependencies {
 			if depCfg, ok := unitMap[dep]; ok {
 				discovered[i].AddDependency(depCfg)
@@ -56,9 +54,10 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	// Build Component objects directly
 	cfgA := &component.Component{Path: "A"}
 	cfgB := &component.Component{Path: "B"}
+	cfgB.AddDependency(cfgA)
+
 	cfgC := &component.Component{Path: "C"}
-	cfgB.Dependencies = []*component.Component{cfgA}
-	cfgC.Dependencies = []*component.Component{cfgB}
+	cfgC.AddDependency(cfgB)
 	configs := []*component.Component{cfgA, cfgB, cfgC}
 
 	unitA := mockUnit("A")

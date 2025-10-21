@@ -542,7 +542,7 @@ func TestColorizer(t *testing.T) {
 	}{
 		{
 			name: "unit config",
-			config: &find.FoundConfig{
+			config: &find.FoundComponent{
 				Type: component.Unit,
 				Path: "path/to/unit",
 			},
@@ -550,7 +550,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &find.FoundConfig{
+			config: &find.FoundComponent{
 				Type: component.Stack,
 				Path: "path/to/stack",
 			},

@@ -40,6 +40,9 @@ func (l *Lexer) NextToken() Token {
 	case '=':
 		tok = NewToken(EQUAL, string(l.ch), startPosition)
 		l.readChar()
+		l.afterEqual = true
+
+		return tok
 	case '{':
 		tok = NewToken(LBRACE, string(l.ch), startPosition)
 		l.readChar()
@@ -64,6 +67,15 @@ func (l *Lexer) NextToken() Token {
 	case '/':
 		tok = l.readPath(startPosition)
 	default:
+		if l.afterEqual {
+			// After '=', read as attribute value (can contain slashes)
+			literal := l.readAttributeValue()
+			tok = NewToken(IDENT, literal, startPosition)
+			l.afterEqual = false
+
+			return tok
+		}
+
 		if isIdentifierChar(l.ch) {
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)

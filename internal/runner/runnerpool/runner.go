@@ -525,9 +525,8 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 			Reading:          cfg.Reading,
 		}
 
-		if cfg.Dependencies != nil {
-			deps := make(component.Components, 0, len(cfg.Dependencies))
-			for _, dep := range cfg.Dependencies {
+		if len(cfg.Dependencies()) > 0 {
+			for _, dep := range cfg.Dependencies() {
 				if _, ok := allowed[dep.Path]; ok {
 					copyCfg.AddDependency(dep)
 				}

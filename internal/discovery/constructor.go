@@ -18,6 +18,7 @@ type DiscoveryCommandOptions struct {
 	External         bool
 	Exclude          bool
 	Include          bool
+	Reading          bool
 }
 
 // NewForCommand creates a Discovery configured for discovery commands (find/list).

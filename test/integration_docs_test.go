@@ -313,6 +313,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 	generatePathBasedFixture(t, tmpDir)
 	generateNegationFixture(t, tmpDir)
 	generateIntersectionFixture(t, tmpDir)
+	generateReadingFixture(t, tmpDir)
 
 	testCases := []struct {
 		name           string
