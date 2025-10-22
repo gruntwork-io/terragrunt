@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
@@ -181,8 +182,14 @@ func runValidateWithDiscovery(ctx context.Context, l log.Logger, opts *options.T
 
 	for _, comp := range components {
 		compOpts := opts.Clone()
-		compOpts.WorkingDir = filepath.Dir(comp.Path)
-		compOpts.TerragruntConfigPath = comp.Path
+		compOpts.WorkingDir = comp.Path
+
+		filename := config.DefaultTerragruntConfigPath
+		if comp.Kind == component.Stack {
+			filename = config.DefaultStackFile
+		}
+
+		compOpts.TerragruntConfigPath = filepath.Join(comp.Path, filename)
 
 		_, err := config.ReadTerragruntConfig(ctx, l, compOpts, parseOptions)
 		if err != nil {

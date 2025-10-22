@@ -148,6 +148,7 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 	// We use lightweight discovery here instead of the full discovery used by
 	// the discovery package because we want to find non-comps like include comps.
 	files := []string{}
+
 	err = filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
