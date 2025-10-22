@@ -498,8 +498,21 @@ func Parse(
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
+	var (
+		cfg *config.TerragruntConfig
+		err error
+	)
+
+	// Set a list with partial blocks used to do discovery
+	parsingCtx = parsingCtx.WithDecodeList(
+		config.DependenciesBlock,
+		config.DependencyBlock,
+		config.FeatureFlagsBlock,
+		config.ExcludeBlock,
+	)
+
 	//nolint: contextcheck
-	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)

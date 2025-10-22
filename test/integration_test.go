@@ -641,24 +641,6 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Unknown variable",
-			Detail:   "There is no variable named \"dependency\".",
-			Range: &diagnostic.Range{
-				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 6, Column: 7, Byte: 74},
-				End:      diagnostic.Pos{Line: 6, Column: 17, Byte: 84},
-			},
-			Snippet: &diagnostic.Snippet{
-				Context:              "",
-				Code:                 "  c = dependency.a.outputs.z",
-				StartLine:            6,
-				HighlightStartOffset: 6,
-				HighlightEndOffset:   16,
-				Values:               []diagnostic.ExpressionValue{},
-			},
-		},
-		&diagnostic.Diagnostic{
-			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Unsupported attribute",
 			Detail:   "This object does not have an attribute named \"outputs\".",
 			Range: &diagnostic.Range{
@@ -672,30 +654,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				StartLine:            6,
 				HighlightStartOffset: 18,
 				HighlightEndOffset:   26,
-				Values: []diagnostic.ExpressionValue{
-					{
-						Traversal: "dependency.a",
-						Statement: "is object with no attributes",
-					},
-				},
-			},
-		},
-		&diagnostic.Diagnostic{
-			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Unknown variable",
-			Detail:   "There is no variable named \"dependency\".",
-			Range: &diagnostic.Range{
-				Filename: filepath.Join(rootPath, "second/d/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 10, Column: 7, Byte: 103},
-				End:      diagnostic.Pos{Line: 10, Column: 17, Byte: 113},
-			},
-			Snippet: &diagnostic.Snippet{
-				Context:              "",
-				Code:                 "  d = dependency.c.outputs.c",
-				StartLine:            10,
-				HighlightStartOffset: 6,
-				HighlightEndOffset:   16,
-				Values:               []diagnostic.ExpressionValue{},
+				Values:               []diagnostic.ExpressionValue{{Traversal: "dependency.a", Statement: "is object with no attributes"}},
 			},
 		},
 		&diagnostic.Diagnostic{

@@ -397,6 +397,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
 	// them into the output TerragruntConfig struct.
+	hasExcludeBlock := false
+
 	for _, decode := range ctx.PartialParseDecodeList {
 		switch decode {
 		case DependenciesBlock:
@@ -547,16 +549,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			}
 
 		case ExcludeBlock:
-			decoded, err := processExcludes(ctx, l, output, file)
-			if err != nil {
-				return nil, err
-			}
-
-			if output.Exclude != nil {
-				output.Exclude.Merge(decoded.Exclude)
-			} else {
-				output.Exclude = decoded.Exclude
-			}
+			hasExcludeBlock = true
 
 		case ErrorsBlock:
 			decoded := terragruntErrors{}
@@ -602,7 +595,11 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 		return output, errs.ErrorOrNil()
 	}
 
-	return processExcludes(ctx, l, output, file)
+	if hasExcludeBlock {
+		return processExcludes(ctx, l, output, file)
+	}
+
+	return output, nil
 }
 
 // processExcludes evaluate exclude blocks and merge them into the config.
