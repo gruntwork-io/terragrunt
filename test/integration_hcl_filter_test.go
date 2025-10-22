@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -32,109 +34,117 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		name            string
-		filterArgs      []string
-		expectedInclude []string
-		expectedExclude []string
+		name        string
+		filterArgs  []string
+		expectError bool
+		errorAs     error
 	}{
 		// Path-based filtering
 		{
-			name:            "path-based: recursive in needs-formatting",
-			filterArgs:      []string{"./needs-formatting/**"},
-			expectedInclude: []string{"needs-formatting/nested/deep/web", "needs-formatting/nested/api", "needs-formatting/db"},
-			expectedExclude: []string{"already-formatted"},
+			name:        "path-based: recursive in needs-formatting",
+			filterArgs:  []string{"./needs-formatting/**"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "needs-formatting/nested/deep/web/terragrunt.hcl"),
+			},
 		},
 		{
-			name:            "path-based: specific path",
-			filterArgs:      []string{"./already-formatted/app1"},
-			expectedInclude: []string{"already-formatted/app1"},
-			expectedExclude: []string{"already-formatted/app2", "needs-formatting"},
+			name:       "path-based: specific directory with hcl file",
+			filterArgs: []string{"./already-formatted/app1/**"},
 		},
 		{
-			name:            "path-based: nested recursive",
-			filterArgs:      []string{"./needs-formatting/nested/deep/**"},
-			expectedInclude: []string{"needs-formatting/nested/deep/web"},
-			expectedExclude: []string{"needs-formatting/nested/api", "needs-formatting/db"},
+			name:        "path-based: nested recursive",
+			filterArgs:  []string{"./needs-formatting/nested/deep/**"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "needs-formatting/nested/api/terragrunt.hcl"),
+			},
 		},
 		{
-			name:            "path-based: wrapped path",
-			filterArgs:      []string{"{./already-formatted/app2}"},
-			expectedInclude: []string{"already-formatted/app2"},
-			expectedExclude: []string{"already-formatted/app1", "needs-formatting"},
-		},
-
-		// Attribute-based filtering
-		{
-			name:            "attribute-based: type=unit",
-			filterArgs:      []string{"type=unit"},
-			expectedInclude: []string{"app1", "app2", "web"},
-			expectedExclude: []string{"stack1", "stack2"},
+			name:       "path-based: wrapped path",
+			filterArgs: []string{"{./already-formatted/app2/**}"},
 		},
 		{
-			name:            "attribute-based: type=stack",
-			filterArgs:      []string{"type=stack"},
-			expectedInclude: []string{"stack1", "stack2"},
-			expectedExclude: []string{"app1", "web"},
-		},
-		{
-			name:            "attribute-based: name=web",
-			filterArgs:      []string{"name=web"},
-			expectedInclude: []string{"web"},
-			expectedExclude: []string{"api", "db"},
+			name:        "path-based: stack files with .stack.hcl extension",
+			filterArgs:  []string{"./stacks/**"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "stacks/needs-formatting/stack1/terragrunt.stack.hcl"),
+			},
 		},
 
-		// Negation
+		// Negation with path filters
 		{
-			name:            "negation: exclude by name '!web'",
-			filterArgs:      []string{"!web"},
-			expectedInclude: []string{"api", "db", "app1"},
-			expectedExclude: []string{"web"},
+			name:        "negation: exclude path '!./needs-formatting/**'",
+			filterArgs:  []string{"!./needs-formatting/**"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "stacks/needs-formatting/stack1/terragrunt.stack.hcl"),
+			},
 		},
 		{
-			name:            "negation: exclude path '!./needs-formatting/**'",
-			filterArgs:      []string{"!./needs-formatting/**"},
-			expectedInclude: []string{"already-formatted/app1", "already-formatted/app2"},
-			expectedExclude: []string{"needs-formatting"},
-		},
-		{
-			name:            "negation: exclude type '!type=stack'",
-			filterArgs:      []string{"!type=stack"},
-			expectedInclude: []string{"app1", "web"},
-			expectedExclude: []string{"stack1", "stack2"},
+			name:        "negation: exclude stack files by name",
+			filterArgs:  []string{"!./**stack.hcl"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "needs-formatting/nested/deep/web/terragrunt.hcl"),
+			},
 		},
 
 		// Intersection (refinement)
 		{
-			name:            "intersection: path AND type",
-			filterArgs:      []string{"./needs-formatting/** | type=unit"},
-			expectedInclude: []string{"needs-formatting/nested/deep/web", "needs-formatting/nested/api", "needs-formatting/db"},
-			expectedExclude: []string{"already-formatted", "stack1"},
+			name:        "intersection: path AND filename",
+			filterArgs:  []string{"./needs-formatting/** | ./**/terragrunt.hcl"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "needs-formatting/nested/deep/web/terragrunt.hcl"),
+			},
 		},
 		{
-			name:            "intersection: path AND negated name",
-			filterArgs:      []string{"./needs-formatting/nested/** | !name=db"},
-			expectedInclude: []string{"needs-formatting/nested/deep/web", "needs-formatting/nested/api"},
-			expectedExclude: []string{"needs-formatting/db"},
-		},
-		{
-			name:            "intersection: stacks path AND stack type",
-			filterArgs:      []string{"./stacks/** | type=stack"},
-			expectedInclude: []string{"stacks/needs-formatting/stack1", "stacks/already-formatted/stack2"},
-			expectedExclude: []string{"app1", "web"},
+			name:       "intersection: path AND negated filename",
+			filterArgs: []string{"./stacks/** | !./**/stack1/*"},
 		},
 
 		// Union (multiple filters)
 		{
-			name:            "union: multiple names",
-			filterArgs:      []string{"web", "api"},
-			expectedInclude: []string{"web", "api"},
-			expectedExclude: []string{"db", "app1"},
+			name:        "union: multiple paths",
+			filterArgs:  []string{"./needs-formatting/db/**", "./already-formatted/app1/**"},
+			expectError: true,
+			errorAs: format.FileNeedsFormattingError{
+				Path: filepath.Join(rootPath, "needs-formatting/db/terragrunt.hcl"),
+			},
+		},
+
+		// Attribute filters
+		{
+			name:        "error: name=*.stack.hcl requires HCL parsing",
+			filterArgs:  []string{"name=*.stack.hcl"},
+			expectError: true,
+			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "name=*.stack.hcl"},
 		},
 		{
-			name:            "union: multiple paths",
-			filterArgs:      []string{"./needs-formatting/**", "./stacks/already-formatted/**"},
-			expectedInclude: []string{"needs-formatting/nested/deep/web", "needs-formatting/db", "stacks/already-formatted/stack2"},
-			expectedExclude: []string{"already-formatted/app1"},
+			name:        "error: type=unit requires HCL parsing",
+			filterArgs:  []string{"type=unit"},
+			expectError: true,
+			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "type=unit"},
+		},
+		{
+			name:        "error: type=stack requires HCL parsing",
+			filterArgs:  []string{"type=stack"},
+			expectError: true,
+			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "type=stack"},
+		},
+		{
+			name:        "error: external=true requires HCL parsing",
+			filterArgs:  []string{"external=true"},
+			expectError: true,
+			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "external=true"},
+		},
+		{
+			name:        "error: intersection with type filter",
+			filterArgs:  []string{"./needs-formatting/** | type=unit"},
+			expectError: true,
+			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "./needs-formatting/** | type=unit"},
 		},
 	}
 
@@ -155,21 +165,20 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-			require.NoError(t, err)
 
-			t.Logf("stdout: %s", stdout)
-			t.Logf("stderr: %s", stderr)
-
-			// Verify inclusion: files that should be processed are mentioned
-			for _, expectedPath := range tc.expectedInclude {
-				assert.Contains(t, stdout, expectedPath,
-					"Expected output to contain '%s' but it was not found", expectedPath)
-			}
-
-			// Verify exclusion: files that should NOT be processed are NOT mentioned
-			for _, excludedPath := range tc.expectedExclude {
-				assert.NotContains(t, stdout, excludedPath,
-					"Expected output to NOT contain '%s' but it was found", excludedPath)
+			if tc.expectError {
+				// Command should fail with expected error
+				require.Error(t, err, "Expected command to fail but it succeeded")
+				assert.ErrorAs(t, err, &tc.errorAs)
+				assert.Equal(t, tc.errorAs.Error(), err.Error())
+			} else {
+				// Command should succeed
+				require.NoError(
+					t,
+					err,
+					"Expected command to succeed but got error: %v\nstdout: %s\nstderr: %s",
+					err, stdout, stderr,
+				)
 			}
 		})
 	}
