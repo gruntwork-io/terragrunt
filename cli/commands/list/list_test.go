@@ -488,14 +488,14 @@ func TestColorizer(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *list.ListedConfig
+		config *list.ListedComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
 		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &list.ListedConfig{
+			config: &list.ListedComponent{
 				Type: component.Unit,
 				Path: "path/to/unit",
 			},
@@ -503,7 +503,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &list.ListedConfig{
+			config: &list.ListedComponent{
 				Type: component.Stack,
 				Path: "path/to/stack",
 			},
@@ -520,7 +520,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &list.ListedConfig{
+				diffConfig := &list.ListedComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}

@@ -257,7 +257,7 @@ func TestFindExclude(t *testing.T) {
 			assert.Empty(t, stderr)
 
 			if strings.Contains(tc.args, "--json") {
-				var configs find.FoundConfigs
+				var configs find.FoundComponents
 
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
@@ -342,7 +342,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, stderr)
 
-			var configs find.FoundConfigs
+			var configs find.FoundComponents
 
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
