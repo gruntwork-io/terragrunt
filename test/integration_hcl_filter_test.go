@@ -12,21 +12,19 @@ import (
 )
 
 const (
-	testFixtureHclFilter = "fixtures/hcl-filter-test"
-	// testFixtureFilterBasic is defined in integration_filter_test.go
+	testFixtureHCLFilter = "fixtures/hcl-filter-test"
 )
 
-func TestHclValidateWithFilter(t *testing.T) {
+func TestHCLValidateWithFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclFilter)
+	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter)
 
 	testCases := []struct {
 		name        string
@@ -53,17 +51,15 @@ func TestHclValidateWithFilter(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			cmd := fmt.Sprintf("terragrunt hcl validate --experiment=filter-flag --filter %s --working-dir %s",
+			cmd := fmt.Sprintf("terragrunt hcl validate --filter %s --working-dir %s",
 				tc.filterQuery, rootPath)
 
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 
-			// Filter should be accepted (no filter parsing errors)
 			output := stdout.String() + stderr.String()
 			assert.NotContains(t, strings.ToLower(output), "parse error",
 				"Filter should be accepted without parse errors")
 
-			// Validation should pass - just verifying the filter flag works
 			if err != nil {
 				t.Logf("Output: %s", output)
 			}
@@ -71,17 +67,16 @@ func TestHclValidateWithFilter(t *testing.T) {
 	}
 }
 
-func TestHclFormatWithFilter(t *testing.T) {
+func TestHCLFormatWithFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclFilter)
+	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter)
 
 	testCases := []struct {
 		name        string
@@ -112,7 +107,7 @@ func TestHclFormatWithFilter(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			cmd := fmt.Sprintf("terragrunt hcl format --experiment=filter-flag --filter %s --check --working-dir %s",
+			cmd := fmt.Sprintf("terragrunt hcl format --filter %s --check --working-dir %s",
 				tc.filterQuery, rootPath)
 
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
@@ -127,68 +122,53 @@ func TestHclFormatWithFilter(t *testing.T) {
 	}
 }
 
-func TestHclFormatFilterAccepted(t *testing.T) {
+func TestHCLFormatFilterAccepted(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclFilter)
+	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter)
 
-	// NOTE: With filter-flag experiment enabled, hcl format now uses the discovery
-	// system and properly respects filter queries. This test verifies filtering works.
-
-	t.Run("filter actually works - only processes filtered directories", func(t *testing.T) {
+	t.Run("filter only processes filtered directories", func(t *testing.T) {
 		t.Parallel()
 
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 
-		// Filter only app directory
-		cmd := "terragrunt hcl format --experiment=filter-flag --filter ./app --check --working-dir " + rootPath
+		cmd := "terragrunt hcl format --filter ./app --check --working-dir " + rootPath
 		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 
 		output := stdout.String() + stderr.String()
 		t.Logf("Output with filter (err=%v): %s", err, output)
 
-		// The main verification is that the command succeeded and only processed the filtered directory
-		// If there were issues, they would be in the output or error
-		// The filter is working correctly if no error about db/ appears (since it should be filtered out)
 		assert.NotContains(t, output, "db/terragrunt.hcl", "Should NOT process db config (filtered out)")
-
-		// If files are already formatted, there will be no output, which is fine
-		// The important thing is that the filter is respected (no db/ in output)
 	})
 }
 
-func TestHclFormatWithFilterDiff(t *testing.T) {
+func TestHCLFormatWithFilterDiff(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclFilter)
+	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	// Filter only app directory
-	cmd := "terragrunt hcl format --experiment=filter-flag --filter ./app --diff --working-dir " + rootPath
+	cmd := "terragrunt hcl format --filter ./app --diff --working-dir " + rootPath
 
-	// Run the command
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 
 	output := stdout.String() + stderr.String()
 
-	// Verify filter was accepted (no parse errors)
 	assert.NotContains(t, strings.ToLower(output), "parse error",
 		"Filter should be accepted without parse errors")
 
