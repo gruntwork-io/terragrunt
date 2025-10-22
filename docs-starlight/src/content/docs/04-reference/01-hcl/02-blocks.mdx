@@ -47,7 +47,7 @@ The `terraform` block supports the following arguments:
     [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
     use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
 
-- `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied from the same working directory as the `terragrunt.hcl` folder into the
+- `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied from the same directory containing `terragrunt.hcl` into the
   OpenTofu/Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
   Terragrunt will download the code specified at source into a scratch folder (`.terragrunt-cache`, by default), copy
   the code in your current working directory into the same scratch folder, and then run `tofu <command>` (or `terraform <command>`) in that
@@ -61,13 +61,13 @@ The `terraform` block supports the following arguments:
     can specify that in this list to ensure it gets copied over to the scratch copy
     (e.g., `include_in_copy = [".python-version"]`).
 
-- `exclude_from_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be skipped from the same working directory as the `terragrunt.hcl` folder when copying into the
+- `exclude_from_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be skipped from the same directory containing `terragrunt.hcl` when copying into the
   OpenTofu/Terraform working directory. All examples valid for `include_in_copy` can be used here.
 
   *Note that using `include_in_copy` and `exclude_from_copy` are not mutually exclusive.*
   If a file matches a pattern in both `include_in_copy` and `exclude_from_copy`, it will not be included. If you would like to ensure that the file *is* included, make sure the patterns you use for `include_in_copy` do not match the patterns in `exclude_from_copy`.
 
-  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](docs/features/hooks) feature.*
+  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/docs/features/hooks) feature.*
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
