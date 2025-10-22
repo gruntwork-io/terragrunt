@@ -115,10 +115,7 @@ func (f Filters) Evaluate(components component.Components) (component.Components
 // rather than directories, like we do with components.
 func (f Filters) EvaluateOnFiles(files []string) (component.Components, error) {
 	if e, ok := f.RequiresHCLParsing(); ok {
-		return nil, fmt.Errorf(
-			"filter query '%s' requires parsing Terragrunt configurations, which is not supported when evaluating filters on files",
-			e,
-		)
+		return nil, FilterQueryRequiresHCLParsingError{Query: e.String()}
 	}
 
 	if len(f) == 0 {

@@ -314,7 +314,7 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	if opts.Check && fileUpdated {
-		return fmt.Errorf("invalid file format %s", tgHclFile)
+		return &FileNeedsFormattingError{Path: tgHclFile}
 	}
 
 	if fileUpdated {
