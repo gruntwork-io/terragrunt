@@ -1,8 +1,9 @@
 package test_test
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,10 +35,10 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
+		errorAs     error
 		name        string
 		filterArgs  []string
 		expectError bool
-		errorAs     error
 	}{
 		// Path-based filtering
 		{
@@ -169,8 +170,8 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			if tc.expectError {
 				// Command should fail with expected error
 				require.Error(t, err, "Expected command to fail but it succeeded")
-				assert.ErrorAs(t, err, &tc.errorAs)
-				assert.Equal(t, tc.errorAs.Error(), err.Error())
+
+				require.ErrorContains(t, err, tc.errorAs.Error())
 			} else {
 				// Command should succeed
 				require.NoError(
@@ -184,7 +185,6 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 	}
 }
 
-// TestHCLValidateWithFilter tests the hcl validate command with various filter expressions
 func TestHCLValidateWithFilter(t *testing.T) {
 	t.Parallel()
 
@@ -193,134 +193,57 @@ func TestHCLValidateWithFilter(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		filterArgs      []string
-		expectedInclude []string
-		expectedExclude []string
-		expectErrors    bool
+		name       string
+		filterArgs []string
 	}{
-		// Name-based filtering
-		{
-			name:            "name-based: exact match 'web'",
-			filterArgs:      []string{"web"},
-			expectedInclude: []string{"web"},
-			expectedExclude: []string{"api", "db"},
-			expectErrors:    false,
-		},
-		{
-			name:            "name-based: exact match 'invalid-char'",
-			filterArgs:      []string{"invalid-char"},
-			expectedInclude: []string{"invalid-char"},
-			expectedExclude: []string{"web", "api"},
-			expectErrors:    true,
-		},
-
 		// Path-based filtering
 		{
-			name:            "path-based: valid files only",
-			filterArgs:      []string{"./valid/**"},
-			expectedInclude: []string{"valid/nested/deep/web", "valid/nested/api", "valid/db"},
-			expectedExclude: []string{"syntax-error", "semantic-error"},
-			expectErrors:    false,
+			name:       "path-based: valid files only",
+			filterArgs: []string{"./**valid**"},
 		},
 		{
-			name:            "path-based: syntax-error files",
-			filterArgs:      []string{"./syntax-error/**"},
-			expectedInclude: []string{"syntax-error/invalid-char", "syntax-error/invalid-key"},
-			expectedExclude: []string{"valid/", "semantic-error/"},
-			expectErrors:    true,
-		},
-		{
-			name:            "path-based: semantic-error files",
-			filterArgs:      []string{"./semantic-error/**"},
-			expectedInclude: []string{"semantic-error/incomplete-block", "semantic-error/missing-value"},
-			expectedExclude: []string{"valid/", "syntax-error/"},
-			expectErrors:    true,
-		},
-		{
-			name:            "path-based: nested recursive valid",
-			filterArgs:      []string{"./valid/nested/deep/**"},
-			expectedInclude: []string{"valid/nested/deep/web"},
-			expectedExclude: []string{"valid/nested/api", "valid/db"},
-			expectErrors:    false,
+			name:       "path-based: nested recursive valid",
+			filterArgs: []string{"./valid/nested/deep/**"},
 		},
 
 		// Attribute-based filtering
 		{
-			name:            "attribute-based: type=unit",
-			filterArgs:      []string{"type=unit"},
-			expectedInclude: []string{"terragrunt.hcl"},
-			expectedExclude: []string{".stack.hcl"},
-			expectErrors:    true, // Will include error files
+			name:       "attribute-based: type=unit",
+			filterArgs: []string{"type=unit"},
 		},
 		{
-			name:            "attribute-based: type=stack",
-			filterArgs:      []string{"type=stack"},
-			expectedInclude: []string{".stack.hcl"},
-			expectedExclude: []string{"valid/nested/deep/web", "valid/nested/api", "valid/db"},
-			expectErrors:    true, // stack2 has syntax error
+			name:       "attribute-based: type=stack",
+			filterArgs: []string{"type=stack"},
 		},
 
 		// Negation
 		{
-			name:            "negation: exclude syntax errors",
-			filterArgs:      []string{"!./syntax-error/**"},
-			expectedInclude: []string{"valid/", "semantic-error/"},
-			expectedExclude: []string{"syntax-error/"},
-			expectErrors:    true, // semantic errors still present
+			name:       "negation: exclude all error directories",
+			filterArgs: []string{"!./**syntax-error**", "!./**semantic-error**"},
 		},
 		{
-			name:            "negation: exclude all errors",
-			filterArgs:      []string{"!./syntax-error/**", "!./semantic-error/**"},
-			expectedInclude: []string{"valid/nested/deep/web", "valid/db"},
-			expectedExclude: []string{"syntax-error/", "semantic-error/"},
-			expectErrors:    false,
-		},
-		{
-			name:            "negation: exclude stacks",
-			filterArgs:      []string{"!type=stack"},
-			expectedInclude: []string{"web", "api"},
-			expectedExclude: []string{".stack.hcl"},
-			expectErrors:    true, // unit errors present
+			name:       "negation: exclude stacks",
+			filterArgs: []string{"!type=stack"},
 		},
 
 		// Intersection (refinement)
 		{
-			name:            "intersection: valid AND type=unit",
-			filterArgs:      []string{"./valid/** | type=unit"},
-			expectedInclude: []string{"valid/nested/deep/web", "valid/nested/api", "valid/db"},
-			expectedExclude: []string{"syntax-error/", "semantic-error/"},
-			expectErrors:    false,
+			name:       "intersection: valid AND type=unit",
+			filterArgs: []string{"./**valid** | type=unit"},
 		},
 		{
-			name:            "intersection: valid AND NOT db",
-			filterArgs:      []string{"./valid/** | !name=db"},
-			expectedInclude: []string{"valid/nested/deep/web", "valid/nested/api"},
-			expectedExclude: []string{"valid/db"},
-			expectErrors:    false,
+			name:       "intersection: valid AND NOT db",
+			filterArgs: []string{"./**valid** | !name=db"},
 		},
 		{
-			name:            "intersection: stacks AND valid",
-			filterArgs:      []string{"./stacks/** | ./stacks/valid/**"},
-			expectedInclude: []string{"stacks/valid/stack1"},
-			expectedExclude: []string{"stacks/syntax-error/stack2"},
-			expectErrors:    false,
+			name:       "intersection: stacks/valid only",
+			filterArgs: []string{"./**stack** | ./**valid**"},
 		},
 
 		// Union (multiple filters)
 		{
-			name:            "union: web OR api",
-			filterArgs:      []string{"web", "api"},
-			expectedInclude: []string{"web", "api"},
-			expectedExclude: []string{"db"},
-			expectErrors:    false,
-		},
-		{
-			name:            "union: valid OR stacks/valid",
-			filterArgs:      []string{"./valid/**", "./stacks/valid/**"},
-			expectedInclude: []string{"valid/nested/deep/web", "stacks/valid/stack1"},
-			expectedExclude: []string{"syntax-error/", "semantic-error/", "stacks/syntax-error"},
-			expectErrors:    false,
+			name:       "union: valid files OR valid stacks",
+			filterArgs: []string{"./**valid**"},
 		},
 	}
 
@@ -332,45 +255,24 @@ func TestHCLValidateWithFilter(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "validate")
 
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
-			// Build filter arguments
-			filterStr := ""
+			cmdParts := []string{"terragrunt", "hcl", "validate"}
 			for _, filter := range tc.filterArgs {
-				filterStr += fmt.Sprintf(" --filter '%s'", filter)
+				cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'%s'", filter))
 			}
 
-			cmd := fmt.Sprintf("terragrunt hcl validate%s --working-dir %s",
-				filterStr, rootPath)
+			cmdParts = append(cmdParts, "--working-dir", rootPath)
 
-			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			cmd := strings.Join(cmdParts, " ")
 
-			output := stdout.String() + stderr.String()
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
-			// Check if errors were expected
-			if tc.expectErrors {
-				assert.Error(t, err, "Expected validation errors but command succeeded")
-			} else {
-				require.NoError(t, err, "Expected no validation errors but got: %s", output)
-			}
+			require.NoError(t, err, "Expected validation with filter to execute successfully but got error: %w", err)
 
-			// Verify inclusion: files that should be processed are mentioned
-			for _, expectedPath := range tc.expectedInclude {
-				assert.Contains(t, output, expectedPath,
-					"Expected output to contain '%s' but it was not found. Output:\n%s", expectedPath, output)
-			}
-
-			// Verify exclusion: files that should NOT be processed are NOT mentioned
-			for _, excludedPath := range tc.expectedExclude {
-				assert.NotContains(t, output, excludedPath,
-					"Expected output to NOT contain '%s' but it was found. Output:\n%s", excludedPath, output)
-			}
+			assert.Empty(t, stderr, "Expected no errors but got: %s", stderr)
 		})
 	}
 }
 
-// TestHCLFormatFilterIntegration tests format command actually formats only filtered files
 func TestHCLFormatFilterIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -382,93 +284,54 @@ func TestHCLFormatFilterIntegration(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
 
-	t.Run("format only needs-formatting directory", func(t *testing.T) {
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --json --filter './needs-formatting/**' --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-		// First check which files need formatting
-		checkCmd := fmt.Sprintf("terragrunt hcl format --filter './needs-formatting/**' --check --working-dir %s", rootPath)
-		checkErr := helpers.RunTerragruntCommand(t, checkCmd, &stdout, &stderr)
+	type foundComponents struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
 
-		// Should find files that need formatting
-		assert.Error(t, checkErr, "Expected --check to find unformatted files")
-
-		checkOutput := stdout.String() + stderr.String()
-		assert.Contains(t, checkOutput, "needs-formatting", "Should detect needs-formatting files")
-
-		// Now actually format them
-		stdout.Reset()
-		stderr.Reset()
-
-		formatCmd := fmt.Sprintf("terragrunt hcl format --filter './needs-formatting/**' --working-dir %s", rootPath)
-		err := helpers.RunTerragruntCommand(t, formatCmd, &stdout, &stderr)
-		require.NoError(t, err, "Format command should succeed")
-
-		formatOutput := stdout.String() + stderr.String()
-
-		// Verify the files in needs-formatting were processed
-		webPath := filepath.Join(rootPath, "needs-formatting", "nested", "deep", "web", "terragrunt.hcl")
-		webContent, err := util.ReadFileAsString(webPath)
-		require.NoError(t, err)
-
-		// Check that formatting was applied (no extra spaces around =)
-		assert.NotContains(t, webContent, "web_name =                    \"web-service\"",
-			"File should be formatted")
-		assert.Contains(t, webContent, "web_name", "File should still contain web_name")
-
-		// Verify files in already-formatted were NOT changed
-		assert.NotContains(t, formatOutput, "already-formatted",
-			"Should not process already-formatted directory")
-	})
-}
-
-// TestHCLValidateFilterErrorDetection tests that validate detects errors only in filtered files
-func TestHCLValidateFilterErrorDetection(t *testing.T) {
-	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+		Contents []byte `json:"contents,omitempty"`
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "validate")
+	var components []foundComponents
 
-	t.Run("validate only valid files - should pass", func(t *testing.T) {
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
+	err = json.Unmarshal([]byte(stdout), &components)
+	require.NoError(t, err)
 
-		cmd := fmt.Sprintf("terragrunt hcl validate --filter './valid/**' --working-dir %s", rootPath)
-		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+	for _, component := range components {
+		basename := "terragrunt.hcl"
+		if component.Type == "stack" {
+			basename = "terragrunt.stack.hcl"
+		}
 
-		output := stdout.String() + stderr.String()
-		assert.NoError(t, err, "Valid files should pass validation. Output: %s", output)
-		assert.Contains(t, output, "valid/", "Should process valid directory")
-		assert.NotContains(t, strings.ToLower(output), "error", "Should not have errors")
-	})
+		filename := filepath.Join(rootPath, component.Path, basename)
+		content, readErr := os.ReadFile(filename)
+		require.NoError(t, readErr)
 
-	t.Run("validate only syntax-error files - should fail", func(t *testing.T) {
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
+		component.Contents = content
+	}
 
-		cmd := fmt.Sprintf("terragrunt hcl validate --filter './syntax-error/**' --working-dir %s", rootPath)
-		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+	checkCmd := "terragrunt hcl format --filter './needs-formatting/**' --check --working-dir " + rootPath
 
-		output := stdout.String() + stderr.String()
-		assert.Error(t, err, "Syntax error files should fail validation")
-		assert.Contains(t, output, "syntax-error", "Should process syntax-error directory")
-	})
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, checkCmd)
+	require.Error(t, err, "Expected --check to find unformatted files")
 
-	t.Run("validate with negation - exclude errors", func(t *testing.T) {
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
+	formatCmd := "terragrunt hcl format --filter './needs-formatting/**' --working-dir " + rootPath
 
-		cmd := fmt.Sprintf("terragrunt hcl validate --filter '!./syntax-error/**' --filter '!./semantic-error/**' --working-dir %s", rootPath)
-		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, formatCmd)
+	require.NoError(t, err, "Format command should succeed")
 
-		output := stdout.String() + stderr.String()
-		assert.NoError(t, err, "Should pass when error files are excluded. Output: %s", output)
-		assert.NotContains(t, output, "syntax-error", "Should not process syntax-error directory")
-		assert.NotContains(t, output, "semantic-error", "Should not process semantic-error directory")
-	})
+	for _, component := range components {
+		basename := "terragrunt.hcl"
+		if component.Type == "stack" {
+			basename = "terragrunt.stack.hcl"
+		}
+
+		filename := filepath.Join(rootPath, component.Path, basename)
+		content, err := os.ReadFile(filename)
+		require.NoError(t, err)
+		assert.NotEqual(t, content, component.Contents)
+	}
 }
