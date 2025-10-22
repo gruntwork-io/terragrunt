@@ -1,0 +1,87 @@
+---
+name: filter
+description: Filter configurations using a flexible query language
+type: list(string)
+---
+
+import {Aside} from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --filter 'foo'
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+</Aside>
+
+<Aside type="note" title="Filter Behavior for HCL Format">
+The `--filter` flag works differently for `hcl fmt` compared to other commands. It filters on individual HCL files rather than units or stacks (which are directories). As a result, only path-based filter expressions are supported. Attribute-based filters like `type=unit` or `name=my-app` are not applicable to file-level operations.
+
+Example:
+```bash
+# Supported: Path-based filtering
+terragrunt hcl fmt --filter './prod/**/*.hcl'
+
+# Not supported: Attribute-based filtering
+terragrunt hcl fmt --filter 'type=unit'  # This will not work
+```
+</Aside>
+
+The `--filter` flag provides a path-based querying syntax for targeting specific HCL files to format.
+
+## Usage
+
+```bash
+terragrunt hcl fmt --filter './prod/**'
+```
+
+### Path-Based Filtering
+Match HCL files by their file system path:
+
+```bash
+# Relative paths with globs
+terragrunt hcl fmt --filter './envs/prod/**'
+
+# Format all HCL files in a specific directory
+terragrunt hcl fmt --filter './modules/**/*.hcl'
+
+# Absolute paths
+terragrunt hcl fmt --filter '/absolute/path/to/envs/dev/apps/*'
+```
+
+### Negation
+Exclude paths using the `!` prefix:
+
+```bash
+# Exclude by path
+terragrunt hcl fmt --filter '!./prod/**'
+
+# Exclude specific directories
+terragrunt hcl fmt --filter '!./test/**'
+```
+
+### Intersection (Refinement)
+Use the `|` operator to refine results:
+
+```bash
+# Format HCL files in prod directory, excluding tests
+terragrunt hcl fmt --filter './prod/** | !./prod/test/**'
+
+# Format specific file patterns
+terragrunt hcl fmt --filter './**/*.hcl | !./**/test/**'
+```
+
+### Union (Multiple Filters)
+Specify multiple `--filter` flags to combine results using OR logic:
+
+```bash
+# Format files in either dev or staging directories
+terragrunt hcl fmt --filter './dev/**' --filter './staging/**'
+```
+
+For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter).
+
