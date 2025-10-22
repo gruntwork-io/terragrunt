@@ -21,10 +21,15 @@ type DiscoveryCommandOptions struct {
 	Reading          bool
 }
 
-// NewForCommand creates a Discovery configured for discovery commands (find/list).
-// This helper handles the common pattern of setting up discovery with optional
-// filter support based on the filter experiment.
-func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
+// HCLCommandOptions contains options for HCL commands like hcl validate & format.
+type HCLCommandOptions struct {
+	WorkingDir    string
+	FilterQueries []string
+	Experiments   experiment.Experiments
+}
+
+// NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
+func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors()
 
@@ -75,6 +80,23 @@ func NewForCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 			Args: args,
 		})
 	}
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		d = d.WithFilters(filters)
+	}
+
+	return d, nil
+}
+
+// NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
+func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
+	d := NewDiscovery(opts.WorkingDir).
+		WithSuppressParseErrors()
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)

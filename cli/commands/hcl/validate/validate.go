@@ -163,7 +163,7 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 func runValidateWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parseOptions []hclparse.Option) error {
 	var diags diagnostic.Diagnostics
 
-	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,

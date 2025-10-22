@@ -139,7 +139,7 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 		return formatTgHCL(ctx, l, opts, targetFile)
 	}
 
-	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
 		WorkingDir:    workingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,
