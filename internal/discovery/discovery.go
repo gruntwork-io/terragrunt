@@ -89,9 +89,6 @@ type Discovery struct {
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
-
 	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
 	includeDirs []string
 
@@ -110,11 +107,17 @@ type Discovery struct {
 	// filters contains filter queries for component selection
 	filters filter.Filters
 
+	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
+	configFilenames []string
+
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
 
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
+	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
+	maxDependencyDepth int
+
+	// numWorkers determines the number of concurrent workers for discovery operations.
+	numWorkers int
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
@@ -122,11 +125,8 @@ type Discovery struct {
 	// ignoreExternalDependencies determines whether to drop dependencies that are outside the working directory.
 	ignoreExternalDependencies bool
 
-	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
-	maxDependencyDepth int
-
-	// numWorkers determines the number of concurrent workers for discovery operations.
-	numWorkers int
+	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
+	strictInclude bool
 
 	// hidden determines whether to detect configurations in hidden directories.
 	hidden bool
@@ -142,6 +142,9 @@ type Discovery struct {
 
 	// parseInclude determines whether to parse include configurations.
 	parseInclude bool
+
+	// readFiles determines whether to parse for reading files.
+	readFiles bool
 
 	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
@@ -203,9 +206,9 @@ func (d *Discovery) WithSort(sort Sort) *Discovery {
 
 // WithDiscoverDependencies sets the DiscoverDependencies flag to true.
 func (d *Discovery) WithDiscoverDependencies() *Discovery {
-	d.discoverDependencies = true
+	d.WithRequiresParse()
 
-	d.requiresParse = true
+	d.discoverDependencies = true
 
 	if d.maxDependencyDepth == 0 {
 		d.maxDependencyDepth = defaultMaxDependencyDepth
@@ -214,19 +217,35 @@ func (d *Discovery) WithDiscoverDependencies() *Discovery {
 	return d
 }
 
-// WithParseExclude sets the ParseExclude flag to true.
+// WithParseExclude sets the parseExclude flag to true.
 func (d *Discovery) WithParseExclude() *Discovery {
-	d.parseExclude = true
+	d.WithRequiresParse()
 
-	d.requiresParse = true
+	d.parseExclude = true
 
 	return d
 }
 
-// WithParseInclude sets the ParseExclude flag to true.
+// WithParseInclude sets the parseInclude flag to true.
 func (d *Discovery) WithParseInclude() *Discovery {
+	d.WithRequiresParse()
+
 	d.parseInclude = true
 
+	return d
+}
+
+// WithReadFiles sets the readFiles flag to true.
+func (d *Discovery) WithReadFiles() *Discovery {
+	d.WithRequiresParse()
+
+	d.readFiles = true
+
+	return d
+}
+
+// WithRequiresParse sets the requiresParse flag to true.
+func (d *Discovery) WithRequiresParse() *Discovery {
 	d.requiresParse = true
 
 	return d
