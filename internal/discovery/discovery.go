@@ -400,6 +400,15 @@ func ContainsDependencyInAncestry(c *component.Component, path string) bool {
 	return false
 }
 
+// isValidationDiscovery returns true when discovery is running in validation context.
+func isValidationDiscovery(opts *options.TerragruntOptions) bool {
+	if opts == nil {
+		return false
+	}
+
+	return opts.HCLValidateInputs || opts.HCLValidateShowConfigPath || opts.HCLValidateJSONOutput || opts.HCLValidateStrict
+}
+
 // Parse parses the discovered configuration.
 func Parse(
 	c *component.Component,
@@ -479,27 +488,25 @@ func Parse(
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 
-	// Choose between full and partial parsing based on context:
-	// - For validation (when parserOptions are provided), use ParseConfigFile to parse ALL blocks
-	//   including locals, inputs, and generate blocks. This ensures validation catches all errors.
-	// - For execution (when parserOptions are empty), use PartialParseConfigFile to parse only
-	//   the blocks specified in WithDecodeList() (dependencies, feature flags, excludes).
-	//   This avoids evaluating generate blocks during discovery when dependency outputs aren't
-	//   resolved yet, which would cause "Unsuitable value: value must be known" errors.
-	//   Generate blocks will be properly evaluated later when each unit runs individually.
-	// See: https://github.com/gruntwork-io/terragrunt/issues/4962
 	var (
 		cfg *config.TerragruntConfig
 		err error
 	)
 
-	// Select parse function: full parsing for validation, partial for execution
-	parseFunc := config.PartialParseConfigFile
-	if len(parserOptions) > 0 {
-		parseFunc = config.ParseConfigFile
+	// Parsing during discovery:
+	// - validation: parse everything (catch all config errors).
+	// - other runs: parse only blocks needed for discovery to avoid early eval.
+	if !isValidationDiscovery(opts) {
+		// Set a decode list with partial blocks
+		parsingCtx = parsingCtx.WithDecodeList(
+			config.DependenciesBlock,
+			config.DependencyBlock,
+			config.FeatureFlagsBlock,
+			config.ExcludeBlock,
+		)
 	}
 	//nolint: contextcheck
-	cfg, err = parseFunc(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err = config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)

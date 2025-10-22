@@ -1218,8 +1218,15 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			hclCache.Put(ctx, cacheKey, file) //nolint:contextcheck
 		}
 
+		// Parsing behavior based on context:
+		// - When a decode list is set, perform partial parsing (fast, discovery-safe).
+		// - Otherwise, perform full parsing (validate everything).
+		parseFn := ParseConfig
+		if len(ctx.PartialParseDecodeList) > 0 { //nolint:contextcheck
+			parseFn = TerragruntConfigFromPartialConfig
+		}
 		// TODO: Remove lint ignore
-		config, err = ParseConfig(ctx, l, file, includeFromChild) //nolint:contextcheck
+		config, err = parseFn(ctx, l, file, includeFromChild) //nolint:contextcheck
 		if err != nil {
 			return err
 		}
