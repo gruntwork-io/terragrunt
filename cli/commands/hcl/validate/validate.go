@@ -12,8 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
@@ -108,25 +107,40 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-		_, err := config.ReadTerragruntConfig(ctx, l, opts, parseOptions)
-		return err
-	}
 
-	stack, err := runner.FindStackInSubfolders(
-		ctx,
-		l,
-		opts,
-		common.WithParseOptions(parseOptions),
-		common.WithReport(report.NewReport()),
-	)
+	// Discover Terragrunt configurations and validate by parsing them directly
+	d := discovery.NewDiscovery(opts.WorkingDir).WithParserOptions(parseOptions)
+
+	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
 	}
 
-	stackErr := stack.Run(ctx, l, opts)
+	parseErrs := []error{}
 
-	return processDiagnostics(l, opts, diags, stackErr)
+	for _, c := range components {
+		parseOpts := opts.Clone()
+		parseOpts.WorkingDir = c.Path
+
+		// Determine which config filename to use for a full parse
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		parseOpts.TerragruntConfigPath = filepath.Join(c.Path, configFilename)
+
+		if _, err := config.ReadTerragruntConfig(ctx, l, parseOpts, parseOptions); err != nil {
+			parseErrs = append(parseErrs, errors.New(err))
+		}
+	}
+
+	var combinedErr error
+	if len(parseErrs) > 0 {
+		combinedErr = errors.Join(parseErrs...)
+	}
+
+	return processDiagnostics(l, opts, diags, combinedErr)
 }
 
 func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
