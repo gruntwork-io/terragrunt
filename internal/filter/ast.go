@@ -13,6 +13,8 @@ type Expression interface {
 	expressionNode()
 	// String returns a string representation of the expression for debugging.
 	String() string
+	// RequiresHCLParsing returns true if the expression requires parsing Terragrunt HCL configurations.
+	RequiresHCLParsing() (Expression, bool)
 }
 
 // PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
@@ -46,8 +48,9 @@ func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	return p.compiledGlob, p.compileErr
 }
 
-func (p *PathFilter) expressionNode() {}
-func (p *PathFilter) String() string  { return p.Value }
+func (p *PathFilter) expressionNode()                        {}
+func (p *PathFilter) String() string                         { return p.Value }
+func (p *PathFilter) RequiresHCLParsing() (Expression, bool) { return p, false }
 
 // AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeFilter struct {
@@ -90,8 +93,9 @@ func (a *AttributeFilter) supportsGlob() bool {
 	return a.Key == AttributeReading || a.Key == AttributeName
 }
 
-func (a *AttributeFilter) expressionNode() {}
-func (a *AttributeFilter) String() string  { return a.Key + "=" + a.Value }
+func (a *AttributeFilter) expressionNode()                        {}
+func (a *AttributeFilter) String() string                         { return a.Key + "=" + a.Value }
+func (a *AttributeFilter) RequiresHCLParsing() (Expression, bool) { return a, true }
 
 // PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
 type PrefixExpression struct {
@@ -101,6 +105,9 @@ type PrefixExpression struct {
 
 func (p *PrefixExpression) expressionNode() {}
 func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String() }
+func (p *PrefixExpression) RequiresHCLParsing() (Expression, bool) {
+	return p.Right.RequiresHCLParsing()
+}
 
 // InfixExpression represents an infix operator expression (e.g., "./apps/* | name=bar").
 type InfixExpression struct {
@@ -112,4 +119,11 @@ type InfixExpression struct {
 func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
+}
+func (i *InfixExpression) RequiresHCLParsing() (Expression, bool) {
+	if f, ok := i.Left.RequiresHCLParsing(); ok {
+		return f, true
+	}
+
+	return i.Right.RequiresHCLParsing()
 }
