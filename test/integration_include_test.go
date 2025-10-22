@@ -100,24 +100,17 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
-		&stdout,
-		&stderr,
 	)
 	require.NoError(t, err)
-	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 
-	planOutput := stdout.String()
-	assert.Contains(t, planOutput, "alpha")
-	assert.Contains(t, planOutput, "beta")
-	assert.Contains(t, planOutput, "charlie")
+	assert.Contains(t, stdout, "alpha")
+	assert.Contains(t, stdout, "beta")
+	assert.Contains(t, stdout, "charlie")
 
-	stdoutLines := strings.SplitSeq(stderr.String(), "\n")
+	stdoutLines := strings.SplitSeq(stderr, "\n")
 	for line := range stdoutLines {
 		if strings.Contains(line, "alpha") {
 			assert.Contains(t, line, "prefix=a")
