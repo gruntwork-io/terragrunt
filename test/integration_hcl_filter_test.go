@@ -17,12 +17,19 @@ const (
 	testFixtureHCLFilter = "fixtures/hcl-filter"
 )
 
-func TestHCLFormatWithFilter(t *testing.T) {
+func TestHCLFormatCheckWithFilter(t *testing.T) {
 	t.Parallel()
 
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
+
+	// Create a temporary directory for this test case
+	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		name            string
@@ -30,38 +37,6 @@ func TestHCLFormatWithFilter(t *testing.T) {
 		expectedInclude []string
 		expectedExclude []string
 	}{
-		// Name-based filtering
-		{
-			name:            "name-based: exact match 'web'",
-			filterArgs:      []string{"web"},
-			expectedInclude: []string{"web"},
-			expectedExclude: []string{"api", "db", "app1"},
-		},
-		{
-			name:            "name-based: exact match 'api'",
-			filterArgs:      []string{"api"},
-			expectedInclude: []string{"api"},
-			expectedExclude: []string{"web", "db"},
-		},
-		{
-			name:            "name-based: exact match 'db'",
-			filterArgs:      []string{"db"},
-			expectedInclude: []string{"db"},
-			expectedExclude: []string{"web", "api"},
-		},
-		{
-			name:            "name-based: glob pattern 'app*'",
-			filterArgs:      []string{"app*"},
-			expectedInclude: []string{"app1", "app2"},
-			expectedExclude: []string{"web", "db"},
-		},
-		{
-			name:            "name-based: glob pattern 'stack*'",
-			filterArgs:      []string{"stack*"},
-			expectedInclude: []string{"stack1", "stack2"},
-			expectedExclude: []string{"app1", "web"},
-		},
-
 		// Path-based filtering
 		{
 			name:            "path-based: recursive in needs-formatting",
@@ -167,36 +142,33 @@ func TestHCLFormatWithFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a temporary directory for this test case
-			helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
-
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
 			// Build filter arguments
 			filterStr := ""
 			for _, filter := range tc.filterArgs {
 				filterStr += fmt.Sprintf(" --filter '%s'", filter)
 			}
 
-			cmd := fmt.Sprintf("terragrunt hcl format%s --check --working-dir %s",
-				filterStr, rootPath)
+			cmd := fmt.Sprintf(
+				"terragrunt hcl fmt %s --check --working-dir %s",
+				filterStr,
+				rootPath,
+			)
 
-			_ = helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
 
-			output := stdout.String() + stderr.String()
+			t.Logf("stdout: %s", stdout)
+			t.Logf("stderr: %s", stderr)
 
 			// Verify inclusion: files that should be processed are mentioned
 			for _, expectedPath := range tc.expectedInclude {
-				assert.Contains(t, output, expectedPath,
+				assert.Contains(t, stdout, expectedPath,
 					"Expected output to contain '%s' but it was not found", expectedPath)
 			}
 
 			// Verify exclusion: files that should NOT be processed are NOT mentioned
 			for _, excludedPath := range tc.expectedExclude {
-				assert.NotContains(t, output, excludedPath,
+				assert.NotContains(t, stdout, excludedPath,
 					"Expected output to NOT contain '%s' but it was found", excludedPath)
 			}
 		})

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,8 +17,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
@@ -139,16 +140,36 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 		return formatTgHCL(ctx, l, opts, targetFile)
 	}
 
-	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
-		WorkingDir:    workingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+	filters, err := filter.ParseFilterQueries(opts.FilterQueries, workingDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	// We use lightweight discovery here instead of the full discovery used by
+	// the discovery package because we want to find non-comps like include comps.
+	files := []string{}
+	err = filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(path, ".hcl") {
+			return nil
+		}
+
+		files = append(files, path)
+
+		return nil
 	})
 	if err != nil {
 		return errors.New(err)
 	}
 
-	components, err := d.Discover(ctx, l, opts)
+	filtered, err := filters.EvaluateOnFiles(files)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -161,76 +182,30 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 		mu           sync.Mutex
 	)
 
-	processedFiles := make(map[string]bool)
+	formatRequested := make(map[string]struct{})
 
-	for _, comp := range components {
-		compDir := filepath.Dir(comp.Path)
-
-		entries, err := os.ReadDir(compDir)
-		if err != nil {
-			formatErrors = formatErrors.Append(err)
+	for _, c := range filtered {
+		if shouldSkipFile(l, c.Path, formatRequested, opts.HclExclude) {
 			continue
 		}
 
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".hcl") {
-				continue
+		formatRequested[c.Path] = struct{}{}
+
+		g.Go(func() error {
+			err := formatTgHCL(gctx, l, opts, c.Path)
+			if err != nil {
+				mu.Lock()
+
+				formatErrors = formatErrors.Append(err)
+
+				mu.Unlock()
 			}
 
-			hclFile := filepath.Join(compDir, entry.Name())
-
-			if shouldSkipFile(l, hclFile, processedFiles, opts.HclExclude) {
-				continue
-			}
-
-			processedFiles[hclFile] = true
-
-			g.Go(func() error {
-				err := formatTgHCL(gctx, l, opts, hclFile)
-				if err != nil {
-					mu.Lock()
-
-					formatErrors = formatErrors.Append(err)
-
-					mu.Unlock()
-				}
-
-				return nil
-			})
-		}
+			return nil
+		})
 
 		if opts.HclNoReadFiles {
 			continue
-		}
-
-		for _, readingPath := range comp.Reading {
-			if !strings.HasSuffix(readingPath, ".hcl") {
-				continue
-			}
-
-			if shouldSkipFile(l, readingPath, processedFiles, opts.HclExclude) {
-				continue
-			}
-
-			processedFiles[readingPath] = true
-
-			filePath := readingPath
-			compPath := comp.Path
-
-			g.Go(func() error {
-				l.Warnf("Formatting %s (included because it was read by %s)", filePath, compPath)
-
-				err := formatTgHCL(gctx, l, opts, filePath)
-				if err != nil {
-					mu.Lock()
-
-					formatErrors = formatErrors.Append(err)
-
-					mu.Unlock()
-				}
-
-				return nil
-			})
 		}
 	}
 
@@ -240,8 +215,8 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 }
 
 // shouldSkipFile checks if a file should be skipped based on exclusion rules and whether it was already processed.
-func shouldSkipFile(l log.Logger, filePath string, processedFiles map[string]bool, hclExclude []string) bool {
-	if processedFiles[filePath] {
+func shouldSkipFile(l log.Logger, filePath string, processedFiles map[string]struct{}, hclExclude []string) bool {
+	if _, ok := processedFiles[filePath]; ok {
 		return true
 	}
 
@@ -305,16 +280,14 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
 		l.Errorf("Error retrieving file info of %s", tgHclFile)
-		return errors.Errorf("failed to get file info for %s: %v", tgHclFile, err)
+		return errors.Errorf("failed to get file info for %s: %w", tgHclFile, err)
 	}
 
-	contentsStr, err := util.ReadFileAsString(tgHclFile)
+	contents, err := os.ReadFile(tgHclFile)
 	if err != nil {
 		l.Errorf("Error reading %s", tgHclFile)
-		return err
+		return errors.Errorf("failed to read %s: %w", tgHclFile, err)
 	}
-
-	contents := []byte(contentsStr)
 
 	err = checkErrors(l, l.Formatter().DisabledColors(), contents, tgHclFile)
 	if err != nil {

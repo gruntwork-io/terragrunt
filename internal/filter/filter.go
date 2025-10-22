@@ -9,6 +9,11 @@ type Filter struct {
 	workingDir    string
 }
 
+// String returns a string representation of the filter.
+func (f *Filter) String() string {
+	return f.originalQuery
+}
+
 // Parse parses a filter query string and returns a Filter object.
 // Returns an error if the query cannot be parsed.
 func Parse(filterString, workingDir string) (*Filter, error) {
@@ -30,11 +35,6 @@ func Parse(filterString, workingDir string) (*Filter, error) {
 // Evaluate applies the filter to a list of components and returns the filtered result.
 func (f *Filter) Evaluate(components []*component.Component) ([]*component.Component, error) {
 	return Evaluate(f.expr, components)
-}
-
-// String returns the original filter query string.
-func (f *Filter) String() string {
-	return f.originalQuery
 }
 
 // Expression returns the parsed AST expression.
