@@ -122,7 +122,7 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
+		"terragrunt apply --non-interactive --working-dir "+otherPath+" -- -auto-approve",
 	)
 
 	_, runAllStderr, err := helpers.RunTerragruntCommandWithOutput(
