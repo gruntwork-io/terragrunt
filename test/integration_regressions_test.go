@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	testFixtureRegressions = "fixtures/regressions"
+	testFixtureRegressions        = "fixtures/regressions"
+	testFixtureDependencyGenerate = "fixtures/regressions/dependency-generate"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -96,4 +98,98 @@ func TestIncludeError(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "include blocks without label")
+}
+
+// TestDependencyOutputInGenerateBlock tests that dependency outputs can be used in generate blocks.
+// This is a regression test for issue #4962 where using dependency outputs in generate blocks
+// started failing with "Unsuitable value: value must be known" error in v0.89.0+.
+//
+// The bug occurred because during `run --all`, the discovery phase was calling ParseConfigFile
+// instead of PartialParseConfigFile, which caused generate blocks to be evaluated before
+// dependency outputs were resolved. The fix ensures generate blocks are only evaluated when
+// each unit runs individually with full dependency resolution.
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/4962
+func TestDependencyOutputInGenerateBlock(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := util.JoinPath(rootPath, "other")
+	testingPath := util.JoinPath(rootPath, "testing")
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --non-interactive --working-dir "+otherPath+" -- -auto-approve",
+	)
+
+	_, runAllStderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, runAllStderr, "Unsuitable value: value must be known",
+		"Should not fail with 'Unsuitable value' error when using dependency outputs in generate blocks")
+	assert.NotContains(t, runAllStderr, "Unsuitable value type",
+		"Should not fail with 'Unsuitable value type' error")
+
+	// Verify the generate block was created successfully
+	generatedFile := util.JoinPath(testingPath, ".terragrunt-cache")
+	assert.DirExists(t, generatedFile, "Terragrunt cache should exist")
+}
+
+// TestDependencyOutputInGenerateBlockDirectRun tests that dependency outputs work when running directly
+// This test verifies that even in the broken version, running directly (without --all) works
+func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := util.JoinPath(rootPath, "other")
+	testingPath := util.JoinPath(rootPath, "testing")
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
+	)
+
+	_, planStderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --non-interactive --working-dir "+testingPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, planStderr, "Unsuitable value",
+		"Direct run should never fail with 'Unsuitable value' error")
+}
+
+// TestDependencyOutputInInputsStillWorks verifies that dependency outputs can be used in inputs
+func TestDependencyOutputInInputsStillWorks(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := util.JoinPath(rootPath, "other")
+
+	// Apply the "other" module
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	helpers.RunTerragrunt(t,
+		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
+	)
+
+	runAllStdout, runAllStderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath+" -- --auto-approve",
+	)
+	require.NoError(t, err)
+
+	assert.True(t, strings.Contains(runAllStdout, "test-token-12345") ||
+		strings.Contains(runAllStderr, "test-token-12345"),
+		"Token should be passed via inputs")
 }

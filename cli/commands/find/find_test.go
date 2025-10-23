@@ -29,6 +29,7 @@ func TestRun(t *testing.T) {
 		hidden        bool
 		dependencies  bool
 		external      bool
+		reading       bool
 	}{
 		{
 			name: "basic discovery",
@@ -406,6 +407,75 @@ dependency "B" {
 				assert.Empty(t, output)
 			},
 		},
+		{
+			name: "reading flag with json output",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				tmpDir := t.TempDir()
+				appDir := filepath.Join(tmpDir, "app")
+				require.NoError(t, os.MkdirAll(appDir, 0755))
+
+				// Create shared files that will be read
+				sharedHCL := filepath.Join(tmpDir, "shared.hcl")
+				sharedTFVars := filepath.Join(tmpDir, "shared.tfvars")
+
+				require.NoError(t, os.WriteFile(sharedHCL, []byte(`
+locals {
+  common_value = "test"
+}
+`), 0644))
+
+				require.NoError(t, os.WriteFile(sharedTFVars, []byte(`
+test_var = "value"
+`), 0644))
+
+				// Create terragrunt config that reads both files
+				terragruntConfig := filepath.Join(appDir, "terragrunt.hcl")
+				require.NoError(t, os.WriteFile(terragruntConfig, []byte(`
+locals {
+  shared_config = read_terragrunt_config("../shared.hcl")
+  tfvars = read_tfvars_file("../shared.tfvars")
+}
+`), 0644))
+
+				return tmpDir
+			},
+			expectedPaths: []string{"app"},
+			format:        "json",
+			mode:          "normal",
+			reading:       true,
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
+				// Verify the output is valid JSON
+				var configs find.FoundComponents
+				err := json.Unmarshal([]byte(output), &configs)
+				require.NoError(t, err)
+
+				// Verify we have one config
+				require.Len(t, configs, 1)
+
+				// Verify the component has the Reading field populated
+				appConfig := configs[0]
+				require.NotNil(t, appConfig.Reading, "Reading field should be populated")
+				require.NotEmpty(t, appConfig.Reading, "Reading field should contain files")
+
+				// Verify Reading field contains the shared files
+				readingPaths := appConfig.Reading
+				assert.Len(t, readingPaths, 2, "should have read 2 files")
+
+				// Convert to map for easier checking
+				readingMap := make(map[string]bool)
+				for _, path := range readingPaths {
+					readingMap[filepath.FromSlash(path)] = true
+				}
+
+				// Check that shared files are in the reading list
+				assert.True(t, readingMap["shared.hcl"], "should contain shared.hcl")
+				assert.True(t, readingMap["shared.tfvars"], "should contain shared.tfvars")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -428,6 +498,7 @@ dependency "B" {
 			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
 			opts.External = tt.external
+			opts.Reading = tt.reading
 
 			// Create a pipe to capture output
 			r, w, err := os.Pipe()

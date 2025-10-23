@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/mattn/go-shellwords"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -22,39 +21,19 @@ import (
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		Hidden:        opts.Hidden,
-		Dependencies:  opts.Dependencies || opts.External || opts.Mode == ModeDAG,
-		External:      opts.External,
-		Exclude:       opts.Exclude,
-		Include:       opts.Include,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:       opts.WorkingDir,
+		QueueConstructAs: opts.QueueConstructAs,
+		Hidden:           opts.Hidden,
+		Dependencies:     opts.Dependencies || opts.External || opts.Mode == ModeDAG,
+		External:         opts.External,
+		Exclude:          opts.Exclude,
+		Include:          opts.Include,
+		Reading:          opts.Reading,
+		FilterQueries:    opts.FilterQueries,
+		Experiments:      opts.Experiments,
 	})
 	if err != nil {
 		return errors.New(err)
-	}
-
-	if opts.QueueConstructAs != "" {
-		d = d.WithParseExclude()
-
-		parser := shellwords.NewParser()
-
-		args, parseErr := parser.Parse(opts.QueueConstructAs)
-		if parseErr != nil {
-			return errors.New(parseErr)
-		}
-
-		cmd := args[0]
-
-		if len(args) > 1 {
-			args = args[1:]
-		}
-
-		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
-		})
 	}
 
 	var (
@@ -141,6 +120,7 @@ type FoundComponent struct {
 	Include map[string]string     `json:"include,omitempty"`
 
 	Dependencies []string `json:"dependencies,omitempty"`
+	Reading      []string `json:"reading,omitempty"`
 }
 
 func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
@@ -186,23 +166,32 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		if !opts.Dependencies || len(c.Dependencies()) == 0 {
-			foundComponents = append(foundComponents, foundComponent)
+		if opts.Reading && len(c.Reading) > 0 {
+			foundComponent.Reading = make([]string, len(c.Reading))
 
-			continue
+			for i, reading := range c.Reading {
+				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
+				if err != nil {
+					errs = append(errs, errors.New(err))
+				}
+
+				foundComponent.Reading[i] = relReadingPath
+			}
 		}
 
-		foundComponent.Dependencies = make([]string, len(c.Dependencies()))
+		if opts.Dependencies && len(c.Dependencies()) > 0 {
+			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
-		for i, dep := range c.Dependencies() {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
-			if err != nil {
-				errs = append(errs, errors.New(err))
+			for i, dep := range c.Dependencies() {
+				relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+				if err != nil {
+					errs = append(errs, errors.New(err))
 
-				continue
+					continue
+				}
+
+				foundComponent.Dependencies[i] = relDepPath
 			}
-
-			foundComponent.Dependencies[i] = relDepPath
 		}
 
 		foundComponents = append(foundComponents, foundComponent)
