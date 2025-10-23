@@ -128,8 +128,7 @@ The `--filter` flag provides a sophisticated querying syntax for targeting units
 
 **Current Support Status:**
 
-- ✅ Available in `find` and `list` commands
-- ❌ **Not yet available in `run` command** - this is planned for future implementation
+- ✅ Available in `find`, `list`, and `run` commands
 
 **Supported Filtering Types:**
 
@@ -147,7 +146,6 @@ The `--filter` flag provides a sophisticated querying syntax for targeting units
 
 - Git-based filtering (`[ref...ref]` syntax)
 - Dependency/dependent traversal (`...` syntax)
-- Integration with `run` command
 
 #### `filter-flag` - How to provide feedback
 
@@ -165,7 +163,7 @@ To transition the `filter-flag` feature to a stable release, the following must 
 - [x] Add support for multiple filters (union/OR semantics)
 - [x] Integrate with the `find` command
 - [x] Integrate with the `list` command
-- [ ] Integrate with the `run` command
+- [x] Integrate with the `run` command
 - [ ] Add support for git-based filtering ([ref...ref] syntax)
 - [ ] Add support for dependency/dependent traversal (... syntax)
 - [ ] Add support for `--filters-file` flag
