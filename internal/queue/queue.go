@@ -23,7 +23,6 @@
 package queue
 
 import (
-	"errors"
 	"slices"
 	"sort"
 	"sync"
@@ -287,7 +286,16 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 		}
 	}
 
-	return q, errors.New("cycle detected during queue construction")
+	// Cycle fallback: include all entries in a dependency-agnostic order (by path) and mark them ready.
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Component.Path < entries[j].Component.Path })
+	for _, e := range entries {
+		e.Status = StatusReady
+	}
+
+	q.Entries = entries
+	q.IgnoreDependencyOrder = true
+
+	return q, nil
 }
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).

@@ -1256,21 +1256,61 @@ func RemoveCycles(c component.Components) (component.Components, error) {
 		cfg *component.Component
 	)
 
+	// Repeatedly break cycles by removing outgoing dependency edges on the offending node,
+	// rather than removing the node entirely. This preserves all units for downstream queueing.
 	for range maxCycleRemovalAttempts {
 		if cfg, err = c.CycleCheck(); err == nil {
-			break
+			// no cycles
+			return c, nil
 		}
 
-		// Cfg should never be nil if err is not nil,
-		// but we do this check to avoid a nil pointer dereference
-		// if our assumptions change in the future.
 		if cfg == nil {
-			break
+			// unexpected: cycle reported but no component; return existing error
+			return c, err
 		}
 
-		c = c.RemoveByPath(cfg.Path)
+		// Rebuild the graph, clearing dependencies originating from the offending node.
+		// 1) Create new nodes indexed by path.
+		nodes := make(map[string]*component.Component, len(c))
+		for _, n := range c {
+			nodes[n.Path] = &component.Component{
+				Parsed:           n.Parsed,
+				DiscoveryContext: n.DiscoveryContext,
+				Kind:             n.Kind,
+				Path:             n.Path,
+				Reading:          append([]string(nil), n.Reading...),
+				External:         n.External,
+			}
+		}
+
+		// 2) Reconnect dependencies, skipping edges that originate from the offending node.
+		for _, n := range c {
+			if n.Path == cfg.Path {
+				// Drop all outgoing edges from this node to break the cycle
+				continue
+			}
+
+			if deps := n.Dependencies(); len(deps) > 0 {
+				src := nodes[n.Path]
+				for _, dep := range deps {
+					if dst, ok := nodes[dep.Path]; ok {
+						src.AddDependency(dst)
+					}
+				}
+			}
+		}
+
+		// 3) Replace components slice with rebuilt nodes (sorted for determinism)
+		rebuilt := make(component.Components, 0, len(nodes))
+		for _, nn := range nodes {
+			rebuilt = append(rebuilt, nn)
+		}
+
+		c = rebuilt.Sort()
+		// loop again to ensure no remaining cycles
 	}
 
+	// If we exit the loop with an error, return the best-effort graph and the error
 	return c, err
 }
 
