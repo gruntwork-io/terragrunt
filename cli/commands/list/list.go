@@ -134,10 +134,10 @@ func shouldDiscoverDependencies(opts *Options) bool {
 type ListedComponents []*ListedComponent
 
 type ListedComponent struct {
-	Type component.Kind
-	Path string
-
+	Type         component.Kind
+	Path         string
 	Dependencies []*ListedComponent
+	Excluded     bool
 }
 
 // Contains checks to see if the given path is in the listed components.
@@ -171,12 +171,16 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			continue
 		}
 
-		if opts.QueueConstructAs != "" {
-			if c.Parsed != nil && c.Parsed.Exclude != nil {
-				if c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
-					continue
-				}
+		excluded := false
+
+		if opts.QueueConstructAs != "" &&
+			c.Parsed != nil && c.Parsed.Exclude != nil &&
+			c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+			if opts.Format != FormatDot {
+				continue
 			}
+
+			excluded = true
 		}
 
 		relPath, err := filepath.Rel(opts.WorkingDir, c.Path)
@@ -187,8 +191,9 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		}
 
 		listedCfg := &ListedComponent{
-			Type: c.Kind,
-			Path: relPath,
+			Type:     c.Kind,
+			Path:     relPath,
+			Excluded: excluded,
 		}
 
 		if len(c.Dependencies()) == 0 {
@@ -207,9 +212,19 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 				continue
 			}
 
+			depExcluded := false
+
+			if opts.QueueConstructAs != "" &&
+				dep.Parsed != nil &&
+				dep.Parsed.Exclude != nil &&
+				dep.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+				depExcluded = true
+			}
+
 			listedCfg.Dependencies[i] = &ListedComponent{
-				Type: dep.Kind,
-				Path: relDepPath,
+				Type:     dep.Kind,
+				Path:     relDepPath,
+				Excluded: depExcluded,
 			}
 		}
 
@@ -687,18 +702,23 @@ func renderDot(opts *Options, components ListedComponents) error {
 		return errors.New(err)
 	}
 
-	excludedPaths := getExcludedPaths(components, opts)
-
 	writtenNodes := make(map[string]bool, len(components))
 
 	for _, component := range components {
 		if !writtenNodes[component.Path] {
 			style := ""
-			if excludedPaths[component.Path] {
+			if component.Excluded {
 				style = "[color=red]"
 			}
 
-			if _, writeErr := opts.Writer.Write(fmt.Appendf(nil, "\t\"%s\" %s;\n", component.Path, style)); writeErr != nil {
+			if _, writeErr := opts.Writer.Write(
+				fmt.Appendf(
+					nil,
+					"\t\"%s\" %s;\n",
+					component.Path,
+					style,
+				),
+			); writeErr != nil {
 				return errors.New(writeErr)
 			}
 
@@ -708,18 +728,32 @@ func renderDot(opts *Options, components ListedComponents) error {
 		for _, dep := range component.Dependencies {
 			if !writtenNodes[dep.Path] {
 				style := ""
-				if excludedPaths[dep.Path] {
+				if dep.Excluded {
 					style = "[color=red]"
 				}
 
-				if _, writeErr := opts.Writer.Write(fmt.Appendf(nil, "\t\"%s\" %s;\n", dep.Path, style)); writeErr != nil {
+				if _, writeErr := opts.Writer.Write(
+					fmt.Appendf(
+						nil,
+						"\t\"%s\" %s;\n",
+						dep.Path,
+						style,
+					),
+				); writeErr != nil {
 					return errors.New(writeErr)
 				}
 
 				writtenNodes[dep.Path] = true
 			}
 
-			if _, writeErr := opts.Writer.Write(fmt.Appendf(nil, "\t\"%s\" -> \"%s\";\n", component.Path, dep.Path)); writeErr != nil {
+			if _, writeErr := opts.Writer.Write(
+				fmt.Appendf(
+					nil,
+					"\t\"%s\" -> \"%s\";\n",
+					component.Path,
+					dep.Path,
+				),
+			); writeErr != nil {
 				return errors.New(writeErr)
 			}
 		}
@@ -730,16 +764,4 @@ func renderDot(opts *Options, components ListedComponents) error {
 	}
 
 	return nil
-}
-
-// getExcludedPaths determines which component paths should be marked as excluded.
-func getExcludedPaths(components ListedComponents, opts *Options) map[string]bool {
-	excluded := make(map[string]bool)
-
-	// Components that were filtered out during discoveredToListed are not in the list.
-	// This function is called with the already-filtered list, so we can't determine
-	// exclusions here. For now, we don't mark any as excluded.
-	// In the future, this could be enhanced by tracking exclusions in ListedComponent.
-
-	return excluded
 }
