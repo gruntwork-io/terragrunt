@@ -2,6 +2,7 @@ package list
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,6 +105,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return outputTree(l, opts, listedComponents, opts.Mode)
 	case FormatLong:
 		return outputLong(l, opts, listedComponents)
+	case FormatDot:
+		return outputDot(l, opts, listedComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -131,10 +134,10 @@ func shouldDiscoverDependencies(opts *Options) bool {
 type ListedComponents []*ListedComponent
 
 type ListedComponent struct {
-	Type component.Kind
-	Path string
-
+	Type         component.Kind
+	Path         string
 	Dependencies []*ListedComponent
+	Excluded     bool
 }
 
 // Contains checks to see if the given path is in the listed components.
@@ -168,12 +171,16 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			continue
 		}
 
-		if opts.QueueConstructAs != "" {
-			if c.Parsed != nil && c.Parsed.Exclude != nil {
-				if c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
-					continue
-				}
+		excluded := false
+
+		if opts.QueueConstructAs != "" &&
+			c.Parsed != nil && c.Parsed.Exclude != nil &&
+			c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+			if opts.Format != FormatDot {
+				continue
 			}
+
+			excluded = true
 		}
 
 		relPath, err := filepath.Rel(opts.WorkingDir, c.Path)
@@ -184,8 +191,9 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		}
 
 		listedCfg := &ListedComponent{
-			Type: c.Kind,
-			Path: relPath,
+			Type:     c.Kind,
+			Path:     relPath,
+			Excluded: excluded,
 		}
 
 		if len(c.Dependencies()) == 0 {
@@ -204,9 +212,19 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 				continue
 			}
 
+			depExcluded := false
+
+			if opts.QueueConstructAs != "" &&
+				dep.Parsed != nil &&
+				dep.Parsed.Exclude != nil &&
+				dep.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+				depExcluded = true
+			}
+
 			listedCfg.Dependencies[i] = &ListedComponent{
-				Type: dep.Kind,
-				Path: relDepPath,
+				Type:     dep.Kind,
+				Path:     relDepPath,
+				Excluded: depExcluded,
 			}
 		}
 
@@ -440,6 +458,11 @@ func outputTree(l log.Logger, opts *Options, components ListedComponents, sort s
 	return renderTree(opts, components, s, sort)
 }
 
+// outputDot outputs the discovered components in GraphViz DOT format.
+func outputDot(_ log.Logger, opts *Options, components ListedComponents) error {
+	return renderDot(opts, components)
+}
+
 type TreeStyler struct {
 	entryStyle  lipgloss.Style
 	rootStyle   lipgloss.Style
@@ -671,4 +694,74 @@ func getLongestPathLen(components ListedComponents) int {
 	}
 
 	return longest
+}
+
+// renderDot renders the components in GraphViz DOT format.
+func renderDot(opts *Options, components ListedComponents) error {
+	if _, err := opts.Writer.Write([]byte("digraph {\n")); err != nil {
+		return errors.New(err)
+	}
+
+	writtenNodes := make(map[string]bool, len(components))
+
+	for _, component := range components {
+		if !writtenNodes[component.Path] {
+			style := ""
+			if component.Excluded {
+				style = "[color=red]"
+			}
+
+			if _, writeErr := opts.Writer.Write(
+				fmt.Appendf(
+					nil,
+					"\t\"%s\" %s;\n",
+					component.Path,
+					style,
+				),
+			); writeErr != nil {
+				return errors.New(writeErr)
+			}
+
+			writtenNodes[component.Path] = true
+		}
+
+		for _, dep := range component.Dependencies {
+			if !writtenNodes[dep.Path] {
+				style := ""
+				if dep.Excluded {
+					style = "[color=red]"
+				}
+
+				if _, writeErr := opts.Writer.Write(
+					fmt.Appendf(
+						nil,
+						"\t\"%s\" %s;\n",
+						dep.Path,
+						style,
+					),
+				); writeErr != nil {
+					return errors.New(writeErr)
+				}
+
+				writtenNodes[dep.Path] = true
+			}
+
+			if _, writeErr := opts.Writer.Write(
+				fmt.Appendf(
+					nil,
+					"\t\"%s\" -> \"%s\";\n",
+					component.Path,
+					dep.Path,
+				),
+			); writeErr != nil {
+				return errors.New(writeErr)
+			}
+		}
+	}
+
+	if _, err := opts.Writer.Write([]byte("}\n")); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
 }
