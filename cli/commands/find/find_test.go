@@ -165,7 +165,7 @@ func TestRun(t *testing.T) {
 				// Verify each config has a valid type
 				for _, config := range configs {
 					assert.NotEmpty(t, config.Type)
-					assert.True(t, config.Type == component.Unit || config.Type == component.Stack)
+					assert.True(t, config.Type == component.UnitKind || config.Type == component.StackKind)
 				}
 			},
 		},
@@ -602,18 +602,18 @@ func TestColorizer(t *testing.T) {
 		{
 			name: "unit config",
 			config: &find.FoundComponent{
-				Type: component.Unit,
+				Type: component.UnitKind,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []component.Kind{component.Stack},
+			shouldBeDifferent: []component.Kind{component.StackKind},
 		},
 		{
 			name: "stack config",
 			config: &find.FoundComponent{
-				Type: component.Stack,
+				Type: component.StackKind,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []component.Kind{component.Unit},
+			shouldBeDifferent: []component.Kind{component.UnitKind},
 		},
 	}
 
