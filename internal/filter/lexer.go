@@ -30,6 +30,17 @@ func (l *Lexer) NextToken() Token {
 
 	startPosition := l.position
 
+	// Handle attribute values after '=' sign
+	// Attribute values can contain slashes, dots, and other characters that would
+	// normally be interpreted as special tokens
+	if l.afterEqual && l.ch != 0 {
+		literal := l.readAttributeValue()
+		tok = NewToken(IDENT, literal, startPosition)
+		l.afterEqual = false
+
+		return tok
+	}
+
 	switch l.ch {
 	case '!':
 		tok = NewToken(BANG, string(l.ch), startPosition)
@@ -67,15 +78,6 @@ func (l *Lexer) NextToken() Token {
 	case '/':
 		tok = l.readPath(startPosition)
 	default:
-		if l.afterEqual {
-			// After '=', read as attribute value (can contain slashes)
-			literal := l.readAttributeValue()
-			tok = NewToken(IDENT, literal, startPosition)
-			l.afterEqual = false
-
-			return tok
-		}
-
 		if isIdentifierChar(l.ch) {
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)
@@ -86,8 +88,6 @@ func (l *Lexer) NextToken() Token {
 		tok = NewToken(ILLEGAL, string(l.ch), startPosition)
 		l.readChar()
 	}
-
-	l.afterEqual = false
 
 	return tok
 }

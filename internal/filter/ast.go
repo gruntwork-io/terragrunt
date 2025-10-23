@@ -90,7 +90,7 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 
 // supportsGlob returns true if the attribute filter supports glob patterns.
 func (a *AttributeFilter) supportsGlob() bool {
-	return a.Key == AttributeReading || a.Key == AttributeName
+	return a.Key == AttributeReading || a.Key == AttributeName || a.Key == AttributeSource
 }
 
 func (a *AttributeFilter) expressionNode()                        {}

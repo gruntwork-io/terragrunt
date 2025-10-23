@@ -364,6 +364,11 @@ func (d *Discovery) WithoutDefaultExcludes() *Discovery {
 // When filters are set, only components matching the filters will be included.
 func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	d.filters = filters
+	// If any filter requires HCL parsing (e.g., source, reading, external attributes),
+	// we need to parse configurations before evaluating the filter
+	if _, requiresParsing := filters.RequiresHCLParsing(); requiresParsing {
+		d.requiresParse = true
+	}
 	return d
 }
 
@@ -457,6 +462,7 @@ func Parse(
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
+		config.TerraformBlock,
 	).WithSkipOutputsResolution()
 
 	// Apply custom parser options if provided via discovery
@@ -509,6 +515,7 @@ func Parse(
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
+		config.TerraformBlock,
 	)
 
 	//nolint: contextcheck
@@ -532,10 +539,34 @@ func Parse(
 	// Populate the Reading field with files read during parsing.
 	// The parsing context tracks all files that were read.
 	if parsingCtx.FilesRead != nil {
-		c.SetReading(*parsingCtx.FilesRead...)
+		c.AppendReading(*parsingCtx.FilesRead...)
 	}
 
+	c.AppendSources(ExtractSourcesFromConfig(cfg)...)
+
 	return nil
+}
+
+// ExtractSourcesFromConfig extracts all source URLs defined in the configuration.
+// For units (terragrunt.hcl): returns terraform.source if present
+// For stacks (terragrunt.stack.hcl): returns all unit/stack source values
+func ExtractSourcesFromConfig(cfg *config.TerragruntConfig) []string {
+	sources := []string{}
+
+	if cfg.Terraform != nil && cfg.Terraform.Source != nil && *cfg.Terraform.Source != "" {
+		sources = append(sources, *cfg.Terraform.Source)
+	}
+
+	// TODO: Extract from stack config (terragrunt.stack.hcl files)
+	// For now, we only extract from terraform.source in units
+	// Stack file source extraction can be added as an enhancement
+	// Check if this is a stack file by checking the filename
+	// if filepath.Base(configPath) == "terragrunt.stack.hcl" {
+	// 	stackSources := extractStackSources(configPath)
+	// 	sources = append(sources, stackSources...)
+	// }
+
+	return sources
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.

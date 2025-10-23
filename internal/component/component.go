@@ -31,7 +31,9 @@ type Component interface {
 	External() bool
 	SetExternal()
 	Reading() []string
-	SetReading(...string)
+	AppendReading(...string)
+	Sources() []string
+	AppendSources(...string)
 	DiscoveryContext() *DiscoveryContext
 	SetDiscoveryContext(*DiscoveryContext)
 	AddDependency(Component)
@@ -45,6 +47,7 @@ type Unit struct {
 	cfg              *config.TerragruntConfig
 	path             string
 	reading          []string
+	sources          []string
 	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
@@ -63,7 +66,7 @@ func NewUnit(path string) *Unit {
 // WithReading appends a file to the list of files being read by this component.
 // Useful for constructing components with all files read at once.
 func (u *Unit) WithReading(files ...string) *Unit {
-	u.SetReading(files...)
+	u.AppendReading(files...)
 
 	return u
 }
@@ -115,9 +118,19 @@ func (u *Unit) Reading() []string {
 	return u.reading
 }
 
-// SetReading sets the list of files being read by this component.
-func (u *Unit) SetReading(files ...string) {
-	u.reading = files
+// AppendReading appends files to the list of files being read by this component.
+func (u *Unit) AppendReading(files ...string) {
+	u.reading = append(u.reading, files...)
+}
+
+// Sources returns the list of sources for this component.
+func (u *Unit) Sources() []string {
+	return u.sources
+}
+
+// AppendSources appends sources to the list of sources for this component.
+func (u *Unit) AppendSources(sources ...string) {
+	u.sources = append(u.sources, sources...)
 }
 
 // DiscoveryContext returns the discovery context for this component.
@@ -177,6 +190,7 @@ type Stack struct {
 	cfg              *config.StackConfig
 	path             string
 	reading          []string
+	sources          []string
 	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
@@ -242,9 +256,19 @@ func (s *Stack) Reading() []string {
 	return s.reading
 }
 
-// SetReading sets the list of files being read by this component.
-func (s *Stack) SetReading(files ...string) {
-	s.reading = files
+// AppendReading appends files to the list of files being read by this component.
+func (s *Stack) AppendReading(files ...string) {
+	s.reading = append(s.reading, files...)
+}
+
+// Sources returns the list of sources for this component.
+func (s *Stack) Sources() []string {
+	return s.sources
+}
+
+// AppendSources appends sources to the list of sources for this component.
+func (s *Stack) AppendSources(sources ...string) {
+	s.sources = append(s.sources, sources...)
 }
 
 // DiscoveryContext returns the discovery context for this component.

@@ -11,6 +11,7 @@ const (
 	AttributeType     = "type"
 	AttributeExternal = "external"
 	AttributeReading  = "reading"
+	AttributeSource   = "source"
 
 	AttributeTypeValueUnit  = string(component.UnitKind)
 	AttributeTypeValueStack = string(component.StackKind)
@@ -139,6 +140,26 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 					result = append(result, c)
 					break
 				}
+			}
+		}
+	case AttributeSource:
+		g, err := filter.CompileGlob()
+		if err != nil {
+			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for source filter: "+filter.Value, err)
+		}
+
+		for _, c := range components {
+			matched := false
+
+			for _, source := range c.Sources() {
+				if source != "" && g.Match(source) {
+					matched = true
+					break
+				}
+			}
+
+			if matched {
+				result = append(result, c)
 			}
 		}
 	default:
