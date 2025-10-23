@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	testFixtureRegressions        = "fixtures/regressions"
-	testFixtureDependencyGenerate = "fixtures/regressions/dependency-generate"
+	testFixtureRegressions            = "fixtures/regressions"
+	testFixtureDependencyGenerate     = "fixtures/regressions/dependency-generate"
+	testFixtureNestedStacksRunnerPool = "fixtures/regressions/nested-stacks-runner-pool"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -192,4 +193,84 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	assert.True(t, strings.Contains(runAllStdout, "test-token-12345") ||
 		strings.Contains(runAllStderr, "test-token-12345"),
 		"Token should be passed via inputs")
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/4977
+// Ensures runner pool includes all units generated from nested stacks.
+func TestRunnerPoolIncludesAllNestedStackUnits(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacksRunnerPool)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacksRunnerPool)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacksRunnerPool)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// Expect all units from top-level and nested stacks to be present in the runner order
+	expectedUnits := []string{
+		"- Unit ./.terragrunt-stack/id",
+		"- Unit ./.terragrunt-stack/ecr-cache",
+		"- Unit ./.terragrunt-stack/network/.terragrunt-stack/vpc",
+		"- Unit ./.terragrunt-stack/network/.terragrunt-stack/vpc-nat",
+		"- Unit ./.terragrunt-stack/network/.terragrunt-stack/vpc-endpoints",
+		"- Unit ./.terragrunt-stack/network/.terragrunt-stack/tailscale-router",
+		"- Unit ./.terragrunt-stack/k8s/.terragrunt-stack/eks-cluster",
+		"- Unit ./.terragrunt-stack/k8s/.terragrunt-stack/eks-baseline",
+		"- Unit ./.terragrunt-stack/k8s/.terragrunt-stack/grafana-baseline",
+		"- Unit ./.terragrunt-stack/k8s/.terragrunt-stack/rancher-bootstrap",
+		"- Unit ./.terragrunt-stack/k8s/.terragrunt-stack/rancher-baseline",
+	}
+
+	// Extract the runner pool order from stderr for a clearer failure message
+	var actualOrder []string
+	inOrder := false
+	for _, line := range strings.Split(stderr, "\n") {
+		if strings.Contains(line, "The runner-pool runner at ") {
+			inOrder = true
+			continue
+		}
+
+		if inOrder {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "- Unit ") {
+				actualOrder = append(actualOrder, trimmed)
+				continue
+			}
+
+			if trimmed == "" {
+				// End of the runner pool listing block
+				inOrder = false
+			}
+		}
+	}
+
+	// Build a quick lookup set for actual entries
+	actualSet := make(map[string]struct{}, len(actualOrder))
+	for _, u := range actualOrder {
+		actualSet[u] = struct{}{}
+	}
+
+	// Compute missing expectations
+	var missing []string
+	for _, expected := range expectedUnits {
+		if _, ok := actualSet[expected]; !ok {
+			missing = append(missing, expected)
+		}
+	}
+
+	if len(missing) > 0 {
+		t.Fatalf("Missing units in runner pool:%s\n\nActual runner pool order:%s\n\nFull stderr:%s",
+			"\n- "+strings.Join(missing, "\n- "),
+			"\n"+strings.Join(actualOrder, "\n"),
+			"\n"+stderr,
+		)
+	}
+
+	// Keep the per-item assertion for extra signal in the test logs
+	for _, expected := range expectedUnits {
+		assert.Contains(t, stderr, expected)
+	}
 }
