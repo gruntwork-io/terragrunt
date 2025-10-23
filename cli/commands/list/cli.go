@@ -41,7 +41,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "Output format for list results. Valid values: text, tree, long.",
+			Usage:       "Output format for list results. Valid values: text, tree, long, dot.",
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
