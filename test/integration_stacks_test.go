@@ -83,8 +83,13 @@ func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --experiment filter-flag --filter .terragrunt-stack/chicks/chick-2 --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --filter './.terragrunt-stack/chicks/chick-2' --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/chicks/chick-1")
