@@ -44,7 +44,8 @@ func getUnitOutputLock(path string) *sync.Mutex {
 	if mu, ok := unitOutputLocks.Load(path); ok {
 		return mu
 	}
-	// Create and attempt to store a new mutex; if another goroutine wins the race, use theirs
+	// Create a new mutex and attempt to store it; if another goroutine stored one first,
+	// use the existing mutex returned by LoadOrStore.
 	newMu := &sync.Mutex{}
 	actual, _ := unitOutputLocks.LoadOrStore(path, newMu)
 
