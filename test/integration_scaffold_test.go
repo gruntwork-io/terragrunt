@@ -174,3 +174,184 @@ func TestScaffoldNoDependencyPrompt(t *testing.T) {
 	assert.FileExists(t, outputFolder+"/leaf/terragrunt.hcl")
 	assert.Contains(t, stderr, "Scaffolding completed")
 }
+
+func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-commands", workingDir)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			templatePath,
+		),
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	assert.NotContains(t, content, "{{ shell", "Shell template should be processed")
+	assert.Contains(t, content, "SHELL_EXECUTED_VALUE_1", "Shell command output should be present")
+	assert.Contains(t, content, "SHELL_EXECUTED_VALUE_2", "Shell command output should be present")
+}
+
+func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-commands", workingDir)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --no-shell --working-dir %s %s",
+			tmpEnvPath,
+			templatePath,
+		),
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	assert.NotContains(t, content, "SHELL_EXECUTED_VALUE_1", "Shell command should not have executed")
+	assert.NotContains(t, content, "SHELL_EXECUTED_VALUE_2", "Shell command should not have executed")
+}
+
+func TestScaffoldWithHooksEnabled(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-hooks", workingDir)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			templatePath,
+		),
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, content, "terraform {", "Generated file should be valid")
+}
+
+func TestScaffoldWithHooksDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-hooks", workingDir)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --no-hooks --working-dir %s %s",
+			tmpEnvPath,
+			templatePath,
+		),
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, content, "terraform {", "Generated file should be valid")
+}
+
+func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-and-hooks", workingDir)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --no-shell --no-hooks --working-dir %s %s",
+			tmpEnvPath,
+			templatePath,
+		),
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	assert.NotContains(t, content, "SHELL_OUTPUT_1", "Shell command should not have executed")
+	assert.NotContains(t, content, "SHELL_OUTPUT_2", "Shell command should not have executed")
+
+	assert.Contains(t, content, "terraform {", "Generated file should be valid")
+}
+
+func TestScaffoldCatalogConfigIntegration(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	catalogConfigPath := filepath.Join(workingDir, "fixtures/scaffold/catalog-config-test/terragrunt.hcl")
+	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-and-hooks", workingDir)
+	tmpEnvPath := t.TempDir()
+
+	catalogContent, err := util.ReadFileAsString(catalogConfigPath)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpEnvPath, "terragrunt.hcl"), []byte(catalogContent), 0644)
+	require.NoError(t, err)
+
+	outputDir := filepath.Join(tmpEnvPath, "output")
+	err = os.MkdirAll(outputDir, 0755)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s --output-folder %s %s",
+			tmpEnvPath,
+			outputDir,
+			templatePath,
+		),
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	assert.NotContains(t, content, "SHELL_OUTPUT_1", "Shell should be disabled by catalog config")
+	assert.NotContains(t, content, "SHELL_OUTPUT_2", "Shell should be disabled by catalog config")
+
+	assert.Contains(t, content, "terraform {", "Generated file should be valid")
+}

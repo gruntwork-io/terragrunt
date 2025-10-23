@@ -5,7 +5,6 @@ terraform {
 
 inputs = {
   test_var = "{{ .TestVariable }}"
-  # This uses the shell template function
-  current_user = "{{ shell "whoami" }}"
-  timestamp = "{{ shell "date +%s" }}"
+  shell_result_1 = "{{ shell "echo" "-n" "SHELL_OUTPUT_1" }}"
+  shell_result_2 = "{{ shell "echo" "-n" "SHELL_OUTPUT_2" }}"
 }
