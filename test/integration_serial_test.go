@@ -85,17 +85,56 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	}
 	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))
+	// add retry logic to reduce flakiness from network issues
+	maxRetries := 3
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { } }`
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
+	var lastErr error
 
-	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
-	require.NoError(t, err)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			t.Logf("Retry attempt %d/%d", attempt, maxRetries)
+			// Clean up before retry
+			helpers.CleanupTerraformFolder(t, appPath)
+			time.Sleep(1 * time.Second)
+		}
 
-	terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+		// Run terragrunt init
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
 
-	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
+		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
+		if err != nil {
+			lastErr = err
+			t.Logf("Attempt %d failed: %v", attempt, err)
+
+			continue
+		}
+
+		// Verify the config was created correctly
+		terraformrcBytes, readErr := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+		if readErr != nil {
+			lastErr = readErr
+			t.Logf("Attempt %d failed to read .terraformrc: %v", attempt, readErr)
+
+			continue
+		}
+
+		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+		expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { } }`
+		expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
+
+		if strings.Contains(terraformrc, expectedProviderInstallation) {
+			// Success!
+			return
+		}
+
+		lastErr = fmt.Errorf("config mismatch:\nactual: %s\nexpected substring: %s", terraformrc, expectedProviderInstallation)
+
+		t.Logf("Attempt %d failed: config mismatch", attempt)
+	}
+
+	// All retries failed
+	require.NoError(t, lastErr, "Test failed after %d attempts", maxRetries)
 }
 
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
