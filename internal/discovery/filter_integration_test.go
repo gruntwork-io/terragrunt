@@ -599,3 +599,312 @@ dependency "vpc" {
 		})
 	}
 }
+
+func TestDiscoveryWithReadingFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create shared configuration files
+	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
+	sharedTFVars := filepath.Join(tmpDir, "shared.tfvars")
+	commonVars := filepath.Join(tmpDir, "common", "variables.hcl")
+	dbConfig := filepath.Join(tmpDir, "database.yaml")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "common"), 0755))
+
+	require.NoError(t, os.WriteFile(sharedHCL, []byte(`
+locals {
+	common_value = "test"
+}
+`), 0644))
+
+	require.NoError(t, os.WriteFile(sharedTFVars, []byte(`
+test_var = "value"
+another_var = "test"
+`), 0644))
+
+	require.NoError(t, os.WriteFile(commonVars, []byte(`
+locals {
+	vpc_cidr = "10.0.0.0/16"
+}
+`), 0644))
+
+	require.NoError(t, os.WriteFile(dbConfig, []byte(`
+locals {
+	db_host = "localhost"
+	db_port = 5432
+}
+`), 0644))
+
+	// Create test components with different file reads
+	frontendDir := filepath.Join(tmpDir, "apps", "frontend")
+	backendDir := filepath.Join(tmpDir, "apps", "backend")
+	legacyDir := filepath.Join(tmpDir, "apps", "legacy")
+	dbDir := filepath.Join(tmpDir, "libs", "db")
+	cacheDir := filepath.Join(tmpDir, "libs", "cache")
+
+	testDirs := []string{frontendDir, backendDir, legacyDir, dbDir, cacheDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with different file reading patterns
+	// Note: Only read_terragrunt_config and read_tfvars_file populate the Reading slice
+	testFiles := map[string]string{
+		filepath.Join(frontendDir, "terragrunt.hcl"): `
+locals {
+	shared = read_terragrunt_config("../../shared.hcl")
+	vars = read_tfvars_file("../../shared.tfvars")
+}
+`,
+		filepath.Join(backendDir, "terragrunt.hcl"): `
+locals {
+	shared = read_terragrunt_config("../../shared.hcl")
+	common = read_terragrunt_config("../../common/variables.hcl")
+}
+`,
+		filepath.Join(legacyDir, "terragrunt.hcl"): `
+locals {
+	# Uses a file that will be tracked
+	db_config = read_terragrunt_config("../../database.yaml")
+}
+`,
+		filepath.Join(dbDir, "terragrunt.hcl"): `
+locals {
+	common = read_terragrunt_config("../../common/variables.hcl")
+	db_config = read_terragrunt_config("../../database.yaml")
+}
+`,
+		filepath.Join(cacheDir, "terragrunt.hcl"): `
+# No file reads
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	tests := []struct {
+		name          string
+		filterQueries []string
+		wantUnits     []string
+		wantStacks    []string
+	}{
+		{
+			name:          "filter by exact file - shared.hcl",
+			filterQueries: []string{"reading=shared.hcl"},
+			wantUnits:     []string{frontendDir, backendDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "filter by exact file - database.yaml",
+			filterQueries: []string{"reading=database.yaml"},
+			wantUnits:     []string{legacyDir, dbDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "filter by glob - shared prefix",
+			filterQueries: []string{"reading=shared*"},
+			wantUnits:     []string{frontendDir, backendDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "filter by exact nested path",
+			filterQueries: []string{"reading=common/variables.hcl"},
+			wantUnits:     []string{backendDir, dbDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "filter by glob - database yaml file",
+			filterQueries: []string{"reading=database.yaml"},
+			wantUnits:     []string{legacyDir, dbDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "negation - exclude components reading shared.hcl",
+			filterQueries: []string{"!reading=shared.hcl"},
+			wantUnits:     []string{legacyDir, dbDir, cacheDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "negation with glob - exclude components reading database.yaml",
+			filterQueries: []string{"!reading=database.yaml"},
+			wantUnits:     []string{frontendDir, backendDir, cacheDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "intersection - apps directory reading shared.hcl",
+			filterQueries: []string{"./apps/* | reading=shared.hcl"},
+			wantUnits:     []string{frontendDir, backendDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "intersection - libs directory with common variables",
+			filterQueries: []string{"./libs/* | reading=common/variables.hcl"},
+			wantUnits:     []string{dbDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "multiple filters - union semantics",
+			filterQueries: []string{"reading=shared.hcl", "reading=database.yaml"},
+			wantUnits:     []string{frontendDir, backendDir, legacyDir, dbDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "complex - apps not reading database.yaml",
+			filterQueries: []string{"./apps/* | !reading=database.yaml"},
+			wantUnits:     []string{frontendDir, backendDir},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "no matches - nonexistent file",
+			filterQueries: []string{"reading=nonexistent.hcl"},
+			wantUnits:     []string{},
+			wantStacks:    []string{},
+		},
+		{
+			name:          "components that don't read any files",
+			filterQueries: []string{"cache"},
+			wantUnits:     []string{cacheDir},
+			wantStacks:    []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Parse filter queries
+			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			require.NoError(t, err)
+
+			// Create discovery with filters and ReadFiles enabled
+			discovery := discovery.NewDiscovery(tmpDir).
+				WithFilters(filters).
+				WithReadFiles()
+
+			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			// Filter results by type
+			units := configs.Filter(component.Unit).Paths()
+			stacks := configs.Filter(component.Stack).Paths()
+
+			// Verify results
+			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
+			assert.ElementsMatch(t, tt.wantStacks, stacks, "Stacks mismatch for test: %s", tt.name)
+		})
+	}
+}
+
+func TestDiscoveryWithReadingFiltersAndAbsolutePaths(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create a shared file with absolute path
+	sharedFile := filepath.Join(tmpDir, "shared.hcl")
+	require.NoError(t, os.WriteFile(sharedFile, []byte(`
+locals {
+	value = "test"
+}
+`), 0644))
+
+	// Create test component
+	appDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+
+	terragruntConfig := filepath.Join(appDir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(terragruntConfig, []byte(`
+locals {
+	shared = read_terragrunt_config("../shared.hcl")
+}
+`), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Test with absolute path filter
+	filterQueries := []string{"reading=" + sharedFile}
+	filters, err := filter.ParseFilterQueries(filterQueries, tmpDir)
+	require.NoError(t, err)
+
+	discovery := discovery.NewDiscovery(tmpDir).
+		WithFilters(filters).
+		WithReadFiles()
+
+	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Should find the app component when filtering by absolute path
+	units := configs.Filter(component.Unit).Paths()
+	assert.ElementsMatch(t, []string{appDir}, units, "Should find component by absolute path to read file")
+}
+
+func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	appDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	tests := []struct {
+		name          string
+		filterQueries []string
+		errorExpected bool
+	}{
+		{
+			name:          "invalid glob pattern in reading filter",
+			filterQueries: []string{"reading=[invalid"},
+			errorExpected: true,
+		},
+		{
+			name:          "valid reading filter - no error",
+			filterQueries: []string{"reading=*.hcl"},
+			errorExpected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Parse filter queries
+			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+
+			// Some errors occur during parsing
+			if tt.errorExpected && err != nil {
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Create discovery with filters
+			discovery := discovery.NewDiscovery(tmpDir).
+				WithFilters(filters).
+				WithReadFiles()
+
+			// Attempt discovery
+			_, err = discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			if tt.errorExpected {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

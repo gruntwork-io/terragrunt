@@ -2,7 +2,6 @@ package filter
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 )
@@ -11,6 +10,7 @@ const (
 	AttributeName     = "name"
 	AttributeType     = "type"
 	AttributeExternal = "external"
+	AttributeReading  = "reading"
 
 	AttributeTypeValueUnit  = string(component.Unit)
 	AttributeTypeValueStack = string(component.Stack)
@@ -75,23 +75,13 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 
 	switch filter.Key {
 	case AttributeName:
-		if strings.ContainsAny(filter.Value, "*?[]") {
-			g, err := filter.CompileGlob()
-			if err != nil {
-				return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for name filter: "+filter.Value, err)
-			}
-
-			for _, c := range components {
-				if g.Match(filepath.Base(c.Path)) {
-					result = append(result, c)
-				}
-			}
-
-			break
+		g, err := filter.CompileGlob()
+		if err != nil {
+			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for name filter: "+filter.Value, err)
 		}
 
 		for _, c := range components {
-			if filepath.Base(c.Path) == filter.Value {
+			if g.Match(filepath.Base(c.Path)) {
 				result = append(result, c)
 			}
 		}
@@ -129,6 +119,27 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 			}
 		default:
 			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
+		}
+	case AttributeReading:
+		g, err := filter.CompileGlob()
+		if err != nil {
+			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for reading filter: "+filter.Value, err)
+		}
+
+		for _, c := range components {
+			for _, readFile := range c.Reading {
+				normalizedPath := readFile
+				if !filepath.IsAbs(normalizedPath) {
+					normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+				}
+
+				normalizedPath = filepath.ToSlash(normalizedPath)
+
+				if g.Match(normalizedPath) {
+					result = append(result, c)
+					break
+				}
+			}
 		}
 	default:
 		return nil, NewEvaluationError("unknown attribute key: " + filter.Key)

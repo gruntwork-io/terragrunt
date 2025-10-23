@@ -20,24 +20,27 @@ func TestParser_SimpleExpressions(t *testing.T) {
 			name:  "simple name filter",
 			input: "foo",
 			expected: &filter.AttributeFilter{
-				Key:   "name",
-				Value: "foo",
+				Key:        "name",
+				Value:      "foo",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "attribute filter",
 			input: "name=bar",
 			expected: &filter.AttributeFilter{
-				Key:   "name",
-				Value: "bar",
+				Key:        "name",
+				Value:      "bar",
+				WorkingDir: ".",
 			},
 		},
 		{
 			name:  "type attribute filter",
 			input: "type=unit",
 			expected: &filter.AttributeFilter{
-				Key:   "type",
-				Value: "unit",
+				Key:        "type",
+				Value:      "unit",
+				WorkingDir: ".",
 			},
 		},
 		{
@@ -126,8 +129,9 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "foo",
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -137,8 +141,9 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "bar",
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -182,13 +187,15 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "foo | bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "foo",
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "bar",
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -197,13 +204,15 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "name=foo | name=bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "foo",
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "bar",
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -217,8 +226,9 @@ func TestParser_InfixExpressions(t *testing.T) {
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "bar",
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -228,19 +238,22 @@ func TestParser_InfixExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
 					Left: &filter.AttributeFilter{
-						Key:   "name",
-						Value: "foo",
+						Key:        "name",
+						Value:      "foo",
+						WorkingDir: ".",
 					},
 					Operator: "|",
 					Right: &filter.AttributeFilter{
-						Key:   "name",
-						Value: "bar",
+						Key:        "name",
+						Value:      "bar",
+						WorkingDir: ".",
 					},
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "baz",
+					Key:        "name",
+					Value:      "baz",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -275,14 +288,16 @@ func TestParser_ComplexExpressions(t *testing.T) {
 				Left: &filter.PrefixExpression{
 					Operator: "!",
 					Right: &filter.AttributeFilter{
-						Key:   "name",
-						Value: "foo",
+						Key:        "name",
+						Value:      "foo",
+						WorkingDir: ".",
 					},
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "bar",
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
 				},
 			},
 		},
@@ -291,15 +306,17 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			input: "foo | !bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "foo",
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
 				},
 				Operator: "|",
 				Right: &filter.PrefixExpression{
 					Operator: "!",
 					Right: &filter.AttributeFilter{
-						Key:   "name",
-						Value: "bar",
+						Key:        "name",
+						Value:      "bar",
+						WorkingDir: ".",
 					},
 				},
 			},
@@ -324,8 +341,9 @@ func TestParser_ComplexExpressions(t *testing.T) {
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:   "name",
-					Value: "foo",
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
 				},
 			},
 		},
