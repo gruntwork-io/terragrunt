@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -17,10 +18,19 @@ const (
 )
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *cli.Command {
+	control := opts.StrictControls.Find(controls.DagGraph)
+	opts.StrictControls.FilterByNames(controls.DeprecatedCommands).AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
+
 	return &cli.Command{
 		Name:      CommandName,
 		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language. DEPRECATED: Use 'list --format=dot --dag --dependencies --external' instead.",
 		UsageText: "terragrunt dag graph",
+		Before: func(ctx *cli.Context) error {
+			if err := control.Evaluate(ctx); err != nil {
+				return cli.NewExitError(err, cli.ExitCodeGeneralError)
+			}
+			return nil
+		},
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts)
 		},
@@ -28,9 +38,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *
 }
 
 func Run(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	l.Warnf("The 'dag graph' command is deprecated. Please use 'terragrunt list --format=dot --dag --dependencies --external' instead.")
-
-	// Create list options configured for DAG graph behavior
 	listOpts := list.NewOptions(opts)
 	listOpts.Format = list.FormatDot
 	listOpts.Mode = list.ModeDAG

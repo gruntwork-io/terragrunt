@@ -55,6 +55,9 @@ const (
 	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
 	// and will log a warning when using **/*
 	DoubleStar = "double-star"
+
+	// DagGraph is the control that prevents the use of the deprecated `dag graph` command.
+	DagGraph = "dag-graph"
 )
 
 //nolint:lll
@@ -208,6 +211,14 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
 			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
+		},
+
+		&Control{
+			Name:        DagGraph,
+			Description: "Prevents the deprecated `dag graph` command from being used.",
+			Category:    stageCategory,
+			Error:       errors.Errorf("The `dag graph` command is no longer supported. Use `terragrunt list --format=dot --dag --dependencies --external` instead."),
+			Warning:     "The `dag graph` command is deprecated and will be removed in a future version of Terragrunt. Use `terragrunt list --format=dot --dag --dependencies --external` instead.",
 		},
 	}
 
