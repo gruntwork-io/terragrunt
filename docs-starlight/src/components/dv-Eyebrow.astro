@@ -2,11 +2,17 @@
 import '@styles/global.css';
 import { Image } from 'astro:assets';
 
-const { text = '', icon } = Astro.props;
+const { text = '', icon, href } = Astro.props;
 ---
 <div class="flex flex-row items-center gap-2">
   {icon ? <Image src={icon} alt="" class="size-[36px]" /> : null}
-  <div class="px-0.5 bg-accent/7 text-xs font-mono text-accent uppercase select-none">
+  {href ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" class="px-0.5 bg-accent/7 text-xs font-mono text-accent uppercase hover:bg-accent/15 transition-colors">
       <span>{text}</span>
-  </div>
+    </a>
+  ) : (
+    <div class="px-0.5 bg-accent/7 text-xs font-mono text-accent uppercase select-none">
+      <span>{text}</span>
+    </div>
+  )}
 </div>
