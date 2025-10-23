@@ -15,6 +15,9 @@ const (
 	// FormatLong outputs the discovered configurations in long format.
 	FormatLong = "long"
 
+	// FormatDot outputs the discovered configurations in GraphViz DOT format.
+	FormatDot = "dot"
+
 	// SortAlpha sorts the discovered configurations in alphabetical order.
 	SortAlpha = "alpha"
 
@@ -93,6 +96,8 @@ func (o *Options) validateFormat() error {
 	case FormatTree:
 		return nil
 	case FormatLong:
+		return nil
+	case FormatDot:
 		return nil
 	default:
 		return errors.New("invalid format: " + o.Format)

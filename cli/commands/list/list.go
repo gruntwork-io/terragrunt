@@ -2,6 +2,7 @@ package list
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,6 +105,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return outputTree(l, opts, listedComponents, opts.Mode)
 	case FormatLong:
 		return outputLong(l, opts, listedComponents)
+	case FormatDot:
+		return outputDot(l, opts, listedComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -440,6 +443,11 @@ func outputTree(l log.Logger, opts *Options, components ListedComponents, sort s
 	return renderTree(opts, components, s, sort)
 }
 
+// outputDot outputs the discovered components in GraphViz DOT format.
+func outputDot(_ log.Logger, opts *Options, components ListedComponents) error {
+	return renderDot(opts, components)
+}
+
 type TreeStyler struct {
 	entryStyle  lipgloss.Style
 	rootStyle   lipgloss.Style
@@ -671,4 +679,67 @@ func getLongestPathLen(components ListedComponents) int {
 	}
 
 	return longest
+}
+
+// renderDot renders the components in GraphViz DOT format.
+func renderDot(opts *Options, components ListedComponents) error {
+	if _, err := opts.Writer.Write([]byte("digraph {\n")); err != nil {
+		return errors.New(err)
+	}
+
+	excludedPaths := getExcludedPaths(components, opts)
+
+	writtenNodes := make(map[string]bool, len(components))
+
+	for _, component := range components {
+		if !writtenNodes[component.Path] {
+			style := ""
+			if excludedPaths[component.Path] {
+				style = "[color=red]"
+			}
+
+			if _, writeErr := opts.Writer.Write(fmt.Appendf(nil, "\t\"%s\" %s;\n", component.Path, style)); writeErr != nil {
+				return errors.New(writeErr)
+			}
+
+			writtenNodes[component.Path] = true
+		}
+
+		for _, dep := range component.Dependencies {
+			if !writtenNodes[dep.Path] {
+				style := ""
+				if excludedPaths[dep.Path] {
+					style = "[color=red]"
+				}
+
+				if _, writeErr := opts.Writer.Write(fmt.Appendf(nil, "\t\"%s\" %s;\n", dep.Path, style)); writeErr != nil {
+					return errors.New(writeErr)
+				}
+
+				writtenNodes[dep.Path] = true
+			}
+
+			if _, writeErr := opts.Writer.Write(fmt.Appendf(nil, "\t\"%s\" -> \"%s\";\n", component.Path, dep.Path)); writeErr != nil {
+				return errors.New(writeErr)
+			}
+		}
+	}
+
+	if _, err := opts.Writer.Write([]byte("}\n")); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
+}
+
+// getExcludedPaths determines which component paths should be marked as excluded.
+func getExcludedPaths(components ListedComponents, opts *Options) map[string]bool {
+	excluded := make(map[string]bool)
+
+	// Components that were filtered out during discoveredToListed are not in the list.
+	// This function is called with the already-filtered list, so we can't determine
+	// exclusions here. For now, we don't mark any as excluded.
+	// In the future, this could be enhanced by tracking exclusions in ListedComponent.
+
+	return excluded
 }
