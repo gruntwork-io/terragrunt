@@ -5,6 +5,7 @@ package catalog
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -15,12 +16,7 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	return scaffold.NewFlags(opts, prefix).Filter(
-		scaffold.RootFileNameFlagName,
-		scaffold.NoIncludeRootFlagName,
-		scaffold.NoShellFlagName,
-		scaffold.NoHooksFlagName,
-	)
+	return shared.NewScaffoldingFlags(opts, prefix)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {

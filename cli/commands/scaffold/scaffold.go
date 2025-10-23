@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -107,7 +108,12 @@ const (
 )
 
 // NewBoilerplateOptions creates a new BoilerplateOptions struct
-func NewBoilerplateOptions(templateFolder, outputFolder string, vars map[string]any, terragruntOpts *options.TerragruntOptions) *boilerplate_options.BoilerplateOptions {
+func NewBoilerplateOptions(
+	templateFolder,
+	outputFolder string,
+	vars map[string]any,
+	terragruntOpts *options.TerragruntOptions,
+) *boilerplate_options.BoilerplateOptions {
 	return &boilerplate_options.BoilerplateOptions{
 		TemplateFolder:          templateFolder,
 		OutputFolder:            outputFolder,
@@ -205,13 +211,21 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	if _, found := vars[enableRootInclude]; !found {
 		vars[enableRootInclude] = !opts.ScaffoldNoIncludeRoot
 	} else {
-		l.Warnf("The %s variable is already set in the var flag(s). The --%s flag will be ignored.", enableRootInclude, NoIncludeRootFlagName)
+		l.Warnf(
+			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
+			enableRootInclude,
+			shared.NoIncludeRootFlagName,
+		)
 	}
 
 	if _, found := vars[rootFileName]; !found {
 		vars[rootFileName] = opts.ScaffoldRootFileName
 	} else {
-		l.Warnf("The %s variable is already set in the var flag(s). The --%s flag will be ignored.", rootFileName, NoIncludeRootFlagName)
+		l.Warnf(
+			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
+			rootFileName,
+			shared.NoIncludeRootFlagName,
+		)
 	}
 
 	l.Infof("Running boilerplate generation to %s", outputDir)
@@ -266,11 +280,25 @@ func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *optio
 // generateDefaultTemplate - write default template to provided dir
 func generateDefaultTemplate(boilerplateDir string) (string, error) {
 	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(util.JoinPath(boilerplateDir, config.DefaultTerragruntConfigPath), []byte(DefaultTerragruntTemplate), ownerWriteGlobalReadPerms); err != nil {
+	if err := os.WriteFile(
+		util.JoinPath(
+			boilerplateDir,
+			config.DefaultTerragruntConfigPath,
+		),
+		[]byte(DefaultTerragruntTemplate),
+		ownerWriteGlobalReadPerms,
+	); err != nil {
 		return "", errors.New(err)
 	}
 
-	if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(DefaultBoilerplateConfig), ownerWriteGlobalReadPerms); err != nil {
+	if err := os.WriteFile(
+		util.JoinPath(
+			boilerplateDir,
+			"boilerplate.yml",
+		),
+		[]byte(DefaultBoilerplateConfig),
+		ownerWriteGlobalReadPerms,
+	); err != nil {
 		return "", errors.New(err)
 	}
 
@@ -278,7 +306,13 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 }
 
 // downloadTemplate - parse URL, download files, and handle subfolders
-func downloadTemplate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, templateURL string, tempDir string) (string, error) {
+func downloadTemplate(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	templateURL,
+	tempDir string,
+) (string, error) {
 	parsedTemplateURL, err := tf.ToSourceURL(templateURL, tempDir)
 	if err != nil {
 		return "", errors.New(err)
@@ -317,7 +351,11 @@ func downloadTemplate(ctx context.Context, l log.Logger, opts *options.Terragrun
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
 		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-			return "", errors.Errorf("subfolder \"//%s\" not found in downloaded template from %s", subFolder, templateURL)
+			return "", errors.Errorf(
+				"subfolder \"//%s\" not found in downloaded template from %s",
+				subFolder,
+				templateURL,
+			)
 		}
 	}
 
@@ -325,7 +363,13 @@ func downloadTemplate(ctx context.Context, l log.Logger, opts *options.Terragrun
 }
 
 // prepareBoilerplateFiles - prepare boilerplate files from provided template, tf module, or (custom) default template
-func prepareBoilerplateFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, templateURL string, tempDir string) (string, error) {
+func prepareBoilerplateFiles(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	templateURL,
+	tempDir string,
+) (string, error) {
 	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
 
 	// process template url if it was passed. This overrides the .boilerplate folder in the OpenTofu/Terraform module
@@ -374,7 +418,11 @@ func prepareBoilerplateFiles(ctx context.Context, l log.Logger, opts *options.Te
 }
 
 // parseVariables - parse variables from tf files.
-func parseVariables(l log.Logger, opts *options.TerragruntOptions, moduleDir string) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
+func parseVariables(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	moduleDir string,
+) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
 	inputs, err := config.ParseVariables(l, opts, moduleDir)
 	if err != nil {
 		return nil, nil, errors.New(err)
@@ -398,7 +446,13 @@ func parseVariables(l log.Logger, opts *options.TerragruntOptions, moduleDir str
 }
 
 // parseModuleURL - parse module url and rewrite it if required
-func parseModuleURL(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, vars map[string]any, moduleURL string) (string, error) {
+func parseModuleURL(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	vars map[string]any,
+	moduleURL string,
+) (string, error) {
 	parsedModuleURL, err := tf.ToSourceURL(moduleURL, opts.WorkingDir)
 	if err != nil {
 		return "", errors.New(err)
@@ -424,7 +478,12 @@ func parseModuleURL(ctx context.Context, l log.Logger, opts *options.TerragruntO
 
 // rewriteModuleURL rewrites module url to git ssh if required
 // github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
-func rewriteModuleURL(l log.Logger, opts *options.TerragruntOptions, vars map[string]any, moduleURL string) (*url.URL, error) {
+func rewriteModuleURL(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	vars map[string]any,
+	moduleURL string,
+) (*url.URL, error) {
 	var updatedModuleURL = moduleURL
 
 	sourceURLType := sourceURLTypeHTTPS
@@ -467,7 +526,12 @@ func rewriteModuleURL(l log.Logger, opts *options.TerragruntOptions, vars map[st
 
 // rewriteTemplateURL rewrites template url with reference to tag
 // github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
-func rewriteTemplateURL(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parsedTemplateURL *url.URL) (*url.URL, error) {
+func rewriteTemplateURL(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	parsedTemplateURL *url.URL,
+) (*url.URL, error) {
 	var (
 		updatedTemplateURL = parsedTemplateURL
 		templateParams     = updatedTemplateURL.Query()
@@ -498,7 +562,13 @@ func rewriteTemplateURL(ctx context.Context, l log.Logger, opts *options.Terragr
 }
 
 // addRefToModuleURL adds ref to module url if is passed through variables or find it from git tags
-func addRefToModuleURL(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parsedModuleURL *url.URL, vars map[string]any) (*url.URL, error) {
+func addRefToModuleURL(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	parsedModuleURL *url.URL,
+	vars map[string]any,
+) (*url.URL, error) {
 	var moduleURL = parsedModuleURL
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleURL.Query()
