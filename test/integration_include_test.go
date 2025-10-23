@@ -101,7 +101,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	// Use terratest retry to handle intermittent concurrency issues
+	// Retry to handle intermittent failures due to network issues on CICD
 	retry.DoWithRetry(t, "Run all modules with prefix verification", 3, 0, func() (string, error) {
 		helpers.CleanupTerraformFolder(t, modulePath)
 

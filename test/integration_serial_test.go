@@ -89,7 +89,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
 
-	// Use terratest retry to handle intermittent failures
+	// Retry to handle intermittent failures due to network issues on CICD
 	retry.DoWithRetry(t, "Run terragrunt init with provider cache", 3, 0, func() (string, error) {
 		// Clean up before each attempt
 		helpers.CleanupTerraformFolder(t, appPath)
