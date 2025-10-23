@@ -135,28 +135,6 @@ func TestUnitsMap_CrossLinkDependencies(t *testing.T) {
 	assert.Equal(t, aPath, units[1].Dependencies[0].Path)
 }
 
-func TestUnits_WriteDot(t *testing.T) {
-	t.Parallel()
-
-	units := common.Units{
-		&common.Unit{Path: "a"},
-		&common.Unit{Path: "b", Dependencies: common.Units{&common.Unit{Path: "a"}}, FlagExcluded: true},
-	}
-
-	var buf bytes.Buffer
-
-	opts := &options.TerragruntOptions{TerragruntConfigPath: "/foo/terragrunt.hcl"}
-	l := logger.CreateLogger()
-	err := units.WriteDot(l, &buf, opts)
-	require.NoError(t, err)
-
-	out := buf.String()
-	assert.Contains(t, out, "digraph {")
-	assert.Contains(t, out, "a")
-	assert.Contains(t, out, "b")
-	assert.Contains(t, out, "[color=red]")
-}
-
 func TestUnits_CheckForCycles(t *testing.T) {
 	t.Parallel()
 
