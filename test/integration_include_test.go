@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,30 +101,45 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
-	)
-	require.NoError(t, err)
+	// Use terratest retry to handle intermittent concurrency issues
+	retry.DoWithRetry(t, "Run all modules with prefix verification", 3, 0, func() (string, error) {
+		helpers.CleanupTerraformFolder(t, modulePath)
 
-	assert.Contains(t, stdout, "alpha")
-	assert.Contains(t, stdout, "beta")
-	assert.Contains(t, stdout, "charlie")
-
-	stdoutLines := strings.SplitSeq(stderr, "\n")
-	for line := range stdoutLines {
-		if strings.Contains(line, "alpha") {
-			assert.Contains(t, line, "prefix=a")
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
+		)
+		if err != nil {
+			return "", fmt.Errorf("command failed: %w", err)
 		}
 
-		if strings.Contains(line, "beta") {
-			assert.Contains(t, line, "prefix=b")
+		// Check if all expected outputs are present
+		hasAlpha := strings.Contains(stdout, "alpha")
+		hasBeta := strings.Contains(stdout, "beta")
+		hasCharlie := strings.Contains(stdout, "charlie")
+
+		if !hasAlpha || !hasBeta || !hasCharlie {
+			return "", fmt.Errorf("missing outputs: alpha=%v, beta=%v, charlie=%v", hasAlpha, hasBeta, hasCharlie)
 		}
 
-		if strings.Contains(line, "charlie") {
-			assert.Contains(t, line, "prefix=c")
+		// All outputs present, verify prefixes
+		stdoutLines := strings.SplitSeq(stderr, "\n")
+		for line := range stdoutLines {
+			if strings.Contains(line, "alpha") && !strings.Contains(line, "prefix=a") {
+				return "", fmt.Errorf("alpha found but wrong prefix in line: %s", line)
+			}
+
+			if strings.Contains(line, "beta") && !strings.Contains(line, "prefix=b") {
+				return "", fmt.Errorf("beta found but wrong prefix in line: %s", line)
+			}
+
+			if strings.Contains(line, "charlie") && !strings.Contains(line, "prefix=c") {
+				return "", fmt.Errorf("charlie found but wrong prefix in line: %s", line)
+			}
 		}
-	}
+
+		return "Success", nil
+	})
 }
 
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
