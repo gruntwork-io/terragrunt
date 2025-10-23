@@ -61,7 +61,21 @@ terragrunt find --filter 'type=stack'
 
 # Filter by external dependency status
 terragrunt find --filter 'external=false'
+
+# Filter by files read
+terragrunt find --filter 'reading=shared.hcl'
+terragrunt find --filter 'reading=common/*.hcl' # Globs supported!
+terragrunt find --filter 'reading=config/**' # Double-wildcard globs are required filtering on files nested in subdirectories.
+terragrunt find --filter 'reading=config/vars.tfvars'
 ```
+
+<Aside type="tip" title="What does 'Reading' mean?">
+
+The `reading` attribute filters configurations based on which files they themselves read. This is useful for finding all infrastructure that could potentially be impacted by shared configuration, and is particularly useful when a commonly included configuration (like `root.hcl`) is updated.
+
+See the [mark_as_read function documentation](/docs/reference/hcl/functions/#mark_as_read) for more information on how Terragrunt tracks files that are read during parsing.
+
+</Aside>
 
 ### Negation
 Exclude configurations using the `!` prefix:
