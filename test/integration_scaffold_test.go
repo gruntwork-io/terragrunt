@@ -182,7 +182,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-commands", workingDir)
+	templatePath := workingDir + "//fixtures/scaffold/with-shell-commands"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -211,7 +211,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-commands", workingDir)
+	templatePath := workingDir + "//fixtures/scaffold/with-shell-commands"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -239,7 +239,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-hooks", workingDir)
+	templatePath := workingDir + "//fixtures/scaffold/with-hooks"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -265,7 +265,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-hooks", workingDir)
+	templatePath := workingDir + "//fixtures/scaffold/with-hooks"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -291,7 +291,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-and-hooks", workingDir)
+	templatePath := workingDir + "//fixtures/scaffold/with-shell-and-hooks"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -321,7 +321,7 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	catalogConfigPath := filepath.Join(workingDir, "fixtures/scaffold/catalog-config-test/terragrunt.hcl")
-	templatePath := fmt.Sprintf("%s//fixtures/scaffold/with-shell-and-hooks", workingDir)
+	templatePath := workingDir + "//fixtures/scaffold/with-shell-and-hooks"
 	tmpEnvPath := t.TempDir()
 
 	catalogContent, err := util.ReadFileAsString(catalogConfigPath)
