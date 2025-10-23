@@ -60,7 +60,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        ExternalFlagName,
 			EnvVars:     tgPrefix.EnvVars(ExternalFlagName),
 			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
+			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TreeFlagName,

@@ -285,6 +285,21 @@ terragrunt find --dependencies --external --format=json
 ]
 ```
 
+<Aside type="note" title="Automatic Dependency Discovery">
+
+The `--external` flag automatically enables dependency discovery, so you don't need to explicitly pass `--dependencies` when using `--external` unless you want to actually see the dependency information.
+
+The following commands are equivalent:
+
+```bash
+terragrunt find --external
+terragrunt find --dependencies --external
+```
+
+As the default text format of `find` won't display dependency information anyways.
+
+</Aside>
+
 ## Hidden Configurations
 
 By default, hidden directories (those starting with `.`) are excluded from the search. Use the `--hidden` flag to include them:
