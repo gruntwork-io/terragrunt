@@ -15,7 +15,7 @@ import (
 type UnitWriter struct {
 	buffer *bytes.Buffer
 	out    io.Writer
-	mu     sync.Mutex
+	mu     sync.Mutex // Lock for this writer's buffer
 }
 
 // NewUnitWriter returns a new UnitWriter instance.
@@ -34,15 +34,6 @@ func (writer *UnitWriter) Write(p []byte) (int, error) {
 	n, err := writer.buffer.Write(p)
 	if err != nil {
 		return n, errors.New(err)
-	}
-
-	// If the last byte is a newline character, flush the buffer early.
-	if writer.buffer.Len() > 0 {
-		if p[len(p)-1] == '\n' {
-			if err := writer.flushUnsafe(); err != nil {
-				return n, errors.New(err)
-			}
-		}
 	}
 
 	return n, nil
