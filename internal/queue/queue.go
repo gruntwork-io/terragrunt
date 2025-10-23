@@ -288,6 +288,7 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 
 	// Cycle fallback: include all entries in a dependency-agnostic order (by path) and mark them ready.
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Component.Path < entries[j].Component.Path })
+
 	for _, e := range entries {
 		e.Status = StatusReady
 	}

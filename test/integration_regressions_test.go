@@ -226,7 +226,9 @@ func TestRunnerPoolIncludesAllNestedStackUnits(t *testing.T) {
 
 	// Extract the runner pool order from stderr for a clearer failure message
 	var actualOrder []string
+
 	inOrder := false
+
 	for _, line := range strings.Split(stderr, "\n") {
 		if strings.Contains(line, "The runner-pool runner at ") {
 			inOrder = true
@@ -255,6 +257,7 @@ func TestRunnerPoolIncludesAllNestedStackUnits(t *testing.T) {
 
 	// Compute missing expectations
 	var missing []string
+
 	for _, expected := range expectedUnits {
 		if _, ok := actualSet[expected]; !ok {
 			missing = append(missing, expected)
