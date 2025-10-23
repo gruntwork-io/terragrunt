@@ -617,6 +617,7 @@ test_var = "{{ .TestVar }}"
 	// Verify that hooks did NOT execute (hook files should not exist)
 	beforeHookFile := util.JoinPath(outputDir, "before_hook_not_executed.txt")
 	afterHookFile := util.JoinPath(outputDir, "after_hook_not_executed.txt")
+
 	assert.NoFileExists(t, beforeHookFile, "Before hook file should not exist when NoHooks=true")
 	assert.NoFileExists(t, afterHookFile, "After hook file should not exist when NoHooks=true")
 }
@@ -684,6 +685,7 @@ test_var = "{{ .TestVar }}"
 	// Verify that hooks DID execute (before and after hook files should exist)
 	beforeHookFile := util.JoinPath(outputDir, "before_hook_executed.txt")
 	afterHookFile := util.JoinPath(outputDir, "after_hook_executed.txt")
+
 	require.FileExists(t, beforeHookFile, "Before hook file should exist when NoHooks=false")
 	require.FileExists(t, afterHookFile, "After hook file should exist when NoHooks=false")
 }
