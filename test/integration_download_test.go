@@ -361,6 +361,8 @@ func TestIncludeDirs(t *testing.T) {
 
 	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
 	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
 
 	// Populate module paths.
 	unitNames := []string{
@@ -459,6 +461,8 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 
 	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
 	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
 
 	// Populate paths.
 	unitNames := []string{
