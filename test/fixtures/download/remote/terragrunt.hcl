@@ -3,5 +3,5 @@ inputs = {
 }
 
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-no-remote?ref=v0.77.22"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-no-remote?ref=c574388b2f2821c10c77f0547570b57e32ef02a0"
 }

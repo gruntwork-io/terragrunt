@@ -3,6 +3,7 @@ package module
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -95,18 +96,18 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 			continue
 		}
 
-		walkFunc := filepath.Walk
+		walkFunc := filepath.WalkDir
 		if repo.walkWithSymlinks {
-			walkFunc = util.WalkWithSymlinks
+			walkFunc = util.WalkDirWithSymlinks
 		}
 
 		err := walkFunc(modulesPath,
-			func(dir string, remote os.FileInfo, err error) error {
+			func(dir string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
 
-				if !remote.IsDir() {
+				if !d.IsDir() {
 					return nil
 				}
 

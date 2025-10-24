@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -143,8 +144,10 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")

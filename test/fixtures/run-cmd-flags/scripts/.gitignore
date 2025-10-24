@@ -1,0 +1,4 @@
+# Ignore counter files created during test runs
+global_counter.txt
+no_cache_counter.txt
+

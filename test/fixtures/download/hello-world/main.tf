@@ -4,7 +4,7 @@ terraform {
   required_providers {
     null = {
       source  = "hashicorp/null"
-      version = "3.2.3"
+      version = "~> 3.2.4"
     }
   }
 }
@@ -29,6 +29,6 @@ output "test" {
 }
 
 module "remote" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-no-remote?ref=v0.77.22"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-no-remote?ref=c574388b2f2821c10c77f0547570b57e32ef02a0"
   name   = var.name
 }

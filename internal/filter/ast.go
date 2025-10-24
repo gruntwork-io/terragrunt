@@ -121,9 +121,13 @@ func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
 }
 func (i *InfixExpression) RequiresHCLParsing() (Expression, bool) {
-	if f, ok := i.Left.RequiresHCLParsing(); ok {
-		return f, true
+	if _, ok := i.Left.RequiresHCLParsing(); ok {
+		return i, true
 	}
 
-	return i.Right.RequiresHCLParsing()
+	if _, ok := i.Right.RequiresHCLParsing(); ok {
+		return i, true
+	}
+
+	return nil, false
 }

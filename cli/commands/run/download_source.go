@@ -53,7 +53,7 @@ func downloadTerraformSource(
 		return nil, err
 	}
 
-	if err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r); err != nil {
+	if err = DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r); err != nil {
 		return nil, err
 	}
 
@@ -309,7 +309,10 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 		src.DownloadDir)
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
-	if allowCAS {
+
+	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
+
+	if allowCAS && !isLocalSource {
 		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
 
 		c, err := cas.New(cas.Options{})
@@ -328,9 +331,11 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 				Getters: []getterv2.Getter{casGetter},
 			}
 
+			// Set Pwd to the working directory so go-getter v2 can resolve relative paths
 			req := &getterv2.Request{
 				Src: src.CanonicalSourceURL.String(),
 				Dst: src.DownloadDir,
+				Pwd: opts.WorkingDir,
 			}
 
 			if _, casErr := client.Get(ctx, req); casErr == nil {

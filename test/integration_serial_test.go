@@ -779,6 +779,8 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)
@@ -788,10 +790,6 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 
 	expected := 3
 
-	if expectExtraVersionCommandCall(t) {
-		expected++
-	}
-
 	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
@@ -800,6 +798,8 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)
@@ -809,10 +809,6 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
 	expected := 2
-
-	if expectExtraVersionCommandCall(t) {
-		expected++
-	}
 
 	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 }
