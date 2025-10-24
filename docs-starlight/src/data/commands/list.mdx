@@ -202,6 +202,19 @@ Include dependency information in the output using the `--dependencies` flag. Wh
 
 Use the `--external` flag to discover and include dependencies that exist outside your current working directory. This is particularly useful when working with shared modules or cross-repository dependencies.
 
+<Aside type="note" title="Automatic Dependency Discovery">
+
+The `--external` flag automatically enables dependency discovery, so you don't need to explicitly pass `--dependencies` when using `--external`. The following commands are equivalent:
+
+```bash
+terragrunt list --external
+terragrunt list --dependencies --external
+```
+
+This is because the default text format of `list` won't display dependency information anyways (as opposed to the `long` format, which does).
+
+</Aside>
+
 ### Hidden Configurations
 
 By default, Terragrunt excludes configurations in hidden directories (those starting with a dot). Use the `--hidden` flag to include these configurations in the output.
