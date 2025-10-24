@@ -33,7 +33,7 @@ func Parse(filterString, workingDir string) (*Filter, error) {
 }
 
 // Evaluate applies the filter to a list of components and returns the filtered result.
-func (f *Filter) Evaluate(components []*component.Component) ([]*component.Component, error) {
+func (f *Filter) Evaluate(components component.Components) (component.Components, error) {
 	return Evaluate(f.expr, components)
 }
 

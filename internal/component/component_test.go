@@ -13,9 +13,9 @@ func TestComponentsSort(t *testing.T) {
 
 	// Setup
 	configs := component.Components{
-		{Path: "c", Kind: component.Unit},
-		{Path: "a", Kind: component.Unit},
-		{Path: "b", Kind: component.Stack},
+		component.NewUnit("c"),
+		component.NewUnit("a"),
+		component.NewStack("b"),
 	}
 
 	// Act
@@ -23,9 +23,9 @@ func TestComponentsSort(t *testing.T) {
 
 	// Assert
 	require.Len(t, sorted, 3)
-	assert.Equal(t, "a", sorted[0].Path)
-	assert.Equal(t, "b", sorted[1].Path)
-	assert.Equal(t, "c", sorted[2].Path)
+	assert.Equal(t, "a", sorted[0].Path())
+	assert.Equal(t, "b", sorted[1].Path())
+	assert.Equal(t, "c", sorted[2].Path())
 }
 
 func TestComponentsFilter(t *testing.T) {
@@ -33,19 +33,19 @@ func TestComponentsFilter(t *testing.T) {
 
 	// Setup
 	configs := component.Components{
-		{Path: "unit1", Kind: component.Unit},
-		{Path: "stack1", Kind: component.Stack},
-		{Path: "unit2", Kind: component.Unit},
+		component.NewUnit("unit1"),
+		component.NewStack("stack1"),
+		component.NewUnit("unit2"),
 	}
 
 	// Test unit filtering
 	t.Run("filter units", func(t *testing.T) {
 		t.Parallel()
 
-		units := configs.Filter(component.Unit)
+		units := configs.Filter(component.UnitKind)
 		require.Len(t, units, 2)
-		assert.Equal(t, component.Unit, units[0].Kind)
-		assert.Equal(t, component.Unit, units[1].Kind)
+		assert.Equal(t, component.UnitKind, units[0].Kind())
+		assert.Equal(t, component.UnitKind, units[1].Kind())
 		assert.ElementsMatch(t, []string{"unit1", "unit2"}, units.Paths())
 	})
 
@@ -53,10 +53,10 @@ func TestComponentsFilter(t *testing.T) {
 	t.Run("filter stacks", func(t *testing.T) {
 		t.Parallel()
 
-		stacks := configs.Filter(component.Stack)
+		stacks := configs.Filter(component.StackKind)
 		require.Len(t, stacks, 1)
-		assert.Equal(t, component.Stack, stacks[0].Kind)
-		assert.Equal(t, "stack1", stacks[0].Path)
+		assert.Equal(t, component.StackKind, stacks[0].Kind())
+		assert.Equal(t, "stack1", stacks[0].Path())
 	})
 }
 
@@ -71,8 +71,8 @@ func TestComponentsCycleCheck(t *testing.T) {
 		{
 			name: "no cycles",
 			setupFunc: func() component.Components {
-				a := &component.Component{Path: "a"}
-				b := &component.Component{Path: "b"}
+				a := component.NewUnit("a")
+				b := component.NewUnit("b")
 				a.AddDependency(b)
 				return component.Components{a, b}
 			},
@@ -81,8 +81,8 @@ func TestComponentsCycleCheck(t *testing.T) {
 		{
 			name: "direct cycle",
 			setupFunc: func() component.Components {
-				a := &component.Component{Path: "a"}
-				b := &component.Component{Path: "b"}
+				a := component.NewUnit("a")
+				b := component.NewUnit("b")
 				a.AddDependency(b)
 				b.AddDependency(a)
 				return component.Components{a, b}
@@ -92,9 +92,9 @@ func TestComponentsCycleCheck(t *testing.T) {
 		{
 			name: "indirect cycle",
 			setupFunc: func() component.Components {
-				a := &component.Component{Path: "a"}
-				b := &component.Component{Path: "b"}
-				c := &component.Component{Path: "c"}
+				a := component.NewUnit("a")
+				b := component.NewUnit("b")
+				c := component.NewUnit("c")
 				a.AddDependency(b)
 				b.AddDependency(c)
 				c.AddDependency(a)
@@ -105,10 +105,10 @@ func TestComponentsCycleCheck(t *testing.T) {
 		{
 			name: "diamond dependency - no cycle",
 			setupFunc: func() component.Components {
-				a := &component.Component{Path: "a"}
-				b := &component.Component{Path: "b"}
-				c := &component.Component{Path: "c"}
-				d := &component.Component{Path: "d"}
+				a := component.NewUnit("a")
+				b := component.NewUnit("b")
+				c := component.NewUnit("c")
+				d := component.NewUnit("d")
 				a.AddDependency(b)
 				a.AddDependency(c)
 				b.AddDependency(d)

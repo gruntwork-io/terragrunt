@@ -36,7 +36,7 @@ import (
 type Entry struct {
 	// Component is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
 	// including its path, dependencies, and discovery context (such as the command being run).
-	Component *component.Component
+	Component component.Component
 
 	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
 	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
@@ -120,19 +120,19 @@ func (e *Entry) UpdateBlocked(entries Entries) {
 func (e *Entry) IsUp() bool {
 	// If we don't have a discovery context,
 	// we should assume the command is an "up" command.
-	if e.Component.DiscoveryContext == nil {
+	if e.Component.DiscoveryContext() == nil {
 		return true
 	}
 
-	if e.Component.DiscoveryContext.Cmd == "destroy" {
+	if e.Component.DiscoveryContext().Cmd == "destroy" {
 		return false
 	}
 
-	if e.Component.DiscoveryContext.Cmd == "apply" && slices.Contains(e.Component.DiscoveryContext.Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "apply" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
-	if e.Component.DiscoveryContext.Cmd == "plan" && slices.Contains(e.Component.DiscoveryContext.Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "plan" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
@@ -154,9 +154,9 @@ type Queue struct {
 type Entries []*Entry
 
 // Entry returns a given entry from the queue.
-func (e Entries) Entry(cfg *component.Component) *Entry {
+func (e Entries) Entry(cfg component.Component) *Entry {
 	for _, entry := range e {
-		if entry.Component.Path == cfg.Path {
+		if entry.Component.Path() == cfg.Path() {
 			return entry
 		}
 	}
@@ -186,7 +186,7 @@ func (q *Queue) EntryByPath(path string) *Entry {
 // Should only be called when the caller already holds a lock.
 func (q *Queue) entryByPathUnsafe(path string) *Entry {
 	for _, entry := range q.Entries {
-		if entry.Component.Path == path {
+		if entry.Component.Path() == path {
 			return entry
 		}
 	}
@@ -249,7 +249,7 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 			}
 
 			if entries[i].Status == StatusUnsorted && entries[j].Status == StatusUnsorted {
-				return entries[i].Component.Path < entries[j].Component.Path
+				return entries[i].Component.Path() < entries[j].Component.Path()
 			}
 
 			return false
@@ -335,7 +335,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 // Should only be called when the caller already holds a read lock.
 func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
 	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
 			return false
 		}
@@ -368,7 +368,7 @@ func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 		}
 
 		for _, dep := range other.Component.Dependencies() {
-			if dep.Path == e.Component.Path {
+			if dep.Path() == e.Component.Path() {
 				// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
 				// (succeeded OR failed), not just succeeded
 				if q.IgnoreDependencyErrors {
@@ -441,7 +441,7 @@ func (q *Queue) earlyExitDependents(e *Entry) {
 		}
 
 		for _, dep := range entry.Component.Dependencies() {
-			if dep.Path == e.Component.Path {
+			if dep.Path() == e.Component.Path() {
 				if isTerminalOrRunning(entry.Status) {
 					continue
 				}
@@ -463,7 +463,7 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 	}
 
 	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
 			continue
 		}
@@ -503,7 +503,7 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 	count := 0
 
 	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path)
+		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil || depEntry.Status != StatusSucceeded {
 			count++
 		}

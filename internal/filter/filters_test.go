@@ -81,11 +81,11 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Parallel()
 
 	components := component.Components{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
+		component.NewUnit("./apps/app1"),
+		component.NewUnit("./apps/app2"),
+		component.NewUnit("./apps/legacy"),
+		component.NewUnit("./libs/db"),
+		component.NewUnit("./libs/api"),
 	}
 
 	t.Run("empty filters returns all components", func(t *testing.T) {
@@ -108,10 +108,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./apps/legacy", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
+			component.NewUnit("./apps/legacy"),
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -126,9 +126,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./libs/db", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./libs/db"),
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -143,10 +143,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./apps/legacy", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
+			component.NewUnit("./apps/legacy"),
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -163,9 +163,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -180,8 +180,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -196,10 +196,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./libs/api", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
+			component.NewUnit("./libs/api"),
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -219,10 +219,10 @@ func TestFilters_Evaluate(t *testing.T) {
 		result, err := filters.Evaluate(components)
 		require.NoError(t, err)
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
-			{Path: "./libs/db", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
+			component.NewUnit("./libs/db"),
 		}
 
 		assert.ElementsMatch(t, expected, result)

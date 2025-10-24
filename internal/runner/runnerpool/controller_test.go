@@ -25,13 +25,13 @@ func mockUnit(path string, deps ...*common.Unit) *common.Unit {
 	}
 }
 
-// Add a helper to convert units to discovered configs
-func discoveryFromUnits(units []*common.Unit) []*component.Component {
-	discovered := make([]*component.Component, 0, len(units))
-	unitMap := make(map[*common.Unit]*component.Component)
-	// First pass: create configs
+// Add a helper to convert units to discovered components
+func discoveryFromUnits(units []*common.Unit) component.Components {
+	discovered := make(component.Components, 0, len(units))
+	unitMap := make(map[*common.Unit]*component.Unit)
+	// First pass: create components
 	for _, u := range units {
-		cfg := &component.Component{Path: u.Path}
+		cfg := component.NewUnit(u.Path)
 		unitMap[u] = cfg
 		discovered = append(discovered, cfg)
 	}
@@ -52,13 +52,13 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 
 	// A -> B -> C
 	// Build Component objects directly
-	cfgA := &component.Component{Path: "A"}
-	cfgB := &component.Component{Path: "B"}
-	cfgB.AddDependency(cfgA)
+	compA := component.NewUnit("A")
+	compB := component.NewUnit("B")
+	compB.AddDependency(compA)
 
-	cfgC := &component.Component{Path: "C"}
-	cfgC.AddDependency(cfgB)
-	configs := []*component.Component{cfgA, cfgB, cfgC}
+	compC := component.NewUnit("C")
+	compC.AddDependency(compB)
+	components := component.Components{compA, compB, compC}
 
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
@@ -69,7 +69,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		return nil
 	}
 
-	q, err := queue.NewQueue(configs)
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	dagRunner := runnerpool.NewController(

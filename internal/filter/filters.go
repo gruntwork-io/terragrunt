@@ -122,9 +122,9 @@ func (f Filters) EvaluateOnFiles(files []string) (component.Components, error) {
 		return component.Components{}, nil
 	}
 
-	comps := make([]*component.Component, 0, len(files))
+	comps := make([]component.Component, 0, len(files))
 	for _, file := range files {
-		comps = append(comps, &component.Component{Path: file})
+		comps = append(comps, component.NewUnit(file))
 	}
 
 	return f.Evaluate(comps)
@@ -135,7 +135,7 @@ func initialComponents(positiveFilters []*Filter, components component.Component
 		return components, nil
 	}
 
-	seen := make(map[string]*component.Component, len(components))
+	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
 		result, err := filter.Evaluate(components)
@@ -144,7 +144,7 @@ func initialComponents(positiveFilters []*Filter, components component.Component
 		}
 
 		for _, c := range result {
-			seen[c.Path] = c
+			seen[c.Path()] = c
 		}
 	}
 

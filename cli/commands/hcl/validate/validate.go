@@ -107,7 +107,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	for _, c := range components {
 		parseOpts := opts.Clone()
-		parseOpts.WorkingDir = c.Path
+		parseOpts.WorkingDir = c.Path()
 
 		// Determine which config filename to use for a full parse
 		configFilename := config.DefaultTerragruntConfigPath
@@ -115,7 +115,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			configFilename = filepath.Base(opts.TerragruntConfigPath)
 		}
 
-		parseOpts.TerragruntConfigPath = filepath.Join(c.Path, configFilename)
+		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, parseOpts, parseOptions); err != nil {
 			parseErrs = append(parseErrs, errors.New(err))

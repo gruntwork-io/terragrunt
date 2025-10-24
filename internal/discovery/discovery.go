@@ -399,15 +399,15 @@ func (d *Discovery) compileExcludePatterns(l log.Logger) {
 
 // String returns a string representation of a Component.
 // String returns the path of the Component.
-func String(c *component.Component) string {
-	return c.Path
+func String(c component.Component) string {
+	return c.Path()
 }
 
 // ContainsDependencyInAncestry returns true if the Component or any of
 // its dependencies contains the given path as a dependency.
-func ContainsDependencyInAncestry(c *component.Component, path string) bool {
+func ContainsDependencyInAncestry(c component.Component, path string) bool {
 	for _, dep := range c.Dependencies() {
-		if dep.Path == path {
+		if dep.Path() == path {
 			return true
 		}
 
@@ -421,7 +421,7 @@ func ContainsDependencyInAncestry(c *component.Component, path string) bool {
 
 // Parse parses the discovered configuration.
 func Parse(
-	c *component.Component,
+	c component.Component,
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -429,7 +429,7 @@ func Parse(
 	parserOptions []hclparse.Option,
 ) error {
 	parseOpts := opts.Clone()
-	parseOpts.WorkingDir = c.Path
+	parseOpts.WorkingDir = c.Path()
 
 	// Suppress logging to avoid cluttering the output.
 	parseOpts.Writer = io.Discard
@@ -446,7 +446,7 @@ func Parse(
 	}
 
 	// For stack configurations, always use the default stack config filename
-	if c.Kind == component.Stack {
+	if _, ok := c.(*component.Stack); ok {
 		filename = config.DefaultStackFile
 	}
 
@@ -523,12 +523,16 @@ func Parse(
 		l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 	}
 
-	c.Parsed = cfg
+	// Store the parsed configuration
+	// Only Units are parsed during discovery; Stacks are not
+	if unit, ok := c.(*component.Unit); ok {
+		unit.StoreConfig(cfg)
+	}
 
 	// Populate the Reading field with files read during parsing.
 	// The parsing context tracks all files that were read.
 	if parsingCtx.FilesRead != nil {
-		c.Reading = *parsingCtx.FilesRead
+		c.SetReading(*parsingCtx.FilesRead...)
 	}
 
 	return nil
@@ -577,7 +581,7 @@ func (d *Discovery) discoverConcurrently(
 	g.SetLimit(d.numWorkers + 1) // +1 for the file walker
 
 	filePaths := make(chan string, d.numWorkers*channelBufferMultiplier)
-	results := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
+	results := make(chan component.Component, d.numWorkers*channelBufferMultiplier)
 
 	g.Go(func() error {
 		defer close(filePaths)
@@ -676,7 +680,7 @@ func (d *Discovery) configWorker(
 	ctx context.Context,
 	l log.Logger,
 	filePaths <-chan string,
-	results chan<- *component.Component,
+	results chan<- component.Component,
 	filenames []string,
 ) error {
 	for path := range filePaths {
@@ -701,7 +705,7 @@ func (d *Discovery) configWorker(
 }
 
 // processFile processes a single file to determine if it's a Terragrunt configuration.
-func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *component.Component {
+func (d *Discovery) processFile(path string, l log.Logger, filenames []string) component.Component {
 	dir := filepath.Dir(path)
 
 	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
@@ -761,17 +765,15 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) *
 	base := filepath.Base(path)
 	for _, fname := range filenames {
 		if base == fname {
-			componentKind := component.Unit
+			var cfg component.Component
 			if fname == config.DefaultStackFile {
-				componentKind = component.Stack
+				cfg = component.NewStack(filepath.Dir(path))
+			} else {
+				cfg = component.NewUnit(filepath.Dir(path))
 			}
 
-			cfg := &component.Component{
-				Kind: componentKind,
-				Path: filepath.Dir(path),
-			}
 			if d.discoveryContext != nil {
-				cfg.DiscoveryContext = d.discoveryContext
+				cfg.SetDiscoveryContext(d.discoveryContext)
 			}
 
 			return cfg
@@ -790,11 +792,11 @@ func (d *Discovery) parseConcurrently(
 ) []error {
 	// Filter out configs that don't need parsing
 	// Pre-allocate with estimated capacity to reduce reallocation
-	componentsToParse := make([]*component.Component, 0, len(components))
+	componentsToParse := make(component.Components, 0, len(components))
 	for _, c := range components {
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
-		if c.Kind == component.Stack {
+		if _, ok := c.(*component.Stack); ok {
 			continue
 		}
 
@@ -810,7 +812,7 @@ func (d *Discovery) parseConcurrently(
 	g.SetLimit(d.numWorkers)
 
 	// Use channels to coordinate parsing work
-	componentChan := make(chan *component.Component, d.numWorkers*channelBufferMultiplier)
+	componentChan := make(chan component.Component, d.numWorkers*channelBufferMultiplier)
 	errorChan := make(chan error, len(componentsToParse))
 
 	// Start component sender
@@ -864,7 +866,7 @@ func (d *Discovery) parseWorker(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	componentChan <-chan *component.Component,
+	componentChan <-chan component.Component,
 	errorChan chan<- error,
 ) error {
 	for cfg := range componentChan {
@@ -1109,7 +1111,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log
 	errs := []error{}
 
 	for _, cfg := range d.components {
-		if cfg.Kind == component.Stack {
+		if _, ok := cfg.(*component.Stack); ok {
 			continue
 		}
 
@@ -1130,7 +1132,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	dComponent *component.Component,
+	dComponent component.Component,
 ) error {
 	if d.depthRemaining <= 0 {
 		return errors.New("max dependency depth reached while discovering dependencies")
@@ -1142,19 +1144,25 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.
-	if dComponent.Kind == component.Stack {
+	if _, ok := dComponent.(*component.Stack); ok {
 		return nil
 	}
 
+	unit, ok := dComponent.(*component.Unit)
+	if !ok {
+		return errors.New("expected Unit component but got different type")
+	}
+
 	// This should only happen if we're discovering an ancestor dependency.
-	if dComponent.Parsed == nil {
+	if unit.Config() == nil {
 		err := Parse(dComponent, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 		if err != nil {
 			return errors.New(err)
 		}
 	}
 
-	dependencyBlocks := dComponent.Parsed.TerragruntDependencies
+	terragruntCfg := unit.Config()
+	dependencyBlocks := terragruntCfg.TerragruntDependencies
 
 	depPaths := make([]string, 0, len(dependencyBlocks))
 
@@ -1170,16 +1178,16 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 		depPath := dependency.ConfigPath.AsString()
 
 		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Join(dComponent.Path, depPath)
+			depPath = filepath.Join(dComponent.Path(), depPath)
 		}
 
 		depPaths = append(depPaths, depPath)
 	}
 
-	if dComponent.Parsed.Dependencies != nil {
-		for _, dependency := range dComponent.Parsed.Dependencies.Paths {
+	if terragruntCfg.Dependencies != nil {
+		for _, dependency := range terragruntCfg.Dependencies.Paths {
 			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Join(dComponent.Path, dependency)
+				dependency = filepath.Join(dComponent.Path(), dependency)
 			}
 
 			depPaths = append(depPaths, dependency)
@@ -1204,7 +1212,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 		external := true
 
 		for _, c := range d.components {
-			if c.Path == depPath {
+			if c.Path() == depPath {
 				external = false
 
 				dComponent.AddDependency(c)
@@ -1219,14 +1227,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 				continue
 			}
 
-			ext := &component.Component{
-				Kind:     component.Unit,
-				Path:     depPath,
-				External: true,
-			}
+			ext := component.NewUnit(depPath)
+			ext.SetExternal()
 
 			if d.discoveryContext != nil {
-				ext.DiscoveryContext = d.discoveryContext
+				ext.SetDiscoveryContext(d.discoveryContext)
 			}
 
 			dComponent.AddDependency(ext)
@@ -1253,7 +1258,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 func RemoveCycles(c component.Components) (component.Components, error) {
 	var (
 		err error
-		cfg *component.Component
+		cfg component.Component
 	)
 
 	for range maxCycleRemovalAttempts {
@@ -1268,7 +1273,7 @@ func RemoveCycles(c component.Components) (component.Components, error) {
 			break
 		}
 
-		c = c.RemoveByPath(cfg.Path)
+		c = c.RemoveByPath(cfg.Path())
 	}
 
 	return c, err
