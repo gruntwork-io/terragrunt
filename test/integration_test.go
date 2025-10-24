@@ -4209,24 +4209,6 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 	}
 }
 
-// expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
-//
-// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled with OpenTofu,
-// as we need to check if the provider cache directory should be enabled.
-func expectExtraVersionCommandCall(t *testing.T) bool {
-	t.Helper()
-
-	if helpers.IsTerraform() {
-		return false
-	}
-
-	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
-		return true
-	}
-
-	return false
-}
-
 func TestMixedStackConfigIgnored(t *testing.T) {
 	t.Parallel()
 

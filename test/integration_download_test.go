@@ -359,7 +359,8 @@ I'm not sure we're getting good value from the time taken on tests like this.
 func TestIncludeDirs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
+	// Copy the entire download fixture directory to ensure all referenced sources are available
+	tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
 	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
@@ -459,7 +460,8 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
+	// Copy the entire download fixture directory to ensure all referenced sources are available
+	tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
 	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
