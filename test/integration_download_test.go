@@ -324,13 +324,10 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", tc.workingDir, tc.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
+		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-		if err != nil {
-			t.Fatalf("run --all apply in TestExcludeDirs failed with error: %v. Full std", err)
-		}
 
 		// Check that the excluded module output is not present
 		for _, modulePath := range modulePaths {
@@ -351,11 +348,24 @@ func TestExcludeDirs(t *testing.T) {
 	}
 }
 
+/*
+	TestIncludeDirs tests that the --queue-include-dir flag works as expected.
+
+MAINTAINER NOTE: Why is this test _so slow_? It took 2 mins on my machine...
+
+We really need to start reporting on test durations and decide on a budget for each test.
+I'm not sure we're getting good value from the time taken on tests like this.
+*/
 func TestIncludeDirs(t *testing.T) {
 	t.Parallel()
 
+	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
+	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
 	// Populate module paths.
-	moduleNames := []string{
+	unitNames := []string{
 		"integration-env/aws/module-aws-a",
 		"integration-env/gce/module-gce-b",
 		"integration-env/gce/module-gce-c",
@@ -364,19 +374,130 @@ func TestIncludeDirs(t *testing.T) {
 	}
 
 	testCases := []struct {
-		workingDir            string
-		includeArgs           string
-		includedModuleOutputs []string
+		includeArgs         string
+		includedUnitOutputs []string
 	}{
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir xyz", []string{}},
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir production-env --queue-include-dir **/module-gce-c", []string{"Module GCE B", "Module AWS A"}},
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir integration-env/gce/module-gce-b --queue-include-dir integration-env/gce/module-gce-c --queue-include-dir **/module-aws*", []string{"Module GCE E"}},
+		{
+			includeArgs:         "--queue-include-dir xyz",
+			includedUnitOutputs: []string{},
+		},
+		{
+			includeArgs:         "--queue-include-dir */aws",
+			includedUnitOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			includeArgs:         "--queue-include-dir production-env --queue-include-dir **/module-gce-c",
+			includedUnitOutputs: []string{"Module GCE B", "Module AWS A"},
+		},
+		{
+			includeArgs:         "--queue-include-dir integration-env/gce/module-gce-b --queue-include-dir integration-env/gce/module-gce-c --queue-include-dir **/module-aws*",
+			includedUnitOutputs: []string{"Module GCE E"},
+		},
 	}
 
-	modulePaths := make(map[string]string, len(moduleNames))
-	for _, moduleName := range moduleNames {
-		modulePaths[moduleName] = util.JoinPath(testFixtureLocalWithIncludeDir, moduleName)
+	unitPaths := make(map[string]string, len(unitNames))
+	for _, unitName := range unitNames {
+		unitPaths[unitName] = util.JoinPath(testFixtureLocalWithIncludeDir, unitName)
+	}
+
+	for _, tc := range testCases {
+		applyAllStdout := bytes.Buffer{}
+		applyAllStderr := bytes.Buffer{}
+
+		// Apply modules according to test cases
+		err := helpers.RunTerragruntCommand(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+				workingDir, tc.includeArgs,
+			),
+			&applyAllStdout,
+			&applyAllStderr,
+		)
+		require.NoError(t, err)
+
+		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
+
+		// Check that the included module output is present
+		for _, modulePath := range unitPaths {
+			showStdout := bytes.Buffer{}
+			showStderr := bytes.Buffer{}
+
+			err = helpers.RunTerragruntCommand(
+				t,
+				"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+				&showStdout,
+				&showStderr,
+			)
+			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
+			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
+
+			require.NoError(t, err)
+
+			output := showStdout.String()
+			for _, includedUnitOutput := range tc.includedUnitOutputs {
+				assert.NotContains(t, output, includedUnitOutput)
+			}
+		}
+	}
+}
+
+/*
+	TestIncludeDirsWithFilter tests that the --filter flag works as expected, just like in TestIncludeDirs.
+
+MAINTAINER NOTE: Why is this test _so slow_? It took 2 mins on my machine...
+
+We really need to start reporting on test durations and decide on a budget for each test.
+I'm not sure we're getting good value from the time taken on tests like this.
+*/
+func TestIncludeDirsWithFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
+	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	// Populate paths.
+	unitNames := []string{
+		"integration-env/aws/module-aws-a",
+		"integration-env/gce/module-gce-b",
+		"integration-env/gce/module-gce-c",
+		"production-env/aws/module-aws-d",
+		"production-env/gce/module-gce-e",
+	}
+
+	testCases := []struct {
+		includeArgs         string
+		includedUnitOutputs []string
+	}{
+		{
+			includeArgs:         "--filter xyz",
+			includedUnitOutputs: []string{},
+		},
+		{
+			includeArgs:         "--filter ./*/aws/*",
+			includedUnitOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			includeArgs:         "--filter production-env --filter ./**/module-gce-c",
+			includedUnitOutputs: []string{"Module GCE B", "Module AWS A"},
+		},
+		{
+			includeArgs:         "--filter ./integration-env/gce/module-gce-b --filter ./integration-env/gce/module-gce-c --filter ./**/module-aws**",
+			includedUnitOutputs: []string{"Module GCE E"},
+		},
+	}
+
+	unitPaths := make(map[string]string, len(unitNames))
+	for _, unitName := range unitNames {
+		unitPaths[unitName] = util.JoinPath(testFixtureLocalWithIncludeDir, unitName)
 	}
 
 	for _, tc := range testCases {
@@ -386,34 +507,44 @@ func TestIncludeDirs(t *testing.T) {
 		// Cleanup all modules directories.
 		helpers.CleanupTerragruntFolder(t, testFixtureLocalWithIncludeDir)
 
-		for _, modulePath := range modulePaths {
-			helpers.CleanupTerragruntFolder(t, modulePath)
+		for _, unitPath := range unitPaths {
+			helpers.CleanupTerragruntFolder(t, unitPath)
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s", tc.workingDir, tc.includeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+				workingDir, tc.includeArgs,
+			),
+			&applyAllStdout,
+			&applyAllStderr,
+		)
+		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
-		if err != nil {
-			t.Fatalf("run --all apply in TestIncludeDirs failed with error: %v. Full std", err)
-		}
-
 		// Check that the included module output is present
-		for _, modulePath := range modulePaths {
+		for _, unitPath := range unitPaths {
 			showStdout := bytes.Buffer{}
 			showStderr := bytes.Buffer{}
 
-			err = helpers.RunTerragruntCommand(t, "terragrunt show --non-interactive --log-level trace --working-dir "+modulePath, &showStdout, &showStderr)
-			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
-			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
+			err = helpers.RunTerragruntCommand(
+				t,
+				"terragrunt show --non-interactive --log-level trace --working-dir "+unitPath,
+				&showStdout,
+				&showStderr,
+			)
+			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+unitPath)
+			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+unitPath)
 
 			require.NoError(t, err)
 
 			output := showStdout.String()
-			for _, includedModuleOutput := range tc.includedModuleOutputs {
-				assert.NotContains(t, output, includedModuleOutput)
+			for _, includedUnitOutput := range tc.includedUnitOutputs {
+				assert.NotContains(t, output, includedUnitOutput)
 			}
 		}
 	}
@@ -571,13 +702,16 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalPreventDestroyDependencies,
+		&applyAllStdout,
+		&applyAllStderr,
+	)
+	require.NoError(t, err)
+
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-	if err != nil {
-		t.Fatalf("run --all apply in TestPreventDestroyDependencies failed with error: %v. Full std", err)
-	}
 
 	var (
 		destroyAllStdout bytes.Buffer
