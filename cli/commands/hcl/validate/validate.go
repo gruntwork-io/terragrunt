@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 
 	"github.com/google/shlex"
@@ -58,29 +59,28 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
-	parseOptions := []hclparse.Option{
-		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, hclDiag := range hclDiags {
-				// Only report diagnostics that are actually in the file being parsed,
-				// not errors from dependencies or other files
-				if hclDiag.Subject != nil && file != nil {
-					fileFilename := file.Body.MissingItemRange().Filename
+	// Diagnostics handler to collect validation errors
+	diagnosticsHandler := hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		for _, hclDiag := range hclDiags {
+			// Only report diagnostics that are actually in the file being parsed,
+			// not errors from dependencies or other files
+			if hclDiag.Subject != nil && file != nil {
+				fileFilename := file.Body.MissingItemRange().Filename
 
-					diagFilename := hclDiag.Subject.Filename
-					if diagFilename != fileFilename {
-						continue
-					}
-				}
-
-				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
-				if !diags.Contains(newDiag) {
-					diags = append(diags, newDiag)
+				diagFilename := hclDiag.Subject.Filename
+				if diagFilename != fileFilename {
+					continue
 				}
 			}
 
-			return nil, nil
-		}),
-	}
+			newDiag := diagnostic.NewDiagnostic(file, hclDiag)
+			if !diags.Contains(newDiag) {
+				diags = append(diags, newDiag)
+			}
+		}
+
+		return nil, nil
+	})
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
@@ -95,19 +95,46 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return processDiagnostics(l, opts, diags, errors.New(err))
 	}
 
-	// Apply parse options to discovery
-	d = d.WithParserOptions(parseOptions)
-
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
 		return processDiagnostics(l, opts, diags, errors.New(err))
 	}
+
+	parseOptions := []hclparse.Option{diagnosticsHandler}
 
 	parseErrs := []error{}
 
 	for _, c := range components {
 		parseOpts := opts.Clone()
 		parseOpts.WorkingDir = c.Path()
+
+		if _, ok := c.(*component.Stack); ok {
+			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
+			parseOpts.TerragruntConfigPath = stackFilePath
+
+			values, err := config.ReadValues(ctx, l, parseOpts, c.Path())
+			if err != nil {
+				parseErrs = append(parseErrs, errors.New(err))
+			}
+
+			parser := config.NewParsingContext(ctx, l, parseOpts).WithParseOption(parseOptions)
+			if values != nil {
+				parser = parser.WithValues(values)
+			}
+
+			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
+			if err != nil {
+				parseErrs = append(parseErrs, errors.New(err))
+				continue
+			}
+
+			//nolint:contextcheck
+			if _, err := config.ParseStackConfig(l, parser, parseOpts, file, values); err != nil {
+				parseErrs = append(parseErrs, errors.New(err))
+			}
+
+			continue
+		}
 
 		// Determine which config filename to use for a full parse
 		configFilename := config.DefaultTerragruntConfigPath

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
@@ -58,7 +57,7 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			filterArgs:  []string{"./needs-formatting/nested/deep/**"},
 			expectError: true,
 			errorAs: format.FileNeedsFormattingError{
-				Path: filepath.Join(rootPath, "needs-formatting/nested/api/terragrunt.hcl"),
+				Path: filepath.Join(rootPath, "needs-formatting/nested/deep/web/terragrunt.hcl"),
 			},
 		},
 		{
@@ -193,13 +192,14 @@ func TestHCLValidateWithFilter(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name       string
-		filterArgs []string
+		name         string
+		filterArgs   []string
+		expectErrors bool
 	}{
 		// Path-based filtering
 		{
 			name:       "path-based: valid files only",
-			filterArgs: []string{"./**valid**"},
+			filterArgs: []string{"./valid**"},
 		},
 		{
 			name:       "path-based: nested recursive valid",
@@ -208,32 +208,35 @@ func TestHCLValidateWithFilter(t *testing.T) {
 
 		// Attribute-based filtering
 		{
-			name:       "attribute-based: type=unit",
-			filterArgs: []string{"type=unit"},
+			name:         "attribute-based: type=unit",
+			filterArgs:   []string{"type=unit"},
+			expectErrors: true, // includes all units, including syntax-error and semantic-error
 		},
 		{
-			name:       "attribute-based: type=stack",
-			filterArgs: []string{"type=stack"},
+			name:         "attribute-based: type=stack",
+			filterArgs:   []string{"type=stack"},
+			expectErrors: true, // includes all stacks, including syntax-error stacks
 		},
 
 		// Negation
 		{
 			name:       "negation: exclude all error directories",
-			filterArgs: []string{"!./**syntax-error**", "!./**semantic-error**"},
+			filterArgs: []string{"!./syntax-error/**", "!./semantic-error/**", "!type=stack"},
 		},
 		{
-			name:       "negation: exclude stacks",
-			filterArgs: []string{"!type=stack"},
+			name:         "negation: exclude stacks",
+			filterArgs:   []string{"!type=stack"},
+			expectErrors: true, // includes all units, including error units
 		},
 
 		// Intersection (refinement)
 		{
 			name:       "intersection: valid AND type=unit",
-			filterArgs: []string{"./**valid** | type=unit"},
+			filterArgs: []string{"./valid** | type=unit"},
 		},
 		{
 			name:       "intersection: valid AND NOT db",
-			filterArgs: []string{"./**valid** | !name=db"},
+			filterArgs: []string{"./valid** | !name=db"},
 		},
 		{
 			name:       "intersection: stacks/valid only",
@@ -243,7 +246,7 @@ func TestHCLValidateWithFilter(t *testing.T) {
 		// Union (multiple filters)
 		{
 			name:       "union: valid files OR valid stacks",
-			filterArgs: []string{"./**valid**"},
+			filterArgs: []string{"./valid**", "./stacks/valid/**"},
 		},
 	}
 
@@ -254,21 +257,26 @@ func TestHCLValidateWithFilter(t *testing.T) {
 			helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "validate")
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
 
-			cmdParts := []string{"terragrunt", "hcl", "validate"}
+			// Build filter arguments with proper quoting
+			filterStr := ""
 			for _, filter := range tc.filterArgs {
-				cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'%s'", filter))
+				filterStr += fmt.Sprintf(" --filter '%s'", filter)
 			}
 
-			cmdParts = append(cmdParts, "--working-dir", rootPath)
+			cmd := fmt.Sprintf("terragrunt hcl validate%s --working-dir %s", filterStr, rootPath)
 
-			cmd := strings.Join(cmdParts, " ")
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-
-			require.NoError(t, err, "Expected validation with filter to execute successfully but got error: %w", err)
-
-			assert.Empty(t, stderr, "Expected no errors but got: %s", stderr)
+			if tc.expectErrors {
+				require.Error(t, err, "Expected validation to find errors for test case: %s", tc.name)
+				assert.NotEmpty(t, stdout, "Expected validation errors in output for test case: %s", tc.name)
+			} else {
+				require.NoError(t, err, "Expected validation to succeed but got error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
+				assert.Empty(t, stderr, "Expected no errors but got stderr for test case: %s\nstderr: %s", tc.name, stderr)
+			}
 		})
 	}
 }
