@@ -16,8 +16,6 @@ terragrunt find --experiment filter-flag --filter 'foo'
 ```
 
 Examples below will omit the `--experiment filter-flag` flag for brevity.
-
-Currently, the `--filter` flag is available in the `find`, `list`, and `run` commands.
 </Aside>
 
 The `--filter` flag provides a sophisticated querying syntax for targeting specific [units](/docs/features/units) and [stacks](/docs/features/stacks) in Terragrunt commands.
@@ -28,6 +26,8 @@ The `--filter` flag provides a sophisticated querying syntax for targeting speci
 terragrunt find --filter 'app*'
 terragrunt list --filter './prod/** | type=unit'
 terragrunt run --all --filter './prod/**' -- plan
+terragrunt hcl fmt --filter './prod/**'
+terragrunt hcl validate --filter 'type=unit'
 ```
 
 ### Name-Based Filtering
@@ -114,10 +114,11 @@ Currently supported in:
 - [find](/docs/reference/cli/commands/find)
 - [list](/docs/reference/cli/commands/list)
 - [run](/docs/reference/cli/commands/run)
-
-Planned for future releases:
 - [hcl fmt](/docs/reference/cli/commands/hcl/fmt)
 - [hcl validate](/docs/reference/cli/commands/hcl/validate)
+
+Planned for future releases:
+- [dag graph](/docs/reference/cli/commands/dag/graph)
 
 ## Learn More
 
