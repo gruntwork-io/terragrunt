@@ -149,7 +149,6 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
-            ignore_errors: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -230,7 +229,6 @@ jobs:
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
         shell: bash
-        continue-on-error: ${{ matrix.integration.ignore_errors || false }}
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,8 +3,8 @@ provider "null" {}
 terraform {
   required_providers {
     null = {
-      source  = "registry.terraform.io/hashicorp/null"
-      version = "3.2.3"
+      source  = "hashicorp/null"
+      version = "~> 3.2.4"
     }
   }
 }
