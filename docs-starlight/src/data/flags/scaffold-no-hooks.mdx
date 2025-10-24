@@ -1,0 +1,28 @@
+---
+name: no-hooks
+description: "Disable hooks when using boilerplate templates during scaffolding."
+type: bool
+env:
+  - TG_NO_HOOKS
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When enabled, Terragrunt will disable hooks when processing boilerplate templates during scaffolding operations.
+
+This is useful for security reasons when you want to prevent templates from executing arbitrary hooks on your system.
+
+<Aside type="caution">
+Do not use catalog/scaffold to scaffold untrusted templates. IaC configurations are inherently powerful, as they
+can run arbitrary code on your system, so make sure to only use trusted templates you have reviewed and approved.
+</Aside>
+
+<Aside type="note">
+Note that you will otherwise be prompted to confirm the execution of each hook unless you are running in [non-interactive mode](/docs/reference/cli/global-flags/#non-interactive).
+</Aside>
+
+Examples:
+
+```bash
+terragrunt scaffold github.com/org/repo//modules/mysql --no-hooks
+```
