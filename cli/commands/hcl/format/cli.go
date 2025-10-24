@@ -80,6 +80,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
 	flagSet = flagSet.Add(shared.NewFilterFlag(opts))
+	flagSet = flagSet.Add(shared.NewParallelismFlag(opts))
 
 	return flagSet
 }
