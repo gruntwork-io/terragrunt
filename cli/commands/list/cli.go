@@ -3,7 +3,9 @@
 package list
 
 import (
+	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -87,17 +89,24 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
+		shared.NewFilterFlag(opts.TerragruntOptions),
 	}
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
+	prefix := flags.Prefix{CommandName}
+
+	// Base flags for list plus backend/feature flags
+	flags := NewFlags(cmdOpts, prefix)
+	flags = append(flags, runCmd.NewBackendFlags(l, opts, prefix)...)
+	flags = append(flags, runCmd.NewFeatureFlags(l, opts, prefix)...)
 
 	return &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandAlias},
 		Usage:   "List relevant Terragrunt configurations.",
-		Flags:   NewFlags(cmdOpts, nil),
+		Flags:   flags,
 		Before: func(ctx *cli.Context) error {
 			if cmdOpts.Tree {
 				cmdOpts.Format = FormatTree

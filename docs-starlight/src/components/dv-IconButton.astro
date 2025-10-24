@@ -1,26 +1,35 @@
 ---
 import '@styles/global.css';
 import { Image } from "astro:assets";
+import type { ImageMetadata } from 'astro';
 
 interface Props {
-    src: ImageMetadata;
     alt: string;
-    text: string;
+    bgcolor?: string;
     eager?: boolean;
-    darkText?: boolean;
+    src: ImageMetadata;
+    text: string;
+    textColor?: string;
 }
 
-const { src, alt, text, eager = false, darkText = false } = Astro.props as Props;
+const {
+  alt,
+  bgcolor = '',
+  eager = false,
+  src,
+  text,
+  textColor = '',
+} = Astro.props as Props;
+
 const loadingMode = eager ? 'eager' : 'lazy';
-const textClass = darkText ? 'text-bg-dark' : 'text-white';
 ---
 
-<div class="flex border-stroke-dark border rounded-md p-1 pr-2.5 gap-1.5 items-center">
-    <Image
-        src={src}
-        alt={alt}
-        class="w-5 h-5 rounded-sm"
-        loading={loadingMode}
-    />
-    <span class={`text-xs font-mono ${textClass}`}>{text}</span>
+<div class={`flex border-stroke-dark border rounded-md p-1 pr-2.5 gap-1.5 items-center ${bgcolor}`}>
+  <Image
+    src={src}
+    alt={alt}
+    class="w-5 h-5 rounded-sm"
+    loading={loadingMode}
+  />
+  <span class={`text-xs font-mono ${textColor}`}>{text}</span>
 </div>

@@ -134,6 +134,7 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 		if val, ok := envs[key]; ok {
 			return []string{val}
 		}
+
 		return nil
 	}
 
@@ -148,13 +149,16 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 	if expectedErr != nil {
 		require.Error(t, err)
 		require.ErrorContains(t, expectedErr, err.Error())
+
 		return
 	}
+
 	require.NoError(t, err)
 
 	actualValue = (flag.Value().Get()).(bool)
 
 	assert.Equal(t, expectedValue, actualValue)
+
 	if actualValue {
 		assert.Equal(t, strconv.FormatBool(expectedValue), flag.GetValue(), "GetValue()")
 	}

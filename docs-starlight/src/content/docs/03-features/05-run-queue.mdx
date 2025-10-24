@@ -6,7 +6,8 @@ sidebar:
   order: 5
 ---
 
-import { Aside, FileTree, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Terragrunt's "Run Queue" is the mechanism it uses to manage the run order and concurrency when running OpenTofu/Terraform commands across multiple Terragrunt [units](/docs/features/units). This is particularly relevant when using the [`run --all`](/docs/reference/cli/commands/run#all) or [`run --graph`](/docs/reference/cli/commands/run#graph) commands.
 
@@ -90,7 +91,13 @@ Those flags will be discussed in the next section.
 
 ### Filtering Units
 
-You can control which units are included or excluded from the queue:
+You can control which units are included or excluded from the queue using several approaches:
+
+<Aside type="tip" title="New: Unified Filtering">
+The experimental [`--filter` flag](/docs/features/filter) provides a unified approach to filtering units and stacks using a sophisticated query syntax. This will eventually replace the queue control flags listed below.
+</Aside>
+
+**Queue Control Flags:**
 
 - [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir): Specify glob patterns for directories to *include*. Can be used multiple times.
 

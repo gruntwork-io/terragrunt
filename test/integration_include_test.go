@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,10 +31,15 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	files, err := os.ReadDir(includeExposeFixturePath)
+	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
+	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+
+	files, err := os.ReadDir(tmpEnvPath)
 	require.NoError(t, err)
 
 	testCases := []string{}
+
 	for _, finfo := range files {
 		if finfo.IsDir() {
 			testCases = append(testCases, finfo.Name())
@@ -44,7 +50,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeExposeFixturePath, tc, includeChildFixturePath)
+			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
 
@@ -95,35 +101,45 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
-		&stdout,
-		&stderr,
-	)
-	require.NoError(t, err)
-	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+	// Retry to handle intermittent failures due to network issues on CICD
+	retry.DoWithRetry(t, "Run all modules with prefix verification", 3, 0, func() (string, error) {
+		helpers.CleanupTerraformFolder(t, modulePath)
 
-	planOutput := stdout.String()
-	assert.Contains(t, planOutput, "alpha")
-	assert.Contains(t, planOutput, "beta")
-	assert.Contains(t, planOutput, "charlie")
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
+		)
+		if err != nil {
+			return "", fmt.Errorf("command failed: %w", err)
+		}
 
-	stdoutLines := strings.SplitSeq(stderr.String(), "\n")
-	for line := range stdoutLines {
-		if strings.Contains(line, "alpha") {
-			assert.Contains(t, line, "prefix=a")
+		// Check if all expected outputs are present
+		hasAlpha := strings.Contains(stdout, "alpha")
+		hasBeta := strings.Contains(stdout, "beta")
+		hasCharlie := strings.Contains(stdout, "charlie")
+
+		if !hasAlpha || !hasBeta || !hasCharlie {
+			return "", fmt.Errorf("missing outputs: alpha=%v, beta=%v, charlie=%v", hasAlpha, hasBeta, hasCharlie)
 		}
-		if strings.Contains(line, "beta") {
-			assert.Contains(t, line, "prefix=b")
+
+		// All outputs present, verify prefixes
+		stdoutLines := strings.SplitSeq(stderr, "\n")
+		for line := range stdoutLines {
+			if strings.Contains(line, "alpha") && !strings.Contains(line, "prefix=a") {
+				return "", fmt.Errorf("alpha found but wrong prefix in line: %s", line)
+			}
+
+			if strings.Contains(line, "beta") && !strings.Contains(line, "prefix=b") {
+				return "", fmt.Errorf("beta found but wrong prefix in line: %s", line)
+			}
+
+			if strings.Contains(line, "charlie") && !strings.Contains(line, "prefix=c") {
+				return "", fmt.Errorf("charlie found but wrong prefix in line: %s", line)
+			}
 		}
-		if strings.Contains(line, "charlie") {
-			assert.Contains(t, line, "prefix=c")
-		}
-	}
+
+		return "Success", nil
+	})
 }
 
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
@@ -171,6 +187,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []string{}
+
 	for _, finfo := range files {
 		if finfo.IsDir() && filepath.Base(finfo.Name()) != "modules" {
 			testCases = append(testCases, finfo.Name())

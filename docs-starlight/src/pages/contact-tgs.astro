@@ -2,14 +2,15 @@
 import { Image } from 'astro:assets';
 
 import Customers from '@assets/img/customers.png';
-import ContactForm from '@components/ContactForm.astro';
+import ContactMessageBook from '@components/ContactMessageBook.astro';
 import Header from '@components/Header.astro';
 import PageContainer from '@components/PageContainer.astro';
 
 import '@styles/global.css';
+import '@styles/custom-page.css';
 ---
 
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
@@ -44,7 +45,7 @@ import '@styles/global.css';
 
         <!-- Right -->
         <div class="relative z-20 mb-[50px]">
-          <ContactForm />
+          <ContactMessageBook />
         </div>
 
       </div>

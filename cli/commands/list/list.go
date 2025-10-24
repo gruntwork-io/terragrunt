@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/term"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -22,67 +23,55 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d := discovery.
-		NewDiscovery(opts.WorkingDir).
-		WithSuppressParseErrors()
-
-	if opts.Hidden {
-		d = d.WithHidden()
+	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+		WorkingDir:       opts.WorkingDir,
+		QueueConstructAs: opts.QueueConstructAs,
+		Hidden:           opts.Hidden,
+		Dependencies:     shouldDiscoverDependencies(opts),
+		External:         opts.External,
+		FilterQueries:    opts.FilterQueries,
+		Experiments:      opts.Experiments,
+	})
+	if err != nil {
+		return errors.New(err)
 	}
 
-	if shouldDiscoverDependencies(opts) {
-		d = d.WithDiscoverDependencies()
-	}
-
-	if opts.External {
-		d = d.WithDiscoverExternalDependencies()
-	}
-
-	if opts.QueueConstructAs != "" {
-		d = d.WithParseExclude()
-		d = d.WithDiscoverDependencies()
-		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
-			Cmd: opts.QueueConstructAs,
-		})
-	}
-
-	var cfgs discovery.DiscoveredConfigs
-
-	var discoverErr error
+	var (
+		components  component.Components
+		discoverErr error
+	)
 
 	// Wrap discovery with telemetry
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": shouldDiscoverDependencies(opts),
 		"external":     opts.External,
 	}, func(ctx context.Context) error {
-		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
+		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
-
 	if err != nil {
-		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
+		l.Debugf("Errors encountered while discovering components:\n%s", err)
 	}
 
 	switch opts.Mode {
 	case ModeNormal:
-		cfgs = cfgs.Sort()
+		components = components.Sort()
 	case ModeDAG:
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
-			"config_count": len(cfgs),
+			"config_count": len(components),
 		}, func(ctx context.Context) error {
-			q, queueErr := queue.NewQueue(cfgs)
+			q, queueErr := queue.NewQueue(components)
 			if queueErr != nil {
 				return queueErr
 			}
 
-			cfgs = q.Configs()
+			components = q.Components()
 
 			return nil
 		})
-
 		if err != nil {
 			return errors.New(err)
 		}
@@ -92,30 +81,29 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return errors.New("invalid mode: " + opts.Mode)
 	}
 
-	var listedCfgs ListedConfigs
+	var listedComponents ListedComponents
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discovered_to_listed", map[string]any{
 		"working_dir":  opts.WorkingDir,
-		"config_count": len(cfgs),
+		"config_count": len(components),
 	}, func(ctx context.Context) error {
 		var convErr error
 
-		listedCfgs, convErr = discoveredToListed(cfgs, opts)
+		listedComponents, convErr = discoveredToListed(components, opts)
 
 		return convErr
 	})
-
 	if err != nil {
 		return errors.New(err)
 	}
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, opts, listedCfgs)
+		return outputText(l, opts, listedComponents)
 	case FormatTree:
-		return outputTree(l, opts, listedCfgs, opts.Mode)
+		return outputTree(l, opts, listedComponents, opts.Mode)
 	case FormatLong:
-		return outputLong(l, opts, listedCfgs)
+		return outputLong(l, opts, listedComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -140,19 +128,19 @@ func shouldDiscoverDependencies(opts *Options) bool {
 	return false
 }
 
-type ListedConfigs []*ListedConfig
+type ListedComponents []*ListedComponent
 
-type ListedConfig struct {
-	Type discovery.ConfigType
+type ListedComponent struct {
+	Type component.Kind
 	Path string
 
-	Dependencies []*ListedConfig
+	Dependencies []*ListedComponent
 }
 
-// Contains checks to see if the given path is in the listed configs.
-func (l ListedConfigs) Contains(path string) bool {
-	for _, config := range l {
-		if config.Path == path {
+// Contains checks to see if the given path is in the listed components.
+func (l ListedComponents) Contains(path string) bool {
+	for _, c := range l {
+		if c.Path == path {
 			return true
 		}
 	}
@@ -160,55 +148,55 @@ func (l ListedConfigs) Contains(path string) bool {
 	return false
 }
 
-// Get returns the config with the given path.
-func (l ListedConfigs) Get(path string) *ListedConfig {
-	for _, config := range l {
-		if config.Path == path {
-			return config
+// Get returns the component with the given path.
+func (l ListedComponents) Get(path string) *ListedComponent {
+	for _, c := range l {
+		if c.Path == path {
+			return c
 		}
 	}
 
 	return nil
 }
 
-func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
-	listedCfgs := make(ListedConfigs, 0, len(configs))
+func discoveredToListed(components component.Components, opts *Options) (ListedComponents, error) {
+	listedComponents := make(ListedComponents, 0, len(components))
 	errs := []error{}
 
-	for _, config := range configs {
-		if config.External && !opts.External {
+	for _, c := range components {
+		if c.External && !opts.External {
 			continue
 		}
 
 		if opts.QueueConstructAs != "" {
-			if config.Parsed != nil && config.Parsed.Exclude != nil {
-				if config.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+			if c.Parsed != nil && c.Parsed.Exclude != nil {
+				if c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
 					continue
 				}
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
+		relPath, err := filepath.Rel(opts.WorkingDir, c.Path)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
 			continue
 		}
 
-		listedCfg := &ListedConfig{
-			Type: config.Type,
+		listedCfg := &ListedComponent{
+			Type: c.Kind,
 			Path: relPath,
 		}
 
-		if len(config.Dependencies) == 0 {
-			listedCfgs = append(listedCfgs, listedCfg)
+		if len(c.Dependencies()) == 0 {
+			listedComponents = append(listedComponents, listedCfg)
 
 			continue
 		}
 
-		listedCfg.Dependencies = make([]*ListedConfig, len(config.Dependencies))
+		listedCfg.Dependencies = make([]*ListedComponent, len(c.Dependencies()))
 
-		for i, dep := range config.Dependencies {
+		for i, dep := range c.Dependencies() {
 			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
 			if err != nil {
 				errs = append(errs, errors.New(err))
@@ -216,8 +204,8 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 				continue
 			}
 
-			listedCfg.Dependencies[i] = &ListedConfig{
-				Type: dep.Type,
+			listedCfg.Dependencies[i] = &ListedComponent{
+				Type: dep.Kind,
 				Path: relDepPath,
 			}
 		}
@@ -226,13 +214,13 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 			return listedCfg.Dependencies[i].Path < listedCfg.Dependencies[j].Path
 		})
 
-		listedCfgs = append(listedCfgs, listedCfg)
+		listedComponents = append(listedComponents, listedCfg)
 	}
 
-	return listedCfgs, errors.Join(errs...)
+	return listedComponents, errors.Join(errs...)
 }
 
-// Colorizer is a colorizer for the discovered configurations.
+// Colorizer is a colorizer for the discovered components.
 type Colorizer struct {
 	unitColorizer    func(string) string
 	stackColorizer   func(string) string
@@ -259,18 +247,18 @@ func NewColorizer(shouldColor bool) *Colorizer {
 	}
 }
 
-func (c *Colorizer) Colorize(config *ListedConfig) string {
-	path := config.Path
+func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
+	path := listedComponent.Path
 
 	// Get the directory and base name using filepath
 	dir, base := filepath.Split(path)
 
 	if dir == "" {
 		// No directory part, color the whole path
-		switch config.Type {
-		case discovery.ConfigTypeUnit:
+		switch listedComponent.Type {
+		case component.Unit:
 			return c.unitColorizer(path)
-		case discovery.ConfigTypeStack:
+		case component.Stack:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -280,23 +268,23 @@ func (c *Colorizer) Colorize(config *ListedConfig) string {
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
 
-	switch config.Type {
-	case discovery.ConfigTypeUnit:
+	switch listedComponent.Type {
+	case component.Unit:
 		return coloredPath + c.unitColorizer(base)
-	case discovery.ConfigTypeStack:
+	case component.Stack:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path
 	}
 }
 
-func (c *Colorizer) ColorizeType(t discovery.ConfigType) string {
+func (c *Colorizer) ColorizeType(t component.Kind) string {
 	switch t {
-	case discovery.ConfigTypeUnit:
+	case component.Unit:
 		// This extra space is to keep unit and stack
 		// output equally spaced.
 		return c.unitColorizer("unit ")
-	case discovery.ConfigTypeStack:
+	case component.Stack:
 		return c.stackColorizer("stack")
 	default:
 		return string(t)
@@ -307,18 +295,18 @@ func (c *Colorizer) ColorizeHeading(dep string) string {
 	return c.headingColorizer(dep)
 }
 
-// outputText outputs the discovered configurations in text format.
-func outputText(l log.Logger, opts *Options, configs ListedConfigs) error {
+// outputText outputs the discovered components in text format.
+func outputText(l log.Logger, opts *Options, components ListedComponents) error {
 	colorizer := NewColorizer(shouldColor(l))
 
-	return renderTabular(opts, configs, colorizer)
+	return renderTabular(opts, components, colorizer)
 }
 
-// outputLong outputs the discovered configurations in long format.
-func outputLong(l log.Logger, opts *Options, configs ListedConfigs) error {
+// outputLong outputs the discovered components in long format.
+func outputLong(l log.Logger, opts *Options, components ListedComponents) error {
 	colorizer := NewColorizer(shouldColor(l))
 
-	return renderLong(opts, configs, colorizer)
+	return renderLong(opts, components, colorizer)
 }
 
 // shouldColor returns true if the output should be colored.
@@ -326,38 +314,38 @@ func shouldColor(l log.Logger) bool {
 	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
 }
 
-// renderLong renders the configurations in a long format.
-func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
-	longestPathLen := getLongestPathLen(configs)
+// renderLong renders the components in a long format.
+func renderLong(opts *Options, components ListedComponents, c *Colorizer) error {
+	longestPathLen := getLongestPathLen(components)
 
 	err := renderLongHeadings(opts, c, longestPathLen)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	for _, config := range configs {
-		_, err := opts.Writer.Write([]byte(c.ColorizeType(config.Type)))
+	for _, component := range components {
+		_, err := opts.Writer.Write([]byte(c.ColorizeType(component.Type)))
 		if err != nil {
 			return errors.New(err)
 		}
 
-		_, err = opts.Writer.Write([]byte(" " + c.Colorize(config)))
+		_, err = opts.Writer.Write([]byte(" " + c.Colorize(component)))
 		if err != nil {
 			return errors.New(err)
 		}
 
-		if opts.Dependencies && len(config.Dependencies) > 0 {
+		if opts.Dependencies && len(component.Dependencies) > 0 {
 			colorizedDeps := []string{}
 
-			for _, dep := range config.Dependencies {
+			for _, dep := range component.Dependencies {
 				colorizedDeps = append(colorizedDeps, c.Colorize(dep))
 			}
 
 			const extraDependenciesPadding = 2
 
-			dependenciesPadding := (longestPathLen - len(config.Path)) + extraDependenciesPadding
+			dependenciesPadding := (longestPathLen - len(component.Path)) + extraDependenciesPadding
 			for range dependenciesPadding {
-				_, err := opts.Writer.Write([]byte(" "))
+				_, err = opts.Writer.Write([]byte(" "))
 				if err != nil {
 					return errors.New(err)
 				}
@@ -390,7 +378,7 @@ func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
 
 		dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
 		for range dependenciesPadding {
-			_, err := opts.Writer.Write([]byte(" "))
+			_, err = opts.Writer.Write([]byte(" "))
 			if err != nil {
 				return errors.New(err)
 			}
@@ -410,11 +398,11 @@ func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
 	return nil
 }
 
-// renderTabular renders the configurations in a tabular format.
-func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
-	maxCols, colWidth := getMaxCols(configs)
+// renderTabular renders the components in a tabular format.
+func renderTabular(opts *Options, components ListedComponents, c *Colorizer) error {
+	maxCols, colWidth := getMaxCols(components)
 
-	for i, config := range configs {
+	for i, component := range components {
 		if i > 0 && i%maxCols == 0 {
 			_, err := opts.Writer.Write([]byte("\n"))
 			if err != nil {
@@ -422,13 +410,13 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 			}
 		}
 
-		_, err := opts.Writer.Write([]byte(c.Colorize(config)))
+		_, err := opts.Writer.Write([]byte(c.Colorize(component)))
 		if err != nil {
 			return errors.New(err)
 		}
 
 		// Add padding until the length of maxCols
-		padding := colWidth - len(config.Path)
+		padding := colWidth - len(component.Path)
 		for range padding {
 			_, err := opts.Writer.Write([]byte(" "))
 			if err != nil {
@@ -445,11 +433,11 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 	return nil
 }
 
-// outputTree outputs the discovered configurations in tree format.
-func outputTree(l log.Logger, opts *Options, configs ListedConfigs, sort string) error {
+// outputTree outputs the discovered components in tree format.
+func outputTree(l log.Logger, opts *Options, components ListedComponents, sort string) error {
 	s := NewTreeStyler(shouldColor(l))
 
-	return renderTree(opts, configs, s, sort)
+	return renderTree(opts, components, s, sort)
 }
 
 type TreeStyler struct {
@@ -483,13 +471,13 @@ func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
 		RootStyle(s.rootStyle)
 }
 
-// generateTree creates a tree structure from ListedConfigs
-func generateTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
+// generateTree creates a tree structure from ListedComponents
+func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 	root := tree.Root(".")
 	nodes := make(map[string]*tree.Tree)
 
-	for _, config := range configs {
-		parts := preProcessPath(config.Path)
+	for _, c := range components {
+		parts := preProcessPath(c.Path)
 		if len(parts.segments) == 0 || (len(parts.segments) == 1 && parts.segments[0] == ".") {
 			continue
 		}
@@ -500,14 +488,14 @@ func generateTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 		for i, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
-				configType := discovery.ConfigTypeStack
+				componentType := component.Stack
 
-				if config.Type == discovery.ConfigTypeUnit && i == len(parts.segments)-1 {
-					configType = discovery.ConfigTypeUnit
+				if c.Type == component.Unit && i == len(parts.segments)-1 {
+					componentType = component.Unit
 				}
 
-				tmpCfg := &ListedConfig{
-					Type: configType,
+				tmpCfg := &ListedComponent{
+					Type: componentType,
 					Path: segment,
 				}
 
@@ -524,37 +512,37 @@ func generateTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 	return root
 }
 
-// generateDAGTree creates a tree structure from ListedConfigs.
-// It assumes that the configs are already sorted in DAG order.
-// As such, it will first construct root nodes for each config
-// without a dependency in the listed configs. Then, it will
+// generateDAGTree creates a tree structure from ListedComponents.
+// It assumes that the components are already sorted in DAG order.
+// As such, it will first construct root nodes for each component
+// without a dependency in the listed components. Then, it will
 // connect the remaining nodes to their dependencies, which
-// should be doable in a single pass through the configs.
+// should be doable in a single pass through the components.
 // There may be duplicate entries for dependency nodes, as
-// a node may be a dependency for multiple configs.
+// a node may be a dependency for multiple components.
 // That's OK.
-func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
+func generateDAGTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 	root := tree.Root(".")
 
 	rootNodes := make(map[string]*tree.Tree)
 	dependencyNodes := make(map[string]*tree.Tree)
 
 	// First pass: create all root nodes
-	for _, config := range configs {
-		if len(config.Dependencies) == 0 || !configs.Contains(config.Path) {
-			rootNodes[config.Path] = tree.New().Root(s.colorizer.Colorize(config))
+	for _, c := range components {
+		if len(c.Dependencies) == 0 || !components.Contains(c.Path) {
+			rootNodes[c.Path] = tree.New().Root(s.colorizer.Colorize(c))
 		}
 	}
 
 	// Second pass: connect dependencies
-	for _, config := range configs {
-		if len(config.Dependencies) == 0 {
+	for _, c := range components {
+		if len(c.Dependencies) == 0 {
 			continue
 		}
 
 		// Sort dependencies to ensure deterministic order
-		sortedDeps := make([]string, len(config.Dependencies))
-		for i, dep := range config.Dependencies {
+		sortedDeps := make([]string, len(c.Dependencies))
+		for i, dep := range c.Dependencies {
 			sortedDeps[i] = dep.Path
 		}
 
@@ -562,17 +550,17 @@ func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 
 		for _, dependency := range sortedDeps {
 			if _, exists := rootNodes[dependency]; exists {
-				dependencyNode := tree.New().Root(s.colorizer.Colorize(config))
+				dependencyNode := tree.New().Root(s.colorizer.Colorize(c))
 				rootNodes[dependency].Child(dependencyNode)
-				dependencyNodes[config.Path] = dependencyNode
+				dependencyNodes[c.Path] = dependencyNode
 
 				continue
 			}
 
 			if _, exists := dependencyNodes[dependency]; exists {
-				newDependencyNode := tree.New().Root(s.colorizer.Colorize(config))
+				newDependencyNode := tree.New().Root(s.colorizer.Colorize(c))
 				dependencyNodes[dependency].Child(newDependencyNode)
-				dependencyNodes[config.Path] = newDependencyNode
+				dependencyNodes[c.Path] = newDependencyNode
 			}
 		}
 	}
@@ -593,7 +581,7 @@ func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 	return root
 }
 
-// pathParts holds the pre-processed parts of a config path.
+// pathParts holds the pre-processed parts of a component path.
 type pathParts struct {
 	dir      string
 	base     string
@@ -613,14 +601,14 @@ func preProcessPath(path string) pathParts {
 	}
 }
 
-// renderTree renders the configurations in a tree format.
-func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, _ string) error {
+// renderTree renders the components in a tree format.
+func renderTree(opts *Options, components ListedComponents, s *TreeStyler, _ string) error {
 	var t *tree.Tree
 
 	if opts.Mode == ModeDAG {
-		t = generateDAGTree(configs, s)
+		t = generateDAGTree(components, s)
 	} else {
-		t = generateTree(configs, s)
+		t = generateTree(components, s)
 	}
 
 	t = s.Style(t)
@@ -637,11 +625,11 @@ func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, _ string) e
 // that can be displayed in the terminal.
 // It also returns the width of each column.
 // The width is the longest path length + 2 for padding.
-func getMaxCols(configs ListedConfigs) (int, int) {
+func getMaxCols(components ListedComponents) (int, int) {
 	maxCols := 0
 
 	terminalWidth := getTerminalWidth()
-	longestPathLen := getLongestPathLen(configs)
+	longestPathLen := getLongestPathLen(components)
 
 	const padding = 2
 
@@ -672,13 +660,13 @@ func getTerminalWidth() int {
 }
 
 // getLongestPathLen returns the length of the
-// longest path in the list of configurations.
-func getLongestPathLen(configs ListedConfigs) int {
+// longest path in the list of components.
+func getLongestPathLen(components ListedComponents) int {
 	longest := 0
 
-	for _, config := range configs {
-		if len(config.Path) > longest {
-			longest = len(config.Path)
+	for _, c := range components {
+		if len(c.Path) > longest {
+			longest = len(c.Path)
 		}
 	}
 

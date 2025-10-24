@@ -35,7 +35,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 	}
 
-	return append(flags, run.NewFlags(l, opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
+	base := run.NewFlags(l, opts, prefix).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
+	base = append(base, run.NewBackendFlags(l, opts, prefix)...)
+	base = append(base, run.NewFeatureFlags(l, opts, prefix)...)
+
+	return append(flags, base...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {

@@ -16,6 +16,7 @@ jobs:
           - name: Fixtures with OpenTofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
           - name: Fixtures with Latest OSS Terraform
@@ -60,7 +61,7 @@ jobs:
           - name: AWS Tofu
             os: ubuntu
             target: ./...
-            tags: aws
+            tags: 'aws,tofu'
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
@@ -112,14 +113,9 @@ jobs:
           - name: Provider Cache Server with Tofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
-              - .github/scripts/setup/tofu-switch.sh
-          - name: Provider Cache Dir with Tofu
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/provider-cache-dir.sh
               - .github/scripts/setup/tofu-switch.sh
           - name: Deprecated
             os: ubuntu
@@ -265,12 +261,13 @@ jobs:
       - name: Print Failed Tests (${{ matrix.integration.name }})
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
-          if [ -f test_output.log ]; then
-            failed_count=$(grep -c "FAIL:" test_output.log || echo "0")
+          if [[ -f test_output.log ]]; then
+            # Count only test failure lines in a way that is safe with -e -o pipefail
+            failed_count=$(grep -E -c '^--- FAIL:' test_output.log || echo 0)
             echo "Failed tests count: $failed_count"
-            if [ "$failed_count" -gt 0 ]; then
+            if [[ "${failed_count}" -gt 0 ]]; then
               echo "Failed test names:"
-              grep "FAIL:" test_output.log | sed 's/.*FAIL:[[:space:]]*//'
+              grep -E '^--- FAIL:' test_output.log | sed 's/.*FAIL:[[:space:]]*//'
             else
               echo "No failed tests found"
             fi

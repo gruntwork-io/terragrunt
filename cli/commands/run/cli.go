@@ -135,7 +135,6 @@ func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *c
 				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
 				return config.CleanStacks(ctx, l, opts)
 			})
-
 			if errClean != nil {
 				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
 			}

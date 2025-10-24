@@ -6,7 +6,8 @@ sidebar:
   order: 3
 ---
 
-import { Code, FileTree, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
 
 During the setup phase, you're going to:
 
@@ -40,15 +41,9 @@ mise use node@22.17.1
 
 You should now have a local `mise.toml` file that looks like the following with all the tools pinned that you need.
 
-```toml
-# mise.toml
+import miseToml from '../../../../fixtures/terralith-to-terragrunt/mise.toml?raw';
 
-[tools]
-aws = "2.27.63"
-node = "22.17.1"
-opentofu = "1.10.3"
-terragrunt = "0.83.2"
-```
+<Code title="mise.toml" lang="toml" code={miseToml} />
 
 ## Setting up the app
 

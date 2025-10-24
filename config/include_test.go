@@ -141,12 +141,22 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		{
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
-			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
+			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 		},
 		{
 			&config.TerragruntConfig{},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
+		},
+		{
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session2"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+		},
+		{
+			&config.TerragruntConfig{},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
@@ -349,6 +359,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			if tc.expected.TerragruntDependencies == nil {
 				tc.expected.TerragruntDependencies = config.Dependencies{}
 			}
+
 			assert.Equal(t, tc.expected, tc.target)
 		})
 	}
@@ -367,12 +378,15 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	targetConfig := &config.TerragruntConfig{}
 
 	var wg sync.WaitGroup
+
 	numGoroutines := 666
 
 	wg.Add(numGoroutines)
+
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
+
 			config.CopyFieldsMetadata(sourceConfig, targetConfig)
 		}()
 	}

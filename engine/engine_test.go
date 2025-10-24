@@ -11,6 +11,7 @@ import (
 
 func TestConvertMetaToProtobuf(t *testing.T) {
 	t.Parallel()
+
 	meta := map[string]any{
 		"key1": "value1",
 		"key2": 42,
@@ -24,6 +25,7 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 
 func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
+
 	runOptions := &engine.ExecutionOptions{
 		CmdStdout: io.Discard,
 		CmdStderr: io.Discard,
@@ -34,7 +36,9 @@ func TestReadEngineOutput(t *testing.T) {
 		if outputReturned {
 			return nil, nil
 		}
+
 		outputReturned = true
+
 		return &engine.OutputLine{
 			Stdout: "stdout output",
 			Stderr: "stderr output",

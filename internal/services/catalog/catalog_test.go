@@ -36,14 +36,18 @@ func TestListModules_HappyPath(t *testing.T) {
 			readme1Path := filepath.Join(dummyRepoDir, "README.md")
 			os.WriteFile(readme1Path, []byte("# module1-title\nThis is module1."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "module1.tf"), []byte{}, 0644)
+
 			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 		}
+
 		if repoURL == "github.com/gruntwork-io/repo2" {
 			readme2Path := filepath.Join(dummyRepoDir, "README.md")
 			os.WriteFile(readme2Path, []byte("# module2-title\nThis is module2."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "module2.tf"), []byte{}, 0644)
+
 			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 		}
+
 		return nil, fmt.Errorf("unexpected repoURL in mock newRepoFunc: %s", repoURL)
 	}
 
@@ -108,8 +112,10 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "README.md"), []byte("# moduleA-title"), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "moduleA.tf"), []byte{}, 0644)
+
 			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 		}
+
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
 	}
 
@@ -165,6 +171,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 
 			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 		}
+
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
 	}
 
@@ -187,6 +194,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+
 		return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 	}
 

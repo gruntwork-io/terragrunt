@@ -23,7 +23,7 @@ const (
 	testFixtureReportPath = "fixtures/report"
 )
 
-func TestTerragruntReportExperiment(t *testing.T) {
+func TestTerragruntReport(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -32,9 +32,12 @@ func TestTerragruntReportExperiment(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
 
 	// Run terragrunt with report experiment enabled
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -50,12 +53,14 @@ func TestTerragruntReportExperiment(t *testing.T) {
 
 	// Find the "Run Summary" line
 	summaryStartIdx := -1
+
 	for i, line := range lines {
 		if strings.Contains(line, "Run Summary") {
 			summaryStartIdx = i
 			break
 		}
 	}
+
 	require.NotEqual(t, -1, summaryStartIdx, "Could not find 'Run Summary' line")
 
 	// Extract the summary section
@@ -72,7 +77,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 `), strings.TrimSpace(stdoutStr))
 }
 
-func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
+func TestTerragruntReportDisableSummary(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -81,9 +86,12 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
 
 	// Run terragrunt with report experiment enabled and summary disabled
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output does not contain the summary
@@ -91,7 +99,7 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	assert.NotContains(t, stdoutStr, "Run Summary")
 }
 
-func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
+func TestTerragruntReportSaveToFile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -144,11 +152,14 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
 
 			// Run terragrunt with report experiment enabled and save to file
-			var stdout bytes.Buffer
-			var stderr bytes.Buffer
+			var (
+				stdout bytes.Buffer
+				stderr bytes.Buffer
+			)
+
 			reportFile := "report." + tc.format
 			cmd := fmt.Sprintf(
-				"terragrunt run --all apply --experiment report --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				util.JoinPath(rootPath, "second-exclude"),
 				reportFile)
@@ -161,9 +172,11 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 
 			// Read and parse the file based on format
 			var records []map[string]string
+
 			if tc.format == "csv" {
 				file, err := os.Open(reportFilePath)
 				require.NoError(t, err)
+
 				defer file.Close()
 
 				reader := csv.NewReader(file)
@@ -179,6 +192,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 					for i, value := range record {
 						recordMap[expectedHeader[i]] = value
 					}
+
 					records = append(records, recordMap)
 				}
 			} else {
@@ -200,7 +214,6 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 
 			// Verify each record
 			for i, record := range records {
-
 				_, err := time.Parse(time.RFC3339, record["Started"])
 				require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i+1)
 
@@ -221,6 +234,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 				// Check that the cause is the error message
 				if record["Reason"] == "run error" {
 					assert.Regexp(t, expectedRecords[i]["Cause"], record["Cause"])
+
 					compareRecord["Cause"] = ""
 					expectedRecords[i]["Cause"] = ""
 				}
@@ -232,7 +246,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	}
 }
 
-func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
+func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -291,20 +305,25 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 			t.Parallel()
 
 			// Build command with appropriate flags
-			cmd := "terragrunt run --all apply --experiment report --non-interactive --working-dir " + rootPath
+			cmd := "terragrunt run --all apply --non-interactive --working-dir " + rootPath
 			if tc.reportFile != "" {
 				cmd += " --report-file " + tc.reportFile
 			}
+
 			if tc.reportFormat != "" {
 				cmd += " --report-format " + tc.reportFormat
 			}
+
 			if tc.schemaFile != "" {
 				cmd += " --report-schema-file " + tc.schemaFile
 			}
 
 			// Run terragrunt command
-			var stdout bytes.Buffer
-			var stderr bytes.Buffer
+			var (
+				stdout bytes.Buffer
+				stderr bytes.Buffer
+			)
+
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 			require.NoError(t, err)
 
@@ -324,6 +343,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 			case "json":
 				// For JSON, verify it's valid JSON and has the expected structure
 				var jsonContent []map[string]any
+
 				err := json.Unmarshal(content, &jsonContent)
 
 				require.NoError(t, err)
@@ -349,6 +369,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 
 				// Verify it's valid JSON
 				var schema map[string]any
+
 				err = json.Unmarshal(schemaContent, &schema)
 				require.NoError(t, err)
 
@@ -383,7 +404,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 	}
 }
 
-func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
+func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
@@ -392,9 +413,12 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
 
 	// Run terragrunt with report experiment enabled and unit timing enabled
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
@@ -413,12 +437,14 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 
 	// Find the "Run Summary" line
 	summaryStartIdx := -1
+
 	for i, line := range lines {
 		if strings.Contains(line, "Run Summary") {
 			summaryStartIdx = i
 			break
 		}
 	}
+
 	require.NotEqual(t, -1, summaryStartIdx, "Could not find 'Run Summary' line")
 
 	// Find the end of the summary (last non-empty line after summary start)
@@ -486,7 +512,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --queue-exclude-external --experiment report --feature dep=%s --working-dir %s --report-file %s",
+			"terragrunt run --all plan --queue-exclude-external --feature dep=%s --working-dir %s --report-file %s",
 			dep,
 			rootPath,
 			reportFile,
@@ -509,6 +535,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 
 	// Verify that the report file contains the expected content
 	var report []map[string]any
+
 	err = json.Unmarshal(reportContent, &report)
 	require.NoError(t, err)
 
@@ -529,6 +556,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	for i, r := range report {
 		assert.Equal(t, expected[i].name, r["Name"])
 		assert.Equal(t, expected[i].result, r["Result"])
+
 		if expected[i].reason != "" {
 			assert.Equal(t, expected[i].reason, r["Reason"])
 		}
@@ -567,8 +595,12 @@ func getLineType(line string, inCategory bool) lineType {
 // to make the test deterministic regardless of actual execution timing
 func sortLinesWithinCategories(input string) string {
 	lines := strings.Split(input, "\n")
-	var result []string
-	var currentCategoryLines []string
+
+	var (
+		result               []string
+		currentCategoryLines []string
+	)
+
 	inCategory := false
 
 	for _, line := range lines {

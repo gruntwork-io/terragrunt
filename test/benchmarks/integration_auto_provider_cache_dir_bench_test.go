@@ -96,6 +96,7 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 
 			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
 			unitMainTfPath := filepath.Join(unitDir, "main.tf")
+
 			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
 			require.NoError(b, os.WriteFile(unitMainTfPath, originalMainTf, helpers.DefaultFilePermissions))
 		}

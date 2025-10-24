@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -85,65 +86,13 @@ func TestDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
-			stacks := configs.Filter(discovery.ConfigTypeStack).Paths()
+			units := configs.Filter(component.Unit).Paths()
+			stacks := configs.Filter(component.Stack).Paths()
 
 			assert.ElementsMatch(t, units, tt.wantUnits)
 			assert.ElementsMatch(t, stacks, tt.wantStacks)
 		})
 	}
-}
-
-func TestDiscoveredConfigsSort(t *testing.T) {
-	t.Parallel()
-
-	// Setup
-	configs := discovery.DiscoveredConfigs{
-		{Path: "c", Type: discovery.ConfigTypeUnit},
-		{Path: "a", Type: discovery.ConfigTypeUnit},
-		{Path: "b", Type: discovery.ConfigTypeStack},
-	}
-
-	// Act
-	sorted := configs.Sort()
-
-	// Assert
-	require.Len(t, sorted, 3)
-	assert.Equal(t, "a", sorted[0].Path)
-	assert.Equal(t, "b", sorted[1].Path)
-	assert.Equal(t, "c", sorted[2].Path)
-}
-
-func TestDiscoveredConfigsFilter(t *testing.T) {
-	t.Parallel()
-
-	// Setup
-	configs := discovery.DiscoveredConfigs{
-		{Path: "unit1", Type: discovery.ConfigTypeUnit},
-		{Path: "stack1", Type: discovery.ConfigTypeStack},
-		{Path: "unit2", Type: discovery.ConfigTypeUnit},
-	}
-
-	// Test unit filtering
-	t.Run("filter units", func(t *testing.T) {
-		t.Parallel()
-
-		units := configs.Filter(discovery.ConfigTypeUnit)
-		require.Len(t, units, 2)
-		assert.Equal(t, discovery.ConfigTypeUnit, units[0].Type)
-		assert.Equal(t, discovery.ConfigTypeUnit, units[1].Type)
-		assert.ElementsMatch(t, []string{"unit1", "unit2"}, units.Paths())
-	})
-
-	// Test stack filtering
-	t.Run("filter stacks", func(t *testing.T) {
-		t.Parallel()
-
-		stacks := configs.Filter(discovery.ConfigTypeStack)
-		require.Len(t, stacks, 1)
-		assert.Equal(t, discovery.ConfigTypeStack, stacks[0].Type)
-		assert.Equal(t, "stack1", stacks[0].Path)
-	})
 }
 
 func TestDiscoveryWithDependencies(t *testing.T) {
@@ -203,54 +152,47 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts.RootWorkingDir = internalDir
 
 	tests := []struct {
-		name      string
-		discovery *discovery.Discovery
-		// Note that when comparing against this,
-		// we'll nil out the parsed configurations,
-		// as it doesn't matter for this test
-		wantDiscovery discovery.DiscoveredConfigs
+		discovery     *discovery.Discovery
+		setupExpected func() component.Components
+		name          string
 		errorExpected bool
 	}{
 		{
 			name:      "discovery without dependencies",
 			discovery: discovery.NewDiscovery(internalDir),
-			wantDiscovery: discovery.DiscoveredConfigs{
-				{Path: appDir, Type: discovery.ConfigTypeUnit},
-				{Path: dbDir, Type: discovery.ConfigTypeUnit},
-				{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+			setupExpected: func() component.Components {
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies(),
-			wantDiscovery: discovery.DiscoveredConfigs{
-				{Path: appDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
-					{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
-						{Path: vpcDir, Type: discovery.ConfigTypeUnit},
-					}},
-					{Path: externalAppDir, Type: discovery.ConfigTypeUnit, External: true},
-				}},
-				{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
-					{Path: vpcDir, Type: discovery.ConfigTypeUnit},
-				}},
-				{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+			setupExpected: func() component.Components {
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				db.AddDependency(vpc)
+				externalApp := &component.Component{Path: externalAppDir, Kind: component.Unit, External: true}
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
+				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with external dependencies",
 			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithDiscoverExternalDependencies(),
-			wantDiscovery: discovery.DiscoveredConfigs{
-				{Path: appDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
-					{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
-						{Path: vpcDir, Type: discovery.ConfigTypeUnit},
-					}},
-					{Path: externalAppDir, Type: discovery.ConfigTypeUnit, External: true},
-				}},
-				{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
-					{Path: vpcDir, Type: discovery.ConfigTypeUnit},
-				}},
-				{Path: vpcDir, Type: discovery.ConfigTypeUnit},
-				{Path: externalAppDir, Type: discovery.ConfigTypeUnit, External: true},
+			setupExpected: func() component.Components {
+				vpc := &component.Component{Path: vpcDir, Kind: component.Unit}
+				db := &component.Component{Path: dbDir, Kind: component.Unit}
+				db.AddDependency(vpc)
+				externalApp := &component.Component{Path: externalAppDir, Kind: component.Unit, External: true}
+				app := &component.Component{Path: appDir, Kind: component.Unit}
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
+				return component.Components{app, db, vpc, externalApp}
 			},
 		},
 	}
@@ -264,138 +206,50 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
-			// Sort the configs and their dependencies to ensure consistent ordering
-			configs = configs.Sort()
-			for _, cfg := range configs {
-				cfg.Dependencies = cfg.Dependencies.Sort()
-				for _, dep := range cfg.Dependencies {
-					dep.Dependencies = dep.Dependencies.Sort()
-				}
-			}
-
-			tt.wantDiscovery = tt.wantDiscovery.Sort()
-			for _, cfg := range tt.wantDiscovery {
-				cfg.Dependencies = cfg.Dependencies.Sort()
-				for _, dep := range cfg.Dependencies {
-					dep.Dependencies = dep.Dependencies.Sort()
-				}
-			}
+			// Build expected results
+			wantDiscovery := tt.setupExpected()
 
 			// nil out the parsed configurations, as it doesn't matter for this test
 			for _, cfg := range configs {
 				cfg.Parsed = nil
 			}
 
-			assert.Equal(t, tt.wantDiscovery, configs)
-		})
-	}
-}
+			// Compare basic component properties
+			require.Len(t, configs, len(wantDiscovery))
 
-func TestDiscoveredConfigsCycleCheck(t *testing.T) {
-	t.Parallel()
+			configs = configs.Sort()
+			wantDiscovery = wantDiscovery.Sort()
 
-	tests := []struct {
-		name          string
-		configs       discovery.DiscoveredConfigs
-		errorExpected bool
-	}{
-		{
-			name: "no cycles",
-			configs: discovery.DiscoveredConfigs{
-				{
-					Path: "a",
-					Dependencies: discovery.DiscoveredConfigs{
-						{Path: "b"},
-					},
-				},
-				{Path: "b"},
-			},
-			errorExpected: false,
-		},
-		{
-			name: "direct cycle",
-			configs: discovery.DiscoveredConfigs{
-				{
-					Path: "a",
-					Dependencies: discovery.DiscoveredConfigs{
-						{
-							Path: "b",
-							Dependencies: discovery.DiscoveredConfigs{
-								{Path: "a"},
-							},
-						},
-					},
-				},
-				{Path: "b"},
-			},
-			errorExpected: true,
-		},
-		{
-			name: "indirect cycle",
-			configs: discovery.DiscoveredConfigs{
-				{
-					Path: "a",
-					Dependencies: discovery.DiscoveredConfigs{
-						{
-							Path: "b",
-							Dependencies: discovery.DiscoveredConfigs{
-								{
-									Path: "c",
-									Dependencies: discovery.DiscoveredConfigs{
-										{Path: "a"},
-									},
-								},
-							},
-						},
-					},
-				},
-				{Path: "b"},
-				{Path: "c"},
-			},
-			errorExpected: true,
-		},
-		{
-			name: "diamond dependency - no cycle",
-			configs: discovery.DiscoveredConfigs{
-				{
-					Path: "a",
-					Dependencies: discovery.DiscoveredConfigs{
-						{Path: "b"},
-						{Path: "c"},
-					},
-				},
-				{
-					Path: "b",
-					Dependencies: discovery.DiscoveredConfigs{
-						{Path: "d"},
-					},
-				},
-				{
-					Path: "c",
-					Dependencies: discovery.DiscoveredConfigs{
-						{Path: "d"},
-					},
-				},
-				{Path: "d"},
-			},
-			errorExpected: false,
-		},
-	}
+			for i, cfg := range configs {
+				want := wantDiscovery[i]
+				assert.Equal(t, want.Path, cfg.Path, "Component path mismatch at index %d", i)
+				assert.Equal(t, want.Kind, cfg.Kind, "Component kind mismatch at index %d", i)
+				assert.Equal(t, want.External, cfg.External, "Component external flag mismatch at index %d", i)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+				// Compare dependencies
+				cfgDeps := cfg.Dependencies().Sort()
+				wantDeps := want.Dependencies().Sort()
+				require.Len(t, cfgDeps, len(wantDeps), "Dependencies count mismatch for %s", cfg.Path)
 
-			cfg, err := tt.configs.CycleCheck()
-			if tt.errorExpected {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "cycle detected")
-				assert.NotNil(t, cfg)
-			} else {
-				require.NoError(t, err)
-				assert.Nil(t, cfg)
+				for j, dep := range cfgDeps {
+					wantDep := wantDeps[j]
+					assert.Equal(t, wantDep.Path, dep.Path, "Dependency path mismatch at component %d, dependency %d", i, j)
+					assert.Equal(t, wantDep.Kind, dep.Kind, "Dependency kind mismatch at component %d, dependency %d", i, j)
+					assert.Equal(t, wantDep.External, dep.External, "Dependency external flag mismatch at component %d, dependency %d", i, j)
+
+					// Compare nested dependencies (one level deep)
+					depDeps := dep.Dependencies().Sort()
+					wantDepDeps := wantDep.Dependencies().Sort()
+					require.Len(t, depDeps, len(wantDepDeps), "Nested dependencies count mismatch for %s -> %s", cfg.Path, dep.Path)
+
+					for k, nestedDep := range depDeps {
+						wantNestedDep := wantDepDeps[k]
+						assert.Equal(t, wantNestedDep.Path, nestedDep.Path, "Nested dependency path mismatch")
+					}
+				}
 			}
 		})
 	}
@@ -455,12 +309,13 @@ exclude {
 	assert.Len(t, cfgs, 3)
 
 	// Helper to find config by path
-	findConfig := func(path string) *discovery.DiscoveredConfig {
+	findConfig := func(path string) *component.Component {
 		for _, cfg := range cfgs {
 			if filepath.Base(cfg.Path) == path {
 				return cfg
 			}
 		}
+
 		return nil
 	}
 
@@ -479,6 +334,7 @@ exclude {
 
 	unit3 := findConfig("unit3")
 	require.NotNil(t, unit3)
+
 	if unit3.Parsed != nil {
 		assert.Nil(t, unit3.Parsed.Exclude)
 	}
@@ -501,7 +357,7 @@ func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
 	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
-	units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+	units := configs.Filter(component.Unit).Paths()
 	assert.ElementsMatch(t, []string{unit1Dir}, units)
 }
 
@@ -570,8 +426,8 @@ inputs = {
 	require.NoError(t, err)
 
 	// Verify that both stack and unit configurations are discovered
-	units := configs.Filter(discovery.ConfigTypeUnit)
-	stacks := configs.Filter(discovery.ConfigTypeStack)
+	units := configs.Filter(component.Unit)
+	stacks := configs.Filter(component.Stack)
 
 	assert.Len(t, units, 1)
 	assert.Len(t, stacks, 1)
@@ -583,4 +439,197 @@ inputs = {
 	// Verify that unit configuration is parsed (Parsed should not be nil)
 	unitConfig := units[0]
 	assert.NotNil(t, unitConfig.Parsed, "Unit configuration should be parsed")
+}
+
+func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	unit1Dir := filepath.Join(tmpDir, "unit1")
+	unit2Dir := filepath.Join(tmpDir, "unit2")
+	unit3Dir := filepath.Join(tmpDir, "unit3")
+
+	for _, d := range []string{unit1Dir, unit2Dir, unit3Dir} {
+		require.NoError(t, os.MkdirAll(d, 0755))
+	}
+
+	for _, f := range []string{
+		filepath.Join(unit1Dir, "terragrunt.hcl"),
+		filepath.Join(unit2Dir, "terragrunt.hcl"),
+		filepath.Join(unit3Dir, "terragrunt.hcl"),
+	} {
+		require.NoError(t, os.WriteFile(f, []byte(""), 0644))
+	}
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	// Exclude unit2
+	d := discovery.NewDiscovery(tmpDir).WithExcludeDirs([]string{unit2Dir})
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(component.Unit).Paths())
+
+	// Exclude-by-default and include only unit1
+	d = discovery.NewDiscovery(tmpDir).WithExcludeByDefault().WithIncludeDirs([]string{unit1Dir})
+	cfgs, err = d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(component.Unit).Paths())
+
+	// Strict include behaves the same
+	d = discovery.NewDiscovery(tmpDir).WithStrictInclude().WithIncludeDirs([]string{unit3Dir})
+	cfgs, err = d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{unit3Dir}, cfgs.Filter(component.Unit).Paths())
+}
+
+func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	hiddenUnitDir := filepath.Join(tmpDir, ".hidden", "hunit")
+	require.NoError(t, os.MkdirAll(hiddenUnitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	// Without hidden, but included via includeDirs pattern
+	d := discovery.NewDiscovery(tmpDir).WithIncludeDirs([]string{filepath.Join(tmpDir, ".hidden", "**")})
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{hiddenUnitDir}, cfgs.Filter(component.Unit).Paths())
+}
+
+func TestDiscoveryStackHiddenAllowed(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackHiddenDir := filepath.Join(tmpDir, ".terragrunt-stack", "u")
+	require.NoError(t, os.MkdirAll(stackHiddenDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	l := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	// Should be discovered even without WithHidden()
+	d := discovery.NewDiscovery(tmpDir)
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.Contains(t, cfgs.Filter(component.Unit).Paths(), stackHiddenDir)
+}
+
+func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	internalDir := filepath.Join(tmpDir, "internal")
+	externalDir := filepath.Join(tmpDir, "external")
+	appDir := filepath.Join(internalDir, "app")
+	dbDir := filepath.Join(internalDir, "db")
+	vpcDir := filepath.Join(internalDir, "vpc")
+	extApp := filepath.Join(externalDir, "app")
+
+	for _, d := range []string{appDir, dbDir, vpcDir, extApp} {
+		require.NoError(t, os.MkdirAll(d, 0755))
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+	dependency "db" { config_path = "../db" }
+	dependency "external" { config_path = "../../external/app" }
+	`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	dependency "vpc" { config_path = "../vpc" }
+	`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl"), []byte(""), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = internalDir
+	opts.RootWorkingDir = internalDir
+
+	l := logger.CreateLogger()
+
+	d := discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithIgnoreExternalDependencies()
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Find app config and assert it only has internal deps
+	var appCfg *component.Component
+
+	for _, c := range cfgs {
+		if c.Path == appDir {
+			appCfg = c
+			break
+		}
+	}
+
+	require.NotNil(t, appCfg)
+	depPaths := appCfg.Dependencies().Paths()
+	assert.Contains(t, depPaths, dbDir)
+	assert.NotContains(t, depPaths, extApp)
+}
+
+func TestDiscoveryPopulatesReadingField(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	appDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+
+	// Create shared files that will be read
+	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
+	sharedTFVars := filepath.Join(tmpDir, "shared.tfvars")
+
+	require.NoError(t, os.WriteFile(sharedHCL, []byte(`
+		locals {
+			common_value = "test"
+		}
+	`), 0644))
+
+	require.NoError(t, os.WriteFile(sharedTFVars, []byte(`
+		test_var = "value"
+	`), 0644))
+
+	// Create terragrunt config that reads both files
+	terragruntConfig := filepath.Join(appDir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(terragruntConfig, []byte(`
+		locals {
+			shared_config = read_terragrunt_config("../shared.hcl")
+			tfvars = read_tfvars_file("../shared.tfvars")
+		}
+	`), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	l := logger.CreateLogger()
+
+	// Discover and parse components
+	d := discovery.NewDiscovery(tmpDir).WithParseInclude()
+	cfgs, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Find the app component
+	var appComponent *component.Component
+
+	for _, c := range cfgs {
+		if c.Path == appDir {
+			appComponent = c
+			break
+		}
+	}
+
+	require.NotNil(t, appComponent, "app component should be discovered")
+	require.NotNil(t, appComponent.Reading, "Reading field should be initialized")
+
+	// Verify Reading field contains the files that were read
+	require.NotEmpty(t, appComponent.Reading, "should have read files")
+	assert.Contains(t, appComponent.Reading, sharedHCL, "should contain shared.hcl")
+	assert.Contains(t, appComponent.Reading, sharedTFVars, "should contain shared.tfvars")
 }

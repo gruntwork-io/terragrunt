@@ -55,6 +55,31 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
 }
 
+// TestTerragruntDestroyOrderWithQueueIgnoreErrors tests that --queue-ignore-errors still respects dependency order.
+// This is a regression test for issue #4947.
+// Note: This test verifies the behavior is the same with and without --queue-ignore-errors for successful runs.
+// The unit tests in internal/queue/queue_test.go provide comprehensive coverage of the ordering logic.
+func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyOrder, "app")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+
+	// Run destroy with --queue-ignore-errors flag
+	// The main difference with --queue-ignore-errors is that it allows progress even if dependencies fail,
+	// but it should still respect the dependency order when dependencies are in terminal states.
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --queue-ignore-errors --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// Verify that the expected pattern still holds:
+	// Modules B, D, E (which have dependencies) should be destroyed before their dependencies A and C
+	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout,
+		"Dependency order should be respected even with --queue-ignore-errors")
+}
+
 func TestPreventDestroyOverride(t *testing.T) {
 	t.Parallel()
 
@@ -191,6 +216,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		"module-b",
 		"module-c",
 	}
+
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
 		modulePaths[moduleName] = util.JoinPath(testFixtureLocalIncludePreventDestroyDependencies, moduleName)
@@ -198,6 +224,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	// Cleanup all modules directories.
 	helpers.CleanupTerraformFolder(t, testFixtureLocalIncludePreventDestroyDependencies)
+
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerraformFolder(t, modulePath)
 	}
@@ -239,7 +266,9 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
 		require.NoError(t, err)
+
 		output := showStdout.String()
+
 		switch moduleName {
 		case "module-a":
 			assert.Contains(t, output, "Hello, Module A")
@@ -286,13 +315,17 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 		&stderr,
 	)
 	os.Stderr = oldStdout
+
 	require.NoError(t, w.Close())
 
 	capturedOutput := make(chan string)
+
 	go func() {
 		var buf bytes.Buffer
+
 		_, e := io.Copy(&buf, r)
 		assert.NoError(t, e)
+
 		capturedOutput <- buf.String()
 	}()
 
@@ -325,6 +358,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
@@ -338,6 +372,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
@@ -368,6 +403,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
@@ -381,6 +417,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
+
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}

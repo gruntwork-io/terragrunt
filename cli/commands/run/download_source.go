@@ -148,10 +148,10 @@ func DownloadTerraformSourceIfNecessary(
 	}
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
-	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, func(_ context.Context) error {
+
+	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, r, func(_ context.Context) error {
 		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
 	})
-
 	if downloadErr != nil {
 		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
@@ -193,13 +193,13 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 		return false, nil
 	}
 
-	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
+	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	if len(tfFiles) == 0 {
-		l.Debugf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
+	if !hasFiles {
+		l.Debugf("Working dir %s exists but contains no Terraform or OpenTofu files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
 		return false, nil
 	}
 
@@ -214,7 +214,6 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 	}
 
 	previousVersion, err := readVersionFile(terraformSource)
-
 	if err != nil {
 		return false, err
 	}

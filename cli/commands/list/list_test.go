@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -345,6 +345,7 @@ dependency "unit3" {
 				return i
 			}
 		}
+
 		return -1
 	}
 
@@ -458,6 +459,7 @@ dependency "C" {
 				return i
 			}
 		}
+
 		return -1
 	}
 
@@ -486,26 +488,26 @@ func TestColorizer(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *list.ListedConfig
+		config *list.ListedComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
-		shouldBeDifferent []discovery.ConfigType
+		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &list.ListedConfig{
-				Type: discovery.ConfigTypeUnit,
+			config: &list.ListedComponent{
+				Type: component.Unit,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeStack},
+			shouldBeDifferent: []component.Kind{component.Stack},
 		},
 		{
 			name: "stack config",
-			config: &list.ListedConfig{
-				Type: discovery.ConfigTypeStack,
+			config: &list.ListedComponent{
+				Type: component.Stack,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeUnit},
+			shouldBeDifferent: []component.Kind{component.Unit},
 		},
 	}
 
@@ -518,7 +520,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &list.ListedConfig{
+				diffConfig := &list.ListedComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}

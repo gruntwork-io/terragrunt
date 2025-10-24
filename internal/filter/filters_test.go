@@ -1,0 +1,318 @@
+package filter_test
+
+import (
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFilters_ParseFilterQueries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filter list", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		require.NoError(t, err)
+		assert.NotNil(t, filters)
+		assert.Equal(t, "[]", filters.String())
+	})
+
+	t.Run("single valid filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		require.NoError(t, err)
+		assert.NotNil(t, filters)
+		assert.Equal(t, `["./apps/*"]`, filters.String())
+	})
+
+	t.Run("multiple valid filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
+		require.NoError(t, err)
+		assert.NotNil(t, filters)
+		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
+	})
+
+	t.Run("single invalid filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"invalid |"}, ".")
+		require.Error(t, err)
+		assert.NotNil(t, filters)
+		assert.Contains(t, err.Error(), "filter 0")
+		assert.Contains(t, err.Error(), "invalid |")
+	})
+
+	t.Run("mixed valid and invalid filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=", "!legacy"}, ".")
+		require.Error(t, err)
+		assert.NotNil(t, filters)
+		// Should have 2 valid filters parsed
+		assert.Contains(t, filters.String(), "./apps/*")
+		assert.Contains(t, filters.String(), "!legacy")
+		// Error should mention the invalid filter
+		assert.Contains(t, err.Error(), "filter 1")
+		assert.Contains(t, err.Error(), "name=")
+	})
+
+	t.Run("multiple invalid filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"foo |", "bar |", "!baz"}, ".")
+		require.Error(t, err)
+		assert.NotNil(t, filters)
+		// Should have 1 valid filter
+		assert.Equal(t, `["!baz"]`, filters.String())
+		// Error should mention both invalid filters
+		assert.Contains(t, err.Error(), "filter 0")
+		assert.Contains(t, err.Error(), "filter 1")
+	})
+}
+
+func TestFilters_Evaluate(t *testing.T) {
+	t.Parallel()
+
+	components := component.Components{
+		{Path: "./apps/app1", Kind: component.Unit},
+		{Path: "./apps/app2", Kind: component.Unit},
+		{Path: "./apps/legacy", Kind: component.Unit},
+		{Path: "./libs/db", Kind: component.Unit},
+		{Path: "./libs/api", Kind: component.Unit},
+	}
+
+	t.Run("empty filters returns all components", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, components, result)
+	})
+
+	t.Run("single positive filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./apps/legacy", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+	})
+
+	t.Run("union of multiple positive filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./libs/db", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+	})
+
+	t.Run("union with overlapping results (deduplication)", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./apps/legacy", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+		// Verify no duplicates - should have exactly 3 components
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("positive filters then negative filter removes results", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+	})
+
+	t.Run("multiple negative filters applied in sequence", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+	})
+
+	t.Run("only negative filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./libs/api", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+	})
+
+	t.Run("complex mix of positive and negative filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{
+			"./apps/*",
+			"./libs/*",
+			"!legacy",
+			"!api",
+		}, ".")
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(components)
+		require.NoError(t, err)
+
+		expected := []*component.Component{
+			{Path: "./apps/app1", Kind: component.Unit},
+			{Path: "./apps/app2", Kind: component.Unit},
+			{Path: "./libs/db", Kind: component.Unit},
+		}
+
+		assert.ElementsMatch(t, expected, result)
+	})
+}
+
+func TestFilters_HasPositiveFilter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filters - has positive filter is false", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		require.NoError(t, err)
+		assert.False(t, filters.HasPositiveFilter())
+	})
+
+	t.Run("single positive filter - has positive filter is true", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		require.NoError(t, err)
+		assert.True(t, filters.HasPositiveFilter())
+	})
+
+	t.Run("single negative filter - has positive filter is false", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"!legacy"}, ".")
+		require.NoError(t, err)
+		assert.False(t, filters.HasPositiveFilter())
+	})
+
+	t.Run("multiple negative filters - has positive filter is false", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!test"}, ".")
+		require.NoError(t, err)
+		assert.False(t, filters.HasPositiveFilter())
+	})
+
+	t.Run("multiple positive filters - has positive filter is true", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "./libs/*"}, ".")
+		require.NoError(t, err)
+		assert.True(t, filters.HasPositiveFilter())
+	})
+
+	t.Run("mixed positive and negative - has positive filter is true", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"}, ".")
+		require.NoError(t, err)
+		assert.True(t, filters.HasPositiveFilter())
+	})
+
+	t.Run("negative then positive - has positive filter is true", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"!legacy", "./apps/*"}, ".")
+		require.NoError(t, err)
+		assert.True(t, filters.HasPositiveFilter())
+	})
+}
+
+func TestFilters_String(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		require.NoError(t, err)
+		assert.Equal(t, "[]", filters.String())
+	})
+
+	t.Run("single filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		require.NoError(t, err)
+		assert.Equal(t, `["./apps/*"]`, filters.String())
+	})
+
+	t.Run("multiple filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
+		require.NoError(t, err)
+		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
+	})
+}

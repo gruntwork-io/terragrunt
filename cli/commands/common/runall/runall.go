@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -52,34 +51,35 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	stackOpts := []common.Option{}
 
-	if opts.Experiments.Evaluate(experiment.Report) {
-		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
+	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
-			r.WithDisableColor()
-		}
+	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+		r.WithDisableColor()
+	}
 
-		if opts.ReportFormat != "" {
-			r.WithFormat(opts.ReportFormat)
-		}
+	if opts.ReportFormat != "" {
+		r.WithFormat(opts.ReportFormat)
+	}
 
-		if opts.SummaryPerUnit {
-			r.WithShowUnitLevelSummary()
-		}
+	if opts.SummaryPerUnit {
+		r.WithShowUnitLevelSummary()
+	}
 
-		stackOpts = append(stackOpts, common.WithReport(r))
+	stackOpts = append(stackOpts, common.WithReport(r))
 
-		if opts.ReportSchemaFile != "" {
-			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
-		}
+	if opts.ReportSchemaFile != "" {
+		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+	}
 
-		if opts.ReportFile != "" {
-			defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
-		}
+	if opts.ReportFile != "" {
+		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+	}
 
-		if !opts.SummaryDisable {
-			defer r.WriteSummary(opts.Writer) //nolint:errcheck
-		}
+	// Skip summary for programmatic interactions:
+	// - When JSON output is requested (--json or report format is JSON)
+	// - When running 'output' command (typically for programmatic consumption)
+	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
+		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
 	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
@@ -146,4 +146,23 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 		return nil
 	})
+}
+
+// shouldSkipSummary determines if summary output should be skipped for programmatic interactions.
+// Summary is skipped when:
+// - The command is 'output' (typically used for programmatic consumption)
+// - JSON output is requested via terraform CLI args (-json flag)
+// - JSON report format is specified (--report-format=json)
+func shouldSkipSummary(opts *options.TerragruntOptions) bool {
+	// Skip summary for 'output' command as it's typically used programmatically
+	if opts.TerraformCommand == tf.CommandNameOutput {
+		return true
+	}
+
+	// Skip summary when JSON output is requested via -json flag
+	if opts.TerraformCliArgs.Normalize(cli.SingleDashFlag).Contains(tf.FlagNameJSON) {
+		return true
+	}
+
+	return false
 }

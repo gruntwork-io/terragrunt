@@ -1,13 +1,16 @@
 ---
 import config from 'virtual:starlight/user-config';
-import type { Props } from '@astrojs/starlight/props';
 import { Image } from 'astro:assets';
+// @ts-ignore
 import Search from 'virtual:starlight/components/Search';
 
 import HeadphonesIcon from '@assets/headset-icon.svg';
 import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import ThemeToggle from '@components/ThemeToggle.astro';
+
+import Button from '@components/ui/Button';
+import ButtonLink from '@components/ui/ButtonLink';
 
 import '@styles/global.css';
 
@@ -51,8 +54,30 @@ try {
 }
 ---
 
-<div class="navbar fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
-  <div class="flex flex-row justify-between px-5 py-2.5 md:py-6">
+<!--
+  This component is inheriting `data-theme="dark"` or `data-theme="light"` from the root element.
+  But the problem is that based on the design, we always want this header to behave as if it's in dark mode.
+  But that's tricky because dark mode colors are set in the CSS "theme" layer, which is then inherited by this component,
+  and this component can't change those variables directly.
+
+  To solve this, we override the variables causing us trouble.
+-->
+<style>
+  .header-dark-theme {
+    --sl-color-gray-1: #e8eefc;
+    --sl-color-gray-2: #bbc2d4;
+    --sl-color-gray-3: #7e8bac;
+    --sl-color-gray-4: #4c5776;
+    --sl-color-gray-5: #2d3754;
+    --sl-color-gray-6: #1c2541;
+    --sl-color-gray-7: #0f1731;
+    --sl-color-gray-8: #0f0934;
+    --sl-color-white: #ffffff;
+  }
+</style>
+
+<div class="navbar header-dark-theme fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
+  <div class="flex flex-row justify-between px-5 py-2.5 md:py-6 lg:h-full lg:mt-1">
     <!-- Logo -->
     <a href="/" class="flex flex-row items-center hover:cursor-pointer">
       <Image
@@ -68,7 +93,7 @@ try {
         <!-- Docs -->
         <div class="pr-4 lg:px-4">
           <a href="/docs" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]">
-            <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
               <path opacity="0.1" d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" fill="currentColor"/>
               <path d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
               <path d="M9 12H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
@@ -80,7 +105,7 @@ try {
         <!-- Socials -->
         <div class="hidden lg:flex items-center border-r border-stroke-dark pr-6 gap-4">
           <a
-            class="social-icon flex items-center gap-2 transition duration-[250ms] ease-in-out"
+            class="social-icon flex items-center gap-2 transition duration-[250ms] ease-in-out no-underline"
             href="https://github.com/gruntwork-io/terragrunt"
             rel="noopener noreferrer"
             target="_blank"
@@ -111,32 +136,54 @@ try {
       </div>
       <div class="flex items-center gap-3 md:gap-3.5">
         <!-- Buttons -->
-        <a href="/terragrunt-scale" class="hidden md:flex secondary-button items-center h-[39px] text-center leading-[1.25]">
-          Terragrunt Scale
-        </a>
-        <a href="/terragrunt-scale" class="flex md:hidden secondary-button !p-3">
+        <ButtonLink
+          href="/terragrunt-scale"
+          variant="secondary"
+          className="hidden md:flex"
+        >
+          Automate Deployments
+        </ButtonLink>
+        <ButtonLink
+          href="/terragrunt-scale"
+          variant="secondary"
+          size="icon"
+          className="md:hidden"
+        >
           <Image
             alt="Pipelines Icon"
             height={20}
             src={PipelineIcon}
             width={20}
           />
-        </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex primary-button items-center h-[39px] text-center leading-[1.25]">
+        </ButtonLink>
+        <ButtonLink
+          href="https://www.gruntwork.io/services/terragrunt"
+          variant="primary"
+          className="hidden md:flex"
+          isExternalLink={true}
+        >
           Enterprise Support
-        </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="flex md:hidden primary-button !p-3">
+        </ButtonLink>
+        <ButtonLink
+          href="https://www.gruntwork.io/services/terragrunt"
+          variant="primary"
+          size="icon"
+          className="md:hidden"
+          isExternalLink={true}
+        >
           <Image
             alt="Headphones Icon"
-            class={"aspect-[1/1] h-auto"}
             height={20}
             src={HeadphonesIcon}
             width={20}
           />
-        </a>
+        </ButtonLink>
       </div>
     </div>
   </div>
 </div>
 
 <script src="https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL" type="text/javascript"></script>
+<script type="text/javascript">
+  (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5TTJJGTL')
+</script>

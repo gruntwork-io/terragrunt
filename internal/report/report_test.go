@@ -145,6 +145,7 @@ func TestEnsureRun(t *testing.T) {
 			t.Parallel()
 
 			r := report.NewReport()
+
 			var existingRun *report.Run
 
 			if tt.setupFunc != nil {
@@ -156,6 +157,7 @@ func TestEnsureRun(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Nil(t, run)
+
 				if tt.expectedErrIs != nil {
 					require.ErrorIs(t, err, tt.expectedErrIs)
 				}
@@ -237,6 +239,7 @@ func TestEndRun(t *testing.T) {
 	}
 
 	r := report.NewReport()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -256,14 +259,17 @@ func TestEndRun(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Equal(t, tt.wantResult, run.Result)
+
 				if tt.wantReason != nil {
 					assert.NotNil(t, run.Reason)
 					assert.Equal(t, *tt.wantReason, *run.Reason)
 				}
+
 				if tt.wantCause != nil {
 					assert.NotNil(t, run.Cause)
 					assert.Equal(t, *tt.wantCause, *run.Cause)
 				}
+
 				assert.False(t, run.Ended.IsZero())
 			}
 		})
@@ -410,6 +416,7 @@ func TestSummarize(t *testing.T) {
 			t.Parallel()
 
 			r := report.NewReport()
+
 			for _, result := range tt.results {
 				run := newRun(t, result.name)
 				r.AddRun(run)
@@ -493,6 +500,7 @@ func TestWriteCSV(t *testing.T) {
 			csvFile := filepath.Join(tmp, "report.csv")
 			file, err := os.Create(csvFile)
 			require.NoError(t, err)
+
 			defer file.Close()
 
 			// Setup and write the report
@@ -508,6 +516,7 @@ func TestWriteCSV(t *testing.T) {
 			// Read the CSV file
 			file, err = os.Open(csvFile)
 			require.NoError(t, err)
+
 			defer file.Close()
 
 			reader := csv.NewReader(file)
@@ -540,6 +549,7 @@ func TestWriteCSV(t *testing.T) {
 					_, err := time.Parse(time.RFC3339, record[1])
 					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
 				}
+
 				if record[2] != "" {
 					_, err := time.Parse(time.RFC3339, record[2])
 					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
@@ -652,6 +662,7 @@ func TestWriteJSON(t *testing.T) {
 			jsonFile := filepath.Join(tmp, "report.json")
 			file, err := os.Create(jsonFile)
 			require.NoError(t, err)
+
 			defer file.Close()
 
 			// Setup and write the report
@@ -667,6 +678,7 @@ func TestWriteJSON(t *testing.T) {
 			// Read the JSON file
 			file, err = os.Open(jsonFile)
 			require.NoError(t, err)
+
 			defer file.Close()
 
 			// Read the actual output
@@ -675,6 +687,7 @@ func TestWriteJSON(t *testing.T) {
 
 			// Parse both expected and actual JSON to compare them
 			var expectedJSON, actualJSON []map[string]any
+
 			err = json.Unmarshal([]byte(tt.expected), &expectedJSON)
 			require.NoError(t, err)
 			err = json.Unmarshal(actualBytes, &actualJSON)
@@ -712,6 +725,7 @@ func TestWriteJSON(t *testing.T) {
 					_, err := time.Parse(time.RFC3339, started)
 					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
 				}
+
 				if ended, ok := actualRecord["Ended"].(string); ok {
 					_, err := time.Parse(time.RFC3339, ended)
 					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
@@ -796,6 +810,7 @@ func TestWriteSchema(t *testing.T) {
 
 	// Parse the schema
 	var schema map[string]any
+
 	err = json.Unmarshal(buf.Bytes(), &schema)
 	require.NoError(t, err)
 
@@ -942,6 +957,7 @@ func TestWriteSummary(t *testing.T) {
 			tt.setup(r)
 
 			var buf bytes.Buffer
+
 			err := r.WriteSummary(&buf)
 			require.NoError(t, err)
 
@@ -1022,6 +1038,7 @@ func TestSchemaIsValid(t *testing.T) {
 	reportFile := filepath.Join(tmp, "report.json")
 	file, err := os.Create(reportFile)
 	require.NoError(t, err)
+
 	defer file.Close()
 
 	err = r.WriteJSON(file)
@@ -1032,6 +1049,7 @@ func TestSchemaIsValid(t *testing.T) {
 	schemaFile := filepath.Join(tmp, "schema.json")
 	file, err = os.Create(schemaFile)
 	require.NoError(t, err)
+
 	defer file.Close()
 
 	err = r.WriteSchema(file)
@@ -1058,6 +1076,7 @@ func TestSchemaIsValid(t *testing.T) {
 
 	// Additional validation of the report content
 	var reportData []report.JSONRun
+
 	err = json.Unmarshal(reportBytes, &reportData)
 	require.NoError(t, err)
 
@@ -1071,6 +1090,7 @@ func TestSchemaIsValid(t *testing.T) {
 				return &run
 			}
 		}
+
 		return nil
 	}
 
@@ -1136,10 +1156,7 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 			setup: func(r *report.Report) {
 				// No runs added
 			},
-			expected: `
-❯❯ Run Summary  0 units  x
-   ────────────────────────────
-`,
+			expected: ``,
 		},
 		{
 			name: "single run",
@@ -1276,6 +1293,7 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 			tt.setup(r)
 
 			var buf bytes.Buffer
+
 			err := r.WriteSummary(&buf)
 			require.NoError(t, err)
 

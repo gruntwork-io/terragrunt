@@ -1,12 +1,15 @@
 ---
 import '@styles/global.css';
 import { Image } from 'astro:assets';
+import { ArrowRight } from 'lucide-react';
 
 import BackgroundPattern from '@assets/boxes-bg.svg';
 import DriftIcon from '@assets/icons/drift-icon.svg';
+import grunty from '@assets/grunty/grunty.svg';
 import IconPipelines from '@assets/icons/ci-cd-icon.svg';
 import PatcherIcon from '@assets/icons/patcher-icon.svg';
-import grunty from '@assets/grunty/grunty.svg';
+
+import ButtonLink from '@components/ui/ButtonLink';
 
 const TerragruntScaleLink = '/terragrunt-scale';
 ---
@@ -36,7 +39,7 @@ const TerragruntScaleLink = '/terragrunt-scale';
                 </p>
             </div>
             <!-- Wrapper -->
-            <div class="flex flex-col md:flex-row px-8 gap-8">
+            <div class="flex flex-col md:flex-row px-8 gap-8 lg:px-20 lg:gap-20">
 
                 <!-- Item -->
                 <div class="flex flex-col gap-6 z-30 w-full md:w-1/3">
@@ -92,12 +95,10 @@ const TerragruntScaleLink = '/terragrunt-scale';
                 </div>
             </div>
             <div class="relative mt-12 px-5 md:px-12 lg:px-8">
-              <a href={TerragruntScaleLink} class="primary-button inline-flex items-center gap-1 w-auto self-start">
+              <ButtonLink href={TerragruntScaleLink} variant="primary">
                 <span>Learn about Terragrunt Scale</span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
-                </svg>
-              </a>
+                <ArrowRight className="inline-block ml-1 transform translate-y-0.75 -translate-x-0.75 w-4 h-4" aria-label="External link icon" />
+              </ButtonLink>
             </div>
         </div>
     </div>

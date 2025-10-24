@@ -1,0 +1,22 @@
+---
+interface Props {
+  url: string;
+}
+
+const { url } = Astro.props;
+---
+
+<section>
+    <div class="relative flex flex-col bg-[#FAFAFA] md:w-[680px] lg:w-[900px] mx-5 md:mx-auto border-6 rounded-xl border-gray-border">
+      <div class="mx-auto w-full z-10 overflow-hidden aspect-video px-4 my-2">
+        <iframe
+          src=`${url}`
+          allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+          class="w-full h-full aspect-video"
+          referrerpolicy="strict-origin-when-cross-origin"
+          width="100%"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+</section>

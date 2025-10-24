@@ -38,9 +38,22 @@
   min-height: 600px;
 }
 
+#contact-form ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+#contact-form ul, #contact-form li {
+  margin-top: 0;
+}
+
 #contact-form form.hs-form label {
   color: #d6d7db;
   padding-left: 10px;
+}
+
+#contact-form label.hs-error-msg {
+  color: #ff6b6b !important;
 }
 
 #contact-form form.hs-form input,
@@ -85,6 +98,7 @@
   background-color: #49b8d0;
   background-image: radial-gradient(circle,#87e0e1,#48b7d0);
   color: #191c35;
+  cursor: pointer;
   padding: 10px 12px;
   width: 100%;
 }
@@ -97,4 +111,10 @@ div.submitted-message {
   justify-content: center;
   min-height: 600px;
   text-align: center;
+}
+
+/* Contact Landing Pages */
+
+.hs_landing_page_url {
+  display: none !important;
 }

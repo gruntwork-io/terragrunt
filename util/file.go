@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -224,6 +225,104 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
+func FindTFFiles(rootPath string) ([]string, error) {
+	var terraformFiles []string
+
+	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if IsTFFile(path) {
+			terraformFiles = append(terraformFiles, path)
+		}
+
+		return nil
+	})
+
+	return terraformFiles, err
+}
+
+// RegexFoundInTFFiles walks through the directory and checks if any OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json) contain the given regex pattern
+func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error) {
+	var found bool
+
+	err := filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !IsTFFile(path) {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if pattern.Match(content) {
+			found = true
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	return found, err
+}
+
+// DirContainsTFFiles checks if the given directory contains any Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
+func DirContainsTFFiles(dirPath string) (bool, error) {
+	var found bool
+
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if IsTFFile(path) {
+			found = true
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	return found, err
+}
+
+// IsTFFile checks if a given file is a Terraform/OpenTofu file (.tf, .tofu, .tf.json, .tofu.json)
+func IsTFFile(path string) bool {
+	suffixes := []string{
+		".tf",
+		".tofu",
+		".tf.json",
+		".tofu.json",
+	}
+
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IsDir returns true if the path points to a directory.
@@ -917,7 +1016,6 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 			}
 		}),
 	)
-
 	if err != nil {
 		err = errors.New(err)
 	}
@@ -1024,6 +1122,110 @@ func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
 	}
 
 	return realPath, realInfo, nil
+}
+
+// evalRealPathForWalkDir evaluates symlinks and returns the real path and whether it's a directory.
+func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
+	realPath, err := filepath.EvalSymlinks(currentPath)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
+	}
+
+	realInfo, err := os.Stat(realPath)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to describe file %s: %w", realPath, err)
+	}
+
+	return realPath, realInfo.IsDir(), nil
+}
+
+// WalkDirWithSymlinks traverses a directory tree using filepath.WalkDir, following symbolic links
+// and calling the provided function for each file or directory encountered. It handles both regular
+// symlinks and circular symlinks without getting into infinite loops.
+//
+// This function is similar to WalkWithSymlinks but uses the newer filepath.WalkDir API which
+// accepts fs.DirEntry instead of os.FileInfo.
+//
+//nolint:funlen
+func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
+	// pathPair keeps track of both the physical (real) path on disk
+	// and the logical path (how it appears in the walk)
+	type pathPair struct {
+		physical string
+		logical  string
+	}
+
+	// visited tracks symlink paths to prevent circular references
+	// key is combination of realPath:symlinkPath
+	visited := make(map[string]bool)
+
+	// visitedLogical tracks logical paths to prevent duplicates
+	// when the same directory is reached through different symlinks
+	visitedLogical := make(map[string]bool)
+
+	var walkFn func(pathPair) error
+
+	walkFn = func(pair pathPair) error {
+		return filepath.WalkDir(pair.physical, func(currentPath string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return externalWalkFn(currentPath, d, err)
+			}
+
+			// Convert the current physical path to a logical path relative to the walk root
+			rel, err := filepath.Rel(pair.physical, currentPath)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+			}
+
+			logicalPath := filepath.Join(pair.logical, rel)
+
+			// Call the provided function only if we haven't seen this logical path before
+			if !visitedLogical[logicalPath] {
+				visitedLogical[logicalPath] = true
+
+				if err := externalWalkFn(logicalPath, d, nil); err != nil {
+					return err
+				}
+			}
+
+			// If we encounter a symlink, resolve and follow it
+			if d.Type()&fs.ModeSymlink != 0 {
+				realPath, isDir, evalErr := evalRealPathForWalkDir(currentPath)
+				if evalErr != nil {
+					return evalErr
+				}
+
+				// Skip if we've seen this symlink->target combination before
+				// This prevents infinite loops with circular symlinks
+				if visited[realPath+":"+currentPath] {
+					return nil
+				}
+
+				visited[realPath+":"+currentPath] = true
+
+				// If the target is a directory, recursively walk it
+				if isDir {
+					return walkFn(pathPair{
+						physical: realPath,
+						logical:  logicalPath,
+					})
+				}
+			}
+
+			return nil
+		})
+	}
+
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	}
+
+	// Start the walk from the root directory
+	return walkFn(pathPair{
+		physical: realRoot,
+		logical:  realRoot,
+	})
 }
 
 // SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts

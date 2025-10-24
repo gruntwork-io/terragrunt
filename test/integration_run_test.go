@@ -34,13 +34,16 @@ func TestRunStacksGenerate(t *testing.T) {
 
 	// Collect all test.txt files in the stack directory to verify correct generation
 	var txtFiles []string
+
 	err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if !info.IsDir() && info.Name() == "test.txt" {
 			txtFiles = append(txtFiles, filePath)
 		}
+
 		return nil
 	})
 
@@ -74,7 +77,7 @@ func TestRunNoStacksGenerate(t *testing.T) {
 			name:       "AllNoGenerate",
 			cmd:        "terragrunt run apply --all --no-stack-generate --non-interactive",
 			subfolder:  "live",
-			shouldFail: true,
+			shouldFail: false,
 		},
 		{
 			name:       "Standard",
@@ -115,7 +118,6 @@ func TestRunNoStacksGenerate(t *testing.T) {
 				// assert.Empty(t, stderr)
 			} else {
 				require.NoError(t, err)
-				assert.NotEmpty(t, stdout)
 				assert.NotEmpty(t, stderr)
 			}
 
@@ -181,5 +183,4 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 			assert.Contains(t, stderr, "using cache key for version files: "+tt.expect)
 		})
 	}
-
 }

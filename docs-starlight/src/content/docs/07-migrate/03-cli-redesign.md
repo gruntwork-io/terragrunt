@@ -65,63 +65,65 @@ You can find the new flag names in the [CLI reference](/docs/reference/cli/) (in
 
 Below is a comprehensive mapping of old CLI flag names to their modern counterparts:
 
-| Old Flag                                          | New Flag                               |
-| ------------------------------------------------- | -------------------------------------- |
-| `--terragrunt-check`                              | `--check`                              |
-| `--terragrunt-config`                             | `--config`                             |
-| `--terragrunt-debug`                              | `--inputs-debug`                       |
-| `--terragrunt-diff`                               | `--diff`                               |
-| `--terragrunt-disable-bucket-update`              | `--disable-bucket-update`              |
-| `--terragrunt-disable-command-validation`         | `--disable-command-validation`         |
-| `--terragrunt-download-dir`                       | `--download-dir`                       |
-| `--terragrunt-exclude-dir`                        | `--queue-exclude-dir`                  |
-| `--terragrunt-excludes-file`                      | `--queue-excludes-file`                |
-| `--terragrunt-fail-on-state-bucket-creation`      | `--backend-require-bootstrap`          |
-| `--terragrunt-fetch-dependency-output-from-state` | `--dependency-fetch-output-from-state` |
-| `--terragrunt-forward-tf-stdout`                  | `--tf-forward-stdout`                  |
-| `--terragrunt-hclfmt-exclude-dir`                 | `--exclude-dir`                        |
-| `--terragrunt-hclfmt-file`                        | `--file`                               |
-| `--terragrunt-hclfmt-stdin`                       | `--stdin`                              |
-| `--terragrunt-hclvalidate-json`                   | `--json`                               |
-| `--terragrunt-hclvalidate-show-config-path`       | `--show-config-path`                   |
-| `--terragrunt-iam-assume-role-duration`           | `--iam-assume-role-duration`           |
-| `--terragrunt-iam-role`                           | `--iam-assume-role`                    |
-| `--terragrunt-iam-web-identity-token`             | `--iam-assume-role-web-identity-token` |
-| `--terragrunt-ignore-dependency-errors`           | `--queue-ignore-errors`                |
-| `--terragrunt-ignore-dependency-order`            | `--queue-ignore-dag-order`             |
-| `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external`             |
-| `--terragrunt-include-dir`                        | `--queue-include-dir`                  |
-| `--terragrunt-include-external-dependencies`      | `--queue-include-external`             |
-| `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules`          |
-| `--terragrunt-json-out-dir`                       | `--json-out-dir`                       |
-| `--terragrunt-json-out`                           | `--out`                                |
-| `--terragrunt-log-custom-format`                  | `--log-custom-format`                  |
-| `--terragrunt-log-disable`                        | `--log-disable`                        |
-| `--terragrunt-log-format`                         | `--log-format`                         |
-| `--terragrunt-log-level`                          | `--log-level`                          |
-| `--terragrunt-log-show-abs-paths`                 | `--log-show-abs-paths`                 |
-| `--terragrunt-modules-that-include`               | `--units-that-include`                 |
-| `--terragrunt-no-auto-approve`                    | `--no-auto-approve`                    |
-| `--terragrunt-no-auto-init`                       | `--no-auto-init`                       |
-| `--terragrunt-no-auto-retry`                      | `--no-auto-retry`                      |
-| `--terragrunt-no-color`                           | `--no-color`                           |
-| `--terragrunt-no-destroy-dependencies-check`      | `--no-destroy-dependencies-check`      |
-| `--terragrunt-out-dir`                            | `--out-dir`                            |
-| `--terragrunt-parallelism`                        | `--parallelism`                        |
-| `--terragrunt-provider-cache-dir`                 | `--provider-cache-dir`                 |
-| `--terragrunt-provider-cache-hostname`            | `--provider-cache-hostname`            |
-| `--terragrunt-provider-cache-port`                | `--provider-cache-port`                |
-| `--terragrunt-provider-cache-registry-names`      | `--provider-cache-registry-names`      |
-| `--terragrunt-provider-cache-token`               | `--provider-cache-token`               |
-| `--terragrunt-provider-cache`                     | `--provider-cache`                     |
-| `--terragrunt-queue-include-units-reading`        | `--queue-include-units-reading`        |
-| `--terragrunt-source-map`                         | `--source-map`                         |
-| `--terragrunt-source-update`                      | `--source-update`                      |
-| `--terragrunt-source`                             | `--source`                             |
-| `--terragrunt-strict-include`                     | `--queue-strict-include`               |
-| `--terragrunt-strict-validate`                    | `--strict-validate`                    |
-| `--terragrunt-use-partial-parse-config-cache`     | `--use-partial-parse-config-cache`     |
-| `--terragrunt-working-dir`                        | `--working-dir`                        |
+| Old Flag                                          | New Flag                                                  |
+|---------------------------------------------------|-----------------------------------------------------------|
+| `--terragrunt-check`                              | `--check`                                                 |
+| `--terragrunt-config`                             | `--config`                                                |
+| `--terragrunt-debug`                              | `--inputs-debug`                                          |
+| `--terragrunt-diff`                               | `--diff`                                                  |
+| `--terragrunt-disable-bucket-update`              | `--disable-bucket-update`                                 |
+| `--terragrunt-disable-command-validation`         | `--disable-command-validation`                            |
+| `--terragrunt-download-dir`                       | `--download-dir`                                          |
+| `--terragrunt-exclude-dir`                        | `--queue-exclude-dir`                                     |
+| `--terragrunt-excludes-file`                      | `--queue-excludes-file`                                   |
+| `--terragrunt-fail-on-state-bucket-creation`      | removed (no equivalent; backend provisioning is explicit) |
+| `--terragrunt-fetch-dependency-output-from-state` | `--dependency-fetch-output-from-state`                    |
+| `--terragrunt-forward-tf-stdout`                  | `--tf-forward-stdout`                                     |
+| `--terragrunt-hclfmt-exclude-dir`                 | `--exclude-dir`                                           |
+| `--terragrunt-hclfmt-file`                        | `--file`                                                  |
+| `--terragrunt-hclfmt-stdin`                       | `--stdin`                                                 |
+| `--terragrunt-hclvalidate-json`                   | `--json`                                                  |
+| `--terragrunt-hclvalidate-show-config-path`       | `--show-config-path`                                      |
+| `--terragrunt-iam-assume-role-duration`           | `--iam-assume-role-duration`                              |
+| `--terragrunt-iam-role`                           | `--iam-assume-role`                                       |
+| `--terragrunt-iam-web-identity-token`             | `--iam-assume-role-web-identity-token`                    |
+| `--terragrunt-ignore-dependency-errors`           | `--queue-ignore-errors`                                   |
+| `--terragrunt-ignore-dependency-order`            | `--queue-ignore-dag-order`                                |
+| `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external`                                |
+| `--terragrunt-include-dir`                        | `--queue-include-dir`                                     |
+| `--terragrunt-include-external-dependencies`      | `--queue-include-external`                                |
+| `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules`                             |
+| `--terragrunt-json-out-dir`                       | `--json-out-dir`                                          |
+| `--terragrunt-json-out`                           | `--out`                                                   |
+| `--terragrunt-log-custom-format`                  | `--log-custom-format`                                     |
+| `--terragrunt-log-disable`                        | `--log-disable`                                           |
+| `--terragrunt-log-format`                         | `--log-format`                                            |
+| `--terragrunt-log-level`                          | `--log-level`                                             |
+| `--terragrunt-log-show-abs-paths`                 | `--log-show-abs-paths`                                    |
+| `--terragrunt-modules-that-include`               | `--units-that-include`                                    |
+| `--terragrunt-no-auto-approve`                    | `--no-auto-approve`                                       |
+| `--terragrunt-no-auto-init`                       | `--no-auto-init`                                          |
+| `--terragrunt-no-auto-retry`                      | `--no-auto-retry`                                         |
+| `--terragrunt-no-color`                           | `--no-color`                                              |
+| `--terragrunt-no-destroy-dependencies-check`      | `--no-destroy-dependencies-check`                         |
+| `--terragrunt-out-dir`                            | `--out-dir`                                               |
+| `--terragrunt-parallelism`                        | `--parallelism`                                           |
+| `--terragrunt-provider-cache-dir`                 | `--provider-cache-dir`                                    |
+| `--terragrunt-provider-cache-hostname`            | `--provider-cache-hostname`                               |
+| `--terragrunt-provider-cache-port`                | `--provider-cache-port`                                   |
+| `--terragrunt-provider-cache-registry-names`      | `--provider-cache-registry-names`                         |
+| `--terragrunt-provider-cache-token`               | `--provider-cache-token`                                  |
+| `--terragrunt-provider-cache`                     | `--provider-cache`                                        |
+| `--terragrunt-queue-include-units-reading`        | `--queue-include-units-reading`                           |
+| `--terragrunt-source-map`                         | `--source-map`                                            |
+| `--terragrunt-source-update`                      | `--source-update`                                         |
+| `--terragrunt-source`                             | `--source`                                                |
+| `--terragrunt-strict-include`                     | `--queue-strict-include`                                  |
+| `--terragrunt-strict-validate`                    | `--strict-validate`                                       |
+| `--terragrunt-tfpath`                             | `--tf-path`                                               |
+| `--terragrunt-use-partial-parse-config-cache`     | `--use-partial-parse-config-cache`                        |
+| `--terragrunt-working-dir`                        | `--working-dir`                                           |
+| `--terragrunt-non-interactive`                    | `--non-interactive`                                       |
 
 ### Update environment variables
 
@@ -161,6 +163,12 @@ You can find the new environment variable names in the [CLI reference](/docs/ref
 
 ### Use the new `run` command
 
+Default behavior change (v0.88.0): Terragrunt no longer forwards unknown commands to OpenTofu/Terraform by default. If you previously ran commands like `terragrunt workspace ls`, use the explicit `run` form instead:
+
+```bash
+terragrunt run -- workspace ls
+```
+
 The `run` command has been introduced to the CLI to handle the responsibility currently held by the default command in Terragrunt.
 
 If you want to tell Terragrunt that what you are running is a command in the orchestrated IaC tool (OpenTofu/Terraform), you can use the `run` command to explicitly indicate this.
@@ -191,10 +199,10 @@ The commands that will not receive shortcuts are OpenTofu/Terraform commands tha
 
 For example, the `workspace` command will not receive a shortcut, as you are encouraged not to use workspaces when working with Terragrunt. Terragrunt manages state isolation for you, so you don't need to use them.
 
-If you would like to explicitly run a command that does not have a shortcut, you can use the `run` command to do so:
+If you would like to explicitly run a command that does not have a shortcut, you can use the `run` command to do so. We recommend separating Terragrunt flags from OpenTofu/Terraform arguments with `--`:
 
 ```bash
-terragrunt run workspace ls
+terragrunt run -- workspace ls
 ```
 
 Similarly, commands like `graph` won't be supported as a shortcut, as `graph` is a now deprecated command in the Terragrunt CLI. Supporting it as a shortcut would be misleading, so you can use the `run` command to run it explicitly:
@@ -206,7 +214,7 @@ terragrunt run graph
 You might want to explicitly indicate that the flag you are using is one for OpenTofu/Terraform, and not a Terragrunt flag. To do this, you can use the `--` argument to explicitly separate the Terragrunt flags from the OpenTofu/Terraform flags:
 
 ```bash
-terragrunt run  -- apply -auto-approve
+terragrunt run -- apply -auto-approve
 ```
 
 This usually isn't necessary, except when combining a complicated series of flags and arguments, which can be difficult to parse for the CLI.

@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 Terragrunt HCL configuration uses [attributes](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#attribute-definitions) when there are values that need to be defined for Terragrunt as a whole.
 
@@ -112,7 +112,7 @@ Variables loaded in OpenTofu/Terraform will consequently use the following prece
 
 The terragrunt `download_dir` string option can be used to override the default download directory.
 
-The precedence is as follows: `--download-dir` command line option → `TG_DOWNLOAD` env variable →
+The precedence is as follows: `--download-dir` command line option → `TG_DOWNLOAD_DIR` env variable →
 `download_dir` attribute of the `terragrunt.hcl` file in the module directory → `download_dir` attribute of the included
 `terragrunt.hcl`.
 
@@ -177,7 +177,7 @@ explicitly redefined in the current's module `terragrunt.hcl` file.
 
 The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume before invoking OpenTofu/Terraform.
 
-The precedence is as follows: `--iam-role` command line option → `TG_IAM_ASSUME_ROLE` env variable →
+The precedence is as follows: `--iam-assume-role` command line option → `TG_IAM_ASSUME_ROLE` env variable →
 `iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included
 `terragrunt.hcl`.
 
@@ -222,11 +222,11 @@ The precedence is as follows: `--iam-assume-role-session-name` command line opti
 
 The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
 
-The precedence is as follows: `--iam-web-identity-token` command line option → `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+The precedence is as follows: `--iam-assume-role-web-identity-token` command line option → `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
-The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines wihthout static AWS credentials.
+The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines without static AWS credentials.
 
 ### Git Provider Configuration
 

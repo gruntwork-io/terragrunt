@@ -12,8 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
@@ -62,58 +61,98 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	parseOptions := []hclparse.Option{
 		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			for _, hclDiag := range hclDiags {
+				// Only report diagnostics that are actually in the file being parsed,
+				// not errors from dependencies or other files
+				if hclDiag.Subject != nil && file != nil {
+					fileFilename := file.Body.MissingItemRange().Filename
+
+					diagFilename := hclDiag.Subject.Filename
+					if diagFilename != fileFilename {
+						continue
+					}
+				}
+
 				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
 				if !diags.Contains(newDiag) {
 					diags = append(diags, newDiag)
 				}
 			}
+
 			return nil, nil
 		}),
 	}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-		_, err := config.ReadTerragruntConfig(ctx, l, opts, parseOptions)
-		return err
-	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
+	// Discover Terragrunt configurations and validate by parsing them directly
+	d := discovery.NewDiscovery(opts.WorkingDir).WithParserOptions(parseOptions)
+
+	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
+		return processDiagnostics(l, opts, diags, err)
+	}
+
+	parseErrs := []error{}
+
+	for _, c := range components {
+		parseOpts := opts.Clone()
+		parseOpts.WorkingDir = c.Path
+
+		// Determine which config filename to use for a full parse
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		parseOpts.TerragruntConfigPath = filepath.Join(c.Path, configFilename)
+
+		if _, err := config.ReadTerragruntConfig(ctx, l, parseOpts, parseOptions); err != nil {
+			parseErrs = append(parseErrs, errors.New(err))
+		}
+	}
+
+	var combinedErr error
+	if len(parseErrs) > 0 {
+		combinedErr = errors.Join(parseErrs...)
+	}
+
+	return processDiagnostics(l, opts, diags, combinedErr)
+}
+
+func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+	if len(diags) == 0 {
+		return callErr
+	}
+
+	sort.Slice(diags, func(i, j int) bool {
+		var a, b string
+
+		if diags[i].Range != nil {
+			a = diags[i].Range.Filename
+		}
+
+		if diags[j].Range != nil {
+			b = diags[j].Range.Filename
+		}
+
+		return a < b
+	})
+
+	if err := writeDiagnostics(l, opts, diags); err != nil {
 		return err
 	}
 
-	stackErr := stack.Run(ctx, l, opts)
+	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
 
-	if len(diags) > 0 {
-		sort.Slice(diags, func(i, j int) bool {
-			var a, b string
-
-			if diags[i].Range != nil {
-				a = diags[i].Range.Filename
-			}
-
-			if diags[j].Range != nil {
-				b = diags[j].Range.Filename
-			}
-
-			return a < b
-		})
-
-		if err := writeDiagnostics(l, opts, diags); err != nil {
-			return err
-		}
-
-		// If there were diagnostics and stackErr is currently nil,
-		// create a new error to signal overall validation failure.
-		//
-		// This also ensures a non-zero exit code is returned by Terragrunt.
-		if stackErr == nil {
-			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
-		}
+	// If diagnostics exist and no other error was returned,
+	// return a synthetic error to mark validation as failed and
+	// ensure a non-zero exit code from Terragrunt.
+	if callErr == nil {
+		return diagError
 	}
 
-	return stackErr
+	return errors.Join(callErr, diagError)
 }
 
 func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {

@@ -12,6 +12,7 @@ import (
 
 func TestIsOfflineError(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		err      error
 		desc     string
@@ -29,6 +30,7 @@ func TestIsOfflineError(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
+
 			result := handlers.IsOfflineError(tc.err)
 			assert.Equal(t, tc.expected, result, "Expected result for %v is %v", tc.desc, tc.expected)
 		})

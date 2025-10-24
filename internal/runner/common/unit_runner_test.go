@@ -30,6 +30,7 @@ func newMockUnit() *common.Unit {
 
 func TestNewUnitRunner(t *testing.T) {
 	t.Parallel()
+
 	unit := newMockUnit()
 	runner := common.NewUnitRunner(unit)
 	assert.Equal(t, unit, runner.Unit)
@@ -59,7 +60,9 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 		},
 	}
 	runner := common.NewUnitRunner(unit)
-	report := &report.Report{}
+	path := t.TempDir()
+	unit.Path = path
+	report := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
 	require.Error(t, err)
 	assert.Equal(t, common.Running, runner.Status)
@@ -76,8 +79,10 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 			return nil
 		},
 	}
+	path := t.TempDir()
+	unit.Path = path
 	runner := common.NewUnitRunner(unit)
-	report := &report.Report{}
+	report := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
 	require.NoError(t, err)
 	assert.Equal(t, common.Running, runner.Status)

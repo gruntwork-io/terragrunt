@@ -153,6 +153,7 @@ func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T
 		if val, ok := envs[key]; ok {
 			return flag.Splitter(val, flag.EnvVarSep)
 		}
+
 		return nil
 	}
 
@@ -167,11 +168,13 @@ func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T
 		require.Equal(t, expectedErr, err)
 		return
 	}
+
 	require.NoError(t, err)
 
 	if !destDefined {
 		actualValue = (flag.Value().Get()).([]T)
 	}
+
 	assert.Equal(t, expectedValue, actualValue)
 
 	expectedStringValueFn := func(value []T) string {

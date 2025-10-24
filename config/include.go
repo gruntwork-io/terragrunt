@@ -251,6 +251,14 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		cfg.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
+	if sourceConfig.IamAssumeRoleSessionName != "" {
+		cfg.IamAssumeRoleSessionName = sourceConfig.IamAssumeRoleSessionName
+	}
+
+	if sourceConfig.IamWebIdentityToken != "" {
+		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
+	}
+
 	if sourceConfig.TerraformVersionConstraint != "" {
 		cfg.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
@@ -381,6 +389,14 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
+	if sourceConfig.IamAssumeRoleSessionName != "" {
+		cfg.IamAssumeRoleSessionName = sourceConfig.IamAssumeRoleSessionName
+	}
+
+	if sourceConfig.IamWebIdentityToken != "" {
+		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
+	}
+
 	if sourceConfig.TerraformVersionConstraint != "" {
 		cfg.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
@@ -473,7 +489,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
-
 	if err != nil {
 		return err
 	}
@@ -481,7 +496,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	cfg.TerragruntDependencies = mergedDeps
 
 	mergedFlags, err := deepMergeFeatureBlocks(cfg.FeatureFlags, sourceConfig.FeatureFlags)
-
 	if err != nil {
 		return err
 	}

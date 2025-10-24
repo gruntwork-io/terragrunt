@@ -31,6 +31,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/mattn/go-shellwords"
 
 	"os"
 	"path/filepath"
@@ -171,11 +172,15 @@ func UniqueID() string {
 }
 
 // CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.Client {
+func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.TerragruntOptionsFunc) *s3.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
 	require.NoError(t, err, "Error creating mockOptions")
+
+	for _, opt := range opts {
+		opt(mockOptions)
+	}
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
@@ -208,7 +213,7 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
 	t.Helper()
 
-	client := CreateS3ClientForTest(t, awsRegion)
+	client := CreateS3ClientForTest(t, awsRegion, opts...)
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
@@ -590,6 +595,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
+
 	defer zipFile.Close()
 
 	zipWriter := zip.NewWriter(zipFile)
@@ -905,10 +911,20 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntCommandWithContext(
+	t *testing.T,
+	ctx context.Context,
+	command string,
+	writer,
+	errwriter io.Writer,
+	extraArgs ...string,
+) error {
 	t.Helper()
 
-	args := splitCommand(command)
+	parser := shellwords.NewParser()
+
+	args, err := parser.Parse(command)
+	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
 		var builtinCmd []string
@@ -1062,39 +1078,6 @@ func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 	CopyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	return childTerragruntDestPath
-}
-
-func splitCommand(command string) []string {
-	var (
-		next   int
-		quoted byte
-		args   []string
-	)
-
-	for index := range len(command) {
-		char := command[index]
-
-		if char == '"' || char == '\'' {
-			if quoted == 0 {
-				quoted = char
-			} else if quoted == char && index > 0 && command[index-1] != '\\' {
-				quoted = 0
-			}
-		}
-
-		if quoted != 0 || char != ' ' {
-			continue
-		}
-
-		arg := strings.TrimSpace(command[next:index])
-		next = index + 1
-
-		if arg != "" {
-			args = append(args, arg)
-		}
-	}
-
-	return append(args, command[next:])
 }
 
 func IsTerragruntProviderCacheEnabled(t *testing.T) bool {

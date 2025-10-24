@@ -183,7 +183,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return nil
 	}
 
-	prompt := fmt.Sprintf("Remote state S3 bucket %s is res of date. Would you like Terragrunt to update it?", bucketName)
+	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", bucketName)
 
 	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
@@ -464,7 +464,6 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	l.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", cfg.Bucket)
 
 	err := client.CreateS3Bucket(ctx, l, cfg.Bucket)
-
 	if err != nil {
 		if accessError := client.checkBucketAccess(ctx, cfg.Bucket, cfg.Key); accessError != nil {
 			return accessError
@@ -1388,7 +1387,6 @@ func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableNa
 	}
 
 	createTableOutput, err := client.dynamoClient.CreateTable(ctx, input)
-
 	if err != nil {
 		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
 			l.Debugf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
@@ -1398,7 +1396,6 @@ func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableNa
 	}
 
 	err = client.waitForTableToBeActive(ctx, l, tableName, MaxRetriesWaitingForTableToBeActive, SleepBetweenTableStatusChecks)
-
 	if err != nil {
 		return err
 	}
@@ -1406,7 +1403,6 @@ func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableNa
 	if createTableOutput != nil && createTableOutput.TableDescription != nil && createTableOutput.TableDescription.TableArn != nil {
 		// Do not tag in case somebody else had created the table
 		err = client.tagTableIfTagsGiven(ctx, l, tags, createTableOutput.TableDescription.TableArn)
-
 		if err != nil {
 			return errors.New(err)
 		}
@@ -1483,6 +1479,7 @@ func (client *Client) DeleteTable(ctx context.Context, l log.Logger, tableName s
 // updated by someone else
 func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 	var apiErr smithy.APIError
+
 	ok := errors.As(err, &apiErr)
 
 	return ok && apiErr.ErrorCode() == "ResourceInUseException"

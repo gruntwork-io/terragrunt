@@ -25,7 +25,7 @@ const (
 	testFixtureRemoteDownloadPath                     = "fixtures/download/remote"
 	testFixtureInvalidRemoteDownloadPath              = "fixtures/download/remote-invalid"
 	testFixtureInvalidRemoteDownloadPathWithRetries   = "fixtures/download/remote-invalid-with-retries"
-	testFixtureOverrideDonwloadPath                   = "fixtures/download/override"
+	testFixtureOverrideDownloadPath                   = "fixtures/download/override"
 	testFixtureLocalRelativeDownloadPath              = "fixtures/download/local-relative"
 	testFixtureRemoteRelativeDownloadPath             = "fixtures/download/remote-relative"
 	testFixtureRemoteRelativeDownloadPathWithSlash    = "fixtures/download/remote-relative-with-slash"
@@ -166,6 +166,7 @@ func TestInvalidRemoteDownload(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureInvalidRemoteDownloadPath)
+
 	applyStdout := bytes.Buffer{}
 	applyStderr := bytes.Buffer{}
 
@@ -175,27 +176,22 @@ func TestInvalidRemoteDownload(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, applyStderr, "apply stderr")
 
 	require.Error(t, err)
+
 	errMessage := "downloading source url"
 	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
-
 }
 
 func TestInvalidRemoteDownloadWithRetries(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureInvalidRemoteDownloadPathWithRetries)
-	applyStdout := bytes.Buffer{}
-	applyStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureInvalidRemoteDownloadPathWithRetries, &applyStdout, &applyStderr)
-
-	helpers.LogBufferContentsLineByLine(t, applyStdout, "apply stdout")
-	helpers.LogBufferContentsLineByLine(t, applyStderr, "apply stderr")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureInvalidRemoteDownloadPathWithRetries)
 
 	require.Error(t, err)
+
 	errMessage := "max retry attempts (2) reached for error"
 	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
-
 }
 
 func TestRemoteDownloadWithRelativePath(t *testing.T) {
@@ -223,12 +219,12 @@ func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 func TestRemoteDownloadOverride(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureOverrideDonwloadPath)
+	helpers.CleanupTerraformFolder(t, testFixtureOverrideDownloadPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDonwloadPath, "../hello-world"))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDownloadPath, "../hello-world"))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDonwloadPath, "../hello-world"))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", testFixtureOverrideDownloadPath, "../hello-world"))
 }
 
 func TestRemoteWithModuleInRoot(t *testing.T) {
@@ -303,9 +299,9 @@ func TestExcludeDirs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		opts, err := options.NewTerragruntOptionsForTest("running_module_test")
 		require.NoError(t, err)
+
 		doubleStarDefaultEnabled := opts.StrictControls.FilterByNames("double-star").Evaluate(t.Context()) != nil
 		if doubleStarDefaultEnabled && !tc.enableDoubleStar {
 			t.Skip("Skipping test because double-star is already enabled by default")
@@ -316,6 +312,7 @@ func TestExcludeDirs(t *testing.T) {
 
 		// Cleanup all modules directories.
 		helpers.CleanupTerragruntFolder(t, testFixtureLocalWithExcludeDir)
+
 		for _, modulePath := range modulePaths {
 			helpers.CleanupTerragruntFolder(t, modulePath)
 		}
@@ -325,6 +322,7 @@ func TestExcludeDirs(t *testing.T) {
 		if !doubleStarDefaultEnabled && tc.enableDoubleStar {
 			strictControl = "--strict-control double-star"
 		}
+
 		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", tc.workingDir, tc.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
@@ -344,11 +342,11 @@ func TestExcludeDirs(t *testing.T) {
 			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
 			require.NoError(t, err)
+
 			output := showStdout.String()
 			for _, excludedModuleOutput := range tc.excludedModuleOutputs {
 				assert.NotContains(t, output, excludedModuleOutput)
 			}
-
 		}
 	}
 }
@@ -387,6 +385,7 @@ func TestIncludeDirs(t *testing.T) {
 
 		// Cleanup all modules directories.
 		helpers.CleanupTerragruntFolder(t, testFixtureLocalWithIncludeDir)
+
 		for _, modulePath := range modulePaths {
 			helpers.CleanupTerragruntFolder(t, modulePath)
 		}
@@ -411,11 +410,11 @@ func TestIncludeDirs(t *testing.T) {
 			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
 			require.NoError(t, err)
+
 			output := showStdout.String()
 			for _, includedModuleOutput := range tc.includedModuleOutputs {
 				assert.NotContains(t, output, includedModuleOutput)
 			}
-
 		}
 	}
 }
@@ -430,6 +429,7 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	}
 
 	tmpPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+
 	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
@@ -457,6 +457,7 @@ func TestIncludeDirsStrict(t *testing.T) {
 	tmpPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
 	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	helpers.CleanupTerragruntFolder(t, testPath)
+
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
@@ -480,6 +481,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureExternalDependence)
+
 	for _, module := range modules {
 		helpers.CleanupTerraformFolder(t, util.JoinPath(testFixtureExternalDependence, module))
 	}
@@ -495,6 +497,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --queue-include-external --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
+
 	applyAllStdoutString := applyAllStdout.String()
 
 	if err != nil {
@@ -549,6 +552,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		"module-d",
 		"module-e",
 	}
+
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
 		modulePaths[moduleName] = util.JoinPath(testFixtureLocalPreventDestroyDependencies, moduleName)
@@ -556,6 +560,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 
 	// Cleanup all modules directories.
 	helpers.CleanupTerraformFolder(t, testFixtureLocalPreventDestroyDependencies)
+
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerraformFolder(t, modulePath)
 	}
@@ -597,7 +602,9 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
 		require.NoError(t, err)
+
 		output := showStdout.String()
+
 		switch moduleName {
 		case "module-a":
 			assert.Contains(t, output, "Hello, Module A")
@@ -623,8 +630,10 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testPath)
 
 	// Run with CAS experiment enabled
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
 	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
@@ -646,8 +655,10 @@ func TestCASStorageDirectory(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
 	cmd := "terragrunt plan --experiment cas --working-dir " + testPath
 	_ = helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)

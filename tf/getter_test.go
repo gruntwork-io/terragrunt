@@ -142,6 +142,7 @@ func TestTFRGetterSubModule(t *testing.T) {
 
 func TestBuildRequestUrlFullPath(t *testing.T) {
 	t.Parallel()
+
 	requestURL, err := tf.BuildRequestURL("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
 	require.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestURL.String())
@@ -149,8 +150,8 @@ func TestBuildRequestUrlFullPath(t *testing.T) {
 
 func TestBuildRequestUrlRelativePath(t *testing.T) {
 	t.Parallel()
+
 	requestURL, err := tf.BuildRequestURL("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
 	require.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestURL.String())
-
 }
