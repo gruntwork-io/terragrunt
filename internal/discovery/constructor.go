@@ -95,8 +95,7 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
 func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
-	d := NewDiscovery(opts.WorkingDir).
-		WithSuppressParseErrors()
+	d := NewDiscovery(opts.WorkingDir)
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)

@@ -12,9 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
@@ -84,19 +82,25 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}),
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return runValidateWithDiscovery(ctx, l, opts, parseOptions)
-	}
-
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	// Discover Terragrunt configurations and validate by parsing them directly
-	d := discovery.NewDiscovery(opts.WorkingDir).WithParserOptions(parseOptions)
+	// Create discovery with filter support if experiment enabled
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return processDiagnostics(l, opts, diags, errors.New(err))
+	}
+
+	// Apply parse options to discovery
+	d = d.WithParserOptions(parseOptions)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return processDiagnostics(l, opts, diags, err)
+		return processDiagnostics(l, opts, diags, errors.New(err))
 	}
 
 	parseErrs := []error{}
@@ -159,45 +163,6 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 	}
 
 	return errors.Join(callErr, diagError)
-}
-
-func runValidateWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parseOptions []hclparse.Option) error {
-	var diags diagnostic.Diagnostics
-
-	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
-	})
-	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
-	}
-
-	components, err := d.Discover(ctx, l, opts)
-	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
-	}
-
-	var validationErrors *errors.MultiError
-
-	for _, comp := range components {
-		compOpts := opts.Clone()
-		compOpts.WorkingDir = comp.Path
-
-		filename := config.DefaultTerragruntConfigPath
-		if comp.Kind == component.Stack {
-			filename = config.DefaultStackFile
-		}
-
-		compOpts.TerragruntConfigPath = filepath.Join(comp.Path, filename)
-
-		_, err := config.ReadTerragruntConfig(ctx, l, compOpts, parseOptions)
-		if err != nil {
-			validationErrors = validationErrors.Append(err)
-		}
-	}
-
-	return processDiagnostics(l, opts, diags, validationErrors.ErrorOrNil())
 }
 
 func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
