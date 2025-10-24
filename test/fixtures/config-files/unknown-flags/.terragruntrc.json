@@ -1,0 +1,5 @@
+{
+  "non-interactive": true,
+  "future-flag": "value",
+  "another-unknown-flag": 42
+}

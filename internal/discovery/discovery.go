@@ -89,20 +89,17 @@ type Discovery struct {
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
-
-	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
-	compiledExcludePatterns []CompiledPattern
-
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
-
 	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
 	includeDirs []string
 
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
+
+	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
+	compiledIncludePatterns []CompiledPattern
+
+	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
+	compiledExcludePatterns []CompiledPattern
 
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
@@ -110,17 +107,17 @@ type Discovery struct {
 	// filters contains filter queries for component selection
 	filters filter.Filters
 
+	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
+	configFilenames []string
+
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
-
-	// numWorkers determines the number of concurrent workers for discovery operations.
-	numWorkers int
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
+	// numWorkers determines the number of concurrent workers for discovery operations.
+	numWorkers int
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
@@ -128,14 +125,17 @@ type Discovery struct {
 	// ignoreExternalDependencies determines whether to drop dependencies that are outside the working directory.
 	ignoreExternalDependencies bool
 
+	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
+	strictInclude bool
+
 	// hidden determines whether to detect configurations in hidden directories.
 	hidden bool
 
 	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
 	requiresParse bool
 
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
+	// discoverDependencies determines whether to discover dependencies.
+	discoverDependencies bool
 
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool

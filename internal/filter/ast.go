@@ -2,6 +2,7 @@ package filter
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gobwas/glob"
@@ -34,6 +35,7 @@ func NewPathFilter(value string, workingDir string) *PathFilter {
 // Uses sync.Once for thread-safe lazy initialization.
 func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	p.compileOnce.Do(func() {
+		// Normalize the pattern for matching
 		pattern := p.Value
 		if !filepath.IsAbs(pattern) {
 			pattern = filepath.Join(p.WorkingDir, pattern)
@@ -55,39 +57,23 @@ type AttributeFilter struct {
 	compileErr   error
 	Key          string
 	Value        string
-	WorkingDir   string
 	compileOnce  sync.Once
 }
 
-// CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
-// Returns an error if called on unsupported attributes (e.g. type, external).
+// CompileGlob returns the compiled glob pattern for name filters, compiling it on first call.
+// Returns nil glob and nil error for non-glob patterns or non-name attributes.
 // Uses sync.Once for thread-safe lazy initialization.
 func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
-	// Only compile for attributes that support glob matching
-	if !a.supportsGlob() {
-		return nil, NewEvaluationError("attribute '" + a.Key + "' does not support glob patterns")
+	// Only compile globs for name attribute with glob patterns
+	if a.Key != AttributeName || !containsGlobChars(a.Value) {
+		return nil, nil
 	}
 
 	a.compileOnce.Do(func() {
-		pattern := a.Value
-
-		if a.Key == AttributeReading {
-			if !filepath.IsAbs(pattern) {
-				pattern = filepath.Join(a.WorkingDir, pattern)
-			}
-
-			pattern = filepath.ToSlash(pattern)
-		}
-
-		a.compiledGlob, a.compileErr = glob.Compile(pattern, '/')
+		a.compiledGlob, a.compileErr = glob.Compile(a.Value)
 	})
 
 	return a.compiledGlob, a.compileErr
-}
-
-// supportsGlob returns true if the attribute filter supports glob patterns.
-func (a *AttributeFilter) supportsGlob() bool {
-	return a.Key == AttributeReading || a.Key == AttributeName
 }
 
 func (a *AttributeFilter) expressionNode() {}
@@ -112,4 +98,9 @@ type InfixExpression struct {
 func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
+}
+
+// containsGlobChars checks if a string contains glob pattern characters.
+func containsGlobChars(s string) bool {
+	return strings.ContainsAny(s, "*?[]")
 }

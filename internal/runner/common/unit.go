@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -18,8 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-
-	xsync "github.com/puzpuzpuz/xsync/v3"
 )
 
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
@@ -33,23 +30,6 @@ type Unit struct {
 	Config               config.TerragruntConfig
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
-}
-
-// per-path output locks to serialize flushes for the same unit
-var (
-	unitOutputLocks = xsync.NewMapOf[string, *sync.Mutex]()
-)
-
-func getUnitOutputLock(path string) *sync.Mutex {
-	if mu, ok := unitOutputLocks.Load(path); ok {
-		return mu
-	}
-	// Create a new mutex and attempt to store it; if another goroutine stored one first,
-	// use the existing mutex returned by LoadOrStore.
-	newMu := &sync.Mutex{}
-	actual, _ := unitOutputLocks.LoadOrStore(path, newMu)
-
-	return actual
 }
 
 type Units []*Unit
@@ -71,23 +51,7 @@ func (unit *Unit) String() string {
 
 // FlushOutput flushes buffer data to the output writer.
 func (unit *Unit) FlushOutput() error {
-	if unit == nil || unit.TerragruntOptions == nil || unit.TerragruntOptions.Writer == nil {
-		return nil
-	}
-
 	if writer, ok := unit.TerragruntOptions.Writer.(*UnitWriter); ok {
-		key := unit.Path
-		if !filepath.IsAbs(key) {
-			if abs, err := filepath.Abs(key); err == nil {
-				key = abs
-			}
-		}
-
-		mu := getUnitOutputLock(key)
-
-		mu.Lock()
-		defer mu.Unlock()
-
 		return writer.Flush()
 	}
 
