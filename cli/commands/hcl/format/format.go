@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -146,12 +145,23 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 	}
 
 	// We use lightweight discovery here instead of the full discovery used by
-	// the discovery package because we want to find non-comps like include comps.
+	// the discovery package because we want to find non-comps like includes.
 	files := []string{}
 
 	err = filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		basename := filepath.Base(path)
+		if slices.Contains(excludePaths, basename) {
+			l.Debugf("%s directory ignored by default", path)
+			return filepath.SkipDir
+		}
+
+		if slices.Contains(opts.HclExclude, basename) {
+			l.Debugf("%s directory ignored due to the %s flag", path, ExcludeDirFlagName)
+			return filepath.SkipDir
 		}
 
 		if d.IsDir() {
@@ -178,28 +188,15 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(runtime.NumCPU())
 
-	var (
-		formatErrors *errors.MultiError
-		mu           sync.Mutex
-	)
+	// Pre-allocate the errs slice with max possible length
+	// so we don't need to hold a lock to append to it.
+	errs := make([]error, len(filtered))
 
-	formatRequested := make(map[string]struct{})
-
-	for _, c := range filtered {
-		if shouldSkipFile(l, c.Path, formatRequested, opts.HclExclude) {
-			continue
-		}
-
-		formatRequested[c.Path] = struct{}{}
-
+	for i, c := range filtered {
 		g.Go(func() error {
 			err := formatTgHCL(gctx, l, opts, c.Path)
 			if err != nil {
-				mu.Lock()
-
-				formatErrors = formatErrors.Append(err)
-
-				mu.Unlock()
+				errs[i] = err
 			}
 
 			return nil
@@ -208,32 +205,7 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 	_ = g.Wait()
 
-	return formatErrors.ErrorOrNil()
-}
-
-// shouldSkipFile checks if a file should be skipped based on exclusion rules and whether it was already processed.
-func shouldSkipFile(l log.Logger, filePath string, processedFiles map[string]struct{}, hclExclude []string) bool {
-	if _, ok := processedFiles[filePath]; ok {
-		return true
-	}
-
-	pathList := strings.Split(filePath, string(filepath.Separator))
-
-	for _, excludePath := range excludePaths {
-		if slices.Contains(pathList, excludePath) {
-			l.Debugf("%s was ignored", filePath)
-			return true
-		}
-	}
-
-	for _, excludeDir := range hclExclude {
-		if slices.Contains(pathList, excludeDir) {
-			l.Debugf("%s was ignored", filePath)
-			return true
-		}
-	}
-
-	return false
+	return errors.Join(errs...)
 }
 
 func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
