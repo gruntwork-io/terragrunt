@@ -3,6 +3,7 @@ package global
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/help"
@@ -91,6 +92,21 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(WorkingDirFlagName),
 			Destination: &opts.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
+			Setter: func(val string) error {
+				// Normalize working directory to absolute path to prevent filepath.Rel errors
+				if val != "" {
+					if !filepath.IsAbs(val) {
+						absPath, err := filepath.Abs(val)
+						if err != nil {
+							return err
+						}
+						val = absPath
+					}
+					val = filepath.ToSlash(val)
+				}
+				opts.WorkingDir = val
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedWorkingDirFlagName), terragruntPrefixControl)),
 
