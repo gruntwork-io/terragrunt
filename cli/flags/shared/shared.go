@@ -27,6 +27,9 @@ const (
 
 	// Filter related flags.
 	FilterFlagName = "filter"
+
+	// Concurrency control flags.
+	ParallelismFlagName = "parallelism"
 )
 
 // NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
@@ -167,5 +170,22 @@ func NewFilterFlag(opts *options.TerragruntOptions) *flags.Flag {
 				return nil
 			},
 		},
+	)
+}
+
+// NewParallelismFlag creates a flag for specifying parallelism level.
+func NewParallelismFlag(opts *options.TerragruntOptions) *flags.Flag {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
+
+	return flags.NewFlag(
+		&cli.GenericFlag[int]{
+			Name:        ParallelismFlagName,
+			EnvVars:     tgPrefix.EnvVars(ParallelismFlagName),
+			Destination: &opts.Parallelism,
+			Usage:       "Parallelism for --all commands.",
+		},
+		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), terragruntPrefixControl),
 	)
 }
