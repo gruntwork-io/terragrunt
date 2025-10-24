@@ -103,9 +103,11 @@ func BenchmarkFormat(b *testing.B) {
 
 	for b.Loop() {
 		b.StopTimer()
+
 		if err := resetFixturesToUnformatted(pristineDir, workingDir); err != nil {
 			b.Fatalf("Failed to reset fixtures: %v", err)
 		}
+
 		b.StartTimer()
 
 		if err := format.Run(ctx, l, tgOptions); err != nil {
@@ -123,6 +125,7 @@ func duplicateFixtures(baseDir string, count int) error {
 	}
 
 	var origDirs []string
+
 	for _, entry := range entries {
 		if entry.IsDir() && entry.Name()[0] != '.' {
 			origDirs = append(origDirs, filepath.Join(baseDir, entry.Name()))
@@ -151,6 +154,7 @@ func duplicateFixtures(baseDir string, count int) error {
 					if infoErr != nil {
 						return infoErr
 					}
+
 					return os.MkdirAll(newPath, info.Mode())
 				}
 
@@ -163,9 +167,9 @@ func duplicateFixtures(baseDir string, count int) error {
 				if infoErr != nil {
 					return infoErr
 				}
+
 				return os.WriteFile(newPath, content, info.Mode())
 			})
-
 			if err != nil {
 				return err
 			}
@@ -216,6 +220,7 @@ func resetFixturesToUnformatted(pristineDir, workingDir string) error {
 			if infoErr != nil {
 				return infoErr
 			}
+
 			return os.MkdirAll(destPath, info.Mode())
 		}
 
@@ -228,6 +233,7 @@ func resetFixturesToUnformatted(pristineDir, workingDir string) error {
 		if infoErr != nil {
 			return infoErr
 		}
+
 		return os.WriteFile(destPath, content, info.Mode())
 	})
 }
