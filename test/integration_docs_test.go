@@ -420,19 +420,19 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "intersection-by-path-and-attribute",
 			fixtureDir:     "intersection",
-			filterQuery:    "./prod/**|type=unit", // Our testing arg parsing is busted. Don't put whitespace between these.
+			filterQuery:    "./prod/** | type=unit",
 			expectedOutput: "prod/units/unit1\nprod/units/unit2\n",
 		},
 		{
 			name:           "intersection-by-path-and-negation",
 			fixtureDir:     "intersection",
-			filterQuery:    "./prod/**|!type=unit", // Our testing arg parsing is busted. Don't put whitespace between these.
+			filterQuery:    "./prod/** | !type=unit",
 			expectedOutput: "prod/stacks/stack1\nprod/stacks/stack2\n",
 		},
 		{
 			name:           "intersection-by-path-type-and-negation",
 			fixtureDir:     "intersection",
-			filterQuery:    "./dev/**|type=unit|!name=unit1", // Our testing arg parsing is busted. Don't put whitespace between these.
+			filterQuery:    "./dev/** | type=unit | !name=unit1",
 			expectedOutput: "dev/units/unit2\n",
 		},
 
@@ -484,7 +484,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			workingDir := filepath.Join(fixturePath, "root")
 
 			// Run the find command with the filter
-			command := fmt.Sprintf("terragrunt find --filter %s %s --working-dir %s", tc.filterQuery, tc.extraFlags, workingDir)
+			command := fmt.Sprintf("terragrunt find --filter '%s' %s --working-dir %s", tc.filterQuery, tc.extraFlags, workingDir)
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 
 			if err != nil {

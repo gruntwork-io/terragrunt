@@ -83,7 +83,7 @@ func TestFilterFlagWithFind(t *testing.T) {
 		},
 		{
 			name:           "filter with intersection - path and negation",
-			filterQuery:    "./*|!unit", // Our testing arg parsing is busted. Don't put whitespace between these.
+			filterQuery:    "./* | !unit",
 			expectedOutput: "stack\n",
 			expectError:    false,
 		},
@@ -107,7 +107,7 @@ func TestFilterFlagWithFind(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
@@ -607,7 +607,7 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
