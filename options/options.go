@@ -236,8 +236,6 @@ type TerragruntOptions struct {
 	DisableCommandValidation bool
 	// If True then HCL from StdIn must should be formatted.
 	HclFromStdin bool
-	// HclNoReadFiles skips formatting files from the Reading attribute when using discovery mode
-	HclNoReadFiles bool
 	// Show diff, by default it's disabled.
 	Diff bool
 	// Do not include root unit in scaffolding.

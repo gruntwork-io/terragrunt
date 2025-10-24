@@ -76,13 +76,6 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-stdin"), terragruntPrefixControl),         // `TG_HCLFMT_STDIN`
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclfmt-stdin"), terragruntPrefixControl), // `TERRAGRUNT_HCLFMT_STDIN`
 		),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        "no-read-files",
-			EnvVars:     tgPrefix.EnvVars("no-read-files"),
-			Destination: &opts.HclNoReadFiles,
-			Usage:       "Skip formatting files included via 'reading' attribute in discovered components (only used when the 'filter-flag' experiment is enabled).",
-		}),
 	}
 
 	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)

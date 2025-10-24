@@ -204,10 +204,6 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 			return nil
 		})
-
-		if opts.HclNoReadFiles {
-			continue
-		}
 	}
 
 	_ = g.Wait()
