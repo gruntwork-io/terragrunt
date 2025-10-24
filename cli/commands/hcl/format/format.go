@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -26,7 +27,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/mattn/go-zglob"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -40,108 +40,38 @@ var excludePaths = []string{
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	workingDir := opts.WorkingDir
+	targetFile := opts.HclFile
+	stdIn := opts.HclFromStdin
+
+	if stdIn {
+		if targetFile != "" {
+			return errors.Errorf("both stdin and path flags are specified")
+		}
+
+		return formatFromStdin(l, opts)
+	}
+
+	if targetFile != "" {
+		if !filepath.IsAbs(targetFile) {
+			targetFile = util.JoinPath(workingDir, targetFile)
+		}
+
+		l.Debugf("Formatting hcl file at: %s.", targetFile)
+
+		return formatTgHCL(ctx, l, opts, targetFile)
+	}
+
+	var (
+		filters filter.Filters
+		err     error
+	)
+
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return runWithDiscovery(ctx, l, opts)
-	}
-
-	workingDir := opts.WorkingDir
-	targetFile := opts.HclFile
-	stdIn := opts.HclFromStdin
-
-	if stdIn {
-		if targetFile != "" {
-			return errors.Errorf("both stdin and path flags are specified")
-		}
-
-		return formatFromStdin(l, opts)
-	}
-
-	// handle when option specifies a particular file
-	if targetFile != "" {
-		if !filepath.IsAbs(targetFile) {
-			targetFile = util.JoinPath(workingDir, targetFile)
-		}
-
-		l.Debugf("Formatting hcl file at: %s.", targetFile)
-
-		return formatTgHCL(ctx, l, opts, targetFile)
-	}
-
-	l.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
-	// zglob normalizes paths to "/"
-	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
-	if err != nil {
-		return err
-	}
-
-	filteredTgHclFiles := []string{}
-
-	for _, fname := range tgHclFiles {
-		skipFile := false
-		// Ignore any files that are in the cache or scaffold dir
-		pathList := strings.Split(fname, "/")
-
-		for _, excludePath := range excludePaths {
-			if slices.Contains(pathList, excludePath) {
-				skipFile = true
-				break
-			}
-		}
-
-		for _, excludeDir := range opts.HclExclude {
-			if slices.Contains(pathList, excludeDir) {
-				skipFile = true
-				break
-			}
-		}
-
-		if skipFile {
-			l.Debugf("%s was ignored", fname)
-		} else {
-			filteredTgHclFiles = append(filteredTgHclFiles, fname)
-		}
-	}
-
-	l.Debugf("Found %d hcl files", len(filteredTgHclFiles))
-
-	var formatErrors *errors.MultiError
-
-	for _, tgHclFile := range filteredTgHclFiles {
-		err := formatTgHCL(ctx, l, opts, tgHclFile)
+		filters, err = filter.ParseFilterQueries(opts.FilterQueries, workingDir)
 		if err != nil {
-			formatErrors = formatErrors.Append(err)
+			return errors.New(err)
 		}
-	}
-
-	return formatErrors.ErrorOrNil()
-}
-
-func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	workingDir := opts.WorkingDir
-	targetFile := opts.HclFile
-	stdIn := opts.HclFromStdin
-
-	if stdIn {
-		if targetFile != "" {
-			return errors.Errorf("both stdin and path flags are specified")
-		}
-
-		return formatFromStdin(l, opts)
-	}
-
-	if targetFile != "" {
-		if !filepath.IsAbs(targetFile) {
-			targetFile = util.JoinPath(workingDir, targetFile)
-		}
-
-		l.Debugf("Formatting hcl file at: %s.", targetFile)
-
-		return formatTgHCL(ctx, l, opts, targetFile)
-	}
-
-	filters, err := filter.ParseFilterQueries(opts.FilterQueries, workingDir)
-	if err != nil {
-		return errors.New(err)
 	}
 
 	// We use lightweight discovery here instead of the full discovery used by
@@ -180,9 +110,18 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 		return errors.New(err)
 	}
 
-	filtered, err := filters.EvaluateOnFiles(files)
-	if err != nil {
-		return errors.New(err)
+	var components component.Components
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		components, err = filters.EvaluateOnFiles(files)
+		if err != nil {
+			return errors.New(err)
+		}
+	} else {
+		components = make(component.Components, 0, len(files))
+		for _, file := range files {
+			components = append(components, &component.Component{Path: file})
+		}
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -190,9 +129,9 @@ func runWithDiscovery(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 	// Pre-allocate the errs slice with max possible length
 	// so we don't need to hold a lock to append to it.
-	errs := make([]error, len(filtered))
+	errs := make([]error, len(components))
 
-	for i, c := range filtered {
+	for i, c := range components {
 		g.Go(func() error {
 			err := formatTgHCL(gctx, l, opts, c.Path)
 			if err != nil {
