@@ -202,7 +202,6 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	}
 
 	for _, dir := range dirs {
-		// Capture range variable into for block so it doesn't change while looping
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -243,8 +242,8 @@ func TestHCLFmtFile(t *testing.T) {
 			t.Parallel()
 
 			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
-			formatted, err := os.ReadFile(tgHclPath)
-			require.NoError(t, err)
+			formatted, readErr := os.ReadFile(tgHclPath)
+			require.NoError(t, readErr)
 			assert.Equal(t, expected, formatted)
 		})
 	})
@@ -334,4 +333,207 @@ func TestHCLFmtHeredoc(t *testing.T) {
 	actual, err := os.ReadFile(tgHclPath)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
+}
+
+func TestHCLFmtFilter(t *testing.T) {
+	t.Parallel()
+
+	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
+	require.NoError(t, err)
+
+	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
+	require.NoError(t, err)
+
+	original, err := util.ReadFileAsString("./testdata/fixtures/terragrunt.hcl")
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	err = tgOptions.Experiments.EnableExperiment("filter-flag")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpPath
+	tgOptions.FilterQueries = []string{"./a/b/**"}
+
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	require.NoError(t, err)
+
+	t.Run("group", func(t *testing.T) {
+		t.Parallel()
+
+		formattedDirs := []string{
+			"a/b/c/terragrunt.hcl",
+			"a/b/c/d/services.hcl",
+			"a/b/c/d/e/terragrunt.hcl",
+		}
+		for _, dir := range formattedDirs {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := util.ReadFileAsString(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, expected, actual, "File %s should be formatted", dir)
+			})
+		}
+
+		unformattedDirs := []string{
+			"terragrunt.hcl",
+			"a/terragrunt.hcl",
+		}
+		for _, dir := range unformattedDirs {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := util.ReadFileAsString(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, original, actual, "File %s should NOT be formatted", dir)
+			})
+		}
+	})
+}
+
+func TestHCLFmtFilterMultiple(t *testing.T) {
+	t.Parallel()
+
+	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
+	require.NoError(t, err)
+
+	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
+	require.NoError(t, err)
+
+	original, err := util.ReadFileAsString("./testdata/fixtures/terragrunt.hcl")
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	err = tgOptions.Experiments.EnableExperiment("filter-flag")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpPath
+
+	tgOptions.FilterQueries = []string{
+		filepath.Join(tmpPath, "terragrunt.hcl"),
+		"./a/b/c/d/e/**",
+	}
+
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	require.NoError(t, err)
+
+	t.Run("group", func(t *testing.T) {
+		t.Parallel()
+
+		formattedDirs := []string{
+			"terragrunt.hcl",
+			"a/b/c/d/e/terragrunt.hcl",
+		}
+		for _, dir := range formattedDirs {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := util.ReadFileAsString(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, expected, actual, "File %s should be formatted", dir)
+			})
+		}
+
+		unformattedDirs := []string{
+			"a/terragrunt.hcl",
+			"a/b/c/terragrunt.hcl",
+			"a/b/c/d/services.hcl",
+		}
+		for _, dir := range unformattedDirs {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := util.ReadFileAsString(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, original, actual, "File %s should NOT be formatted", dir)
+			})
+		}
+	})
+}
+
+func TestHCLFmtFilterNegation(t *testing.T) {
+	t.Parallel()
+
+	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
+	require.NoError(t, err)
+
+	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
+	require.NoError(t, err)
+
+	original, err := util.ReadFileAsString("./testdata/fixtures/terragrunt.hcl")
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	err = tgOptions.Experiments.EnableExperiment("filter-flag")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpPath
+
+	tgOptions.FilterQueries = []string{
+		"./a/**",
+		"!./a/b/c/d/**",
+	}
+
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	require.NoError(t, err)
+
+	t.Run("group", func(t *testing.T) {
+		t.Parallel()
+
+		formattedDirs := []string{
+			"a/terragrunt.hcl",
+			"a/b/c/terragrunt.hcl",
+		}
+		for _, dir := range formattedDirs {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := util.ReadFileAsString(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, expected, actual, "File %s should be formatted", dir)
+			})
+		}
+
+		unformattedDirs := []string{
+			"terragrunt.hcl",
+			"a/b/c/d/services.hcl",
+			"a/b/c/d/e/terragrunt.hcl",
+		}
+		for _, dir := range unformattedDirs {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := util.ReadFileAsString(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, original, actual, "File %s should NOT be formatted", dir)
+			})
+		}
+	})
 }

@@ -25,6 +25,11 @@ import (
 var knownBadFiles = []string{
 	"fixtures/catalog/local-template/.boilerplate/terragrunt.hcl",
 	"fixtures/disabled/unit-disabled/terragrunt.hcl",
+	"fixtures/hcl-filter/validate/semantic-error/incomplete-block/terragrunt.hcl",
+	"fixtures/hcl-filter/validate/semantic-error/missing-value/terragrunt.hcl",
+	"fixtures/hcl-filter/validate/stacks/syntax-error/stack2/terragrunt.stack.hcl",
+	"fixtures/hcl-filter/validate/syntax-error/invalid-char/terragrunt.hcl",
+	"fixtures/hcl-filter/validate/syntax-error/invalid-key/terragrunt.hcl",
 	"fixtures/hclfmt-errors/dangling-attribute/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-character/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-key/terragrunt.hcl",

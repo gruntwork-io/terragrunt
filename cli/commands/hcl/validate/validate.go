@@ -85,12 +85,22 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	// Discover Terragrunt configurations and validate by parsing them directly
-	d := discovery.NewDiscovery(opts.WorkingDir).WithParserOptions(parseOptions)
+	// Create discovery with filter support if experiment enabled
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return processDiagnostics(l, opts, diags, errors.New(err))
+	}
+
+	// Apply parse options to discovery
+	d = d.WithParserOptions(parseOptions)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return processDiagnostics(l, opts, diags, err)
+		return processDiagnostics(l, opts, diags, errors.New(err))
 	}
 
 	parseErrs := []error{}
@@ -372,9 +382,9 @@ func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOpt
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.Arguments != nil {
-				vars, rawVarFiles, err := GetVarFlagsFromArgList(*arg.Arguments)
-				if err != nil {
-					return inputNames, err
+				vars, rawVarFiles, getArgsErr := GetVarFlagsFromArgList(*arg.Arguments)
+				if getArgsErr != nil {
+					return inputNames, getArgsErr
 				}
 
 				inputNames = append(inputNames, vars...)

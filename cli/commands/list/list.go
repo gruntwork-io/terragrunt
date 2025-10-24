@@ -23,7 +23,7 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d, err := discovery.NewForCommand(discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
 		WorkingDir:       opts.WorkingDir,
 		QueueConstructAs: opts.QueueConstructAs,
 		Hidden:           opts.Hidden,

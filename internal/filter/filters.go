@@ -56,6 +56,17 @@ func (f Filters) HasPositiveFilter() bool {
 	return false
 }
 
+// RequiresHCLParsing returns the first expression that requires parsing Terragrunt HCL configurations if any do.
+func (f Filters) RequiresHCLParsing() (Expression, bool) {
+	for _, filter := range f {
+		if e, ok := filter.expr.RequiresHCLParsing(); ok {
+			return e, true
+		}
+	}
+
+	return nil, false
+}
+
 // Evaluate applies all filters with union (OR) semantics in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
@@ -97,6 +108,26 @@ func (f Filters) Evaluate(components component.Components) (component.Components
 	}
 
 	return combined, nil
+}
+
+// EvaluateOnFiles evaluates the filters on a list of files and returns the filtered result.
+// This is useful for the hcl format command, where we want to evaluate filters on files
+// rather than directories, like we do with components.
+func (f Filters) EvaluateOnFiles(files []string) (component.Components, error) {
+	if e, ok := f.RequiresHCLParsing(); ok {
+		return nil, FilterQueryRequiresHCLParsingError{Query: e.String()}
+	}
+
+	if len(f) == 0 {
+		return component.Components{}, nil
+	}
+
+	comps := make([]*component.Component, 0, len(files))
+	for _, file := range files {
+		comps = append(comps, &component.Component{Path: file})
+	}
+
+	return f.Evaluate(comps)
 }
 
 func initialComponents(positiveFilters []*Filter, components component.Components) (component.Components, error) {
