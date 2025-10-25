@@ -31,7 +31,7 @@ import (
 func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) catalog.CatalogService {
 	t.Helper()
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool, opts ...module.RepoOpt) (*module.Repo, error) {
 		// Create a temporary directory structure for testing
 		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 
