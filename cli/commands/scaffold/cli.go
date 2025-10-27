@@ -8,9 +8,9 @@ import (
 
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -19,49 +19,20 @@ import (
 const (
 	CommandName = "scaffold"
 
-	RootFileNameFlagName  = "root-file-name"
-	NoIncludeRootFlagName = "no-include-root"
-	OutputFolderFlagName  = "output-folder"
-	VarFlagName           = "var"
-	VarFileFlagName       = "var-file"
-	NoDependencyPrompt    = "no-dependency-prompt"
+	OutputFolderFlagName = "output-folder"
+	VarFlagName          = "var"
+	VarFileFlagName      = "var-file"
+	NoDependencyPrompt   = "no-dependency-prompt"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return cli.Flags{
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        RootFileNameFlagName,
-			EnvVars:     tgPrefix.EnvVars(RootFileNameFlagName),
-			Destination: &opts.ScaffoldRootFileName,
-			Usage:       "Name of the root Terragrunt configuration file, if used.",
-			Action: func(ctx *cli.Context, value string) error {
-				if value == "" {
-					return errors.New("root-file-name flag cannot be empty")
-				}
+	// Start with shared scaffolding flags
+	scaffoldFlags := shared.NewScaffoldingFlags(opts, prefix)
 
-				if value != opts.TerragruntConfigPath {
-					opts.ScaffoldRootFileName = value
-
-					return nil
-				}
-
-				if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(ctx); err != nil {
-					return cli.NewExitError(err, cli.ExitCodeGeneralError)
-				}
-
-				return nil
-			},
-		}),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        NoIncludeRootFlagName,
-			EnvVars:     tgPrefix.EnvVars(NoIncludeRootFlagName),
-			Destination: &opts.ScaffoldNoIncludeRoot,
-			Usage:       "Do not include root unit in scaffolding done by catalog.",
-		}),
-
+	// Add scaffold-specific flags
+	scaffoldFlags = append(scaffoldFlags,
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutputFolderFlagName,
 			Destination: &opts.ScaffoldOutputFolder,
@@ -88,7 +59,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.NoDependencyPrompt,
 			Usage:       "Do not prompt for confirmation to include dependencies.",
 		}),
-	}
+	)
+
+	return scaffoldFlags
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
