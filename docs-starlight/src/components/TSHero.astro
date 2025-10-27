@@ -84,70 +84,76 @@ import GitlabIcon from '@assets/icons/gitlab-icon.svg';
         </div>
 
         <ThreeColFeatures>
-          <ColFeature color="purple">
-            <!-- Grunty Mobile -->
-            <div class="lg:hidden absolute top-[-155px] lg:top-[-346px] h-[154px] lg:h-[345px] w-[161px] lg:w-[361px] right-0 z-10">
-              <Image
-                alt="Grunty"
-                class="max-w-[100%] h-auto"
-                src={Grunty2}
-              />
-            </div>
+          <a href="https://www.gruntwork.io/platform/pipelines" target="_blank">
+            <ColFeature color="purple">
+              <!-- Grunty Mobile -->
+              <div class="lg:hidden absolute top-[-155px] lg:top-[-346px] h-[154px] lg:h-[345px] w-[161px] lg:w-[361px] right-0 z-10">
+                <Image
+                  alt="Grunty"
+                  class="max-w-[100%] h-auto"
+                  src={Grunty2}
+                />
+              </div>
 
-            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
-              <Image
-                alt="Pipelines Icon"
-                class={"aspect-[1/1] h-auto"}
-                src={IconPipelines}
-                height={20}
-                width={20}
-              />
-            </div>
-            <div class="relative flex flex-col z-20 select-none">
-              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Pipelines</h5>
-              <p class="text-sm text-[var(--color-gray-1)] m-0">Automate your CI/CD</p>
-            </div>
-          </ColFeature>
+              <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+                <Image
+                  alt="Pipelines Icon"
+                  class={"aspect-[1/1] h-auto"}
+                  src={IconPipelines}
+                  height={20}
+                  width={20}
+                />
+              </div>
+              <div class="relative flex flex-col z-20 select-none">
+                <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Pipelines</h5>
+                <p class="text-sm text-[var(--color-gray-1)] m-0">Automate your CI/CD</p>
+              </div>
+            </ColFeature>
+          </a>
 
-          <ColFeature color="red">
-            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
-              <Image
-                alt="Pipelines Icon"
-                class={"aspect-[1/1] h-auto"}
-                src={IconDriftDetection}
-                height={20}
-                width={20}
-              />
-            </div>
-            <div class="relative flex flex-col z-20 select-none">
-              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Drift Detection</h5>
-              <p class="text-sm text-[var(--color-gray-1)] m-0">Reconcile infrastructure Drift</p>
-            </div>
-          </ColFeature>
+          <a href="https://www.gruntwork.io/platform/pipelines" target="_blank">
+            <ColFeature color="red">
+              <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+                <Image
+                  alt="Drift Detection Icon"
+                  class={"aspect-[1/1] h-auto"}
+                  src={IconDriftDetection}
+                  height={20}
+                  width={20}
+                />
+              </div>
+              <div class="relative flex flex-col z-20 select-none">
+                <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Drift Detection</h5>
+                <p class="text-sm text-[var(--color-gray-1)] m-0">Reconcile infrastructure Drift</p>
+              </div>
+            </ColFeature>
+          </a>
 
-          <ColFeature color="green">
-            <div class="hidden lg:block absolute top-[-346px] right-0 z-10">
-              <Image
-                alt="Grunty"
-                src={Grunty2}
-                height={345}
-                width={361}
-              />
-            </div>
-            <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
-              <Image
-                alt="Pipelines Icon"
-                class={"aspect-[1/1] h-auto"}
-                src={IconPatcher}
-                height={20}
-                width={20}
-              />
-            </div>
-            <div class="relative flex flex-col z-20 select-none">
-              <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Patcher</h5>
-              <p class="text-sm text-[var(--color-gray-1)] m-0">Keep your IaC up-to-date</p>
-            </div>
-          </ColFeature>
+          <a href="https://www.gruntwork.io/platform/patcher" target="_blank">
+            <ColFeature color="green">
+              <div class="hidden lg:block absolute top-[-346px] right-0 z-10">
+                <Image
+                  alt="Grunty"
+                  src={Grunty2}
+                  height={345}
+                  width={361}
+                />
+              </div>
+              <div class="secondary-button inline-flex !p-3 w-auto h-auto pointer-events-none mr-[13px]">
+                <Image
+                  alt="Patcher Icon"
+                  class={"aspect-[1/1] h-auto"}
+                  src={IconPatcher}
+                  height={20}
+                  width={20}
+                />
+              </div>
+              <div class="relative flex flex-col z-20 select-none">
+                <h5 class="text-white text-xl font-sans font-medium m-0 mb-2">Terragrunt Patcher</h5>
+                <p class="text-sm text-[var(--color-gray-1)] m-0">Keep your IaC up-to-date</p>
+              </div>
+            </ColFeature>
+          </a>
         </ThreeColFeatures>
     </div>
 
