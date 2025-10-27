@@ -137,7 +137,13 @@ func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 // without the entire graph available.
 func (u *Unit) AddDependency(dependency Component) {
 	u.dependencies = append(u.dependencies, dependency)
-	dependency.AddDependent(u)
+
+	switch dependency := dependency.(type) {
+	case *Unit:
+		dependency.dependents = append(dependency.dependents, u)
+	case *Stack:
+		dependency.dependents = append(dependency.dependents, u)
+	}
 }
 
 // AddDependent adds a dependent to the Unit and vice versa.
@@ -147,7 +153,13 @@ func (u *Unit) AddDependency(dependency Component) {
 // without the entire graph available.
 func (u *Unit) AddDependent(dependent Component) {
 	u.dependents = append(u.dependents, dependent)
-	dependent.AddDependency(u)
+
+	switch dependent := dependent.(type) {
+	case *Unit:
+		dependent.dependencies = append(dependent.dependencies, u)
+	case *Stack:
+		dependent.dependencies = append(dependent.dependencies, u)
+	}
 }
 
 // Dependencies returns the dependencies of the Unit.
