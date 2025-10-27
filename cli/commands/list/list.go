@@ -341,23 +341,15 @@ func shouldColor(l log.Logger) bool {
 
 // renderLong renders the components in a long format.
 func renderLong(opts *Options, components ListedComponents, c *Colorizer) error {
+	var buf strings.Builder
+
 	longestPathLen := getLongestPathLen(components)
 
-	err := renderLongHeadings(opts, c, longestPathLen)
-	if err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString(buildLongHeadings(opts, c, longestPathLen))
 
 	for _, component := range components {
-		_, err := opts.Writer.Write([]byte(c.ColorizeType(component.Type)))
-		if err != nil {
-			return errors.New(err)
-		}
-
-		_, err = opts.Writer.Write([]byte(" " + c.Colorize(component)))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(c.ColorizeType(component.Type))
+		buf.WriteString(" " + c.Colorize(component))
 
 		if opts.Dependencies && len(component.Dependencies) > 0 {
 			colorizedDeps := []string{}
@@ -370,92 +362,67 @@ func renderLong(opts *Options, components ListedComponents, c *Colorizer) error 
 
 			dependenciesPadding := (longestPathLen - len(component.Path)) + extraDependenciesPadding
 			for range dependenciesPadding {
-				_, err = opts.Writer.Write([]byte(" "))
-				if err != nil {
-					return errors.New(err)
-				}
+				buf.WriteString(" ")
 			}
 
-			_, err = opts.Writer.Write([]byte(strings.Join(colorizedDeps, ", ")))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString(strings.Join(colorizedDeps, ", "))
 		}
 
-		_, err = opts.Writer.Write([]byte("\n"))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString("\n")
 	}
 
-	return nil
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }
 
-// renderLongHeadings renders the headings for the long format.
-func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
-	_, err := opts.Writer.Write([]byte(c.ColorizeHeading("Type  Path")))
-	if err != nil {
-		return errors.New(err)
-	}
+// buildLongHeadings renders the headings for the long format.
+func buildLongHeadings(opts *Options, c *Colorizer, longestPathLen int) string {
+	var buf strings.Builder
+
+	buf.WriteString(c.ColorizeHeading("Type  Path"))
 
 	if opts.Dependencies {
 		const extraDependenciesPadding = 2
 
 		dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
 		for range dependenciesPadding {
-			_, err = opts.Writer.Write([]byte(" "))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString(" ")
 		}
 
-		_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies")))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(c.ColorizeHeading("Dependencies"))
 	}
 
-	_, err = opts.Writer.Write([]byte("\n"))
-	if err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString("\n")
 
-	return nil
+	return buf.String()
 }
 
 // renderTabular renders the components in a tabular format.
 func renderTabular(opts *Options, components ListedComponents, c *Colorizer) error {
+	var buf strings.Builder
+
 	maxCols, colWidth := getMaxCols(components)
 
 	for i, component := range components {
 		if i > 0 && i%maxCols == 0 {
-			_, err := opts.Writer.Write([]byte("\n"))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString("\n")
 		}
 
-		_, err := opts.Writer.Write([]byte(c.Colorize(component)))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(c.Colorize(component))
 
 		// Add padding until the length of maxCols
 		padding := colWidth - len(component.Path)
 		for range padding {
-			_, err := opts.Writer.Write([]byte(" "))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString(" ")
 		}
 	}
 
-	_, err := opts.Writer.Write([]byte("\n"))
-	if err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString("\n")
 
-	return nil
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }
 
 // outputTree outputs the discovered components in tree format.
@@ -705,9 +672,9 @@ func getLongestPathLen(components ListedComponents) int {
 
 // renderDot renders the components in GraphViz DOT format.
 func renderDot(opts *Options, components ListedComponents) error {
-	if _, err := opts.Writer.Write([]byte("digraph {\n")); err != nil {
-		return errors.New(err)
-	}
+	var buf strings.Builder
+
+	buf.WriteString("digraph {\n")
 
 	sortedComponents := make(ListedComponents, len(components))
 	copy(sortedComponents, components)
@@ -729,34 +696,16 @@ func renderDot(opts *Options, components ListedComponents) error {
 			style = "[color=red]"
 		}
 
-		if _, writeErr := opts.Writer.Write(
-			fmt.Appendf(
-				nil,
-				"\t\"%s\" %s;\n",
-				component.Path,
-				style,
-			),
-		); writeErr != nil {
-			return errors.New(writeErr)
-		}
+		buf.WriteString(fmt.Sprintf("\t\"%s\" %s;\n", component.Path, style))
 
 		for _, dep := range component.Dependencies {
-			if _, writeErr := opts.Writer.Write(
-				fmt.Appendf(
-					nil,
-					"\t\"%s\" -> \"%s\";\n",
-					component.Path,
-					dep.Path,
-				),
-			); writeErr != nil {
-				return errors.New(writeErr)
-			}
+			buf.WriteString(fmt.Sprintf("\t\"%s\" -> \"%s\";\n", component.Path, dep.Path))
 		}
 	}
 
-	if _, err := opts.Writer.Write([]byte("}\n")); err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString("}\n")
 
-	return nil
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }
