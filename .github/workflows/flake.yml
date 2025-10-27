@@ -61,7 +61,7 @@ jobs:
           TIMEOUT: ${{ matrix.flake.timeout }}
 
       - name: Upload Report (${{ matrix.flake.name }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-report-${{ matrix.flake.name }}
           path: result.xml

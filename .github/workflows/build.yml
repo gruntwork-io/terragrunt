@@ -61,7 +61,7 @@ jobs:
             .
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
@@ -138,7 +138,7 @@ jobs:
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
 
       - name: Upload Signed Executables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: signed-files
           path: bin/*

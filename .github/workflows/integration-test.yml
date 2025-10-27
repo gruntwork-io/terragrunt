@@ -242,7 +242,7 @@ jobs:
           TEST_ARGS: ${{ matrix.integration.test_args }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ matrix.integration.name }}
           path: |
