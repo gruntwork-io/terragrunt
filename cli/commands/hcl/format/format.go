@@ -125,7 +125,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(runtime.NumCPU())
+
+	limit := opts.Parallelism
+	if limit == options.DefaultParallelism {
+		limit = runtime.NumCPU()
+	}
+
+	g.SetLimit(limit)
 
 	// Pre-allocate the errs slice with max possible length
 	// so we don't need to hold a lock to append to it.

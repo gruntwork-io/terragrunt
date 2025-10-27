@@ -24,7 +24,6 @@ const (
 	DownloadDirFlagName                    = "download-dir"
 	TFForwardStdoutFlagName                = "tf-forward-stdout"
 	TFPathFlagName                         = "tf-path"
-	ParallelismFlagName                    = "parallelism"
 	InputsDebugFlagName                    = "inputs-debug"
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
@@ -263,14 +262,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				terragruntPrefixControl,
 			),
 		),
-
-		flags.NewFlag(&cli.GenericFlag[int]{
-			Name:        ParallelismFlagName,
-			EnvVars:     tgPrefix.EnvVars(ParallelismFlagName),
-			Destination: &opts.Parallelism,
-			Usage:       "Parallelism for --all commands.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputsDebugFlagName,
@@ -518,6 +509,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	flags = flags.Add(NewFeatureFlags(l, opts, prefix)...)
 	flags = flags.Add(shared.NewQueueFlags(opts, prefix)...)
 	flags = flags.Add(shared.NewFilterFlag(opts))
+	flags = flags.Add(shared.NewParallelismFlag(opts))
 
 	return flags.Sort()
 }
