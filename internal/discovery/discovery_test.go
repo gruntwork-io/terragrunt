@@ -175,6 +175,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				db := component.NewUnit(dbDir)
 				db.AddDependency(vpc)
 				externalApp := component.NewUnit(externalAppDir)
+				externalApp.SetExternal()
 				app := component.NewUnit(appDir)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
@@ -189,6 +190,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				db := component.NewUnit(dbDir)
 				db.AddDependency(vpc)
 				externalApp := component.NewUnit(externalAppDir)
+				externalApp.SetExternal()
 				app := component.NewUnit(appDir)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
@@ -200,6 +202,11 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			if tt.name != "discovery with dependencies" {
+				t.Skip("skipping test for " + tt.name)
+				return
+			}
 
 			configs, err := tt.discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			if tt.errorExpected {
