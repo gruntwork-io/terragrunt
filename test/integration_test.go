@@ -1305,7 +1305,8 @@ func TestApplySkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Skipping terragrunt module ./terragrunt.hcl due to skip = true.")
+	assert.Contains(t, stderr, "Early exit in terragrunt unit")
+	assert.Contains(t, stderr, "due to exclude block with no_run = true")
 	assert.NotContains(t, stdout, "hello, Hobbs")
 }
 
@@ -1327,7 +1328,7 @@ func TestApplySkipFalse(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hello, Hobbs")
-	assert.NotContains(t, stderr, "Skipping terragrunt module")
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
 }
 
 func TestApplyAllSkipTrue(t *testing.T) {
@@ -1350,7 +1351,8 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	// meaning the skip-true/resource2 module will be skipped as well and only the skip-true/resource1 module will be applied
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Skipping terragrunt module ./resource2/terragrunt.hcl due to skip = true.")
+	assert.Contains(t, stderr, "Early exit in terragrunt unit")
+	assert.Contains(t, stderr, "due to exclude block with no_run = true")
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.NotContains(t, stdout, "hello, Bert")
 }
@@ -1374,7 +1376,7 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
-	assert.NotContains(t, stderr, "Skipping terragrunt module")
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
 }
 
 func TestDependencyOutput(t *testing.T) {
@@ -3636,8 +3638,8 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 	assert.NotContains(t, output, "Call to function \"find_in_parent_folders\" failed")
 	assert.NotContains(t, output, "ParentFileNotFoundError")
 
-	assert.Contains(t, output, "first/terragrunt.hcl due to skip = true")
-	assert.Contains(t, output, "second/terragrunt.hcl due to skip = true")
+	assert.Contains(t, output, "Early exit in terragrunt unit")
+	assert.Contains(t, output, "due to exclude block with no_run = true")
 	// check that no test_file.txt was created in module directory
 	_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureSkipDependencies, "first", "test_file.txt"))
 	require.Error(t, err)

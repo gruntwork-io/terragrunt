@@ -252,11 +252,6 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 				depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
 
 				if depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil); err == nil {
-					if depConfig.Skip != nil && *depConfig.Skip {
-						l.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-						dep.Enabled = new(bool)
-					}
-
 					inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
 					if err != nil {
 						return nil, err

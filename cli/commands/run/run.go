@@ -147,15 +147,6 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return target.runErrorCallback(l, opts, terragruntConfig, err)
 	}
 
-	if terragruntConfig.Skip != nil && *terragruntConfig.Skip {
-		l.Infof(
-			"Skipping terragrunt module %s due to skip = true.",
-			opts.TerragruntConfigPath,
-		)
-
-		return nil
-	}
-
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
 	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
@@ -181,25 +172,19 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		opts.DownloadDir = terragruntConfig.DownloadDir
 	}
 
-	// Override the default value of retryable errors using the value set in the config file
-	if terragruntConfig.RetryableErrors != nil {
-		opts.RetryableErrors = terragruntConfig.RetryableErrors
-	}
+	// Populate RetryableErrors from errors blocks if defined
+	if terragruntConfig.Errors != nil && len(terragruntConfig.Errors.Retry) > 0 {
+		var allRetryableErrors []string
 
-	if terragruntConfig.RetryMaxAttempts != nil {
-		if *terragruntConfig.RetryMaxAttempts < 1 {
-			return fmt.Errorf("cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
+		for _, retryBlock := range terragruntConfig.Errors.Retry {
+			if len(retryBlock.RetryableErrors) > 0 {
+				allRetryableErrors = append(allRetryableErrors, retryBlock.RetryableErrors...)
+			}
 		}
-
-		opts.RetryMaxAttempts = *terragruntConfig.RetryMaxAttempts
-	}
-
-	if terragruntConfig.RetrySleepIntervalSec != nil {
-		if *terragruntConfig.RetrySleepIntervalSec < 0 {
-			return fmt.Errorf("cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
+		// Only override if we collected any patterns
+		if len(allRetryableErrors) > 0 {
+			opts.RetryableErrors = allRetryableErrors
 		}
-
-		opts.RetrySleepInterval = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
 	}
 
 	updatedTerragruntOptions := opts
