@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testComponents = []*component.Component{
-	{Path: "./apps/app1", Kind: component.Unit},
-	{Path: "./apps/app2", Kind: component.Unit},
-	{Path: "./apps/legacy", Kind: component.Unit},
-	{Path: "./libs/db", Kind: component.Unit},
-	{Path: "./libs/api", Kind: component.Unit},
-	{Path: "./services/web", Kind: component.Unit},
-	{Path: "./services/worker", Kind: component.Unit},
+var testComponents = []component.Component{
+	component.NewUnit("./apps/app1"),
+	component.NewUnit("./apps/app2"),
+	component.NewUnit("./apps/legacy"),
+	component.NewUnit("./libs/db"),
+	component.NewUnit("./libs/api"),
+	component.NewUnit("./services/web"),
+	component.NewUnit("./services/worker"),
 }
 
 func TestFilter_ParseAndEvaluate(t *testing.T) {
@@ -26,72 +26,72 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 	tests := []struct {
 		name         string
 		filterString string
-		expected     []*component.Component
+		expected     component.Components
 		expectError  bool
 	}{
 		{
 			name:         "simple name filter",
 			filterString: "app1",
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
-			expected: []*component.Component{
-				{Path: "./libs/db", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./libs/db"),
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./apps/legacy", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app2"),
+				component.NewUnit("./apps/legacy"),
 			},
 		},
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
-				{Path: "./libs/db", Kind: component.Unit},
-				{Path: "./libs/api", Kind: component.Unit},
-				{Path: "./services/web", Kind: component.Unit},
-				{Path: "./services/worker", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app2"),
+				component.NewUnit("./libs/db"),
+				component.NewUnit("./libs/api"),
+				component.NewUnit("./services/web"),
+				component.NewUnit("./services/worker"),
 			},
 		},
 		{
 			name:         "intersection of path and name",
 			filterString: "./apps/* | app1",
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
 			},
 		},
 		{
 			name:         "intersection with negation",
 			filterString: "./apps/* | !legacy",
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
-				{Path: "./apps/app2", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app2"),
 			},
 		},
 		{
 			name:         "chained intersections",
 			filterString: "./apps/* | !legacy | app1",
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
-			expected: []*component.Component{
-				{Path: "./services/web", Kind: component.Unit},
-				{Path: "./services/worker", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./services/web"),
+				component.NewUnit("./services/worker"),
 			},
 		},
 		{
@@ -148,32 +148,32 @@ func TestFilter_Apply(t *testing.T) {
 	tests := []struct {
 		name         string
 		filterString string
-		components   []*component.Component
-		expected     []*component.Component
+		components   component.Components
+		expected     component.Components
 		expectError  bool
 	}{
 		{
 			name:         "apply with simple filter",
 			filterString: "app1",
 			components:   testComponents,
-			expected: []*component.Component{
-				{Path: "./apps/app1", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./apps/app1"),
 			},
 		},
 		{
 			name:         "apply with path filter",
 			filterString: "./libs/*",
 			components:   testComponents,
-			expected: []*component.Component{
-				{Path: "./libs/db", Kind: component.Unit},
-				{Path: "./libs/api", Kind: component.Unit},
+			expected: component.Components{
+				component.NewUnit("./libs/db"),
+				component.NewUnit("./libs/api"),
 			},
 		},
 		{
 			name:         "apply with empty components",
 			filterString: "anything",
-			components:   []*component.Component{},
-			expected:     []*component.Component{},
+			components:   component.Components{},
+			expected:     component.Components{},
 		},
 		{
 			name:         "apply with parse error",
@@ -224,16 +224,16 @@ func TestFilter_Expression(t *testing.T) {
 func TestFilter_RealWorldScenarios(t *testing.T) {
 	t.Parallel()
 
-	repoComponents := []*component.Component{
-		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
-		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
-		{Path: "./infrastructure/networking/security-groups", Kind: component.Unit},
-		{Path: "./infrastructure/compute/app-server", Kind: component.Unit},
-		{Path: "./infrastructure/compute/db-server", Kind: component.Unit},
-		{Path: "./apps/frontend", Kind: component.Unit},
-		{Path: "./apps/backend", Kind: component.Unit},
-		{Path: "./apps/api", Kind: component.Unit},
-		{Path: "./test/test-app", Kind: component.Unit},
+	repoComponents := []component.Component{
+		component.NewUnit("./infrastructure/networking/vpc"),
+		component.NewUnit("./infrastructure/networking/subnets"),
+		component.NewUnit("./infrastructure/networking/security-groups"),
+		component.NewUnit("./infrastructure/compute/app-server"),
+		component.NewUnit("./infrastructure/compute/db-server"),
+		component.NewUnit("./apps/frontend"),
+		component.NewUnit("./apps/backend"),
+		component.NewUnit("./apps/api"),
+		component.NewUnit("./test/test-app"),
 	}
 
 	tests := []struct {
@@ -283,7 +283,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 
 			var resultNames []string
 			for _, c := range result {
-				resultNames = append(resultNames, filepath.Base(c.Path))
+				resultNames = append(resultNames, filepath.Base(c.Path()))
 			}
 
 			assert.ElementsMatch(t, tt.expected, resultNames, tt.description)
@@ -329,9 +329,9 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 			{"./apps/* | !legacy"},
 		}
 
-		expected := []*component.Component{
-			{Path: "./apps/app1", Kind: component.Unit},
-			{Path: "./apps/app2", Kind: component.Unit},
+		expected := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
 		}
 
 		for _, tt := range tests {

@@ -11,16 +11,16 @@ import (
 
 // Example_basicPathFilter demonstrates filtering components by path with a glob pattern.
 func Example_basicPathFilter() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./apps/app1"),
+		component.NewUnit("./apps/app2"),
+		component.NewUnit("./libs/db"),
 	}
 
 	result, _ := filter.Apply("./apps/*", ".", components)
 
 	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+		fmt.Println(filepath.Base(c.Path()))
 	}
 	// Output:
 	// app1
@@ -29,16 +29,16 @@ func Example_basicPathFilter() {
 
 // Example_attributeFilter demonstrates filtering components by name attribute.
 func Example_attributeFilter() {
-	components := []*component.Component{
-		{Path: "./apps/frontend", Kind: component.Unit},
-		{Path: "./apps/backend", Kind: component.Unit},
-		{Path: "./services/api", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./apps/frontend"),
+		component.NewUnit("./apps/backend"),
+		component.NewUnit("./services/api"),
 	}
 
 	result, _ := filter.Apply("name=api", ".", components)
 
 	for _, c := range result {
-		fmt.Println(c.Path)
+		fmt.Println(c.Path())
 	}
 	// Output:
 	// ./services/api
@@ -46,16 +46,16 @@ func Example_attributeFilter() {
 
 // Example_exclusionFilter demonstrates excluding components using the negation operator.
 func Example_exclusionFilter() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./apps/legacy", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./apps/app1"),
+		component.NewUnit("./apps/app2"),
+		component.NewUnit("./apps/legacy"),
 	}
 
 	result, _ := filter.Apply("!legacy", ".", components)
 
 	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+		fmt.Println(filepath.Base(c.Path()))
 	}
 	// Output:
 	// app1
@@ -64,18 +64,18 @@ func Example_exclusionFilter() {
 
 // Example_intersectionFilter demonstrates refining results with the intersection operator.
 func Example_intersectionFilter() {
-	components := []*component.Component{
-		{Path: "./apps/frontend", Kind: component.Unit},
-		{Path: "./apps/backend", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./apps/frontend"),
+		component.NewUnit("./apps/backend"),
+		component.NewUnit("./libs/db"),
+		component.NewUnit("./libs/api"),
 	}
 
 	// Select components in ./apps/ that are named "frontend"
 	result, _ := filter.Apply("./apps/* | frontend", ".", components)
 
 	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+		fmt.Println(filepath.Base(c.Path()))
 	}
 	// Output:
 	// frontend
@@ -83,19 +83,19 @@ func Example_intersectionFilter() {
 
 // Example_complexQuery demonstrates a complex filter combining paths and negation.
 func Example_complexQuery() {
-	components := []*component.Component{
-		{Path: "./services/web", Kind: component.Unit},
-		{Path: "./services/worker", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
-		{Path: "./libs/cache", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./services/web"),
+		component.NewUnit("./services/worker"),
+		component.NewUnit("./libs/db"),
+		component.NewUnit("./libs/api"),
+		component.NewUnit("./libs/cache"),
 	}
 
 	// Select all services except worker
 	result, _ := filter.Apply("./services/* | !worker", ".", components)
 
 	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+		fmt.Println(filepath.Base(c.Path()))
 	}
 	// Output:
 	// web
@@ -103,9 +103,9 @@ func Example_complexQuery() {
 
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
 func Example_parseAndEvaluate() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./apps/app1"),
+		component.NewUnit("./apps/app2"),
 	}
 
 	// Parse the filter once
@@ -129,17 +129,17 @@ func Example_parseAndEvaluate() {
 
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
-	components := []*component.Component{
-		{Path: "./infrastructure/networking/vpc", Kind: component.Unit},
-		{Path: "./infrastructure/networking/subnets", Kind: component.Unit},
-		{Path: "./infrastructure/compute/app-server", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./infrastructure/networking/vpc"),
+		component.NewUnit("./infrastructure/networking/subnets"),
+		component.NewUnit("./infrastructure/compute/app-server"),
 	}
 
 	// Match all infrastructure components at any depth
 	result, _ := filter.Apply("./infrastructure/**", ".", components)
 
 	for _, c := range result {
-		fmt.Println(filepath.Base(c.Path))
+		fmt.Println(filepath.Base(c.Path()))
 	}
 	// Output:
 	// vpc
@@ -168,11 +168,11 @@ func Example_errorHandling() {
 
 // Example_multipleFilters demonstrates using multiple filters with union semantics.
 func Example_multipleFilters() {
-	components := []*component.Component{
-		{Path: "./apps/app1", Kind: component.Unit},
-		{Path: "./apps/app2", Kind: component.Unit},
-		{Path: "./libs/db", Kind: component.Unit},
-		{Path: "./libs/api", Kind: component.Unit},
+	components := []component.Component{
+		component.NewUnit("./apps/app1"),
+		component.NewUnit("./apps/app2"),
+		component.NewUnit("./libs/db"),
+		component.NewUnit("./libs/api"),
 	}
 
 	// Parse multiple filters - results are unioned
@@ -186,7 +186,7 @@ func Example_multipleFilters() {
 	// Sort for consistent output
 	names := make([]string, len(result))
 	for i, c := range result {
-		names[i] = filepath.Base(c.Path)
+		names[i] = filepath.Base(c.Path())
 	}
 
 	sort.Strings(names)

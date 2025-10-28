@@ -12,12 +12,13 @@ examples:
     code: |
       terragrunt hcl fmt
 flags:
-  - hcl-fmt-filter
   - hcl-fmt-check
   - hcl-fmt-diff
   - hcl-fmt-exclude-dir
   - hcl-fmt-file
+  - hcl-fmt-filter
   - hcl-fmt-stdin
+  - parallelism
   - queue-exclude-dir
   - queue-exclude-external
   - queue-excludes-file

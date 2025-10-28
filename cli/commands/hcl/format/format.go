@@ -120,7 +120,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	} else {
 		components = make(component.Components, 0, len(files))
 		for _, file := range files {
-			components = append(components, &component.Component{Path: file})
+			components = append(components, component.NewUnit(file))
 		}
 	}
 
@@ -139,7 +139,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	for i, c := range components {
 		g.Go(func() error {
-			err := formatTgHCL(gctx, l, opts, c.Path)
+			err := formatTgHCL(gctx, l, opts, c.Path())
 			if err != nil {
 				errs[i] = err
 			}
