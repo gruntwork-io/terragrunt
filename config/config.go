@@ -1989,6 +1989,15 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			continue
 		}
 
+		// Validate retry settings
+		if retryBlock.MaxAttempts < 1 {
+			return nil, fmt.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
+		}
+
+		if retryBlock.SleepIntervalSec < 0 {
+			return nil, fmt.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
+		}
+
 		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
