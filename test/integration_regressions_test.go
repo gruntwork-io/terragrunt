@@ -195,7 +195,6 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 		"Token should be passed via inputs")
 }
 
-// Regression test: empty dependency config_path should surface an error deterministically
 func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	t.Parallel()
 
