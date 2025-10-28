@@ -205,6 +205,18 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 		return nil, err
 	}
 
+	// Validate that dependency config_path is not an empty string.
+	// Terragrunt requires an explicit, non-empty path for dependency resolution.
+	for _, dep := range decodedDependency.Dependencies {
+		if dep.isDisabled() {
+			continue
+		}
+
+		if dep.ConfigPath.AsString() == "" {
+			return nil, fmt.Errorf("dependency %q has empty config_path in %s; set a non-empty config_path or disable the dependency", dep.Name, file.ConfigPath)
+		}
+	}
+
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 

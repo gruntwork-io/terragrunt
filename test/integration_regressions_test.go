@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	testFixtureRegressions        = "fixtures/regressions"
-	testFixtureDependencyGenerate = "fixtures/regressions/dependency-generate"
+	testFixtureRegressions               = "fixtures/regressions"
+	testFixtureDependencyGenerate        = "fixtures/regressions/dependency-generate"
+	testFixtureDependencyEmptyConfigPath = "fixtures/regressions/dependency-empty-config-path"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -192,4 +193,23 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	assert.True(t, strings.Contains(runAllStdout, "test-token-12345") ||
 		strings.Contains(runAllStderr, "test-token-12345"),
 		"Token should be passed via inputs")
+}
+
+// Regression test: empty dependency config_path should surface an error deterministically
+func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyEmptyConfigPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
+	helpers.CreateGitRepo(t, gitPath)
+
+	// Run directly against the consumer unit to force evaluation of dependency outputs
+	consumerPath := util.JoinPath(gitPath, "_source", "units", "consumer")
+	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+consumerPath)
+	require.Error(t, runErr)
+	// Accept match in either stderr or the returned error string
+	if !strings.Contains(stderr, "has empty config_path") && !strings.Contains(runErr.Error(), "has empty config_path") {
+		t.Fatalf("unexpected error; want empty config_path message, got: %v\nstderr: %s", runErr, stderr)
+	}
 }
