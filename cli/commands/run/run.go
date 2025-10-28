@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
@@ -170,21 +169,6 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	// then use it
 	if opts.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
 		opts.DownloadDir = terragruntConfig.DownloadDir
-	}
-
-	// Populate RetryableErrors from errors blocks if defined
-	if terragruntConfig.Errors != nil && len(terragruntConfig.Errors.Retry) > 0 {
-		var allRetryableErrors []string
-
-		for _, retryBlock := range terragruntConfig.Errors.Retry {
-			if len(retryBlock.RetryableErrors) > 0 {
-				allRetryableErrors = append(allRetryableErrors, retryBlock.RetryableErrors...)
-			}
-		}
-		// Only override if we collected any patterns
-		if len(allRetryableErrors) > 0 {
-			opts.RetryableErrors = allRetryableErrors
-		}
 	}
 
 	updatedTerragruntOptions := opts
@@ -350,7 +334,8 @@ func runTerragruntWithConfig(
 	}
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(ctx context.Context) error {
-		runTerraformError := RunTerraformWithRetry(ctx, l, opts, r)
+		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
+		out, runTerraformError := tf.RunCommandWithOutput(ctx, l, opts, opts.TerraformCliArgs...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, cfg.Terraform) {
@@ -362,6 +347,13 @@ func runTerragruntWithConfig(
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
 			lockFileError = config.CopyLockFile(l, opts, opts.WorkingDir, originalOpts.WorkingDir)
+		}
+
+		// If command failed, log a helpful message
+		if runTerraformError != nil {
+			if out == nil {
+				l.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
+			}
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -476,54 +468,6 @@ func SetTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions,
 	}
 
 	return nil
-}
-
-func RunTerraformWithRetry(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-	// Retry the command configurable time with sleep in between
-	for range opts.RetryMaxAttempts {
-		if out, err := tf.RunCommandWithOutput(ctx, l, opts, opts.TerraformCliArgs...); err != nil {
-			if out == nil || !IsRetryable(opts, out) {
-				l.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
-
-				return err
-			} else {
-				l.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", opts.RetrySleepInterval)
-				// Reset the exit code to success so that we can retry the command
-				if exitCode := tf.DetailedExitCodeFromContext(ctx); exitCode != nil {
-					exitCode.ResetSuccess()
-
-					// Also assume this retry will succeed for now. If it doesn't, we'll update this later.
-					if err := r.EndRun(
-						opts.WorkingDir,
-						report.WithResult(report.ResultSucceeded),
-						report.WithReason(report.ReasonRetrySucceeded),
-					); err != nil {
-						l.Errorf("Error ending run for unit %s: %v", opts.WorkingDir, err)
-					}
-				}
-
-				select {
-				case <-time.After(opts.RetrySleepInterval):
-					// try again
-				case <-ctx.Done():
-					return errors.New(ctx.Err())
-				}
-			}
-		} else {
-			return nil
-		}
-	}
-
-	return errors.New(MaxRetriesExceeded{opts})
-}
-
-// IsRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
-func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
-	if !opts.AutoRetry {
-		return false
-	}
-	// When -json is enabled, Terraform will send all output, errors included, to stdout.
-	return util.MatchesAny(opts.RetryableErrors, out.Stderr.String()) || util.MatchesAny(opts.RetryableErrors, out.Stdout.String())
 }
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments

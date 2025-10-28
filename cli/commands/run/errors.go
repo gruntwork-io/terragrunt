@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -50,13 +49,7 @@ func (err ModuleIsProtected) Error() string {
 	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.Opts.TerragruntConfigPath)
 }
 
-type MaxRetriesExceeded struct {
-	Opts *options.TerragruntOptions
-}
-
-func (err MaxRetriesExceeded) Error() string {
-	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.TFPath, strings.Join(err.Opts.TerraformCliArgs, " "))
-}
+// Legacy retry error removed in favor of error handling via options.Errors
 
 type RunAllDisabledErr struct {
 	command string
