@@ -128,19 +128,21 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 	errs := []error{}
 
 	for _, c := range components {
-		if c.External && !opts.External {
+		if c.External() && !opts.External {
 			continue
 		}
 
 		if opts.QueueConstructAs != "" {
-			if c.Parsed != nil && c.Parsed.Exclude != nil {
-				if c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
-					continue
+			if unit, ok := c.(*component.Unit); ok {
+				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
+					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
+						continue
+					}
 				}
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, c.Path)
+		relPath, err := filepath.Rel(opts.WorkingDir, c.Path())
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -148,28 +150,36 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		foundComponent := &FoundComponent{
-			Type: c.Kind,
+			Type: c.Kind(),
 			Path: relPath,
 		}
 
-		if opts.Exclude && c.Parsed != nil && c.Parsed.Exclude != nil {
-			foundComponent.Exclude = c.Parsed.Exclude.Clone()
-		}
-
-		if opts.Include && c.Parsed != nil && c.Parsed.ProcessedIncludes != nil {
-			foundComponent.Include = make(map[string]string, len(c.Parsed.ProcessedIncludes))
-			for _, v := range c.Parsed.ProcessedIncludes {
-				foundComponent.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.RootWorkingDir)
-				if err != nil {
-					errs = append(errs, errors.New(err))
+		if opts.Exclude {
+			if unit, ok := c.(*component.Unit); ok {
+				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
+					foundComponent.Exclude = cfg.Exclude.Clone()
 				}
 			}
 		}
 
-		if opts.Reading && len(c.Reading) > 0 {
-			foundComponent.Reading = make([]string, len(c.Reading))
+		if opts.Include {
+			if unit, ok := c.(*component.Unit); ok {
+				if cfg := unit.Config(); cfg != nil && cfg.ProcessedIncludes != nil {
+					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
+					for _, v := range cfg.ProcessedIncludes {
+						foundComponent.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.RootWorkingDir)
+						if err != nil {
+							errs = append(errs, errors.New(err))
+						}
+					}
+				}
+			}
+		}
 
-			for i, reading := range c.Reading {
+		if opts.Reading && len(c.Reading()) > 0 {
+			foundComponent.Reading = make([]string, len(c.Reading()))
+
+			for i, reading := range c.Reading() {
 				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
 				if err != nil {
 					errs = append(errs, errors.New(err))
@@ -183,7 +193,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
 			for i, dep := range c.Dependencies() {
-				relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+				relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path())
 				if err != nil {
 					errs = append(errs, errors.New(err))
 
@@ -248,9 +258,9 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 	if dir == "" {
 		// No directory part, color the whole path
 		switch foundComponent.Type {
-		case component.Unit:
+		case component.UnitKind:
 			return c.unitColorizer(path)
-		case component.Stack:
+		case component.StackKind:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -261,9 +271,9 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 	coloredPath := c.pathColorizer(dir)
 
 	switch foundComponent.Type {
-	case component.Unit:
+	case component.UnitKind:
 		return coloredPath + c.unitColorizer(base)
-	case component.Stack:
+	case component.StackKind:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path

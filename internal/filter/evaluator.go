@@ -12,8 +12,8 @@ const (
 	AttributeExternal = "external"
 	AttributeReading  = "reading"
 
-	AttributeTypeValueUnit  = string(component.Unit)
-	AttributeTypeValueStack = string(component.Stack)
+	AttributeTypeValueUnit  = string(component.UnitKind)
+	AttributeTypeValueStack = string(component.StackKind)
 
 	AttributeExternalValueTrue  = "true"
 	AttributeExternalValueFalse = "false"
@@ -54,7 +54,7 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 	var result component.Components
 
 	for _, component := range components {
-		normalizedPath := component.Path
+		normalizedPath := component.Path()
 		if !filepath.IsAbs(normalizedPath) {
 			normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
 		}
@@ -70,8 +70,8 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Component) ([]*component.Component, error) {
-	var result []*component.Component
+func evaluateAttributeFilter(filter *AttributeFilter, components []component.Component) ([]component.Component, error) {
+	var result []component.Component
 
 	switch filter.Key {
 	case AttributeName:
@@ -81,7 +81,7 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 		}
 
 		for _, c := range components {
-			if g.Match(filepath.Base(c.Path)) {
+			if g.Match(filepath.Base(c.Path())) {
 				result = append(result, c)
 			}
 		}
@@ -90,13 +90,13 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 		switch filter.Value {
 		case AttributeTypeValueUnit:
 			for _, c := range components {
-				if c.Kind == component.Unit {
+				if _, ok := c.(*component.Unit); ok {
 					result = append(result, c)
 				}
 			}
 		case AttributeTypeValueStack:
 			for _, c := range components {
-				if c.Kind == component.Stack {
+				if _, ok := c.(*component.Stack); ok {
 					result = append(result, c)
 				}
 			}
@@ -107,13 +107,13 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 		switch filter.Value {
 		case AttributeExternalValueTrue:
 			for _, c := range components {
-				if c.External {
+				if c.External() {
 					result = append(result, c)
 				}
 			}
 		case AttributeExternalValueFalse:
 			for _, c := range components {
-				if !c.External {
+				if !c.External() {
 					result = append(result, c)
 				}
 			}
@@ -127,7 +127,7 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []*component.Co
 		}
 
 		for _, c := range components {
-			for _, readFile := range c.Reading {
+			for _, readFile := range c.Reading() {
 				normalizedPath := readFile
 				if !filepath.IsAbs(normalizedPath) {
 					normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
@@ -161,13 +161,13 @@ func evaluatePrefixExpression(expr *PrefixExpression, components component.Compo
 
 	excludeSet := make(map[string]struct{}, len(toExclude))
 	for _, c := range toExclude {
-		excludeSet[c.Path] = struct{}{}
+		excludeSet[c.Path()] = struct{}{}
 	}
 
 	var result component.Components
 
 	for _, c := range components {
-		if _, ok := excludeSet[c.Path]; !ok {
+		if _, ok := excludeSet[c.Path()]; !ok {
 			result = append(result, c)
 		}
 	}

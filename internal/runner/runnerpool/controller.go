@@ -130,18 +130,18 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 						}
 					}()
 
-					unit := dr.unitsMap[ent.Component.Path]
+					unit := dr.unitsMap[ent.Component.Path()]
 					if unit == nil {
-						err := errors.Errorf("unit for path %s not found in discovered units", ent.Component.Path)
+						err := errors.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
 						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Component.Path)
 						dr.q.FailEntry(ent)
-						results.Store(ent.Component.Path, err)
+						results.Store(ent.Component.Path(), err)
 
 						return
 					}
 
 					err := dr.runner(childCtx, unit)
-					results.Store(ent.Component.Path, err)
+					results.Store(ent.Component.Path(), err)
 
 					if err != nil {
 						l.Debugf("Runner Pool Controller: %s failed", ent.Component.Path)
@@ -173,7 +173,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		errCollector := &errors.MultiError{}
 
 		for _, entry := range dr.q.Entries {
-			if err, ok := results.Load(entry.Component.Path); ok {
+			if err, ok := results.Load(entry.Component.Path()); ok {
 				if err == nil {
 					continue
 				}
@@ -184,11 +184,11 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			}
 
 			if entry.Status == queue.StatusEarlyExit {
-				errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Component.Path))
+				errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Component.Path()))
 			}
 
 			if entry.Status == queue.StatusFailed {
-				errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Component.Path))
+				errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Component.Path()))
 			}
 		}
 

@@ -553,18 +553,18 @@ func TestColorizer(t *testing.T) {
 		{
 			name: "unit config",
 			config: &list.ListedComponent{
-				Type: component.Unit,
+				Type: component.UnitKind,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []component.Kind{component.Stack},
+			shouldBeDifferent: []component.Kind{component.StackKind},
 		},
 		{
 			name: "stack config",
 			config: &list.ListedComponent{
-				Type: component.Stack,
+				Type: component.StackKind,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []component.Kind{component.Unit},
+			shouldBeDifferent: []component.Kind{component.UnitKind},
 		},
 	}
 

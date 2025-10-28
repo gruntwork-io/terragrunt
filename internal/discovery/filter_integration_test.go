@@ -238,8 +238,8 @@ dependency "db" {
 			require.NoError(t, err)
 
 			// Filter results by type
-			units := configs.Filter(component.Unit).Paths()
-			stacks := configs.Filter(component.Stack).Paths()
+			units := configs.Filter(component.UnitKind).Paths()
+			stacks := configs.Filter(component.StackKind).Paths()
 
 			// Verify results
 			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -402,8 +402,8 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 			require.NoError(t, err)
 
 			// Filter results by type
-			units := configs.Filter(component.Unit).Paths()
-			stacks := configs.Filter(component.Stack).Paths()
+			units := configs.Filter(component.UnitKind).Paths()
+			stacks := configs.Filter(component.StackKind).Paths()
 
 			// Verify results
 			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -590,8 +590,8 @@ dependency "vpc" {
 			require.NoError(t, err)
 
 			// Filter results by type
-			units := configs.Filter(component.Unit).Paths()
-			stacks := configs.Filter(component.Stack).Paths()
+			units := configs.Filter(component.UnitKind).Paths()
+			stacks := configs.Filter(component.StackKind).Paths()
 
 			// Verify results
 			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -794,8 +794,8 @@ locals {
 			require.NoError(t, err)
 
 			// Filter results by type
-			units := configs.Filter(component.Unit).Paths()
-			stacks := configs.Filter(component.Stack).Paths()
+			units := configs.Filter(component.UnitKind).Paths()
+			stacks := configs.Filter(component.StackKind).Paths()
 
 			// Verify results
 			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -845,7 +845,7 @@ locals {
 	require.NoError(t, err)
 
 	// Should find the app component when filtering by absolute path
-	units := configs.Filter(component.Unit).Paths()
+	units := configs.Filter(component.UnitKind).Paths()
 	assert.ElementsMatch(t, []string{appDir}, units, "Should find component by absolute path to read file")
 }
 

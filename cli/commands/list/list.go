@@ -164,19 +164,21 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 	errs := []error{}
 
 	for _, c := range components {
-		if c.External && !opts.External {
+		if c.External() && !opts.External {
 			continue
 		}
 
 		if opts.QueueConstructAs != "" {
-			if c.Parsed != nil && c.Parsed.Exclude != nil {
-				if c.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
-					continue
+			if unit, ok := c.(*component.Unit); ok {
+				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
+					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
+						continue
+					}
 				}
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, c.Path)
+		relPath, err := filepath.Rel(opts.WorkingDir, c.Path())
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -184,7 +186,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		}
 
 		listedCfg := &ListedComponent{
-			Type: c.Kind,
+			Type: c.Kind(),
 			Path: relPath,
 		}
 
@@ -197,7 +199,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		listedCfg.Dependencies = make([]*ListedComponent, len(c.Dependencies()))
 
 		for i, dep := range c.Dependencies() {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path())
 			if err != nil {
 				errs = append(errs, errors.New(err))
 
@@ -205,7 +207,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			}
 
 			listedCfg.Dependencies[i] = &ListedComponent{
-				Type: dep.Kind,
+				Type: dep.Kind(),
 				Path: relDepPath,
 			}
 		}
@@ -256,9 +258,9 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 	if dir == "" {
 		// No directory part, color the whole path
 		switch listedComponent.Type {
-		case component.Unit:
+		case component.UnitKind:
 			return c.unitColorizer(path)
-		case component.Stack:
+		case component.StackKind:
 			return c.stackColorizer(path)
 		default:
 			return path
@@ -269,9 +271,9 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 	coloredPath := c.pathColorizer(dir)
 
 	switch listedComponent.Type {
-	case component.Unit:
+	case component.UnitKind:
 		return coloredPath + c.unitColorizer(base)
-	case component.Stack:
+	case component.StackKind:
 		return coloredPath + c.stackColorizer(base)
 	default:
 		return path
@@ -280,11 +282,11 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 
 func (c *Colorizer) ColorizeType(t component.Kind) string {
 	switch t {
-	case component.Unit:
+	case component.UnitKind:
 		// This extra space is to keep unit and stack
 		// output equally spaced.
 		return c.unitColorizer("unit ")
-	case component.Stack:
+	case component.StackKind:
 		return c.stackColorizer("stack")
 	default:
 		return string(t)
@@ -488,10 +490,10 @@ func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 		for i, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
-				componentType := component.Stack
+				componentType := component.StackKind
 
-				if c.Type == component.Unit && i == len(parts.segments)-1 {
-					componentType = component.Unit
+				if c.Type == component.UnitKind && i == len(parts.segments)-1 {
+					componentType = component.UnitKind
 				}
 
 				tmpCfg := &ListedComponent{
