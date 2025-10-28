@@ -208,6 +208,18 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
+	// Validate that dependency config_path is not an empty string.
+	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).
+	for _, dep := range decodedDependency.Dependencies {
+		if dep.isDisabled() {
+			continue
+		}
+
+		if isEmptyKnownString(dep.ConfigPath) {
+			return nil, fmt.Errorf("dependency %q has empty config_path in %s; set a non-empty config_path or disable the dependency", dep.Name, file.ConfigPath)
+		}
+	}
+
 	if err := checkForDependencyBlockCycles(ctx, l, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
 	}
@@ -1201,4 +1213,9 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	}
 
 	return filteredDeps
+}
+
+// isEmptyKnownString returns true when v is a fully-known string whose trimmed value is empty.
+func isEmptyKnownString(v cty.Value) bool {
+	return v.Type().Equals(cty.String) && v.IsWhollyKnown() && strings.TrimSpace(v.AsString()) == ""
 }
