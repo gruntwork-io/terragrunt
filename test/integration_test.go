@@ -1107,7 +1107,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		},
 		{
 			command:  []string{"--disable-command-validation", "--", "paln"}, //codespell:ignore
-			expected: "has no command named",                                  // error caused by running terraform with the wrong command
+			expected: "has no command named",                                 // error caused by running terraform with the wrong command
 		},
 	}
 
