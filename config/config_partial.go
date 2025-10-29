@@ -359,6 +359,14 @@ func PartialParseConfigString(ctx *ParsingContext, l log.Logger, configPath, con
 func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
+	// Detect and block deprecated configurations early, before attempting to parse.
+	// This ensures included configs with deprecated syntax get clear error messages
+	// instead of cryptic "Could not find Terragrunt configuration settings" errors.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/4983
+	if err := DetectDeprecatedConfigurations(ctx, l, file); err != nil {
+		return nil, err
+	}
+
 	ctx = ctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
