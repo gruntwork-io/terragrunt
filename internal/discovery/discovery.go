@@ -1016,8 +1016,8 @@ func (d *Discovery) Discover(
 				l.Warnf("Suppressed parsing errors discovered while scanning dependencies. See debug logs for details.")
 
 				// List underlying errors without %w to avoid confusing formatting like `%!w(...)`
-				for _, ue := range errors.UnwrapErrors(err) {
-					l.Debugf("Parse error: %v", ue)
+				for _, e := range errors.UnwrapErrors(err) {
+					l.Debugf("Parse error: %v", e)
 				}
 			}
 
