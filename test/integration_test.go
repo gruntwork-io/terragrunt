@@ -1305,9 +1305,9 @@ func TestApplySkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	// For single unit execution, early exit message should appear
+	// For single unit execution, skip message should appear
 	output := stderr + stdout
-	assert.Contains(t, output, "Early exit in terragrunt unit")
+	assert.Contains(t, output, "Skipping terragrunt unit")
 	assert.Contains(t, output, "due to exclude block with no_run = true")
 	assert.NotContains(t, stdout, "hello, Hobbs")
 }
@@ -1330,7 +1330,7 @@ func TestApplySkipFalse(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hello, Hobbs")
-	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
+	assert.NotContains(t, stderr, "Skipping terragrunt unit")
 }
 
 func TestApplyAllSkipTrue(t *testing.T) {
@@ -1379,7 +1379,7 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
-	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
+	assert.NotContains(t, stderr, "Skipping terragrunt unit")
 }
 
 func TestDependencyOutput(t *testing.T) {

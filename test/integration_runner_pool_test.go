@@ -134,6 +134,9 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
 	// Check that error output contains terraform error details
 	assert.Contains(t, stderr, "level=error")
+	// Verify that unit-b failed
+	assert.Contains(t, stderr, "Failed to execute")
+	assert.Contains(t, stderr, "in ./unit-b")
 	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
 }
