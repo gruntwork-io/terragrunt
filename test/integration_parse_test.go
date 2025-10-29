@@ -34,6 +34,7 @@ var knownBadFiles = []string{
 	"fixtures/hclfmt-errors/invalid-character/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-key/terragrunt.hcl",
 	"fixtures/hclvalidate/second/a/terragrunt.hcl",
+    "fixtures/parsing/exposed-include-with-deprecated-inputs/compcommon.hcl",
 	"fixtures/scaffold/with-shell-and-hooks/.boilerplate/terragrunt.hcl",
 	"fixtures/scaffold/with-shell-commands/.boilerplate/terragrunt.hcl",
 }
