@@ -278,7 +278,7 @@ func runTerragruntWithConfig(
 	target *Target,
 ) error {
 	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
-		l.Infof("Skipping terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
+		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
 
 		return nil
 	}

@@ -168,7 +168,7 @@ func TestExcludeNoRunSingleUnit(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Skipping terragrunt unit")
+	assert.Contains(t, stderr, "Early exit in terragrunt unit")
 	assert.Contains(t, stderr, "due to exclude block with no_run = true")
 }
 
@@ -196,13 +196,13 @@ func TestExcludeNoRunConditional(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Skipping terragrunt unit")
+	assert.Contains(t, stderr, "Early exit in terragrunt unit")
 	assert.Contains(t, stderr, "due to exclude block with no_run = true")
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --feature enable_unit=true --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.NotContains(t, stderr, "Skipping terragrunt unit")
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
 }
 
 func TestExcludeNoRunIndependentOfActions(t *testing.T) {
@@ -215,12 +215,12 @@ func TestExcludeNoRunIndependentOfActions(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
-	assert.NotContains(t, stderr, "Skipping terragrunt unit")
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
 	assert.NotContains(t, stderr, "due to exclude block with no_run = true")
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Skipping terragrunt unit")
+	assert.Contains(t, stderr, "Early exit in terragrunt unit")
 	assert.Contains(t, stderr, "due to exclude block with no_run = true")
 }
