@@ -1,6 +1,9 @@
 ---
 title: Migrating from Deprecated Attributes
 description: Learn how to migrate from the deprecated skip and retryable_errors attributes to their modern replacements.
+slug: docs/migrate/deprecated-attributes
+sidebar:
+  order: 6
 ---
 
 This guide explains how to migrate from the deprecated `skip` and `retryable_errors` attributes to their modern, more powerful replacements.
@@ -203,9 +206,9 @@ An argument named "retryable_errors" is not expected here.
 
 These errors indicate that the attributes have been completely removed from Terragrunt. Please refer to the migration examples below.
 
-## How Retry Errors Are Collected
+## How Retry Blocks Work
 
-When you define multiple `retry` blocks within the `errors` block, Terragrunt automatically collects **all** the `retryable_errors` patterns from all retry blocks and uses them for error matching.
+When you define multiple `retry` blocks within the `errors` block, each block specifies its own retry configuration. Terragrunt will retry on any error matching the patterns in your retry blocks, using the specific retry configuration from the matching block.
 
 **Example:**
 ```hcl
@@ -224,13 +227,9 @@ errors {
 }
 ```
 
-In this example, Terragrunt will retry on any error matching:
-- `.*timeout.*`
-- `.*connection reset.*`
-- `.*rate limit.*`
-- `.*429.*`
-
-Each retry block can have its own `max_attempts` and `sleep_interval_sec`, allowing fine-grained control over retry behavior for different error types.
+In this example, Terragrunt will:
+- Retry network errors (timeout, connection reset) up to 5 times with 2 second intervals
+- Retry API errors (rate limit, 429) up to 10 times with 30 second intervals
 
 ## Further Reading
 
