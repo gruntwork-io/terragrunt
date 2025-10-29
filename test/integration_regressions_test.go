@@ -288,10 +288,46 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 	assert.NotContains(t, stderr, "Unrecoverable parse error",
 		"Should not see unrecoverable parse errors")
 
+	// Should not see fmt formatting artifacts from %w (e.g., %!w(...))
+	assert.NotContains(t, stderr, "%!w(",
+		"Should not see formatting artifacts in error output")
+
 	// Verify both units ran successfully
 	combinedOutput := stdout + stderr
 	assert.Contains(t, combinedOutput, "service1",
 		"Should process the service dependency")
 	assert.Contains(t, combinedOutput, "null_resource.services_info",
 		"Should process the services-info unit with null resource")
+}
+
+// TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
+// to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
+// excluding external dependencies.
+func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
+	t.Parallel()
+
+	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
+	helpers.CleanupTerraformFolder(t, testFixture)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
+	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
+
+	// Set TG_PROVIDER_CACHE=1 and use --queue-exclude-external as in the repro steps
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err)
+
+	// Should not see parsing errors or formatting artifacts
+	assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings")
+	assert.NotContains(t, stderr, "Unrecoverable parse error")
+	assert.NotContains(t, stderr, "%!w(")
+
+	// Verify the current unit ran successfully and external dependency was excluded
+	combinedOutput := stdout + stderr
+	assert.NotContains(t, combinedOutput, "service1")
+	assert.Contains(t, combinedOutput, "null_resource.services_info")
+	assert.Contains(t, combinedOutput, "Excluded")
 }
