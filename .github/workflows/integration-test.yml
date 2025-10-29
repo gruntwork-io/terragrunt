@@ -223,6 +223,7 @@ jobs:
             # print command arguments
             set -x
             export GOTRACEBACK=all
+            export GODEBUG=gctrace=1,scheddetail=1
             go test -v -timeout 15m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
             # Generate XML report from test output
             go-junit-report < test_output.log > result.xml
