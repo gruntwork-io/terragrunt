@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/go-commons/collections"
@@ -19,6 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/puzpuzpuz/xsync/v3"
+	"golang.org/x/sync/errgroup"
 )
 
 // UnitResolver provides common functionality for resolving Terraform units from Terragrunt configuration files.
@@ -141,7 +146,7 @@ func (r *UnitResolver) telemetryResolveUnits(ctx context.Context, l log.Logger, 
 	}, func(ctx context.Context) error {
 		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + r.Stack.TerragruntOptions.WorkingDir
 
-		result, err := r.resolveUnits(ctx, l, canonicalTerragruntConfigPaths, howThesePathsWereFound)
+		result, err := r.resolveUnits(ctx, l, canonicalTerragruntConfigPaths, howThesePathsWereFound, UnitsMap{}, 0, true)
 		if err != nil {
 			return err
 		}
@@ -161,7 +166,7 @@ func (r *UnitResolver) telemetryResolveExternalDependencies(ctx context.Context,
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_units", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
-		result, err := r.resolveExternalDependenciesForUnits(ctx, l, unitsMap, UnitsMap{}, 0)
+		result, err := r.resolveExternalDependenciesForUnits(ctx, l, unitsMap)
 		if err != nil {
 			return err
 		}
@@ -272,78 +277,177 @@ func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logg
 	return withUnitsExcluded, err
 }
 
+type unitToProcess struct {
+	terragruntConfigPath string
+	howThisUnitWasFound  string
+	depth                int
+}
+
 // Go through each of the given Terragrunt configuration files and resolve the unit that configuration file represents
 // into a Unit struct. Note that this method will NOT fill in the Dependencies field of the Unit
 // struct (see the crosslinkDependencies method for that). Return a map from unit path to Unit struct.
-func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseUnitsWereFound string) (UnitsMap, error) {
-	unitsMap := UnitsMap{}
-
-	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-		if !util.FileExists(terragruntConfigPath) {
-			return nil, ProcessingUnitError{UnderlyingError: os.ErrNotExist, UnitPath: terragruntConfigPath, HowThisUnitWasFound: howTheseUnitsWereFound}
-		}
-
-		var unit *Unit
-
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_unit", map[string]any{
-			"config_path": terragruntConfigPath,
-			"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-		}, func(ctx context.Context) error {
-			m, err := r.resolveTerraformUnit(ctx, l, terragruntConfigPath, unitsMap, howTheseUnitsWereFound)
-			if err != nil {
-				return err
-			}
-
-			unit = m
-
-			return nil
-		})
-		if err != nil {
-			return unitsMap, err
-		}
-
-		if unit != nil {
-			unitsMap[unit.Path] = unit
-
-			var dependencies UnitsMap
-
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_dependencies_for_unit", map[string]any{
-				"config_path": terragruntConfigPath,
-				"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-				"unit_path":   unit.Path,
-			}, func(ctx context.Context) error {
-				deps, err := r.resolveDependenciesForUnit(ctx, l, unit, unitsMap, true)
-				if err != nil {
-					return err
-				}
-
-				dependencies = deps
-
-				return nil
-			})
-			if err != nil {
-				return unitsMap, err
-			}
-
-			unitsMap = collections.MergeMaps(unitsMap, dependencies)
-		}
+func (r *UnitResolver) resolveUnits(
+	ctx context.Context,
+	l log.Logger,
+	canonicalTerragruntConfigPaths []string,
+	howTheseUnitsWereFound string,
+	existingUnits UnitsMap,
+	maxDepth int,
+	skipExternalDependencies bool,
+) (UnitsMap, error) {
+	syncUnitsMap := xsync.NewMapOf[string, *Unit]()
+	for k, v := range existingUnits {
+		syncUnitsMap.Store(k, v)
 	}
 
-	return unitsMap, nil
+	// Create a wait group to limit concurrency
+	// This gets tricky as each unit may discover new dependencies that also need to be processed
+	// If we just spawn a goroutine for each dependency we deadlock as the current goroutine can't complete
+	// So instead we manage a list of units to process and a dispatcher goroutine that spawns worker goroutines up to the concurrency limit
+	limit := r.Stack.TerragruntOptions.Parallelism
+	if limit == options.DefaultParallelism {
+		limit = runtime.NumCPU()
+	}
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(limit + 1) // +1 to account for dispatcher goroutine
+
+	// Create a mutex protected list of units to process
+	// This list will be appended to as new dependencies are discovered
+	unitsToProcess := make([]unitToProcess, len(canonicalTerragruntConfigPaths))
+	for i, terragruntConfigPath := range canonicalTerragruntConfigPaths {
+		unitsToProcess[i] = unitToProcess{
+			terragruntConfigPath: terragruntConfigPath,
+			howThisUnitWasFound:  howTheseUnitsWereFound,
+		}
+	}
+	m := &sync.Mutex{}
+	// Keep track of the number of pending units being processed so that the
+	// dispatcher goroutine knows when to exit
+	var pending atomic.Int32
+
+	// Start a dispatcher goroutine to manage the processing of units
+	g.Go(func() error {
+		// Keep track of all processed units to prevent duplicates
+		processed := map[string]struct{}{}
+		for {
+			select {
+			case <-gCtx.Done():
+				return gCtx.Err()
+			default:
+				m.Lock()
+				p := pending.Load()
+				// If there are no more units to process and none pending, we are done
+				if p == 0 && len(unitsToProcess) == 0 {
+					m.Unlock()
+					return nil
+				}
+				// If there are units to process, pop one off the list and process it
+				var toProcess unitToProcess
+				if len(unitsToProcess) > 0 {
+					fmt.Printf("PROCESSING UNITS: %v\n", len(unitsToProcess))
+					toProcess = unitsToProcess[0]
+					unitsToProcess = unitsToProcess[1:]
+				}
+				m.Unlock()
+
+				_, alreadyProcessed := processed[toProcess.terragruntConfigPath]
+
+				if toProcess.terragruntConfigPath != "" && !alreadyProcessed {
+					processed[toProcess.terragruntConfigPath] = struct{}{}
+
+					terragruntConfigPath := toProcess.terragruntConfigPath
+					howThisUnitWasFound := toProcess.howThisUnitWasFound
+					depth := toProcess.depth
+					if maxDepth > 0 && depth >= maxDepth {
+						return errors.New(InfiniteRecursionError{RecursionLevel: maxDepth, Units: xsync.ToPlainMapOf(syncUnitsMap)})
+					}
+
+					pending.Add(1)
+					g.Go(func() error {
+						// Mark the unit as done when this goroutine completes
+						defer func() {
+							m.Lock()
+							pending.Add(-1)
+							m.Unlock()
+						}()
+						if !util.FileExists(terragruntConfigPath) {
+							return ProcessingUnitError{UnderlyingError: os.ErrNotExist, UnitPath: terragruntConfigPath, HowThisUnitWasFound: howThisUnitWasFound}
+						}
+
+						var unit *Unit
+						unitPath, err := r.resolveUnitPath(terragruntConfigPath)
+						if err != nil {
+							return err
+						}
+
+						if _, ok := syncUnitsMap.Load(unitPath); !ok {
+
+							err := telemetry.TelemeterFromContext(gCtx).Collect(gCtx, "resolve_terraform_unit", map[string]any{
+								"config_path": terragruntConfigPath,
+								"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+							}, func(ctx context.Context) error {
+								fmt.Printf("RESOLVING UNIT: %s\n", terragruntConfigPath)
+								m, err := r.resolveTerraformUnit(ctx, l, terragruntConfigPath, unitPath, howThisUnitWasFound)
+								if err != nil {
+									return err
+								}
+
+								unit = m
+
+								return nil
+							})
+							if err != nil {
+								return err
+							}
+						}
+
+						if unit != nil {
+							syncUnitsMap.Store(unit.Path, unit)
+
+							var dependencies []unitToProcess
+
+							err := telemetry.TelemeterFromContext(gCtx).Collect(gCtx, "resolve_dependencies_for_unit", map[string]any{
+								"config_path": terragruntConfigPath,
+								"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+								"unit_path":   unit.Path,
+							}, func(ctx context.Context) error {
+								deps, err := r.resolveDependenciesForUnit(ctx, l, unit, syncUnitsMap, depth+1, skipExternalDependencies)
+								if err != nil {
+									return err
+								}
+								dependencies = deps
+
+								return nil
+							})
+							if err != nil {
+								return err
+							}
+
+							if len(dependencies) > 0 {
+								m.Lock()
+								unitsToProcess = append(unitsToProcess, dependencies...)
+								m.Unlock()
+							}
+
+						}
+						return nil
+					})
+				}
+			}
+		}
+	})
+
+	if err := g.Wait(); err != nil {
+		return xsync.ToPlainMapOf(syncUnitsMap), err
+	}
+
+	return xsync.ToPlainMapOf(syncUnitsMap), nil
 }
 
 // Create a Unit struct for the Terraform unit specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the Unit struct (see the
 // crosslinkDependencies method for that).
-func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, terragruntConfigPath string, unitsMap UnitsMap, howThisUnitWasFound string) (*Unit, error) {
-	unitPath, err := r.resolveUnitPath(terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := unitsMap[unitPath]; ok {
-		return nil, nil
-	}
+func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, terragruntConfigPath string, unitPath string, howThisUnitWasFound string) (*Unit, error) {
 
 	l, opts, err := r.cloneOptionsWithConfigPath(l, terragruntConfigPath)
 	if err != nil {
@@ -516,9 +620,16 @@ func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *optio
 // resolveDependenciesForUnit looks through the dependencies of the given unit and resolve the dependency paths listed in the unit's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
 // user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Logger, unit *Unit, unitsMap UnitsMap, skipExternal bool) (UnitsMap, error) {
+func (r *UnitResolver) resolveDependenciesForUnit(
+	ctx context.Context,
+	l log.Logger,
+	unit *Unit,
+	unitsToSkip *xsync.MapOf[string, *Unit],
+	depth int,
+	skipExternal bool,
+) ([]unitToProcess, error) {
 	if unit.Config.Dependencies == nil || len(unit.Config.Dependencies.Paths) == 0 {
-		return UnitsMap{}, nil
+		return nil, nil
 	}
 
 	externalTerragruntConfigPaths := []string{}
@@ -526,7 +637,7 @@ func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Log
 	for _, dependency := range unit.Config.Dependencies.Paths {
 		dependencyPath, err := util.CanonicalPath(dependency, unit.Path)
 		if err != nil {
-			return UnitsMap{}, err
+			return nil, err
 		}
 
 		if skipExternal && !util.HasPathPrefix(dependencyPath, r.Stack.TerragruntOptions.WorkingDir) {
@@ -535,19 +646,22 @@ func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Log
 
 		terragruntConfigPath := config.GetDefaultConfigPath(dependencyPath)
 
-		if _, alreadyContainsUnit := unitsMap[dependencyPath]; !alreadyContainsUnit {
+		if _, alreadyContainsUnit := unitsToSkip.Load(dependencyPath); !alreadyContainsUnit {
 			externalTerragruntConfigPaths = append(externalTerragruntConfigPaths, terragruntConfigPath)
 		}
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of unit at '%s'", unit.Path)
 
-	result, err := r.resolveUnits(ctx, l, externalTerragruntConfigPaths, howThesePathsWereFound)
-	if err != nil {
-		return nil, err
+	dependenciesToProcess := make([]unitToProcess, len(externalTerragruntConfigPaths))
+	for i, externalTerragruntConfigPath := range externalTerragruntConfigPaths {
+		dependenciesToProcess[i] = unitToProcess{
+			terragruntConfigPath: externalTerragruntConfigPath,
+			howThisUnitWasFound:  howThesePathsWereFound,
+			depth:                depth,
+		}
 	}
-
-	return result, nil
+	return dependenciesToProcess, nil
 }
 
 // Look through the dependencies of the units in the given map and resolve the "external" dependency paths listed in
@@ -556,21 +670,15 @@ func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Log
 // environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, l log.Logger, unitsMap, unitsAlreadyProcessed UnitsMap, recursionLevel int) (UnitsMap, error) {
+func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, l log.Logger, unitsMap UnitsMap) (UnitsMap, error) {
 	allExternalDependencies := UnitsMap{}
-	unitsToSkip := unitsMap.MergeMaps(unitsAlreadyProcessed)
-
-	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
-	const maxLevelsOfRecursion = 20
-	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.New(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Units: unitsToSkip})
-	}
 
 	sortedKeys := unitsMap.SortedKeys()
+
 	for _, key := range sortedKeys {
 		unit := unitsMap[key]
 
-		externalDependencies, err := r.resolveDependenciesForUnit(ctx, l, unit, unitsToSkip, false)
+		externalDependencies, err := r.resolveUnits(ctx, l, []string{config.GetDefaultConfigPath(unit.Path)}, "external dependencies", unitsMap, 20, false)
 		if err != nil {
 			return externalDependencies, err
 		}
@@ -581,7 +689,10 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 		}
 
 		for _, externalDependency := range externalDependencies {
-			if _, alreadyFound := unitsToSkip[externalDependency.Path]; alreadyFound {
+			if _, existingUnit := unitsMap[externalDependency.Path]; existingUnit {
+				continue
+			}
+			if _, alreadyProcessed := allExternalDependencies[externalDependency.Path]; alreadyProcessed {
 				continue
 			}
 
@@ -602,15 +713,6 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 
 			allExternalDependencies[externalDependency.Path] = externalDependency
 		}
-	}
-
-	if len(allExternalDependencies) > 0 {
-		recursiveDependencies, err := r.resolveExternalDependenciesForUnits(ctx, l, allExternalDependencies, unitsMap, recursionLevel+1)
-		if err != nil {
-			return allExternalDependencies, err
-		}
-
-		return allExternalDependencies.MergeMaps(recursiveDependencies), nil
 	}
 
 	return allExternalDependencies, nil

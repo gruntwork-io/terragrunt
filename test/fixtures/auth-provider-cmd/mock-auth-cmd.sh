@@ -2,6 +2,15 @@
 
 set -o pipefail
 
+echo "Auth start" >&2
+sleep 1
+echo "Auth 1" >&2
+sleep 1
+echo "Auth 2" >&2
+sleep 1
+echo "Auth 3" >&2
+
+
 . ${PWD}/creds.config
 
 json_string=$(jq -n \
@@ -12,3 +21,4 @@ json_string=$(jq -n \
 	'{awsCredentials: {ACCESS_KEY_ID: $access_key_id, SECRET_ACCESS_KEY: $secret_access_key, SESSION_TOKEN: $session_token}, envs: {TF_VAR_foo: $tf_var_foo}}')
 
 echo $json_string
+echo "Auth end" >&2
