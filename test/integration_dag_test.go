@@ -30,12 +30,13 @@ func TestIncludeExternalInDagGraphCmd(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGraphDAG)
-	workDir := filepath.Join(testFixtureGraphDAG, "region-1", "unit-a")
+	workDir := filepath.Join(testFixtureGraphDAG, "region-1")
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
 
 	cmd := "terragrunt dag graph --queue-include-external --working-dir " + workDir
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
-
 	assert.Contains(t, stdout, "unit-a\" ->")
 }
