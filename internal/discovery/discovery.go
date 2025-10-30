@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -154,6 +153,9 @@ type Discovery struct {
 
 	// useDefaultExcludes determines whether to use default exclude patterns.
 	useDefaultExcludes bool
+
+	// filterFlagEnabled determines whether the filter flag experiment is active
+	filterFlagEnabled bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -167,28 +169,6 @@ type CompiledPattern struct {
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
-
-// NewDiscovery creates a new Discovery.
-func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
-	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
-
-	discovery := &Discovery{
-		workingDir: dir,
-		hidden:     false,
-		includeDirs: []string{
-			config.StackDir,
-			filepath.Join(config.StackDir, "**"),
-		},
-		numWorkers:         numWorkers,
-		useDefaultExcludes: true,
-	}
-
-	for _, opt := range opts {
-		opt(discovery)
-	}
-
-	return discovery
-}
 
 // WithHidden sets the Hidden flag to true.
 func (d *Discovery) WithHidden() *Discovery {
@@ -362,8 +342,27 @@ func (d *Discovery) WithoutDefaultExcludes() *Discovery {
 
 // WithFilters sets filter queries for component selection.
 // When filters are set, only components matching the filters will be included.
+//
+// WithFilters also determines whether certain aspects of the discovery configuration allows for optimizations or
+// adjustments to discovery are required. e.g. exclude by default if there are any positive filters.
 func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	d.filters = filters
+
+	d.filterFlagEnabled = true
+
+	// If there are any positive filters, we need to exclude by default,
+	// and only include components if they match filters.
+	if d.filters.HasPositiveFilter() {
+		d.excludeByDefault = true
+	}
+
+	return d
+}
+
+// WithFilterFlagEnabled sets whether the filter flag experiment is enabled.
+// This changes how discovery processes components during file traversal.
+func (d *Discovery) WithFilterFlagEnabled(enabled bool) *Discovery {
+	d.filterFlagEnabled = enabled
 	return d
 }
 
@@ -639,7 +638,6 @@ func (d *Discovery) walkDirectoryConcurrently(
 	filePaths chan<- string,
 ) error {
 	walkFn := filepath.WalkDir
-
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
 		walkFn = util.WalkDirWithSymlinks
 	}
@@ -678,6 +676,11 @@ func (d *Discovery) shouldSkipDirectory(path string, l log.Logger) error {
 	switch base {
 	case ".git", ".terraform", ".terragrunt-cache":
 		return filepath.SkipDir
+	}
+
+	// When filter flag is enabled, let filters control discovery instead of exclude patterns
+	if d.filterFlagEnabled {
+		return nil
 	}
 
 	canonicalDir, canErr := util.CanonicalPath(path, d.workingDir)
@@ -728,12 +731,61 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 
 	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
 	if canErr == nil {
-		for _, pattern := range d.compiledExcludePatterns {
-			if pattern.Compiled.Match(canonicalDir) {
-				l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern.Original)
-				return nil
+		// Eventually, this is going to be removed entirely, as filter evaluation
+		// will be all that's needed.
+		if !d.filterFlagEnabled {
+			for _, pattern := range d.compiledExcludePatterns {
+				if pattern.Compiled.Match(canonicalDir) {
+					l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern.Original)
+					return nil
+				}
 			}
 		}
+
+		if d.filterFlagEnabled {
+			cfg := d.createComponentFromPath(path, filenames)
+			if cfg == nil {
+				return nil
+			}
+
+			// Check for hidden directories before returning
+			if !d.hidden && d.isInHiddenDirectory(path) {
+				allowHidden := false
+
+				// Always allow .terragrunt-stack contents
+				cleanDir := util.CleanPath(canonicalDir)
+				for part := range strings.SplitSeq(cleanDir, "/") {
+					if part == config.StackDir {
+						allowHidden = true
+						break
+					}
+				}
+
+				if !allowHidden {
+					return nil
+				}
+			}
+
+			shouldEvaluateFiltersNow := !d.discoverDependencies
+			if shouldEvaluateFiltersNow {
+				if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
+					filtered, err := d.filters.Evaluate(component.Components{cfg})
+					if err != nil {
+						l.Debugf("Error evaluating filters for %s: %v", cfg.Path(), err)
+						return nil
+					}
+
+					if len(filtered) == 0 {
+						return nil
+					}
+				}
+			}
+
+			return cfg
+		}
+
+		// Everything after this point is only relevant when the filter flag is disabled.
+		// It should be removed once the filter flag is generally available.
 
 		// Enforce include patterns only when strictInclude or excludeByDefault are set
 		if d.strictInclude || d.excludeByDefault {
@@ -760,8 +812,11 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 		if canErr == nil {
 			// Always allow .terragrunt-stack contents
 			cleanDir := util.CleanPath(canonicalDir)
-			if strings.Contains(cleanDir, "/"+config.StackDir+"/") || strings.HasSuffix(cleanDir, "/"+config.StackDir) {
-				allowHidden = true
+			for part := range strings.SplitSeq(cleanDir, "/") {
+				if part == config.StackDir {
+					allowHidden = true
+					break
+				}
 			}
 
 			if !allowHidden {
@@ -780,6 +835,12 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 		}
 	}
 
+	return d.createComponentFromPath(path, filenames)
+}
+
+// createComponentFromPath creates a component from a file path if it matches one of the config filenames.
+// Returns nil if the file doesn't match any of the provided filenames.
+func (d *Discovery) createComponentFromPath(path string, filenames []string) component.Component {
 	base := filepath.Base(path)
 	for _, fname := range filenames {
 		if base == fname {
