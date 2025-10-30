@@ -208,40 +208,27 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	startCount := 0
-	endCount := 0
-	concurrentCount := 0
+	startCount := strings.Count(stderr, "Auth start")
+	endCount := strings.Count(stderr, "Auth end")
+
+	reConcurrent := regexp.MustCompile(`Auth concurrent.*detected=(\d+)`)
+	matches := reConcurrent.FindAllStringSubmatch(stderr, -1)
+
 	maxConcurrent := 0
+	for _, match := range matches {
+		detected, convErr := strconv.Atoi(match[1])
+		require.NoError(t, convErr, "Invalid detected count in stderr: %q", match[0])
 
-	lines := strings.Split(stderr, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "Auth start") {
-			startCount++
+		if detected > maxConcurrent {
+			maxConcurrent = detected
 		}
 
-		if strings.Contains(line, "Auth end") {
-			endCount++
-		}
-
-		if strings.Contains(line, "Auth concurrent") {
-			concurrentCount++
-
-			re := regexp.MustCompile(`detected=(\d+)`)
-			if matches := re.FindStringSubmatch(line); len(matches) == 2 {
-				if detected, err := strconv.Atoi(matches[1]); err == nil {
-					if detected > maxConcurrent {
-						maxConcurrent = detected
-					}
-
-					t.Logf("Auth command detected %d concurrent executions", detected)
-				}
-			}
-		}
+		t.Logf("Auth command detected %d concurrent executions", detected)
 	}
 
 	require.GreaterOrEqual(t, startCount, 3, "Expected at least 3 auth start events")
 	require.GreaterOrEqual(t, endCount, 3, "Expected at least 3 auth end events")
-	assert.GreaterOrEqual(t, concurrentCount, 1,
+	assert.GreaterOrEqual(t, len(matches), 1,
 		"Expected at least one auth command to detect concurrent execution. "+
 			"This would prove parallel execution. If this fails, auth commands may be running sequentially.")
 	assert.GreaterOrEqual(t, maxConcurrent, 2,

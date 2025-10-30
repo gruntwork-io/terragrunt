@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 
 	"github.com/gobwas/glob"
@@ -286,6 +287,13 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 
 	// Use errgroup for parallel execution with proper error handling
 	g, gCtx := errgroup.WithContext(ctx)
+
+	// Set parallelism limit for goroutines
+	limit := r.Stack.TerragruntOptions.Parallelism
+	if limit == options.DefaultParallelism {
+		limit = runtime.NumCPU()
+	}
+	g.SetLimit(limit)
 
 	// Wrap Phase 1 in telemetry
 	var phase1Err error
