@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -653,4 +654,70 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 	require.NotEmpty(t, appComponent.Reading(), "should have read files")
 	assert.Contains(t, appComponent.Reading(), sharedHCL, "should contain shared.hcl")
 	assert.Contains(t, appComponent.Reading(), sharedTFVars, "should contain shared.tfvars")
+}
+
+func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	unit1Dir := filepath.Join(tmpDir, "unit1")
+	require.NoError(t, os.MkdirAll(unit1Dir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "terragrunt.hcl"), []byte(""), 0644))
+
+	unit2Dir := filepath.Join(tmpDir, "unit2")
+	require.NoError(t, os.MkdirAll(unit2Dir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "terragrunt.hcl"), []byte(""), 0644))
+
+	unit3Dir := filepath.Join(tmpDir, "unit3")
+	require.NoError(t, os.MkdirAll(unit3Dir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unit3Dir, "terragrunt.hcl"), []byte(""), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+
+	l := logger.CreateLogger()
+
+	tt := []struct {
+		name    string
+		filters []string
+		want    []string
+	}{
+		{
+			name:    "include by default",
+			filters: []string{},
+			want:    []string{unit1Dir, unit2Dir, unit3Dir},
+		},
+		{
+			name:    "exclude by default",
+			filters: []string{"unit1"},
+			want:    []string{unit1Dir},
+		},
+		{
+			name:    "include by default when only negative filters are present",
+			filters: []string{"!unit2"},
+			want:    []string{unit1Dir, unit3Dir},
+		},
+		{
+			name:    "exclude by default when positive and negative filters are present",
+			filters: []string{"unit1", "!unit2"},
+			want:    []string{unit1Dir},
+		},
+	}
+
+	for _, tt := range tt {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			filters, err := filter.ParseFilterQueries(tt.filters, tmpDir)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+			components, err := d.Discover(t.Context(), l, opts)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, components.Filter(component.UnitKind).Paths())
+		})
+	}
 }
