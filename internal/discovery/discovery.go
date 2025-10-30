@@ -518,12 +518,6 @@ func Parse(
 		// Treat include-only/no-settings configs as non-fatal during discovery when suppression is enabled
 		if suppressParseErrors && containsNoSettingsError(err) {
 			l.Debugf("Skipping include-only config during discovery: %s", parseOpts.TerragruntConfigPath)
-
-			// Store an empty partial config to avoid nil dereferences in subsequent dependency discovery
-			if unit, ok := c.(*component.Unit); ok {
-				unit.StoreConfig(&config.TerragruntConfig{IsPartial: true})
-			}
-
 			return nil
 		}
 
@@ -1178,6 +1172,12 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 	}
 
 	terragruntCfg := unit.Config()
+	if terragruntCfg == nil {
+		// Config is still nil after parsing (e.g., include-only config with suppressParseErrors)
+		// No dependencies to discover
+		return nil
+	}
+
 	dependencyBlocks := terragruntCfg.TerragruntDependencies
 
 	depPaths := make([]string, 0, len(dependencyBlocks))
