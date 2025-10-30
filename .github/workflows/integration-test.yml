@@ -222,18 +222,19 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             # print command arguments
             set -x
-            echo "1"
+            echo "*step 1"
             export GOTRACEBACK=all
             export GODEBUG=gctrace=1,scheddetail=1
-            echo "2"
+            echo "*step 2"
             go test -v -timeout 15m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
             # Generate XML report from test output
-            echo "3"
+            echo "*step 3"
             go-junit-report < test_output.log > result.xml
+            echo "*step 4"
           else
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
-          echo "4"
+          echo "*step 5"
         shell: bash
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
