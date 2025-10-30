@@ -200,18 +200,14 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderParallel)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderParallel)
 
-	// Get absolute path to auth provider script
 	authProviderScript := filepath.Join(testPath, "auth-provider.sh")
 
-	// Run terragrunt with auth-provider-cmd
-	// We use 'validate' instead of 'plan' to make the test faster
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --non-interactive --auth-provider-cmd "+authProviderScript+" --working-dir "+testPath+" -- validate",
 	)
 	require.NoError(t, err)
 
-	// Parse auth events from stderr
 	startCount := 0
 	endCount := 0
 	concurrentCount := 0
@@ -229,7 +225,7 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 
 		if strings.Contains(line, "Auth concurrent") {
 			concurrentCount++
-			// Extract the detected count
+
 			re := regexp.MustCompile(`detected=(\d+)`)
 			if matches := re.FindStringSubmatch(line); len(matches) == 2 {
 				if detected, err := strconv.Atoi(matches[1]); err == nil {
@@ -243,19 +239,11 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 		}
 	}
 
-	// Basic sanity checks
 	require.GreaterOrEqual(t, startCount, 3, "Expected at least 3 auth start events")
 	require.GreaterOrEqual(t, endCount, 3, "Expected at least 3 auth end events")
-	// Note: Due to buffering and timing, start/end counts might differ slightly
-	// The key metric is the concurrent detection, not exact event counts
-
-	// The key assertion: at least one auth command should have detected concurrent execution
-	// This is a deterministic proof that multiple auth commands were running at the same time
 	assert.GreaterOrEqual(t, concurrentCount, 1,
 		"Expected at least one auth command to detect concurrent execution. "+
 			"This would prove parallel execution. If this fails, auth commands may be running sequentially.")
-
-	// Additionally, verify that the detected concurrency was at least 2 (meaning 2+ commands running together)
 	assert.GreaterOrEqual(t, maxConcurrent, 2,
 		"Expected auth commands to detect at least 2 concurrent executions. "+
 			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
