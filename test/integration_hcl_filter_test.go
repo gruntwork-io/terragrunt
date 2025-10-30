@@ -120,31 +120,31 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			name:        "error: name=*.stack.hcl requires HCL parsing",
 			filterArgs:  []string{"name=*.stack.hcl"},
 			expectError: true,
-			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "name=*.stack.hcl"},
+			errorAs:     filter.FilterQueryRequiresDiscoveryError{Query: "name=*.stack.hcl"},
 		},
 		{
 			name:        "error: type=unit requires HCL parsing",
 			filterArgs:  []string{"type=unit"},
 			expectError: true,
-			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "type=unit"},
+			errorAs:     filter.FilterQueryRequiresDiscoveryError{Query: "type=unit"},
 		},
 		{
 			name:        "error: type=stack requires HCL parsing",
 			filterArgs:  []string{"type=stack"},
 			expectError: true,
-			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "type=stack"},
+			errorAs:     filter.FilterQueryRequiresDiscoveryError{Query: "type=stack"},
 		},
 		{
 			name:        "error: external=true requires HCL parsing",
 			filterArgs:  []string{"external=true"},
 			expectError: true,
-			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "external=true"},
+			errorAs:     filter.FilterQueryRequiresDiscoveryError{Query: "external=true"},
 		},
 		{
 			name:        "error: intersection with type filter",
 			filterArgs:  []string{"./needs-formatting/** | type=unit"},
 			expectError: true,
-			errorAs:     filter.FilterQueryRequiresHCLParsingError{Query: "./needs-formatting/** | type=unit"},
+			errorAs:     filter.FilterQueryRequiresDiscoveryError{Query: "./needs-formatting/** | type=unit"},
 		},
 	}
 

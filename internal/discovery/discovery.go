@@ -356,12 +356,6 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 		d.excludeByDefault = true
 	}
 
-	// If any filter requires HCL parsing (e.g., reading filters), ensure parsing is enabled
-	if _, requiresParsing := d.filters.RequiresHCLParsing(); requiresParsing {
-		d.WithRequiresParse()
-		d.readFiles = true
-	}
-
 	return d
 }
 
@@ -739,7 +733,7 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 
 			shouldEvaluateFiltersNow := !d.discoverDependencies
 			if shouldEvaluateFiltersNow {
-				if _, requiresParsing := d.filters.RequiresHCLParsing(); !requiresParsing {
+				if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
 					filtered, err := d.filters.Evaluate(component.Components{cfg})
 					if err != nil {
 						l.Debugf("Error evaluating filters for %s: %v", cfg.Path(), err)
