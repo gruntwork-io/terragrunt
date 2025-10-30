@@ -226,6 +226,123 @@ func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l l
 	return unitsMap, err
 }
 
+// buildUnitsFromDiscovery constructs UnitsMap from discovery-parsed components without re-parsing,
+// performing only the minimal parsing necessary to obtain missing fields (e.g., Terraform.source).
+func (r *UnitResolver) buildUnitsFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (UnitsMap, error) {
+	units := make(UnitsMap)
+
+	for _, c := range discovered {
+		// Only handle terraform units; skip stacks and anything else
+		if c.Kind() == component.StackKind {
+			continue
+		}
+
+		dUnit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if dUnit.Config() == nil {
+			// Skip configurations that could not be parsed in discovery
+			l.Warnf("Skipping unit at %s due to parse error", c.Path())
+			continue
+		}
+
+		// Determine the per-unit config filename (mirrors runnerpool logic)
+		var fname string
+
+		fname = config.DefaultTerragruntConfigPath
+		if r.Stack.TerragruntOptions.TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions.TerragruntConfigPath) {
+			fname = filepath.Base(r.Stack.TerragruntOptions.TerragruntConfigPath)
+		}
+
+		terragruntConfigPath := filepath.Join(dUnit.Path(), fname)
+
+		unitPath, err := r.resolveUnitPath(terragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		// Prepare options with shared logger and proper working dir
+		opts, err := r.cloneOptionsWithConfigPathSharedLogger(terragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		// Exclusion check (same semantics as resolveTerraformUnitParallel)
+		excludeFn := func(l log.Logger, unitPath string) bool {
+			for globPath, globPattern := range r.excludeGlobs {
+				if globPattern.Match(unitPath) {
+					l.Debugf("Unit %s is excluded by glob %s", unitPath, globPath)
+					return true
+				}
+			}
+
+			return false
+		}
+		if !r.doubleStarEnabled {
+			excludeFn = func(_ log.Logger, unitPath string) bool {
+				return collections.ListContainsElement(opts.ExcludeDirs, unitPath)
+			}
+		}
+
+		if excludeFn(l, unitPath) {
+			units[unitPath] = &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
+			continue
+		}
+
+		// Acquire credentials early (auth-provider-cmd), before any parsing that may require them
+		if err = r.acquireCredentials(ctx, l, opts); err != nil {
+			return nil, err
+		}
+
+		terragruntConfig := dUnit.Config()
+
+		// Light parse only if Terraform.source wasn't decoded during discovery
+		var readFiles []string
+
+		if terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "" {
+			includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
+			parseCtx := r.createParsingContext(ctx, l, opts)
+
+			//nolint:contextcheck
+			if parsedCfg, parseErr := r.partialParseConfig(parseCtx, l, terragruntConfigPath, includeConfig, "discovered"); parseErr == nil && parsedCfg != nil {
+				terragruntConfig = parsedCfg
+			}
+
+			if parseCtx.FilesRead != nil {
+				readFiles = *parseCtx.FilesRead
+			}
+		}
+
+		// Determine effective source and setup download dir
+		terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		opts.Source = terragruntSource
+
+		if err = r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
+			return nil, err
+		}
+
+		hasFiles, err := util.DirContainsTFFiles(filepath.Dir(terragruntConfigPath))
+		if err != nil {
+			return nil, err
+		}
+
+		if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
+			l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
+			continue
+		}
+
+		units[unitPath] = &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: readFiles}
+	}
+
+	return units, nil
+}
+
 // telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
 func (r *UnitResolver) telemetryResolveUnits(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string) (UnitsMap, error) {
 	var unitsMap UnitsMap
