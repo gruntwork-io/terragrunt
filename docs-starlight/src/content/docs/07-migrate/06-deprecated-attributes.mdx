@@ -1,6 +1,9 @@
 ---
 title: Migrating from Deprecated Attributes
 description: Learn how to migrate from the deprecated skip and retryable_errors attributes to their modern replacements.
+slug: docs/migrate/deprecated-attributes
+sidebar:
+  order: 6
 ---
 
 This guide explains how to migrate from the deprecated `skip` and `retryable_errors` attributes to their modern, more powerful replacements.
@@ -18,11 +21,10 @@ These new blocks provide more granular control and composability compared to the
 
 ### Why was `skip` deprecated?
 
-The `skip` attribute was a simple boolean that would exclude a unit from the run queue.
-The new `exclude` block provides much more flexibility:
+The `skip` attribute was a simple boolean that would skip the entire module. The new `exclude` block provides much more flexibility:
 
-- Exclude the unit only for specific OpenTofu/Terraform commands (e.g., only `plan` but not `apply`)
-- Use conditional logic to determine when to exclude the unit
+- Skip only specific actions (e.g., only `plan` but not `apply`)
+- Use conditional logic to determine when to skip
 - Combine multiple conditions
 - Better integration with other Terragrunt features
 
@@ -58,7 +60,7 @@ exclude {
 
 ### Skip Specific Actions
 
-The new `exclude` block allows you to exclude the unit only for specific OpenTofu/Terraform commands:
+The new `exclude` block allows you to skip only specific Terraform commands:
 
 ```hcl
 exclude {

@@ -5,5 +5,5 @@ exclude {
 }
 
 terraform {
-  source = "../../base-module"
+  source = "../base-module"
 }

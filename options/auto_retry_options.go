@@ -40,7 +40,7 @@ func defaultErrorsConfig() *ErrorsConfig {
 		re, err := regexp.Compile(pat)
 		if err != nil {
 			// Should not happen, as patterns are hardcoded and tested
-			continue
+			panic(err)
 		}
 
 		compiled = append(compiled, &ErrorsPattern{Pattern: re})
