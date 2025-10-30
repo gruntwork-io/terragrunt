@@ -1,7 +1,9 @@
 package test_test
 
 import (
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ const (
 	testFixtureMixedConfig            = "fixtures/mixed-config"
 	testFixtureFailFast               = "fixtures/fail-fast"
 	testFixtureRunnerPoolRemoteSource = "fixtures/runner-pool-remote-source"
+	testFixtureAuthProviderParallel   = "fixtures/auth-provider-parallel"
 )
 
 func TestRunnerPoolDiscovery(t *testing.T) {
@@ -177,4 +180,80 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	require.NoError(t, err)
 	// Verify that source map values are used
 	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+}
+
+// TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
+// for multiple units during the resolution phase.
+//
+// The test works by:
+// 1. Running terragrunt with --auth-provider-cmd pointing to a script that:
+//   - Creates lock files to coordinate between concurrent invocations
+//   - Detects when multiple auth commands are running simultaneously
+//   - Logs "Auth concurrent" when it detects parallel execution
+//     2. Parsing the output to find "Auth concurrent" messages
+//     3. Verifying that at least one auth command detected concurrent execution
+//     (which is deterministic proof of parallelism)
+func TestAuthProviderParallelExecution(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderParallel)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderParallel)
+
+	// Get absolute path to auth provider script
+	authProviderScript := filepath.Join(testPath, "auth-provider.sh")
+
+	// Run terragrunt with auth-provider-cmd
+	// We use 'validate' instead of 'plan' to make the test faster
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --auth-provider-cmd "+authProviderScript+" --working-dir "+testPath+" -- validate",
+	)
+	require.NoError(t, err)
+
+	// Parse auth events from stderr
+	startCount := 0
+	endCount := 0
+	concurrentCount := 0
+	maxConcurrent := 0
+
+	lines := strings.Split(stderr, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Auth start") {
+			startCount++
+		}
+		if strings.Contains(line, "Auth end") {
+			endCount++
+		}
+		if strings.Contains(line, "Auth concurrent") {
+			concurrentCount++
+			// Extract the detected count
+			re := regexp.MustCompile(`detected=(\d+)`)
+			if matches := re.FindStringSubmatch(line); len(matches) == 2 {
+				if detected, err := strconv.Atoi(matches[1]); err == nil {
+					if detected > maxConcurrent {
+						maxConcurrent = detected
+					}
+					t.Logf("Auth command detected %d concurrent executions", detected)
+				}
+			}
+		}
+	}
+
+	// Basic sanity checks
+	require.GreaterOrEqual(t, startCount, 3, "Expected at least 3 auth start events")
+	require.GreaterOrEqual(t, endCount, 3, "Expected at least 3 auth end events")
+	// Note: Due to buffering and timing, start/end counts might differ slightly
+	// The key metric is the concurrent detection, not exact event counts
+
+	// The key assertion: at least one auth command should have detected concurrent execution
+	// This is a deterministic proof that multiple auth commands were running at the same time
+	assert.GreaterOrEqual(t, concurrentCount, 1,
+		"Expected at least one auth command to detect concurrent execution. "+
+			"This would prove parallel execution. If this fails, auth commands may be running sequentially.")
+
+	// Additionally, verify that the detected concurrency was at least 2 (meaning 2+ commands running together)
+	assert.GreaterOrEqual(t, maxConcurrent, 2,
+		"Expected auth commands to detect at least 2 concurrent executions. "+
+			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
 }
