@@ -87,38 +87,6 @@ func NewRunnerPoolStack(
 	// the report is available during unit resolution for tracking exclusions
 	runner = runner.WithOptions(opts...)
 
-	// Collect all terragrunt.hcl paths for resolution.
-	unitPaths := make([]string, 0, len(discovered))
-
-	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if unit.Config() == nil {
-			// Skip configurations that could not be parsed
-			l.Warnf("Skipping unit at %s due to parse error", c.Path())
-			continue
-		}
-
-		// Determine per-unit config filename
-		//
-		// TODO: Refactor this out later.
-		var fname string
-		if c.Kind() == component.StackKind {
-			fname = config.DefaultStackFile
-		} else {
-			fname = config.DefaultTerragruntConfigPath
-			if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
-				fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
-			}
-		}
-
-		terragruntConfigPath := filepath.Join(unit.Path(), fname)
-		unitPaths = append(unitPaths, terragruntConfigPath)
-	}
-
 	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
@@ -130,9 +98,42 @@ func NewRunnerPoolStack(
 		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
 	}
 
-	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
-	if err != nil {
-		return nil, err
+	var unitsMap common.Units
+	if u, resErr := unitResolver.ResolveFromDiscovery(ctx, l, discovered); resErr == nil {
+		unitsMap = u
+	} else {
+		l.Warnf("ResolveFromDiscovery failed, falling back to legacy resolution: %v", resErr)
+		// Build unit paths for legacy flow
+		unitPaths := make([]string, 0, len(discovered))
+		for _, c := range discovered {
+			unit, ok := c.(*component.Unit)
+			if !ok {
+				continue
+			}
+
+			if unit.Config() == nil {
+				l.Warnf("Skipping unit at %s due to parse error", c.Path())
+				continue
+			}
+
+			var fname string
+			if c.Kind() == component.StackKind {
+				fname = config.DefaultStackFile
+			} else {
+				fname = config.DefaultTerragruntConfigPath
+				if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
+					fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
+				}
+			}
+
+			terragruntConfigPath := filepath.Join(unit.Path(), fname)
+			unitPaths = append(unitPaths, terragruntConfigPath)
+		}
+
+		unitsMap, err = unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	runner.Stack.Units = unitsMap

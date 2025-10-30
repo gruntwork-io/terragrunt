@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -133,6 +134,96 @@ func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger
 	}
 
 	return filteredUnits, nil
+}
+
+// ResolveFromDiscovery builds units starting from discovery-parsed components, avoiding re-parsing
+// for initially discovered units. It preserves the same filtering and dependency resolution pipeline.
+func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (Units, error) {
+	unitsMap, err := r.telemetryBuildUnitsFromDiscovery(ctx, l, discovered)
+	if err != nil {
+		return nil, err
+	}
+
+	externalDependencies, err := r.telemetryResolveExternalDependencies(ctx, l, unitsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the canonical config paths list for cross-linking
+	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered))
+	for _, c := range discovered {
+		if c.Kind() == component.StackKind {
+			continue
+		}
+		// Mirror runner logic for file name
+		fname := config.DefaultTerragruntConfigPath
+		if r.Stack.TerragruntOptions.TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions.TerragruntConfigPath) {
+			fname = filepath.Base(r.Stack.TerragruntOptions.TerragruntConfigPath)
+		}
+
+		canonicalPath, err := util.CanonicalPath(filepath.Join(c.Path(), fname), ".")
+		if err == nil {
+			canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
+		}
+	}
+
+	crossLinkedUnits, err := r.telemetryCrossLinkDependencies(ctx, unitsMap, externalDependencies, canonicalTerragruntConfigPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsIncluded, err := r.telemetryFlagIncludedDirs(ctx, l, crossLinkedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsThatAreIncludedByOthers, err := r.telemetryFlagUnitsThatAreIncluded(ctx, withUnitsIncluded)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
+	if err != nil {
+		return nil, err
+	}
+
+	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
+	if err != nil {
+		return nil, err
+	}
+
+	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	return filteredUnits, nil
+}
+
+// telemetryBuildUnitsFromDiscovery wraps buildUnitsFromDiscovery in telemetry collection.
+func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (UnitsMap, error) {
+	var unitsMap UnitsMap
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "build_units_from_discovery", map[string]any{
+		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+		"unit_count":  len(discovered),
+	}, func(ctx context.Context) error {
+		result, err := r.buildUnitsFromDiscovery(ctx, l, discovered)
+		if err != nil {
+			return err
+		}
+
+		unitsMap = result
+
+		return nil
+	})
+
+	return unitsMap, err
 }
 
 // telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
