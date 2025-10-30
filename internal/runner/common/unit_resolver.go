@@ -293,6 +293,7 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 	if limit == options.DefaultParallelism {
 		limit = runtime.NumCPU()
 	}
+
 	g.SetLimit(limit)
 
 	// Wrap Phase 1 in telemetry

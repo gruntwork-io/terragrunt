@@ -215,6 +215,7 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 	matches := reConcurrent.FindAllStringSubmatch(stderr, -1)
 
 	maxConcurrent := 0
+
 	for _, match := range matches {
 		detected, convErr := strconv.Atoi(match[1])
 		require.NoError(t, convErr, "Invalid detected count in stderr: %q", match[0])
