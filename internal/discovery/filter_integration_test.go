@@ -808,6 +808,8 @@ func TestDiscoveryWithReadingFiltersAndAbsolutePaths(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create a shared file with absolute path
 	sharedFile := filepath.Join(tmpDir, "shared.hcl")
