@@ -272,6 +272,120 @@ func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logg
 	return withUnitsExcluded, err
 }
 
+func (r *UnitResolver) resolveUnits2(
+	ctx context.Context,
+	l log.Logger,
+	canonicalTerragruntConfigPaths []string,
+	howTheseUnitsWereFound string,
+) (UnitsMap, error) {
+	type discoveredUnit struct {
+		terragruntConfigPath string
+		isDependency         bool
+		isExternal           bool
+		howThisUnitWasFound  string
+		depth                int
+	}
+	type resolvedUnit struct {
+		unit                *Unit
+		isDependency        bool
+		isExternal          bool
+		howThisUnitWasFound string
+	}
+	toUnits := func(resolvedUnits map[string]*resolvedUnit) UnitsMap {
+		units := make(UnitsMap, len(resolvedUnits))
+		for _, ru := range resolvedUnits {
+			units[ru.unit.Path] = ru.unit
+		}
+		return units
+	}
+
+	resolvedUnits := make(map[string]*resolvedUnit)
+	toProcess := make([]discoveredUnit, 0, len(canonicalTerragruntConfigPaths))
+	for _, path := range canonicalTerragruntConfigPaths {
+		toProcess = append(toProcess, discoveredUnit{
+			terragruntConfigPath: path,
+			isDependency:         false,
+			isExternal:           false,
+			howThisUnitWasFound:  howTheseUnitsWereFound,
+		})
+	}
+	for {
+		if len(toProcess) == 0 {
+			break
+		}
+		nextUnit := toProcess[0]
+		toProcess = toProcess[1:]
+
+		if nextUnit.depth > 20 {
+			return nil, errors.New(InfiniteRecursionError{RecursionLevel: 20, Units: toUnits(resolvedUnits)})
+		}
+
+		if resolvedUnits[nextUnit.terragruntConfigPath] != nil {
+			continue
+		}
+
+		var unit *Unit
+
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_unit", map[string]any{
+			"config_path": nextUnit.terragruntConfigPath,
+			"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+		}, func(ctx context.Context) error {
+			m, err := r.resolveTerraformUnit(ctx, l, nextUnit.terragruntConfigPath, howTheseUnitsWereFound)
+			if err != nil {
+				return err
+			}
+
+			unit = m
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// resolveTerraformUnit can return nil if the unit has no terraform
+		if unit != nil {
+			resolvedUnits[nextUnit.terragruntConfigPath] = &resolvedUnit{unit: unit}
+
+			if unit.Config.Dependencies == nil || len(unit.Config.Dependencies.Paths) == 0 {
+				continue
+			}
+
+			howThisUnitWasFound := fmt.Sprintf("dependency of unit at '%s'", unit.Path)
+			for _, dependency := range unit.Config.Dependencies.Paths {
+				dependencyPath, err := util.CanonicalPath(dependency, unit.Path)
+				if err != nil {
+					return nil, err
+				}
+
+				isExternal := false
+				if !util.HasPathPrefix(dependencyPath, r.Stack.TerragruntOptions.WorkingDir) {
+					isExternal = true
+				}
+
+				terragruntConfigPath := config.GetDefaultConfigPath(dependencyPath)
+				if _, alreadyResolved := resolvedUnits[terragruntConfigPath]; alreadyResolved {
+
+					toProcess = append(toProcess, discoveredUnit{
+						terragruntConfigPath: terragruntConfigPath,
+						isDependency:         true,
+						isExternal:           isExternal,
+						howThisUnitWasFound:  howThisUnitWasFound,
+					})
+				}
+
+			}
+		}
+	}
+
+	for path, ru := range resolvedUnits {
+		if ru.isExternal {
+			
+		}
+
+	return toUnits(resolvedUnits), nil
+}
+
 // Go through each of the given Terragrunt configuration files and resolve the unit that configuration file represents
 // into a Unit struct. Note that this method will NOT fill in the Dependencies field of the Unit
 // struct (see the crosslinkDependencies method for that). Return a map from unit path to Unit struct.
@@ -284,22 +398,23 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 		}
 
 		var unit *Unit
+		if _, ok := unitsMap[terragruntConfigPath]; !ok {
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_unit", map[string]any{
+				"config_path": terragruntConfigPath,
+				"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+			}, func(ctx context.Context) error {
+				m, err := r.resolveTerraformUnit(ctx, l, terragruntConfigPath, howTheseUnitsWereFound)
+				if err != nil {
+					return err
+				}
 
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_unit", map[string]any{
-			"config_path": terragruntConfigPath,
-			"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-		}, func(ctx context.Context) error {
-			m, err := r.resolveTerraformUnit(ctx, l, terragruntConfigPath, unitsMap, howTheseUnitsWereFound)
+				unit = m
+
+				return nil
+			})
 			if err != nil {
-				return err
+				return unitsMap, err
 			}
-
-			unit = m
-
-			return nil
-		})
-		if err != nil {
-			return unitsMap, err
 		}
 
 		if unit != nil {
@@ -335,14 +450,10 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 // Create a Unit struct for the Terraform unit specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the Unit struct (see the
 // crosslinkDependencies method for that).
-func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, terragruntConfigPath string, unitsMap UnitsMap, howThisUnitWasFound string) (*Unit, error) {
+func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, terragruntConfigPath string, howThisUnitWasFound string) (*Unit, error) {
 	unitPath, err := r.resolveUnitPath(terragruntConfigPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if _, ok := unitsMap[unitPath]; ok {
-		return nil, nil
 	}
 
 	l, opts, err := r.cloneOptionsWithConfigPath(l, terragruntConfigPath)
