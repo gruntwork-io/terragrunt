@@ -118,13 +118,13 @@ func (f Filters) EvaluateOnFiles(files []string) (component.Components, error) {
 		return nil, FilterQueryRequiresHCLParsingError{Query: e.String()}
 	}
 
-	if len(f) == 0 {
-		return component.Components{}, nil
-	}
-
-	comps := make([]component.Component, 0, len(files))
+	comps := make(component.Components, 0, len(files))
 	for _, file := range files {
 		comps = append(comps, component.NewUnit(file))
+	}
+
+	if len(f) == 0 {
+		return comps, nil
 	}
 
 	return f.Evaluate(comps)

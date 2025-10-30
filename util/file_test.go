@@ -550,7 +550,7 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 
 	var paths []string
 
-	err = util.WalkWithSymlinks(tempDir, func(path string, _ os.FileInfo, err error) error {
+	err = util.WalkDirWithSymlinks(tempDir, func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -629,7 +629,7 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 
 	var paths []string
 
-	err = util.WalkWithSymlinks(tempDir, func(path string, _ os.FileInfo, err error) error {
+	err = util.WalkDirWithSymlinks(tempDir, func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -687,13 +687,13 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	}
 }
 
-func TestWalkWithSymlinksErrors(t *testing.T) {
+func TestWalkDirWithSymlinksErrors(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
 
 	// Test with non-existent directory
-	require.Error(t, util.WalkWithSymlinks(filepath.Join(tempDir, "nonexistent"), func(_ string, _ os.FileInfo, err error) error {
+	require.Error(t, util.WalkDirWithSymlinks(filepath.Join(tempDir, "nonexistent"), func(_ string, _ fs.DirEntry, err error) error {
 		return err
 	}))
 
@@ -701,7 +701,7 @@ func TestWalkWithSymlinksErrors(t *testing.T) {
 	brokenLink := filepath.Join(tempDir, "broken")
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "nonexistent"), brokenLink))
 
-	require.Error(t, util.WalkWithSymlinks(tempDir, func(_ string, _ os.FileInfo, err error) error {
+	require.Error(t, util.WalkDirWithSymlinks(tempDir, func(_ string, _ fs.DirEntry, err error) error {
 		return err
 	}))
 }

@@ -45,6 +45,11 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 		helpers.CleanupTerraformFolder(t, modulePath)
 	}
 
+	// Clean up counter files from previous test runs in the fixture directory
+	scriptsPath := filepath.Join(testFixtureRunCmdFlags, "scripts")
+	_ = os.Remove(filepath.Join(scriptsPath, "global_counter.txt"))
+	_ = os.Remove(filepath.Join(scriptsPath, "no_cache_counter.txt"))
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunCmdFlags)
 
@@ -56,6 +61,13 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
+
+	// Clean up counter files after test execution
+	t.Cleanup(func() {
+		scriptsPath := filepath.Join(testFixtureRunCmdFlags, "scripts")
+		_ = os.Remove(filepath.Join(scriptsPath, "global_counter.txt"))
+		_ = os.Remove(filepath.Join(scriptsPath, "no_cache_counter.txt"))
+	})
 
 	return runCmdFixtureResult{
 		rootPath: rootPath,

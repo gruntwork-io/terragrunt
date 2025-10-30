@@ -121,17 +121,20 @@ func (exps Experiments) Find(name string) *Experiment {
 
 // ExperimentMode enables the experiment mode.
 func (exps Experiments) ExperimentMode() {
-	for _, experiment := range exps.FilterByStatus(StatusOngoing) {
-		experiment.Enabled = true
+	for _, e := range exps {
+		if e.Status == StatusOngoing {
+			e.Enabled = true
+		}
 	}
 }
 
 // EnableExperiment validates that the specified experiment name is valid and enables this experiment.
 func (exps Experiments) EnableExperiment(name string) error {
-	if experiment := exps.Find(name); experiment != nil {
-		experiment.Enabled = true
-
-		return nil
+	for _, e := range exps {
+		if e.Name == name {
+			e.Enabled = true
+			return nil
+		}
 	}
 
 	return NewInvalidExperimentNameError(exps.FilterByStatus(StatusOngoing).Names())

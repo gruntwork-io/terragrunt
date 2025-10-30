@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -39,8 +40,8 @@ type Source struct {
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
 
-	// WalkWithSymlinks controls whether to walk symlinks in the downloaded source
-	WalkWithSymlinks bool
+	// WalkDirWithSymlinks controls whether to walk symlinks in the downloaded source
+	WalkDirWithSymlinks bool
 }
 
 func (src Source) String() string {
@@ -60,14 +61,15 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
 		var err error
-		if src.WalkWithSymlinks {
-			err = util.WalkWithSymlinks(sourceDir, func(path string, info os.FileInfo, err error) error {
+
+		if src.WalkDirWithSymlinks {
+			err = util.WalkDirWithSymlinks(sourceDir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					// If we've encountered an error while walking the tree, give up
 					return err
 				}
 
-				if info.IsDir() {
+				if d.IsDir() {
 					// We don't use any info from directories to calculate our hash
 					return nil
 				}
@@ -76,24 +78,30 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 					return nil
 				}
 				// avoid checking files in .terraform directory since contents is auto-generated
-				if info.Name() == util.TerraformLockFile {
+				if d.Name() == util.TerraformLockFile {
 					return nil
 				}
 
+				info, err := d.Info()
+				if err != nil {
+					return err
+				}
+
 				fileModified := info.ModTime().UnixMicro()
+
 				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
 				sourceHash.Write([]byte(hashContents))
 
 				return nil
 			})
 		} else {
-			err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+			err = filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					// If we've encountered an error while walking the tree, give up
 					return err
 				}
 
-				if info.IsDir() {
+				if d.IsDir() {
 					// We don't use any info from directories to calculate our hash
 					return nil
 				}
@@ -102,11 +110,17 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 					return nil
 				}
 				// avoid checking files in .terraform directory since contents is auto-generated
-				if info.Name() == util.TerraformLockFile {
+				if d.Name() == util.TerraformLockFile {
 					return nil
 				}
 
+				info, err := d.Info()
+				if err != nil {
+					return err
+				}
+
 				fileModified := info.ModTime().UnixMicro()
+
 				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
 				sourceHash.Write([]byte(hashContents))
 
@@ -176,7 +190,7 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 //  1. Always download source URLs pointing to local file paths.
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func NewSource(l log.Logger, source string, downloadDir string, workingDir string, walkWithSymlinks bool) (*Source, error) {
+func NewSource(l log.Logger, source string, downloadDir string, workingDir string, walkDirWithSymlinks bool) (*Source, error) {
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
@@ -196,9 +210,9 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 		// Always use canonical file paths for local source folders, rather than relative paths, to ensure
 		// that the same local folder always maps to the same download folder, no matter how the local folder
 		// path is specified
-		canonicalFilePath, err := util.CanonicalPath(rootSourceURL.Path, "")
-		if err != nil {
-			return nil, err
+		canonicalFilePath, canonicalPathErr := util.CanonicalPath(rootSourceURL.Path, "")
+		if canonicalPathErr != nil {
+			return nil, canonicalPathErr
 		}
 
 		rootSourceURL.Path = canonicalFilePath
@@ -215,11 +229,11 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 	versionFile := util.JoinPath(updatedDownloadDir, ".terragrunt-source-version")
 
 	return &Source{
-		CanonicalSourceURL: rootSourceURL,
-		DownloadDir:        updatedDownloadDir,
-		WorkingDir:         updatedWorkingDir,
-		VersionFile:        versionFile,
-		WalkWithSymlinks:   walkWithSymlinks,
+		CanonicalSourceURL:  rootSourceURL,
+		DownloadDir:         updatedDownloadDir,
+		WorkingDir:          updatedWorkingDir,
+		VersionFile:         versionFile,
+		WalkDirWithSymlinks: walkDirWithSymlinks,
 	}, nil
 }
 
