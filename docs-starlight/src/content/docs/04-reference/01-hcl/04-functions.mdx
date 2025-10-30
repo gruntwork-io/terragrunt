@@ -677,28 +677,6 @@ errors {
 }
 ```
 
-## get_default_retryable_errors
-
-`get_default_retryable_errors()` returns the default list of retryable errors. This function is designed to be used within the `errors` block with `retry` sub-blocks:
-
-```hcl
-# terragrunt.hcl
-
-errors {
-  retry "default_errors" {
-    retryable_errors = get_default_retryable_errors()
-    max_attempts = 3
-    sleep_interval_sec = 5
-  }
-
-  retry "custom_errors" {
-    retryable_errors = [".*my custom error.*"]
-    max_attempts = 5
-    sleep_interval_sec = 10
-  }
-}
-```
-
 ## get_aws_caller_identity_user_id
 
 `get_aws_caller_identity_user_id()` returns the UserId of the AWS identity associated with the current set of credentials. Example:
