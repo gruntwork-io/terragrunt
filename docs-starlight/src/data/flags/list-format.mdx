@@ -1,17 +1,20 @@
 ---
 name: format
 description: |
-  Format the results as specified. Supported values (text, long, tree). Default: text.
+  Format the results as specified. Supported values (text, long, tree, dot). Default: text.
 type: string
 env:
   - TG_FORMAT
 ---
+
+import { Aside } from '@astrojs/starlight/components';
 
 Controls how the list results are displayed:
 
 - `text` (default): Simple space-separated list of configurations. Best for quick overview and scripting.
 - `long`: Detailed view showing type (unit/stack), path, and module information. Useful for auditing and documentation.
 - `tree`: Hierarchical view showing directory structure. Perfect for understanding infrastructure organization.
+- `dot`: Output in DOT format for visualization. Generates a graph using the [GraphViz DOT](https://graphviz.org/doc/info/lang.html) language. Ideal for creating visual dependency graphs.
 
 These values all have shortcuts as standalone flags:
 
@@ -54,4 +57,38 @@ $ terragrunt list -T
         ╰── vpc
 ```
 
+```bash
+# DOT format - Useful for visualizing dependency graphs
+$ terragrunt list --format=dot --dependencies
+digraph {
+  "live/dev/vpc" ;
+  "live/dev/db" ;
+  "live/dev/ec2" ;
+  "live/dev/db" -> "live/dev/vpc";
+  "live/dev/ec2" -> "live/dev/db";
+  "live/dev/ec2" -> "live/dev/vpc";
+  "live/prod/vpc" ;
+  "live/prod/db" ;
+  "live/prod/ec2" ;
+  "live/prod/db" -> "live/prod/vpc";
+  "live/prod/ec2" -> "live/prod/db";
+  "live/prod/ec2" -> "live/prod/vpc";
+}
+
+# Render the DOT output to an image using GraphViz
+$ terragrunt list --format=dot | dot -Tpng > graph.png
+```
+
 The examples above demonstrate a typical multi-environment infrastructure setup with networking, compute, and data layers. Each format provides a different perspective on the same infrastructure, making it easier to understand and manage your Terragrunt configurations.
+
+<Aside type="tip" title="DOT Format Alias">
+
+The `dag graph` command is an alias for `list --format=dot`. Both commands produce identical DOT format output:
+
+```bash
+terragrunt dag graph
+# Equivalent to:
+terragrunt list --format=dot --dependencies --external
+```
+
+</Aside>
