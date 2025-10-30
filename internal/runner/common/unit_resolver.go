@@ -3,15 +3,11 @@ package common
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 
 	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -21,8 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/puzpuzpuz/xsync/v3"
-	"golang.org/x/sync/errgroup"
 )
 
 // UnitResolver provides common functionality for resolving Terraform units from Terragrunt configuration files.
@@ -72,68 +66,6 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 func (r *UnitResolver) WithFilters(filters ...UnitFilter) *UnitResolver {
 	r.filters = append(r.filters, filters...)
 	return r
-}
-
-// ResolveTerraformModules goes through each of the given Terragrunt configuration files
-// and resolve the unit that configuration file represents into a Unit struct.
-// Return the list of these Unit structs.
-func (r *UnitResolver) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (Units, error) {
-	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
-	if err != nil {
-		return nil, err
-	}
-
-	unitsMap, err := r.telemetryResolveUnits(ctx, l, canonicalTerragruntConfigPaths)
-	if err != nil {
-		return nil, err
-	}
-
-	externalDependencies, err := r.telemetryResolveExternalDependencies(ctx, l, unitsMap)
-	if err != nil {
-		return nil, err
-	}
-
-	crossLinkedUnits, err := r.telemetryCrossLinkDependencies(ctx, unitsMap, externalDependencies, canonicalTerragruntConfigPaths)
-	if err != nil {
-		return nil, err
-	}
-
-	withUnitsIncluded, err := r.telemetryFlagIncludedDirs(ctx, l, crossLinkedUnits)
-	if err != nil {
-		return nil, err
-	}
-
-	withUnitsThatAreIncludedByOthers, err := r.telemetryFlagUnitsThatAreIncluded(ctx, withUnitsIncluded)
-	if err != nil {
-		return nil, err
-	}
-
-	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
-	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
-	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
-	if err != nil {
-		return nil, err
-	}
-
-	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
-	// This ensures units excluded via CLI get the correct reason in reports
-	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
-	if err != nil {
-		return nil, err
-	}
-
-	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Apply custom filters after standard resolution logic
-	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
-	if err != nil {
-		return nil, err
-	}
-
-	return filteredUnits, nil
 }
 
 // ResolveFromDiscovery builds units starting from discovery-parsed components, avoiding re-parsing
@@ -213,7 +145,7 @@ func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l l
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 		"unit_count":  len(discovered),
 	}, func(ctx context.Context) error {
-		result, err := r.buildUnitsFromDiscovery(ctx, l, discovered)
+		result, err := r.buildUnitsFromDiscovery(l, discovered)
 		if err != nil {
 			return err
 		}
@@ -228,7 +160,7 @@ func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l l
 
 // buildUnitsFromDiscovery constructs UnitsMap from discovery-parsed components without re-parsing,
 // performing only the minimal parsing necessary to obtain missing fields (e.g., Terraform.source).
-func (r *UnitResolver) buildUnitsFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (UnitsMap, error) {
+func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []component.Component) (UnitsMap, error) {
 	units := make(UnitsMap)
 
 	for _, c := range discovered {
@@ -269,7 +201,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(ctx context.Context, l log.Logger
 			return nil, err
 		}
 
-		// Exclusion check (same semantics as resolveTerraformUnitParallel)
+		// Exclusion check
 		excludeFn := func(l log.Logger, unitPath string) bool {
 			for globPath, globPattern := range r.excludeGlobs {
 				if globPattern.Match(unitPath) {
@@ -291,29 +223,8 @@ func (r *UnitResolver) buildUnitsFromDiscovery(ctx context.Context, l log.Logger
 			continue
 		}
 
-		// Acquire credentials early (auth-provider-cmd), before any parsing that may require them
-		if err = r.acquireCredentials(ctx, l, opts); err != nil {
-			return nil, err
-		}
-
+		// Use the already-parsed config from discovery (now includes TerraformSource and ErrorsBlock)
 		terragruntConfig := dUnit.Config()
-
-		// Light parse only if Terraform.source wasn't decoded during discovery
-		var readFiles []string
-
-		if terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "" {
-			includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
-			parseCtx := r.createParsingContext(ctx, l, opts)
-
-			//nolint:contextcheck
-			if parsedCfg, parseErr := r.partialParseConfig(parseCtx, l, terragruntConfigPath, includeConfig, "discovered"); parseErr == nil && parsedCfg != nil {
-				terragruntConfig = parsedCfg
-			}
-
-			if parseCtx.FilesRead != nil {
-				readFiles = *parseCtx.FilesRead
-			}
-		}
 
 		// Determine effective source and setup download dir
 		terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
@@ -337,32 +248,10 @@ func (r *UnitResolver) buildUnitsFromDiscovery(ctx context.Context, l log.Logger
 			continue
 		}
 
-		units[unitPath] = &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: readFiles}
+		units[unitPath] = &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: dUnit.Reading()}
 	}
 
 	return units, nil
-}
-
-// telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
-func (r *UnitResolver) telemetryResolveUnits(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string) (UnitsMap, error) {
-	var unitsMap UnitsMap
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_units", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-	}, func(ctx context.Context) error {
-		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + r.Stack.TerragruntOptions.WorkingDir
-
-		result, err := r.resolveUnits(ctx, l, canonicalTerragruntConfigPaths, howThesePathsWereFound)
-		if err != nil {
-			return err
-		}
-
-		unitsMap = result
-
-		return nil
-	})
-
-	return unitsMap, err
 }
 
 // telemetryResolveExternalDependencies resolves external dependencies for the given units
@@ -483,210 +372,6 @@ func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logg
 	return withUnitsExcluded, err
 }
 
-// Go through each of the given Terragrunt configuration files and resolve the unit that configuration file represents
-// into a Unit struct. Note that this method will NOT fill in the Dependencies field of the Unit
-// struct (see the crosslinkDependencies method for that). Return a map from unit path to Unit struct.
-// This function uses a two-phase parallel approach:
-// Phase 1: Resolve all units in parallel (parsing configs, acquiring credentials)
-// Phase 2: Resolve dependencies sequentially in memory, to maintain correctness
-func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseUnitsWereFound string) (UnitsMap, error) {
-	// Phase 1: Parallel unit resolution using xsync.MapOf for thread-safe access
-	unitsMapSync := xsync.NewMapOf[string, *Unit]()
-
-	// Use errgroup for parallel execution with proper error handling
-	g, gCtx := errgroup.WithContext(ctx)
-
-	// Set parallelism limit for goroutines
-	limit := r.Stack.TerragruntOptions.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.NumCPU()
-	}
-
-	g.SetLimit(limit)
-
-	// Wrap Phase 1 in telemetry
-	var phase1Err error
-
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "parallel_resolve_units", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-		"unit_count":  len(canonicalTerragruntConfigPaths),
-	}, func(ctx context.Context) error {
-		for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-			configPath := terragruntConfigPath // Capture for goroutine
-
-			g.Go(func() error {
-				// Check file existence
-				if !util.FileExists(configPath) {
-					return ProcessingUnitError{
-						UnderlyingError:     os.ErrNotExist,
-						UnitPath:            configPath,
-						HowThisUnitWasFound: howTheseUnitsWereFound,
-					}
-				}
-
-				var unit *Unit
-
-				// Collect telemetry for individual unit resolution
-				err := telemetry.TelemeterFromContext(gCtx).Collect(gCtx, "resolve_terraform_unit", map[string]any{
-					"config_path": configPath,
-					"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-				}, func(ctx context.Context) error {
-					// Pass the xsync map for duplicate checking
-					m, err := r.resolveTerraformUnitParallel(ctx, l, configPath, unitsMapSync, howTheseUnitsWereFound)
-					if err != nil {
-						return err
-					}
-
-					unit = m
-
-					return nil
-				})
-				if err != nil {
-					return err
-				}
-
-				// Add unit to xsync map if it was resolved
-				if unit != nil {
-					unitsMapSync.Store(unit.Path, unit)
-				}
-
-				return nil
-			})
-		}
-
-		// Wait for all goroutines to complete
-		phase1Err = g.Wait()
-
-		return phase1Err
-	})
-	if telemetryErr != nil {
-		return nil, telemetryErr
-	}
-
-	// Convert xsync.MapOf to UnitsMap
-	unitsMap := make(UnitsMap)
-
-	unitsMapSync.Range(func(key string, value *Unit) bool {
-		unitsMap[key] = value
-		return true
-	})
-
-	if phase1Err != nil {
-		return unitsMap, phase1Err
-	}
-
-	// Phase 2: Sequential dependency resolution
-	for _, unit := range unitsMap {
-		var dependencies UnitsMap
-
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_dependencies_for_unit", map[string]any{
-			"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-			"unit_path":   unit.Path,
-		}, func(ctx context.Context) error {
-			deps, err := r.resolveDependenciesForUnit(ctx, l, unit, unitsMap, true)
-			if err != nil {
-				return err
-			}
-
-			dependencies = deps
-
-			return nil
-		})
-		if err != nil {
-			return unitsMap, err
-		}
-
-		unitsMap = collections.MergeMaps(unitsMap, dependencies)
-	}
-
-	return unitsMap, nil
-}
-
-// resolveTerraformUnitParallel is a thread-safe version of resolveTerraformUnit designed for concurrent execution.
-// It uses xsync.MapOf for duplicate checking and accepts a shared logger.
-func (r *UnitResolver) resolveTerraformUnitParallel(ctx context.Context, l log.Logger, terragruntConfigPath string, unitsMapSync *xsync.MapOf[string, *Unit], howThisUnitWasFound string) (*Unit, error) {
-	unitPath, err := r.resolveUnitPath(terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Thread-safe duplicate check using xsync.MapOf
-	if _, ok := unitsMapSync.Load(unitPath); ok {
-		return nil, nil
-	}
-
-	// Clone options but use shared logger (as requested by user)
-	opts, err := r.cloneOptionsWithConfigPathSharedLogger(terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
-
-	excludeFn := func(l log.Logger, unitPath string) bool {
-		for globPath, globPattern := range r.excludeGlobs {
-			if globPattern.Match(unitPath) {
-				l.Debugf("Unit %s is excluded by glob %s", unitPath, globPath)
-				return true
-			}
-		}
-
-		return false
-	}
-	if !r.doubleStarEnabled {
-		excludeFn = func(_ log.Logger, unitPath string) bool {
-			return collections.ListContainsElement(opts.ExcludeDirs, unitPath)
-		}
-	}
-
-	if excludeFn(l, unitPath) {
-		return &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
-	}
-
-	parseCtx := r.createParsingContext(ctx, l, opts)
-
-	// Acquire credentials - each unit will get fresh credentials
-	// Note: This may execute auth-provider-cmd multiple times in parallel
-	if err = r.acquireCredentials(ctx, l, opts); err != nil {
-		return nil, err
-	}
-
-	//nolint:contextcheck
-	terragruntConfig, err := r.partialParseConfig(parseCtx, l, terragruntConfigPath, includeConfig, howThisUnitWasFound)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract files read by this unit from the parsing context
-	var readFiles []string
-	if parseCtx.FilesRead != nil {
-		readFiles = *parseCtx.FilesRead
-	}
-
-	terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	opts.Source = terragruntSource
-
-	if err = r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
-		return nil, err
-	}
-
-	hasFiles, err := util.DirContainsTFFiles(filepath.Dir(terragruntConfigPath))
-	if err != nil {
-		return nil, err
-	}
-
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
-		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
-		return nil, nil
-	}
-
-	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: readFiles}, nil
-}
-
 // resolveUnitPath converts a Terragrunt configuration file path to its corresponding unit path.
 // Returns the canonical path of the directory containing the config file.
 func (r *UnitResolver) resolveUnitPath(terragruntConfigPath string) (string, error) {
@@ -719,65 +404,6 @@ func (r *UnitResolver) cloneOptionsWithConfigPathSharedLogger(terragruntConfigPa
 	return opts, nil
 }
 
-// setupIncludeConfig creates an include configuration for Terragrunt config inheritance.
-// Returns the include config if the path is processed, otherwise returns nil.
-func (r *UnitResolver) setupIncludeConfig(terragruntConfigPath string, opts *options.TerragruntOptions) *config.IncludeConfig {
-	var includeConfig *config.IncludeConfig
-	if r.Stack.ChildTerragruntConfig != nil && r.Stack.ChildTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
-		includeConfig = &config.IncludeConfig{
-			Path: terragruntConfigPath,
-		}
-		opts.TerragruntConfigPath = r.Stack.TerragruntOptions.OriginalTerragruntConfigPath
-	}
-
-	return includeConfig
-}
-
-// createParsingContext initializes a parsing context for Terragrunt configuration files.
-// Returns a configured parsing context with specific decode options for Terraform blocks.
-func (r *UnitResolver) createParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *config.ParsingContext {
-	parseOpts := opts.Clone()
-	parseOpts.SkipOutput = false
-
-	return config.NewParsingContext(ctx, l, parseOpts).
-		WithParseOption(r.Stack.ParserOptions).
-		WithDecodeList(
-			config.TerraformSource,
-			config.DependenciesBlock,
-			config.DependencyBlock,
-			config.FeatureFlagsBlock,
-			config.ExcludeBlock,
-			config.ErrorsBlock,
-		)
-}
-
-// acquireCredentials obtains and updates environment credentials for Terraform providers.
-// Returns an error if credential acquisition fails.
-func (r *UnitResolver) acquireCredentials(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	credsGetter := creds.NewGetter()
-	return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts))
-}
-
-// partialParseConfig parses a Terragrunt configuration file with limited block decoding.
-// Returns the parsed configuration or an error if parsing fails.
-func (r *UnitResolver) partialParseConfig(parseCtx *config.ParsingContext, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
-	terragruntConfig, err := config.PartialParseConfigFile(
-		parseCtx,
-		l,
-		terragruntConfigPath,
-		includeConfig,
-	)
-	if err != nil {
-		return nil, errors.New(ProcessingUnitError{
-			UnderlyingError:     err,
-			HowThisUnitWasFound: howThisUnitWasFound,
-			UnitPath:            terragruntConfigPath,
-		})
-	}
-
-	return terragruntConfig, nil
-}
-
 // setupDownloadDir configures the download directory for a Terragrunt unit.
 // Returns an error if the download directory setup fails.
 func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *options.TerragruntOptions, l log.Logger) error {
@@ -799,16 +425,17 @@ func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *optio
 	return nil
 }
 
-// resolveDependenciesForUnit looks through the dependencies of the given unit and resolve the dependency paths listed in the unit's config.
-// If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
-// user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Logger, unit *Unit, unitsMap UnitsMap, skipExternal bool) (UnitsMap, error) {
+// resolveDependenciesForUnit verifies that all dependencies of the given unit are already in unitsMap.
+// Since discovery with WithDiscoverExternalDependencies() already discovers all dependencies, this function
+// simply verifies they exist and returns an empty map (dependencies are already resolved by discovery).
+// If `skipExternal` is true, the func only checks dependencies inside the current working directory.
+// Note that this method will NOT fill in the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
+func (r *UnitResolver) resolveDependenciesForUnit(l log.Logger, unit *Unit, unitsMap UnitsMap, skipExternal bool) (UnitsMap, error) {
 	if unit.Config.Dependencies == nil || len(unit.Config.Dependencies.Paths) == 0 {
 		return UnitsMap{}, nil
 	}
 
-	externalTerragruntConfigPaths := []string{}
-
+	// Verify all dependencies are already in unitsMap (they should be, since discovery found them)
 	for _, dependency := range unit.Config.Dependencies.Paths {
 		dependencyPath, err := util.CanonicalPath(dependency, unit.Path)
 		if err != nil {
@@ -819,21 +446,15 @@ func (r *UnitResolver) resolveDependenciesForUnit(ctx context.Context, l log.Log
 			continue
 		}
 
-		terragruntConfigPath := config.GetDefaultConfigPath(dependencyPath)
-
+		// All dependencies should already be in unitsMap from discovery
+		// If not found, log a warning but don't fail (the dependency might be intentionally excluded)
 		if _, alreadyContainsUnit := unitsMap[dependencyPath]; !alreadyContainsUnit {
-			externalTerragruntConfigPaths = append(externalTerragruntConfigPaths, terragruntConfigPath)
+			l.Debugf("Dependency %s of unit %s not found in unitsMap (may be excluded or outside discovery scope)", dependencyPath, unit.Path)
 		}
 	}
 
-	howThesePathsWereFound := fmt.Sprintf("dependency of unit at '%s'", unit.Path)
-
-	result, err := r.resolveUnits(ctx, l, externalTerragruntConfigPaths, howThesePathsWereFound)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	// Return empty map - discovery already resolved all dependencies
+	return UnitsMap{}, nil
 }
 
 // Look through the dependencies of the units in the given map and resolve the "external" dependency paths listed in
@@ -856,7 +477,7 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 	for _, key := range sortedKeys {
 		unit := unitsMap[key]
 
-		externalDependencies, err := r.resolveDependenciesForUnit(ctx, l, unit, unitsToSkip, false)
+		externalDependencies, err := r.resolveDependenciesForUnit(l, unit, unitsToSkip, false)
 		if err != nil {
 			return externalDependencies, err
 		}

@@ -20,7 +20,7 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	// Create a trivial tf file so legacy resolver doesn't skip the unit
+	// Create a trivial tf file so the resolver doesn't skip the unit
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "main.tf"), []byte(""), 0o600))
 	tgPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	require.NoError(t, os.WriteFile(tgPath, []byte(""), 0o600))
@@ -39,16 +39,9 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	// New path
+	// Verify discovery-based resolution works correctly
 	fromDiscovery, err := resolver.ResolveFromDiscovery(context.Background(), l, discovered)
 	require.NoError(t, err)
 	require.Len(t, fromDiscovery, 1)
-
-	// Legacy path
-	unitPaths := []string{filepath.Join(tmpDir, "terragrunt.hcl")}
-	legacy, err := resolver.ResolveTerraformModules(context.Background(), l, unitPaths)
-	require.NoError(t, err)
-	require.Len(t, legacy, 1)
-
-	require.Equal(t, fromDiscovery[0].Path, legacy[0].Path)
+	require.Equal(t, tmpDir, fromDiscovery[0].Path)
 }

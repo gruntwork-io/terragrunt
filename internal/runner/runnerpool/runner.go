@@ -98,42 +98,10 @@ func NewRunnerPoolStack(
 		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
 	}
 
-	var unitsMap common.Units
-	if u, resErr := unitResolver.ResolveFromDiscovery(ctx, l, discovered); resErr == nil {
-		unitsMap = u
-	} else {
-		l.Warnf("ResolveFromDiscovery failed, falling back to legacy resolution: %v", resErr)
-		// Build unit paths for legacy flow
-		unitPaths := make([]string, 0, len(discovered))
-		for _, c := range discovered {
-			unit, ok := c.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			if unit.Config() == nil {
-				l.Warnf("Skipping unit at %s due to parse error", c.Path())
-				continue
-			}
-
-			var fname string
-			if c.Kind() == component.StackKind {
-				fname = config.DefaultStackFile
-			} else {
-				fname = config.DefaultTerragruntConfigPath
-				if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
-					fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
-				}
-			}
-
-			terragruntConfigPath := filepath.Join(unit.Path(), fname)
-			unitPaths = append(unitPaths, terragruntConfigPath)
-		}
-
-		unitsMap, err = unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
-		if err != nil {
-			return nil, err
-		}
+	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
+	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, discovered)
+	if err != nil {
+		return nil, err
 	}
 
 	runner.Stack.Units = unitsMap

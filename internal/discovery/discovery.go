@@ -453,10 +453,12 @@ func Parse(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
+		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
+		config.ErrorsBlock,
 	).WithSkipOutputsResolution()
 
 	// Apply custom parser options if provided via discovery
@@ -505,10 +507,12 @@ func Parse(
 
 	// Set a list with partial blocks used to do discovery
 	parsingCtx = parsingCtx.WithDecodeList(
+		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
+		config.ErrorsBlock,
 	)
 
 	//nolint: contextcheck
