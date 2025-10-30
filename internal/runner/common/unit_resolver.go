@@ -289,6 +289,7 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 
 	// Wrap Phase 1 in telemetry
 	var phase1Err error
+
 	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "parallel_resolve_units", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 		"unit_count":  len(canonicalTerragruntConfigPaths),
@@ -320,9 +321,9 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 					}
 
 					unit = m
+
 					return nil
 				})
-
 				if err != nil {
 					return err
 				}
@@ -338,15 +339,16 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 
 		// Wait for all goroutines to complete
 		phase1Err = g.Wait()
+
 		return phase1Err
 	})
-
 	if telemetryErr != nil {
 		return nil, telemetryErr
 	}
 
 	// Convert xsync.MapOf to UnitsMap
 	unitsMap := make(UnitsMap)
+
 	unitsMapSync.Range(func(key string, value *Unit) bool {
 		unitsMap[key] = value
 		return true
@@ -370,9 +372,9 @@ func (r *UnitResolver) resolveUnits(ctx context.Context, l log.Logger, canonical
 			}
 
 			dependencies = deps
+
 			return nil
 		})
-
 		if err != nil {
 			return unitsMap, err
 		}
@@ -468,105 +470,10 @@ func (r *UnitResolver) resolveTerraformUnitParallel(ctx context.Context, l log.L
 	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: readFiles}, nil
 }
 
-// Create a Unit struct for the Terraform unit specified by the given Terragrunt configuration file path.
-// Note that this method will NOT fill in the Dependencies field of the Unit struct (see the
-// crosslinkDependencies method for that).
-func (r *UnitResolver) resolveTerraformUnit(ctx context.Context, l log.Logger, terragruntConfigPath string, unitsMap UnitsMap, howThisUnitWasFound string) (*Unit, error) {
-	unitPath, err := r.resolveUnitPath(terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := unitsMap[unitPath]; ok {
-		return nil, nil
-	}
-
-	l, opts, err := r.cloneOptionsWithConfigPath(l, terragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	includeConfig := r.setupIncludeConfig(terragruntConfigPath, opts)
-
-	excludeFn := func(l log.Logger, unitPath string) bool {
-		for globPath, glob := range r.excludeGlobs {
-			if glob.Match(unitPath) {
-				l.Debugf("Unit %s is excluded by glob %s", unitPath, globPath)
-				return true
-			}
-		}
-
-		return false
-	}
-	if !r.doubleStarEnabled {
-		excludeFn = func(_ log.Logger, unitPath string) bool {
-			return collections.ListContainsElement(opts.ExcludeDirs, unitPath)
-		}
-	}
-
-	if excludeFn(l, unitPath) {
-		return &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
-	}
-
-	parseCtx := r.createParsingContext(ctx, l, opts)
-
-	if err = r.acquireCredentials(ctx, l, opts); err != nil {
-		return nil, err
-	}
-
-	//nolint:contextcheck
-	terragruntConfig, err := r.partialParseConfig(parseCtx, l, terragruntConfigPath, includeConfig, howThisUnitWasFound)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract files read by this unit from the parsing context
-	var readFiles []string
-	if parseCtx.FilesRead != nil {
-		readFiles = *parseCtx.FilesRead
-	}
-
-	terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	opts.Source = terragruntSource
-
-	if err = r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
-		return nil, err
-	}
-
-	hasFiles, err := util.DirContainsTFFiles(filepath.Dir(terragruntConfigPath))
-	if err != nil {
-		return nil, err
-	}
-
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
-		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
-		return nil, nil
-	}
-
-	return &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: readFiles}, nil
-}
-
 // resolveUnitPath converts a Terragrunt configuration file path to its corresponding unit path.
 // Returns the canonical path of the directory containing the config file.
 func (r *UnitResolver) resolveUnitPath(terragruntConfigPath string) (string, error) {
 	return util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
-}
-
-// cloneOptionsWithConfigPath creates a copy of the Terragrunt options with a new config path.
-// Returns the cloned logger, options, and any error that occurred during cloning.
-func (r *UnitResolver) cloneOptionsWithConfigPath(l log.Logger, terragruntConfigPath string) (log.Logger, *options.TerragruntOptions, error) {
-	l, opts, err := r.Stack.TerragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
-	if err != nil {
-		return l, nil, err
-	}
-
-	opts.OriginalTerragruntConfigPath = terragruntConfigPath
-
-	return l, opts, nil
 }
 
 // cloneOptionsWithConfigPathSharedLogger creates a copy of the Terragrunt options with a new config path,
@@ -582,6 +489,7 @@ func (r *UnitResolver) cloneOptionsWithConfigPathSharedLogger(terragruntConfigPa
 		if err != nil {
 			return nil, err
 		}
+
 		terragruntConfigPath = util.CleanPath(absConfigPath)
 	}
 

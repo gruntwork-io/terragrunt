@@ -222,9 +222,11 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 		if strings.Contains(line, "Auth start") {
 			startCount++
 		}
+
 		if strings.Contains(line, "Auth end") {
 			endCount++
 		}
+
 		if strings.Contains(line, "Auth concurrent") {
 			concurrentCount++
 			// Extract the detected count
@@ -234,6 +236,7 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 					if detected > maxConcurrent {
 						maxConcurrent = detected
 					}
+
 					t.Logf("Auth command detected %d concurrent executions", detected)
 				}
 			}
