@@ -627,7 +627,7 @@ func TestHclvalidateValidConfig(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("each validate individually", func(t *testing.T) {
+	t.Run("validate each individually", func(t *testing.T) {
 		t.Parallel()
 
 		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
