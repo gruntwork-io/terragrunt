@@ -75,17 +75,8 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 		}
 
 		return func(unit *Unit) bool {
-			// Convert unit path to canonical absolute form for glob matching
-			// Globs are canonicalized to absolute paths relative to opts.WorkingDir
-			// Use util.CanonicalPath to resolve unit.Path the same way
-			pathToMatch, err := util.CanonicalPath(unit.Path, opts.WorkingDir)
-			if err != nil {
-				l.Warnf("Failed to canonicalize path %s: %v", unit.Path, err)
-				pathToMatch = unit.Path
-			}
-
 			for globPath, globPattern := range globs {
-				if globPattern.Match(pathToMatch) {
+				if globPattern.Match(unit.Path) {
 					l.Debugf("Unit %s is %s by glob %s", unit.Path, action, globPath)
 					return true
 				}

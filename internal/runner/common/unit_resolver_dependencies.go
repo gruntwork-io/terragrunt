@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -49,17 +50,31 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 				return nil, err
 			}
 
-			// Skip if not external (inside working directory)
-			if util.HasPathPrefix(canonicalPath, r.Stack.TerragruntOptions.WorkingDir) {
+			// Get the dependency unit from unitsToSkip first (it should be there from discovery)
+			externalDependency, found := unitsToSkip[canonicalPath]
+			if !found {
+				l.Debugf("Dependency %s of unit %s not found in unitsMap (may be excluded or outside discovery scope)", canonicalPath, unit.Path)
 				continue
 			}
 
-			// Get the dependency unit from unitsToSkip (should be there from discovery)
-			externalDependency, found := unitsToSkip[canonicalPath]
-			if !found {
-				l.Debugf("External dependency %s of unit %s not found in unitsMap (may be excluded or outside discovery scope)", canonicalPath, unit.Path)
+			// Skip if not external (inside working directory)
+			// Convert both paths to absolute for proper comparison
+			absCanonicalPath, err := filepath.Abs(canonicalPath)
+			if err != nil {
+				return nil, err
+			}
+
+			absWorkingDir, err := filepath.Abs(r.Stack.TerragruntOptions.WorkingDir)
+			if err != nil {
+				return nil, err
+			}
+
+			if util.HasPathPrefix(absCanonicalPath, absWorkingDir) {
+				l.Debugf("Dependency %s is inside working directory, not treating as external", canonicalPath)
 				continue
 			}
+
+			l.Debugf("Dependency %s is outside working directory, treating as external", canonicalPath)
 
 			// Skip if already processed
 			if _, alreadyFound := allExternalDependencies[externalDependency.Path]; alreadyFound {
