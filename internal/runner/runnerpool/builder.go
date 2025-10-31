@@ -63,10 +63,9 @@ func Build(
 	// The filtering will happen later in the unit resolver after all modules have been discovered.
 	// This ensures that dependency resolution works correctly and units aren't prematurely excluded.
 
-	// Pass dependency behavior flags
-	if terragruntOptions.IgnoreExternalDependencies {
-		d = d.WithIgnoreExternalDependencies()
-	}
+	// We also do NOT use WithIgnoreExternalDependencies() even if IgnoreExternalDependencies is set.
+	// External dependencies need to be discovered so they can be included in the dependency graph.
+	// They will be marked as excluded (AssumeAlreadyApplied) in resolveExternalDependenciesForUnits.
 
 	// Apply filter queries if the filter-flag experiment is enabled
 	if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {

@@ -119,7 +119,8 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	}
 
 	// Build the canonical config paths list for cross-linking
-	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered))
+	// Include both discovered units and external dependencies
+	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered)+len(externalDependencies))
 	for _, c := range discovered {
 		if c.Kind() == component.StackKind {
 			continue
@@ -133,6 +134,18 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		canonicalPath, err := util.CanonicalPath(filepath.Join(c.Path(), fname), ".")
 		if err == nil {
 			canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
+		}
+	}
+
+	// Add external dependencies to canonical paths list
+	for _, extDep := range externalDependencies {
+		// Use the actual TerragruntConfigPath from the unit's options
+		// This handles non-default config file names correctly
+		if extDep.TerragruntOptions != nil && extDep.TerragruntOptions.TerragruntConfigPath != "" {
+			canonicalPath, err := util.CanonicalPath(extDep.TerragruntOptions.TerragruntConfigPath, ".")
+			if err == nil {
+				canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
+			}
 		}
 	}
 
