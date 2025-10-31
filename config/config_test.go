@@ -102,7 +102,6 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -155,7 +154,6 @@ remote_state {
 	}
 
 	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -200,7 +198,6 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	}
 
 	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -218,29 +215,17 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 func TestParseTerragruntHclConfigRetryConfiguration(t *testing.T) {
 	t.Parallel()
 
+	// All three legacy retry attributes should be rejected
 	cfg := `
-retry_max_attempts = 10
-retry_sleep_interval_sec = 60
-retryable_errors = [
-    "My own little error",
-    "Another one of my errors"
-]
+retryable_errors = [".*Error.*"]
 `
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
-	require.NoError(t, err)
-
-	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Empty(t, terragruntConfig.IamRole)
-
-	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
-	assert.Equal(t, 60, *terragruntConfig.RetrySleepIntervalSec)
-
-	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
-		assert.Equal(t, []string{"My own little error", "Another one of my errors"}, terragruntConfig.RetryableErrors)
-	}
+	_, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retryable_errors")
+	assert.Contains(t, err.Error(), "Unsupported argument")
 }
 
 func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
@@ -248,29 +233,18 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 
 	cfg := `
 {
-	"retry_max_attempts": 10,
-	"retry_sleep_interval_sec": 60,
-	"retryable_errors": [
-        "My own little error"
-	]
+	"retryable_errors": [".*Error.*"]
 }
 `
 
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
-	require.NoError(t, err)
-
-	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Empty(t, terragruntConfig.IamRole)
-
-	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
-	assert.Equal(t, 60, *terragruntConfig.RetrySleepIntervalSec)
-
-	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
-		assert.Equal(t, []string{"My own little error"}, terragruntConfig.RetryableErrors)
-	}
+	_, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retryable_errors")
+	// JSON config gives a slightly different error message
+	assert.True(t, strings.Contains(err.Error(), "Unsupported argument") || strings.Contains(err.Error(), "No argument or block type"))
 }
 
 func TestParseIamRole(t *testing.T) {
@@ -290,7 +264,6 @@ func TestParseIamRole(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Equal(t, "terragrunt-iam-role", terragruntConfig.IamRole)
 }
@@ -312,7 +285,6 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Equal(t, int64(36000), *terragruntConfig.IamAssumeRoleDuration)
 }
@@ -334,7 +306,6 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Equal(t, "terragrunt-iam-assume-role-session-name", terragruntConfig.IamAssumeRoleSessionName)
 }
@@ -358,7 +329,6 @@ func TestParseIamWebIdentity(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 	assert.Equal(t, token, terragruntConfig.IamWebIdentityToken)
 }
@@ -383,7 +353,6 @@ dependencies {
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Empty(t, terragruntConfig.IamRole)
 
@@ -412,7 +381,6 @@ dependencies {
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
@@ -455,7 +423,6 @@ dependencies {
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -507,7 +474,6 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -806,12 +772,8 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
-	assert.Nil(t, terragruntConfig.Skip)
 	assert.Empty(t, terragruntConfig.IamRole)
 	assert.Empty(t, terragruntConfig.IamWebIdentityToken)
-	assert.Nil(t, terragruntConfig.RetryMaxAttempts)
-	assert.Nil(t, terragruntConfig.RetrySleepIntervalSec)
-	assert.Nil(t, terragruntConfig.RetryableErrors)
 }
 
 func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
@@ -1335,16 +1297,10 @@ skip = true
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
-	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RemoteState)
-	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.NotNil(t, terragruntConfig.Skip)
-	assert.True(t, *terragruntConfig.Skip)
+	_, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "skip")
+	assert.Contains(t, err.Error(), "Unsupported argument")
 }
 
 func TestParseTerragruntConfigSkipFalse(t *testing.T) {
@@ -1358,16 +1314,10 @@ skip = false
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
-	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Nil(t, terragruntConfig.Terraform)
-	assert.Nil(t, terragruntConfig.RemoteState)
-	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.NotNil(t, terragruntConfig.Skip)
-	assert.False(t, *terragruntConfig.Skip)
+	_, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "skip")
+	assert.Contains(t, err.Error(), "Unsupported argument")
 }
 
 func TestIncludeFunctionsWorkInChildConfig(t *testing.T) {
@@ -1806,16 +1756,9 @@ terraform_version_constraint = ">= 1.0.0"
 terragrunt_version_constraint = ">= 0.36.0"
 download_dir = ".terragrunt-cache"
 prevent_destroy = true
-skip = false
 iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 iam_assume_role_duration = 3600
 iam_assume_role_session_name = "terragrunt"
-retry_max_attempts = 5
-retry_sleep_interval_sec = 5
-retryable_errors = [
-	".*timeout.*",
-	".*connection reset.*"
-]
 
 inputs = {
 	string = "value"
@@ -1905,12 +1848,8 @@ inputs = {
 	assert.Equal(t, terragruntConfig.TerragruntVersionConstraint, rereadConfig.TerragruntVersionConstraint)
 	assert.Equal(t, terragruntConfig.DownloadDir, rereadConfig.DownloadDir)
 	assert.Equal(t, terragruntConfig.PreventDestroy, rereadConfig.PreventDestroy)
-	assert.Equal(t, terragruntConfig.Skip, rereadConfig.Skip)
 	assert.Equal(t, terragruntConfig.IamRole, rereadConfig.IamRole)
 	assert.Equal(t, terragruntConfig.IamAssumeRoleDuration, rereadConfig.IamAssumeRoleDuration)
 	assert.Equal(t, terragruntConfig.IamAssumeRoleSessionName, rereadConfig.IamAssumeRoleSessionName)
-	assert.Equal(t, terragruntConfig.RetryMaxAttempts, rereadConfig.RetryMaxAttempts)
-	assert.Equal(t, terragruntConfig.RetrySleepIntervalSec, rereadConfig.RetrySleepIntervalSec)
-	assert.Equal(t, terragruntConfig.RetryableErrors, rereadConfig.RetryableErrors)
 	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }

@@ -190,8 +190,6 @@ type TerragruntOptions struct {
 	IncludeDirs []string
 	// Unix-style glob of directories to exclude when running *-all commands
 	ExcludeDirs []string
-	// RetryableErrors is an array of regular expressions with RE2 syntax that qualify for retrying
-	RetryableErrors []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -212,16 +210,12 @@ type TerragruntOptions struct {
 	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
-	// Maximum number of times to retry errors matching RetryableErrors
-	RetryMaxAttempts int
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
 	MaxFoldersToCheck int
 	// The port of the Terragrunt Provider Cache server.
 	ProviderCachePort int
-	// The duration in seconds to wait before retrying
-	RetrySleepInterval time.Duration
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -409,9 +403,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ErrWriter:                      stderr,
 		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
-		RetryMaxAttempts:               DefaultRetryMaxAttempts,
-		RetrySleepInterval:             DefaultRetrySleepInterval,
-		RetryableErrors:                cloner.Clone(DefaultRetryableErrors),
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
@@ -432,6 +423,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
 		FeatureFlags:               xsync.NewMapOf[string, string](),
+		Errors:                     defaultErrorsConfig(),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
 		Telemetry:                  new(telemetry.Options),
@@ -728,6 +720,11 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 		}
 
 		if action.ShouldRetry {
+			// Respect --no-auto-retry flag
+			if !opts.AutoRetry {
+				return err
+			}
+
 			l.Warnf(
 				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
 				action.RetryMessage,

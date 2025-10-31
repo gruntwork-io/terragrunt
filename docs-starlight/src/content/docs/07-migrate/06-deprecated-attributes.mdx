@@ -1,0 +1,244 @@
+---
+title: Migrating from Deprecated Attributes
+description: Learn how to migrate from the deprecated skip and retryable_errors attributes to their modern replacements.
+slug: docs/migrate/deprecated-attributes
+sidebar:
+  order: 6
+---
+
+This guide explains how to migrate from the deprecated `skip` and `retryable_errors` attributes to their modern, more powerful replacements.
+
+## Overview
+
+Terragrunt has deprecated two attributes in favor of more flexible block-based configurations:
+
+- **`skip`** → Use the **`exclude`** block instead
+- **`retryable_errors`** → Use the **`errors`** block with **`retry`** sub-blocks instead
+
+These new blocks provide more granular control and composability compared to the simple attributes they replace.
+
+## Migrating from `skip` to `exclude`
+
+### Why was `skip` deprecated?
+
+The `skip` attribute was a simple boolean that would exclude a unit from the run queue. The new `exclude` block provides much more flexibility:
+
+- Exclude the unit only for specific OpenTofu/Terraform commands (e.g., only `plan` but not `apply`)
+- Use conditional logic to determine when to exclude the unit
+- Combine multiple conditions
+- Better integration with other Terragrunt features
+
+### Basic Migration
+
+**Before:**
+```hcl
+skip = true
+```
+
+**After:**
+```hcl
+exclude {
+  if = true
+  actions = ["all"]
+}
+```
+
+### Conditional Skip
+
+**Before:**
+```hcl
+skip = get_env("ENVIRONMENT") == "production"
+```
+
+**After:**
+```hcl
+exclude {
+  if = get_env("ENVIRONMENT") == "production"
+  actions = ["all"]
+}
+```
+
+### Skip Specific Actions
+
+The new `exclude` block allows you to exclude the unit only for specific OpenTofu/Terraform commands:
+
+```hcl
+exclude {
+  if = get_env("SKIP_DESTROY") == "true"
+  actions = ["destroy"]
+}
+```
+
+This wasn't possible with the old `skip` attribute!
+
+## Migrating from `retryable_errors` to `errors` Block
+
+### Why was `retryable_errors` deprecated?
+
+The `retryable_errors` attribute was a simple list of error patterns. The new `errors` block with `retry` sub-blocks provides:
+
+- **Multiple retry configurations** with different patterns and settings
+- **Named retry blocks** for better documentation
+- **Per-retry configuration** of max attempts and sleep intervals
+- **Composability** - combine multiple retry strategies
+- **Better organization** for complex retry logic
+
+### Basic Migration
+
+**Before:**
+```hcl
+retryable_errors = [
+  ".*Error: transient network issue.*",
+  ".*Error: timeout.*"
+]
+
+retry_max_attempts     = 3
+retry_sleep_interval_sec = 5
+```
+
+**After:**
+```hcl
+errors {
+  retry "transient_errors" {
+    retryable_errors = [
+      ".*Error: transient network issue.*",
+      ".*Error: timeout.*"
+    ]
+    max_attempts = 3
+    sleep_interval_sec = 5
+  }
+}
+```
+
+### Using Default Retryable Errors
+
+If you were using the `get_default_retryable_errors()` function:
+
+**Before:**
+```hcl
+retryable_errors = concat(
+  get_default_retryable_errors(),
+  [".*custom error.*"]
+)
+```
+
+**After:**
+```hcl
+errors {
+  retry "default_errors" {
+    retryable_errors = get_default_retryable_errors()
+    max_attempts = 3
+    sleep_interval_sec = 5
+  }
+
+  retry "custom_errors" {
+    retryable_errors = [".*custom error.*"]
+    max_attempts = 5
+    sleep_interval_sec = 10
+  }
+}
+```
+
+Note: The `get_default_retryable_errors()` function still works and returns the default list for use within the `errors` block.
+
+### Multiple Retry Strategies
+
+The new `errors` block allows you to define different retry strategies for different types of errors:
+
+```hcl
+errors {
+  # Quick retries for transient network issues
+  retry "network_errors" {
+    retryable_errors = [
+      ".*connection reset.*",
+      ".*timeout.*"
+    ]
+    max_attempts = 5
+    sleep_interval_sec = 2
+  }
+
+  # Slower retries for rate limiting
+  retry "rate_limit_errors" {
+    retryable_errors = [
+      ".*rate limit exceeded.*",
+      ".*too many requests.*"
+    ]
+    max_attempts = 10
+    sleep_interval_sec = 30
+  }
+
+  # Few retries for potential transient API issues
+  retry "api_errors" {
+    retryable_errors = [
+      ".*internal server error.*"
+    ]
+    max_attempts = 3
+    sleep_interval_sec = 15
+  }
+}
+```
+
+This level of granularity wasn't possible with the old `retryable_errors` attribute!
+
+## Error Messages
+
+If you try to use the deprecated attributes, Terragrunt will fail with an HCL parsing error:
+
+**For `skip` attribute:**
+```
+Error: Unsupported argument
+
+  on terragrunt.hcl line 2:
+   2: skip = true
+
+An argument named "skip" is not expected here.
+```
+
+**For `retryable_errors` attribute:**
+```
+Error: Unsupported argument
+
+  on terragrunt.hcl line 4:
+   4: retryable_errors = [".*Error: transient.*"]
+
+An argument named "retryable_errors" is not expected here.
+```
+
+These errors indicate that the attributes have been completely removed from Terragrunt. Please refer to the migration examples below.
+
+## How Retry Errors Are Collected
+
+When you define multiple `retry` blocks within the `errors` block, Terragrunt automatically collects **all** the `retryable_errors` patterns from all retry blocks and uses them for error matching.
+
+**Example:**
+```hcl
+errors {
+  retry "network_errors" {
+    retryable_errors = [".*timeout.*", ".*connection reset.*"]
+    max_attempts = 5
+    sleep_interval_sec = 2
+  }
+
+  retry "api_errors" {
+    retryable_errors = [".*rate limit.*", ".*429.*"]
+    max_attempts = 10
+    sleep_interval_sec = 30
+  }
+}
+```
+
+In this example, Terragrunt will retry on any error matching:
+- `.*timeout.*`
+- `.*connection reset.*`
+- `.*rate limit.*`
+- `.*429.*`
+
+Each retry block can have its own `max_attempts` and `sleep_interval_sec`,
+allowing fine-grained control over retry behavior for different error types—for example,
+one block can retry at 2-second intervals while another uses 30-second intervals.
+
+## Further Reading
+
+- [Exclude Block Reference](/docs/reference/hcl/blocks#exclude)
+- [Errors Block Reference](/docs/reference/hcl/blocks#errors)
+- [All Attributes Reference](/docs/reference/hcl/attributes)
