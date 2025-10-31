@@ -3,6 +3,7 @@ package runall
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
@@ -141,7 +142,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 			exitCode.Set(int(cli.ExitCodeGeneralError))
 
-			// Save the error to return after telemetry completes
+			// Save error to potentially return after telemetry completes
 			runErr = err
 
 			// Return nil to allow telemetry and reporting to complete
@@ -156,16 +157,22 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return telemetryErr
 	}
 
-	// When using DetailedExitCode, don't return errors - the exit code is set in the context
-	// This allows terraform errors (exit code 1 or 2) to be captured without failing terragrunt
-	exitCode := tf.DetailedExitCodeFromContext(ctx)
-	if exitCode != nil && exitCode.Get() != 0 {
-		// DetailedExitCode is set, don't return the error
-		return nil
+	// Check if the error is a terraform execution error or a configuration error
+	// Configuration errors (parsing, validation) should be returned
+	// Terraform execution errors (terraform commands failing) should not be returned
+	// We can detect this by checking if the error message contains terraform execution patterns
+	if runErr != nil {
+		errMsg := runErr.Error()
+		// If error contains "Failed to execute", it's a terraform execution error - don't return it
+		// These errors are already captured in the report and exit code
+		if strings.Contains(errMsg, "Failed to execute") {
+			return nil
+		}
+		// Otherwise it's likely a configuration/parsing error - return it
+		return runErr
 	}
 
-	// Return the runner error (if any) so tests can detect execution failures
-	return runErr
+	return nil
 }
 
 // shouldSkipSummary determines if summary output should be skipped for programmatic interactions.
