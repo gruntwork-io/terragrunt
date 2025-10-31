@@ -156,6 +156,14 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return telemetryErr
 	}
 
+	// When using DetailedExitCode, don't return errors - the exit code is set in the context
+	// This allows terraform errors (exit code 1 or 2) to be captured without failing terragrunt
+	exitCode := tf.DetailedExitCodeFromContext(ctx)
+	if exitCode != nil && exitCode.Get() != 0 {
+		// DetailedExitCode is set, don't return the error
+		return nil
+	}
+
 	// Return the runner error (if any) so tests can detect execution failures
 	return runErr
 }

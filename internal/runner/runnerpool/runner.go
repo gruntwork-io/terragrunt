@@ -50,7 +50,16 @@ func NewRunnerPoolStack(
 	discovered component.Components,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
-	if len(discovered) == 0 {
+	// Filter out Stack components - we only want Unit components
+	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
+	nonStackComponents := make(component.Components, 0, len(discovered))
+	for _, c := range discovered {
+		if c.Kind() != component.StackKind {
+			nonStackComponents = append(nonStackComponents, c)
+		}
+	}
+
+	if len(nonStackComponents) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
 		stack := common.Stack{
@@ -99,7 +108,8 @@ func NewRunnerPoolStack(
 	}
 
 	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
-	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, discovered)
+	// Use nonStackComponents which has Stack components filtered out
+	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, nonStackComponents)
 	if err != nil {
 		return nil, err
 	}

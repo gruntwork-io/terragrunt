@@ -227,8 +227,8 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 		t.Logf("Auth command detected %d concurrent executions", detected)
 	}
 
-	require.GreaterOrEqual(t, startCount, 3, "Expected at least 3 auth start events")
-	require.GreaterOrEqual(t, endCount, 3, "Expected at least 3 auth end events")
+	require.GreaterOrEqual(t, startCount, 2, "Expected at least 2 auth start events")
+	require.GreaterOrEqual(t, endCount, 2, "Expected at least 2 auth end events")
 	assert.GreaterOrEqual(t, len(matches), 1,
 		"Expected at least one auth command to detect concurrent execution. "+
 			"This would prove parallel execution. If this fails, auth commands may be running sequentially.")

@@ -41,6 +41,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/gobwas/glob"
@@ -290,9 +291,22 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 			return nil, err
 		}
 
-		hasFiles, err := util.DirContainsTFFiles(filepath.Dir(terragruntConfigPath))
+		// Check for TF files only in the immediate directory (not subdirectories)
+		// to avoid including parent units that don't have their own terraform code
+		dir := filepath.Dir(terragruntConfigPath)
+
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, err
+		}
+
+		hasFiles := false
+
+		for _, entry := range entries {
+			if !entry.IsDir() && util.IsTFFile(filepath.Join(dir, entry.Name())) {
+				hasFiles = true
+				break
+			}
 		}
 
 		if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
