@@ -350,6 +350,12 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
 func ValidateWorkingDir(terraformSource *tf.Source) error {
+	// Skip validation for local file sources, as they may reference paths outside the download cache
+	// that don't need validation (e.g., relative paths to sibling directories)
+	if tf.IsLocalSource(terraformSource.CanonicalSourceURL) {
+		return nil
+	}
+
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
 		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}

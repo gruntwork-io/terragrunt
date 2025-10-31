@@ -417,6 +417,7 @@ func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Log
 // flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.
 func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	l.Infof("FLAGEXCLUDEDUNITS: Starting with %d units, TerraformCommand=%s", len(units), opts.TerraformCommand)
+
 	for _, unit := range units {
 		excludeConfig := unit.Config.Exclude
 

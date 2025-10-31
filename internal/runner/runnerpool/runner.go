@@ -118,6 +118,7 @@ func NewRunnerPoolStack(
 
 	// Debug: log all discovered units
 	l.Infof("DISCOVERED_UNITS: Total discovered=%d", len(discovered))
+
 	for _, c := range discovered {
 		if u, ok := c.(*component.Unit); ok {
 			l.Infof("DISCOVERED_UNITS: Component path=%s", u.Path())
@@ -126,6 +127,7 @@ func NewRunnerPoolStack(
 
 	// Debug: log all units in unitsMap
 	l.Infof("UNITS_MAP: Total units=%d", len(unitsMap))
+
 	for _, unit := range unitsMap {
 		l.Infof("UNITS_MAP: Unit path=%s, excluded=%v", unit.Path, unit.FlagExcluded)
 	}
@@ -141,6 +143,7 @@ func NewRunnerPoolStack(
 	// If running destroy, exclude units with prevent_destroy=true and their dependencies
 	l.Infof("PREVENT_DESTROY_CHECK: TerraformCommand=%s, TerraformCliArgs=%v, isDestroy=%v",
 		terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs, isDestroyCommand(terragruntOptions))
+
 	if isDestroyCommand(terragruntOptions) {
 		l.Infof("PREVENT_DESTROY: Detected destroy command, applying prevent_destroy exclusions")
 		applyPreventDestroyExclusions(l, unitsMap)

@@ -155,21 +155,9 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
-	for _, u := range crossLinkedUnits {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("AFTER_CROSSLINK: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
-	}
-
 	withUnitsIncluded, err := r.telemetryFlagIncludedDirs(ctx, l, crossLinkedUnits)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, u := range withUnitsIncluded {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("AFTER_FLAGINCLUDEDDIRS: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
 	}
 
 	withUnitsThatAreIncludedByOthers, err := r.telemetryFlagUnitsThatAreIncluded(ctx, withUnitsIncluded)
@@ -177,21 +165,9 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
-	for _, u := range withUnitsThatAreIncludedByOthers {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("AFTER_FLAGUNITSTHATAREINCLUDED: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
-	}
-
 	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, u := range withUnitsRead {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("AFTER_FLAGUNITSTHATREAD: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
 	}
 
 	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
@@ -199,32 +175,14 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
-	for _, u := range withUnitsExcludedByDirs {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("AFTER_FLAGEXCLUDEDDIRS: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
-	}
-
 	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, u := range withExcludedUnits {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("AFTER_FLAGEXCLUDEDUNITS: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
-	}
-
 	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, u := range filteredUnits {
-		if u.Path == "./module-a" || u.Path == "./module-c" {
-			l.Infof("RESOLVER_RETURN: unit %s excluded=%v", u.Path, u.FlagExcluded)
-		}
 	}
 
 	return filteredUnits, nil
@@ -317,11 +275,9 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(tempUnit) {
-			l.Infof("BUILD_UNITS: Unit %s excluded by excludeFn during buildUnitsFromDiscovery", unitPath)
 			units[unitPath] = &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
+
 			continue
-		} else {
-			l.Infof("BUILD_UNITS: Unit %s NOT excluded by excludeFn, continuing with build", unitPath)
 		}
 
 		// Determine effective source and setup download dir
