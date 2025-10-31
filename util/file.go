@@ -115,6 +115,13 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 			continue
 		}
 
+		// Append /** to glob patterns to match subdirectories
+		// This allows patterns like */aws to match */aws/module-a
+		// Only append if pattern doesn't already end with ** or /
+		if !strings.HasSuffix(canGlobPath, "**") && !strings.HasSuffix(canGlobPath, "/") {
+			canGlobPath += "/**"
+		}
+
 		compiledGlob, err := glob.Compile(canGlobPath, '/')
 		if err != nil {
 			errs = append(errs, fmt.Errorf("invalid glob pattern %q: %w", globPath, err))
