@@ -28,6 +28,23 @@ func Build(
 		workingDir = terragruntOptions.WorkingDir
 	}
 
+	// Build config filenames list - include defaults plus any custom config file
+	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
+	customConfigName := filepath.Base(terragruntOptions.TerragruntConfigPath)
+	// Only add custom config if it's different from defaults
+	isCustom := true
+
+	for _, defaultName := range discovery.DefaultConfigFilenames {
+		if customConfigName == defaultName {
+			isCustom = false
+			break
+		}
+	}
+
+	if isCustom && customConfigName != "" && customConfigName != "." {
+		configFilenames = append(configFilenames, customConfigName)
+	}
+
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(opts...).
@@ -37,7 +54,7 @@ func Build(
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
-		WithConfigFilenames([]string{filepath.Base(terragruntOptions.TerragruntConfigPath)}).
+		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			Cmd:  terragruntOptions.TerraformCliArgs.First(),
 			Args: terragruntOptions.TerraformCliArgs.Tail(),

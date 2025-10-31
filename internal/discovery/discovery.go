@@ -429,33 +429,48 @@ func Parse(
 	parserOptions []hclparse.Option,
 ) error {
 	parseOpts := opts.Clone()
-	parseOpts.WorkingDir = c.Path()
+
+	// Check if c.Path() is a file or directory
+	// When a dependency points directly to a config file (e.g., "./dependency/another-name.hcl"),
+	// we need to separate the directory and filename
+	componentPath := c.Path()
+
+	var workingDir, configFilename string
+
+	if !util.IsDir(componentPath) && util.FileExists(componentPath) {
+		// Path is a file - split into directory and filename
+		workingDir = filepath.Dir(componentPath)
+		configFilename = filepath.Base(componentPath)
+	} else {
+		// Path is a directory - use normal logic
+		workingDir = componentPath
+
+		// Determine filename based on user options or defaults
+		configFilename = config.DefaultTerragruntConfigPath
+		if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		// For stack configurations, always use the default stack config filename
+		if _, ok := c.(*component.Stack); ok {
+			configFilename = config.DefaultStackFile
+		}
+	}
+
+	parseOpts.WorkingDir = workingDir
 
 	// Suppress logging to avoid cluttering the output.
 	parseOpts.Writer = io.Discard
 	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
-	// If the user provided a specific terragrunt config path and it is not a directory,
-	// use its base name as the file to parse. This allows users to run terragrunt with
-	// a specific config file instead of the default terragrunt.hcl.
-	// Otherwise, use the default terragrunt.hcl filename.
-	filename := config.DefaultTerragruntConfigPath
-	if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
-		filename = filepath.Base(opts.TerragruntConfigPath)
-	}
-
-	// For stack configurations, always use the default stack config filename
-	if _, ok := c.(*component.Stack); ok {
-		filename = config.DefaultStackFile
-	}
-
-	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
+	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
 		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
+		config.TerragruntFlags,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 		config.ErrorsBlock,
@@ -510,6 +525,7 @@ func Parse(
 		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
+		config.TerragruntFlags,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 		config.ErrorsBlock,

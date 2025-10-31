@@ -120,15 +120,15 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
+	var runErr error
+
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
 		err := runner.Run(ctx, l, opts)
 		if err != nil {
-			// At this stage, we can't handle the error any further, so we just log it and return nil.
-			// After this point, we'll need to report on what happened, and we want that to happen
-			// after the error summary.
+			// Log the error for visibility
 			l.Errorf("Run failed: %v", err)
 
 			// Update the exit code in ctx
@@ -141,11 +141,23 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 			exitCode.Set(int(cli.ExitCodeGeneralError))
 
+			// Save the error to return after telemetry completes
+			runErr = err
+
+			// Return nil to allow telemetry and reporting to complete
 			return nil
 		}
 
 		return nil
 	})
+
+	// If telemetry itself failed, return that error
+	if telemetryErr != nil {
+		return telemetryErr
+	}
+
+	// Return the runner error (if any) so tests can detect execution failures
+	return runErr
 }
 
 // shouldSkipSummary determines if summary output should be skipped for programmatic interactions.

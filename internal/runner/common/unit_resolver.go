@@ -240,15 +240,21 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 			continue
 		}
 
-		if dUnit.Config() == nil {
-			// Skip configurations that could not be parsed in discovery
-			l.Warnf("Skipping unit at %s due to parse error", c.Path())
+		// Get the config that discovery already parsed
+		terragruntConfig := dUnit.Config()
+		if terragruntConfig == nil {
+			// Skip configurations that discovery could not parse
+			l.Warnf("Skipping unit at %s due to parse error", dUnit.Path())
 			continue
 		}
 
-		// Determine the per-unit config filename (mirrors runnerpool logic)
-		fname := r.determineTerragruntConfigFilename()
-		terragruntConfigPath := filepath.Join(dUnit.Path(), fname)
+		// Determine the actual config file path
+		// Discovery may return either a directory path or a file path depending on the config filename
+		terragruntConfigPath := dUnit.Path()
+		if util.IsDir(terragruntConfigPath) {
+			fname := r.determineTerragruntConfigFilename()
+			terragruntConfigPath = filepath.Join(dUnit.Path(), fname)
+		}
 
 		unitPath, err := r.resolveUnitPath(terragruntConfigPath)
 		if err != nil {
@@ -271,9 +277,6 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 			units[unitPath] = &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
 			continue
 		}
-
-		// Use the already-parsed config from discovery (now includes TerraformSource and ErrorsBlock)
-		terragruntConfig := dUnit.Config()
 
 		// Determine effective source and setup download dir
 		terragruntSource, err := config.GetTerragruntSourceForModule(r.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
