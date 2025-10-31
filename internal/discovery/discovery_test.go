@@ -63,13 +63,13 @@ func TestDiscovery(t *testing.T) {
 	}{
 		{
 			name:       "basic discovery without hidden",
-			discovery:  discovery.NewDiscovery(tmpDir),
+			discovery:  discovery.NewDiscovery(tmpDir).WithNoHidden(),
 			wantUnits:  []string{unit1Dir, unit2Dir, nestedUnit4Dir},
 			wantStacks: []string{stack1Dir},
 		},
 		{
 			name:       "discovery with hidden",
-			discovery:  discovery.NewDiscovery(tmpDir).WithHidden(),
+			discovery:  discovery.NewDiscovery(tmpDir),
 			wantUnits:  []string{unit1Dir, unit2Dir, hiddenUnitDir, nestedUnit4Dir},
 			wantStacks: []string{stack1Dir},
 		},
@@ -204,12 +204,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tt.name != "discovery with dependencies" {
-				t.Skip("skipping test for " + tt.name)
-				return
-			}
-
-			configs, err := tt.discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			components, err := tt.discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -221,28 +216,28 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 			wantDiscovery := tt.setupExpected()
 
 			// nil out the parsed configurations, as it doesn't matter for this test
-			for _, cfg := range configs {
-				if unit, ok := cfg.(*component.Unit); ok {
+			for _, c := range components {
+				if unit, ok := c.(*component.Unit); ok {
 					unit.StoreConfig(nil)
 				}
 			}
 
 			// Compare basic component properties
-			require.Len(t, configs, len(wantDiscovery))
+			require.Len(t, components, len(wantDiscovery))
 
-			configs = configs.Sort()
+			components = components.Sort()
 			wantDiscovery = wantDiscovery.Sort()
 
-			for i, cfg := range configs {
+			for i, c := range components {
 				want := wantDiscovery[i]
-				assert.Equal(t, want.Path(), cfg.Path(), "Component path mismatch at index %d", i)
-				assert.Equal(t, want.Kind(), cfg.Kind(), "Component kind mismatch at index %d", i)
-				assert.Equal(t, want.External(), cfg.External(), "Component external flag mismatch at index %d", i)
+				assert.Equal(t, want.Path(), c.Path(), "Component path mismatch at index %d", i)
+				assert.Equal(t, want.Kind(), c.Kind(), "Component kind mismatch at index %d", i)
+				assert.Equal(t, want.External(), c.External(), "Component external flag mismatch at index %d", i)
 
 				// Compare dependencies
-				cfgDeps := cfg.Dependencies().Sort()
+				cfgDeps := c.Dependencies().Sort()
 				wantDeps := want.Dependencies().Sort()
-				require.Len(t, cfgDeps, len(wantDeps), "Dependencies count mismatch for %s", cfg.Path())
+				require.Len(t, cfgDeps, len(wantDeps), "Dependencies count mismatch for %s", c.Path())
 
 				for j, dep := range cfgDeps {
 					wantDep := wantDeps[j]
@@ -253,7 +248,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 					// Compare nested dependencies (one level deep)
 					depDeps := dep.Dependencies().Sort()
 					wantDepDeps := wantDep.Dependencies().Sort()
-					require.Len(t, depDeps, len(wantDepDeps), "Nested dependencies count mismatch for %s -> %s", cfg.Path(), dep.Path())
+					require.Len(t, depDeps, len(wantDepDeps), "Nested dependencies count mismatch for %s -> %s", c.Path(), dep.Path())
 
 					for k, nestedDep := range depDeps {
 						wantNestedDep := wantDepDeps[k]
@@ -513,7 +508,6 @@ func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
-	// Without hidden, but included via includeDirs pattern
 	d := discovery.NewDiscovery(tmpDir).WithIncludeDirs([]string{filepath.Join(tmpDir, ".hidden", "**")})
 	cfgs, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -532,7 +526,6 @@ func TestDiscoveryStackHiddenAllowed(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
-	// Should be discovered even without WithHidden()
 	d := discovery.NewDiscovery(tmpDir)
 	cfgs, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -570,7 +563,7 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	d := discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithIgnoreExternalDependencies()
+	d := discovery.NewDiscovery(internalDir).WithDiscoverDependencies()
 	components, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
 
@@ -590,7 +583,7 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	require.NotNil(t, appCfg)
 	depPaths := appCfg.Dependencies().Paths()
 	assert.Contains(t, depPaths, dbDir)
-	assert.NotContains(t, depPaths, extApp)
+	assert.Contains(t, depPaths, extApp)
 }
 
 func TestDiscoveryPopulatesReadingField(t *testing.T) {
@@ -720,4 +713,174 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 			assert.ElementsMatch(t, tt.want, components.Filter(component.UnitKind).Paths())
 		})
 	}
+}
+
+func TestDependentDiscovery_NewDependentDiscovery(t *testing.T) {
+	t.Parallel()
+
+	components := component.Components{
+		component.NewUnit("./app"),
+		component.NewUnit("./db"),
+	}
+
+	dd := discovery.NewDependentDiscovery(component.NewThreadSafeComponents(components)).WithMaxDepth(10)
+	require.NotNil(t, dd)
+	// Verify creation doesn't panic - the struct is properly initialized
+}
+
+func TestDependentDiscovery_WithStartingComponents(t *testing.T) {
+	t.Parallel()
+
+	allComponents := component.Components{
+		component.NewUnit("./vpc"),
+		component.NewUnit("./db"),
+		component.NewUnit("./app"),
+	}
+
+	startingComponents := component.Components{
+		component.NewUnit("./db"),
+	}
+
+	dd := discovery.NewDependentDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(10)
+	err := dd.DiscoverAllDependents(t.Context(), logger.CreateLogger(), startingComponents)
+	require.NoError(t, err)
+}
+
+func TestDependencyDiscovery_DiscoverAllDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	appDir := filepath.Join(tmpDir, "app")
+	vpcDir := filepath.Join(tmpDir, "vpc")
+	dbDir := filepath.Join(tmpDir, "db")
+
+	testDirs := []string{appDir, vpcDir, dbDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+		// Create empty terragrunt.hcl files
+		err = os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(""), 0644)
+		require.NoError(t, err)
+	}
+
+	allComponents := component.Components{
+		component.NewUnit(vpcDir),
+		component.NewUnit(dbDir),
+		component.NewUnit(appDir),
+	}
+
+	startingComponents := component.Components{
+		component.NewUnit(appDir),
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	dd := discovery.NewDependencyDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(10)
+
+	require.NotNil(t, dd)
+	// Verify the method accepts startingComponents as a parameter and doesn't panic
+	err := dd.DiscoverAllDependencies(t.Context(), logger.CreateLogger(), opts, startingComponents)
+	require.NoError(t, err)
+}
+
+func TestDependencyDiscovery_SelectiveDiscoveryOnlyProcessesStartingComponents(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create dependency graph: vpc -> db -> app
+	vpcDir := filepath.Join(tmpDir, "vpc")
+	dbDir := filepath.Join(tmpDir, "db")
+	appDir := filepath.Join(tmpDir, "app")
+	unrelatedDir := filepath.Join(tmpDir, "unrelated")
+
+	testDirs := []string{vpcDir, dbDir, appDir, unrelatedDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+`,
+		filepath.Join(dbDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+		filepath.Join(vpcDir, "terragrunt.hcl"):       ``,
+		filepath.Join(unrelatedDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Discover all components first
+	allDiscovery := discovery.NewDiscovery(tmpDir)
+	allComponents, err := allDiscovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Find the app component (starting component)
+	var startingComponent component.Component
+
+	for _, c := range allComponents {
+		if c.Path() == appDir {
+			startingComponent = c
+			break
+		}
+	}
+
+	require.NotNil(t, startingComponent)
+
+	// Create dependency discovery with only app as starting component
+	dependencyDiscovery := discovery.NewDependencyDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(100)
+
+	// Discover dependencies starting from app only
+	err = dependencyDiscovery.DiscoverAllDependencies(t.Context(), logger.CreateLogger(), opts, component.Components{startingComponent})
+	require.NoError(t, err)
+
+	// Verify that app component now has its dependencies
+	// We need to check the actual component's dependencies
+	var appComponent component.Component
+
+	for _, c := range allComponents {
+		if c.Path() == appDir {
+			appComponent = c
+			break
+		}
+	}
+
+	require.NotNil(t, appComponent)
+
+	// Verify app has db as a dependency
+	dependencies := appComponent.Dependencies()
+	dependencyPaths := dependencies.Paths()
+	assert.Contains(t, dependencyPaths, dbDir, "App should have db as a dependency")
+
+	// Verify db has vpc as a dependency
+	var dbComponent component.Component
+
+	for _, c := range allComponents {
+		if c.Path() == dbDir {
+			dbComponent = c
+			break
+		}
+	}
+
+	require.NotNil(t, dbComponent)
+	dbDependencies := dbComponent.Dependencies()
+	dbDependencyPaths := dbDependencies.Paths()
+	assert.Contains(t, dbDependencyPaths, vpcDir, "Db should have vpc as a dependency")
 }

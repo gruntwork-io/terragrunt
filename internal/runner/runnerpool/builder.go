@@ -48,8 +48,6 @@ func Build(
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(opts...).
-		WithHidden().
-		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
@@ -78,9 +76,12 @@ func Build(
 	// Note: Discovery will use glob-based filtering for include patterns.
 	// Exclude patterns are handled by the unit resolver to ensure proper reporting.
 
-	// We do NOT use WithIgnoreExternalDependencies() even if IgnoreExternalDependencies is set.
-	// External dependencies need to be discovered so they can be included in the dependency graph.
-	// They will be marked as excluded (AssumeAlreadyApplied) in resolveExternalDependenciesForUnits.
+	// Pass dependency behavior flags
+	// If IgnoreExternalDependencies is false, discover external dependencies (discoverExternal = true)
+	// If IgnoreExternalDependencies is true, ignore external dependencies (discoverExternal = false, which is the default)
+	if !terragruntOptions.IgnoreExternalDependencies {
+		d = d.WithDiscoverExternalDependencies()
+	}
 
 	// Apply filter queries if the filter-flag experiment is enabled
 	if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {

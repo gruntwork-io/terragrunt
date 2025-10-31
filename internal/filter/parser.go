@@ -71,6 +71,23 @@ func (p *Parser) nextToken() {
 
 // parseExpression is the core recursive descent parser.
 func (p *Parser) parseExpression(precedence int) Expression {
+	// Check for prefix ellipsis (...foo)
+	includeDependents := false
+
+	if p.curToken.Type == ELLIPSIS {
+		includeDependents = true
+
+		p.nextToken()
+	}
+
+	// Check for caret (^) for exclusion
+	excludeTarget := false
+	if p.curToken.Type == CARET {
+		excludeTarget = true
+
+		p.nextToken()
+	}
+
 	var leftExpr Expression
 
 	switch p.curToken.Type {
@@ -95,7 +112,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	case EOF:
 		p.addError("unexpected end of input")
 		return nil
-	case PIPE, EQUAL, RBRACE:
+	case PIPE, EQUAL, RBRACE, ELLIPSIS, CARET:
 		p.addError("unexpected token: " + p.curToken.Literal)
 		return nil
 	default:
@@ -107,11 +124,31 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		return nil
 	}
 
+	target := leftExpr
+
+	// Check for postfix ellipsis (foo...)
+	includeDependencies := false
+	if p.curToken.Type == ELLIPSIS {
+		includeDependencies = true
+
+		p.nextToken()
+	}
+
+	// If we have any graph operators, wrap in GraphExpression
+	if includeDependents || includeDependencies || excludeTarget {
+		leftExpr = &GraphExpression{
+			Target:              target,
+			IncludeDependents:   includeDependents,
+			IncludeDependencies: includeDependencies,
+			ExcludeTarget:       excludeTarget,
+		}
+	}
+
 	for p.curToken.Type != EOF && precedence < p.curPrecedence() {
 		switch p.curToken.Type {
 		case PIPE:
 			leftExpr = p.parseInfixExpression(leftExpr)
-		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE:
+		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE, ELLIPSIS, CARET:
 			return leftExpr
 		default:
 			return leftExpr
