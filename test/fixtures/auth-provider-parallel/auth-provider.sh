@@ -29,7 +29,7 @@ MAX_WAIT=50  # 50 * 10ms = 500ms max wait
 
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
     # Count how many auth commands have started
-    STARTED=$(ls -1 "${LOCK_DIR}"/start-* 2>/dev/null | wc -l)
+    STARTED=$(ls -1 "${LOCK_DIR}"/start-* 2>/dev/null | wc -l | tr -d ' \t')
 
     # If we see at least 2 others started (3 total), we know it's parallel
     if [ "$STARTED" -ge 2 ]; then

@@ -143,17 +143,12 @@ func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.L
 		return units
 	}
 
-	l.Infof("FLAGINCLUDEDDIRS: ExcludeByDefault=true, IncludeDirs=%v, marking all units as excluded initially", opts.IncludeDirs)
-
 	includeFn := r.createPathMatcherFunc("include", opts, l)
 
 	for _, unit := range units {
 		unit.FlagExcluded = true
 		if includeFn(unit) {
 			unit.FlagExcluded = false
-			l.Infof("FLAGINCLUDEDDIRS: Unit %s matched include pattern, marking as included", unit.Path)
-		} else {
-			l.Infof("FLAGINCLUDEDDIRS: Unit %s did not match include pattern, remains excluded", unit.Path)
 		}
 	}
 
@@ -162,7 +157,6 @@ func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.L
 		for _, unit := range units {
 			if !unit.FlagExcluded {
 				for _, dependency := range unit.Dependencies {
-					l.Infof("FLAGINCLUDEDDIRS: Marking dependency %s as included (non-strict mode)", dependency.Path)
 					dependency.FlagExcluded = false
 				}
 			}
@@ -363,17 +357,14 @@ func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logg
 func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	// If we don't have any excludes, we don't need to do anything.
 	if (len(r.excludeGlobs) == 0 && r.doubleStarEnabled) || len(opts.ExcludeDirs) == 0 {
-		l.Infof("FLAGEXCLUDEDDIRS: Skipping (excludeGlobs=%d, doubleStarEnabled=%v, ExcludeDirs=%d)", len(r.excludeGlobs), r.doubleStarEnabled, len(opts.ExcludeDirs))
 		return units
 	}
 
-	l.Infof("FLAGEXCLUDEDDIRS: Running exclusion check, ExcludeDirs=%v", opts.ExcludeDirs)
 	excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 	for _, unit := range units {
 		if excludeFn(unit) {
 			// Mark unit itself as excluded
-			l.Infof("FLAGEXCLUDEDDIRS: Unit %s is excluded by excludeFn", unit.Path)
 			unit.FlagExcluded = true
 
 			// Only update report if it's enabled
@@ -416,8 +407,6 @@ func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Log
 
 // flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.
 func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
-	l.Infof("FLAGEXCLUDEDUNITS: Starting with %d units, TerraformCommand=%s", len(units), opts.TerraformCommand)
-
 	for _, unit := range units {
 		excludeConfig := unit.Config.Exclude
 
@@ -425,20 +414,14 @@ func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntO
 			continue
 		}
 
-		l.Infof("FLAGEXCLUDEDUNITS: Unit %s has exclude config, checking action list", unit.Path)
-
 		if !excludeConfig.IsActionListed(opts.TerraformCommand) {
-			l.Infof("FLAGEXCLUDEDUNITS: Unit %s exclude config does NOT list action %s", unit.Path, opts.TerraformCommand)
 			continue
 		}
-
-		l.Infof("FLAGEXCLUDEDUNITS: Unit %s exclude config lists action %s, If=%v", unit.Path, opts.TerraformCommand, excludeConfig.If)
 
 		if excludeConfig.If {
 			// Check if unit was already excluded (e.g., by --queue-exclude-dir)
 			// If so, don't overwrite the existing exclusion reason
 			wasAlreadyExcluded := unit.FlagExcluded
-			l.Infof("FLAGEXCLUDEDUNITS: Unit %s is excluded by exclude block (wasAlreadyExcluded=%v)", unit.Path, wasAlreadyExcluded)
 			unit.FlagExcluded = true
 
 			// Only update report if it's enabled AND the unit wasn't already excluded

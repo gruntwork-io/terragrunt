@@ -116,39 +116,8 @@ func NewRunnerPoolStack(
 
 	runner.Stack.Units = unitsMap
 
-	// Debug: log all discovered units
-	l.Infof("DISCOVERED_UNITS: Total discovered=%d", len(discovered))
-
-	for _, c := range discovered {
-		if u, ok := c.(*component.Unit); ok {
-			l.Infof("DISCOVERED_UNITS: Component path=%s", u.Path())
-		}
-	}
-
-	// Debug: log all units in unitsMap
-	l.Infof("UNITS_MAP: Total units=%d", len(unitsMap))
-
-	for _, unit := range unitsMap {
-		l.Infof("UNITS_MAP: Unit path=%s, excluded=%v", unit.Path, unit.FlagExcluded)
-	}
-
-	// Debug: log which units are excluded BEFORE prevent_destroy logic
-	for _, unit := range unitsMap {
-		if unit.FlagExcluded {
-			l.Infof("BEFORE_PREVENT_DESTROY: Unit %s is already excluded", unit.Path)
-		}
-	}
-
-	// Handle prevent_destroy logic for destroy operations
-	// If running destroy, exclude units with prevent_destroy=true and their dependencies
-	l.Infof("PREVENT_DESTROY_CHECK: TerraformCommand=%s, TerraformCliArgs=%v, isDestroy=%v",
-		terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs, isDestroyCommand(terragruntOptions))
-
 	if isDestroyCommand(terragruntOptions) {
-		l.Infof("PREVENT_DESTROY: Detected destroy command, applying prevent_destroy exclusions")
 		applyPreventDestroyExclusions(l, unitsMap)
-	} else {
-		l.Infof("PREVENT_DESTROY: Not a destroy command, skipping prevent_destroy exclusions")
 	}
 
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
