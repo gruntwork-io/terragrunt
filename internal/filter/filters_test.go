@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,7 +95,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, components, result)
 	})
@@ -105,7 +107,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -123,7 +126,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -140,7 +144,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -160,7 +165,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -177,7 +183,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -193,7 +200,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -216,7 +224,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		}, ".")
 		require.NoError(t, err)
 
-		result, err := filters.Evaluate(components)
+		l := log.New()
+		result, err := filters.Evaluate(l, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -314,5 +323,189 @@ func TestFilters_String(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
 		require.NoError(t, err)
 		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
+	})
+}
+
+func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no graph expressions - empty result", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		assert.Empty(t, targets)
+	})
+
+	t.Run("single dependency graph expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		require.Len(t, targets, 1)
+
+		// Verify the target is the correct expression
+		expectedTarget := &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}
+		assert.Equal(t, expectedTarget, targets[0])
+	})
+
+	t.Run("multiple dependency graph expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app...", "db..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		require.Len(t, targets, 2)
+
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."}, targets[1])
+	})
+
+	t.Run("dependent-only graph expression - no dependency discovery", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		assert.Empty(t, targets)
+	})
+
+	t.Run("both directions graph expression - includes dependency discovery", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		require.Len(t, targets, 1)
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+	})
+
+	t.Run("nested graph expressions in infix", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app... | db..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		require.Len(t, targets, 2)
+	})
+
+	t.Run("graph expression in prefix expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"!app..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		require.Len(t, targets, 1)
+	})
+
+	t.Run("mixed graph and non-graph expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app...", "./apps/*"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependencyDiscovery()
+		require.Len(t, targets, 1)
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+	})
+}
+
+func TestFilters_RequiresDependentDiscovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no graph expressions - empty result", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		assert.Empty(t, targets)
+	})
+
+	t.Run("single dependent graph expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		require.Len(t, targets, 1)
+
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+	})
+
+	t.Run("multiple dependent graph expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app", "...db"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		require.Len(t, targets, 2)
+
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."}, targets[1])
+	})
+
+	t.Run("dependency-only graph expression - no dependent discovery", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		assert.Empty(t, targets)
+	})
+
+	t.Run("both directions graph expression - includes dependent discovery", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app..."}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		require.Len(t, targets, 1)
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+	})
+
+	t.Run("nested graph expressions in infix", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app | ...db"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		require.Len(t, targets, 2)
+	})
+
+	t.Run("graph expression in prefix expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"!...app"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		require.Len(t, targets, 1)
+	})
+
+	t.Run("mixed graph and non-graph expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...app", "./apps/*"}, ".")
+		require.NoError(t, err)
+
+		targets := filters.RequiresDependentDiscovery()
+		require.Len(t, targets, 1)
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
 	})
 }

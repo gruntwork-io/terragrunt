@@ -24,6 +24,10 @@ const (
 	// Delimiters
 	LBRACE // left brace ({)
 	RBRACE // right brace (})
+
+	// Graph operators
+	ELLIPSIS // ellipsis operator (...)
+	CARET    // caret operator (^)
 )
 
 // String returns a string representation of the token type for debugging.
@@ -47,6 +51,10 @@ func (t TokenType) String() string {
 		return "{"
 	case RBRACE:
 		return "}"
+	case ELLIPSIS:
+		return "..."
+	case CARET:
+		return "^"
 	default:
 		return "UNKNOWN"
 	}

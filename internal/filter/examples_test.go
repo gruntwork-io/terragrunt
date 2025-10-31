@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Example_basicPathFilter demonstrates filtering components by path with a glob pattern.
@@ -17,7 +18,8 @@ func Example_basicPathFilter() {
 		component.NewUnit("./libs/db"),
 	}
 
-	result, _ := filter.Apply("./apps/*", ".", components)
+	l := log.New()
+	result, _ := filter.Apply(l, "./apps/*", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -35,7 +37,8 @@ func Example_attributeFilter() {
 		component.NewUnit("./services/api"),
 	}
 
-	result, _ := filter.Apply("name=api", ".", components)
+	l := log.New()
+	result, _ := filter.Apply(l, "name=api", ".", components)
 
 	for _, c := range result {
 		fmt.Println(c.Path())
@@ -52,7 +55,8 @@ func Example_exclusionFilter() {
 		component.NewUnit("./apps/legacy"),
 	}
 
-	result, _ := filter.Apply("!legacy", ".", components)
+	l := log.New()
+	result, _ := filter.Apply(l, "!legacy", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -72,7 +76,8 @@ func Example_intersectionFilter() {
 	}
 
 	// Select components in ./apps/ that are named "frontend"
-	result, _ := filter.Apply("./apps/* | frontend", ".", components)
+	l := log.New()
+	result, _ := filter.Apply(l, "./apps/* | frontend", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -92,7 +97,8 @@ func Example_complexQuery() {
 	}
 
 	// Select all services except worker
-	result, _ := filter.Apply("./services/* | !worker", ".", components)
+	l := log.New()
+	result, _ := filter.Apply(l, "./services/* | !worker", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -116,7 +122,8 @@ func Example_parseAndEvaluate() {
 	}
 
 	// Evaluate multiple times with different config sets
-	result1, _ := f.Evaluate(components)
+	l := log.New()
+	result1, _ := f.Evaluate(l, components)
 	fmt.Printf("Found %d components\n", len(result1))
 
 	// You can also inspect the original query
@@ -136,7 +143,8 @@ func Example_recursiveWildcard() {
 	}
 
 	// Match all infrastructure components at any depth
-	result, _ := filter.Apply("./infrastructure/**", ".", components)
+	l := log.New()
+	result, _ := filter.Apply(l, "./infrastructure/**", ".", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -181,7 +189,8 @@ func Example_multipleFilters() {
 		"name=db",
 	}, ".")
 
-	result, _ := filters.Evaluate(components)
+	l := log.New()
+	result, _ := filters.Evaluate(l, components)
 
 	// Sort for consistent output
 	names := make([]string, len(result))

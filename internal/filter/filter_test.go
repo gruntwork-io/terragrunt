@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,7 +132,8 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 
 			require.NotNil(t, filter)
 
-			result, err := filter.Evaluate(testComponents)
+			logger := log.New()
+			result, err := filter.Evaluate(logger, testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, tt.expected, result)
@@ -188,7 +190,8 @@ func TestFilter_Apply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, ".", tt.components)
+			l := log.New()
+			result, err := filter.Apply(l, tt.filterString, ".", tt.components)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -278,7 +281,8 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := filter.Apply(tt.filterString, ".", repoComponents)
+			l := log.New()
+			result, err := filter.Apply(l, tt.filterString, ".", repoComponents)
 			require.NoError(t, err)
 
 			var resultNames []string
@@ -297,7 +301,8 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("filter with no matches", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := filter.Apply("nonexistent", ".", testComponents)
+		l := log.New()
+		result, err := filter.Apply(l, "nonexistent", ".", testComponents)
 		require.NoError(t, err)
 
 		assert.Empty(t, result)
@@ -309,10 +314,12 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		filter, err := filter.Parse("app1", ".")
 		require.NoError(t, err)
 
-		result1, err := filter.Evaluate(testComponents)
+		l := log.New()
+
+		result1, err := filter.Evaluate(l, testComponents)
 		require.NoError(t, err)
 
-		result2, err := filter.Evaluate(testComponents)
+		result2, err := filter.Evaluate(l, testComponents)
 		require.NoError(t, err)
 
 		assert.Equal(t, result1, result2)
@@ -335,7 +342,8 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			result, err := filter.Apply(tt.filterString, ".", testComponents)
+			l := log.New()
+			result, err := filter.Apply(l, tt.filterString, ".", testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, result)

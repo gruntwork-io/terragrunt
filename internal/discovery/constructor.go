@@ -134,6 +134,7 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 		},
 		numWorkers:         numWorkers,
 		useDefaultExcludes: true,
+		maxDependencyDepth: defaultMaxDependencyDepth,
 	}
 
 	for _, opt := range opts {
