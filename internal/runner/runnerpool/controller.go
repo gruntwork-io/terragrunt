@@ -112,7 +112,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 			for _, e := range readyEntries {
 				// log debug which entry is running
-				l.Debugf("Runner Pool Controller: running %s", e.Component.Path)
+				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
 				dr.q.SetEntryStatus(e, queue.StatusRunning)
 
 				sem <- struct{}{}

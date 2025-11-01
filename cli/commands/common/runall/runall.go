@@ -3,6 +3,7 @@ package runall
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
@@ -120,15 +121,15 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
+	var runErr error
+
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
 		err := runner.Run(ctx, l, opts)
 		if err != nil {
-			// At this stage, we can't handle the error any further, so we just log it and return nil.
-			// After this point, we'll need to report on what happened, and we want that to happen
-			// after the error summary.
+			// Log the error for visibility
 			l.Errorf("Run failed: %v", err)
 
 			// Update the exit code in ctx
@@ -141,11 +142,37 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 			exitCode.Set(int(cli.ExitCodeGeneralError))
 
+			// Save error to potentially return after telemetry completes
+			runErr = err
+
+			// Return nil to allow telemetry and reporting to complete
 			return nil
 		}
 
 		return nil
 	})
+
+	// If telemetry itself failed, return that error
+	if telemetryErr != nil {
+		return telemetryErr
+	}
+
+	// Check if the error is a terraform execution error or a configuration error
+	// Configuration errors (parsing, validation) should be returned
+	// Terraform execution errors (terraform commands failing) should not be returned
+	// We can detect this by checking if the error message contains terraform execution patterns
+	if runErr != nil {
+		errMsg := runErr.Error()
+		// If error contains "Failed to execute", it's a terraform execution error - don't return it
+		// These errors are already captured in the report and exit code
+		if strings.Contains(errMsg, "Failed to execute") {
+			return nil
+		}
+		// Otherwise it's likely a configuration/parsing error - return it
+		return runErr
+	}
+
+	return nil
 }
 
 // shouldSkipSummary determines if summary output should be skipped for programmatic interactions.

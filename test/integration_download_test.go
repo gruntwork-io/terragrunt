@@ -359,11 +359,6 @@ I'm not sure we're getting good value from the time taken on tests like this.
 func TestIncludeDirs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.CopyEnvironment(t, testFixtureLocalWithIncludeDir)
-	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
-	workingDir, err := filepath.EvalSymlinks(workingDir)
-	require.NoError(t, err)
-
 	// Populate module paths.
 	unitNames := []string{
 		"integration-env/aws/module-aws-a",
@@ -374,72 +369,89 @@ func TestIncludeDirs(t *testing.T) {
 	}
 
 	testCases := []struct {
+		name                string
 		includeArgs         string
 		includedUnitOutputs []string
 	}{
 		{
+			name:                "no-match",
 			includeArgs:         "--queue-include-dir xyz",
 			includedUnitOutputs: []string{},
 		},
 		{
+			name:                "wildcard-aws",
 			includeArgs:         "--queue-include-dir */aws",
 			includedUnitOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
 		},
 		{
+			name:                "production-and-gce-c",
 			includeArgs:         "--queue-include-dir production-env --queue-include-dir **/module-gce-c",
 			includedUnitOutputs: []string{"Module GCE B", "Module AWS A"},
 		},
 		{
+			name:                "specific-modules",
 			includeArgs:         "--queue-include-dir integration-env/gce/module-gce-b --queue-include-dir integration-env/gce/module-gce-c --queue-include-dir **/module-aws*",
 			includedUnitOutputs: []string{"Module GCE E"},
 		},
 	}
 
-	unitPaths := make(map[string]string, len(unitNames))
-	for _, unitName := range unitNames {
-		unitPaths[unitName] = util.JoinPath(testFixtureLocalWithIncludeDir, unitName)
-	}
-
 	for _, tc := range testCases {
-		applyAllStdout := bytes.Buffer{}
-		applyAllStderr := bytes.Buffer{}
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(
-			t,
-			fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
-				workingDir, tc.includeArgs,
-			),
-			&applyAllStdout,
-			&applyAllStderr,
-		)
-		require.NoError(t, err)
-
-		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
-		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
-
-		// Check that the included module output is present
-		for _, modulePath := range unitPaths {
-			showStdout := bytes.Buffer{}
-			showStderr := bytes.Buffer{}
-
-			err = helpers.RunTerragruntCommand(
-				t,
-				"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
-				&showStdout,
-				&showStderr,
-			)
-			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
-			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
-
+			// Each subtest gets its own clean environment
+			// Copy the entire fixtures/download directory to ensure relative source paths work
+			tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+			workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+			workingDir, err := filepath.EvalSymlinks(workingDir)
 			require.NoError(t, err)
 
-			output := showStdout.String()
-			for _, includedUnitOutput := range tc.includedUnitOutputs {
-				assert.NotContains(t, output, includedUnitOutput)
+			unitPaths := make(map[string]string, len(unitNames))
+			for _, unitName := range unitNames {
+				unitPaths[unitName] = util.JoinPath(workingDir, unitName)
 			}
-		}
+
+			applyAllStdout := bytes.Buffer{}
+			applyAllStderr := bytes.Buffer{}
+
+			// Apply modules according to test case
+			err = helpers.RunTerragruntCommand(
+				t,
+				fmt.Sprintf(
+					"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+					workingDir, tc.includeArgs,
+				),
+				&applyAllStdout,
+				&applyAllStderr,
+			)
+			require.NoError(t, err)
+
+			helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+			helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
+
+			// Check that the included module output is present
+			for _, modulePath := range unitPaths {
+				showStdout := bytes.Buffer{}
+				showStderr := bytes.Buffer{}
+
+				err = helpers.RunTerragruntCommand(
+					t,
+					"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+					&showStdout,
+					&showStderr,
+				)
+				helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
+				helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
+
+				require.NoError(t, err)
+
+				output := showStdout.String()
+				for _, includedUnitOutput := range tc.includedUnitOutputs {
+					assert.NotContains(t, output, includedUnitOutput)
+				}
+			}
+		})
 	}
 }
 

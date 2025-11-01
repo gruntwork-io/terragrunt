@@ -28,6 +28,23 @@ func Build(
 		workingDir = terragruntOptions.WorkingDir
 	}
 
+	// Build config filenames list - include defaults plus any custom config file
+	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
+	customConfigName := filepath.Base(terragruntOptions.TerragruntConfigPath)
+	// Only add custom config if it's different from defaults
+	isCustom := true
+
+	for _, defaultName := range discovery.DefaultConfigFilenames {
+		if customConfigName == defaultName {
+			isCustom = false
+			break
+		}
+	}
+
+	if isCustom && customConfigName != "" && customConfigName != "." {
+		configFilenames = append(configFilenames, customConfigName)
+	}
+
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(opts...).
@@ -37,36 +54,33 @@ func Build(
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
-		WithConfigFilenames([]string{filepath.Base(terragruntOptions.TerragruntConfigPath)}).
+		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			Cmd:  terragruntOptions.TerraformCliArgs.First(),
 			Args: terragruntOptions.TerraformCliArgs.Tail(),
 		})
 
-	// Pass include directory filters
+	// Pass include directory filters to discovery
+	// Discovery will use glob matching to filter units appropriately
 	if len(terragruntOptions.IncludeDirs) > 0 {
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
 
-	// Don't pass ExcludeDirs to discovery - let all units be discovered
-	// and then filter/report them during unit resolution where we have access to the report
-	// if len(terragruntOptions.ExcludeDirs) > 0 {
-	// 	d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
-	// }
+	// NOTE: We do NOT pass ExcludeDirs to discovery because excluded units need to be
+	// discovered and reported (for --report-file functionality). The unit resolver will
+	// handle exclusions after discovery, ensuring excluded units appear in reports.
 
 	// Pass include behavior flags
 	if terragruntOptions.StrictInclude {
 		d = d.WithStrictInclude()
 	}
 
-	// We intentionally do NOT set ExcludeByDefault during discovery, even if it's enabled in options.
-	// The filtering will happen later in the unit resolver after all modules have been discovered.
-	// This ensures that dependency resolution works correctly and units aren't prematurely excluded.
+	// Note: Discovery will use glob-based filtering for include patterns.
+	// Exclude patterns are handled by the unit resolver to ensure proper reporting.
 
-	// Pass dependency behavior flags
-	if terragruntOptions.IgnoreExternalDependencies {
-		d = d.WithIgnoreExternalDependencies()
-	}
+	// We do NOT use WithIgnoreExternalDependencies() even if IgnoreExternalDependencies is set.
+	// External dependencies need to be discovered so they can be included in the dependency graph.
+	// They will be marked as excluded (AssumeAlreadyApplied) in resolveExternalDependenciesForUnits.
 
 	// Apply filter queries if the filter-flag experiment is enabled
 	if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -22,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -50,7 +53,16 @@ func NewRunnerPoolStack(
 	discovered component.Components,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
-	if len(discovered) == 0 {
+	// Filter out Stack components - we only want Unit components
+	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
+	nonStackComponents := make(component.Components, 0, len(discovered))
+	for _, c := range discovered {
+		if c.Kind() != component.StackKind {
+			nonStackComponents = append(nonStackComponents, c)
+		}
+	}
+
+	if len(nonStackComponents) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
 		stack := common.Stack{
@@ -87,38 +99,6 @@ func NewRunnerPoolStack(
 	// the report is available during unit resolution for tracking exclusions
 	runner = runner.WithOptions(opts...)
 
-	// Collect all terragrunt.hcl paths for resolution.
-	unitPaths := make([]string, 0, len(discovered))
-
-	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if unit.Config() == nil {
-			// Skip configurations that could not be parsed
-			l.Warnf("Skipping unit at %s due to parse error", c.Path())
-			continue
-		}
-
-		// Determine per-unit config filename
-		//
-		// TODO: Refactor this out later.
-		var fname string
-		if c.Kind() == component.StackKind {
-			fname = config.DefaultStackFile
-		} else {
-			fname = config.DefaultTerragruntConfigPath
-			if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
-				fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
-			}
-		}
-
-		terragruntConfigPath := filepath.Join(unit.Path(), fname)
-		unitPaths = append(unitPaths, terragruntConfigPath)
-	}
-
 	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
@@ -130,17 +110,16 @@ func NewRunnerPoolStack(
 		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
 	}
 
-	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
+	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
+	// Use nonStackComponents which has Stack components filtered out
+	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, nonStackComponents)
 	if err != nil {
 		return nil, err
 	}
 
 	runner.Stack.Units = unitsMap
 
-	// Handle prevent_destroy logic for destroy operations
-	// If running destroy, exclude units with prevent_destroy=true and their dependencies
 	if isDestroyCommand(terragruntOptions) {
-		l.Debugf("Detected destroy command, applying prevent_destroy exclusions")
 		applyPreventDestroyExclusions(l, unitsMap)
 	}
 
@@ -156,6 +135,39 @@ func NewRunnerPoolStack(
 	runner.queue = q
 
 	return runner.WithOptions(opts...), nil
+}
+
+// isConfigurationError checks if an error is a configuration/validation error
+// that should always cause command failure regardless of fail-fast setting.
+func isConfigurationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for specific configuration error types
+	var conflictErr config.ConflictingRunCmdCacheOptionsError
+	if errors.As(err, &conflictErr) {
+		return true
+	}
+
+	// Check if an error message contains configuration error patterns
+	// This catches HCL-wrapped configuration errors
+	errMsg := err.Error()
+	if strings.Contains(errMsg, "--terragrunt-global-cache and --terragrunt-no-cache options cannot be used together") {
+		return true
+	}
+
+	// Check wrapped errors in MultiError
+	var multiErr *tgerrors.MultiError
+	if errors.As(err, &multiErr) {
+		for _, wrappedErr := range multiErr.WrappedErrors() {
+			if isConfigurationError(wrappedErr) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Run executes the stack according to TerragruntOptions and returns the first
@@ -325,6 +337,28 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 			}
 		}
+	}
+
+	// Handle errors based on fail-fast mode and error type
+	// Configuration errors always fail regardless of --fail-fast
+	// Execution errors are suppressed when --fail-fast is not set
+	if err != nil {
+		if isConfigurationError(err) || opts.FailFast {
+			// Configuration errors or fail-fast mode: propagate error
+			return err
+		}
+
+		// Execution errors without fail-fast: log but don't fail
+		l.Errorf("Run failed: %v", err)
+
+		// Set detailed exit code if context has one
+		exitCode := tf.DetailedExitCodeFromContext(ctx)
+		if exitCode != nil {
+			exitCode.Set(int(cli.ExitCodeGeneralError))
+		}
+
+		// Return nil to indicate success (no --fail-fast) but errors were logged
+		return nil
 	}
 
 	return err
