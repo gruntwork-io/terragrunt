@@ -170,6 +170,9 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		wg.Wait()
 
 		// Collect errors from results map and check for errors
+		// Only return errors if FailFast is enabled, otherwise just log them
+		// This matches the behavior of the old run-all implementation where individual
+		// unit failures don't cause the overall command to fail
 		errCollector := &errors.MultiError{}
 
 		for _, entry := range dr.q.Entries {
@@ -192,6 +195,17 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			}
 		}
 
-		return errCollector.ErrorOrNil()
+		// Only return errors if fail-fast mode is enabled
+		// In normal mode, errors are logged but the command succeeds
+		if dr.q.FailFast {
+			return errCollector.ErrorOrNil()
+		}
+
+		// Log errors but don't fail the command
+		if err := errCollector.ErrorOrNil(); err != nil {
+			l.Debugf("Runner Pool Controller: completed with errors (not failing due to fail-fast disabled): %v", err)
+		}
+
+		return nil
 	})
 }
