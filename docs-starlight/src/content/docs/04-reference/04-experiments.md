@@ -70,6 +70,7 @@ The following experiments are available:
 - [symlinks](#symlinks)
 - [cas](#cas)
 - [filter-flag](#filter-flag)
+- [catalog-discovery](#catalog-discovery)
 
 ### symlinks
 
@@ -185,6 +186,47 @@ When this experiment stabilizes, the following queue control flags will be depre
 - `--queue-strict-include`
 
 The current plan is to continue to support the flags as aliases for particular `--filter` patterns.
+
+#### `catalog-discovery`
+
+Support for configurable module discovery paths in Terragrunt Catalog.
+
+#### `catalog-discovery` - What it does
+
+By default, Terragrunt Catalog searches for modules only in the `modules/` directory of catalog repositories. This experiment enables the `discovery` block in catalog configuration, allowing you to specify custom directories where modules should be discovered. This is useful when your catalog repositories organize modules in non-standard directories (e.g., `tf-modules/`, `infrastructure/`, or organization-specific paths).
+
+**Example usage:**
+```hcl
+catalog {
+  # Standard URLs use default "modules/" path
+  urls = [
+    "github.com/gruntwork-io/repo-a.git"
+  ]
+  
+  # Discovery block with custom paths
+  discovery {
+    urls = [
+      "github.com/gruntwork-io/repo-b.git",
+      "github.com/gruntwork-io/repo-c.git"
+    ]
+    module_paths = ["tf-modules", "infrastructure", "terraform"]
+  }
+  
+  # Multiple discovery blocks with different configurations
+  discovery {
+    urls = ["github.com/acme/repo-d.git"]
+    module_paths = ["infra-modules"]
+  }
+}
+```
+
+**Key features:**
+
+- Configure custom module directory paths per repository or group of repositories
+- Multiple `discovery` blocks allow different path configurations for different repos
+- URLs in `catalog.urls` continue to use the default `modules/` path
+- The repository root directory is always checked for modules, regardless of configured paths
+
 
 ## Completed Experiments
 

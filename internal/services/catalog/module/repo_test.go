@@ -81,6 +81,129 @@ func TestFindModules(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // intentional:  // subtests share repoPath, running in parallel causes race
+func TestFindModulesWithCustomPaths(t *testing.T) {
+	t.Parallel()
+
+	type moduleData struct {
+		title       string
+		description string
+		url         string
+		moduleDir   string
+	}
+
+	repoPath := "testdata/find_modules_custom_paths"
+
+	testCases := []struct {
+		name         string
+		modulePaths  []string
+		expectedData []moduleData
+	}{
+		{
+			name:        "single custom path - infra-modules",
+			modulePaths: []string{"infra-modules"},
+			expectedData: []moduleData{
+				{
+					title:       "Security Group Module",
+					description: "This Terraform Module creates and manages AWS Security Groups with configurable ingress and egress rules for controlling network access to resources.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/infra-modules/terraform-aws-security-group",
+					moduleDir:   "infra-modules/terraform-aws-security-group",
+				},
+				{
+					title:       "VPC Module",
+					description: "This Terraform Module creates a production-ready AWS Virtual Private Cloud (VPC) with public and private subnets, NAT gateways, and Internet gateway for secure network isolation.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/infra-modules/terraform-aws-vpc",
+					moduleDir:   "infra-modules/terraform-aws-vpc",
+				},
+			},
+		},
+		{
+			name:        "single custom path - platform-modules",
+			modulePaths: []string{"platform-modules"},
+			expectedData: []moduleData{
+				{
+					title:       "EKS Platform Module",
+					description: "This Terraform Module provisions a complete Amazon EKS (Elastic Kubernetes Service) platform with managed node groups, cluster add-ons, and IRSA configuration.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/platform-modules/terraform-aws-eks",
+					moduleDir:   "platform-modules/terraform-aws-eks",
+				},
+				{
+					title:       "Monitoring Platform Module",
+					description: "This Terraform Module sets up a comprehensive monitoring and observability stack for AWS infrastructure using CloudWatch, SNS, and optional third-party integrations.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/platform-modules/terraform-aws-monitoring",
+					moduleDir:   "platform-modules/terraform-aws-monitoring",
+				},
+			},
+		},
+		{
+			name:        "multiple custom paths",
+			modulePaths: []string{"infra-modules", "platform-modules"},
+			expectedData: []moduleData{
+				{
+					title:       "Security Group Module",
+					description: "This Terraform Module creates and manages AWS Security Groups with configurable ingress and egress rules for controlling network access to resources.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/infra-modules/terraform-aws-security-group",
+					moduleDir:   "infra-modules/terraform-aws-security-group",
+				},
+				{
+					title:       "VPC Module",
+					description: "This Terraform Module creates a production-ready AWS Virtual Private Cloud (VPC) with public and private subnets, NAT gateways, and Internet gateway for secure network isolation.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/infra-modules/terraform-aws-vpc",
+					moduleDir:   "infra-modules/terraform-aws-vpc",
+				},
+				{
+					title:       "EKS Platform Module",
+					description: "This Terraform Module provisions a complete Amazon EKS (Elastic Kubernetes Service) platform with managed node groups, cluster add-ons, and IRSA configuration.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/platform-modules/terraform-aws-eks",
+					moduleDir:   "platform-modules/terraform-aws-eks",
+				},
+				{
+					title:       "Monitoring Platform Module",
+					description: "This Terraform Module sets up a comprehensive monitoring and observability stack for AWS infrastructure using CloudWatch, SNS, and optional third-party integrations.",
+					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/platform-modules/terraform-aws-monitoring",
+					moduleDir:   "platform-modules/terraform-aws-monitoring",
+				},
+			},
+		},
+		{
+			name:         "nonexistent path returns empty",
+			modulePaths:  []string{"does-not-exist"},
+			expectedData: []moduleData{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// NOTE: Not using t.Parallel() to avoid race conditions on gitdir rename
+
+			// Unfortunately, we are unable to commit the `.git` directory.
+			// We have to temporarily rename it while running the tests.
+			os.Rename(filepath.Join(repoPath, "gitdir"), filepath.Join(repoPath, ".git"))
+			defer os.Rename(filepath.Join(repoPath, ".git"), filepath.Join(repoPath, "gitdir"))
+
+			ctx := t.Context()
+
+			repo, err := module.NewRepo(ctx, logger.CreateLogger(), repoPath, "", false, false, module.WithModulePaths(tc.modulePaths))
+			require.NoError(t, err)
+
+			modules, err := repo.FindModules(ctx)
+			require.NoError(t, err)
+
+			var realData []moduleData
+			for _, module := range modules {
+				realData = append(realData, moduleData{
+					title:       module.Title(),
+					description: module.Description(),
+					url:         module.URL(),
+					moduleDir:   module.ModuleDir(),
+				})
+			}
+
+			assert.ElementsMatch(t, tc.expectedData, realData)
+		})
+	}
+}
+
 func TestModuleURL(t *testing.T) {
 	t.Parallel()
 

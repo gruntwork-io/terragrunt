@@ -34,6 +34,9 @@ const (
 	AutoProviderCacheDir = "auto-provider-cache-dir"
 	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
 	FilterFlag = "filter-flag"
+	// CatalogDiscovery is the experiment that enables custom module discovery paths
+	// via the discovery block in catalog configuration.
+	CatalogDiscovery = "catalog-discovery"
 )
 
 const (
@@ -78,6 +81,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: FilterFlag,
+		},
+		{
+			Name: CatalogDiscovery,
 		},
 	}
 }

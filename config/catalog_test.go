@@ -121,6 +121,25 @@ func TestCatalogParseConfigFile(t *testing.T) {
 				DefaultTemplate: "/test/fixtures/scaffold/external-template",
 			},
 		},
+		{
+			configPath: filepath.Join(basePath, "config5.hcl"),
+			expectedConfig: &config.CatalogConfig{
+				URLs: []string{
+					"github.com/gruntwork-io/terraform-aws-eks",
+					"github.com/gruntwork-io/terraform-aws-vpc",
+				},
+				Discovery: []config.Discovery{
+					{
+						URLs:        []string{"github.com/acme-corp/infrastructure"},
+						ModulePaths: []string{"infra"},
+					},
+					{
+						URLs:        []string{"github.com/acme-corp/platform"},
+						ModulePaths: []string{"terraform"},
+					},
+				},
+			},
+		},
 	}
 
 	for i, tt := range testCases {

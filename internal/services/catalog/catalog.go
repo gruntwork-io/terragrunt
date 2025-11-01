@@ -25,7 +25,7 @@ import (
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
-type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
+type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool, opts ...module.RepoOpt) (*module.Repo, error)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -93,7 +93,10 @@ func (s *catalogServiceImpl) WithRepoURL(repoURL string) CatalogService {
 // Load implements the CatalogService interface.
 // It contains the core logic for cloning/updating repositories and finding Terragrunt modules within them.
 func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
-	repoURLs := []string{s.repoURL}
+	var discoveries []config.Discovery
+
+	//  Evaluate experimental feature for CatalogDiscovery
+	catalogDiscovery := s.opts.Experiments.Evaluate(experiment.CatalogDiscovery)
 
 	// If no specific repoURL was provided to the service, try to read from catalog config.
 	if s.repoURL == "" {
@@ -102,65 +105,44 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 			return errors.Errorf("failed to read catalog configuration: %w", err)
 		}
 
-		if catalogCfg != nil && len(catalogCfg.URLs) > 0 {
-			repoURLs = catalogCfg.URLs
-		} else {
+		if catalogCfg == nil {
 			return errors.Errorf("no catalog URLs provided")
 		}
-	}
 
-	// Remove duplicates
-	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
-	if len(repoURLs) == 0 || (len(repoURLs) == 1 && repoURLs[0] == "") {
-		return errors.Errorf("no valid repository URLs specified after configuration and flag processing")
-	}
+		// Check if we have any valid configuration
+		hasNakedURLs := len(catalogCfg.URLs) > 0
+		hasDiscoveryBlocks := len(catalogCfg.Discovery) > 0
 
-	var allModules module.Modules
-
-	// Evaluate experimental features for symlinks and content-addressable storage.
-	walkWithSymlinks := s.opts.Experiments.Evaluate(experiment.Symlinks)
-	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
-
-	var errs []error
-
-	for _, currentRepoURL := range repoURLs {
-		if currentRepoURL == "" {
-			l.Warnf("Empty repository URL encountered, skipping.")
-			continue
+		// Warn if discovery blocks exist but feature is disabled
+		if !catalogDiscovery && hasDiscoveryBlocks {
+			l.Warn("Skipping catalog discovery — discovery block detected, but the CatalogDiscovery experiment is disabled")
 		}
 
-		// Create a unique path in the system's temporary directory for this repository.
-		// The path is based on a SHA1 hash of the repository URL to ensure uniqueness and idempotency.
-		encodedRepoURL := util.EncodeBase64Sha1(currentRepoURL)
-		tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
-
-		l.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
-
-		// Initialize the repository. This might involve cloning or updating.
-		// Use the newRepo function stored in the service instance.
-		repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
-		if err != nil {
-			l.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
-
-			errs = append(errs, err)
-
-			continue
+		if !hasNakedURLs && (!catalogDiscovery || !hasDiscoveryBlocks) {
+			return errors.Errorf("no catalog URLs provided")
 		}
 
-		// Find modules within the initialized repository.
-		repoModules, err := repo.FindModules(ctx)
-		if err != nil {
-			l.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
-
-			errs = append(errs, err)
-
-			continue
+		if hasNakedURLs {
+			discoveries = append(discoveries, config.Discovery{URLs: catalogCfg.URLs})
 		}
 
-		l.Infof("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
-		allModules = append(allModules, repoModules...)
+		if catalogDiscovery && hasDiscoveryBlocks {
+			discoveries = append(discoveries, catalogCfg.Discovery...)
+		}
+	} else {
+		discoveries = []config.Discovery{
+			{
+				URLs: []string{s.repoURL},
+			},
+		}
 	}
 
+	// De-duplicate URLs within each discovery
+	for i, discovery := range discoveries {
+		discoveries[i].URLs = util.RemoveDuplicatesFromList(discovery.URLs)
+	}
+
+	allModules, errs := s.loadModulesFromDiscoveries(ctx, l, discoveries)
 	s.modules = allModules
 
 	if len(errs) > 0 {
@@ -172,6 +154,65 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	}
 
 	return nil
+}
+
+func (s *catalogServiceImpl) loadModulesFromDiscoveries(ctx context.Context, l log.Logger, discoveries []config.Discovery) (module.Modules, []error) {
+	var (
+		errs       []error
+		allModules module.Modules
+	)
+
+	// Evaluate experimental features for symlinks and content-addressable storage.
+	walkWithSymlinks := s.opts.Experiments.Evaluate(experiment.Symlinks)
+	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
+
+	for _, discovery := range discoveries {
+		for _, currentRepoURL := range discovery.URLs {
+			if currentRepoURL == "" {
+				l.Warnf("Empty repository URL encountered, skipping.")
+				continue
+			}
+
+			// Create a unique path in the system's temporary directory for this repository.
+			// The path is based on a SHA1 hash of the repository URL to ensure uniqueness and idempotency.
+			encodedRepoURL := util.EncodeBase64Sha1(currentRepoURL)
+			tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
+
+			l.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
+
+			var repoOpts []module.RepoOpt
+
+			if len(discovery.ModulePaths) > 0 {
+				repoOpts = append(repoOpts, module.WithModulePaths(discovery.ModulePaths))
+			}
+
+			// Initialize the repository. This might involve cloning or updating.
+			// Use the newRepo function stored in the service instance.
+			repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS, repoOpts...)
+			if err != nil {
+				l.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
+
+				errs = append(errs, err)
+
+				continue
+			}
+
+			// Find modules within the initialized repository.
+			repoModules, err := repo.FindModules(ctx)
+			if err != nil {
+				l.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
+
+				errs = append(errs, err)
+
+				continue
+			}
+
+			l.Infof("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
+			allModules = append(allModules, repoModules...)
+		}
+	}
+
+	return allModules, errs
 }
 
 func (s *catalogServiceImpl) Modules() module.Modules {

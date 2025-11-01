@@ -35,7 +35,7 @@ var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
 	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+)[^/]*?(?:\.git)?$`)
 
-	modulesPaths = []string{"modules"}
+	defaultModulePath = "modules"
 
 	includedGitFiles = []string{"HEAD", "config"}
 )
@@ -49,11 +49,15 @@ type Repo struct {
 	RemoteURL  string
 	BranchName string
 
+	modulePaths []string
+
 	walkWithSymlinks bool
 	allowCAS         bool
 }
 
-func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
+type RepoOpt func(repo *Repo)
+
+func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool, opts ...RepoOpt) (*Repo, error) {
 	repo := &Repo{
 		logger:           l,
 		cloneURL:         cloneURL,
@@ -74,12 +78,32 @@ func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithS
 		return nil, err
 	}
 
+	for _, opt := range opts {
+		opt(repo)
+	}
+
 	return repo, nil
 }
 
-// FindModules clones the repository if `repoPath` is a URL, searches for Terragrunt modules, indexes their README.* files, and returns module instances.
+// WithModulePaths returns a RepoOpt that sets custom module paths
+// to search for Terragrunt modules. Defaults to "modules" directory if not specified.
+func WithModulePaths(paths []string) RepoOpt {
+	return func(repo *Repo) {
+		repo.modulePaths = paths
+	}
+}
+
+// FindModules discovers Terragrunt modules in the repository by searching the
+// root repo path and configured module paths (defaults to "modules" if not specified),
+// indexes their README.* files, and returns module instances.
 func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 	var modules Modules
+
+	modulePaths := repo.modulePaths
+
+	if len(modulePaths) == 0 {
+		modulePaths = []string{defaultModulePath}
+	}
 
 	// check if root repo path is a module dir
 	if module, err := NewModule(repo, ""); err != nil {
@@ -88,10 +112,10 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 		modules = append(modules, module)
 	}
 
-	for _, modulesPath := range modulesPaths {
-		modulesPath = filepath.Join(repo.path, modulesPath)
+	for _, modulePath := range modulePaths {
+		modulePath = filepath.Join(repo.path, modulePath)
 
-		if !files.FileExists(modulesPath) {
+		if !files.FileExists(modulePath) {
 			continue
 		}
 
@@ -100,7 +124,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 			walkFunc = util.WalkWithSymlinks
 		}
 
-		err := walkFunc(modulesPath,
+		err := walkFunc(modulePath,
 			func(dir string, remote os.FileInfo, err error) error {
 				if err != nil {
 					return err

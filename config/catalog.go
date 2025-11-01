@@ -38,27 +38,42 @@ var (
 	catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
 )
 
+type Discovery struct {
+	URLs        []string `hcl:"urls,attr" cty:"urls"`
+	ModulePaths []string `hcl:"module_paths" cty:"module_paths"`
+}
+
 type CatalogConfig struct {
-	NoShell         *bool    `hcl:"no_shell,optional" cty:"no_shell"`
-	NoHooks         *bool    `hcl:"no_hooks,optional" cty:"no_hooks"`
-	DefaultTemplate string   `hcl:"default_template,optional" cty:"default_template"`
-	URLs            []string `hcl:"urls,attr" cty:"urls"`
+	NoShell         *bool       `hcl:"no_shell,optional" cty:"no_shell"`
+	NoHooks         *bool       `hcl:"no_hooks,optional" cty:"no_hooks"`
+	DefaultTemplate string      `hcl:"default_template,optional" cty:"default_template"`
+	URLs            []string    `hcl:"urls,attr" cty:"urls"`
+	Discovery       []Discovery `hcl:"discovery,block" cty:"discovery"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}", cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks)
+	discoveryInfo := "none"
+
+	if len(cfg.Discovery) > 0 {
+		totalURLs := 0
+		for _, discoveryBlock := range cfg.Discovery {
+			totalURLs += len(discoveryBlock.URLs)
+		}
+
+		discoveryInfo = fmt.Sprintf("%d discovery block(s) with %d URLs", len(cfg.Discovery), totalURLs)
+	}
+
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v,  NoShell = %v, NoHooks = %v, Discovery = %s}", cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks, discoveryInfo)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
 	configDir := filepath.Dir(configPath)
 
 	// transform relative paths to absolute ones
-	for i, url := range cfg.URLs {
-		url := filepath.Join(configDir, url)
+	cfg.URLs = normalizeURLs(configDir, cfg.URLs)
 
-		if files.FileExists(url) {
-			cfg.URLs[i] = url
-		}
+	for i := range cfg.Discovery {
+		cfg.Discovery[i].URLs = normalizeURLs(configDir, cfg.Discovery[i].URLs)
 	}
 
 	if cfg.DefaultTemplate != "" {
@@ -67,6 +82,27 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 			cfg.DefaultTemplate = path
 		}
 	}
+}
+
+func normalizeURLs(baseDir string, urls []string) []string {
+	if len(urls) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(urls))
+
+	for _, url := range urls {
+		absolutePath := filepath.Join(baseDir, url)
+
+		if !files.FileExists(absolutePath) {
+			normalized = append(normalized, url)
+			continue
+		}
+
+		normalized = append(normalized, absolutePath)
+	}
+
+	return normalized
 }
 
 // ReadCatalogConfig reads the `catalog` block from the nearest `terragrunt.hcl` file in the parent directories.
