@@ -69,24 +69,28 @@ type UnitResolver struct {
 // NewUnitResolver creates a new UnitResolver with the given stack.
 func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 	var (
-		includeGlobs map[string]glob.Glob
-		excludeGlobs map[string]glob.Glob
-		err          error
+		includeGlobs      map[string]glob.Glob
+		excludeGlobs      map[string]glob.Glob
+		doubleStarEnabled = false
 	)
 
-	// Always compile globs for include/exclude dirs to support pattern matching
-	includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
-	if err != nil {
-		return nil, fmt.Errorf("invalid include dirs: %w", err)
-	}
+	// Check if double-star strict control is enabled
+	if stack.TerragruntOptions.StrictControls.FilterByNames(doubleStarFeatureName).SuppressWarning().Evaluate(ctx) != nil {
+		var err error
 
-	excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
-	if err != nil {
-		return nil, fmt.Errorf("invalid exclude dirs: %w", err)
-	}
+		doubleStarEnabled = true
 
-	// Check if double-star strict control is enabled (for backwards compatibility logging)
-	doubleStarEnabled := stack.TerragruntOptions.StrictControls.FilterByNames(doubleStarFeatureName).SuppressWarning().Evaluate(ctx) != nil
+		// Compile globs only when double-star is enabled
+		includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
+		if err != nil {
+			return nil, fmt.Errorf("invalid include dirs: %w", err)
+		}
+
+		excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
+		if err != nil {
+			return nil, fmt.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
 
 	return &UnitResolver{
 		Stack:             stack,
