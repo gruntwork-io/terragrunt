@@ -60,24 +60,23 @@ func Build(
 			Args: terragruntOptions.TerraformCliArgs.Tail(),
 		})
 
-	// Pass include/exclude directory filters to discovery
+	// Pass include directory filters to discovery
 	// Discovery will use glob matching to filter units appropriately
 	if len(terragruntOptions.IncludeDirs) > 0 {
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
 
-	if len(terragruntOptions.ExcludeDirs) > 0 {
-		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
-	}
+	// NOTE: We do NOT pass ExcludeDirs to discovery because excluded units need to be
+	// discovered and reported (for --report-file functionality). The unit resolver will
+	// handle exclusions after discovery, ensuring excluded units appear in reports.
 
 	// Pass include behavior flags
 	if terragruntOptions.StrictInclude {
 		d = d.WithStrictInclude()
 	}
 
-	// Note: Discovery will use glob-based filtering for include/exclude patterns.
-	// This is more efficient than having the unit resolver re-parse configs.
-	// Discovery uses zglob which supports ** patterns natively.
+	// Note: Discovery will use glob-based filtering for include patterns.
+	// Exclude patterns are handled by the unit resolver to ensure proper reporting.
 
 	// We do NOT use WithIgnoreExternalDependencies() even if IgnoreExternalDependencies is set.
 	// External dependencies need to be discovered so they can be included in the dependency graph.
