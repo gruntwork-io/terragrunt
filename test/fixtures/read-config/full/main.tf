@@ -28,8 +28,8 @@ output "download_dir" { value = var.download_dir }
 variable "prevent_destroy" {}
 output "prevent_destroy" { value = var.prevent_destroy }
 
-variable "skip" {}
-output "skip" { value = var.skip }
+variable "exclude" {}
+output "exclude" { value = var.exclude }
 
 variable "iam_role" {}
 output "iam_role" { value = var.iam_role }

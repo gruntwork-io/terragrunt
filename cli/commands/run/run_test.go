@@ -1,7 +1,6 @@
 package run_test
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -160,120 +158,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 	}
 }
 
-func TestErrorRetryableOnStdoutError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{".*error.*"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	out := new(util.CmdOutput)
-	out.Stderr = *bytes.NewBufferString("error is here")
-
-	retryable := run.IsRetryable(tgOptions, out)
-	require.True(t, retryable, "The error should have retried")
-}
-
-func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{"no match", ".*error.*"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	out := new(util.CmdOutput)
-	out.Stderr = *bytes.NewBufferString("error is here")
-
-	retryable := run.IsRetryable(tgOptions, out)
-	require.True(t, retryable, "The error should have retried")
-}
-
-func TestEmptyRetryablesOnStderrError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	out := new(util.CmdOutput)
-	out.Stderr = *bytes.NewBufferString("error is here")
-
-	retryable := run.IsRetryable(tgOptions, out)
-	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
-}
-
-func TestErrorRetryableOnStderrError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{".*error.*"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	out := new(util.CmdOutput)
-	out.Stderr = *bytes.NewBufferString("error is here")
-
-	retryable := run.IsRetryable(tgOptions, out)
-	require.True(t, retryable, "The error should have retried")
-}
-
-func TestErrorNotRetryableOnStdoutError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{"not the error"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	out := new(util.CmdOutput)
-	out.Stdout = *bytes.NewBufferString("error is here")
-
-	retryable := run.IsRetryable(tgOptions, out)
-	require.False(t, retryable, "The error should not retry")
-}
-
-func TestErrorNotRetryableOnStderrError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{"not the error"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	out := new(util.CmdOutput)
-	out.Stderr = *bytes.NewBufferString("error is here")
-
-	retryable := run.IsRetryable(tgOptions, out)
-	require.False(t, retryable, "The error should not retry")
-}
-
-func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	// Use a path that doesn't exist to induce error
-	tgOptions.TFPath = "i-dont-exist"
-	l := logger.CreateLogger()
-	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions, report.NewReport())
-	require.Error(t, err)
-}
+// Legacy retry tests removed; retries now handled via errors blocks
 
 func TestToTerraformEnvVars(t *testing.T) {
 	t.Parallel()

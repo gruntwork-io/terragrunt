@@ -13,7 +13,7 @@ inputs = {
   terragrunt_version_constraint = local.config.terragrunt_version_constraint
   download_dir                 = local.config.download_dir
   prevent_destroy              = local.config.prevent_destroy
-  skip                         = local.config.skip
+  exclude                      = local.config.exclude
   iam_role                     = local.config.iam_role
   inputs                       = local.config.inputs
 }
