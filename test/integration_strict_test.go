@@ -93,13 +93,13 @@ func TestBareIncludeStrictMode(t *testing.T) {
 			name:          "bare include with bare-include strict control",
 			controls:      []string{"bare-include"},
 			strictMode:    false,
-			expectedError: errors.New("Missing name for include; All include blocks must have 1 labels (name)."),
+			expectedError: errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
 		},
 		{
 			name:          "bare include with strict mode",
 			controls:      []string{},
 			strictMode:    true,
-			expectedError: errors.New("Missing name for include; All include blocks must have 1 labels (name)."),
+			expectedError: errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
 		},
 	}
 
