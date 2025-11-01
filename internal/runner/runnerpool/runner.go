@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -301,6 +302,24 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 			}
 		}
+	}
+
+	// Handle errors based on fail-fast mode
+	// This matches the behavior of the old run-all implementation:
+	// - Without --fail-fast: errors are logged but the command succeeds (exit code 0)
+	// - With --fail-fast: errors cause the command to fail (exit code 1)
+	if err != nil && !opts.FailFast {
+		// Log the errors for visibility
+		l.Errorf("Run failed: %v", err)
+
+		// Set detailed exit code if context has one
+		exitCode := tf.DetailedExitCodeFromContext(ctx)
+		if exitCode != nil {
+			exitCode.Set(int(cli.ExitCodeGeneralError))
+		}
+
+		// Return nil to indicate success (no --fail-fast) but errors were logged
+		return nil
 	}
 
 	return err
