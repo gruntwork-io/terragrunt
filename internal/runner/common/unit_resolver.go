@@ -69,26 +69,24 @@ type UnitResolver struct {
 // NewUnitResolver creates a new UnitResolver with the given stack.
 func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 	var (
-		includeGlobs      map[string]glob.Glob
-		excludeGlobs      map[string]glob.Glob
-		doubleStarEnabled = false
+		includeGlobs map[string]glob.Glob
+		excludeGlobs map[string]glob.Glob
+		err          error
 	)
 
-	if stack.TerragruntOptions.StrictControls.FilterByNames(doubleStarFeatureName).SuppressWarning().Evaluate(ctx) != nil {
-		var err error
-
-		doubleStarEnabled = true
-
-		includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
-		if err != nil {
-			return nil, fmt.Errorf("invalid include dirs: %w", err)
-		}
-
-		excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
-		if err != nil {
-			return nil, fmt.Errorf("invalid exclude dirs: %w", err)
-		}
+	// Always compile globs for include/exclude dirs to support pattern matching
+	includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid include dirs: %w", err)
 	}
+
+	excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid exclude dirs: %w", err)
+	}
+
+	// Check if double-star strict control is enabled (for backwards compatibility logging)
+	doubleStarEnabled := stack.TerragruntOptions.StrictControls.FilterByNames(doubleStarFeatureName).SuppressWarning().Evaluate(ctx) != nil
 
 	return &UnitResolver{
 		Stack:             stack,
@@ -287,6 +285,11 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 		}
 
 		opts.Source = terragruntSource
+
+		// Update the config's source with the mapped source so that logging shows the correct URL
+		if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil && terragruntSource != "" {
+			terragruntConfig.Terraform.Source = &terragruntSource
+		}
 
 		if err = r.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
 			return nil, err

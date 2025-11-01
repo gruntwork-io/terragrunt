@@ -60,42 +60,29 @@ func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason
 //
 // Returns a function that takes a *Unit and returns true if it matches the configured patterns.
 func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.TerragruntOptions, l log.Logger) func(*Unit) bool {
-	if r.doubleStarEnabled {
-		var (
-			globs  map[string]glob.Glob
-			action string
-		)
+	// Always use glob matching for pattern support
+	var (
+		globs  map[string]glob.Glob
+		action string
+	)
 
-		if mode == "include" {
-			globs = r.includeGlobs
-			action = "included"
-		} else {
-			globs = r.excludeGlobs
-			action = "excluded"
-		}
-
-		return func(unit *Unit) bool {
-			for globPath, globPattern := range globs {
-				if globPattern.Match(unit.Path) {
-					l.Debugf("Unit %s is %s by glob %s", unit.Path, action, globPath)
-					return true
-				}
-			}
-
-			return false
-		}
-	}
-
-	// Exact path matching mode
-	var dirs []string
 	if mode == "include" {
-		dirs = opts.IncludeDirs
+		globs = r.includeGlobs
+		action = "included"
 	} else {
-		dirs = opts.ExcludeDirs
+		globs = r.excludeGlobs
+		action = "excluded"
 	}
 
 	return func(unit *Unit) bool {
-		return unit.FindUnitInPath(dirs)
+		for globPath, globPattern := range globs {
+			if globPattern.Match(unit.Path) {
+				l.Debugf("Unit %s is %s by glob %s", unit.Path, action, globPath)
+				return true
+			}
+		}
+
+		return false
 	}
 }
 
