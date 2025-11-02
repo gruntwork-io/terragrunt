@@ -100,6 +100,46 @@ terragrunt find --filter './prod/** | type=unit'
 terragrunt find --filter './dev/** | type=unit | !name=unit1'
 ```
 
+### Graph-Based Filtering
+Filter configurations based on dependency relationships using graph traversal. Use ellipsis (`...`) to traverse the dependency graph and caret (`^`) to exclude the target from results.
+
+**Syntax variants:**
+- `foo...` - Include target and all dependencies (things it depends on)
+- `...foo` - Include target and all dependents (things that depend on it)
+- `...foo...` - Include target, dependencies, and dependents
+- `^foo...` - Include only dependencies (exclude target)
+- `...^foo` - Include only dependents (exclude target)
+- `...^foo...` - Include dependencies and dependents (exclude target)
+
+```bash
+# Find 'service' and everything it depends on
+terragrunt find --filter 'service...'
+
+# Find 'vpc' and everything that depends on it
+terragrunt find --filter '...vpc'
+
+# Find complete dependency graph for 'db'
+terragrunt find --filter '...db...'
+
+# Find dependencies of 'service' but exclude 'service' itself
+terragrunt find --filter '^service...'
+
+# Combine graph traversal with path filters (note the use of braces to escape the path)
+terragrunt find --filter '{./apps/service}...'
+
+# Combine graph traversal with attribute filters
+terragrunt find --filter '...type=unit'
+
+# Refine graph results with intersection
+terragrunt find --filter 'service... | external=false'
+```
+
+<Aside type="note">
+Graph expressions require dependency discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components. This may add some overhead compared to simple name or path filters.
+
+For more detailed examples and explanations, see the [Filters feature documentation](/docs/features/filter#graph-based-filtering).
+</Aside>
+
 ### Union (Multiple Filters)
 Specify multiple `--filter` flags to combine results using OR logic:
 
