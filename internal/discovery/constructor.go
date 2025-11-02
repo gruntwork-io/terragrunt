@@ -87,7 +87,7 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 	}
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled(true)
+		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
 			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
@@ -107,7 +107,7 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled(true)
+		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
 			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
