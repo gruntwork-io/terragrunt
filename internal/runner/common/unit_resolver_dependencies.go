@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const maxLevelsOfRecursion = 20
+
 // Look through the dependencies of the units in the given map and resolve the "external" dependency paths listed in
 // each units config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths).
 // These external dependencies are outside of the current working directory, which means they may not be part of the
@@ -24,7 +26,6 @@ func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, 
 	unitsToSkip := unitsMap.MergeMaps(unitsAlreadyProcessed)
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
-	const maxLevelsOfRecursion = 20
 	if recursionLevel > maxLevelsOfRecursion {
 		return allExternalDependencies, errors.New(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Units: unitsToSkip})
 	}
