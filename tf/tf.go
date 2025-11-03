@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
@@ -153,16 +152,13 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 
 		parseFunc := parser.ParseHCLFile
 
-		suffix := ""
-		for s := range strings.SplitSeq(file.Name(), ".") {
-			suffix = s
-		}
+		suffix := filepath.Ext(file.Name())
 
-		if suffix == "json" {
+		if suffix == ".json" {
 			parseFunc = parser.ParseJSONFile
 		}
 
-		if !(slices.Contains([]string{"tf", "tofu", "json"}, suffix)) {
+		if !(slices.Contains([]string{".tf", ".tofu", ".json"}, suffix)) {
 			continue
 		}
 
