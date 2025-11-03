@@ -98,6 +98,19 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
   }
 }
 `)
+	expectedS3WithEndpoints := []byte(`terraform {
+  backend "s3" {
+    bucket = "mybucket"
+    endpoints = {
+      dynamodb = "http://localhost:4572"
+      iam      = "http://localhost:4573"
+      s3       = "http://localhost:4569"
+      sso      = "http://localhost:4575"
+      sts      = "http://localhost:4574"
+    }
+  }
+}
+`)
 
 	testCases := []struct {
 		name       string
@@ -172,6 +185,17 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			},
 			map[string]any{},
 			expectedS3WithAssumeRoleWithWebIdentity,
+			false,
+		},
+		{
+			"s3-backend-with-endpoints",
+			"s3",
+			map[string]any{
+				"bucket":    "mybucket",
+				"endpoints": "{s3=\"http://localhost:4569\", dynamodb=\"http://localhost:4572\", iam=\"http://localhost:4573\", sts=\"http://localhost:4574\", sso=\"http://localhost:4575\"}",
+			},
+			map[string]any{},
+			expectedS3WithEndpoints,
 			false,
 		},
 	}

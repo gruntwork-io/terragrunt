@@ -63,6 +63,7 @@ const (
 
 	assumeRoleConfigKey                = "assume_role"
 	assumeRoleWithWebIdentityConfigKey = "assume_role_with_web_identity"
+	endpointsConfigKey                 = "endpoints"
 
 	encryptionBlockName = "encryption"
 
@@ -435,6 +436,67 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 
 			// write assume role map as HCL object
 			ctyVal, err := convertValue(assumeRoleMap)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+
+			continue
+		}
+
+		if key == endpointsConfigKey {
+			endpointsValue, isEndpoints := config[endpointsConfigKey].(string)
+			if !isEndpoints {
+				continue
+			}
+
+			// Extracting the values requires two steps.
+			// Parsing into a struct first, enabling hclsimple.Decode() to deal with complex types.
+			// Then copying values into the endpointsMap for rendering to HCL.
+			endpointsMap := make(map[string]any)
+
+			type endpointsConfig struct {
+				S3       string `hcl:"s3,optional"`
+				IAM      string `hcl:"iam,optional"`
+				STS      string `hcl:"sts,optional"`
+				DynamoDB string `hcl:"dynamodb,optional"`
+				SSO      string `hcl:"sso,optional"`
+			}
+
+			var parsedConfig endpointsConfig
+			// split single line hcl to default multiline file
+			hclValue := strings.TrimSuffix(endpointsValue, "}")
+			hclValue = strings.TrimPrefix(hclValue, "{")
+			hclValue = ReplaceAllCommasOutsideQuotesWithNewLines(hclValue)
+
+			err := hclsimple.Decode("s3_endpoints.hcl", []byte(hclValue), nil, &parsedConfig)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			if parsedConfig.S3 != "" {
+				endpointsMap["s3"] = parsedConfig.S3
+			}
+
+			if parsedConfig.IAM != "" {
+				endpointsMap["iam"] = parsedConfig.IAM
+			}
+
+			if parsedConfig.STS != "" {
+				endpointsMap["sts"] = parsedConfig.STS
+			}
+
+			if parsedConfig.DynamoDB != "" {
+				endpointsMap["dynamodb"] = parsedConfig.DynamoDB
+			}
+
+			if parsedConfig.SSO != "" {
+				endpointsMap["sso"] = parsedConfig.SSO
+			}
+
+			// write endpoints map as HCL object
+			ctyVal, err := convertValue(endpointsMap)
 			if err != nil {
 				return nil, errors.New(err)
 			}

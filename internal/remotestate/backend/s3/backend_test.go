@@ -188,6 +188,28 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"endpoints",
+			backend.Config{
+				"bucket": "foo",
+				"key":    "bar",
+				"region": "us-east-1",
+				"endpoints": map[string]any{
+					"s3":       "http://localhost:4569",
+					"dynamodb": "http://localhost:4572",
+					"iam":      "http://localhost:4573",
+					"sts":      "http://localhost:4574",
+					"sso":      "http://localhost:4575",
+				},
+			},
+			map[string]any{
+				"bucket":    "foo",
+				"key":       "bar",
+				"region":    "us-east-1",
+				"endpoints": "{dynamodb=\"http://localhost:4572\",iam=\"http://localhost:4573\",s3=\"http://localhost:4569\",sso=\"http://localhost:4575\",sts=\"http://localhost:4574\"}",
+			},
+			true,
+		},
 	}
 
 	for _, tc := range testCases {

@@ -22,6 +22,7 @@ const (
 	configAssumeRoleKey                = "assume_role"
 	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
+	configEndpointsKey                 = "endpoints"
 
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 
@@ -65,6 +66,14 @@ func (cfg Config) GetTFInitArgs() Config {
 		}
 
 		if key == configAssumeRoleWithWebIdentityKey {
+			if mapVal, ok := val.(map[string]any); ok {
+				filtered[key] = hclhelper.WrapMapToSingleLineHcl(mapVal)
+
+				continue
+			}
+		}
+
+		if key == configEndpointsKey {
 			if mapVal, ok := val.(map[string]any); ok {
 				filtered[key] = hclhelper.WrapMapToSingleLineHcl(mapVal)
 
