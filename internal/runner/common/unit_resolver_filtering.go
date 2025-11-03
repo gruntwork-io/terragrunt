@@ -50,15 +50,12 @@ func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason
 	}
 }
 
-// createPathMatcherFunc returns a function that checks if a unit matches configured patterns.
-// Supports both glob patterns (when doubleStarEnabled) and exact path matching.
-//
-// Parameters:
-//   - mode: "include" to match against includeGlobs/IncludeDirs, "exclude" for excludeGlobs/ExcludeDirs
-//   - opts: TerragruntOptions containing the include/exclude dirs for exact matching mode
-//   - l: Logger for debug output
-//
-// Returns a function that takes a *Unit and returns true if it matches the configured patterns.
+// createPathMatcherFunc builds a matcher for include/exclude patterns.
+// Why: centralizes path matching used by CLI flags and config.
+// Matching: glob when doubleStarEnabled; otherwise exact path prefix.
+// Mode: "include" uses include globs/dirs; "exclude" uses exclude globs/dirs.
+// Examples: "**/staging/**", "modules/*/test", "envs/prod".
+// Returns: func(*Unit) bool that is true when the unit matches.
 func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.TerragruntOptions, l log.Logger) func(*Unit) bool {
 	// Use glob matching when double-star is enabled, otherwise use exact path matching
 	if r.doubleStarEnabled {
@@ -127,22 +124,11 @@ func (r *UnitResolver) telemetryFlagIncludedDirs(ctx context.Context, l log.Logg
 	return withUnitsIncluded, err
 }
 
-// flagIncludedDirs applies include patterns when running in ExcludeByDefault mode.
-//
-// Behavior:
-//   - When ExcludeByDefault is false: Returns units unchanged (all included by default)
-//   - When ExcludeByDefault is true: Marks all units as excluded, then includes only those
-//     matching the IncludeDirs patterns
-//
-// Include Mode:
-//   - In StrictInclude mode: Only explicitly included units are processed
-//   - In non-strict mode: Included units AND their dependencies are processed
-//
-// This is the 4th stage in the unit resolution pipeline.
-//
-// The ExcludeByDefault flag is set when using --terragrunt-include-dir, which inverts
-// the normal inclusion logic: instead of including everything except excluded dirs,
-// we exclude everything except included dirs.
+// flagIncludedDirs includes units when --terragrunt-include-dir is used (ExcludeByDefault).
+// Why: invert default behavior to run only requested units; optionally include deps unless StrictInclude.
+// Matching: glob when doubleStarEnabled; otherwise exact path prefix.
+// Behavior: no-op when ExcludeByDefault is false.
+// Examples: "**/prod/**", "apps/*/service-a", "envs/us-west-2".
 func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
 	if !opts.ExcludeByDefault {
 		return units
@@ -191,20 +177,10 @@ func (r *UnitResolver) telemetryFlagUnitsThatAreIncluded(ctx context.Context, wi
 	return withUnitsThatAreIncludedByOthers, err
 }
 
-// flagUnitsThatAreIncluded marks units as included if they include specific configuration files.
-//
-// This is the 5th stage in the unit resolution pipeline. It handles the --terragrunt-modules-that-include
-// flag, which selects units based on their included configuration files.
-//
-// The method:
-//  1. Combines ModulesThatInclude and UnitsReading into a single list
-//  2. Converts all paths to canonical form for reliable comparison
-//  3. For each unit, checks if any of its ProcessedIncludes match the target files
-//  4. For each unit's dependencies, checks their includes as well
-//  5. Sets FlagExcluded=false for any unit or dependency that includes a target file
-//
-// This allows users to run commands on all units that include a specific configuration file,
-// such as a common root.hcl or region.hcl file.
+// flagUnitsThatAreIncluded includes units that reference specific config files.
+// Why: support --terragrunt-modules-that-include to target modules including given files.
+// Behavior: canonicalize targets, check each unit and its dependencies' ProcessedIncludes; mark included when matched.
+// Examples: "root.hcl", "region.hcl", "_common.hcl".
 func (r *UnitResolver) flagUnitsThatAreIncluded(opts *options.TerragruntOptions, units Units) (Units, error) {
 	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
@@ -338,27 +314,13 @@ func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logg
 	return withUnitsExcluded, err
 }
 
-// flagExcludedDirs marks units as excluded if they match CLI exclude patterns.
-//
-// This is the 7th stage in the unit resolution pipeline. It applies the --terragrunt-exclude-dir
-// flag to exclude units from execution.
-//
-// The method:
-//  1. Checks if there are any exclude patterns to apply
-//  2. For each unit, checks if it matches any exclude pattern
-//  3. Marks matching units as excluded (FlagExcluded=true)
-//  4. Also marks any matching dependencies as excluded
-//  5. Reports exclusions with ReasonExcludeDir for tracking
-//
-// Pattern Matching:
-//   - When doubleStarEnabled: Uses glob patterns (e.g., "**/staging/**")
-//   - When disabled: Uses exact path matching
-//
-// Precedence:
-//
-//	This is the highest-precedence exclusion mechanism. Units excluded here will
-//	have their exclusion reason preserved in reports, even if later stages would
-//	also exclude them.
+// flagExcludedDirs excludes units that match --terragrunt-exclude-dir patterns.
+// Why: enforce explicit user exclusions with highest precedence and preserve exclusion reasons in reports.
+// Matching: uses glob patterns when doubleStarEnabled; otherwise exact path prefix matching.
+// Examples:
+//   - "**/staging/**"
+//   - "modules/*/test"
+//   - "envs/prod"
 func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	// If we don't have any excludes, we don't need to do anything.
 	if (len(r.excludeGlobs) == 0 && r.doubleStarEnabled) || len(opts.ExcludeDirs) == 0 {

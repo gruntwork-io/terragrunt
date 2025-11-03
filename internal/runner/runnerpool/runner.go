@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/hashicorp/hcl/v2"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -137,31 +138,45 @@ func NewRunnerPoolStack(
 	return runner.WithOptions(opts...), nil
 }
 
+// Limit recursive descent when inspecting nested errors
+const maxConfigurationErrorDepth = 100
+
 // isConfigurationError checks if an error is a configuration/validation error
 // that should always cause command failure regardless of fail-fast setting.
 func isConfigurationError(err error) bool {
+	return isConfigurationErrorDepth(err, 0)
+}
+
+func isConfigurationErrorDepth(err error, depth int) bool {
 	if err == nil {
+		return false
+	}
+	if depth >= maxConfigurationErrorDepth {
 		return false
 	}
 
 	// Check for specific configuration error types
-	var conflictErr config.ConflictingRunCmdCacheOptionsError
-	if errors.As(err, &conflictErr) {
+	if tgerrors.IsError(err, config.ConflictingRunCmdCacheOptionsError{}) {
 		return true
 	}
 
-	// Check if an error message contains configuration error patterns
-	// This catches HCL-wrapped configuration errors
-	errMsg := err.Error()
-	if strings.Contains(errMsg, "--terragrunt-global-cache and --terragrunt-no-cache options cannot be used together") {
-		return true
+	// Inspect HCL diagnostics (structured errors) for run_cmd cache-option conflicts
+	for _, unwrapped := range tgerrors.UnwrapErrors(err) {
+		var diags hcl.Diagnostics
+		if errors.As(unwrapped, &diags) {
+			for _, d := range diags {
+				if d != nil && d.Severity == hcl.DiagError && d.Summary == "Error in function call" {
+					return true
+				}
+			}
+		}
 	}
 
 	// Check wrapped errors in MultiError
 	var multiErr *tgerrors.MultiError
 	if errors.As(err, &multiErr) {
 		for _, wrappedErr := range multiErr.WrappedErrors() {
-			if isConfigurationError(wrappedErr) {
+			if isConfigurationErrorDepth(wrappedErr, depth+1) {
 				return true
 			}
 		}

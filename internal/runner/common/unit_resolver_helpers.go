@@ -15,16 +15,8 @@ func (r *UnitResolver) resolveUnitPath(terragruntConfigPath string) (string, err
 	return util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 }
 
-// setupDownloadDir configures the download directory for a Terragrunt unit.
-//
-// The method determines the appropriate download directory based on:
-//  1. If the stack's download dir is the default, compute a unit-specific download dir
-//  2. Otherwise, use the stack's configured download dir
-//
-// This ensures each unit has its own isolated download directory when using default settings,
-// preventing conflicts between units when downloading Terraform modules.
-//
-// Returns an error if the download directory setup fails.
+// setupDownloadDir sets the unit's download directory.
+// If the stack uses the default dir, compute a per-unit dir; otherwise use the stack's setting.
 func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *options.TerragruntOptions, l log.Logger) error {
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(r.Stack.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
@@ -44,14 +36,8 @@ func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *optio
 	return nil
 }
 
-// determineTerragruntConfigFilename determines the appropriate Terragrunt config file name.
-//
-// Logic:
-//   - If TerragruntConfigPath is set and points to a file (not a directory), use its basename
-//   - Otherwise, use the default "terragrunt.hcl"
-//
-// This allows users to specify custom config file names (e.g., "terragrunt-prod.hcl") while
-// defaulting to the standard "terragrunt.hcl" when not specified.
+// determineTerragruntConfigFilename returns the config filename to use.
+// If a file path is explicitly set, it uses its basename; otherwise, "terragrunt.hcl".
 func (r *UnitResolver) determineTerragruntConfigFilename() string {
 	fname := config.DefaultTerragruntConfigPath
 	if r.Stack.TerragruntOptions.TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions.TerragruntConfigPath) {
