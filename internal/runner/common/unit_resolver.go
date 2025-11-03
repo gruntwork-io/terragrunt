@@ -118,11 +118,8 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		if c.Kind() == component.StackKind {
 			continue
 		}
-		// Handle config file name check
-		fname := config.DefaultTerragruntConfigPath
-		if r.Stack.TerragruntOptions.TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions.TerragruntConfigPath) {
-			fname = filepath.Base(r.Stack.TerragruntOptions.TerragruntConfigPath)
-		}
+
+		fname := r.determineTerragruntConfigFilename()
 
 		canonicalPath, err := util.CanonicalPath(filepath.Join(c.Path(), fname), ".")
 		if err == nil {

@@ -8,13 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCK_DIR="${SCRIPT_DIR}/.auth-locks"
 mkdir -p "$LOCK_DIR"
 
-# Get a unique ID for this invocation (use timestamp + random to avoid collisions)
-INVOCATION_ID="auth-$$-$(date +%s%N)"
-
-# Get timestamp in milliseconds
-timestamp_ms() {
-    date +%s%3N
-}
+# Get a unique ID for this invocation
+# Use POSIX-compatible timestamp (seconds) + PID + RANDOM to ensure uniqueness
+# This works on Linux, macOS, and BSD without requiring nanosecond precision
+INVOCATION_ID="auth-$$-$(date +%s)-$RANDOM"
 
 # Log to stderr so it shows up in terragrunt output
 echo "Auth start ${INVOCATION_ID}" >&2
