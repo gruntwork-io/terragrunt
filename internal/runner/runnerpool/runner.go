@@ -151,6 +151,7 @@ func isConfigurationErrorDepth(err error, depth int) bool {
 	if err == nil {
 		return false
 	}
+
 	if depth >= maxConfigurationErrorDepth {
 		return false
 	}
