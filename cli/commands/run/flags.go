@@ -2,12 +2,12 @@
 package run
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -482,7 +482,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				case report.FormatCSV:
 				case report.FormatJSON:
 				default:
-					return fmt.Errorf("unsupported report format: %s", value)
+					return errors.Errorf("unsupported report format: %s", value)
 				}
 
 				return nil
