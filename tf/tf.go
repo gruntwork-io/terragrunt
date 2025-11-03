@@ -2,7 +2,7 @@ package tf
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -166,7 +166,7 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 			continue
 		}
 
-		file, parseDiags := parseFunc(path.Join(modulePath, file.Name()))
+		file, parseDiags := parseFunc(filepath.Join(modulePath, file.Name()))
 
 		hclFiles = append(hclFiles, file)
 		allDiags = append(allDiags, parseDiags...)
