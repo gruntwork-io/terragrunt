@@ -120,11 +120,14 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		}
 
 		fname := r.determineTerragruntConfigFilename()
+		configPath := filepath.Join(c.Path(), fname)
 
-		canonicalPath, err := util.CanonicalPath(filepath.Join(c.Path(), fname), ".")
-		if err == nil {
-			canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
+		canonicalPath, err := util.CanonicalPath(configPath, ".")
+		if err != nil {
+			return nil, errors.Errorf("canonicalizing terragrunt config path %q for unit %s: %w", configPath, c.Path(), err)
 		}
+
+		canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
 	}
 
 	// Add external dependencies to canonical paths list
@@ -133,9 +136,11 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		// This handles non-default config file names correctly
 		if extDep.TerragruntOptions != nil && extDep.TerragruntOptions.TerragruntConfigPath != "" {
 			canonicalPath, err := util.CanonicalPath(extDep.TerragruntOptions.TerragruntConfigPath, ".")
-			if err == nil {
-				canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
+			if err != nil {
+				return nil, errors.Errorf("canonicalizing terragrunt config path %q for external dependency %s: %w", extDep.TerragruntOptions.TerragruntConfigPath, extDep.Path, err)
 			}
+
+			canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
 		}
 	}
 
