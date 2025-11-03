@@ -1,10 +1,14 @@
 package tf
 
 import (
+	"os"
+	"path"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
 )
 
 const (
@@ -129,48 +133,74 @@ var (
 	}
 )
 
-// diagnosticDoesNotAffectModuleVariables tells you if a diagnostic can be ignored for the purpose of extracting
-// variables defined in a module.
-func diagnosticDoesNotAffectModuleVariables(d tfconfig.Diagnostic) bool {
-	ignorableErrors := []tfconfig.Diagnostic{
-		// These two occur when a module block uses a variable in the `version` or `source` fields.
-		// Terraform doesn't support this, but OpenTofu does. Either way our ability to extract variables is unaffected.
-		//
-		// What we really need is an OpenTofu version of terraform-config-inspect. This may work for now but as / if
-		// syntax continues to diverge we may run into other issues.
-		{Summary: "Variables not allowed", Detail: "Variables may not be used here."},
-		{Summary: "Unsuitable value type", Detail: "Unsuitable value: value must be known"},
-	}
-	if d.Severity != tfconfig.DiagError {
-		return true
-	}
-
-	i := slices.IndexFunc(ignorableErrors, func(ie tfconfig.Diagnostic) bool {
-		return ie.Summary == d.Summary && ie.Detail == d.Detail
-	})
-
-	return i != -1
-}
-
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into
 // account all the generated sources. This function will return the required and optional variables separately.
 func ModuleVariables(modulePath string) ([]string, []string, error) {
-	module, diags := tfconfig.LoadModule(modulePath)
+	parser := hclparse.NewParser()
 
-	diags = slices.DeleteFunc(diags, diagnosticDoesNotAffectModuleVariables)
-	if diags.HasErrors() {
-		return nil, nil, errors.New(diags)
+	files, err := os.ReadDir(modulePath)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	required := []string{}
-	optional := []string{}
+	hclFiles := []*hcl.File{}
+	allDiags := hcl.Diagnostics{}
 
-	for _, variable := range module.Variables {
-		if variable.Required {
-			required = append(required, variable.Name)
-		} else {
-			optional = append(optional, variable.Name)
+	for _, file := range files {
+		if file.IsDir() {
+			continue
 		}
+
+		parseFunc := parser.ParseHCLFile
+
+		suffix := ""
+		for s := range strings.SplitSeq(file.Name(), ".") {
+			suffix = s
+		}
+
+		if suffix == "json" {
+			parseFunc = parser.ParseJSONFile
+		}
+
+		if !(slices.Contains([]string{"tf", "tofu", "json"}, suffix)) {
+			continue
+		}
+
+		file, parseDiags := parseFunc(path.Join(modulePath, file.Name()))
+
+		hclFiles = append(hclFiles, file)
+		allDiags = append(allDiags, parseDiags...)
+	}
+
+	body := hcl.MergeFiles(hclFiles)
+
+	varsSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{
+				Type:       "variable",
+				LabelNames: []string{"name"},
+			},
+		},
+	}
+
+	varsContent, _, contentDiags := body.PartialContent(varsSchema)
+	allDiags = append(allDiags, contentDiags...)
+	optional, required := []string{}, []string{}
+
+	for _, b := range varsContent.Blocks {
+		name := b.Labels[0]
+		attributes, attrDiags := b.Body.JustAttributes()
+
+		allDiags = append(allDiags, attrDiags...)
+		if _, ok := attributes["default"]; ok {
+			optional = append(optional, name)
+		} else {
+			required = append(required, name)
+		}
+	}
+
+	if allDiags.HasErrors() {
+		return nil, nil, errors.New(allDiags)
 	}
 
 	return required, optional, nil
