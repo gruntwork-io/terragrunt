@@ -3,7 +3,6 @@ package runall
 import (
 	"context"
 	"os"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
@@ -159,22 +158,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return telemetryErr
 	}
 
-	// Check if the error is a terraform execution error or a configuration error
-	// Configuration errors (parsing, validation) should be returned
-	// Terraform execution errors (terraform commands failing) should not be returned
-	// We can detect this by checking if the error message contains terraform execution patterns
-	if runErr != nil {
-		errMsg := runErr.Error()
-		// If error contains "Failed to execute", it's a terraform execution error - don't return it
-		// These errors are already captured in the report and exit code
-		if strings.Contains(errMsg, "Failed to execute") {
-			return nil
-		}
-		// Otherwise it's likely a configuration/parsing error - return it
-		return runErr
-	}
-
-	return nil
+	return runErr
 }
 
 // shouldSkipSummary determines if summary output should be skipped for programmatic interactions.
