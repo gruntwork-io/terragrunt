@@ -614,6 +614,47 @@ func TestTerragruntExcludesFile(t *testing.T) {
 	}
 }
 
+func TestHclvalidateValidConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("using --all", func(t *testing.T) {
+		t.Parallel()
+		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
+		rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"))
+		require.NoError(t, err)
+	})
+
+	t.Run("validate each individually", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
+		rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate, "valid")
+
+		// Test each subdirectory individually
+		entries, err := os.ReadDir(rootPath)
+		require.NoError(t, err)
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+
+			subPath := filepath.Join(rootPath, entry.Name())
+
+			t.Run(entry.Name(), func(t *testing.T) {
+				t.Parallel()
+
+				_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --strict --inputs --working-dir "+subPath)
+				require.NoError(t, err)
+			})
+		}
+	})
+}
+
 func TestHclvalidateDiagnostic(t *testing.T) {
 	t.Parallel()
 

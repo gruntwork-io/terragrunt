@@ -1,12 +1,12 @@
 ---
 name: inputs
-description: Validate that all variables are set by the module a unit provisions.
+description: Validate that all variables a module requires are set.
 type: bool
 env:
   - TG_INPUTS
 ---
 
-When enabled, Terragrunt will validate that all variables are set by the module a unit provisions.
+When enabled, Terragrunt will validate that all variables a module (provisioned by a unit) requires are set.
 
 Example:
 
