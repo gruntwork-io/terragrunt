@@ -430,29 +430,26 @@ func Parse(
 ) error {
 	parseOpts := opts.Clone()
 
-	// Check if c.Path() is a file or directory
-	// When a dependency points directly to a config file (e.g., "./dependency/another-name.hcl"),
-	// we need to separate the directory and filename
+	// Determine working directory and config filename, supporting file paths and stack kind
 	componentPath := c.Path()
 
 	var workingDir, configFilename string
 
-	if !util.IsDir(componentPath) && util.FileExists(componentPath) {
-		// Path is a file - split into directory and filename
+	// Defaults assume a directory path
+	workingDir = componentPath
+	configFilename = config.DefaultTerragruntConfigPath
+
+	// If the path points directly to a file, split dir and filename
+	if util.FileExists(componentPath) && !util.IsDir(componentPath) {
 		workingDir = filepath.Dir(componentPath)
 		configFilename = filepath.Base(componentPath)
 	} else {
-		// Path is a directory - use normal logic
-		workingDir = componentPath
-
-		// Determine filename based on user options or defaults
-		configFilename = config.DefaultTerragruntConfigPath
-		if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		// Allow user-specified config filename when provided as a file path
+		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
+			configFilename = filepath.Base(p)
 		}
-
-		// For stack configurations, always use the default stack config filename
-		if _, ok := c.(*component.Stack); ok {
+		// Stacks always use the default stack filename
+		if c.Kind() == component.StackKind {
 			configFilename = config.DefaultStackFile
 		}
 	}

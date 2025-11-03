@@ -1,52 +1,43 @@
-// Package common provides core abstractions for running Terraform/Terragrunt in parallel.
+// Package common provides primitives to build and filter Terragrunt Terraform units and their dependencies.
+// UnitResolver converts discovery results into executable units, resolves/wires dependencies, applies include/exclude rules and custom filters, and records telemetry.
 //
-// # Architecture Overview
+// Usage
 //
-// The package revolves around three key concepts:
-//   - Unit: A single Terraform module with its Terragrunt configuration
-//   - Stack: A collection of units with dependencies between them
-//   - UnitResolver: Builds units from discovery, applying filters and resolving dependencies
+//  1. Create the resolver
+//     ctx := context.Background()
+//     resolver, err := NewUnitResolver(ctx, stack)
+//     if err != nil { /* handle error */ }
 //
-// # Unit Resolution Pipeline
+//  2. Optionally add filters (applied after dependency wiring)
+//     resolver = resolver.WithFilters(
+//     /* examples: FilterByGraph(...), FilterByPaths(...), custom UnitFilter funcs */
+//     )
 //
-// UnitResolver follows a multi-stage pipeline when building units from discovery:
-//  1. buildUnitsFromDiscovery: Convert discovered components to units
-//  2. resolveExternalDependencies: Find and confirm external dependencies
-//  3. crossLinkDependencies: Wire up dependency pointers between units
-//  4. flagIncludedDirs: Apply include patterns (if ExcludeByDefault mode)
-//  5. flagUnitsThatAreIncluded: Mark units that include specific files
-//  6. flagUnitsThatRead: Mark units that read specific files
-//  7. flagExcludedDirs: Apply exclude patterns from CLI flags
-//  8. flagExcludedUnits: Apply exclude blocks from Terragrunt configs
-//  9. applyFilters: Run custom filters (e.g., graph filtering)
+//  3. Resolve from discovery output
+//     units, err := resolver.ResolveFromDiscovery(ctx, logger, discoveredComponents)
+//     if err != nil { /* handle error */ }
 //
-// # Exclusion Precedence
+//  4. Iterate results
+//     for _, u := range units {
+//     if u.FlagExcluded { continue }
+//     // use u.Config, u.Dependencies, u.TerragruntOptions, etc.
+//     }
 //
-// Units can be excluded through multiple mechanisms, applied in this order:
-//  1. CLI --terragrunt-exclude-dir (highest precedence)
-//  2. Exclude blocks in terragrunt.hcl files
-//  3. Custom filters (e.g., graph filter)
-//  4. Include patterns (when ExcludeByDefault mode)
-//
-// When reporting exclusions, earlier mechanisms take precedence to avoid
-// duplicate or conflicting report entries.
-//
-// # Telemetry
-//
-// Most resolver operations are wrapped in telemetry collection via the
-// telemetry* methods. These track operation duration and provide context
-// for debugging performance issues.
+// Notes
+//   - Include/Exclude: CLI include/exclude patterns are honored when the "double-star" strict control is enabled.
+//     Globs are compiled relative to WorkingDir and matched against unit paths.
+//   - Telemetry: resolver stages are wrapped with telemetry to aid performance diagnostics.
 package common
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -83,12 +74,12 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 		// Compile globs only when double-star is enabled
 		includeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.IncludeDirs...)
 		if err != nil {
-			return nil, fmt.Errorf("invalid include dirs: %w", err)
+			return nil, errors.Errorf("invalid include dirs: %w", err)
 		}
 
 		excludeGlobs, err = util.CompileGlobs(stack.TerragruntOptions.WorkingDir, stack.TerragruntOptions.ExcludeDirs...)
 		if err != nil {
-			return nil, fmt.Errorf("invalid exclude dirs: %w", err)
+			return nil, errors.Errorf("invalid exclude dirs: %w", err)
 		}
 	}
 
@@ -128,7 +119,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		if c.Kind() == component.StackKind {
 			continue
 		}
-		// Mirror runner logic for file name
+		// Handle config file name check
 		fname := config.DefaultTerragruntConfigPath
 		if r.Stack.TerragruntOptions.TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions.TerragruntConfigPath) {
 			fname = filepath.Base(r.Stack.TerragruntOptions.TerragruntConfigPath)
@@ -167,11 +158,15 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
+	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
+	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
 	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
 	if err != nil {
 		return nil, err
 	}
 
+	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
+	// This ensures units excluded via CLI get the correct reason in reports
 	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
 	if err != nil {
 		return nil, err
@@ -182,6 +177,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
+	// Apply custom filters after standard resolution logic
 	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
 	if err != nil {
 		return nil, err
