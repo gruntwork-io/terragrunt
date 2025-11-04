@@ -26,7 +26,7 @@ func TestResolveFromDiscovery_UsesDiscoveryConfig(t *testing.T) {
 		Terraform: &config.TerraformConfig{Source: &src},
 	}
 
-	discUnit := component.NewUnit(tmpDir + "/terragrunt.hcl")
+	discUnit := component.NewUnit(tmpDir)
 	discUnit.WithConfig(tgCfg)
 
 	discovered := component.Components{discUnit}

@@ -26,7 +26,7 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 	require.NoError(t, os.WriteFile(tgPath, []byte(""), 0o600))
 
 	// Discovery produces a component with or without config; using empty config is fine here
-	discUnit := component.NewUnit(tmpDir + "/terragrunt.hcl").WithConfig(&config.TerragruntConfig{})
+	discUnit := component.NewUnit(tmpDir).WithConfig(&config.TerragruntConfig{})
 	discovered := component.Components{discUnit}
 
 	// Stack and resolver
