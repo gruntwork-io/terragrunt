@@ -245,8 +245,11 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 		}
 
 		// Determine the actual config file path
-		fname := r.determineTerragruntConfigFilename()
-		terragruntConfigPath := filepath.Join(dUnit.Path(), fname)
+		terragruntConfigPath := dUnit.Path()
+		if util.IsDir(terragruntConfigPath) {
+			fname := r.determineTerragruntConfigFilename()
+			terragruntConfigPath = filepath.Join(dUnit.Path(), fname)
+		}
 
 		unitPath, err := r.resolveUnitPath(terragruntConfigPath)
 		if err != nil {
