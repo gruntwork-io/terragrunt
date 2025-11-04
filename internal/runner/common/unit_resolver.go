@@ -37,14 +37,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
-)
-
-const (
-	// doubleStarFeatureName is the strict control feature name for glob pattern support.
-	doubleStarFeatureName = "double-star"
 )
 
 // UnitResolver provides common functionality for resolving Terraform units from Terragrunt configuration files.
@@ -65,7 +61,7 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 	)
 
 	// Check if double-star strict control is enabled
-	if stack.TerragruntOptions.StrictControls.FilterByNames(doubleStarFeatureName).SuppressWarning().Evaluate(ctx) != nil {
+	if stack.TerragruntOptions.StrictControls.FilterByNames(controls.DoubleStar).SuppressWarning().Evaluate(ctx) != nil {
 		var err error
 
 		doubleStarEnabled = true
@@ -215,7 +211,7 @@ func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l l
 // Unit structs, preserving already-parsed configuration data to avoid redundant file I/O.
 //
 // The method:
-//  1. Filters out non-terraform units (e.g., stacks)
+//  1. Filters out non-units (e.g., stacks)
 //  2. Skips units with parse errors from discovery
 //  3. Determines the correct config file name (terragrunt.hcl or custom)
 //  4. Resolves unit paths to canonical form

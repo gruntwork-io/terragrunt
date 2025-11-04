@@ -153,9 +153,9 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil
 	})
 
-	// If telemetry itself failed, return that error
+	// log telemetry error and continue execution
 	if telemetryErr != nil {
-		return telemetryErr
+		l.Warnf("Telemetry collection failed: %v", telemetryErr)
 	}
 
 	return runErr
