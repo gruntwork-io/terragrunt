@@ -2,11 +2,15 @@
 package discovery
 
 import (
+	"bytes"
 	"context"
 	stderrs "errors"
+	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -83,6 +87,10 @@ type Sort string
 type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
 	discoveryContext *component.DiscoveryContext
+
+	// gitWorktrees maps Git references to temporary worktree directory paths.
+	// This is used when Git-based filters are present to check out different Git references.
+	gitWorktrees map[string]string
 
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
@@ -373,6 +381,16 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 		d.WithRequiresParse()
 	}
 
+	// Collect Git references from filters if any Git filters are present.
+	// The worktrees will be created during discovery before filtering.
+	gitRefs := d.filters.RequiresGitReferences()
+	if len(gitRefs) > 0 {
+		// Initialize gitWorktrees map if needed
+		if d.gitWorktrees == nil {
+			d.gitWorktrees = make(map[string]string)
+		}
+	}
+
 	return d
 }
 
@@ -386,6 +404,17 @@ func (d *Discovery) WithFilterFlagEnabled() *Discovery {
 // WithBreakCycles sets the BreakCycles flag to true.
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
+	return d
+}
+
+// WithGitWorktrees sets the Git worktree directories for Git-based filters.
+// The map should contain Git references as keys and their corresponding worktree directory paths as values.
+func (d *Discovery) WithGitWorktrees(worktrees map[string]string) *Discovery {
+	if d.gitWorktrees == nil {
+		d.gitWorktrees = make(map[string]string)
+	}
+
+	maps.Copy(d.gitWorktrees, worktrees)
 	return d
 }
 
@@ -1010,6 +1039,10 @@ func (d *Discovery) parseWorker(
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
+//
+// When Git-based filters are used, the worktrees are created and tracked in d.gitWorktrees.
+// As such, it's important to call CleanupWorktrees() after Discover() to clean up worktrees created if
+// they are no longer needed.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
@@ -1239,7 +1272,31 @@ func (d *Discovery) Discover(
 	}
 
 	if len(d.filters) > 0 {
-		filtered, evaluateErr := d.filters.Evaluate(l, components)
+		// Create Git worktrees if needed for Git-based filters
+		gitRefs := d.filters.RequiresGitReferences()
+		if len(gitRefs) > 0 {
+			worktreeErr := d.createGitWorktrees(ctx, l, opts)
+			if worktreeErr != nil {
+				errs = append(errs, worktreeErr)
+			}
+		}
+
+		// Build evaluation context with worktrees and working directory
+		var evalCtx *filter.EvaluationContext
+		if len(d.gitWorktrees) > 0 || d.workingDir != "" {
+			evalCtx = &filter.EvaluationContext{
+				GitWorktrees: d.gitWorktrees,
+				WorkingDir:   d.workingDir,
+			}
+		}
+
+		var evaluateErr error
+		var filtered component.Components
+		if evalCtx != nil {
+			filtered, evaluateErr = d.filters.EvaluateWithContext(l, components, evalCtx)
+		} else {
+			filtered, evaluateErr = d.filters.Evaluate(l, components)
+		}
 		if evaluateErr != nil {
 			errs = append(errs, errors.New(evaluateErr))
 		}
@@ -1273,6 +1330,39 @@ func (d *Discovery) Discover(
 	}
 
 	return components, nil
+}
+
+// CleanupWorktrees removes all created Git worktrees and their temporary directories.
+// This should be called after Discover() when Git-based filters were used and worktrees are no longer needed.
+func (d *Discovery) CleanupWorktrees(ctx context.Context, l log.Logger) error {
+	if len(d.gitWorktrees) == 0 {
+		return nil
+	}
+
+	var errs []error
+	for ref, worktreePath := range d.gitWorktrees {
+		cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", worktreePath)
+		cmd.Dir = d.workingDir
+		if err := cmd.Run(); err != nil {
+			l.Debugf("Failed to remove Git worktree for %s: %v", ref, err)
+		}
+
+		if err := os.RemoveAll(worktreePath); err != nil {
+			errs = append(errs, fmt.Errorf("failed to remove worktree directory for %s: %w", ref, err))
+
+			continue
+		}
+
+		l.Debugf("Cleaned up Git worktree for reference %s", ref)
+	}
+
+	d.gitWorktrees = make(map[string]string)
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 // determineDependencyStartingComponents determines the starting components for dependency discovery.
@@ -1435,6 +1525,69 @@ func RemoveCycles(components component.Components) (component.Components, error)
 	}
 
 	return components, err
+}
+
+// createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
+// The worktrees are created in temporary directories and tracked in d.gitWorktrees.
+func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	gitRefs := d.filters.RequiresGitReferences()
+	if len(gitRefs) == 0 {
+		return nil
+	}
+
+	if d.gitWorktrees == nil {
+		d.gitWorktrees = make(map[string]string)
+	}
+
+	for _, ref := range gitRefs {
+		if _, exists := d.gitWorktrees[ref]; exists {
+			continue
+		}
+
+		tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
+		if err != nil {
+			return fmt.Errorf("failed to create temporary directory for worktree: %w", err)
+		}
+
+		cmd := exec.CommandContext(ctx, "git", "worktree", "add", "--detach", tempDir, ref)
+		cmd.Dir = d.workingDir
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			_ = os.RemoveAll(tempDir)
+			return fmt.Errorf(
+				"failed to create Git worktree for reference %s: %w (stderr: %s)",
+				ref,
+				err,
+				stderr.String(),
+			)
+		}
+
+		d.gitWorktrees[ref] = tempDir
+
+		l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
+	}
+
+	return nil
+}
+
+// sanitizeRef sanitizes a Git reference string for use in file paths.
+// It replaces invalid characters with underscores.
+func sanitizeRef(ref string) string {
+	result := strings.Builder{}
+	for _, r := range ref {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			result.WriteRune(r)
+
+			continue
+		}
+
+		result.WriteRune('_')
+	}
+
+	return result.String()
 }
 
 // hiddenDirMemo provides thread-safe memoization of hidden directories.

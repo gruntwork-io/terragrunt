@@ -22,8 +22,10 @@ const (
 	EQUAL // attribute assignment (=)
 
 	// Delimiters
-	LBRACE // left brace ({)
-	RBRACE // right brace (})
+	LBRACE   // left brace ({)
+	RBRACE   // right brace (})
+	LBRACKET // left bracket ([)
+	RBRACKET // right bracket (])
 
 	// Graph operators
 	ELLIPSIS // ellipsis operator (...)
@@ -51,6 +53,10 @@ func (t TokenType) String() string {
 		return "{"
 	case RBRACE:
 		return "}"
+	case LBRACKET:
+		return "["
+	case RBRACKET:
+		return "]"
 	case ELLIPSIS:
 		return "..."
 	case CARET:

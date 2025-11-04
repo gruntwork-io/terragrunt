@@ -553,3 +553,113 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 		require.Empty(t, restricted)
 	})
 }
+
+func TestFilters_RequiresGitReferences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no Git filters - empty result", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		assert.Empty(t, refs)
+	})
+
+	t.Run("single Git filter with one reference", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main]"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 1)
+		assert.Contains(t, refs, "main")
+	})
+
+	t.Run("single Git filter with two references", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 2)
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+	})
+
+	t.Run("multiple Git filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[feature-branch]"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 3)
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+		assert.Contains(t, refs, "feature-branch")
+	})
+
+	t.Run("Git filters with deduplication", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[HEAD...main]"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 2) // main and HEAD, no duplicates
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+	})
+
+	t.Run("Git filter combined with other filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "./apps/*", "name=db"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 2)
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+	})
+
+	t.Run("Git filter with negation", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"![main...HEAD]"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 2)
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+	})
+
+	t.Run("Git filter with intersection", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD] | ./apps/*"}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 2)
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+	})
+
+	t.Run("Git filter nested in graph expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]..."}, ".")
+		require.NoError(t, err)
+
+		refs := filters.RequiresGitReferences()
+		require.Len(t, refs, 2)
+		assert.Contains(t, refs, "main")
+		assert.Contains(t, refs, "HEAD")
+	})
+}

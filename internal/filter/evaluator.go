@@ -1,8 +1,10 @@
 package filter
 
 import (
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -25,29 +27,46 @@ const (
 	MaxTraversalDepth = 1000000
 )
 
+// EvaluationContext provides additional context for filter evaluation, such as Git worktree directories.
+type EvaluationContext struct {
+	// GitWorktrees maps Git references to temporary worktree directory paths.
+	// This is used by GitFilter expressions to access different Git references.
+	GitWorktrees map[string]string
+	// WorkingDir is the base working directory for resolving relative paths.
+	WorkingDir string
+}
+
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 // If logger is provided, it will be used for logging warnings during evaluation.
 func Evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
+	return EvaluateWithContext(l, expr, components, nil)
+}
+
+// EvaluateWithContext evaluates an expression against a list of components with additional context.
+// If logger is provided, it will be used for logging warnings during evaluation.
+func EvaluateWithContext(l log.Logger, expr Expression, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
 
-	return evaluate(l, expr, components)
+	return evaluate(l, expr, components, ctx)
 }
 
 // evaluate is the internal recursive evaluation function.
-func evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
+func evaluate(l log.Logger, expr Expression, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	switch node := expr.(type) {
 	case *PathFilter:
 		return evaluatePathFilter(node, components)
 	case *AttributeFilter:
 		return evaluateAttributeFilter(node, components)
 	case *PrefixExpression:
-		return evaluatePrefixExpression(l, node, components)
+		return evaluatePrefixExpression(l, node, components, ctx)
 	case *InfixExpression:
-		return evaluateInfixExpression(l, node, components)
+		return evaluateInfixExpression(l, node, components, ctx)
 	case *GraphExpression:
-		return evaluateGraphExpression(l, node, components)
+		return evaluateGraphExpression(l, node, components, ctx)
+	case *GitFilter:
+		return evaluateGitFilter(l, node, components, ctx)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
@@ -169,12 +188,12 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components component.Components) (component.Components, error) {
+func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	toExclude, err := evaluate(l, expr.Right, components)
+	toExclude, err := evaluate(l, expr.Right, components, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -196,17 +215,17 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components component.Components) (component.Components, error) {
+func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
-	leftResult, err := evaluate(l, expr.Left, components)
+	leftResult, err := evaluate(l, expr.Left, components, ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rightResult, err := evaluate(l, expr.Right, leftResult)
+	rightResult, err := evaluate(l, expr.Right, leftResult, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +234,8 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 }
 
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
-func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components) (component.Components, error) {
-	targetMatches, err := evaluate(l, expr.Target, components)
+func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components, ctx *EvaluationContext) (component.Components, error) {
+	targetMatches, err := evaluate(l, expr.Target, components, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +274,144 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	}
 
 	return result, nil
+}
+
+// evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
+// It returns components that were added, removed, or changed between FromRef and ToRef.
+func evaluateGitFilter(l log.Logger, filter *GitFilter, components component.Components, ctx *EvaluationContext) (component.Components, error) {
+	if ctx == nil || ctx.WorkingDir == "" {
+		return nil, NewEvaluationError("Git filter requires evaluation context with working directory")
+	}
+
+	// Determine the "to" reference - use HEAD (current working directory) if ToRef is empty
+	var toRef string
+	var useCurrentDir bool
+
+	if filter.ToRef == "" {
+		useCurrentDir = true
+		toRef = "HEAD"
+	} else {
+		useCurrentDir = false
+		toRef = filter.ToRef
+	}
+
+	// Get changed files using git diff
+	changedFiles, err := getChangedFilesBetweenRefs(filter.FromRef, toRef, useCurrentDir, ctx.WorkingDir)
+	if err != nil {
+		return nil, NewEvaluationErrorWithCause("failed to get changed files between Git references", err)
+	}
+
+	if len(changedFiles) == 0 {
+		return component.Components{}, nil
+	}
+
+	// Create a set of changed file paths for fast lookup
+	// git diff returns paths relative to the repository root
+	changedSet := make(map[string]struct{}, len(changedFiles))
+	for _, file := range changedFiles {
+		// Normalize paths for comparison (relative to repo root)
+		normalized := filepath.ToSlash(filepath.Clean(file))
+		changedSet[normalized] = struct{}{}
+	}
+
+	// Filter components based on changed files
+	var result component.Components
+	for _, comp := range components {
+		compPath := comp.Path()
+
+		// Normalize component path for comparison
+		normalizedCompPath := compPath
+		if !filepath.IsAbs(normalizedCompPath) && ctx.WorkingDir != "" {
+			normalizedCompPath = filepath.Join(ctx.WorkingDir, normalizedCompPath)
+		}
+		normalizedCompPath = filepath.ToSlash(filepath.Clean(normalizedCompPath))
+
+		// Check if the component's directory or any of its config files are in the changed set
+		if isComponentChanged(compPath, normalizedCompPath, changedSet, ctx.WorkingDir) {
+			result = append(result, comp)
+		}
+	}
+
+	return result, nil
+}
+
+// getChangedFilesBetweenRefs returns a list of files that were added, removed, or changed between two Git references.
+// It uses git diff to compare the references. The workingDir should be the repository root.
+// fromRef is the starting Git reference, toRef is the ending Git reference.
+// If useCurrentDir is true, toRef is compared against the current working directory (HEAD).
+// Otherwise, both references are used directly in git diff.
+func getChangedFilesBetweenRefs(fromRef, toRef string, useCurrentDir bool, workingDir string) ([]string, error) {
+	var cmd *exec.Cmd
+
+	if useCurrentDir {
+		// Compare reference to current working directory (HEAD)
+		cmd = exec.Command("git", "diff", "--name-only", "--diff-filter=ACDMR", fromRef, "HEAD")
+	} else {
+		// Compare two Git references directly
+		cmd = exec.Command("git", "diff", "--name-only", "--diff-filter=ACDMR", fromRef, toRef)
+	}
+
+	cmd.Dir = workingDir
+	output, err := cmd.Output()
+	if err != nil {
+		// If the command fails, return the error
+		return nil, err
+	}
+
+	// Parse output into file list
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var files []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+
+	return files, nil
+}
+
+// isComponentChanged checks if a component is affected by the changed files.
+// A component is considered changed if:
+// 1. Its directory path matches a changed file's directory
+// 2. Any of its configuration files (terragrunt.hcl, terragrunt.stack.hcl) are in the changed files
+func isComponentChanged(compPath, normalizedCompPath string, changedSet map[string]struct{}, workingDir string) bool {
+	// Get relative path of component from working directory for comparison with git diff output
+	var relCompPath string
+	if filepath.IsAbs(normalizedCompPath) && workingDir != "" {
+		relPath, err := filepath.Rel(workingDir, normalizedCompPath)
+		if err == nil {
+			relCompPath = filepath.ToSlash(relPath)
+		}
+	} else {
+		relCompPath = filepath.ToSlash(normalizedCompPath)
+	}
+
+	if relCompPath == "" {
+		return false
+	}
+
+	// Normalize relCompPath to ensure it doesn't have trailing slashes
+	relCompPath = strings.TrimSuffix(relCompPath, "/")
+
+	// Check each changed file (git diff returns relative paths from repo root)
+	for changedFile := range changedSet {
+		// Normalize the changed file path
+		changedFile = filepath.ToSlash(filepath.Clean(changedFile))
+
+		// Check if the changed file is in the component's directory
+		// This is the primary check: if any file in the component directory changed
+		if strings.HasPrefix(changedFile, relCompPath+"/") {
+			return true
+		}
+
+		// Check if the changed file IS the component directory itself (directory was added/removed)
+		if changedFile == relCompPath {
+			return true
+		}
+	}
+
+	return false
 }
 
 // traverseDependencies recursively traverses the dependency graph downward (from a component to its dependencies).

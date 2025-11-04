@@ -262,3 +262,27 @@ func (g *GraphExpression) RequiresParse() (Expression, bool) {
 	return g, true
 }
 func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
+
+// GitFilter represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
+// It filters components based on changes between Git references.
+type GitFilter struct {
+	FromRef string // The starting Git reference (e.g., "main", "HEAD~1")
+	ToRef   string // The ending Git reference (e.g., "HEAD", "feature-branch"). Empty means current working directory.
+}
+
+func (g *GitFilter) expressionNode() {}
+func (g *GitFilter) String() string {
+	if g.ToRef == "" {
+		return "[" + g.FromRef + "]"
+	}
+	return "[" + g.FromRef + "..." + g.ToRef + "]"
+}
+func (g *GitFilter) RequiresDiscovery() (Expression, bool) {
+	// Git filters require discovery to check which components changed between references
+	return g, true
+}
+func (g *GitFilter) RequiresParse() (Expression, bool) {
+	// Git filters don't require parsing - they compare file paths, not HCL content
+	return nil, false
+}
+func (g *GitFilter) IsRestrictedToStacks() bool { return false }

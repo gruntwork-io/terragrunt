@@ -2,7 +2,9 @@ package discovery_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -14,6 +16,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// gitAdd adds files to Git staging area
+func gitAdd(t *testing.T, dir string, paths ...string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", append([]string{"add"}, paths...)...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "Error adding files to git: %v\n%s", err, string(output))
+}
+
+// gitCommit creates a Git commit
+func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
+	t.Helper()
+	args := []string{"commit", "--no-gpg-sign", "-m", message}
+	args = append(args, extraArgs...)
+	cmd := exec.CommandContext(t.Context(), "git", args...)
+	cmd.Dir = dir
+	// Set git config for test environment
+	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
+	output, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
+}
+
+// gitGetCurrentCommit returns the current commit SHA
+func gitGetCurrentCommit(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD")
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "Error getting current commit: %v\n%s", err, string(output))
+	return strings.TrimSpace(string(output))
+}
 
 func TestDiscoveryWithFilters(t *testing.T) {
 	t.Parallel()
@@ -1015,4 +1049,329 @@ dependency "vpc" {
 		assert.ElementsMatch(t, []string{appDir, dbDir}, units)
 		assert.NotContains(t, units, vpcDir)
 	})
+}
+
+func TestDiscoveryWithGitFilters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		filterQueries func(string, string) []string
+		wantUnits     func(string) []string
+		wantStacks    []string
+		errorExpected bool
+	}{
+		{
+			name: "Git filter - changes between commits",
+			filterQueries: func(initialCommit, currentCommit string) []string {
+				return []string{"[" + initialCommit + "..." + currentCommit + "]"}
+			},
+			wantUnits: func(tmpDir string) []string {
+				return []string{
+					filepath.Join(tmpDir, "app"),
+					filepath.Join(tmpDir, "new"),
+				}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter - single reference (compared to HEAD)",
+			filterQueries: func(initialCommit, currentCommit string) []string {
+				return []string{"[" + initialCommit + "]"}
+			},
+			wantUnits: func(tmpDir string) []string {
+				return []string{
+					filepath.Join(tmpDir, "app"),
+					filepath.Join(tmpDir, "new"),
+				}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter combined with path filter",
+			filterQueries: func(initialCommit, currentCommit string) []string {
+				return []string{"[" + initialCommit + "..." + currentCommit + "] | ./app"}
+			},
+			wantUnits: func(tmpDir string) []string {
+				return []string{filepath.Join(tmpDir, "app")}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter combined with name filter",
+			filterQueries: func(initialCommit, currentCommit string) []string {
+				return []string{"[" + initialCommit + "..." + currentCommit + "] | name=new"}
+			},
+			wantUnits: func(tmpDir string) []string {
+				return []string{filepath.Join(tmpDir, "new")}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Multiple Git filters - union",
+			filterQueries: func(initialCommit, currentCommit string) []string {
+				return []string{"[" + initialCommit + "] | ./app", "[" + initialCommit + "] | ./db"}
+			},
+			wantUnits: func(tmpDir string) []string {
+				return []string{filepath.Join(tmpDir, "app")}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter with negation",
+			filterQueries: func(initialCommit, currentCommit string) []string {
+				return []string{"[" + initialCommit + "..." + currentCommit + "] | !name=new"}
+			},
+			wantUnits: func(tmpDir string) []string {
+				return []string{filepath.Join(tmpDir, "app")}
+			},
+			wantStacks: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			tmpDir, err := filepath.EvalSymlinks(tmpDir)
+			require.NoError(t, err)
+
+			// Initialize Git repository
+			helpers.CreateGitRepo(t, tmpDir)
+
+			// Create initial components
+			appDir := filepath.Join(tmpDir, "app")
+			dbDir := filepath.Join(tmpDir, "db")
+			cacheDir := filepath.Join(tmpDir, "cache")
+
+			testDirs := []string{appDir, dbDir, cacheDir}
+			for _, dir := range testDirs {
+				err = os.MkdirAll(dir, 0755)
+				require.NoError(t, err)
+			}
+
+			// Create initial files
+			initialFiles := map[string]string{
+				filepath.Join(appDir, "terragrunt.hcl"):   ``,
+				filepath.Join(dbDir, "terragrunt.hcl"):    ``,
+				filepath.Join(cacheDir, "terragrunt.hcl"): ``,
+			}
+
+			for path, content := range initialFiles {
+				err = os.WriteFile(path, []byte(content), 0644)
+				require.NoError(t, err)
+			}
+
+			// Commit initial state
+			gitAdd(t, tmpDir, ".")
+			gitCommit(t, tmpDir, "Initial commit")
+			initialCommit := gitGetCurrentCommit(t, tmpDir)
+
+			// Create new components and modify existing ones
+			newDir := filepath.Join(tmpDir, "new")
+			err = os.MkdirAll(newDir, 0755)
+			require.NoError(t, err)
+
+			// Modify app component
+			err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+locals {
+	modified = true
+}
+`), 0644)
+			require.NoError(t, err)
+
+			// Add new component
+			err = os.WriteFile(filepath.Join(newDir, "terragrunt.hcl"), []byte(``), 0644)
+			require.NoError(t, err)
+
+			// Remove cache component
+			err = os.RemoveAll(cacheDir)
+			require.NoError(t, err)
+
+			// Commit changes
+			gitAdd(t, tmpDir, ".")
+			gitCommit(t, tmpDir, "Changes: modified app, added new, removed cache")
+			currentCommit := gitGetCurrentCommit(t, tmpDir)
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = tmpDir
+			opts.RootWorkingDir = tmpDir
+
+			// Parse filter queries
+			filters, err := filter.ParseFilterQueries(tt.filterQueries(initialCommit, currentCommit), tmpDir)
+			if tt.errorExpected {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Create discovery with filters
+			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+
+			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			if tt.errorExpected {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Cleanup worktrees after discovery
+			cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+			require.NoError(t, cleanupErr)
+
+			// Filter results by type
+			units := configs.Filter(component.UnitKind).Paths()
+			stacks := configs.Filter(component.StackKind).Paths()
+
+			// Get expected units
+			wantUnits := tt.wantUnits(tmpDir)
+
+			// Verify results
+			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)
+			assert.ElementsMatch(t, tt.wantStacks, stacks, "Stacks mismatch for test: %s", tt.name)
+		})
+	}
+}
+
+func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	helpers.CreateGitRepo(t, tmpDir)
+
+	// Create a component
+	appDir := filepath.Join(tmpDir, "app")
+	err = os.MkdirAll(appDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(``), 0644)
+	require.NoError(t, err)
+
+	// Commit initial state
+	gitAdd(t, tmpDir, ".")
+	gitCommit(t, tmpDir, "Initial commit")
+	initialCommit := gitGetCurrentCommit(t, tmpDir)
+
+	// Make a change
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`modified`), 0644)
+	require.NoError(t, err)
+
+	gitAdd(t, tmpDir, ".")
+	gitCommit(t, tmpDir, "Modified app")
+	currentCommit := gitGetCurrentCommit(t, tmpDir)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Parse filter with Git references
+	filters, err := filter.ParseFilterQueries([]string{"[" + initialCommit + "..." + currentCommit + "]"}, tmpDir)
+	require.NoError(t, err)
+
+	// Create discovery with filters
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+
+	// Discover components - this should create worktrees
+	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+	require.NotEmpty(t, configs)
+
+	// Verify worktrees were created by checking that cleanup doesn't error
+	// (if worktrees weren't created, cleanup would still succeed but be a no-op)
+	// We can verify worktrees exist by checking that cleanup actually does something
+	// (indirectly, by ensuring discovery worked with Git filters)
+
+	// Cleanup worktrees - should succeed if worktrees exist
+	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+	require.NoError(t, cleanupErr)
+
+	// Verify cleanup is idempotent (can be called multiple times)
+	cleanupErr2 := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+	require.NoError(t, cleanupErr2)
+}
+
+func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	helpers.CreateGitRepo(t, tmpDir)
+
+	// Create a component
+	appDir := filepath.Join(tmpDir, "app")
+	err = os.MkdirAll(appDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(``), 0644)
+	require.NoError(t, err)
+
+	// Commit initial state
+	gitAdd(t, tmpDir, ".")
+	gitCommit(t, tmpDir, "Initial commit")
+	commit1 := gitGetCurrentCommit(t, tmpDir)
+
+	// Commit again with no changes (empty commit)
+	gitCommit(t, tmpDir, "Empty commit", "--allow-empty")
+	commit2 := gitGetCurrentCommit(t, tmpDir)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Parse filter with Git references (no changes between commits)
+	filters, err := filter.ParseFilterQueries([]string{"[" + commit1 + "..." + commit2 + "]"}, tmpDir)
+	require.NoError(t, err)
+
+	// Create discovery with filters
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+
+	// Discover components
+	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Cleanup worktrees
+	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+	require.NoError(t, cleanupErr)
+
+	// Should return no components since nothing changed
+	units := configs.Filter(component.UnitKind).Paths()
+	assert.Empty(t, units, "No components should be returned when there are no changes")
+}
+
+func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	helpers.CreateGitRepo(t, tmpDir)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Parse filter with invalid Git reference
+	filters, err := filter.ParseFilterQueries([]string{"[nonexistent-branch]"}, tmpDir)
+	require.NoError(t, err) // Parsing should succeed
+
+	// Create discovery with filters
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+
+	// Discover should fail when trying to create worktree for invalid reference
+	_, err = discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.Error(t, err, "Discovery should fail with invalid Git reference")
+
+	// Cleanup should still work (even if no worktrees were created)
+	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+	require.NoError(t, cleanupErr)
 }

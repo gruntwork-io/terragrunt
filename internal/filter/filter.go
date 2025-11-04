@@ -41,6 +41,12 @@ func (f *Filter) Evaluate(l log.Logger, components component.Components) (compon
 	return Evaluate(l, f.expr, components)
 }
 
+// EvaluateWithContext applies the filter to a list of components with additional context and returns the filtered result.
+// If logger is provided, it will be used for logging warnings during evaluation.
+func (f *Filter) EvaluateWithContext(l log.Logger, components component.Components, ctx *EvaluationContext) (component.Components, error) {
+	return EvaluateWithContext(l, f.expr, components, ctx)
+}
+
 // Expression returns the parsed AST expression.
 // This is useful for debugging or advanced use cases.
 func (f *Filter) Expression() Expression {

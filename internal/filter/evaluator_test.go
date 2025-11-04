@@ -890,3 +890,119 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		assert.ElementsMatch(t, []component.Component{app, db, vpc}, result)
 	})
 }
+
+func TestEvaluate_GitFilter(t *testing.T) {
+	t.Parallel()
+
+	components := []component.Component{
+		component.NewUnit("./apps/app1"),
+		component.NewUnit("./apps/app2"),
+		component.NewUnit("./libs/db"),
+	}
+
+	t.Run("Git filter requires evaluation context", func(t *testing.T) {
+		t.Parallel()
+
+		gitFilter := &filter.GitFilter{
+			FromRef: "main",
+			ToRef:   "HEAD",
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, gitFilter, components)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "evaluation context")
+	})
+
+	t.Run("Git filter with context but no working directory", func(t *testing.T) {
+		t.Parallel()
+
+		gitFilter := &filter.GitFilter{
+			FromRef: "main",
+			ToRef:   "HEAD",
+		}
+
+		ctx := &filter.EvaluationContext{
+			GitWorktrees: make(map[string]string),
+			WorkingDir:   "",
+		}
+
+		l := log.New()
+		result, err := filter.EvaluateWithContext(l, gitFilter, components, ctx)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "working directory")
+	})
+}
+
+func TestEvaluate_GitFilterString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		filter   *filter.GitFilter
+		expected string
+	}{
+		{
+			name: "single reference",
+			filter: &filter.GitFilter{
+				FromRef: "main",
+				ToRef:   "",
+			},
+			expected: "[main]",
+		},
+		{
+			name: "two references",
+			filter: &filter.GitFilter{
+				FromRef: "main",
+				ToRef:   "HEAD",
+			},
+			expected: "[main...HEAD]",
+		},
+		{
+			name: "commit SHA references",
+			filter: &filter.GitFilter{
+				FromRef: "abc123",
+				ToRef:   "def456",
+			},
+			expected: "[abc123...def456]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.filter.String())
+		})
+	}
+}
+
+func TestGitFilter_RequiresDiscovery(t *testing.T) {
+	t.Parallel()
+
+	gitFilter := &filter.GitFilter{
+		FromRef: "main",
+		ToRef:   "HEAD",
+	}
+
+	expr, requires := gitFilter.RequiresDiscovery()
+	assert.True(t, requires)
+	assert.Equal(t, gitFilter, expr)
+}
+
+func TestGitFilter_RequiresParse(t *testing.T) {
+	t.Parallel()
+
+	gitFilter := &filter.GitFilter{
+		FromRef: "main",
+		ToRef:   "HEAD",
+	}
+
+	expr, requires := gitFilter.RequiresParse()
+	assert.False(t, requires)
+	assert.Nil(t, expr)
+}

@@ -113,6 +113,28 @@ func (f Filters) RestrictToStacks() Filters {
 	})
 }
 
+// RequiresGitReferences returns all unique Git references used in Git filter expressions.
+// Returns a deduplicated list of reference strings (both FromRef and ToRef from GitFilter nodes).
+func (f Filters) RequiresGitReferences() []string {
+	refSet := make(map[string]struct{})
+
+	for _, filter := range f {
+		refs := collectGitReferences(filter.expr)
+		for _, ref := range refs {
+			if ref != "" {
+				refSet[ref] = struct{}{}
+			}
+		}
+	}
+
+	result := make([]string, 0, len(refSet))
+	for ref := range refSet {
+		result = append(result, ref)
+	}
+
+	return result
+}
+
 // collectGraphExpressionTargetsWithDependencies recursively collects target expressions from GraphExpression nodes that have IncludeDependencies set.
 func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
 	var targets []Expression
@@ -181,6 +203,34 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	return targets
 }
 
+// collectGitReferences recursively collects Git references from GitFilter nodes.
+func collectGitReferences(expr Expression) []string {
+	var refs []string
+
+	if gitFilter, ok := expr.(*GitFilter); ok {
+		refs = append(refs, gitFilter.FromRef)
+		if gitFilter.ToRef != "" {
+			refs = append(refs, gitFilter.ToRef)
+		}
+		return refs
+	}
+
+	// Check nested expressions
+	switch node := expr.(type) {
+	case *PrefixExpression:
+		return collectGitReferences(node.Right)
+	case *InfixExpression:
+		leftRefs := collectGitReferences(node.Left)
+		rightRefs := collectGitReferences(node.Right)
+		return append(leftRefs, rightRefs...)
+	case *GraphExpression:
+		// Git filters can be nested inside graph expressions
+		return collectGitReferences(node.Target)
+	}
+
+	return refs
+}
+
 // Evaluate applies all filters with union (OR) semantics in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
@@ -188,6 +238,16 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 //
 // If logger is provided, it will be used for logging warnings during evaluation.
 func (f Filters) Evaluate(l log.Logger, components component.Components) (component.Components, error) {
+	return f.EvaluateWithContext(l, components, nil)
+}
+
+// EvaluateWithContext applies all filters with union (OR) semantics in two phases with additional context.
+//  1. Positive filters (non-negated) are evaluated and their results are unioned
+//  2. Negative filters (starting with negation) are evaluated against the combined
+//     results and remove matching components
+//
+// If logger is provided, it will be used for logging warnings during evaluation.
+func (f Filters) EvaluateWithContext(l log.Logger, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if len(f) == 0 {
 		return components, nil
 	}
@@ -208,14 +268,19 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 	}
 
 	// Phase 1: Get initial set of components, which might need to be filtered further by negative filters
-	combined, err := initialComponents(l, positiveFilters, components)
+	combined, err := initialComponents(l, positiveFilters, components, ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Phase 2: Apply negative filters to remove components
 	for _, filter := range negativeFilters {
-		result, err := filter.Evaluate(l, combined)
+		var result component.Components
+		if ctx != nil {
+			result, err = filter.EvaluateWithContext(l, combined, ctx)
+		} else {
+			result, err = filter.Evaluate(l, combined)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +311,7 @@ func (f Filters) EvaluateOnFiles(l log.Logger, files []string) (component.Compon
 	return f.Evaluate(l, comps)
 }
 
-func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components) (component.Components, error) {
+func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if len(positiveFilters) == 0 {
 		return components, nil
 	}
@@ -254,7 +319,13 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(l, components)
+		var result component.Components
+		var err error
+		if ctx != nil {
+			result, err = filter.EvaluateWithContext(l, components, ctx)
+		} else {
+			result, err = filter.Evaluate(l, components)
+		}
 		if err != nil {
 			return nil, err
 		}

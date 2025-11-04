@@ -97,6 +97,8 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		leftExpr = p.parsePathFilter()
 	case LBRACE:
 		leftExpr = p.parseBracedPath()
+	case LBRACKET:
+		leftExpr = p.parseGitFilter()
 	case IDENT:
 		if p.peekToken.Type == EQUAL {
 			leftExpr = p.parseAttributeFilter()
@@ -112,7 +114,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	case EOF:
 		p.addError("unexpected end of input")
 		return nil
-	case PIPE, EQUAL, RBRACE, ELLIPSIS, CARET:
+	case PIPE, EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
 		p.addError("unexpected token: " + p.curToken.Literal)
 		return nil
 	default:
@@ -148,7 +150,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		switch p.curToken.Type {
 		case PIPE:
 			leftExpr = p.parseInfixExpression(leftExpr)
-		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE, ELLIPSIS, CARET:
+		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE, LBRACKET, RBRACKET, ELLIPSIS, CARET:
 			return leftExpr
 		default:
 			return leftExpr
@@ -256,6 +258,78 @@ func (p *Parser) parseAttributeFilter() Expression {
 		Key:        key,
 		Value:      value,
 		WorkingDir: p.workingDir,
+	}
+}
+
+// parseGitFilter parses a Git filter expression (e.g., "[main...HEAD]" or "[main]").
+func (p *Parser) parseGitFilter() Expression {
+	// We're currently at LBRACKET, move to the content
+	p.nextToken()
+
+	if p.curToken.Type == RBRACKET {
+		p.addError("empty Git filter expression")
+		return nil
+	}
+
+	// Read the first reference (can be IDENT or PATH-like)
+	var fromRefParts []string
+	for p.curToken.Type != RBRACKET && p.curToken.Type != ELLIPSIS && p.curToken.Type != EOF {
+		fromRefParts = append(fromRefParts, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	if len(fromRefParts) == 0 {
+		p.addError("expected Git reference in filter")
+		return nil
+	}
+
+	fromRef := strings.Join(fromRefParts, "")
+
+	// Check if there's an ellipsis and second reference
+	if p.curToken.Type == ELLIPSIS {
+		// Move past ellipsis
+		p.nextToken()
+
+		// Read the second reference
+		var toRefParts []string
+		for p.curToken.Type != RBRACKET && p.curToken.Type != EOF {
+			toRefParts = append(toRefParts, p.curToken.Literal)
+			p.nextToken()
+		}
+
+		if len(toRefParts) == 0 {
+			p.addError("expected second Git reference after ellipsis")
+			return nil
+		}
+
+		toRef := strings.Join(toRefParts, "")
+
+		if p.curToken.Type != RBRACKET {
+			p.addError("expected ']' to close Git filter")
+			return nil
+		}
+
+		// Move past RBRACKET
+		p.nextToken()
+
+		return &GitFilter{
+			FromRef: fromRef,
+			ToRef:   toRef,
+		}
+	}
+
+	// Single reference case
+	if p.curToken.Type != RBRACKET {
+		p.addError("expected ']' to close Git filter")
+		return nil
+	}
+
+	// Move past RBRACKET
+	p.nextToken()
+
+	return &GitFilter{
+		FromRef: fromRef,
+		ToRef:   "",
 	}
 }
 
