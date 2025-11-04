@@ -116,6 +116,7 @@ workflows:
               only:
                 - /^v.*/
                 - /^alpha.*/
+                - /^beta.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
@@ -128,6 +129,7 @@ workflows:
               only:
                 - /^v.*/
                 - /^alpha.*/
+                - /^beta.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
@@ -141,6 +143,7 @@ workflows:
               only:
                 - /^v.*/
                 - /^alpha.*/
+                - /^beta.*/
             branches:
               ignore: /.*/
           context:
