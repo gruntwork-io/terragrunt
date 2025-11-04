@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // flagExternalDependencies processes units that were marked as external by discovery,
@@ -87,25 +86,4 @@ func (r *UnitResolver) confirmShouldApplyExternalDependency(ctx context.Context,
 	l.Infof("Unit %s has external dependency %s", unit.Path, dependency.Path)
 
 	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
-}
-
-// telemetryCrossLinkDependencies cross-links dependencies between units
-// Discovery has already found all units including external dependencies, so unitsMap contains everything
-func (r *UnitResolver) telemetryCrossLinkDependencies(ctx context.Context, unitsMap, _ UnitsMap, canonicalTerragruntConfigPaths []string) (Units, error) {
-	var crossLinkedUnits Units
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-	}, func(_ context.Context) error {
-		result, err := unitsMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
-		if err != nil {
-			return err
-		}
-
-		crossLinkedUnits = result
-
-		return nil
-	})
-
-	return crossLinkedUnits, err
 }

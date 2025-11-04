@@ -122,15 +122,32 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
 	}
 
-	// Cross-link dependencies - discovery has already established the dependency relationships
-	crossLinkedUnits, err := r.telemetryCrossLinkDependencies(ctx, unitsMap, UnitsMap{}, canonicalTerragruntConfigPaths)
+	// Cross-link dependencies - convert from discovery domain to runner domain
+	// Discovery found all dependencies, but we need to convert component.Component pointers to common.Unit pointers
+	var crossLinkedUnits Units
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
+		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+	}, func(_ context.Context) error {
+		var linkErr error
+
+		crossLinkedUnits, linkErr = unitsMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
+
+		return linkErr
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Flag external dependencies and prompt user for confirmation
-	// This must happen before other filters so external deps get correct flags
-	if err := r.telemetryFlagExternalDependencies(ctx, l, unitsMap); err != nil {
+	// This must happen AFTER cross-linking so Dependencies field is populated
+	// Convert Units list back to map for flagging
+	crossLinkedMap := make(UnitsMap)
+	for _, unit := range crossLinkedUnits {
+		crossLinkedMap[unit.Path] = unit
+	}
+
+	if err := r.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
 		return nil, err
 	}
 

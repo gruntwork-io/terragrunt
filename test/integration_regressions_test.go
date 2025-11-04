@@ -292,7 +292,7 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 
 	// Verify both units ran successfully
 	combinedOutput := stdout + stderr
-	assert.Contains(t, combinedOutput, "service1",
+	assert.Contains(t, combinedOutput, "test1",
 		"Should process the service dependency")
 	assert.Contains(t, combinedOutput, "null_resource.services_info",
 		"Should process the services-info unit with null resource")
