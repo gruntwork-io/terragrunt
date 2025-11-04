@@ -112,7 +112,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 			for _, e := range readyEntries {
 				// log debug which entry is running
-				l.Debugf("Runner Pool Controller: running %s", e.Component.Path)
+				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
 				dr.q.SetEntryStatus(e, queue.StatusRunning)
 
 				sem <- struct{}{}
@@ -133,7 +133,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					unit := dr.unitsMap[ent.Component.Path()]
 					if unit == nil {
 						err := errors.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
-						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Component.Path)
+						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Component.Path())
 						dr.q.FailEntry(ent)
 						results.Store(ent.Component.Path(), err)
 
@@ -144,13 +144,13 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					results.Store(ent.Component.Path(), err)
 
 					if err != nil {
-						l.Debugf("Runner Pool Controller: %s failed", ent.Component.Path)
+						l.Debugf("Runner Pool Controller: %s failed", ent.Component.Path())
 						dr.q.FailEntry(ent)
 
 						return
 					}
 
-					l.Debugf("Runner Pool Controller: %s succeeded", ent.Component.Path)
+					l.Debugf("Runner Pool Controller: %s succeeded", ent.Component.Path())
 					dr.q.SetEntryStatus(ent, queue.StatusSucceeded)
 				}(e)
 			}

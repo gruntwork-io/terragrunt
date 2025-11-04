@@ -111,13 +111,13 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 	for _, globPath := range globPaths {
 		canGlobPath, err := CanonicalPath(globPath, basePath)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
+			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
 			continue
 		}
 
 		compiledGlob, err := glob.Compile(canGlobPath, '/')
 		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid glob pattern %q: %w", globPath, err))
+			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
 			continue
 		}
 
@@ -125,7 +125,7 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 	}
 
 	if len(errs) > 0 {
-		return compiledGlobs, fmt.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
+		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
 	}
 
 	return compiledGlobs, nil
@@ -1055,7 +1055,7 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 			// Convert the current physical path to a logical path relative to the walk root
 			rel, err := filepath.Rel(pair.physical, currentPath)
 			if err != nil {
-				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)
@@ -1099,7 +1099,7 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return fmt.Errorf("failed to get evaluate sym links for %s: %w", root, err)
+		return errors.Errorf("failed to get evaluate sym links for %s: %w", root, err)
 	}
 
 	// Start the walk from the root directory
@@ -1112,7 +1112,7 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
 	realPath, err := filepath.EvalSymlinks(currentPath)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to get evaluate sym links for %s: %w", currentPath, err)
+		return "", nil, errors.Errorf("failed to get evaluate sym links for %s: %w", currentPath, err)
 	}
 
 	// Get info about the symlink target
@@ -1128,12 +1128,12 @@ func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
 func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 	realPath, err := filepath.EvalSymlinks(currentPath)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
+		return "", false, errors.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
 	}
 
 	realInfo, err := os.Stat(realPath)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to describe file %s: %w", realPath, err)
+		return "", false, errors.Errorf("failed to describe file %s: %w", realPath, err)
 	}
 
 	return realPath, realInfo.IsDir(), nil
@@ -1174,7 +1174,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 			// Convert the current physical path to a logical path relative to the walk root
 			rel, err := filepath.Rel(pair.physical, currentPath)
 			if err != nil {
-				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)
@@ -1218,7 +1218,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+		return errors.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
 	// Start the walk from the root directory

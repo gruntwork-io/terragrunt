@@ -429,34 +429,48 @@ func Parse(
 	parserOptions []hclparse.Option,
 ) error {
 	parseOpts := opts.Clone()
-	parseOpts.WorkingDir = c.Path()
+
+	// Determine working directory and config filename, supporting file paths and stack kind
+	componentPath := c.Path()
+
+	var workingDir, configFilename string
+
+	// Defaults assume a directory path
+	workingDir = componentPath
+	configFilename = config.DefaultTerragruntConfigPath
+
+	// If the path points directly to a file, split dir and filename
+	if util.FileExists(componentPath) && !util.IsDir(componentPath) {
+		workingDir = filepath.Dir(componentPath)
+		configFilename = filepath.Base(componentPath)
+	} else {
+		// Allow user-specified config filename when provided as a file path
+		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
+			configFilename = filepath.Base(p)
+		}
+		// Stacks always use the default stack filename
+		if c.Kind() == component.StackKind {
+			configFilename = config.DefaultStackFile
+		}
+	}
+
+	parseOpts.WorkingDir = workingDir
 
 	// Suppress logging to avoid cluttering the output.
 	parseOpts.Writer = io.Discard
 	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
-	// If the user provided a specific terragrunt config path and it is not a directory,
-	// use its base name as the file to parse. This allows users to run terragrunt with
-	// a specific config file instead of the default terragrunt.hcl.
-	// Otherwise, use the default terragrunt.hcl filename.
-	filename := config.DefaultTerragruntConfigPath
-	if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
-		filename = filepath.Base(opts.TerragruntConfigPath)
-	}
-
-	// For stack configurations, always use the default stack config filename
-	if _, ok := c.(*component.Stack); ok {
-		filename = config.DefaultStackFile
-	}
-
-	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
+	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
+		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
+		config.TerragruntFlags,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
+		config.ErrorsBlock,
 	).WithSkipOutputsResolution()
 
 	// Apply custom parser options if provided via discovery
@@ -505,10 +519,13 @@ func Parse(
 
 	// Set a list with partial blocks used to do discovery
 	parsingCtx = parsingCtx.WithDecodeList(
+		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
+		config.TerragruntFlags,
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
+		config.ErrorsBlock,
 	)
 
 	//nolint: contextcheck
