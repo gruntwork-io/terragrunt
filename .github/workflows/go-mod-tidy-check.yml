@@ -26,4 +26,4 @@ jobs:
             echo "::error::go.mod or go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
             exit 1
           fi
-          echo "✓ go.mod and go.sum are tidy"
+          echo "go.mod and go.sum are tidy"
