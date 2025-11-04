@@ -16,6 +16,7 @@ const (
 	testFixtureRegressions               = "fixtures/regressions"
 	testFixtureDependencyGenerate        = "fixtures/regressions/dependency-generate"
 	testFixtureDependencyEmptyConfigPath = "fixtures/regressions/dependency-empty-config-path"
+	testFixtureParsingDeprecated         = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -229,7 +230,6 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	t.Parallel()
 
-	testFixtureParsingDeprecated := "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
 	childPath := util.JoinPath(tmpEnvPath, testFixtureParsingDeprecated, "child")
@@ -248,12 +248,10 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 		errorMessage = errorMessage + " " + err.Error()
 	}
 
-	assert.Contains(t, errorMessage, "Reading inputs from dependencies is no longer supported",
-		"Should see clear error message about dependency inputs not being supported")
+	assert.Contains(t, errorMessage, "Reading inputs from dependencies is no longer supported")
 
 	// Should NOT get the cryptic error that users were seeing
-	assert.NotContains(t, errorMessage, "Could not find Terragrunt configuration settings",
-		"Should not see the cryptic parsing error after fix")
+	assert.NotContains(t, errorMessage, "Could not find Terragrunt configuration settings")
 }
 
 // TestRunAllWithGenerateAndExpose tests that run --all works correctly with:

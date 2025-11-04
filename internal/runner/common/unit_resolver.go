@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -38,7 +39,7 @@ func NewUnitResolver(ctx context.Context, stack *Stack) (*UnitResolver, error) {
 		doubleStarEnabled = false
 	)
 
-	if stack.TerragruntOptions.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(ctx) != nil {
+	if stack.TerragruntOptions.StrictControls.FilterByNames(controls.DoubleStar).SuppressWarning().Evaluate(ctx) != nil {
 		var err error
 
 		doubleStarEnabled = true
