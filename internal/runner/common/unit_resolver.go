@@ -244,13 +244,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 			continue
 		}
 
-		// Determine the actual config file path
-		// Discovery may return either a directory path or a file path depending on the config filename
 		terragruntConfigPath := dUnit.Path()
-		if util.IsDir(terragruntConfigPath) {
-			fname := r.determineTerragruntConfigFilename()
-			terragruntConfigPath = filepath.Join(dUnit.Path(), fname)
-		}
 
 		unitPath, err := r.resolveUnitPath(terragruntConfigPath)
 		if err != nil {
@@ -265,12 +259,11 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
-		// Exclusion check - create a temporary unit for matching
-		tempUnit := &Unit{Path: unitPath}
+		unitToExclude := &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
-		if excludeFn(tempUnit) {
-			units[unitPath] = &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
+		if excludeFn(unitToExclude) {
+			units[unitPath] = unitToExclude
 
 			continue
 		}
