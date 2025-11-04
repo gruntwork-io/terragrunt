@@ -1,0 +1,29 @@
+name: Go Mod Tidy Check
+
+on:
+  workflow_call:
+
+jobs:
+  go-mod-tidy-check:
+    name: Check go.mod and go.sum are tidy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run go mod tidy
+        run: go mod tidy
+
+      - name: Check for changes
+        run: |
+          if ! git diff --exit-code go.mod go.sum; then
+            echo "::error::go.mod or go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
+            exit 1
+          fi
+          echo "✓ go.mod and go.sum are tidy"
