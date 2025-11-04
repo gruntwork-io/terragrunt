@@ -28,8 +28,8 @@ jobs:
   test_signing:
     <<: *env
     macos:
-      xcode: 16
-    resource_class: macos.m1.medium.gen1
+      xcode: 16.4.0
+    resource_class: m4pro.medium
     steps:
       - checkout
       - attach_workspace:
@@ -65,8 +65,8 @@ jobs:
   deploy:
     <<: *env
     macos:
-      xcode: 16
-    resource_class: macos.m1.medium.gen1
+      xcode: 16.4.0
+    resource_class: m4pro.medium
     steps:
       - checkout
       - attach_workspace:
