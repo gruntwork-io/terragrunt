@@ -43,7 +43,6 @@ dependencies {
 	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
 	assert.Equal(t, map[string]any{"app1": "../app1"}, terragruntConfig.Locals)
 
-	assert.Nil(t, terragruntConfig.Skip)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -95,8 +94,6 @@ skip = true
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
 
-	assert.NotNil(t, terragruntConfig.Skip)
-	assert.True(t, *terragruntConfig.Skip)
 	assert.True(t, *terragruntConfig.PreventDestroy)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -116,7 +113,6 @@ func TestPartialParseOmittedItems(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Nil(t, terragruntConfig.Skip)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -152,7 +148,6 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 
 	assert.True(t, terragruntConfig.IsPartial)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Nil(t, terragruntConfig.Skip)
 	assert.True(t, *terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -177,7 +172,6 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
 
-	assert.Nil(t, terragruntConfig.Skip)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)

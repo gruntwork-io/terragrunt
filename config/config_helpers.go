@@ -629,7 +629,7 @@ func getTerraformCliArgs(ctx *ParsingContext, l log.Logger) ([]string, error) {
 	return ctx.TerragruntOptions.TerraformCliArgs, nil
 }
 
-// getDefaultRetryableErrors returns default retryable errors
+// getDefaultRetryableErrors returns default retryable errors for use in errors.retry blocks
 func getDefaultRetryableErrors(ctx *ParsingContext, l log.Logger) ([]string, error) {
 	return options.DefaultRetryableErrors, nil
 }

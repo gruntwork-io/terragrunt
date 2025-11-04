@@ -87,7 +87,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		},
 		DownloadDir:    ".terragrunt-cache",
 		PreventDestroy: &testTrue,
-		Skip:           &testTrue,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]any{
 			"aws_region": "us-east-1",
@@ -287,8 +286,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "download_dir", true
 	case "PreventDestroy":
 		return "prevent_destroy", true
-	case "Skip":
-		return "skip", true
 	case "IamRole":
 		return "iam_role", true
 	case "IamAssumeRoleDuration":
@@ -311,12 +308,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "", false
 	case "FieldsMetadata":
 		return "", false
-	case "RetryableErrors":
-		return "retryable_errors", true
-	case "RetryMaxAttempts":
-		return "retry_max_attempts", true
-	case "RetrySleepIntervalSec":
-		return "retry_sleep_interval_sec", true
 	case "DependentModulesPath":
 		return "dependent_modules", true
 	case "Engine":

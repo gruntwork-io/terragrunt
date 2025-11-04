@@ -120,7 +120,9 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
+	var runErr error
+
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
@@ -141,11 +143,22 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 			exitCode.Set(int(cli.ExitCodeGeneralError))
 
+			// Save error to potentially return after telemetry completes
+			runErr = err
+
+			// Return nil to allow telemetry and reporting to complete
 			return nil
 		}
 
 		return nil
 	})
+
+	// log telemetry error and continue execution
+	if telemetryErr != nil {
+		l.Warnf("Telemetry collection failed: %v", telemetryErr)
+	}
+
+	return runErr
 }
 
 // shouldSkipSummary determines if summary output should be skipped for programmatic interactions.

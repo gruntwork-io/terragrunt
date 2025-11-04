@@ -79,12 +79,11 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
+// terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy)
 type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
 	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
 	PreventDestroy      *bool    `hcl:"prevent_destroy,attr"`
-	Skip                *bool    `hcl:"skip,attr"`
 	Remain              hcl.Body `hcl:",remain"`
 }
 
@@ -487,10 +486,6 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 			if decoded.PreventDestroy != nil {
 				output.PreventDestroy = decoded.PreventDestroy
-			}
-
-			if decoded.Skip != nil {
-				output.Skip = decoded.Skip
 			}
 
 			if decoded.IamRole != nil {

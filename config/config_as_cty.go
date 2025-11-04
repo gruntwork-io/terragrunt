@@ -28,10 +28,6 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
 	output[MetadataIamWebIdentityToken] = gostringToCty(config.IamWebIdentityToken)
 
-	if config.Skip != nil {
-		output[MetadataSkip] = goboolToCty(*config.Skip)
-	}
-
 	catalogConfigCty, err := catalogConfigAsCty(config.Catalog)
 	if err != nil {
 		return cty.NilVal, err
@@ -117,15 +113,6 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataGenerateConfigs] = generateCty
 	}
 
-	retryableCty, err := goTypeToCty(config.RetryableErrors)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if retryableCty != cty.NilVal {
-		output[MetadataRetryableErrors] = retryableCty
-	}
-
 	iamAssumeRoleDurationCty, err := goTypeToCty(config.IamAssumeRoleDuration)
 	if err != nil {
 		return cty.NilVal, err
@@ -133,24 +120,6 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	if iamAssumeRoleDurationCty != cty.NilVal {
 		output[MetadataIamAssumeRoleDuration] = iamAssumeRoleDurationCty
-	}
-
-	retryMaxAttemptsCty, err := goTypeToCty(config.RetryMaxAttempts)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if retryMaxAttemptsCty != cty.NilVal {
-		output[MetadataRetryMaxAttempts] = retryMaxAttemptsCty
-	}
-
-	retrySleepIntervalSecCty, err := goTypeToCty(config.RetrySleepIntervalSec)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if retrySleepIntervalSecCty != cty.NilVal {
-		output[MetadataRetrySleepIntervalSec] = retrySleepIntervalSecCty
 	}
 
 	inputsCty, err := convertToCtyWithJSON(config.Inputs)
@@ -218,10 +187,6 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.Skip, MetadataSkip, &output); err != nil {
-		return cty.NilVal, err
-	}
-
 	if err := wrapWithMetadata(config, config.IamAssumeRoleSessionName, MetadataIamAssumeRoleSessionName, &output); err != nil {
 		return cty.NilVal, err
 	}
@@ -232,19 +197,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		}
 	}
 
-	if err := wrapWithMetadata(config, config.RetryableErrors, MetadataRetryableErrors, &output); err != nil {
-		return cty.NilVal, err
-	}
-
 	if err := wrapWithMetadata(config, config.IamAssumeRoleDuration, MetadataIamAssumeRoleDuration, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	if err := wrapWithMetadata(config, config.RetryMaxAttempts, MetadataRetryMaxAttempts, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	if err := wrapWithMetadata(config, config.RetrySleepIntervalSec, MetadataRetrySleepIntervalSec, &output); err != nil {
 		return cty.NilVal, err
 	}
 

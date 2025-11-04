@@ -23,6 +23,8 @@ const (
 	testRunAllErrors          = "fixtures/errors/run-all"
 	testNegativePatternErrors = "fixtures/errors/ignore-negative-pattern"
 	testMultiLineErrors       = "fixtures/errors/multi-line"
+	testGetDefaultErrors      = "fixtures/errors/get-default-errors"
+	testNoAutoRetry           = "fixtures/errors/no-auto-retry"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -171,4 +173,52 @@ func TestHandleMultiLineErrors(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Ignoring transit gateway not found when creating internal route")
+}
+
+func TestGetDefaultRetryableErrors(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testGetDefaultErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testGetDefaultErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testGetDefaultErrors)
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	// Verify get_default_retryable_errors() returns a non-empty list
+	defaultErrors := outputs["default_retryable_errors"]
+	assert.NotEmpty(t, defaultErrors.Value)
+
+	// Verify custom error is passed through
+	customError := outputs["custom_error"]
+	assert.Equal(t, "my special snowflake", customError.Value)
+}
+
+func TestNoAutoRetryFlag(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testNoAutoRetry)
+	tmpEnvPath := helpers.CopyEnvironment(t, testNoAutoRetry)
+	rootPath := util.JoinPath(tmpEnvPath, testNoAutoRetry)
+
+	// Test with --no-auto-retry flag - should fail without retry
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --no-auto-retry --non-interactive --working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "Transient error")
+
+	// Cleanup for second test
+	successFile := filepath.Join(rootPath, "success.txt")
+	err = os.Remove(successFile)
+	require.NoError(t, err)
+	cleanupTerraformFolder(t, testNoAutoRetry)
+
+	// Test without flag - should succeed with retry
+	_, stderr2, err2 := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err2)
+	assert.Contains(t, stderr2, "Encountered retryable error")
 }
