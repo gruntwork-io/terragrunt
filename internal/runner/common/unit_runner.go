@@ -93,16 +93,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
 		// Get the unit path (already computed above)
-		unitPath := runner.Unit.Path
-		if !filepath.IsAbs(unitPath) {
-			p, absErr := filepath.Abs(unitPath)
-			if absErr != nil {
-				runner.Unit.Logger.Errorf("Error getting absolute path for unit %s: %v", runner.Unit.Path, absErr)
-			} else {
-				unitPath = p
-			}
-		}
-
+		unitPath := runner.Unit.AbsolutePath(runner.Unit.Logger)
 		unitPath = util.CleanPath(unitPath)
 
 		if runErr != nil {

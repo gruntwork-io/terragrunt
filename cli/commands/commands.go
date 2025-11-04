@@ -212,7 +212,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Check if OpenTofu is being used
 	if tfImplementation != options.OpenTofuImpl {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
+		return errors.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
 	}
 
 	// Check OpenTofu version > 1.10
@@ -222,11 +222,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	requiredVersion, err := version.NewVersion(minTofuVersionForAutoProviderCacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to parse required version: %w", err)
+		return errors.Errorf("failed to parse required version: %w", err)
 	}
 
 	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
+		return errors.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
 	}
 
 	// Set up the provider cache directory
@@ -234,7 +234,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	if providerCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
-			return fmt.Errorf("failed to get cache directory: %w", err)
+			return errors.Errorf("failed to get cache directory: %w", err)
 		}
 
 		providerCacheDir = filepath.Join(cacheDir, "providers")
@@ -244,7 +244,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	if !filepath.IsAbs(providerCacheDir) {
 		absPath, err := filepath.Abs(providerCacheDir)
 		if err != nil {
-			return fmt.Errorf("failed to get absolute path for provider cache directory: %w", err)
+			return errors.Errorf("failed to get absolute path for provider cache directory: %w", err)
 		}
 
 		providerCacheDir = absPath
@@ -254,7 +254,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
-		return fmt.Errorf("failed to create provider cache directory: %w", err)
+		return errors.Errorf("failed to create provider cache directory: %w", err)
 	}
 
 	// Initialize environment variables map if it's nil
@@ -389,7 +389,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	if !doubleStarEnabled {
 		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
 		if err != nil {
-			return fmt.Errorf("invalid include dirs: %w", err)
+			return errors.Errorf("invalid include dirs: %w", err)
 		}
 	}
 
@@ -406,7 +406,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	if !doubleStarEnabled {
 		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
 		if err != nil {
-			return fmt.Errorf("invalid exclude dirs: %w", err)
+			return errors.Errorf("invalid exclude dirs: %w", err)
 		}
 	}
 

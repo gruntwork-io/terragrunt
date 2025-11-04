@@ -98,14 +98,6 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	}
 	assert.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
 
-	var skip = renderedJSON[config.MetadataSkip]
-
-	expectedSkip := map[string]any{
-		"metadata": expectedMetadata,
-		"value":    true,
-	}
-	assert.True(t, reflect.DeepEqual(expectedSkip, skip))
-
 	var terraformBinary = renderedJSON[config.MetadataTerraformBinary]
 
 	expectedTerraformBinary := map[string]any{

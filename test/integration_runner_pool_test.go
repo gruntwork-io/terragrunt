@@ -1,7 +1,9 @@
 package test_test
 
 import (
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ const (
 	testFixtureMixedConfig            = "fixtures/mixed-config"
 	testFixtureFailFast               = "fixtures/fail-fast"
 	testFixtureRunnerPoolRemoteSource = "fixtures/runner-pool-remote-source"
+	testFixtureAuthProviderParallel   = "fixtures/auth-provider-parallel"
 )
 
 func TestRunnerPoolDiscovery(t *testing.T) {
@@ -132,7 +135,11 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	// create fail.txt in unit-a to trigger a failure
 	helpers.CreateFile(t, testPath, "unit-b", "fail.txt")
 	stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
-	assert.Contains(t, stderr, "invocation failed in ./unit-b")
+	// Check that error output contains terraform error details
+	assert.Contains(t, stderr, "level=error")
+	// Verify that unit-b failed
+	assert.Contains(t, stderr, "Failed to execute")
+	assert.Contains(t, stderr, "in ./unit-b")
 	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
 }
@@ -177,4 +184,59 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	require.NoError(t, err)
 	// Verify that source map values are used
 	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+}
+
+// TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
+// for multiple units during the resolution phase.
+//
+// The test works by:
+// 1. Running terragrunt with --auth-provider-cmd pointing to a script that:
+//   - Creates lock files to coordinate between concurrent invocations
+//   - Detects when multiple auth commands are running simultaneously
+//   - Logs "Auth concurrent" when it detects parallel execution
+//     2. Parsing the output to find "Auth concurrent" messages
+//     3. Verifying that at least one auth command detected concurrent execution
+//     (which is deterministic proof of parallelism)
+func TestAuthProviderParallelExecution(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderParallel)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderParallel)
+
+	authProviderScript := filepath.Join(testPath, "auth-provider.sh")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --auth-provider-cmd "+authProviderScript+" --working-dir "+testPath+" -- validate",
+	)
+	require.NoError(t, err)
+
+	startCount := strings.Count(stderr, "Auth start")
+	endCount := strings.Count(stderr, "Auth end")
+
+	reConcurrent := regexp.MustCompile(`Auth concurrent.*detected=(\d+)`)
+	matches := reConcurrent.FindAllStringSubmatch(stderr, -1)
+
+	maxConcurrent := 0
+
+	for _, match := range matches {
+		detected, convErr := strconv.Atoi(match[1])
+		require.NoError(t, convErr, "Invalid detected count in stderr: %q", match[0])
+
+		if detected > maxConcurrent {
+			maxConcurrent = detected
+		}
+
+		t.Logf("Auth command detected %d concurrent executions", detected)
+	}
+
+	require.GreaterOrEqual(t, startCount, 2, "Expected at least 2 auth start events")
+	require.GreaterOrEqual(t, endCount, 2, "Expected at least 2 auth end events")
+	assert.GreaterOrEqual(t, len(matches), 1,
+		"Expected at least one auth command to detect concurrent execution. "+
+			"This would prove parallel execution. If this fails, auth commands may be running sequentially.")
+	assert.GreaterOrEqual(t, maxConcurrent, 2,
+		"Expected auth commands to detect at least 2 concurrent executions. "+
+			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
 }

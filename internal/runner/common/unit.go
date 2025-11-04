@@ -76,12 +76,7 @@ func (unit *Unit) FlushOutput() error {
 	}
 
 	if writer, ok := unit.TerragruntOptions.Writer.(*UnitWriter); ok {
-		key := unit.Path
-		if !filepath.IsAbs(key) {
-			if abs, err := filepath.Abs(key); err == nil {
-				key = abs
-			}
-		}
+		key := unit.AbsolutePath(unit.Logger)
 
 		mu := getUnitOutputLock(key)
 
@@ -164,6 +159,25 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 // Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
 func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
 	return slices.Contains(targetDirs, unit.Path)
+}
+
+// AbsolutePath returns the absolute path of the unit.
+// If path conversion fails, returns the original path and logs a warning.
+func (unit *Unit) AbsolutePath(l log.Logger) string {
+	if filepath.IsAbs(unit.Path) {
+		return unit.Path
+	}
+
+	absPath, err := filepath.Abs(unit.Path)
+	if err != nil {
+		if l != nil {
+			l.Warnf("Failed to get absolute path for %s: %v", unit.Path, err)
+		}
+
+		return unit.Path
+	}
+
+	return absPath
 }
 
 // getDependenciesForUnit Get the list of units this unit depends on
