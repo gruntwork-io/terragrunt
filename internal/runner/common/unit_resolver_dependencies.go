@@ -2,115 +2,64 @@ package common
 
 import (
 	"context"
-	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const maxLevelsOfRecursion = 20
-
-// Look through the dependencies of the units in the given map and resolve the "external" dependency paths listed in
-// each units config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths).
-// These external dependencies are outside of the current working directory, which means they may not be part of the
-// environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
-// to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
-// the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (r *UnitResolver) resolveExternalDependenciesForUnits(ctx context.Context, l log.Logger, unitsMap, unitsAlreadyProcessed UnitsMap, recursionLevel int) (UnitsMap, error) {
-	allExternalDependencies := UnitsMap{}
-	unitsToSkip := unitsMap.MergeMaps(unitsAlreadyProcessed)
-
-	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
-	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.New(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Units: unitsToSkip})
-	}
-
-	sortedKeys := unitsMap.SortedKeys()
-	for _, key := range sortedKeys {
-		unit := unitsMap[key]
-
-		// Check if this unit has dependencies that are considered "external"
-		if unit.Config.Dependencies == nil || len(unit.Config.Dependencies.Paths) == 0 {
+// flagExternalDependencies processes units that were marked as external by discovery,
+// prompting the user whether to apply them and setting appropriate flags.
+// Discovery has already found, parsed, and marked external dependencies.
+// This function only handles the user-facing logic for deciding whether to run them.
+func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logger, unitsMap UnitsMap) error {
+	for _, unit := range unitsMap {
+		// Check if this unit was marked as external by discovery
+		// External units are outside the working directory
+		if !unit.IsExternal {
 			continue
 		}
 
-		l, unitOpts, err := r.Stack.TerragruntOptions.CloneWithConfigPath(l, config.GetDefaultConfigPath(unit.Path))
-		if err != nil {
-			return nil, err
-		}
+		shouldApply := false
 
-		// For each dependency, check if it's external (outside working dir) and already in unitsToSkip
-		for _, dependencyPath := range unit.Config.Dependencies.Paths {
-			canonicalPath, err := util.CanonicalPath(dependencyPath, unit.Path)
-			if err != nil {
-				return nil, err
-			}
+		if !r.Stack.TerragruntOptions.IgnoreExternalDependencies {
+			// Find a unit that depends on this external dependency for context
+			var dependentUnit *Unit
 
-			// Get the dependency unit from unitsToSkip first (it should be there from discovery)
-			externalDependency, found := unitsToSkip[canonicalPath]
-			if !found {
-				l.Debugf("Dependency %s of unit %s not found in unitsMap (may be excluded or outside discovery scope)", canonicalPath, unit.Path)
-				continue
-			}
+			for _, u := range unitsMap {
+				for _, dep := range u.Dependencies {
+					if dep.Path == unit.Path {
+						dependentUnit = u
+						break
+					}
+				}
 
-			// Skip if not external (inside working directory)
-			// Convert both paths to absolute for proper comparison
-			absCanonicalPath, err := filepath.Abs(canonicalPath)
-			if err != nil {
-				return nil, err
-			}
-
-			absWorkingDir, err := filepath.Abs(r.Stack.TerragruntOptions.WorkingDir)
-			if err != nil {
-				return nil, err
-			}
-
-			if util.HasPathPrefix(absCanonicalPath, absWorkingDir) {
-				l.Debugf("Dependency %s is inside working directory, not treating as external", canonicalPath)
-				continue
-			}
-
-			l.Debugf("Dependency %s is outside working directory, treating as external", canonicalPath)
-
-			// Skip if already processed
-			if _, alreadyFound := allExternalDependencies[externalDependency.Path]; alreadyFound {
-				continue
-			}
-
-			shouldApply := false
-			if !r.Stack.TerragruntOptions.IgnoreExternalDependencies {
-				shouldApply, err = r.confirmShouldApplyExternalDependency(ctx, unit, l, externalDependency, unitOpts)
-				if err != nil {
-					return nil, err
+				if dependentUnit != nil {
+					break
 				}
 			}
 
-			externalDependency.AssumeAlreadyApplied = !shouldApply
-			// Mark external dependencies as excluded if they shouldn't be applied
-			// This ensures they are tracked in the report but not executed
-			if !shouldApply {
-				externalDependency.FlagExcluded = true
+			// If we found a dependent, ask the user
+			if dependentUnit != nil {
+				var err error
+
+				shouldApply, err = r.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, unit.TerragruntOptions)
+				if err != nil {
+					return err
+				}
 			}
+		}
 
-			allExternalDependencies[externalDependency.Path] = externalDependency
+		unit.AssumeAlreadyApplied = !shouldApply
+		// Mark external dependencies as excluded if they shouldn't be applied
+		// This ensures they are tracked in the report but not executed
+		if !shouldApply {
+			unit.FlagExcluded = true
 		}
 	}
 
-	if len(allExternalDependencies) > 0 {
-		recursiveDependencies, err := r.resolveExternalDependenciesForUnits(ctx, l, allExternalDependencies, unitsMap, recursionLevel+1)
-		if err != nil {
-			return allExternalDependencies, err
-		}
-
-		return allExternalDependencies.MergeMaps(recursiveDependencies), nil
-	}
-
-	return allExternalDependencies, nil
+	return nil
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given unit is already
@@ -141,13 +90,14 @@ func (r *UnitResolver) confirmShouldApplyExternalDependency(ctx context.Context,
 }
 
 // telemetryCrossLinkDependencies cross-links dependencies between units
-func (r *UnitResolver) telemetryCrossLinkDependencies(ctx context.Context, unitsMap, externalDependencies UnitsMap, canonicalTerragruntConfigPaths []string) (Units, error) {
+// Discovery has already found all units including external dependencies, so unitsMap contains everything
+func (r *UnitResolver) telemetryCrossLinkDependencies(ctx context.Context, unitsMap, _ UnitsMap, canonicalTerragruntConfigPaths []string) (Units, error) {
 	var crossLinkedUnits Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result, err := unitsMap.MergeMaps(externalDependencies).CrossLinkDependencies(canonicalTerragruntConfigPaths)
+		result, err := unitsMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
 		if err != nil {
 			return err
 		}

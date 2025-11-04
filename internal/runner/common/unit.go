@@ -33,6 +33,7 @@ type Unit struct {
 	Config               config.TerragruntConfig
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
+	IsExternal           bool // Set to true if this unit is outside the working directory (discovered as external dependency)
 }
 
 // per-path output locks to serialize flushes for the same unit
