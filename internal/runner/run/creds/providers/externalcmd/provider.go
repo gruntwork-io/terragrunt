@@ -8,9 +8,9 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"

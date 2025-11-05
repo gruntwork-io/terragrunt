@@ -23,7 +23,7 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 		},
 		{
 			name:       "workdir contains version files",
-			workingDir: "test-fixtures/dir-with-files-to-test-cache-key",
+			workingDir: "../../../test/fixtures/version-files-cache-key",
 			versionFiles: []string{
 				".terraform-version",
 				".tool-versions",
@@ -32,7 +32,7 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 		},
 		{
 			name:       "workdir contains version files and we try to escape the working dir",
-			workingDir: "test-fixtures/dir-with-files-to-test-cache-key",
+			workingDir: "../../../test/fixtures/version-files-cache-key",
 			versionFiles: []string{
 				".terraform-version",
 				".tool-versions",

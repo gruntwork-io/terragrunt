@@ -22,14 +22,16 @@ import (
 )
 
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
-const ModuleManifestName = ".terragrunt-module-manifest"
+const (
+	ModuleManifestName = ".terragrunt-module-manifest"
 
-// ModuleInitRequiredFile is a file to indicate that init should be executed.
-const ModuleInitRequiredFile = ".terragrunt-init-required"
+	// ModuleInitRequiredFile is a file to indicate that init should be executed.
+	ModuleInitRequiredFile = ".terragrunt-init-required"
 
-const tfLintConfig = ".tflint.hcl"
+	tfLintConfig = ".tflint.hcl"
 
-const fileURIScheme = "file://"
+	fileURIScheme = "file://"
+)
 
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
 // 2. Check if module directory exists in temporary folder
@@ -105,7 +107,7 @@ func DownloadTerraformSourceIfNecessary(
 	r *report.Report,
 ) error {
 	if opts.SourceUpdate {
-		l.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", SourceUpdateFlagName, terraformSource.DownloadDir)
+		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return errors.New(err)
