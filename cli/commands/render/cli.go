@@ -2,13 +2,11 @@
 package render
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -121,19 +119,21 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       append(runcmd.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...),
+		Flags: append(
+			append(
+				append(runcmd.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...),
+				shared.NewAllFlag(opts, CommandName, prefix),
+			),
+			shared.NewGraphFlag(opts, CommandName, prefix),
+		),
 		Action: func(ctx *cli.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
-			renderOpts := renderOpts.Clone()
-			renderOpts.TerragruntOptions = tgOpts
+			componentRenderOpts := renderOpts.Clone()
+			componentRenderOpts.TerragruntOptions = tgOpts
 
-			return Run(ctx, l, renderOpts)
+			return Run(ctx, l, componentRenderOpts)
 		},
 	}
-
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
-	// TODO: For backward compatibility, remove after getting rid of the `render-json` command, as supporting the `graph` flag for the `render` command is pointless.
-	cmd = graph.WrapCommand(l, opts, cmd, run.Run, true)
 
 	return cmd
 }

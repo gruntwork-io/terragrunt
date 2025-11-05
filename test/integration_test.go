@@ -623,7 +623,10 @@ func TestHclvalidateValidConfig(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 		rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"))
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"),
+		)
 		require.NoError(t, err)
 	})
 

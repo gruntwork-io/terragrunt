@@ -37,6 +37,10 @@ const (
 	// Concurrency control flags.
 	ParallelismFlagName = "parallelism"
 
+	// Run all and graph flags.
+	AllFlagName   = "all"
+	GraphFlagName = "graph"
+
 	// Backend flags
 	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
@@ -266,6 +270,43 @@ func NewParallelismFlag(opts *options.TerragruntOptions) *flags.Flag {
 		},
 		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), terragruntPrefixControl),
 	)
+}
+
+// NewAllFlag creates a flag for running commands on all units in a stack.
+func NewAllFlag(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) *flags.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	return flags.NewFlag(&cli.BoolFlag{
+		Name:        AllFlagName,
+		Aliases:     []string{"a"},
+		EnvVars:     tgPrefix.EnvVars(AllFlagName),
+		Destination: &opts.RunAll,
+		Usage:       `Run the specified command on the stack of units in the current directory.`,
+		Action: func(_ *cli.Context, _ bool) error {
+			if opts.Graph {
+				return cli.NewExitError("cannot specify both --all and --graph flags", cli.ExitCodeGeneralError)
+			}
+			return nil
+		},
+	})
+}
+
+// NewGraphFlag creates a flag for running commands following the dependency graph.
+func NewGraphFlag(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) *flags.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	return flags.NewFlag(&cli.BoolFlag{
+		Name:        GraphFlagName,
+		EnvVars:     tgPrefix.EnvVars(GraphFlagName),
+		Destination: &opts.Graph,
+		Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
+		Action: func(_ *cli.Context, _ bool) error {
+			if opts.RunAll {
+				return cli.NewExitError("cannot specify both --all and --graph flags", cli.ExitCodeGeneralError)
+			}
+			return nil
+		},
+	})
 }
 
 // NewBackendFlags defines backend-related flags that should be available to both `run` and `backend` commands.
