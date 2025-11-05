@@ -123,6 +123,7 @@ func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logg
 // Why: invert default behavior to run only requested units; optionally include deps unless StrictInclude.
 // Matching: glob when doubleStarEnabled; otherwise exact path prefix.
 // Behavior: no-op when ExcludeByDefault is false.
+// When ExcludeByDefault is true but no include dirs are specified, excludes all units (used by --units-that-include).
 // Examples: "**/prod/**", "apps/*/service-a", "envs/us-west-2".
 func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
 	if !opts.ExcludeByDefault {
@@ -168,7 +169,7 @@ func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExclu
 
 // flagUnitsThatRead iterates over a unit slice and flags all units that read at least one file in the specified
 // file list. This handles both --units-that-include (UnitsReading) and legacy ModulesThatInclude flags.
-// Discovery already tracked all files read during parsing in the Reading field, so we simply check against that.
+// Checks both unit.Reading (populated by discovery's FilesRead tracking) and Config.ProcessedIncludes (include blocks).
 func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units Units) Units {
 	// Combine both UnitsReading (new) and ModulesThatInclude (legacy) for backwards compatibility
 	filesToCheck := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
@@ -177,15 +178,37 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 		return units
 	}
 
+	// Normalize paths to match the format used by config parsing.
+	// Config joins relative paths with WorkingDir and cleans them.
+	normalizedPaths := []string{}
+
 	for _, path := range filesToCheck {
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(opts.WorkingDir, path)
-			path = filepath.Clean(path)
+		normalized := path
+
+		if !filepath.IsAbs(normalized) {
+			normalized = util.JoinPath(opts.WorkingDir, normalized)
+			normalized = util.CleanPath(normalized)
 		}
 
+		normalizedPaths = append(normalizedPaths, normalized)
+	}
+
+	// Check each unit against the normalized paths
+	for _, normalizedPath := range normalizedPaths {
 		for _, unit := range units {
-			if slices.Contains(unit.Reading, path) {
+			// Check unit.Reading (populated by discovery's FilesRead tracking)
+			if slices.Contains(unit.Reading, normalizedPath) {
 				unit.FlagExcluded = false
+				continue
+			}
+
+			// Fallback: check Config.ProcessedIncludes (include blocks from config)
+			// This is needed because unit.Reading may not be populated in all cases
+			for _, includeConfig := range unit.Config.ProcessedIncludes {
+				if includeConfig.Path == normalizedPath {
+					unit.FlagExcluded = false
+					break
+				}
 			}
 		}
 	}
