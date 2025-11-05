@@ -67,7 +67,11 @@ jobs:
           $smctlPath = Get-Command smctl.exe -ErrorAction SilentlyContinue
           if ($smctlPath) {
             Write-Host "✅ smctl.exe found at: $($smctlPath.Source)"
-            & smctl.exe version
+            # Verify smctl is working (--help is a valid command)
+            $null = & smctl.exe --help 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✅ smctl.exe is functional"
+            }
           } else {
             Write-Error "❌ smctl.exe not found in PATH"
             exit 1
