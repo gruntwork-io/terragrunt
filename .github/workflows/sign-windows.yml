@@ -309,10 +309,11 @@ jobs:
             Write-Host "Signing: $($binary.Name)"
             Write-Host "========================================="
 
-            # Sign using signtool with DigiCert KSP
-            # The certificate should already be synced by the DigiCert action
+            # Sign using signtool with DigiCert KeyLocker KSP
+            # Use /csp and /kc instead of /sha1 for KeyLocker
             & $signtoolPath sign `
-              /sha1 $env:DIGICERT_KEYPAIR_ALIAS `
+              /csp "DigiCert Signing Manager KSP" `
+              /kc $env:DIGICERT_KEYPAIR_ALIAS `
               /tr http://timestamp.digicert.com `
               /td SHA256 `
               /fd SHA256 `
