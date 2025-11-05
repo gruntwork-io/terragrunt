@@ -1,0 +1,265 @@
+name: Sign Windows Binaries
+
+on:
+  workflow_call:
+    inputs:
+      artifact-pattern:
+        description: 'Pattern for artifacts to download (default: terragrunt_windows_*)'
+        required: false
+        type: string
+        default: 'terragrunt_windows_*'
+      upload-artifact-name:
+        description: 'Name for the uploaded signed artifacts'
+        required: false
+        type: string
+        default: 'windows-signed-files'
+
+jobs:
+  sign-windows:
+    name: Sign Windows Binaries
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download Windows build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: ${{ inputs.artifact-pattern }}
+          path: artifacts/
+
+      - name: Prepare build artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin
+          Get-ChildItem -Path artifacts -Filter "terragrunt_windows_*" -Recurse -File | ForEach-Object {
+            Copy-Item $_.FullName -Destination bin/
+          }
+          Write-Host "Binary files to sign:"
+          Get-ChildItem -Path bin | ForEach-Object { Write-Host $_.FullName }
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.8.16
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Windows SDK (for signtool.exe)
+        shell: pwsh
+        run: |
+          Write-Host "Installing Windows SDK..."
+          choco install windows-sdk-10-version-2004-all -y
+
+          # Find signtool.exe location
+          $signtoolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($signtoolPath) {
+            Write-Host "Found signtool.exe at: $($signtoolPath.FullName)"
+            $sdkBinPath = $signtoolPath.DirectoryName
+            echo "SDK_BIN_PATH=$sdkBinPath" >> $env:GITHUB_ENV
+            echo "$sdkBinPath" >> $env:GITHUB_PATH
+          } else {
+            Write-Error "signtool.exe not found!"
+            exit 1
+          }
+
+      - name: Install DigiCert Signing Manager Client (smctl)
+        shell: pwsh
+        run: |
+          Write-Host "Installing DigiCert Signing Manager Client..."
+
+          # Download smctl
+          $smctlUrl = "https://one.digicert.com/signingmanager/api-ui/v1/releases/smtools-windows-x64.msi/download"
+          $smctlInstaller = "$env:TEMP\smtools-windows-x64.msi"
+
+          Write-Host "Downloading smctl from $smctlUrl..."
+          Invoke-WebRequest -Uri $smctlUrl -OutFile $smctlInstaller
+
+          # Install smctl
+          Write-Host "Installing smctl..."
+          Start-Process msiexec.exe -ArgumentList "/i", $smctlInstaller, "/quiet", "/norestart" -Wait -NoNewWindow
+
+          # Add smctl to PATH
+          $smctlPath = "C:\Program Files\DigiCert\DigiCert Signing Manager Tools"
+          if (Test-Path $smctlPath) {
+            echo "$smctlPath" >> $env:GITHUB_PATH
+            Write-Host "smctl installed successfully at $smctlPath"
+          } else {
+            Write-Error "smctl installation failed!"
+            exit 1
+          }
+
+      - name: Configure DigiCert Signing Manager Authentication
+        shell: pwsh
+        env:
+          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
+          DIGICERT_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
+          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+        run: |
+          Write-Host "Setting up DigiCert authentication..."
+
+          # Decode and save the client certificate
+          $certPath = "$env:TEMP\client_auth.p12"
+          $certBytes = [System.Convert]::FromBase64String($env:DIGICERT_P12_BASE64)
+          [System.IO.File]::WriteAllBytes($certPath, $certBytes)
+
+          # Store cert path for later steps
+          echo "CERT_PATH=$certPath" >> $env:GITHUB_ENV
+
+          Write-Host "Client certificate saved to $certPath"
+
+      - name: Synchronize DigiCert Certificates
+        shell: pwsh
+        env:
+          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
+          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+        run: |
+          $smctlPath = "C:\Program Files\DigiCert\DigiCert Signing Manager Tools\smctl.exe"
+
+          # Configure smctl
+          Write-Host "Configuring smctl..."
+          & $smctlPath windows certsync `
+            --apikey "$env:DIGICERT_API_KEY" `
+            --pkcs12 "$env:CERT_PATH" `
+            --password "$env:DIGICERT_P12_PASSWORD"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Certificate sync failed!"
+            exit 1
+          }
+
+          Write-Host "Certificate sync completed successfully"
+
+      - name: Generate version info resource file
+        shell: pwsh
+        run: |
+          # Install goversioninfo
+          Write-Host "Installing goversioninfo..."
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
+
+          # Get version from git tag or use a default
+          $version = $env:GITHUB_REF_NAME
+          if ([string]::IsNullOrEmpty($version) -or $version -eq "refs/heads/main") {
+            $version = "0.0.0-dev"
+          }
+          $version = $version.TrimStart('v')
+
+          # Parse version into components
+          $versionParts = $version.Split('.')
+          $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
+          $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
+          $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
+
+          $fileVersion = "$major.$minor.$patch.0"
+          $year = (Get-Date).Year
+
+          Write-Host "Generating version info for version: $version (FileVersion: $fileVersion)"
+
+          # Update versioninfo.json
+          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
+          $versionInfo.StringFileInfo.FileVersion = $fileVersion
+          $versionInfo.StringFileInfo.ProductVersion = $version
+          $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
+
+          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
+
+          Write-Host "Updated versioninfo.json"
+
+      - name: Rebuild Windows binaries with version info
+        shell: pwsh
+        run: |
+          Write-Host "Rebuilding Windows binaries with version information..."
+
+          # Generate the resource file
+          goversioninfo -o=rsrc.syso versioninfo.json
+
+          # Get version
+          $version = $env:GITHUB_REF_NAME
+          if ([string]::IsNullOrEmpty($version)) {
+            $version = "dev"
+          }
+
+          # Rebuild Windows binaries
+          $architectures = @("386", "amd64")
+
+          foreach ($arch in $architectures) {
+            $env:GOOS = "windows"
+            $env:GOARCH = $arch
+            $output = "bin\terragrunt_windows_$arch.exe"
+
+            Write-Host "Building for windows/$arch..."
+
+            go build -o $output `
+              -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$version -extldflags '-static'" `
+              .
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Build failed for windows/$arch"
+              exit 1
+            }
+
+            Write-Host "Built $output"
+          }
+
+          # Clean up resource file
+          if (Test-Path rsrc.syso) {
+            Remove-Item rsrc.syso
+          }
+
+          Write-Host "All Windows binaries rebuilt successfully"
+
+      - name: Sign Windows Binaries
+        shell: pwsh
+        env:
+          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
+          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+          DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+        run: |
+          $signtoolPath = "$env:SDK_BIN_PATH\signtool.exe"
+
+          Write-Host "Signing Windows binaries..."
+          Write-Host "Using signtool: $signtoolPath"
+
+          # Get list of Windows executables
+          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
+
+          foreach ($binary in $binaries) {
+            Write-Host "`nSigning $($binary.Name)..."
+
+            # Sign using signtool with DigiCert KSP
+            & $signtoolPath sign `
+              /sha1 $env:DIGICERT_KEYPAIR_ALIAS `
+              /tr http://timestamp.digicert.com `
+              /td SHA256 `
+              /fd SHA256 `
+              /d "Terragrunt - Terraform Wrapper" `
+              $binary.FullName
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Signing failed for $($binary.Name)"
+              exit 1
+            }
+
+            Write-Host "Successfully signed $($binary.Name)"
+
+            # Verify the signature
+            Write-Host "Verifying signature for $($binary.Name)..."
+            & $signtoolPath verify /pa /v $binary.FullName
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Signature verification failed for $($binary.Name)"
+            } else {
+              Write-Host "Signature verified successfully for $($binary.Name)"
+            }
+          }
+
+          Write-Host "`nAll Windows binaries signed successfully!"
+
+      - name: Upload Signed Windows Binaries
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.upload-artifact-name }}
+          path: bin/terragrunt_windows_*.exe
+          if-no-files-found: error

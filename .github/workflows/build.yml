@@ -2,6 +2,10 @@ name: Build
 
 on:
   workflow_call:
+    outputs:
+      artifact-name:
+        description: "Name of the artifact containing all signed binaries"
+        value: all-signed-binaries
 
 jobs:
   build:
@@ -66,79 +70,49 @@ jobs:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
-  sign:
-    name: Sign Binaries
+  # Sign macOS binaries on every build
+  sign-macos:
+    name: Sign macOS Binaries
     needs: build
-    runs-on: macos-latest
-    env:
-      MISE_PROFILE: cicd
-      GON_VERSION: v0.0.37
+    uses: ./.github/workflows/sign-macos.yml
+    secrets: inherit
+
+  # Sign Windows binaries on every build
+  sign-windows:
+    name: Sign Windows Binaries
+    needs: build
+    uses: ./.github/workflows/sign-windows.yml
+    secrets: inherit
+
+  # Combine all signed binaries into one artifact
+  combine:
+    name: Combine All Binaries
+    needs: [build, sign-macos, sign-windows]
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Download all build artifacts
+      - name: Download all signed artifacts
         uses: actions/download-artifact@v6
         with:
+          pattern: "*-signed-files"
           path: artifacts/
 
-      - name: Prepare build artifacts
+      - name: Download Linux artifacts (unsigned)
+        uses: actions/download-artifact@v6
+        with:
+          pattern: terragrunt_linux_*
+          path: artifacts/
+
+      - name: Combine all binaries
         run: |
           mkdir -p bin
           find artifacts -type f -exec cp {} bin/ \;
+          echo "All binaries combined:"
           ls -lahrt bin/*
 
-      - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
-        with:
-          version: 2025.8.16
-          experimental: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache gon binary
-        id: cache-gon
-        uses: actions/cache@v4
-        with:
-          path: gon
-          key: gon-${{ env.GON_VERSION }}
-
-      - name: Download gon release
-        if: steps.cache-gon.outputs.cache-hit != 'true'
-        run: |
-          curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
-          unzip gon.zip
-          chmod +x gon
-
-      - name: Move gon to system path
-        run: |
-          sudo mv gon /usr/local/bin/gon
-          sudo chmod +x /usr/local/bin/gon
-
-      - name: Run gon version
-        run: |
-          gon --version
-
-      - name: Sign Binaries
-        env:
-          AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
-          AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
-          AC_USERNAME: ${{ secrets.MACOS_AC_LOGIN }}
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          ls -lahrt bin/*
-          file bin/terragrunt_linux_arm64
-          .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
-          .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
-          echo "Done signing the binary"
-
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
-
-      - name: Upload Signed Executables
+      - name: Upload Combined Binaries
         uses: actions/upload-artifact@v5
         with:
-          name: signed-files
+          name: all-signed-binaries
           path: bin/*
+          retention-days: 90
