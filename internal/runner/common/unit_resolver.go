@@ -151,12 +151,12 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
-	withUnitsIncluded, err := r.telemetryFlagIncludedDirs(ctx, l, crossLinkedUnits)
+	withUnitsIncluded, err := r.telemetryApplyIncludeDirs(ctx, l, crossLinkedUnits)
 	if err != nil {
 		return nil, err
 	}
 
-	withUnitsThatAreIncludedByOthers, err := r.telemetryFlagUnitsThatAreIncluded(ctx, withUnitsIncluded)
+	withUnitsThatAreIncludedByOthers, err := r.telemetryApplyModulesInclude(ctx, withUnitsIncluded)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +170,12 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 
 	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
 	// This ensures units excluded via CLI get the correct reason in reports
-	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
+	withUnitsExcludedByDirs, err := r.telemetryApplyExcludeDirs(ctx, l, withUnitsRead)
 	if err != nil {
 		return nil, err
 	}
 
-	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
+	withExcludedUnits, err := r.telemetryApplyExcludeModules(ctx, l, withUnitsExcludedByDirs)
 	if err != nil {
 		return nil, err
 	}

@@ -110,26 +110,26 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 	}
 }
 
-// telemetryFlagIncludedDirs flags directories that are included in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagIncludedDirs(ctx context.Context, l log.Logger, crossLinkedUnits Units) (Units, error) {
+// telemetryApplyIncludeDirs applies include directory filters and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logger, crossLinkedUnits Units) (Units, error) {
 	var withUnitsIncluded Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_included_dirs", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_include_dirs", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsIncluded = r.flagIncludedDirs(r.Stack.TerragruntOptions, l, crossLinkedUnits)
+		withUnitsIncluded = r.applyIncludeDirs(r.Stack.TerragruntOptions, l, crossLinkedUnits)
 		return nil
 	})
 
 	return withUnitsIncluded, err
 }
 
-// flagIncludedDirs includes units when --terragrunt-include-dir is used (ExcludeByDefault).
+// applyIncludeDirs sets FlagExcluded on units based on --terragrunt-include-dir patterns (when ExcludeByDefault is true).
 // Why: invert default behavior to run only requested units; optionally include deps unless StrictInclude.
 // Matching: glob when doubleStarEnabled; otherwise exact path prefix.
 // Behavior: no-op when ExcludeByDefault is false.
 // Examples: "**/prod/**", "apps/*/service-a", "envs/us-west-2".
-func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
+func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
 	if !opts.ExcludeByDefault {
 		return units
 	}
@@ -157,14 +157,14 @@ func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.L
 	return units
 }
 
-// telemetryFlagUnitsThatAreIncluded flags units that are included in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagUnitsThatAreIncluded(ctx context.Context, withUnitsIncluded Units) (Units, error) {
+// telemetryApplyModulesInclude applies modules-that-include filter and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyModulesInclude(ctx context.Context, withUnitsIncluded Units) (Units, error) {
 	var withUnitsThatAreIncludedByOthers Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_are_included", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_modules_include", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result, err := r.flagUnitsThatAreIncluded(r.Stack.TerragruntOptions, withUnitsIncluded)
+		result, err := r.applyModulesInclude(r.Stack.TerragruntOptions, withUnitsIncluded)
 		if err != nil {
 			return err
 		}
@@ -177,11 +177,11 @@ func (r *UnitResolver) telemetryFlagUnitsThatAreIncluded(ctx context.Context, wi
 	return withUnitsThatAreIncludedByOthers, err
 }
 
-// flagUnitsThatAreIncluded includes units that reference specific config files.
+// applyModulesInclude sets FlagExcluded on units that include specific config files.
 // Why: support --terragrunt-modules-that-include to target modules including given files.
 // Behavior: canonicalize targets, check each unit and its dependencies' ProcessedIncludes; mark included when matched.
 // Examples: "root.hcl", "region.hcl", "_common.hcl".
-func (r *UnitResolver) flagUnitsThatAreIncluded(opts *options.TerragruntOptions, units Units) (Units, error) {
+func (r *UnitResolver) applyModulesInclude(opts *options.TerragruntOptions, units Units) (Units, error) {
 	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
 	if len(unitsThatInclude) == 0 {
@@ -300,28 +300,28 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 	return units
 }
 
-// telemetryFlagExcludedDirs flags directories that are excluded in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logger, withUnitsRead Units) (Units, error) {
+// telemetryApplyExcludeDirs applies exclude directory filters and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyExcludeDirs(ctx context.Context, l log.Logger, withUnitsRead Units) (Units, error) {
 	var withUnitsExcluded Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_exclude_dirs", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsExcluded = r.flagExcludedDirs(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsRead)
+		withUnitsExcluded = r.applyExcludeDirs(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsRead)
 		return nil
 	})
 
 	return withUnitsExcluded, err
 }
 
-// flagExcludedDirs excludes units that match --terragrunt-exclude-dir patterns.
+// applyExcludeDirs sets FlagExcluded on units that match --terragrunt-exclude-dir patterns.
 // Why: enforce explicit user exclusions with highest precedence and preserve exclusion reasons in reports.
 // Matching: uses glob patterns when doubleStarEnabled; otherwise exact path prefix matching.
 // Examples:
 //   - "**/staging/**"
 //   - "modules/*/test"
 //   - "envs/prod"
-func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
+func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	// If we don't have any excludes, we don't need to do anything.
 	if (len(r.excludeGlobs) == 0 && r.doubleStarEnabled) || len(opts.ExcludeDirs) == 0 {
 		return units
@@ -356,14 +356,14 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	return units
 }
 
-// telemetryFlagExcludedUnits flags units that are excluded in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers Units) (Units, error) {
+// telemetryApplyExcludeModules applies exclude-modules filter and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers Units) (Units, error) {
 	var withExcludedUnits Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_exclude_modules", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result := r.flagExcludedUnits(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
+		result := r.applyExcludeModules(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
 		withExcludedUnits = result
 
 		return nil
@@ -372,8 +372,8 @@ func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Log
 	return withExcludedUnits, err
 }
 
-// flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.
-func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
+// applyExcludeModules sets FlagExcluded on units based on the exclude block in their terragrunt.hcl.
+func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	for _, unit := range units {
 		excludeConfig := unit.Config.Exclude
 
