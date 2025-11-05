@@ -259,6 +259,16 @@ jobs:
         run: |
           Write-Host "Signing Windows binaries..."
 
+          # Validate keypair alias is set
+          if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
+            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS environment variable is empty"
+            Write-Host "Please ensure the GitHub secret WINDOWS_SIGNING_KEYPAIR_ALIAS is set"
+            Write-Host "It should contain the keypair alias from DigiCert KeyLocker (e.g., key_1028388410)"
+            exit 1
+          }
+
+          Write-Host "Keypair alias: $env:DIGICERT_KEYPAIR_ALIAS"
+
           # Find signtool (should be in PATH after DigiCert action)
           $signtoolPath = Get-Command signtool.exe -ErrorAction SilentlyContinue
           if (-not $signtoolPath) {
@@ -266,7 +276,7 @@ jobs:
             if ($env:SDK_BIN_PATH) {
               $signtoolPath = "$env:SDK_BIN_PATH\signtool.exe"
             } else {
-              Write-Error "signtool.exe not found in PATH or SDK_BIN_PATH"
+              Write-Error "❌ signtool.exe not found in PATH or SDK_BIN_PATH"
               exit 1
             }
           } else {
@@ -275,11 +285,29 @@ jobs:
 
           Write-Host "Using signtool: $signtoolPath"
 
+          # List available certificates in Windows store (for debugging)
+          Write-Host "`nListing certificates in 'My' store:"
+          try {
+            $certOutput = & certutil -store My 2>&1
+            $certOutput | Select-String -Pattern "Subject|Thumbprint|Cert Hash" | ForEach-Object { Write-Host "  $_" }
+          } catch {
+            Write-Warning "Could not list certificates: $_"
+          }
+
           # Get list of Windows executables
           $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
 
+          if ($binaries.Count -eq 0) {
+            Write-Error "❌ No Windows binaries found in bin/ directory"
+            exit 1
+          }
+
+          Write-Host "`nFound $($binaries.Count) binaries to sign"
+
           foreach ($binary in $binaries) {
-            Write-Host "`nSigning $($binary.Name)..."
+            Write-Host "`n========================================="
+            Write-Host "Signing: $($binary.Name)"
+            Write-Host "========================================="
 
             # Sign using signtool with DigiCert KSP
             # The certificate should already be synced by the DigiCert action
@@ -292,24 +320,32 @@ jobs:
               $binary.FullName
 
             if ($LASTEXITCODE -ne 0) {
-              Write-Error "Signing failed for $($binary.Name)"
+              Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
+              Write-Host "`nTroubleshooting tips:"
+              Write-Host "  1. Verify keypair alias is correct: $env:DIGICERT_KEYPAIR_ALIAS"
+              Write-Host "  2. Check that DigiCert action successfully synced certificates"
+              Write-Host "  3. Ensure the certificate is visible in Windows certificate store above"
+              Write-Host "  4. Verify network connectivity to timestamp server"
               exit 1
             }
 
-            Write-Host "Successfully signed $($binary.Name)"
+            Write-Host "✅ Successfully signed $($binary.Name)"
 
             # Verify the signature
             Write-Host "Verifying signature for $($binary.Name)..."
             & $signtoolPath verify /pa /v $binary.FullName
 
             if ($LASTEXITCODE -ne 0) {
-              Write-Warning "Signature verification failed for $($binary.Name)"
+              Write-Warning "⚠️  Signature verification failed for $($binary.Name)"
+              Write-Host "This may be expected if running on a system without the full cert chain"
             } else {
-              Write-Host "Signature verified successfully for $($binary.Name)"
+              Write-Host "✅ Signature verified successfully for $($binary.Name)"
             }
           }
 
-          Write-Host "`nAll Windows binaries signed successfully!"
+          Write-Host "`n========================================="
+          Write-Host "✅ All Windows binaries signed successfully!"
+          Write-Host "========================================="
 
       - name: Upload Signed Windows Binaries
         uses: actions/upload-artifact@v5
