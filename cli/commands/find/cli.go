@@ -3,7 +3,6 @@
 package find
 
 import (
-	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -109,8 +108,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 
 	// Base flags for find plus backend/feature flags
 	flags := NewFlags(cmdOpts, nil)
-	flags = append(flags, runCmd.NewBackendFlags(l, opts, nil)...)
-	flags = append(flags, runCmd.NewFeatureFlags(l, opts, nil)...)
+	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
+	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
 
 	return &cli.Command{
 		Name:    CommandName,

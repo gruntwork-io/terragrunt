@@ -6,7 +6,6 @@ package graph
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -18,17 +17,16 @@ const (
 )
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
-	// Build flags: queue flags + backend/feature flags + filter flag
-	cmdFlags := shared.NewQueueFlags(opts, nil)
-	cmdFlags = append(cmdFlags, runCmd.NewBackendFlags(l, opts, nil)...)
-	cmdFlags = append(cmdFlags, runCmd.NewFeatureFlags(l, opts, nil)...)
-	cmdFlags = append(cmdFlags, shared.NewFilterFlag(opts))
+	sharedFlags := shared.NewQueueFlags(opts, nil)
+	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
+	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
+	sharedFlags = append(sharedFlags, shared.NewFilterFlag(opts))
 
 	return &cli.Command{
 		Name:      CommandName,
 		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language. Alias for 'list --format=dot --dag --dependencies --external'.",
 		UsageText: "terragrunt dag graph",
-		Flags:     cmdFlags,
+		Flags:     sharedFlags,
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts)
 		},

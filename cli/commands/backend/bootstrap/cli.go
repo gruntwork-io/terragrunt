@@ -2,8 +2,8 @@ package bootstrap
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -13,12 +13,14 @@ import (
 const CommandName = "bootstrap"
 
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	base := runcmd.NewFlags(l, opts, prefix).Filter(runcmd.ConfigFlagName, runcmd.DownloadDirFlagName)
-	// Also include backend-related and feature flags explicitly for backend commands
-	base = append(base, runcmd.NewBackendFlags(l, opts, prefix)...)
-	base = append(base, runcmd.NewFeatureFlags(l, opts, prefix)...)
+	sharedFlags := cli.Flags{
+		shared.NewConfigFlag(opts, prefix, CommandName),
+		shared.NewDownloadDirFlag(opts, prefix, CommandName),
+	}
+	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, prefix)...)
+	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, prefix)...)
 
-	return base
+	return sharedFlags
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
