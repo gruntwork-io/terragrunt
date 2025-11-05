@@ -187,8 +187,11 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 
 		if !filepath.IsAbs(normalized) {
 			normalized = util.JoinPath(opts.WorkingDir, normalized)
-			normalized = util.CleanPath(normalized)
 		}
+
+		// Always clean the path (whether it was relative and joined, or already absolute)
+		// to ensure consistent path separators across platforms (especially Windows)
+		normalized = util.CleanPath(normalized)
 
 		normalizedPaths = append(normalizedPaths, normalized)
 	}
