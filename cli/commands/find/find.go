@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -282,16 +283,17 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 
 // outputText outputs the discovered components in text format.
 func outputText(l log.Logger, opts *Options, components FoundComponents) error {
+	var buf strings.Builder
+
 	colorizer := NewColorizer(shouldColor(l))
 
 	for _, c := range components {
-		_, err := opts.Writer.Write([]byte(colorizer.Colorize(c) + "\n"))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	return nil
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }
 
 // shouldColor returns true if the output should be colored.
