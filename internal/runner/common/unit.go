@@ -238,9 +238,11 @@ func (unitsMap UnitsMap) FindByPath(path string) *Unit {
 	return nil
 }
 
-// CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If
-// a dependency is referenced that is not in the given map, return an error.
-func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []string) (Units, error) {
+// ConvertDiscoveryToRunner converts units from discovery domain to runner domain by resolving
+// Component interface dependencies into concrete *Unit pointer dependencies.
+// Discovery found all dependencies and stored them as Component interfaces, but runner needs
+// concrete *Unit pointers for efficient execution. This function translates between domains.
+func (unitsMap UnitsMap) ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths []string) (Units, error) {
 	units := Units{}
 
 	keys := unitsMap.SortedKeys()

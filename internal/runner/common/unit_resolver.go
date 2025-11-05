@@ -122,16 +122,16 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
 	}
 
-	// Cross-link dependencies - convert from discovery domain to runner domain
-	// Discovery found all dependencies, but we need to convert component.Component pointers to common.Unit pointers
+	// Convert from discovery domain to runner domain
+	// Discovery found all dependencies as Component interfaces, but runner needs concrete *Unit pointers
 	var crossLinkedUnits Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "convert_discovery_to_runner", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		var linkErr error
 
-		crossLinkedUnits, linkErr = unitsMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
+		crossLinkedUnits, linkErr = unitsMap.ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths)
 
 		return linkErr
 	})
@@ -156,7 +156,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
-	withUnitsThatAreIncludedByOthers, err := r.telemetryApplyModulesInclude(ctx, withUnitsIncluded)
+	withUnitsThatAreIncludedByOthers, err := r.telemetryApplyUnitsThatInclude(ctx, withUnitsIncluded)
 	if err != nil {
 		return nil, err
 	}

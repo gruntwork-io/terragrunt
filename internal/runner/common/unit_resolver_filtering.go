@@ -124,7 +124,7 @@ func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logg
 	return withUnitsIncluded, err
 }
 
-// applyIncludeDirs sets FlagExcluded on units based on --terragrunt-include-dir patterns (when ExcludeByDefault is true).
+// applyIncludeDirs sets FlagExcluded on units based on --queue-include-dir patterns (when ExcludeByDefault is true).
 // Why: invert default behavior to run only requested units; optionally include deps unless StrictInclude.
 // Matching: glob when doubleStarEnabled; otherwise exact path prefix.
 // Behavior: no-op when ExcludeByDefault is false.
@@ -157,14 +157,14 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 	return units
 }
 
-// telemetryApplyModulesInclude applies modules-that-include filter and sets FlagExcluded accordingly
-func (r *UnitResolver) telemetryApplyModulesInclude(ctx context.Context, withUnitsIncluded Units) (Units, error) {
+// telemetryApplyUnitsThatInclude applies units-that-include filter and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyUnitsThatInclude(ctx context.Context, withUnitsIncluded Units) (Units, error) {
 	var withUnitsThatAreIncludedByOthers Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_modules_include", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_units_that_include", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result, err := r.applyModulesInclude(r.Stack.TerragruntOptions, withUnitsIncluded)
+		result, err := r.applyUnitsThatInclude(r.Stack.TerragruntOptions, withUnitsIncluded)
 		if err != nil {
 			return err
 		}
@@ -177,11 +177,11 @@ func (r *UnitResolver) telemetryApplyModulesInclude(ctx context.Context, withUni
 	return withUnitsThatAreIncludedByOthers, err
 }
 
-// applyModulesInclude sets FlagExcluded on units that include specific config files.
-// Why: support --terragrunt-modules-that-include to target modules including given files.
+// applyUnitsThatInclude sets FlagExcluded on units that include specific config files.
+// Why: support --units-that-include to target units including given files.
 // Behavior: canonicalize targets, check each unit and its dependencies' ProcessedIncludes; mark included when matched.
 // Examples: "root.hcl", "region.hcl", "_common.hcl".
-func (r *UnitResolver) applyModulesInclude(opts *options.TerragruntOptions, units Units) (Units, error) {
+func (r *UnitResolver) applyUnitsThatInclude(opts *options.TerragruntOptions, units Units) (Units, error) {
 	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
 	if len(unitsThatInclude) == 0 {
@@ -314,7 +314,7 @@ func (r *UnitResolver) telemetryApplyExcludeDirs(ctx context.Context, l log.Logg
 	return withUnitsExcluded, err
 }
 
-// applyExcludeDirs sets FlagExcluded on units that match --terragrunt-exclude-dir patterns.
+// applyExcludeDirs sets FlagExcluded on units that match --queue-exclude-dir patterns.
 // Why: enforce explicit user exclusions with highest precedence and preserve exclusion reasons in reports.
 // Matching: uses glob patterns when doubleStarEnabled; otherwise exact path prefix matching.
 // Examples:
