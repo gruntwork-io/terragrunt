@@ -3,10 +3,10 @@ package validate
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )

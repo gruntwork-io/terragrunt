@@ -96,20 +96,16 @@ func (r *UnitResolver) WithFilters(filters ...UnitFilter) *UnitResolver {
 
 // ResolveFromDiscovery builds units starting from discovery-parsed components, avoiding re-parsing
 // for initially discovered units. It preserves the same filtering and dependency resolution pipeline.
+// Discovery has already found and parsed all dependencies including external ones.
 func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (Units, error) {
 	unitsMap, err := r.telemetryBuildUnitsFromDiscovery(ctx, l, discovered)
 	if err != nil {
 		return nil, err
 	}
 
-	externalDependencies, err := r.telemetryResolveExternalDependencies(ctx, l, unitsMap)
-	if err != nil {
-		return nil, err
-	}
-
 	// Build the canonical config paths list for cross-linking
-	// Include both discovered units and external dependencies
-	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered)+len(externalDependencies))
+	// Discovery already found all units including external dependencies
+	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered))
 	for _, c := range discovered {
 		if c.Kind() == component.StackKind {
 			continue
@@ -126,50 +122,57 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
 	}
 
-	// Add external dependencies to canonical paths list
-	for _, extDep := range externalDependencies {
-		// Use the actual TerragruntConfigPath from the unit's options
-		// This handles non-default config file names correctly
-		if extDep.TerragruntOptions != nil && extDep.TerragruntOptions.TerragruntConfigPath != "" {
-			canonicalPath, err := util.CanonicalPath(extDep.TerragruntOptions.TerragruntConfigPath, ".")
-			if err != nil {
-				return nil, errors.Errorf("canonicalizing terragrunt config path %q for external dependency %s: %w", extDep.TerragruntOptions.TerragruntConfigPath, extDep.Path, err)
-			}
+	// Convert from discovery domain to runner domain
+	// Discovery found all dependencies as Component interfaces, but runner needs concrete *Unit pointers
+	var crossLinkedUnits Units
 
-			canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
-		}
-	}
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "convert_discovery_to_runner", map[string]any{
+		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+	}, func(_ context.Context) error {
+		var linkErr error
 
-	crossLinkedUnits, err := r.telemetryCrossLinkDependencies(ctx, unitsMap, externalDependencies, canonicalTerragruntConfigPaths)
+		crossLinkedUnits, linkErr = unitsMap.ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths)
+
+		return linkErr
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	withUnitsIncluded, err := r.telemetryFlagIncludedDirs(ctx, l, crossLinkedUnits)
-	if err != nil {
+	// Flag external dependencies and prompt user for confirmation
+	// This must happen AFTER cross-linking so Dependencies field is populated
+	// Convert Units list back to map for flagging
+	crossLinkedMap := make(UnitsMap)
+	for _, unit := range crossLinkedUnits {
+		crossLinkedMap[unit.Path] = unit
+	}
+
+	if err := r.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
 		return nil, err
 	}
 
-	withUnitsThatAreIncludedByOthers, err := r.telemetryFlagUnitsThatAreIncluded(ctx, withUnitsIncluded)
+	withUnitsIncluded, err := r.telemetryApplyIncludeDirs(ctx, l, crossLinkedUnits)
 	if err != nil {
 		return nil, err
 	}
 
 	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
 	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
-	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
+	// This handles both --units-that-include and legacy ModulesThatInclude flags.
+	// Discovery already tracked all files read during parsing, so we check against unit.Reading.
+	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsIncluded)
 	if err != nil {
 		return nil, err
 	}
 
 	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
 	// This ensures units excluded via CLI get the correct reason in reports
-	withUnitsExcludedByDirs, err := r.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
+	withUnitsExcludedByDirs, err := r.telemetryApplyExcludeDirs(ctx, l, withUnitsRead)
 	if err != nil {
 		return nil, err
 	}
 
-	withExcludedUnits, err := r.telemetryFlagExcludedUnits(ctx, l, withUnitsExcludedByDirs)
+	withExcludedUnits, err := r.telemetryApplyExcludeModules(ctx, l, withUnitsExcludedByDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -304,28 +307,28 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 			continue
 		}
 
-		units[unitPath] = &Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts, Reading: dUnit.Reading()}
+		// Preserve the external flag from discovery component
+		isExternal := dUnit.External()
+
+		units[unitPath] = &Unit{
+			Path:              unitPath,
+			Logger:            l,
+			Config:            *terragruntConfig,
+			TerragruntOptions: opts,
+			Reading:           dUnit.Reading(),
+			IsExternal:        isExternal,
+		}
 	}
 
 	return units, nil
 }
 
-// telemetryResolveExternalDependencies resolves external dependencies for the given units
-func (r *UnitResolver) telemetryResolveExternalDependencies(ctx context.Context, l log.Logger, unitsMap UnitsMap) (UnitsMap, error) {
-	var externalDependencies UnitsMap
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_units", map[string]any{
+// telemetryFlagExternalDependencies flags external dependencies and prompts user for confirmation.
+// Discovery has already found and parsed external dependencies, so this only handles user prompts.
+func (r *UnitResolver) telemetryFlagExternalDependencies(ctx context.Context, l log.Logger, unitsMap UnitsMap) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_external_dependencies", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
-		result, err := r.resolveExternalDependenciesForUnits(ctx, l, unitsMap, UnitsMap{}, 0)
-		if err != nil {
-			return err
-		}
-
-		externalDependencies = result
-
-		return nil
+		return r.flagExternalDependencies(ctx, l, unitsMap)
 	})
-
-	return externalDependencies, err
 }

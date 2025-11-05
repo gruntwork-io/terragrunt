@@ -3,6 +3,7 @@ package discovery
 
 import (
 	"context"
+	stderrs "errors"
 	"io"
 	"io/fs"
 	"os"
@@ -531,6 +532,12 @@ func Parse(
 	//nolint: contextcheck
 	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
+		// Treat include-only/no-settings configs as non-fatal during discovery when suppression is enabled
+		if suppressParseErrors && containsNoSettingsError(err) {
+			l.Debugf("Skipping include-only config during discovery: %s", parseOpts.TerragruntConfigPath)
+			return nil
+		}
+
 		if !suppressParseErrors || cfg == nil {
 			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 
@@ -1018,9 +1025,12 @@ func (d *Discovery) Discover(
 
 			err := dependencyDiscovery.DiscoverAllDependencies(ctx, l, opts)
 			if err != nil {
-				l.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+				l.Warnf("Suppressed parsing errors discovered while scanning dependencies. See debug logs for details.")
 
-				l.Debugf("Errors: %w", err)
+				// List underlying errors without %w to avoid confusing formatting like `%!w(...)`
+				for _, e := range errors.UnwrapErrors(err) {
+					l.Debugf("Parse error: %v", e)
+				}
 			}
 
 			components = dependencyDiscovery.components
@@ -1180,6 +1190,12 @@ func (d *DependencyDiscovery) DiscoverDependencies(
 	}
 
 	terragruntCfg := unit.Config()
+	if terragruntCfg == nil {
+		// Config is still nil after parsing (e.g., include-only config with suppressParseErrors)
+		// No dependencies to discover
+		return nil
+	}
+
 	dependencyBlocks := terragruntCfg.TerragruntDependencies
 
 	depPaths := make([]string, 0, len(dependencyBlocks))
@@ -1320,6 +1336,20 @@ func (h *hiddenDirMemo) contains(path string) bool {
 
 	for _, hiddenDir := range h.entries {
 		if strings.HasPrefix(path, hiddenDir) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// containsNoSettingsError returns true if the provided error (possibly a joined/wrapped error)
+// contains a config-level error indicating there were no Terragrunt configuration settings
+// (e.g., include-only file) that should be treated as non-fatal during discovery.
+func containsNoSettingsError(err error) bool {
+	for _, e := range errors.UnwrapErrors(err) {
+		var target config.CouldNotResolveTerragruntConfigInFileError
+		if stderrs.As(e, &target) {
 			return true
 		}
 	}

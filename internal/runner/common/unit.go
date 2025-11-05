@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -31,6 +32,7 @@ type Unit struct {
 	Config               config.TerragruntConfig
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
+	IsExternal           bool // Set to true if this unit is outside the working directory (discovered as external dependency)
 }
 
 // per-path output locks to serialize flushes for the same unit
@@ -53,6 +55,21 @@ func getUnitOutputLock(path string) *sync.Mutex {
 type Units []*Unit
 
 type UnitsMap map[string]*Unit
+
+// EnsureAbsolutePath ensures a path is absolute, converting it if necessary.
+// Returns the absolute path and any error encountered during conversion.
+func EnsureAbsolutePath(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", errors.Errorf("failed to get absolute path for %s: %w", path, err)
+	}
+
+	return absPath, nil
+}
 
 // String renders this unit as a human-readable string
 func (unit *Unit) String() string {
@@ -189,8 +206,7 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 	for _, dependencyPath := range unit.Config.Dependencies.Paths {
 		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path)
 		if err != nil {
-			// TODO: Remove lint suppression
-			return dependencies, nil //nolint:nilerr
+			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
 		}
 
 		if files.FileExists(dependencyUnitPath) && !files.IsDir(dependencyUnitPath) {
@@ -235,9 +251,11 @@ func (unitsMap UnitsMap) FindByPath(path string) *Unit {
 	return nil
 }
 
-// CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If
-// a dependency is referenced that is not in the given map, return an error.
-func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []string) (Units, error) {
+// ConvertDiscoveryToRunner converts units from discovery domain to runner domain by resolving
+// Component interface dependencies into concrete *Unit pointer dependencies.
+// Discovery found all dependencies and stored them as Component interfaces, but runner needs
+// concrete *Unit pointers for efficient execution. This function translates between domains.
+func (unitsMap UnitsMap) ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths []string) (Units, error) {
 	units := Units{}
 
 	keys := unitsMap.SortedKeys()

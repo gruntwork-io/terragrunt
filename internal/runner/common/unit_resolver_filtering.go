@@ -21,15 +21,10 @@ func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason
 	}
 
 	// Ensure path is absolute for consistent reporting
-	absPath := unitPath
-	if !filepath.IsAbs(absPath) {
-		p, err := filepath.Abs(unitPath)
-		if err != nil {
-			l.Errorf("Error getting absolute path for unit %s: %v", unitPath, err)
-			return
-		}
-
-		absPath = p
+	absPath, err := EnsureAbsolutePath(unitPath)
+	if err != nil {
+		l.Errorf("Error getting absolute path for unit %s: %v", unitPath, err)
+		return
 	}
 
 	absPath = util.CleanPath(absPath)
@@ -110,26 +105,27 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 	}
 }
 
-// telemetryFlagIncludedDirs flags directories that are included in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagIncludedDirs(ctx context.Context, l log.Logger, crossLinkedUnits Units) (Units, error) {
+// telemetryApplyIncludeDirs applies include directory filters and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logger, crossLinkedUnits Units) (Units, error) {
 	var withUnitsIncluded Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_included_dirs", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_include_dirs", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsIncluded = r.flagIncludedDirs(r.Stack.TerragruntOptions, l, crossLinkedUnits)
+		withUnitsIncluded = r.applyIncludeDirs(r.Stack.TerragruntOptions, l, crossLinkedUnits)
 		return nil
 	})
 
 	return withUnitsIncluded, err
 }
 
-// flagIncludedDirs includes units when --terragrunt-include-dir is used (ExcludeByDefault).
+// applyIncludeDirs sets FlagExcluded on units based on --queue-include-dir patterns (when ExcludeByDefault is true).
 // Why: invert default behavior to run only requested units; optionally include deps unless StrictInclude.
 // Matching: glob when doubleStarEnabled; otherwise exact path prefix.
 // Behavior: no-op when ExcludeByDefault is false.
+// When ExcludeByDefault is true but no include dirs are specified, excludes all units (used by --units-that-include).
 // Examples: "**/prod/**", "apps/*/service-a", "envs/us-west-2".
-func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
+func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
 	if !opts.ExcludeByDefault {
 		return units
 	}
@@ -157,111 +153,6 @@ func (r *UnitResolver) flagIncludedDirs(opts *options.TerragruntOptions, l log.L
 	return units
 }
 
-// telemetryFlagUnitsThatAreIncluded flags units that are included in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagUnitsThatAreIncluded(ctx context.Context, withUnitsIncluded Units) (Units, error) {
-	var withUnitsThatAreIncludedByOthers Units
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_are_included", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-	}, func(_ context.Context) error {
-		result, err := r.flagUnitsThatAreIncluded(r.Stack.TerragruntOptions, withUnitsIncluded)
-		if err != nil {
-			return err
-		}
-
-		withUnitsThatAreIncludedByOthers = result
-
-		return nil
-	})
-
-	return withUnitsThatAreIncludedByOthers, err
-}
-
-// flagUnitsThatAreIncluded includes units that reference specific config files.
-// Why: support --terragrunt-modules-that-include to target modules including given files.
-// Behavior: canonicalize targets, check each unit and its dependencies' ProcessedIncludes; mark included when matched.
-// Examples: "root.hcl", "region.hcl", "_common.hcl".
-func (r *UnitResolver) flagUnitsThatAreIncluded(opts *options.TerragruntOptions, units Units) (Units, error) {
-	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
-
-	if len(unitsThatInclude) == 0 {
-		return units, nil
-	}
-
-	unitsThatIncludeCanonicalPaths := []string{}
-
-	for _, includePath := range unitsThatInclude {
-		canonicalPath, err := util.CanonicalPath(includePath, opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-
-		unitsThatIncludeCanonicalPaths = append(unitsThatIncludeCanonicalPaths, canonicalPath)
-	}
-
-	for _, unit := range units {
-		if err := r.flagUnitIncludes(unit, unitsThatIncludeCanonicalPaths); err != nil {
-			return nil, err
-		}
-
-		if err := r.flagUnitDependencies(unit, unitsThatIncludeCanonicalPaths); err != nil {
-			return nil, err
-		}
-	}
-
-	return units, nil
-}
-
-// flagUnitIncludes marks a unit as included if any of its include paths match the canonical paths.
-// Returns an error if path resolution fails during the comparison.
-func (r *UnitResolver) flagUnitIncludes(unit *Unit, canonicalPaths []string) error {
-	for _, includeConfig := range unit.Config.ProcessedIncludes {
-		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unit.Path)
-		if err != nil {
-			return err
-		}
-
-		if util.ListContainsElement(canonicalPaths, canonicalPath) {
-			unit.FlagExcluded = false
-		}
-	}
-
-	return nil
-}
-
-// flagUnitDependencies processes dependencies of a unit and flags them based on include paths.
-// Returns an error if dependency processing fails.
-func (r *UnitResolver) flagUnitDependencies(unit *Unit, canonicalPaths []string) error {
-	for _, dependency := range unit.Dependencies {
-		if dependency.FlagExcluded {
-			continue
-		}
-
-		if err := r.flagDependencyIncludes(dependency, unit.Path, canonicalPaths); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// flagDependencyIncludes marks a dependency as included if any of its include paths match the canonical paths.
-// Returns an error if path resolution fails during the comparison.
-func (r *UnitResolver) flagDependencyIncludes(dependency *Unit, unitPath string, canonicalPaths []string) error {
-	for _, includeConfig := range dependency.Config.ProcessedIncludes {
-		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unitPath)
-		if err != nil {
-			return err
-		}
-
-		if util.ListContainsElement(canonicalPaths, canonicalPath) {
-			dependency.FlagExcluded = false
-		}
-	}
-
-	return nil
-}
-
 // telemetryFlagUnitsThatRead flags units that read files in the Terragrunt configuration
 func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExcludedUnits Units) (Units, error) {
 	var withUnitsRead Units
@@ -277,22 +168,50 @@ func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExclu
 }
 
 // flagUnitsThatRead iterates over a unit slice and flags all units that read at least one file in the specified
-// file list in the TerragruntOptions UnitsReading attribute.
+// file list. This handles both --units-that-include (UnitsReading) and legacy ModulesThatInclude flags.
+// Checks both unit.Reading (populated by discovery's FilesRead tracking) and Config.ProcessedIncludes (include blocks).
 func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units Units) Units {
-	// If no UnitsThatRead is specified, return the unit list instantly
-	if len(opts.UnitsReading) == 0 {
+	// Combine both UnitsReading (new) and ModulesThatInclude (legacy) for backwards compatibility
+	filesToCheck := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
+
+	if len(filesToCheck) == 0 {
 		return units
 	}
 
-	for _, path := range opts.UnitsReading {
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(opts.WorkingDir, path)
-			path = filepath.Clean(path)
+	// Normalize paths to match the format used by config parsing.
+	// Config joins relative paths with WorkingDir and cleans them.
+	normalizedPaths := []string{}
+
+	for _, path := range filesToCheck {
+		normalized := path
+
+		if !filepath.IsAbs(normalized) {
+			normalized = util.JoinPath(opts.WorkingDir, normalized)
 		}
 
+		// Always clean the path (whether it was relative and joined, or already absolute)
+		// to ensure consistent path separators across platforms (especially Windows)
+		normalized = util.CleanPath(normalized)
+
+		normalizedPaths = append(normalizedPaths, normalized)
+	}
+
+	// Check each unit against the normalized paths
+	for _, normalizedPath := range normalizedPaths {
 		for _, unit := range units {
-			if slices.Contains(unit.Reading, path) {
+			// Check unit.Reading (populated by discovery's FilesRead tracking)
+			if slices.Contains(unit.Reading, normalizedPath) {
 				unit.FlagExcluded = false
+				continue
+			}
+
+			// Fallback: check Config.ProcessedIncludes (include blocks from config)
+			// This is needed because unit.Reading may not be populated in all cases
+			for _, includeConfig := range unit.Config.ProcessedIncludes {
+				if includeConfig.Path == normalizedPath {
+					unit.FlagExcluded = false
+					break
+				}
 			}
 		}
 	}
@@ -300,28 +219,28 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 	return units
 }
 
-// telemetryFlagExcludedDirs flags directories that are excluded in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagExcludedDirs(ctx context.Context, l log.Logger, withUnitsRead Units) (Units, error) {
+// telemetryApplyExcludeDirs applies exclude directory filters and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyExcludeDirs(ctx context.Context, l log.Logger, withUnitsRead Units) (Units, error) {
 	var withUnitsExcluded Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_exclude_dirs", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsExcluded = r.flagExcludedDirs(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsRead)
+		withUnitsExcluded = r.applyExcludeDirs(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsRead)
 		return nil
 	})
 
 	return withUnitsExcluded, err
 }
 
-// flagExcludedDirs excludes units that match --terragrunt-exclude-dir patterns.
+// applyExcludeDirs sets FlagExcluded on units that match --queue-exclude-dir patterns.
 // Why: enforce explicit user exclusions with highest precedence and preserve exclusion reasons in reports.
 // Matching: uses glob patterns when doubleStarEnabled; otherwise exact path prefix matching.
 // Examples:
 //   - "**/staging/**"
 //   - "modules/*/test"
 //   - "envs/prod"
-func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
+func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	// If we don't have any excludes, we don't need to do anything.
 	if (len(r.excludeGlobs) == 0 && r.doubleStarEnabled) || len(opts.ExcludeDirs) == 0 {
 		return units
@@ -356,14 +275,14 @@ func (r *UnitResolver) flagExcludedDirs(l log.Logger, opts *options.TerragruntOp
 	return units
 }
 
-// telemetryFlagExcludedUnits flags units that are excluded in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers Units) (Units, error) {
+// telemetryApplyExcludeModules applies exclude-modules filter and sets FlagExcluded accordingly
+func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers Units) (Units, error) {
 	var withExcludedUnits Units
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_exclude_modules", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result := r.flagExcludedUnits(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
+		result := r.applyExcludeModules(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
 		withExcludedUnits = result
 
 		return nil
@@ -372,8 +291,8 @@ func (r *UnitResolver) telemetryFlagExcludedUnits(ctx context.Context, l log.Log
 	return withExcludedUnits, err
 }
 
-// flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.
-func (r *UnitResolver) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
+// applyExcludeModules sets FlagExcluded on units based on the exclude block in their terragrunt.hcl.
+func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	for _, unit := range units {
 		excludeConfig := unit.Config.Exclude
 
