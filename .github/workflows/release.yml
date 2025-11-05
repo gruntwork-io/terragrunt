@@ -37,9 +37,12 @@ jobs:
 
       - name: Get version
         id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.tag }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_TAG"
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
@@ -50,9 +53,8 @@ jobs:
         id: check_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
           echo "Checking if release exists for tag: $VERSION"
 
           # Try to get the release using gh CLI
@@ -155,8 +157,8 @@ jobs:
       - name: Upload assets to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "Uploading assets to existing release $VERSION..."
 
           # Upload all files using gh CLI
@@ -175,8 +177,8 @@ jobs:
       - name: Verify all assets uploaded
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           MAX_RETRIES=10
 
           echo "Verifying all assets are accessible..."
@@ -254,12 +256,16 @@ jobs:
 
       - name: Upload summary
         if: always()
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_ID: ${{ steps.check_release.outputs.release_id }}
+          IS_DRAFT: ${{ steps.check_release.outputs.is_draft }}
         run: |
           echo "## Release Asset Upload Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Release ID**: ${{ steps.check_release.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Was Draft**: ${{ steps.check_release.outputs.is_draft }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Release ID**: $RELEASE_ID" >> $GITHUB_STEP_SUMMARY
+          echo "**Was Draft**: $IS_DRAFT" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Assets Uploaded" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
