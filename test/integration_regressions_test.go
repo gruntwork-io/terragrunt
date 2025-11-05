@@ -16,6 +16,7 @@ const (
 	testFixtureRegressions               = "fixtures/regressions"
 	testFixtureDependencyGenerate        = "fixtures/regressions/dependency-generate"
 	testFixtureDependencyEmptyConfigPath = "fixtures/regressions/dependency-empty-config-path"
+	testFixtureParsingDeprecated         = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -211,4 +212,120 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	if !strings.Contains(stderr, "has empty config_path") && !strings.Contains(runErr.Error(), "has empty config_path") {
 		t.Fatalf("unexpected error; want empty config_path message, got: %v\nstderr: %s", runErr, stderr)
 	}
+}
+
+// TestExposedIncludeWithDeprecatedInputsSyntax tests that deprecated dependency.*.inputs.* syntax
+// is properly detected even when used in an included config with expose = true.
+// This is a regression test for a bug introduced in v0.91.1 where the partial parse path
+// did not call DetectDeprecatedConfigurations(), causing cryptic "Could not find Terragrunt
+// configuration settings" errors instead of clear deprecation messages.
+//
+// The bug occurs when:
+// 1. An included config (e.g., compcommon.hcl) uses deprecated dependency.*.inputs.* syntax
+// 2. The child config includes it with expose = true
+// 3. The included config is parsed via PartialParseConfig() which skips deprecation detection
+// 4. When evaluating the exposed include, Terragrunt encounters unsupported syntax and fails
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/4983
+func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
+	childPath := util.JoinPath(tmpEnvPath, testFixtureParsingDeprecated, "child")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --non-interactive --working-dir "+childPath,
+	)
+	require.Error(t, err)
+
+	// After the fix, we should get a clear error about deprecated syntax
+	// instead of the cryptic "Could not find Terragrunt configuration settings" error
+	// The error message appears in the error object, not necessarily stderr
+	errorMessage := stderr
+	if err != nil {
+		errorMessage = errorMessage + " " + err.Error()
+	}
+
+	assert.Contains(t, errorMessage, "Reading inputs from dependencies is no longer supported")
+
+	// Should NOT get the cryptic error that users were seeing
+	assert.NotContains(t, errorMessage, "Could not find Terragrunt configuration settings")
+}
+
+// TestRunAllWithGenerateAndExpose tests that run --all works correctly with:
+// - Exposed include blocks with generate blocks
+// - Dependencies between units
+// - Complex inputs with map comparisons
+//
+// This is a regression test for parsing errors that occurred in v0.90.1+ where
+// configs with exposed includes containing generate blocks would fail during
+// discovery with "Could not find Terragrunt configuration settings" errors.
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/4983
+func TestRunAllWithGenerateAndExpose(t *testing.T) {
+	t.Parallel()
+
+	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
+	helpers.CleanupTerraformFolder(t, testFixture)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
+	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err, "run --all plan should succeed")
+
+	// Should not see parsing errors
+	assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings",
+		"Should not see parsing errors")
+	assert.NotContains(t, stderr, "Unrecoverable parse error",
+		"Should not see unrecoverable parse errors")
+
+	// Should not see fmt formatting artifacts from %w (e.g., %!w(...))
+	assert.NotContains(t, stderr, "%!w(",
+		"Should not see formatting artifacts in error output")
+
+	// Verify both units ran successfully
+	combinedOutput := stdout + stderr
+	assert.Contains(t, combinedOutput, "test1",
+		"Should process the service dependency")
+	assert.Contains(t, combinedOutput, "null_resource.services_info",
+		"Should process the services-info unit with null resource")
+}
+
+// TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
+// to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
+// excluding external dependencies.
+func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
+	t.Parallel()
+
+	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
+	helpers.CleanupTerraformFolder(t, testFixture)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
+	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
+
+	// Set TG_PROVIDER_CACHE=1 and use --queue-exclude-external as in the repro steps
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err)
+
+	// Should not see parsing errors or formatting artifacts
+	assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings")
+	assert.NotContains(t, stderr, "Unrecoverable parse error")
+	assert.NotContains(t, stderr, "%!w(")
+
+	// Verify the current unit ran successfully and external dependency was excluded
+	combinedOutput := stdout + stderr
+	assert.NotContains(t, combinedOutput, "service1")
+	assert.Contains(t, combinedOutput, "null_resource.services_info")
+	assert.Contains(t, combinedOutput, "Excluded")
 }

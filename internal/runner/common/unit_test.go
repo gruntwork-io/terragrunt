@@ -118,7 +118,7 @@ func TestUnitsMap_SortedKeys(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, keys)
 }
 
-func TestUnitsMap_CrossLinkDependencies(t *testing.T) {
+func TestUnitsMap_ConvertDiscoveryToRunner(t *testing.T) {
 	t.Parallel()
 	// Use absolute paths for both keys and Path fields
 	aPath := "/abs/a"
@@ -127,7 +127,7 @@ func TestUnitsMap_CrossLinkDependencies(t *testing.T) {
 		aPath: &common.Unit{Path: aPath, Config: config.TerragruntConfig{}},
 		bPath: &common.Unit{Path: bPath, Config: config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{aPath}}}},
 	}
-	units, err := m.CrossLinkDependencies([]string{aPath, bPath})
+	units, err := m.ConvertDiscoveryToRunner([]string{aPath, bPath})
 	require.NoError(t, err)
 	assert.Len(t, units, 2)
 	assert.Equal(t, aPath, units[0].Path)

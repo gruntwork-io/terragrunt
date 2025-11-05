@@ -40,12 +40,6 @@ type Runner struct {
 	unitFilters []common.UnitFilter
 }
 
-// SetQueue replaces the runner's queue with a new one.
-// This is useful for filtering the queue after initial discovery.
-func (r *Runner) SetQueue(q *queue.Queue) {
-	r.queue = q
-}
-
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(
 	ctx context.Context,
@@ -209,9 +203,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
-		r.handleApplyDestroy(l, opts)
+		if opts.RunAllAutoApprove {
+			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+		}
+
+		r.syncTerraformCliArgs(l, opts)
 	case tf.CommandNameShow:
-		r.handleShow(l, opts)
+		r.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
 		planErrorBuffers = r.handlePlan()
 		defer r.summarizePlanAllErrors(l, planErrorBuffers)
@@ -224,15 +222,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		for _, u := range r.Stack.Units {
 			if u.FlagExcluded {
 				// Ensure path is absolute for reporting
-				unitPath := u.Path
-				if !filepath.IsAbs(unitPath) {
-					var err error
-
-					unitPath, err = filepath.Abs(unitPath)
-					if err != nil {
-						l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
-						continue
-					}
+				unitPath, err := common.EnsureAbsolutePath(u.Path)
+				if err != nil {
+					l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
+					continue
 				}
 
 				run, err := r.Stack.Report.EnsureRun(unitPath)
@@ -299,22 +292,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 		for _, entry := range r.queue.Entries {
 			if entry.Status == queue.StatusEarlyExit {
-				unit := r.getUnitByPath(entry.Component.Path())
+				unit := r.Stack.FindUnitByPath(entry.Component.Path())
 				if unit == nil {
 					l.Warnf("Could not find unit for early exit entry: %s", entry.Component.Path())
 					continue
 				}
 
 				// Ensure path is absolute for reporting
-				unitPath := unit.Path
-				if !filepath.IsAbs(unitPath) {
-					var absErr error
-
-					unitPath, absErr = filepath.Abs(unitPath)
-					if absErr != nil {
-						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
-						continue
-					}
+				unitPath, absErr := common.EnsureAbsolutePath(unit.Path)
+				if absErr != nil {
+					l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+					continue
 				}
 
 				run, reportErr := r.Stack.Report.EnsureRun(unitPath)
@@ -380,20 +368,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	return err
 }
 
-// handleApplyDestroy handles logic for apply and destroy commands.
-func (r *Runner) handleApplyDestroy(l log.Logger, opts *options.TerragruntOptions) {
-	if opts.RunAllAutoApprove {
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
-	}
-
-	r.syncTerraformCliArgs(l, opts)
-}
-
-// handleShow handles logic for show command.
-func (r *Runner) handleShow(l log.Logger, opts *options.TerragruntOptions) {
-	r.syncTerraformCliArgs(l, opts)
-}
-
 // handlePlan handles logic for plan command, including error buffer setup and summary.
 // Returns error buffers for each unit to capture stderr output for later analysis.
 func (r *Runner) handlePlan() []bytes.Buffer {
@@ -403,17 +377,6 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 	}
 
 	return planErrorBuffers
-}
-
-// getUnitByPath returns the unit with the given path, or nil if not found.
-func (r *Runner) getUnitByPath(path string) *common.Unit {
-	for _, u := range r.Stack.Units {
-		if u.Path == path {
-			return u
-		}
-	}
-
-	return nil
 }
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
@@ -700,20 +663,11 @@ func (r *Runner) GetUnitFilters() []common.UnitFilter {
 }
 
 // containsFilter checks if a filter already exists in the filters slice.
-// Uses reflection to compare filter pointers for deduplication.
+// Uses DeepEqual to compare filters by both pointer identity and value equality.
 func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool {
-	targetValue := reflect.ValueOf(target)
-	targetPtr := targetValue.Pointer()
-
 	for _, existing := range filters {
-		existingValue := reflect.ValueOf(existing)
-
-		// Compare by pointer for function-type filters
-		if existingValue.Pointer() == targetPtr {
-			return true
-		}
-
-		// For struct-based filters, compare by value equality
+		// DeepEqual handles both pointer equality and value equality,
+		// so we don't need separate pointer comparison
 		if reflect.DeepEqual(existing, target) {
 			return true
 		}
