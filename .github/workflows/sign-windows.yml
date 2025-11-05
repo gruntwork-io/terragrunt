@@ -116,6 +116,32 @@ jobs:
           Write-Host "Installing goversioninfo..."
           go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
 
+          # Add Go bin to PATH (where goversioninfo is installed)
+          $goBinPath = Join-Path $env:USERPROFILE "go\bin"
+          if (-not (Test-Path $goBinPath)) {
+            # Try alternative GOPATH location
+            $goPath = & go env GOPATH
+            $goBinPath = Join-Path $goPath "bin"
+          }
+
+          if (Test-Path $goBinPath) {
+            $env:PATH = "$goBinPath;$env:PATH"
+            echo "$goBinPath" >> $env:GITHUB_PATH
+            Write-Host "Added Go bin to PATH: $goBinPath"
+          } else {
+            Write-Error "Go bin directory not found at $goBinPath"
+            exit 1
+          }
+
+          # Verify goversioninfo is available
+          $goversioninfoPath = Get-Command goversioninfo.exe -ErrorAction SilentlyContinue
+          if ($goversioninfoPath) {
+            Write-Host "✅ goversioninfo found at: $($goversioninfoPath.Source)"
+          } else {
+            Write-Error "❌ goversioninfo not found after installation"
+            exit 1
+          }
+
           # Get version from git tag or use a default
           $version = $env:GITHUB_REF_NAME
           if ([string]::IsNullOrEmpty($version) -or $version -eq "refs/heads/main") {
@@ -148,6 +174,14 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Rebuilding Windows binaries with version information..."
+
+          # Verify goversioninfo is in PATH
+          $goversioninfo = Get-Command goversioninfo.exe -ErrorAction SilentlyContinue
+          if (-not $goversioninfo) {
+            Write-Error "goversioninfo.exe not found in PATH"
+            Write-Host "PATH: $env:PATH"
+            exit 1
+          }
 
           # Generate the resource file
           goversioninfo -o=rsrc.syso versioninfo.json
