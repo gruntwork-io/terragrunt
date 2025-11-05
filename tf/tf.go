@@ -179,16 +179,25 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 		},
 	}
 
+	varsAttributesSchema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{
+				Name:     "default",
+				Required: false,
+			},
+		},
+	}
+
 	varsContent, _, contentDiags := body.PartialContent(varsSchema)
 	allDiags = append(allDiags, contentDiags...)
 	optional, required := []string{}, []string{}
 
 	for _, b := range varsContent.Blocks {
 		name := b.Labels[0]
-		attributes, attrDiags := b.Body.JustAttributes()
+		varBodyContent, _, attrDiags := b.Body.PartialContent(varsAttributesSchema)
 
 		allDiags = append(allDiags, attrDiags...)
-		if _, ok := attributes["default"]; ok {
+		if _, ok := varBodyContent.Attributes["default"]; ok {
 			optional = append(optional, name)
 		} else {
 			required = append(required, name)
