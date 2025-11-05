@@ -2,7 +2,7 @@
 package stack
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -85,7 +85,7 @@ func defaultFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Pr
 		}),
 	}
 
-	return append(run.NewFlags(l, opts, nil), flags...)
+	return append(runcmd.NewFlags(l, opts, nil), flags...)
 }
 
 func outputFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
