@@ -156,14 +156,11 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
-	withUnitsThatAreIncludedByOthers, err := r.telemetryApplyUnitsThatInclude(ctx, withUnitsIncluded)
-	if err != nil {
-		return nil, err
-	}
-
 	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
 	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
-	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsThatAreIncludedByOthers)
+	// This handles both --units-that-include and legacy ModulesThatInclude flags.
+	// Discovery already tracked all files read during parsing, so we check against unit.Reading.
+	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsIncluded)
 	if err != nil {
 		return nil, err
 	}

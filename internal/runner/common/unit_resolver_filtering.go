@@ -157,111 +157,6 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 	return units
 }
 
-// telemetryApplyUnitsThatInclude applies units-that-include filter and sets FlagExcluded accordingly
-func (r *UnitResolver) telemetryApplyUnitsThatInclude(ctx context.Context, withUnitsIncluded Units) (Units, error) {
-	var withUnitsThatAreIncludedByOthers Units
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_units_that_include", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
-	}, func(_ context.Context) error {
-		result, err := r.applyUnitsThatInclude(r.Stack.TerragruntOptions, withUnitsIncluded)
-		if err != nil {
-			return err
-		}
-
-		withUnitsThatAreIncludedByOthers = result
-
-		return nil
-	})
-
-	return withUnitsThatAreIncludedByOthers, err
-}
-
-// applyUnitsThatInclude sets FlagExcluded on units that include specific config files.
-// Why: support --units-that-include to target units including given files.
-// Behavior: canonicalize targets, check each unit and its dependencies' ProcessedIncludes; mark included when matched.
-// Examples: "root.hcl", "region.hcl", "_common.hcl".
-func (r *UnitResolver) applyUnitsThatInclude(opts *options.TerragruntOptions, units Units) (Units, error) {
-	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
-
-	if len(unitsThatInclude) == 0 {
-		return units, nil
-	}
-
-	unitsThatIncludeCanonicalPaths := []string{}
-
-	for _, includePath := range unitsThatInclude {
-		canonicalPath, err := util.CanonicalPath(includePath, opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-
-		unitsThatIncludeCanonicalPaths = append(unitsThatIncludeCanonicalPaths, canonicalPath)
-	}
-
-	for _, unit := range units {
-		if err := r.flagUnitIncludes(unit, unitsThatIncludeCanonicalPaths); err != nil {
-			return nil, err
-		}
-
-		if err := r.flagUnitDependencies(unit, unitsThatIncludeCanonicalPaths); err != nil {
-			return nil, err
-		}
-	}
-
-	return units, nil
-}
-
-// flagUnitIncludes marks a unit as included if any of its include paths match the canonical paths.
-// Returns an error if path resolution fails during the comparison.
-func (r *UnitResolver) flagUnitIncludes(unit *Unit, canonicalPaths []string) error {
-	for _, includeConfig := range unit.Config.ProcessedIncludes {
-		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unit.Path)
-		if err != nil {
-			return err
-		}
-
-		if util.ListContainsElement(canonicalPaths, canonicalPath) {
-			unit.FlagExcluded = false
-		}
-	}
-
-	return nil
-}
-
-// flagUnitDependencies processes dependencies of a unit and flags them based on include paths.
-// Returns an error if dependency processing fails.
-func (r *UnitResolver) flagUnitDependencies(unit *Unit, canonicalPaths []string) error {
-	for _, dependency := range unit.Dependencies {
-		if dependency.FlagExcluded {
-			continue
-		}
-
-		if err := r.flagDependencyIncludes(dependency, unit.Path, canonicalPaths); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// flagDependencyIncludes marks a dependency as included if any of its include paths match the canonical paths.
-// Returns an error if path resolution fails during the comparison.
-func (r *UnitResolver) flagDependencyIncludes(dependency *Unit, unitPath string, canonicalPaths []string) error {
-	for _, includeConfig := range dependency.Config.ProcessedIncludes {
-		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unitPath)
-		if err != nil {
-			return err
-		}
-
-		if util.ListContainsElement(canonicalPaths, canonicalPath) {
-			dependency.FlagExcluded = false
-		}
-	}
-
-	return nil
-}
-
 // telemetryFlagUnitsThatRead flags units that read files in the Terragrunt configuration
 func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExcludedUnits Units) (Units, error) {
 	var withUnitsRead Units
@@ -277,14 +172,17 @@ func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExclu
 }
 
 // flagUnitsThatRead iterates over a unit slice and flags all units that read at least one file in the specified
-// file list in the TerragruntOptions UnitsReading attribute.
+// file list. This handles both --units-that-include (UnitsReading) and legacy ModulesThatInclude flags.
+// Discovery already tracked all files read during parsing in the Reading field, so we simply check against that.
 func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units Units) Units {
-	// If no UnitsThatRead is specified, return the unit list instantly
-	if len(opts.UnitsReading) == 0 {
+	// Combine both UnitsReading (new) and ModulesThatInclude (legacy) for backwards compatibility
+	filesToCheck := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
+
+	if len(filesToCheck) == 0 {
 		return units
 	}
 
-	for _, path := range opts.UnitsReading {
+	for _, path := range filesToCheck {
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(opts.WorkingDir, path)
 			path = filepath.Clean(path)
