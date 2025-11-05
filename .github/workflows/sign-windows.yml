@@ -116,29 +116,31 @@ jobs:
           Write-Host "Installing goversioninfo..."
           go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
 
-          # Add Go bin to PATH (where goversioninfo is installed)
-          $goBinPath = Join-Path $env:USERPROFILE "go\bin"
+          # Determine Go bin directory
+          $goPath = & go env GOPATH
+          $goBinPath = Join-Path $goPath "bin"
+
+          Write-Host "GOPATH: $goPath"
+          Write-Host "Go bin path: $goBinPath"
+
+          # Add Go bin to PATH (create directory if it doesn't exist)
           if (-not (Test-Path $goBinPath)) {
-            # Try alternative GOPATH location
-            $goPath = & go env GOPATH
-            $goBinPath = Join-Path $goPath "bin"
+            Write-Host "Go bin directory doesn't exist, creating it..."
+            New-Item -ItemType Directory -Path $goBinPath -Force | Out-Null
           }
 
-          if (Test-Path $goBinPath) {
-            $env:PATH = "$goBinPath;$env:PATH"
-            echo "$goBinPath" >> $env:GITHUB_PATH
-            Write-Host "Added Go bin to PATH: $goBinPath"
-          } else {
-            Write-Error "Go bin directory not found at $goBinPath"
-            exit 1
-          }
+          $env:PATH = "$goBinPath;$env:PATH"
+          echo "$goBinPath" >> $env:GITHUB_PATH
+          Write-Host "Added Go bin to PATH: $goBinPath"
 
-          # Verify goversioninfo is available
-          $goversioninfoPath = Get-Command goversioninfo.exe -ErrorAction SilentlyContinue
-          if ($goversioninfoPath) {
-            Write-Host "✅ goversioninfo found at: $($goversioninfoPath.Source)"
+          # Verify goversioninfo was installed
+          $goversioninfoExe = Join-Path $goBinPath "goversioninfo.exe"
+          if (Test-Path $goversioninfoExe) {
+            Write-Host "✅ goversioninfo.exe found at: $goversioninfoExe"
           } else {
-            Write-Error "❌ goversioninfo not found after installation"
+            Write-Error "❌ goversioninfo.exe not found at: $goversioninfoExe"
+            Write-Host "Directory contents:"
+            Get-ChildItem $goBinPath -ErrorAction SilentlyContinue
             exit 1
           }
 
