@@ -50,8 +50,15 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --tf-forward-stdout --working-dir "+rootPath+" -- apply -destroy")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --no-color --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -destroy",
+			rootPath,
+		),
+	)
 	require.NoError(t, err)
+
 	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
 }
 
@@ -71,7 +78,10 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	// Run destroy with --queue-ignore-errors flag
 	// The main difference with --queue-ignore-errors is that it allows progress even if dependencies fail,
 	// but it should still respect the dependency order when dependencies are in terminal states.
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --queue-ignore-errors --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all destroy --non-interactive --tf-forward-stdout --queue-ignore-errors --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	// Verify that the expected pattern still holds:
@@ -340,6 +350,9 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
@@ -348,7 +361,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
 
 	// plan and apply
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
@@ -385,18 +398,42 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			dependencyPath,
+			tmpDir,
+		),
+	)
 
 	// plan and apply
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --all --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt plan --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --all --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 
 	// remove all tfstate files from temp directory to prepare destroy
@@ -409,7 +446,14 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	}
 
 	// prepare destroy plan
-	_, output, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --all -destroy --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, output, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt plan --all -destroy --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 
 	assert.Contains(t, output, "Using output file "+getPathRelativeTo(t, tmpDir, testPath))
@@ -422,6 +466,13 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --all --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path"
@@ -1058,17 +1059,18 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	walkFunc := filepath.Walk
+	walkFunc := filepath.WalkDir
+
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkWithSymlinks
+		walkFunc = util.WalkDirWithSymlinks
 	}
 
-	err := walkFunc(rootPath, func(path string, info os.FileInfo, err error) error {
+	err := walkFunc(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() {
+		if !d.IsDir() {
 			return nil
 		}
 
