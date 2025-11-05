@@ -2,7 +2,6 @@ package common
 
 import (
 	"fmt"
-	"io"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -11,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -257,55 +255,6 @@ func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []
 	}
 
 	return units, nil
-}
-
-// WriteDot is used to emit a GraphViz compatible definition
-// for a directed graph. It can be used to dump a .dot file.
-// This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/v1.5.7/internal/dag/dag.go
-// adding some styling to units that are excluded from the execution in *-all commands
-func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntOptions) error {
-	if _, err := w.Write([]byte("digraph {\n")); err != nil {
-		return errors.New(err)
-	}
-	defer func(w io.Writer, p []byte) {
-		_, err := w.Write(p)
-		if err != nil {
-			l.Warnf("Failed to close graphviz output: %v", err)
-		}
-	}(w, []byte("}\n"))
-
-	// all paths are relative to the TerragruntConfigPath
-	prefix := filepath.Dir(opts.TerragruntConfigPath) + "/"
-
-	for _, source := range units {
-		// apply a different coloring for excluded nodes
-		style := ""
-		if source.FlagExcluded {
-			style = "[color=red]"
-		}
-
-		nodeLine := fmt.Sprintf("\t\"%s\" %s;\n",
-			strings.TrimPrefix(source.Path, prefix), style)
-
-		_, err := w.Write([]byte(nodeLine))
-		if err != nil {
-			return errors.New(err)
-		}
-
-		for _, target := range source.Dependencies {
-			line := fmt.Sprintf("\t\"%s\" -> \"%s\";\n",
-				strings.TrimPrefix(source.Path, prefix),
-				strings.TrimPrefix(target.Path, prefix),
-			)
-
-			_, err := w.Write([]byte(line))
-			if err != nil {
-				return errors.New(err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // CheckForCycles checks for dependency cycles in the given list of units and return an error if one is found.
