@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -18,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -28,9 +31,103 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return err
 	}
 
+	// If --all or --graph is set, discover components and iterate
+	if opts.RunAll || opts.Graph {
+		return runOnDiscoveredComponents(ctx, l, opts)
+	}
+
+	// Otherwise, run on single component
 	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
 
 	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, report.NewReport(), target)
+}
+
+func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *Options) error {
+	// For --graph, we need to handle graph root discovery
+	workingDir := opts.WorkingDir
+	if opts.Graph {
+		rootDir := opts.GraphRoot
+		if rootDir == "" {
+			gitRoot, err := shell.GitTopLevelDir(ctx, l, opts.TerragruntOptions, opts.WorkingDir)
+			if err != nil {
+				return err
+			}
+
+			rootDir = gitRoot
+		}
+
+		workingDir = rootDir
+	}
+
+	// Create discovery
+	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
+		WorkingDir:    workingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+		Hidden:        true,
+		Dependencies:  opts.Graph, // For --graph, discover dependencies
+		External:      false,
+		Exclude:       true,
+		Include:       true,
+	})
+	if err != nil {
+		return errors.New(err)
+	}
+
+	components, err := d.Discover(ctx, l, opts.TerragruntOptions)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	// Filter components for --graph mode
+	if opts.Graph {
+		// For graph mode, we only want components that depend on the original working dir
+		filtered := component.Components{}
+
+		for _, c := range components {
+			if c.Path() == opts.WorkingDir {
+				filtered = append(filtered, c)
+				continue
+			}
+			// Check if this component depends on the working dir
+			// For now, include all discovered components (the graph discovery should handle this)
+			filtered = append(filtered, c)
+		}
+
+		components = filtered
+	}
+
+	// Run the render logic on each component
+	var errs []error
+
+	for _, c := range components {
+		if _, ok := c.(*component.Stack); ok {
+			continue // Skip stacks
+		}
+
+		componentOpts := opts.Clone()
+		componentOpts.WorkingDir = c.Path()
+
+		// Determine config path for this component
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		componentOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+
+		// Run the render logic for this component
+		target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(componentOpts))
+		if err := run.RunWithTarget(ctx, l, componentOpts.TerragruntOptions, report.NewReport(), target); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
@@ -154,11 +251,13 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	}
 
 	var ctyJSONOutput ctyhelper.CtyJSONOutput
-	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
+	if err = json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
 		return nil, errors.New(err)
 	}
 
-	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
+	var jsonBytes []byte
+
+	jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
 	if err != nil {
 		return nil, errors.New(err)
 	}

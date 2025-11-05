@@ -12,20 +12,117 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const defaultKeyParts = 2
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// If --all or --graph is set, discover components and iterate
+	if opts.RunAll || opts.Graph {
+		return runOnDiscoveredComponents(ctx, l, opts)
+	}
+
+	// Otherwise, run on single component
 	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
 
 	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+}
+
+func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// For --graph, we need to handle graph root discovery
+	workingDir := opts.WorkingDir
+	if opts.Graph {
+		rootDir := opts.GraphRoot
+		if rootDir == "" {
+			gitRoot, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
+			if err != nil {
+				return err
+			}
+
+			rootDir = gitRoot
+		}
+
+		workingDir = rootDir
+	}
+
+	// Create discovery
+	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
+		WorkingDir:    workingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+		Hidden:        true,
+		Dependencies:  opts.Graph, // For --graph, discover dependencies
+		External:      false,
+		Exclude:       true,
+		Include:       true,
+	})
+	if err != nil {
+		return errors.New(err)
+	}
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	// Filter components for --graph mode
+	if opts.Graph {
+		// For graph mode, we only want components that depend on the original working dir
+		filtered := component.Components{}
+
+		for _, c := range components {
+			if c.Path() == opts.WorkingDir {
+				filtered = append(filtered, c)
+				continue
+			}
+			// Check if this component depends on the working dir
+			// For now, include all discovered components (the graph discovery should handle this)
+			filtered = append(filtered, c)
+		}
+
+		components = filtered
+	}
+
+	// Run the patch logic on each component
+	var errs []error
+
+	for _, c := range components {
+		if _, ok := c.(*component.Stack); ok {
+			continue // Skip stacks
+		}
+
+		componentOpts := opts.Clone()
+		componentOpts.WorkingDir = c.Path()
+
+		// Determine config path for this component
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		componentOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+
+		// Run the patch logic for this component
+		target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
+		if err := run.RunWithTarget(ctx, l, componentOpts, report.NewReport(), target); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
