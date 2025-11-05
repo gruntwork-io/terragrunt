@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -86,60 +86,82 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		files       map[string]string
 		description string
-		workingDir  string
 		valid       bool
 	}{
 		{
 			description: "Directory with plain Terraform",
-			workingDir:  "test-fixtures/dir-with-terraform",
-			valid:       true,
+			files: map[string]string{
+				"main.tf": `# Terraform file`,
+			},
+			valid: true,
 		},
 		{
 			description: "Directory with plain OpenTofu",
-			workingDir:  "test-fixtures/dir-with-tofu",
-			valid:       true,
+			files: map[string]string{
+				"main.tofu": `# OpenTofu file`,
+			},
+			valid: true,
 		},
 		{
 			description: "Directory with plain Terraform and OpenTofu",
-			workingDir:  "test-fixtures/dir-with-terraform-and-tofu",
-			valid:       true,
+			files: map[string]string{
+				"main.tf":   `# Terraform file`,
+				"main.tofu": `# OpenTofu file`,
+			},
+			valid: true,
 		},
 		{
 			description: "Directory with JSON formatted Terraform",
-			workingDir:  "test-fixtures/dir-with-terraform-json",
-			valid:       true,
+			files: map[string]string{
+				"main.tf.json": `{"terraform": {"backend": {"s3": {}}}}`,
+			},
+			valid: true,
 		},
 		{
 			description: "Directory with JSON formatted OpenTofu",
-			workingDir:  "test-fixtures/dir-with-tofu-json",
-			valid:       true,
+			files: map[string]string{
+				"main.tofu.json": `{"terraform": {"backend": {"s3": {}}}}`,
+			},
+			valid: true,
 		},
 		{
 			description: "Directory with JSON formatted Terraform and OpenTofu",
-			workingDir:  "test-fixtures/dir-with-terraform-and-tofu-json",
-			valid:       true,
+			files: map[string]string{
+				"main.tf.json":   `{"terraform": {"backend": {"s3": {}}}}`,
+				"main.tofu.json": `{"terraform": {"backend": {"s3": {}}}}`,
+			},
+			valid: true,
 		},
 		{
 			description: "Directory with no Terraform or OpenTofu",
-			workingDir:  "test-fixtures/dir-with-no-terraform",
-			valid:       false,
+			files: map[string]string{
+				"main.yaml": `# Not a terraform file`,
+			},
+			valid: false,
 		},
 		{
 			description: "Directory with no files",
-			workingDir:  "test-fixtures/dir-with-no-files",
+			files:       map[string]string{},
 			valid:       false,
 		},
 	}
 
 	for _, tc := range testCases {
-		testFunc := func(t *testing.T) {
-			t.Helper()
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			for filename, content := range tc.files {
+				filePath := filepath.Join(tmpDir, filename)
+				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
+			}
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 
-			opts.WorkingDir = tc.workingDir
+			opts.WorkingDir = tmpDir
 
 			err = run.CheckFolderContainsTerraformCode(opts)
 			if (err != nil) && tc.valid {
@@ -149,11 +171,6 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			if (err == nil) && !tc.valid {
 				t.Error("invalid terraform did not return error")
 			}
-		}
-		t.Run(tc.description, func(t *testing.T) {
-			t.Parallel()
-
-			testFunc(t)
 		})
 	}
 }

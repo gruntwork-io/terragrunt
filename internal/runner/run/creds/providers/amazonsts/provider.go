@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )

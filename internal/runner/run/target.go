@@ -41,7 +41,6 @@ type TargetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions,
 
    ... code omitted
 */
-
 /*
    package run
    ... code omitted

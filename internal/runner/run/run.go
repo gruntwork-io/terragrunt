@@ -1,3 +1,6 @@
+// Package run provides the main entry point for running orchestrated runs.
+//
+// These runs are typically OpenTofu/Terraform invocations, but they might be other commands as well.
 package run
 
 import (
@@ -13,9 +16,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 

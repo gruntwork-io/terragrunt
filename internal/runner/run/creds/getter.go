@@ -5,7 +5,7 @@ import (
 	"context"
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
