@@ -96,6 +96,320 @@ func RunWithTarget(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	return run(ctx, l, opts, r, target)
 }
 
+// TODO: Refactor this into something nicer that leverages a builder pattern so that we don't have so many different
+// entry points.
+
+// MinimalSetupForInit performs the minimal setup steps required before running tofu/terraform init.
+// It handles config parsing, source downloading, config generation, and running tofu/terraform init if needed.
+// Returns the updated terragrunt options (with working dir pointing to downloaded source) and the parsed config.
+func MinimalSetupForInit(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	r *report.Report,
+) (*options.TerragruntOptions, *config.TerragruntConfig, error) {
+	if opts.TerraformCommand == tf.CommandNameVersion {
+		return nil, nil, runVersionCommand(ctx, l, opts)
+	}
+
+	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return nil, nil, err
+	}
+
+	l, err := CheckVersionConstraints(ctx, l, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// fetch engine options from the config
+	engine, err := terragruntConfig.EngineOptions()
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	opts.Engine = engine
+
+	errConfig, err := terragruntConfig.ErrorsConfig()
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	opts.Errors = errConfig
+
+	l, terragruntOptionsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
+
+	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
+		return processHooks(ctx, l, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil, r)
+	}); err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
+	// precedence.
+	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
+		terragruntConfig.GetIAMRoleOptions(),
+		opts.OriginalIAMRoleOptions,
+	)
+
+	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
+	}); err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// get the default download dir
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// if the download dir hasn't been changed from default, and is set in the config,
+	// then use it
+	if opts.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
+		opts.DownloadDir = terragruntConfig.DownloadDir
+	}
+
+	updatedTerragruntOptions := opts
+
+	sourceURL, err := config.GetTerraformSourceURL(opts, terragruntConfig)
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	if sourceURL != "" {
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
+			"sourceUrl": sourceURL,
+		}, func(ctx context.Context) error {
+			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, terragruntConfig, r)
+			return err
+		})
+		if err != nil {
+			return nil, terragruntConfig, err
+		}
+	}
+
+	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
+	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
+	if err = GenerateConfig(l, updatedTerragruntOptions, terragruntConfig); err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
+	// can ensure the tfvars json file only includes the vars that are defined in the module.
+	if updatedTerragruntOptions.Debug {
+		if err := WriteTerragruntDebugFile(l, updatedTerragruntOptions, terragruntConfig); err != nil {
+			return nil, terragruntConfig, err
+		}
+	}
+
+	if err := CheckFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// Run terraform init if needed
+	// Set a dummy terraform command temporarily so needsInit can properly check
+	originalTerraformCommand := updatedTerragruntOptions.TerraformCommand
+	originalTerraformCliArgs := updatedTerragruntOptions.TerraformCliArgs
+	if updatedTerragruntOptions.TerraformCommand == "" {
+		updatedTerragruntOptions.TerraformCommand = tf.CommandNamePlan
+		updatedTerragruntOptions.TerraformCliArgs = []string{tf.CommandNamePlan}
+	}
+	if err := prepareNonInitCommandForMinimalSetup(ctx, l, opts, updatedTerragruntOptions, terragruntConfig, r); err != nil {
+		// Restore original command before returning error
+		if originalTerraformCommand == "" {
+			updatedTerragruntOptions.TerraformCommand = originalTerraformCommand
+			updatedTerragruntOptions.TerraformCliArgs = originalTerraformCliArgs
+		}
+		return nil, terragruntConfig, err
+	}
+	// Restore original command
+	if originalTerraformCommand == "" {
+		updatedTerragruntOptions.TerraformCommand = originalTerraformCommand
+		updatedTerragruntOptions.TerraformCliArgs = originalTerraformCliArgs
+	}
+
+	return updatedTerragruntOptions, terragruntConfig, nil
+}
+
+// prepareNonInitCommandForMinimalSetup runs terraform init if needed, similar to prepareNonInitCommand
+// but without requiring a Target for callbacks.
+func prepareNonInitCommandForMinimalSetup(
+	ctx context.Context,
+	l log.Logger,
+	originalOpts *options.TerragruntOptions,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+	r *report.Report,
+) error {
+	needsInit, err := needsInit(ctx, l, opts, cfg)
+	if err != nil {
+		return err
+	}
+
+	if needsInit {
+		if err := runTerraformInit(ctx, l, originalOpts, opts, cfg, r); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// MinimalSetupForParse performs the minimal setup steps required to parse the terragrunt config.
+// Returns the parsed config. This is the earliest setup point, used by commands that only need the config.
+func MinimalSetupForParse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) (*config.TerragruntConfig, error) {
+	if opts.TerraformCommand == tf.CommandNameVersion {
+		return nil, runVersionCommand(ctx, l, opts)
+	}
+
+	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return nil, err
+	}
+
+	l, err := CheckVersionConstraints(ctx, l, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	if err != nil {
+		return terragruntConfig, err
+	}
+
+	return terragruntConfig, nil
+}
+
+// MinimalSetupForDownload performs the minimal setup steps required before accessing downloaded source.
+// It handles config parsing and source downloading.
+// Returns the updated terragrunt options (with working dir pointing to downloaded source) and the parsed config.
+func MinimalSetupForDownload(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) (*options.TerragruntOptions, *config.TerragruntConfig, error) {
+	if opts.TerraformCommand == tf.CommandNameVersion {
+		return nil, nil, runVersionCommand(ctx, l, opts)
+	}
+
+	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return nil, nil, err
+	}
+
+	l, err := CheckVersionConstraints(ctx, l, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// fetch engine options from the config
+	engine, err := terragruntConfig.EngineOptions()
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	opts.Engine = engine
+
+	errConfig, err := terragruntConfig.ErrorsConfig()
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	opts.Errors = errConfig
+
+	l, terragruntOptionsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
+
+	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
+		return processHooks(ctx, l, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil, r)
+	}); err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
+	// precedence.
+	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
+		terragruntConfig.GetIAMRoleOptions(),
+		opts.OriginalIAMRoleOptions,
+	)
+
+	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
+	}); err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// get the default download dir
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	// if the download dir hasn't been changed from default, and is set in the config,
+	// then use it
+	if opts.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
+		opts.DownloadDir = terragruntConfig.DownloadDir
+	}
+
+	updatedTerragruntOptions := opts
+
+	sourceURL, err := config.GetTerraformSourceURL(opts, terragruntConfig)
+	if err != nil {
+		return nil, terragruntConfig, err
+	}
+
+	if sourceURL != "" {
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
+			"sourceUrl": sourceURL,
+		}, func(ctx context.Context) error {
+			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, terragruntConfig, r)
+			return err
+		})
+		if err != nil {
+			return nil, terragruntConfig, err
+		}
+	}
+
+	return updatedTerragruntOptions, terragruntConfig, nil
+}
+
+// MinimalSetupForGenerate performs the minimal setup steps required before generating config files.
+// It handles config parsing, source downloading, and config generation.
+// Returns the updated terragrunt options (with working dir pointing to downloaded source) and the parsed config.
+func MinimalSetupForGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) (*options.TerragruntOptions, *config.TerragruntConfig, error) {
+	updatedOpts, cfg, err := MinimalSetupForDownload(ctx, l, opts, r)
+	if err != nil {
+		return nil, cfg, err
+	}
+
+	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
+	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
+	if err = GenerateConfig(l, updatedOpts, cfg); err != nil {
+		return nil, cfg, err
+	}
+
+	return updatedOpts, cfg, nil
+}
+
 func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *Target) error {
 	if opts.TerraformCommand == tf.CommandNameVersion {
 		return runVersionCommand(ctx, l, opts)

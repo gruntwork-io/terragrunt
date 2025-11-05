@@ -208,12 +208,15 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 }
 
 func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+	updatedOpts, cfg, err := run.MinimalSetupForGenerate(ctx, l, opts, report.NewReport())
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	return runValidateInputs(l, updatedOpts, cfg)
 }
 
-func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err

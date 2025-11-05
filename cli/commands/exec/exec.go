@@ -14,16 +14,22 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, args cli.Args) error {
-	targetConfigPoint := run.TargetPointInitCommand
-
 	if !cmdOpts.InDownloadDir {
-		targetConfigPoint = run.TargetPointSetInputsAsEnvVars
+		// For commands that run in root dir without init, we need the full pipeline including
+		// extra args filtering and inputs as env vars, so we keep RunWithTarget
+		targetConfigPoint := run.TargetPointSetInputsAsEnvVars
 		opts.AutoInit = false
+		target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
+		return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
 	}
 
-	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
+	// For commands that run in download dir after init, we can use the simplified setup
+	updatedOpts, cfg, err := run.MinimalSetupForInit(ctx, l, opts, report.NewReport())
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	return runTargetCommand(cmdOpts, args)(ctx, l, updatedOpts, cfg)
 }
 
 func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {

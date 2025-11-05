@@ -28,9 +28,16 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	// Otherwise, run on single component
-	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
+	updatedOpts, cfg, err := run.MinimalSetupForDownload(ctx, l, opts, report.NewReport())
+	if err != nil {
+		// If there's an error, try to still print info if possible
+		if printErr := handleTerragruntContextPrintWithError(l, opts, nil, err); printErr != nil {
+			return err
+		}
+		return nil
+	}
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	return handleTerragruntContextPrint(ctx, l, updatedOpts, cfg)
 }
 
 func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -74,8 +81,16 @@ func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *options.
 		componentOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		// Run the print logic for this component
-		target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
-		if err := run.RunWithTarget(ctx, l, componentOpts, report.NewReport(), target); err != nil {
+		updatedOpts, cfg, err := run.MinimalSetupForDownload(ctx, l, componentOpts, report.NewReport())
+		if err != nil {
+			// If there's an error, try to still print info if possible
+			if printErr := handleTerragruntContextPrintWithError(l, componentOpts, nil, err); printErr != nil {
+				errs = append(errs, err)
+			}
+			continue
+		}
+
+		if err := handleTerragruntContextPrint(ctx, l, updatedOpts, cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
