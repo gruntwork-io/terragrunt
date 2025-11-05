@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -37,9 +36,23 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}
 
 	// Otherwise, run on single component
-	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
+	cfg, err := run.MinimalSetupForParse(ctx, l, opts.TerragruntOptions, report.NewReport())
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, report.NewReport(), target)
+	if cfg == nil {
+		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+	}
+
+	switch opts.Format {
+	case FormatJSON:
+		return renderJSON(ctx, l, opts, cfg)
+	case FormatHCL:
+		return renderHCL(ctx, l, opts, cfg)
+	default:
+		return fmt.Errorf("unsupported render format: %s", opts.Format)
+	}
 }
 
 func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *Options) error {
@@ -117,9 +130,29 @@ func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *Options)
 		componentOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		// Run the render logic for this component
-		target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(componentOpts))
-		if err := run.RunWithTarget(ctx, l, componentOpts.TerragruntOptions, report.NewReport(), target); err != nil {
+		cfg, err := run.MinimalSetupForParse(ctx, l, componentOpts.TerragruntOptions, report.NewReport())
+		if err != nil {
 			errs = append(errs, err)
+			continue
+		}
+
+		if cfg == nil {
+			errs = append(errs, errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl"))
+			continue
+		}
+
+		var renderErr error
+		switch componentOpts.Format {
+		case FormatJSON:
+			renderErr = renderJSON(ctx, l, componentOpts, cfg)
+		case FormatHCL:
+			renderErr = renderHCL(ctx, l, componentOpts, cfg)
+		default:
+			renderErr = fmt.Errorf("unsupported render format: %s", componentOpts.Format)
+		}
+
+		if renderErr != nil {
+			errs = append(errs, renderErr)
 		}
 	}
 
@@ -128,23 +161,6 @@ func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *Options)
 	}
 
 	return nil
-}
-
-func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	return func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-		if cfg == nil {
-			return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
-		}
-
-		switch opts.Format {
-		case FormatJSON:
-			return renderJSON(ctx, l, opts, cfg)
-		case FormatHCL:
-			return renderHCL(ctx, l, opts, cfg)
-		default:
-			return fmt.Errorf("unsupported render format: %s", opts.Format)
-		}
-	}
 }
 
 func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {

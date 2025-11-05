@@ -32,9 +32,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	// Otherwise, run on single component
-	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
+	updatedOpts, cfg, err := run.MinimalSetupForInit(ctx, l, opts, report.NewReport())
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	return runAwsProviderPatch(ctx, l, updatedOpts, cfg)
 }
 
 func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -112,8 +115,13 @@ func runOnDiscoveredComponents(ctx context.Context, l log.Logger, opts *options.
 		componentOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		// Run the patch logic for this component
-		target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
-		if err := run.RunWithTarget(ctx, l, componentOpts, report.NewReport(), target); err != nil {
+		updatedOpts, cfg, err := run.MinimalSetupForInit(ctx, l, componentOpts, report.NewReport())
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		if err := runAwsProviderPatch(ctx, l, updatedOpts, cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
