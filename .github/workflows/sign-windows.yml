@@ -47,90 +47,63 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Windows SDK (for signtool.exe)
+      - name: Install DigiCert Client Tools
+        id: digicert_tools
+        uses: digicert/ssm-code-signing@v1.1.0
+        env:
+          FORCE_DOWNLOAD_TOOLS: 'true'
+        with:
+          api-key: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
+          client-cert-base64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
+          client-cert-password: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+          keypair-alias: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+
+      - name: Verify DigiCert tools installation
         shell: pwsh
         run: |
-          Write-Host "Installing Windows SDK..."
-          choco install windows-sdk-10-version-2004-all -y
+          Write-Host "Verifying DigiCert client tools installation..."
 
-          # Find signtool.exe location
-          $signtoolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          # Check for smctl
+          $smctlPath = Get-Command smctl.exe -ErrorAction SilentlyContinue
+          if ($smctlPath) {
+            Write-Host "✅ smctl.exe found at: $($smctlPath.Source)"
+            & smctl.exe version
+          } else {
+            Write-Error "❌ smctl.exe not found in PATH"
+            exit 1
+          }
+
+          # Check for signtool
+          $signtoolPath = Get-Command signtool.exe -ErrorAction SilentlyContinue
           if ($signtoolPath) {
-            Write-Host "Found signtool.exe at: $($signtoolPath.FullName)"
-            $sdkBinPath = $signtoolPath.DirectoryName
-            echo "SDK_BIN_PATH=$sdkBinPath" >> $env:GITHUB_ENV
-            echo "$sdkBinPath" >> $env:GITHUB_PATH
+            Write-Host "✅ signtool.exe found at: $($signtoolPath.Source)"
           } else {
-            Write-Error "signtool.exe not found!"
-            exit 1
+            Write-Warning "⚠️ signtool.exe not found, checking Windows SDK location..."
+            $signtoolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($signtoolPath) {
+              Write-Host "✅ Found signtool.exe at: $($signtoolPath.FullName)"
+              $sdkBinPath = $signtoolPath.DirectoryName
+              echo "SDK_BIN_PATH=$sdkBinPath" >> $env:GITHUB_ENV
+              echo "$sdkBinPath" >> $env:GITHUB_PATH
+            } else {
+              Write-Error "❌ signtool.exe not found. Installing Windows SDK..."
+              choco install windows-sdk-10-version-2004-all -y
+
+              # Search again after installation
+              $signtoolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($signtoolPath) {
+                Write-Host "✅ Found signtool.exe at: $($signtoolPath.FullName)"
+                $sdkBinPath = $signtoolPath.DirectoryName
+                echo "SDK_BIN_PATH=$sdkBinPath" >> $env:GITHUB_ENV
+                echo "$sdkBinPath" >> $env:GITHUB_PATH
+              } else {
+                Write-Error "❌ Failed to install or find signtool.exe"
+                exit 1
+              }
+            }
           }
 
-      - name: Install DigiCert Signing Manager Client (smctl)
-        shell: pwsh
-        run: |
-          Write-Host "Installing DigiCert Signing Manager Client..."
-
-          # Download smctl
-          $smctlUrl = "https://one.digicert.com/signingmanager/api-ui/v1/releases/smtools-windows-x64.msi/download"
-          $smctlInstaller = "$env:TEMP\smtools-windows-x64.msi"
-
-          Write-Host "Downloading smctl from $smctlUrl..."
-          Invoke-WebRequest -Uri $smctlUrl -OutFile $smctlInstaller
-
-          # Install smctl
-          Write-Host "Installing smctl..."
-          Start-Process msiexec.exe -ArgumentList "/i", $smctlInstaller, "/quiet", "/norestart" -Wait -NoNewWindow
-
-          # Add smctl to PATH
-          $smctlPath = "C:\Program Files\DigiCert\DigiCert Signing Manager Tools"
-          if (Test-Path $smctlPath) {
-            echo "$smctlPath" >> $env:GITHUB_PATH
-            Write-Host "smctl installed successfully at $smctlPath"
-          } else {
-            Write-Error "smctl installation failed!"
-            exit 1
-          }
-
-      - name: Configure DigiCert Signing Manager Authentication
-        shell: pwsh
-        env:
-          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          DIGICERT_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
-          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
-        run: |
-          Write-Host "Setting up DigiCert authentication..."
-
-          # Decode and save the client certificate
-          $certPath = "$env:TEMP\client_auth.p12"
-          $certBytes = [System.Convert]::FromBase64String($env:DIGICERT_P12_BASE64)
-          [System.IO.File]::WriteAllBytes($certPath, $certBytes)
-
-          # Store cert path for later steps
-          echo "CERT_PATH=$certPath" >> $env:GITHUB_ENV
-
-          Write-Host "Client certificate saved to $certPath"
-
-      - name: Synchronize DigiCert Certificates
-        shell: pwsh
-        env:
-          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
-        run: |
-          $smctlPath = "C:\Program Files\DigiCert\DigiCert Signing Manager Tools\smctl.exe"
-
-          # Configure smctl
-          Write-Host "Configuring smctl..."
-          & $smctlPath windows certsync `
-            --apikey "$env:DIGICERT_API_KEY" `
-            --pkcs12 "$env:CERT_PATH" `
-            --password "$env:DIGICERT_P12_PASSWORD"
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Certificate sync failed!"
-            exit 1
-          }
-
-          Write-Host "Certificate sync completed successfully"
+          Write-Host "✅ All required tools verified"
 
       - name: Generate version info resource file
         shell: pwsh
@@ -213,13 +186,24 @@ jobs:
       - name: Sign Windows Binaries
         shell: pwsh
         env:
-          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
           DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
         run: |
-          $signtoolPath = "$env:SDK_BIN_PATH\signtool.exe"
-
           Write-Host "Signing Windows binaries..."
+
+          # Find signtool (should be in PATH after DigiCert action)
+          $signtoolPath = Get-Command signtool.exe -ErrorAction SilentlyContinue
+          if (-not $signtoolPath) {
+            # Fallback to SDK_BIN_PATH if set
+            if ($env:SDK_BIN_PATH) {
+              $signtoolPath = "$env:SDK_BIN_PATH\signtool.exe"
+            } else {
+              Write-Error "signtool.exe not found in PATH or SDK_BIN_PATH"
+              exit 1
+            }
+          } else {
+            $signtoolPath = $signtoolPath.Source
+          }
+
           Write-Host "Using signtool: $signtoolPath"
 
           # Get list of Windows executables
@@ -229,6 +213,7 @@ jobs:
             Write-Host "`nSigning $($binary.Name)..."
 
             # Sign using signtool with DigiCert KSP
+            # The certificate should already be synced by the DigiCert action
             & $signtoolPath sign `
               /sha1 $env:DIGICERT_KEYPAIR_ALIAS `
               /tr http://timestamp.digicert.com `
