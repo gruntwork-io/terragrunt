@@ -57,6 +57,21 @@ type Units []*Unit
 
 type UnitsMap map[string]*Unit
 
+// EnsureAbsolutePath ensures a path is absolute, converting it if necessary.
+// Returns the absolute path and any error encountered during conversion.
+func EnsureAbsolutePath(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", errors.Errorf("failed to get absolute path for %s: %w", path, err)
+	}
+
+	return absPath, nil
+}
+
 // String renders this unit as a human-readable string
 func (unit *Unit) String() string {
 	var dependencies = make([]string, 0, len(unit.Dependencies))
@@ -192,8 +207,7 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 	for _, dependencyPath := range unit.Config.Dependencies.Paths {
 		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path)
 		if err != nil {
-			// TODO: Remove lint suppression
-			return dependencies, nil //nolint:nilerr
+			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
 		}
 
 		if files.FileExists(dependencyUnitPath) && !files.IsDir(dependencyUnitPath) {

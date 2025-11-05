@@ -21,15 +21,10 @@ func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason
 	}
 
 	// Ensure path is absolute for consistent reporting
-	absPath := unitPath
-	if !filepath.IsAbs(absPath) {
-		p, err := filepath.Abs(unitPath)
-		if err != nil {
-			l.Errorf("Error getting absolute path for unit %s: %v", unitPath, err)
-			return
-		}
-
-		absPath = p
+	absPath, err := EnsureAbsolutePath(unitPath)
+	if err != nil {
+		l.Errorf("Error getting absolute path for unit %s: %v", unitPath, err)
+		return
 	}
 
 	absPath = util.CleanPath(absPath)

@@ -53,14 +53,9 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	// Only create report entries if report is not nil
 	if r != nil {
 		// Ensure path is absolute and normalized for reporting
-		unitPath := runner.Unit.Path
-		if !filepath.IsAbs(unitPath) {
-			p, absErr := filepath.Abs(unitPath)
-			if absErr != nil {
-				return absErr
-			}
-
-			unitPath = p
+		unitPath, err := EnsureAbsolutePath(runner.Unit.Path)
+		if err != nil {
+			return err
 		}
 
 		unitPath = util.CleanPath(unitPath)
