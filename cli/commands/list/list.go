@@ -2,6 +2,7 @@ package list
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,6 +105,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return outputTree(l, opts, listedComponents, opts.Mode)
 	case FormatLong:
 		return outputLong(l, opts, listedComponents)
+	case FormatDot:
+		return outputDot(l, opts, listedComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -131,10 +134,10 @@ func shouldDiscoverDependencies(opts *Options) bool {
 type ListedComponents []*ListedComponent
 
 type ListedComponent struct {
-	Type component.Kind
-	Path string
-
+	Type         component.Kind
+	Path         string
 	Dependencies []*ListedComponent
+	Excluded     bool
 }
 
 // Contains checks to see if the given path is in the listed components.
@@ -168,11 +171,17 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			continue
 		}
 
+		excluded := false
+
 		if opts.QueueConstructAs != "" {
 			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
 					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
-						continue
+						if opts.Format != FormatDot {
+							continue
+						}
+
+						excluded = true
 					}
 				}
 			}
@@ -186,8 +195,9 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		}
 
 		listedCfg := &ListedComponent{
-			Type: c.Kind(),
-			Path: relPath,
+			Type:     c.Kind(),
+			Path:     relPath,
+			Excluded: excluded,
 		}
 
 		if len(c.Dependencies()) == 0 {
@@ -206,9 +216,22 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 				continue
 			}
 
+			depExcluded := false
+
+			if opts.QueueConstructAs != "" {
+				if depUnit, ok := dep.(*component.Unit); ok {
+					if depCfg := depUnit.Config(); depCfg != nil && depCfg.Exclude != nil {
+						if depCfg.Exclude.IsActionListed(opts.QueueConstructAs) {
+							depExcluded = true
+						}
+					}
+				}
+			}
+
 			listedCfg.Dependencies[i] = &ListedComponent{
-				Type: dep.Kind(),
-				Path: relDepPath,
+				Type:     dep.Kind(),
+				Path:     relDepPath,
+				Excluded: depExcluded,
 			}
 		}
 
@@ -318,23 +341,15 @@ func shouldColor(l log.Logger) bool {
 
 // renderLong renders the components in a long format.
 func renderLong(opts *Options, components ListedComponents, c *Colorizer) error {
+	var buf strings.Builder
+
 	longestPathLen := getLongestPathLen(components)
 
-	err := renderLongHeadings(opts, c, longestPathLen)
-	if err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString(buildLongHeadings(opts, c, longestPathLen))
 
 	for _, component := range components {
-		_, err := opts.Writer.Write([]byte(c.ColorizeType(component.Type)))
-		if err != nil {
-			return errors.New(err)
-		}
-
-		_, err = opts.Writer.Write([]byte(" " + c.Colorize(component)))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(c.ColorizeType(component.Type))
+		buf.WriteString(" " + c.Colorize(component))
 
 		if opts.Dependencies && len(component.Dependencies) > 0 {
 			colorizedDeps := []string{}
@@ -347,92 +362,67 @@ func renderLong(opts *Options, components ListedComponents, c *Colorizer) error 
 
 			dependenciesPadding := (longestPathLen - len(component.Path)) + extraDependenciesPadding
 			for range dependenciesPadding {
-				_, err = opts.Writer.Write([]byte(" "))
-				if err != nil {
-					return errors.New(err)
-				}
+				buf.WriteString(" ")
 			}
 
-			_, err = opts.Writer.Write([]byte(strings.Join(colorizedDeps, ", ")))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString(strings.Join(colorizedDeps, ", "))
 		}
 
-		_, err = opts.Writer.Write([]byte("\n"))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString("\n")
 	}
 
-	return nil
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }
 
-// renderLongHeadings renders the headings for the long format.
-func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
-	_, err := opts.Writer.Write([]byte(c.ColorizeHeading("Type  Path")))
-	if err != nil {
-		return errors.New(err)
-	}
+// buildLongHeadings renders the headings for the long format.
+func buildLongHeadings(opts *Options, c *Colorizer, longestPathLen int) string {
+	var buf strings.Builder
+
+	buf.WriteString(c.ColorizeHeading("Type  Path"))
 
 	if opts.Dependencies {
 		const extraDependenciesPadding = 2
 
 		dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
 		for range dependenciesPadding {
-			_, err = opts.Writer.Write([]byte(" "))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString(" ")
 		}
 
-		_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies")))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(c.ColorizeHeading("Dependencies"))
 	}
 
-	_, err = opts.Writer.Write([]byte("\n"))
-	if err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString("\n")
 
-	return nil
+	return buf.String()
 }
 
 // renderTabular renders the components in a tabular format.
 func renderTabular(opts *Options, components ListedComponents, c *Colorizer) error {
+	var buf strings.Builder
+
 	maxCols, colWidth := getMaxCols(components)
 
 	for i, component := range components {
 		if i > 0 && i%maxCols == 0 {
-			_, err := opts.Writer.Write([]byte("\n"))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString("\n")
 		}
 
-		_, err := opts.Writer.Write([]byte(c.Colorize(component)))
-		if err != nil {
-			return errors.New(err)
-		}
+		buf.WriteString(c.Colorize(component))
 
 		// Add padding until the length of maxCols
 		padding := colWidth - len(component.Path)
 		for range padding {
-			_, err := opts.Writer.Write([]byte(" "))
-			if err != nil {
-				return errors.New(err)
-			}
+			buf.WriteString(" ")
 		}
 	}
 
-	_, err := opts.Writer.Write([]byte("\n"))
-	if err != nil {
-		return errors.New(err)
-	}
+	buf.WriteString("\n")
 
-	return nil
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }
 
 // outputTree outputs the discovered components in tree format.
@@ -440,6 +430,11 @@ func outputTree(l log.Logger, opts *Options, components ListedComponents, sort s
 	s := NewTreeStyler(shouldColor(l))
 
 	return renderTree(opts, components, s, sort)
+}
+
+// outputDot outputs the discovered components in GraphViz DOT format.
+func outputDot(_ log.Logger, opts *Options, components ListedComponents) error {
+	return renderDot(opts, components)
 }
 
 type TreeStyler struct {
@@ -673,4 +668,44 @@ func getLongestPathLen(components ListedComponents) int {
 	}
 
 	return longest
+}
+
+// renderDot renders the components in GraphViz DOT format.
+func renderDot(opts *Options, components ListedComponents) error {
+	var buf strings.Builder
+
+	buf.WriteString("digraph {\n")
+
+	sortedComponents := make(ListedComponents, len(components))
+	copy(sortedComponents, components)
+	sort.Slice(sortedComponents, func(i, j int) bool {
+		return sortedComponents[i].Path < sortedComponents[j].Path
+	})
+
+	for _, component := range sortedComponents {
+		if len(component.Dependencies) > 1 {
+			sort.Slice(component.Dependencies, func(i, j int) bool {
+				return component.Dependencies[i].Path < component.Dependencies[j].Path
+			})
+		}
+	}
+
+	for _, component := range sortedComponents {
+		style := ""
+		if component.Excluded {
+			style = "[color=red]"
+		}
+
+		buf.WriteString(fmt.Sprintf("\t\"%s\" %s;\n", component.Path, style))
+
+		for _, dep := range component.Dependencies {
+			buf.WriteString(fmt.Sprintf("\t\"%s\" -> \"%s\";\n", component.Path, dep.Path))
+		}
+	}
+
+	buf.WriteString("}\n")
+
+	_, err := opts.Writer.Write([]byte(buf.String()))
+
+	return errors.New(err)
 }

@@ -98,6 +98,9 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		util.CopyFolderContents(logger.CreateLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil),
 	)
 
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	return tmpDir
 }
 

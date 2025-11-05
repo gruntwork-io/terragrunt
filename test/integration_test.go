@@ -3712,6 +3712,10 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
+
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
@@ -4249,24 +4253,6 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 
 		assert.Contains(t, stdout, tc.expected)
 	}
-}
-
-// expectExtraVersionCommandCall returns true if we expect an extra version command to be invoked.
-//
-// We expect an extra version command to be invoked when the auto-provider-cache-dir experiment is enabled with OpenTofu,
-// as we need to check if the provider cache directory should be enabled.
-func expectExtraVersionCommandCall(t *testing.T) bool {
-	t.Helper()
-
-	if helpers.IsTerraform() {
-		return false
-	}
-
-	if os.Getenv("TG_EXPERIMENT_MODE") == "true" {
-		return true
-	}
-
-	return false
 }
 
 func TestMixedStackConfigIgnored(t *testing.T) {

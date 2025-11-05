@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1089,10 +1090,10 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 // provided Terragrunt options.
 func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) ([]string, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-	walkFunc := filepath.Walk
 
+	walkFunc := filepath.WalkDir
 	if walkWithSymlinks {
-		walkFunc = util.WalkWithSymlinks
+		walkFunc = util.WalkDirWithSymlinks
 	}
 
 	l.Debugf("Searching for stack files in %s", dir)
@@ -1100,13 +1101,13 @@ func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) (
 	var stackFiles []string
 
 	// find all defaultStackFile files
-	if err := walkFunc(dir, func(path string, info os.FileInfo, err error) error {
+	if err := walkFunc(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			l.Warnf("Error accessing path %s: %w", path, err)
 			return nil
 		}
 
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 

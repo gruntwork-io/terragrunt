@@ -646,6 +646,7 @@ func (d *Discovery) walkDirectoryConcurrently(
 	filePaths chan<- string,
 ) error {
 	walkFn := filepath.WalkDir
+
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
 		walkFn = util.WalkDirWithSymlinks
 	}
