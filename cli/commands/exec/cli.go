@@ -3,8 +3,8 @@
 package exec
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -20,17 +20,18 @@ const (
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return append(run.NewFlags(l, opts, prefix).Filter(
-		run.AuthProviderCmdFlagName,
-		run.ConfigFlagName,
-		run.DownloadDirFlagName,
-		run.InputsDebugFlagName,
-		run.IAMAssumeRoleFlagName,
-		run.IAMAssumeRoleDurationFlagName,
-		run.IAMAssumeRoleSessionNameFlagName,
-		run.IAMAssumeRoleWebIdentityTokenFlagName,
-		run.TFPathFlagName,
-	),
+	sharedFlags := append(
+		cli.Flags{
+			shared.NewConfigFlag(opts, prefix, CommandName),
+			shared.NewDownloadDirFlag(opts, prefix, CommandName),
+			shared.NewTFPathFlag(opts),
+			shared.NewAuthProviderCmdFlag(opts, prefix, CommandName),
+			shared.NewInputsDebugFlag(opts, prefix, CommandName),
+		},
+		shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...,
+	)
+
+	return append(sharedFlags,
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InDownloadDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(InDownloadDirFlagName),
