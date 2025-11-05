@@ -112,37 +112,66 @@ jobs:
       - name: Generate version info resource file
         shell: pwsh
         run: |
-          # Install goversioninfo
+          # Install goversioninfo with proper GOBIN configuration
           Write-Host "Installing goversioninfo..."
-          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
 
-          # Determine Go bin directory
+          # Set GOBIN explicitly to ensure install knows where to put binary
           $goPath = & go env GOPATH
           $goBinPath = Join-Path $goPath "bin"
 
-          Write-Host "GOPATH: $goPath"
-          Write-Host "Go bin path: $goBinPath"
-
-          # Add Go bin to PATH (create directory if it doesn't exist)
+          # Create bin directory if it doesn't exist
           if (-not (Test-Path $goBinPath)) {
-            Write-Host "Go bin directory doesn't exist, creating it..."
+            Write-Host "Creating Go bin directory: $goBinPath"
             New-Item -ItemType Directory -Path $goBinPath -Force | Out-Null
           }
 
-          $env:PATH = "$goBinPath;$env:PATH"
-          echo "$goBinPath" >> $env:GITHUB_PATH
-          Write-Host "Added Go bin to PATH: $goBinPath"
+          # Set GOBIN environment variable for this install
+          $env:GOBIN = $goBinPath
+          Write-Host "GOPATH: $goPath"
+          Write-Host "GOBIN: $env:GOBIN"
 
-          # Verify goversioninfo was installed
-          $goversioninfoExe = Join-Path $goBinPath "goversioninfo.exe"
-          if (Test-Path $goversioninfoExe) {
-            Write-Host "✅ goversioninfo.exe found at: $goversioninfoExe"
-          } else {
-            Write-Error "❌ goversioninfo.exe not found at: $goversioninfoExe"
-            Write-Host "Directory contents:"
-            Get-ChildItem $goBinPath -ErrorAction SilentlyContinue
+          # Install goversioninfo
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ go install failed with exit code: $LASTEXITCODE"
             exit 1
           }
+
+          Write-Host "Installation completed, checking for executable..."
+
+          # Wait a moment for file system to sync
+          Start-Sleep -Seconds 2
+
+          # Verify the executable was created
+          $goversioninfoExe = Join-Path $goBinPath "goversioninfo.exe"
+          if (-not (Test-Path $goversioninfoExe)) {
+            Write-Error "❌ goversioninfo.exe not found at: $goversioninfoExe"
+            Write-Host "Contents of $goBinPath :"
+            Get-ChildItem $goBinPath -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.Name)" }
+
+            # Try alternative: build directly
+            Write-Host "Attempting alternative installation method..."
+            $tempDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "goversioninfo-build") -Force
+            Push-Location $tempDir
+            go mod init temp 2>$null
+            go get github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
+            go build -o $goversioninfoExe github.com/josephspurrier/goversioninfo/cmd/goversioninfo
+            Pop-Location
+            Remove-Item $tempDir -Recurse -Force
+
+            if (-not (Test-Path $goversioninfoExe)) {
+              Write-Error "❌ Alternative installation also failed"
+              exit 1
+            }
+          }
+
+          Write-Host "✅ goversioninfo.exe found at: $goversioninfoExe"
+
+          # Add to PATH for current and future steps
+          $env:PATH = "$goBinPath;$env:PATH"
+          echo "$goBinPath" >> $env:GITHUB_PATH
+          Write-Host "✅ Added Go bin to PATH"
 
           # Get version from git tag or use a default
           $version = $env:GITHUB_REF_NAME
