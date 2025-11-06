@@ -115,102 +115,91 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # Step 1: Install DigiCert Client Tools
-      - name: Install DigiCert Client tools
-        id: plugin # We give this step an ID to get its outputs
+      # Step 1: Install DigiCert smtools
+      - name: Install DigiCert smtools
         uses: digicert/ssm-code-signing@v1.1.0
         with:
           force-download-tools: 'true'
 
-      # Step 2: Set up certificate
-      - name: Set up certificate
-        shell: bash
+      # Step 2: Decode certificate and configure smctl
+      - name: Configure smctl authentication
+        shell: pwsh
         env:
-          # Use your existing secret name
+          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
           CERT_B64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
-        run: |
-          if [ -z "$CERT_B64" ]; then
-            echo "::error:: WINDOWS_SIGNING_P12_BASE64 secret is not set!"
-            exit 1
-          fi
-          echo "$CERT_B64" | base64 --decode > /d/Certificate_pkcs12.p12 
-
-      # Step 3: Sync certificates to Windows cert store
-      - name: Sync certificates from DigiCert KeyLocker
-        shell: pwsh
-        env:
-          SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          SM_HOST: https://clientauth.one.digicert.com
-          SM_CLIENT_CERT_FILE: D:\Certificate_pkcs12.p12
-          SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
-        run: |
-          Write-Host "Syncing certificates from DigiCert KeyLocker..."
-          Write-Host "SM_HOST: $env:SM_HOST"
-          Write-Host "SM_CLIENT_CERT_FILE: $env:SM_CLIENT_CERT_FILE"
-
-          # Verify environment variables are set
-          if ([string]::IsNullOrEmpty($env:SM_API_KEY)) {
-            Write-Error "❌ SM_API_KEY is not set"
-            exit 1
-          }
-          if ([string]::IsNullOrEmpty($env:SM_CLIENT_CERT_PASSWORD)) {
-            Write-Error "❌ SM_CLIENT_CERT_PASSWORD is not set"
-            exit 1
-          }
-          if (-not (Test-Path $env:SM_CLIENT_CERT_FILE)) {
-            Write-Error "❌ Certificate file not found: $env:SM_CLIENT_CERT_FILE"
-            exit 1
-          }
-
-          # smctl windows certsync will sync certs to Windows cert store
-          & smctl.exe windows certsync
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Certificate sync failed with exit code: $LASTEXITCODE"
-            exit 1
-          }
-
-          Write-Host "✅ Certificates synced successfully"
-
-          # List available certificates for debugging
-          Write-Host "`nListing certificates in 'My' store:"
-          certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash"
-
-      # Step 5: Sign the binaries with signtool
-      - name: Sign Windows Binaries
-        shell: pwsh
-        env:
-          DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Stop'
 
-          Write-Host "Signing Windows binaries with signtool + DigiCert KSP..."
+          Write-Host "Configuring smctl authentication..."
+
+          # Validate secrets
+          if ([string]::IsNullOrEmpty($env:DIGICERT_API_KEY)) {
+            Write-Error "❌ WINDOWS_SIGNING_API_KEY secret is not set!"
+            exit 1
+          }
+          if ([string]::IsNullOrEmpty($env:CERT_B64)) {
+            Write-Error "❌ WINDOWS_SIGNING_P12_BASE64 secret is not set!"
+            exit 1
+          }
+          if ([string]::IsNullOrEmpty($env:CERT_PASSWORD)) {
+            Write-Error "❌ WINDOWS_SIGNING_P12_PASSWORD secret is not set!"
+            exit 1
+          }
+
+          # Decode certificate to file
+          Write-Host "Decoding certificate from base64..."
+          $certBytes = [Convert]::FromBase64String($env:CERT_B64)
+          [IO.File]::WriteAllBytes("D:\client_auth.p12", $certBytes)
+
+          if (Test-Path "D:\client_auth.p12") {
+            Write-Host "✅ Certificate file created: D:\client_auth.p12"
+            $fileInfo = Get-Item "D:\client_auth.p12"
+            Write-Host "   Size: $($fileInfo.Length) bytes"
+          } else {
+            Write-Error "❌ Failed to create certificate file"
+            exit 1
+          }
+
+          # Configure smctl with authentication
+          Write-Host "`nConfiguring smctl..."
+          & smctl.exe config --api-token $env:DIGICERT_API_KEY --client-auth-cert "D:\client_auth.p12" --client-auth-cert-pass $env:CERT_PASSWORD
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ smctl config failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
+
+          Write-Host "✅ smctl configured successfully"
+
+          # Test authentication by listing keypairs
+          Write-Host "`nTesting authentication..."
+          & smctl.exe keypair ls
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Failed to list keypairs - authentication failed"
+            exit 1
+          }
+
+          Write-Host "✅ Authentication successful"
+
+      # Step 3: Sign binaries with smctl
+      - name: Sign Windows Binaries
+        shell: pwsh
+        env:
+          KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Write-Host "Signing Windows binaries with smctl..."
 
           # Validate keypair alias
-          if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
+          if ([string]::IsNullOrEmpty($env:KEYPAIR_ALIAS)) {
             Write-Error "❌ WINDOWS_SIGNING_KEYPAIR_ALIAS secret is not set!"
             exit 1
           }
 
-          Write-Host "Keypair alias: $env:DIGICERT_KEYPAIR_ALIAS"
-
-          # Find signtool.exe
-          $signtoolPath = Get-Command signtool.exe -ErrorAction SilentlyContinue
-          if (-not $signtoolPath) {
-            Write-Host "signtool.exe not in PATH, searching Windows SDK..."
-            $signtoolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($signtoolPath) {
-              $signtoolPath = $signtoolPath.FullName
-              Write-Host "Found signtool.exe at: $signtoolPath"
-            } else {
-              Write-Error "❌ signtool.exe not found"
-              exit 1
-            }
-          } else {
-            $signtoolPath = $signtoolPath.Source
-          }
-
-          Write-Host "Using signtool: $signtoolPath"
+          Write-Host "Keypair alias: $env:KEYPAIR_ALIAS"
 
           # Get binaries
           $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
@@ -226,15 +215,8 @@ jobs:
             Write-Host "Signing: $($binary.Name)"
             Write-Host "========================================="
 
-            # Sign using DigiCert KeyLocker KSP
-            & $signtoolPath sign `
-              /csp "DigiCert Signing Manager KSP" `
-              /kc $env:DIGICERT_KEYPAIR_ALIAS `
-              /tr http://timestamp.digicert.com `
-              /td SHA256 `
-              /fd SHA256 `
-              /d "Terragrunt - Terraform Wrapper" `
-              $binary.FullName
+            # Sign using smctl (it will use signtool internally and handle timestamping)
+            & smctl.exe sign --keypair-alias $env:KEYPAIR_ALIAS --input $binary.FullName
 
             if ($LASTEXITCODE -ne 0) {
               Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
@@ -243,14 +225,16 @@ jobs:
 
             Write-Host "✅ Successfully signed $($binary.Name)"
 
-            # Verify signature
+            # Verify signature using signtool
             Write-Host "Verifying signature..."
-            & $signtoolPath verify /pa /v $binary.FullName
-
-            if ($LASTEXITCODE -ne 0) {
-              Write-Warning "⚠️  Signature verification failed (may be expected in CI)"
-            } else {
-              Write-Host "✅ Signature verified"
+            $signtoolPath = Get-Command signtool.exe -ErrorAction SilentlyContinue
+            if ($signtoolPath) {
+              & $signtoolPath.Source verify /pa /v $binary.FullName
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Signature verified"
+              } else {
+                Write-Warning "⚠️  Signature verification warning (may be expected in CI)"
+              }
             }
           }
 
@@ -258,7 +242,7 @@ jobs:
           Write-Host "✅ All Windows binaries signed successfully!"
           Write-Host "========================================="
 
-      # Step 5: Upload the signed artifacts
+      # Step 3: Upload the signed artifacts
       - name: Upload Signed Windows Binaries
         uses: actions/upload-artifact@v5
         with:
