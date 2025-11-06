@@ -113,9 +113,18 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
+      # This step installs smctl.exe, signtool.exe, and the KSP
+      # and adds them to the PATH for the next step to use.
+      - name: Install DigiCert Client Tools
+        uses: digicert/ssm-code-signing@v1.1.0
+        with:
+          force-download-tools: 'true'
+
+      # This step now runs AFTER the tools are installed
       - name: Sign Windows Binaries
         shell: pwsh
         env:
+          # Map GitHub secrets to the env vars required by windows-sign.ps1
           DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
           DIGICERT_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
           DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
@@ -123,6 +132,8 @@ jobs:
         run: |
           Write-Host "Calling ./.github/scripts/setup/windows-sign.ps1"
           
+          # Call the script that already exists in your repository
+          # It will now find smctl.exe and signtool.exe in the PATH
           ./.github/scripts/setup/windows-sign.ps1 -Binaries "bin/terragrunt_windows_*.exe"
 
       # This step uploads the newly signed artifacts
