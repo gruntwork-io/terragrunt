@@ -265,7 +265,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"terragrunt_config_path": u.TerragruntOptions.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			unitRunner := common.NewUnitRunner(u)
-			return unitRunner.Run(childCtx, u.TerragruntOptions, r.Stack.Report)
+			return unitRunner.Run(childCtx, l, u.TerragruntOptions, r.Stack.Report)
 		})
 	}
 

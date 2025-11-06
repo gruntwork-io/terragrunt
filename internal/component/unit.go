@@ -15,6 +15,7 @@ const (
 type Unit struct {
 	cfg              *config.TerragruntConfig
 	path             string
+	filename         string
 	reading          []string
 	discoveryContext *DiscoveryContext
 	dependencies     Components
@@ -55,6 +56,16 @@ func (u *Unit) Config() *config.TerragruntConfig {
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	u.cfg = cfg
+}
+
+// Filename returns the filename of the unit.
+func (u *Unit) Filename() string {
+	return u.filename
+}
+
+// SetFilename sets the filename of the unit.
+func (u *Unit) SetFilename(filename string) {
+	u.filename = filename
 }
 
 // Kind returns the kind of component (always Unit for Unit).

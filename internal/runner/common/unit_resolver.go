@@ -225,7 +225,7 @@ func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l l
 //
 // Units excluded at this stage have FlagExcluded=true and minimal configuration.
 // They are still included in the UnitsMap for dependency resolution but won't be executed.
-func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []component.Component) (UnitsMap, error) {
+func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered component.Components) (UnitsMap, error) {
 	units := make(UnitsMap)
 
 	for _, c := range discovered {
@@ -268,7 +268,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 		// Exclusion check - create a temporary unit for matching
-		unitToExclude := &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
+		unitToExclude := &Unit{Path: unitPath, TerragruntOptions: opts, FlagExcluded: true}
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -312,7 +312,6 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 
 		units[unitPath] = &Unit{
 			Path:              unitPath,
-			Logger:            l,
 			Config:            *terragruntConfig,
 			TerragruntOptions: opts,
 			Reading:           dUnit.Reading(),

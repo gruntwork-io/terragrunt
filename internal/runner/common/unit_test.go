@@ -42,12 +42,15 @@ func TestUnit_FlushOutput(t *testing.T) {
 		TerragruntOptions: &options.TerragruntOptions{Writer: writer},
 	}
 	_, _ = writer.Write([]byte("test output"))
-	err := unit.FlushOutput()
+
+	l := logger.CreateLogger()
+
+	err := unit.FlushOutput(l)
 	require.NoError(t, err)
 	assert.Equal(t, "test output", buf.String())
 
 	unit.TerragruntOptions.Writer = &bytes.Buffer{}
-	assert.NoError(t, unit.FlushOutput())
+	assert.NoError(t, unit.FlushOutput(l))
 }
 
 func TestUnit_PlanFile_OutputFile_JSONOutputFolder(t *testing.T) {

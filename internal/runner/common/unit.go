@@ -25,7 +25,6 @@ import (
 // module and the list of other modules that this module depends on
 type Unit struct {
 	TerragruntOptions    *options.TerragruntOptions
-	Logger               log.Logger
 	Path                 string
 	Reading              []string
 	Dependencies         Units
@@ -85,13 +84,13 @@ func (unit *Unit) String() string {
 }
 
 // FlushOutput flushes buffer data to the output writer.
-func (unit *Unit) FlushOutput() error {
+func (unit *Unit) FlushOutput(l log.Logger) error {
 	if unit == nil || unit.TerragruntOptions == nil || unit.TerragruntOptions.Writer == nil {
 		return nil
 	}
 
 	if writer, ok := unit.TerragruntOptions.Writer.(*UnitWriter); ok {
-		key := unit.AbsolutePath(unit.Logger)
+		key := unit.AbsolutePath(l)
 
 		mu := getUnitOutputLock(key)
 
