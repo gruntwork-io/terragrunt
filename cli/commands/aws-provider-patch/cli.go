@@ -32,9 +32,10 @@ package awsproviderpatch
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -70,7 +71,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Hidden: true,
-		Flags:  append(run.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...),
+		Flags:  append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...),
 		Before: func(ctx *cli.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)

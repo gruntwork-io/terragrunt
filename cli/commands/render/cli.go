@@ -4,10 +4,11 @@ package render
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -120,7 +121,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       append(run.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...),
+		Flags:       append(runcmd.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...),
 		Action: func(ctx *cli.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 			renderOpts := renderOpts.Clone()

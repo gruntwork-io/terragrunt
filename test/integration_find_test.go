@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	testFixtureFindBasic             = "fixtures/find/basic"
-	testFixtureFindHidden            = "fixtures/find/hidden"
-	testFixtureFindDAG               = "fixtures/find/dag"
-	testFixtureFindInternalVExternal = "fixtures/find/internal-v-external"
-	testFixtureFindExclude           = "fixtures/exclude/basic"
-	testFixtureFindInclude           = "fixtures/find/include"
+	testFixtureFindBasic                = "fixtures/find/basic"
+	testFixtureFindHidden               = "fixtures/find/hidden"
+	testFixtureFindDAG                  = "fixtures/find/dag"
+	testFixtureFindInternalVExternal    = "fixtures/find/internal-v-external"
+	testFixtureFindExclude              = "fixtures/exclude/basic"
+	testFixtureFindInclude              = "fixtures/find/include"
+	testFixtureFindReadTerragruntConfig = "fixtures/find/read-terragrunt-config"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -256,7 +257,7 @@ func TestFindExclude(t *testing.T) {
 			assert.Empty(t, stderr)
 
 			if strings.Contains(tc.args, "--json") {
-				var configs find.FoundConfigs
+				var configs find.FoundComponents
 
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
@@ -341,7 +342,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, stderr)
 
-			var configs find.FoundConfigs
+			var configs find.FoundComponents
 
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
@@ -353,6 +354,51 @@ func TestFindQueueConstructAs(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expectedPaths, paths)
+		})
+	}
+}
+
+// TestFindWithReadTerragruntConfig tests that the find command works correctly
+// when using read_terragrunt_config with dependencies.
+func TestFindWithReadTerragruntConfig(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindReadTerragruntConfig)
+
+	testCases := []struct {
+		name     string
+		args     string
+		expected string
+	}{
+		{
+			name:     "find with dag and json",
+			args:     "--dag --json",
+			expected: `[{"type":"unit","path":"module"},{"type":"unit","path":"."}]`,
+		},
+		{
+			name:     "find with json",
+			args:     "--json",
+			expected: `[{"type":"unit","path":"."},{"type":"unit","path":"module"}]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFindReadTerragruntConfig)
+
+			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindReadTerragruntConfig, tc.args)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			// The command should succeed without errors
+			require.NoError(t, err, "find command should not fail")
+
+			// There should be no error output
+			assert.Empty(t, stderr, "stderr should be empty - no parse errors should occur")
+
+			// Verify the JSON output matches expected
+			jsonStringsEqual(t, tc.expected, stdout)
 		})
 	}
 }

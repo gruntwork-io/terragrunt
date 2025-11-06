@@ -2,12 +2,12 @@ package common
 
 import (
 	"fmt"
-	"io"
 	"maps"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -17,6 +17,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
+
+	xsync "github.com/puzpuzpuz/xsync/v3"
 )
 
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
@@ -25,15 +27,49 @@ type Unit struct {
 	TerragruntOptions    *options.TerragruntOptions
 	Logger               log.Logger
 	Path                 string
+	Reading              []string
 	Dependencies         Units
 	Config               config.TerragruntConfig
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
+	IsExternal           bool // Set to true if this unit is outside the working directory (discovered as external dependency)
+}
+
+// per-path output locks to serialize flushes for the same unit
+var (
+	unitOutputLocks = xsync.NewMapOf[string, *sync.Mutex]()
+)
+
+func getUnitOutputLock(path string) *sync.Mutex {
+	if mu, ok := unitOutputLocks.Load(path); ok {
+		return mu
+	}
+	// Create a new mutex and attempt to store it; if another goroutine stored one first,
+	// use the existing mutex returned by LoadOrStore.
+	newMu := &sync.Mutex{}
+	actual, _ := unitOutputLocks.LoadOrStore(path, newMu)
+
+	return actual
 }
 
 type Units []*Unit
 
 type UnitsMap map[string]*Unit
+
+// EnsureAbsolutePath ensures a path is absolute, converting it if necessary.
+// Returns the absolute path and any error encountered during conversion.
+func EnsureAbsolutePath(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", errors.Errorf("failed to get absolute path for %s: %w", path, err)
+	}
+
+	return absPath, nil
+}
 
 // String renders this unit as a human-readable string
 func (unit *Unit) String() string {
@@ -50,7 +86,18 @@ func (unit *Unit) String() string {
 
 // FlushOutput flushes buffer data to the output writer.
 func (unit *Unit) FlushOutput() error {
+	if unit == nil || unit.TerragruntOptions == nil || unit.TerragruntOptions.Writer == nil {
+		return nil
+	}
+
 	if writer, ok := unit.TerragruntOptions.Writer.(*UnitWriter); ok {
+		key := unit.AbsolutePath(unit.Logger)
+
+		mu := getUnitOutputLock(key)
+
+		mu.Lock()
+		defer mu.Unlock()
+
 		return writer.Flush()
 	}
 
@@ -123,9 +170,29 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 	return filepath.Join(dir, fileName)
 }
 
-// FindUnitInPath returns true if a unit is located under one of the target directories
+// FindUnitInPath returns true if a unit is located under one of the target directories.
+// Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
 func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
 	return slices.Contains(targetDirs, unit.Path)
+}
+
+// AbsolutePath returns the absolute path of the unit.
+// If path conversion fails, returns the original path and logs a warning.
+func (unit *Unit) AbsolutePath(l log.Logger) string {
+	if filepath.IsAbs(unit.Path) {
+		return unit.Path
+	}
+
+	absPath, err := filepath.Abs(unit.Path)
+	if err != nil {
+		if l != nil {
+			l.Warnf("Failed to get absolute path for %s: %v", unit.Path, err)
+		}
+
+		return unit.Path
+	}
+
+	return absPath
 }
 
 // getDependenciesForUnit Get the list of units this unit depends on
@@ -139,8 +206,7 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 	for _, dependencyPath := range unit.Config.Dependencies.Paths {
 		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path)
 		if err != nil {
-			// TODO: Remove lint suppression
-			return dependencies, nil //nolint:nilerr
+			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
 		}
 
 		if files.FileExists(dependencyUnitPath) && !files.IsDir(dependencyUnitPath) {
@@ -185,9 +251,11 @@ func (unitsMap UnitsMap) FindByPath(path string) *Unit {
 	return nil
 }
 
-// CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If
-// a dependency is referenced that is not in the given map, return an error.
-func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []string) (Units, error) {
+// ConvertDiscoveryToRunner converts units from discovery domain to runner domain by resolving
+// Component interface dependencies into concrete *Unit pointer dependencies.
+// Discovery found all dependencies and stored them as Component interfaces, but runner needs
+// concrete *Unit pointers for efficient execution. This function translates between domains.
+func (unitsMap UnitsMap) ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths []string) (Units, error) {
 	units := Units{}
 
 	keys := unitsMap.SortedKeys()
@@ -205,55 +273,6 @@ func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []
 	}
 
 	return units, nil
-}
-
-// WriteDot is used to emit a GraphViz compatible definition
-// for a directed graph. It can be used to dump a .dot file.
-// This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/v1.5.7/internal/dag/dag.go
-// adding some styling to units that are excluded from the execution in *-all commands
-func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntOptions) error {
-	if _, err := w.Write([]byte("digraph {\n")); err != nil {
-		return errors.New(err)
-	}
-	defer func(w io.Writer, p []byte) {
-		_, err := w.Write(p)
-		if err != nil {
-			l.Warnf("Failed to close graphviz output: %v", err)
-		}
-	}(w, []byte("}\n"))
-
-	// all paths are relative to the TerragruntConfigPath
-	prefix := filepath.Dir(opts.TerragruntConfigPath) + "/"
-
-	for _, source := range units {
-		// apply a different coloring for excluded nodes
-		style := ""
-		if source.FlagExcluded {
-			style = "[color=red]"
-		}
-
-		nodeLine := fmt.Sprintf("\t\"%s\" %s;\n",
-			strings.TrimPrefix(source.Path, prefix), style)
-
-		_, err := w.Write([]byte(nodeLine))
-		if err != nil {
-			return errors.New(err)
-		}
-
-		for _, target := range source.Dependencies {
-			line := fmt.Sprintf("\t\"%s\" -> \"%s\";\n",
-				strings.TrimPrefix(source.Path, prefix),
-				strings.TrimPrefix(target.Path, prefix),
-			)
-
-			_, err := w.Write([]byte(line))
-			if err != nil {
-				return errors.New(err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // CheckForCycles checks for dependency cycles in the given list of units and return an error if one is found.

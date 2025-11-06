@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +29,7 @@ func TestRun(t *testing.T) {
 		hidden        bool
 		dependencies  bool
 		external      bool
+		reading       bool
 	}{
 		{
 			name: "basic discovery",
@@ -139,7 +140,7 @@ func TestRun(t *testing.T) {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs find.FoundConfigs
+				var configs find.FoundComponents
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -164,7 +165,7 @@ func TestRun(t *testing.T) {
 				// Verify each config has a valid type
 				for _, config := range configs {
 					assert.NotEmpty(t, config.Type)
-					assert.True(t, config.Type == discovery.ConfigTypeUnit || config.Type == discovery.ConfigTypeStack)
+					assert.True(t, config.Type == component.UnitKind || config.Type == component.StackKind)
 				}
 			},
 		},
@@ -353,7 +354,7 @@ dependency "B" {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs []find.FoundConfig
+				var configs []find.FoundComponent
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -406,6 +407,134 @@ dependency "B" {
 				assert.Empty(t, output)
 			},
 		},
+		{
+			name: "reading flag with json output",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				tmpDir := t.TempDir()
+				appDir := filepath.Join(tmpDir, "app")
+				require.NoError(t, os.MkdirAll(appDir, 0755))
+
+				// Create shared files that will be read
+				sharedHCL := filepath.Join(tmpDir, "shared.hcl")
+				sharedTFVars := filepath.Join(tmpDir, "shared.tfvars")
+
+				require.NoError(t, os.WriteFile(sharedHCL, []byte(`
+locals {
+  common_value = "test"
+}
+`), 0644))
+
+				require.NoError(t, os.WriteFile(sharedTFVars, []byte(`
+test_var = "value"
+`), 0644))
+
+				// Create terragrunt config that reads both files
+				terragruntConfig := filepath.Join(appDir, "terragrunt.hcl")
+				require.NoError(t, os.WriteFile(terragruntConfig, []byte(`
+locals {
+  shared_config = read_terragrunt_config("../shared.hcl")
+  tfvars = read_tfvars_file("../shared.tfvars")
+}
+`), 0644))
+
+				return tmpDir
+			},
+			expectedPaths: []string{"app"},
+			format:        "json",
+			mode:          "normal",
+			reading:       true,
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
+				// Verify the output is valid JSON
+				var configs find.FoundComponents
+				err := json.Unmarshal([]byte(output), &configs)
+				require.NoError(t, err)
+
+				// Verify we have one config
+				require.Len(t, configs, 1)
+
+				// Verify the component has the Reading field populated
+				appConfig := configs[0]
+				require.NotNil(t, appConfig.Reading, "Reading field should be populated")
+				require.NotEmpty(t, appConfig.Reading, "Reading field should contain files")
+
+				// Verify Reading field contains the shared files
+				readingPaths := appConfig.Reading
+				assert.Len(t, readingPaths, 2, "should have read 2 files")
+
+				// Convert to map for easier checking
+				readingMap := make(map[string]bool)
+				for _, path := range readingPaths {
+					readingMap[filepath.FromSlash(path)] = true
+				}
+
+				// Check that shared files are in the reading list
+				assert.True(t, readingMap["shared.hcl"], "should contain shared.hcl")
+				assert.True(t, readingMap["shared.tfvars"], "should contain shared.tfvars")
+			},
+		},
+		{
+			name: "external flag implies dependencies",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				tmpDir := t.TempDir()
+
+				internalDir := filepath.Join(tmpDir, "internal")
+				require.NoError(t, os.MkdirAll(internalDir, 0755))
+
+				unitADir := filepath.Join(internalDir, "unitA")
+				require.NoError(t, os.MkdirAll(unitADir, 0755))
+
+				externalDir := filepath.Join(tmpDir, "external")
+				require.NoError(t, os.MkdirAll(externalDir, 0755))
+
+				unitBDir := filepath.Join(externalDir, "unitB")
+				require.NoError(t, os.MkdirAll(unitBDir, 0755))
+
+				require.NoError(t, os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(""), 0644))
+
+				require.NoError(t, os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(`
+dependency "unitB" {
+  config_path = "../../external/unitB"
+}
+`), 0644))
+
+				return internalDir
+			},
+			expectedPaths: []string{"unitA", "../external/unitB"},
+			format:        "json",
+			mode:          "normal",
+			external:      true,
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
+				var configs find.FoundComponents
+				err := json.Unmarshal([]byte(output), &configs)
+				require.NoError(t, err)
+
+				assert.Len(t, configs, 2, "should include both internal and external units")
+
+				var (
+					internalUnit *find.FoundComponent
+					externalUnit *find.FoundComponent
+				)
+
+				for _, cfg := range configs {
+					if cfg.Path == "unitA" {
+						internalUnit = cfg
+					} else if strings.Contains(cfg.Path, "external") {
+						externalUnit = cfg
+					}
+				}
+
+				require.NotNil(t, internalUnit, "should find internal unit")
+				require.NotNil(t, externalUnit, "should find external unit")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -428,6 +557,7 @@ dependency "B" {
 			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
 			opts.External = tt.external
+			opts.Reading = tt.reading
 
 			// Create a pipe to capture output
 			r, w, err := os.Pipe()
@@ -464,26 +594,26 @@ func TestColorizer(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *find.FoundConfig
+		config *find.FoundComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
-		shouldBeDifferent []discovery.ConfigType
+		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &find.FoundConfig{
-				Type: discovery.ConfigTypeUnit,
+			config: &find.FoundComponent{
+				Type: component.UnitKind,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeStack},
+			shouldBeDifferent: []component.Kind{component.StackKind},
 		},
 		{
 			name: "stack config",
-			config: &find.FoundConfig{
-				Type: discovery.ConfigTypeStack,
+			config: &find.FoundComponent{
+				Type: component.StackKind,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeUnit},
+			shouldBeDifferent: []component.Kind{component.UnitKind},
 		},
 	}
 
@@ -496,7 +626,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &find.FoundConfig{
+				diffConfig := &find.FoundComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}

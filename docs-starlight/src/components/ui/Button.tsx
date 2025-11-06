@@ -56,7 +56,7 @@ export default function Button({
         // Variant styles
         {
           "bg-[var(--color-accent-1)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-accent)] border-[var(--color-button-primary-border)]": variant === "primary",
-          "bg-[var(--color-opacity-1)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-gray-5)] border-gray-500": variant === "secondary",
+          "bg-[var(--color-bg-dark)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-gray-5)] border-gray-500": variant === "secondary",
           "bg-red-500 text-white hover:bg-red-600 border-red-500": variant === "destructive",
           "border border-[var(--sl-color-docs-stroke)] bg-[var(--sl-color-bg)] hover:bg-[var(--sl-color-gray-6)]": variant === "outline",
           "hover:bg-[var(--sl-color-gray-6)] border-transparent": variant === "ghost",

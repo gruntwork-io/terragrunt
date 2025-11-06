@@ -2,9 +2,10 @@ package delete
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -19,7 +20,14 @@ const (
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	flags := cli.Flags{
+	sharedFlags := cli.Flags{
+		shared.NewConfigFlag(opts, prefix, CommandName),
+		shared.NewDownloadDirFlag(opts, prefix, CommandName),
+	}
+	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, prefix)...)
+	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, prefix)...)
+
+	return append(sharedFlags,
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        BucketFlagName,
 			EnvVars:     tgPrefix.EnvVars(BucketFlagName),
@@ -33,13 +41,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Force the backend to be deleted, even if the bucket is not versioned.",
 			Destination: &opts.ForceBackendDelete,
 		}),
-	}
-
-	base := run.NewFlags(l, opts, prefix).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
-	base = append(base, run.NewBackendFlags(l, opts, prefix)...)
-	base = append(base, run.NewFeatureFlags(l, opts, prefix)...)
-
-	return append(flags, base...)
+	)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -30,7 +31,7 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 // ShowTFHelp prints TF help for the given `ctx.Command` command.
 func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
 	return func(ctx *cli.Context) error {
-		if err := NewTFPathFlag(opts, nil).Parse(ctx.Args()); err != nil {
+		if err := shared.NewTFPathFlag(opts).Parse(ctx.Args()); err != nil {
 			return err
 		}
 

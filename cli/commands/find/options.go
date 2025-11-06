@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	// FormatText outputs the discovered configurations in text format.
+	// FormatText outputs the discovered components in text format.
 	FormatText = "text"
 
-	// FormatJSON outputs the discovered configurations in JSON format.
+	// FormatJSON outputs the discovered components in JSON format.
 	FormatJSON = "json"
 
-	// SortAlpha sorts the discovered configurations in alphabetical order.
+	// SortAlpha sorts the discovered components in alphabetical order.
 	SortAlpha = "alpha"
 
-	// SortDAG sorts the discovered configurations in a topological sort order.
+	// SortDAG sorts the discovered components in a topological sort order.
 	SortDAG = "dag"
 
 	// ModeNormal is the default mode for the find command.
@@ -44,20 +44,23 @@ type Options struct {
 	// DAG determines if the output should be in DAG mode.
 	DAG bool
 
-	// Hidden determines if hidden configurations should be included in the output.
+	// Hidden determines if hidden components should be included in the output.
 	Hidden bool
 
 	// Dependencies determines if dependencies should be included in the output.
 	Dependencies bool
 
-	// Exclude determines if exclude configurations should be included in the output.
+	// Exclude determines if exclude components should be included in the output.
 	Exclude bool
 
-	// Include determines if Include configurations should be included in the output.
+	// Include determines if Include components should be included in the output.
 	Include bool
 
 	// External determines if external dependencies should be included in the output.
 	External bool
+
+	// Reading determines if the list of files that are read by components should be included in the output.
+	Reading bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {

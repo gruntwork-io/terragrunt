@@ -118,7 +118,7 @@ func TestUnitsMap_SortedKeys(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, keys)
 }
 
-func TestUnitsMap_CrossLinkDependencies(t *testing.T) {
+func TestUnitsMap_ConvertDiscoveryToRunner(t *testing.T) {
 	t.Parallel()
 	// Use absolute paths for both keys and Path fields
 	aPath := "/abs/a"
@@ -127,34 +127,12 @@ func TestUnitsMap_CrossLinkDependencies(t *testing.T) {
 		aPath: &common.Unit{Path: aPath, Config: config.TerragruntConfig{}},
 		bPath: &common.Unit{Path: bPath, Config: config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{aPath}}}},
 	}
-	units, err := m.CrossLinkDependencies([]string{aPath, bPath})
+	units, err := m.ConvertDiscoveryToRunner([]string{aPath, bPath})
 	require.NoError(t, err)
 	assert.Len(t, units, 2)
 	assert.Equal(t, aPath, units[0].Path)
 	assert.Equal(t, bPath, units[1].Path)
 	assert.Equal(t, aPath, units[1].Dependencies[0].Path)
-}
-
-func TestUnits_WriteDot(t *testing.T) {
-	t.Parallel()
-
-	units := common.Units{
-		&common.Unit{Path: "a"},
-		&common.Unit{Path: "b", Dependencies: common.Units{&common.Unit{Path: "a"}}, FlagExcluded: true},
-	}
-
-	var buf bytes.Buffer
-
-	opts := &options.TerragruntOptions{TerragruntConfigPath: "/foo/terragrunt.hcl"}
-	l := logger.CreateLogger()
-	err := units.WriteDot(l, &buf, opts)
-	require.NoError(t, err)
-
-	out := buf.String()
-	assert.Contains(t, out, "digraph {")
-	assert.Contains(t, out, "a")
-	assert.Contains(t, out, "b")
-	assert.Contains(t, out, "[color=red]")
 }
 
 func TestUnits_CheckForCycles(t *testing.T) {

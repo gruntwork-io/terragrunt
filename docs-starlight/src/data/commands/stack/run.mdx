@@ -24,6 +24,8 @@ flags:
   - no-stack-generate
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.
 This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
 
@@ -32,3 +34,14 @@ This feature facilitates efficient orchestration of operations on multiple units
 Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
+
+<Aside type="note">
+Refreshing sources and cleaning stale files: If you change or remove units/values and find stale files remain in `.terragrunt-stack`, pass `--source-update` to refresh sources before generation, or clean the directory first:
+
+```bash
+terragrunt stack run plan --source-update
+
+# or
+terragrunt stack clean && terragrunt stack run plan
+```
+</Aside>

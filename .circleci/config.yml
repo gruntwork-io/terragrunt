@@ -28,14 +28,14 @@ jobs:
   test_signing:
     <<: *env
     macos:
-      xcode: 15.3.0
-    resource_class: macos.m1.medium.gen1
+      xcode: 16.4.0
+    resource_class: m4pro.medium
     steps:
       - checkout
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.24.4"
+          version: "1.25.3"
       - run:
           name: Install sign-binary-helpers
           command: |
@@ -65,14 +65,14 @@ jobs:
   deploy:
     <<: *env
     macos:
-      xcode: 15.3.0
-    resource_class: macos.m1.medium.gen1
+      xcode: 16.4.0
+    resource_class: m4pro.medium
     steps:
       - checkout
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.24.4"
+          version: "1.25.3"
       - run:
           name: Install sign-binary-helpers
           command: |
@@ -116,6 +116,7 @@ workflows:
               only:
                 - /^v.*/
                 - /^alpha.*/
+                - /^beta.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
@@ -128,6 +129,7 @@ workflows:
               only:
                 - /^v.*/
                 - /^alpha.*/
+                - /^beta.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
@@ -141,6 +143,7 @@ workflows:
               only:
                 - /^v.*/
                 - /^alpha.*/
+                - /^beta.*/
             branches:
               ignore: /.*/
           context:

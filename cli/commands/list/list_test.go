@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -481,6 +481,63 @@ dependency "C" {
 	assert.Less(t, cIndex, fIndex, "C should come before F")
 }
 
+func TestExternalFlagImpliesDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	internalDir := filepath.Join(tmpDir, "internal")
+	require.NoError(t, os.MkdirAll(internalDir, 0755))
+
+	unitADir := filepath.Join(internalDir, "unitA")
+	require.NoError(t, os.MkdirAll(unitADir, 0755))
+
+	externalDir := filepath.Join(tmpDir, "external")
+	require.NoError(t, os.MkdirAll(externalDir, 0755))
+
+	unitBDir := filepath.Join(externalDir, "unitB")
+	require.NoError(t, os.MkdirAll(unitBDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(`
+dependency "unitB" {
+  config_path = "../../external/unitB"
+}
+`), 0644))
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = internalDir
+
+	l := logger.CreateLogger()
+	l.Formatter().SetDisabledColors(true)
+
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "long"
+	opts.External = true
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Contains(t, outputStr, "unitA", "should include internal unit")
+	assert.Contains(t, outputStr, "external", "should include external unit")
+
+	lines := strings.Split(strings.TrimSpace(outputStr), "\n")
+	assert.GreaterOrEqual(t, len(lines), 3, "should have at least header and 2 units")
+}
+
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
@@ -488,26 +545,26 @@ func TestColorizer(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *list.ListedConfig
+		config *list.ListedComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
-		shouldBeDifferent []discovery.ConfigType
+		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &list.ListedConfig{
-				Type: discovery.ConfigTypeUnit,
+			config: &list.ListedComponent{
+				Type: component.UnitKind,
 				Path: "path/to/unit",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeStack},
+			shouldBeDifferent: []component.Kind{component.StackKind},
 		},
 		{
 			name: "stack config",
-			config: &list.ListedConfig{
-				Type: discovery.ConfigTypeStack,
+			config: &list.ListedComponent{
+				Type: component.StackKind,
 				Path: "path/to/stack",
 			},
-			shouldBeDifferent: []discovery.ConfigType{discovery.ConfigTypeUnit},
+			shouldBeDifferent: []component.Kind{component.UnitKind},
 		},
 	}
 
@@ -520,7 +577,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &list.ListedConfig{
+				diffConfig := &list.ListedComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}
@@ -529,4 +586,520 @@ func TestColorizer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDotFormat(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": "",
+		"unit2/terragrunt.hcl": `
+dependency "unit1" {
+  config_path = "../unit1"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+	opts.External = false
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Equal(
+		t,
+		`digraph {
+	"001/unit1" ;
+	"001/unit2" ;
+	"001/unit2" -> "001/unit1";
+}
+`,
+		outputStr,
+	)
+}
+
+func TestDotFormatWithoutDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": "",
+		"unit2/terragrunt.hcl": "",
+		"unit3/terragrunt.hcl": "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatDot
+	opts.Dependencies = false
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Equal(
+		t,
+		`digraph {
+	"001/unit1" ;
+	"001/unit2" ;
+	"001/unit3" ;
+}
+`,
+		outputStr,
+	)
+}
+
+func TestDotFormatWithComplexDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": "",
+		"unit2/terragrunt.hcl": `
+dependency "unit1" {
+  config_path = "../unit1"
+}
+`,
+		"unit3/terragrunt.hcl": `
+dependency "unit1" {
+  config_path = "../unit1"
+}
+
+dependency "unit2" {
+  config_path = "../unit2"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Equal(
+		t,
+		`digraph {
+	"001/unit1" ;
+	"001/unit2" ;
+	"001/unit2" -> "001/unit1";
+	"001/unit3" ;
+	"001/unit3" -> "001/unit1";
+	"001/unit3" -> "001/unit2";
+}
+`,
+		outputStr,
+	)
+}
+
+func TestDotFormatWithExcludedComponents(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": "",
+		"unit2/terragrunt.hcl": `
+dependency "unit1" {
+  config_path = "../unit1"
+}
+
+exclude {
+  if      = true
+  actions = ["apply"]
+}
+`,
+		"unit3/terragrunt.hcl": `
+dependency "unit2" {
+  config_path = "../unit2"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+	opts.QueueConstructAs = "apply"
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Equal(
+		t,
+		`digraph {
+	"001/unit1" ;
+	"001/unit2" [color=red];
+	"001/unit2" -> "001/unit1";
+	"001/unit3" ;
+	"001/unit3" -> "001/unit2";
+}
+`,
+		outputStr,
+	)
+}
+
+func TestDotFormatWithExcludedDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan"]
+}
+`,
+		"unit2/terragrunt.hcl": `
+dependency "unit1" {
+  config_path = "../unit1"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+	opts.QueueConstructAs = "plan"
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Equal(
+		t,
+		`digraph {
+	"001/unit1" [color=red];
+	"001/unit2" ;
+	"001/unit2" -> "001/unit1";
+}
+`,
+		outputStr,
+	)
+}
+
+func TestTextFormatExcludesExcludedComponents(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": "",
+		"unit2/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["destroy"]
+}
+`,
+		"unit3/terragrunt.hcl": "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	l.Formatter().SetDisabledColors(true)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatText
+	opts.QueueConstructAs = "destroy"
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	expectedPaths := []string{"001/unit1", "001/unit3"}
+
+	fields := strings.Fields(outputStr)
+	for i, field := range fields {
+		fields[i] = filepath.ToSlash(field)
+	}
+
+	assert.Len(t, fields, len(expectedPaths))
+	assert.ElementsMatch(t, expectedPaths, fields)
+}
+
+func TestDotFormatWithMultipleExcludedComponents(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+		"unit4",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["all"]
+}
+`,
+		"unit2/terragrunt.hcl": `
+dependency "unit1" {
+  config_path = "../unit1"
+}
+`,
+		"unit3/terragrunt.hcl": `
+dependency "unit2" {
+  config_path = "../unit2"
+}
+
+exclude {
+  if      = true
+  actions = ["all"]
+}
+`,
+		"unit4/terragrunt.hcl": `
+dependency "unit3" {
+  config_path = "../unit3"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	l := logger.CreateLogger()
+	tgOptions, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	opts := list.NewOptions(tgOptions)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+	opts.QueueConstructAs = "apply"
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writer = w
+
+	err = list.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	w.Close()
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	assert.Equal(
+		t,
+		`digraph {
+	"001/unit1" [color=red];
+	"001/unit2" ;
+	"001/unit2" -> "001/unit1";
+	"001/unit3" [color=red];
+	"001/unit3" -> "001/unit2";
+	"001/unit4" ;
+	"001/unit4" -> "001/unit3";
+}
+`,
+		outputStr,
+	)
 }

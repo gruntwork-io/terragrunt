@@ -345,6 +345,8 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 	}
 
 	suppressOutput := false
+	disableCache := false
+	useGlobalCache := false
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 	cachePath := currentPath
 
@@ -356,7 +358,20 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 
 			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
+			if disableCache {
+				return "", errors.New(ConflictingRunCmdCacheOptionsError{})
+			}
+
+			useGlobalCache = true
 			cachePath = "_global_"
+
+			args = slices.Delete(args, 0, 1)
+		case "--terragrunt-no-cache":
+			if useGlobalCache {
+				return "", errors.New(ConflictingRunCmdCacheOptionsError{})
+			}
+
+			disableCache = true
 
 			args = slices.Delete(args, 0, 1)
 		default:
@@ -368,15 +383,18 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
 
-	cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
-	if foundInCache {
-		if suppressOutput {
-			l.Debugf("run_cmd, cached output: [REDACTED]")
-		} else {
-			l.Debugf("run_cmd, cached output: [%s]", cachedValue)
-		}
+	// Skip cache lookup if --terragrunt-no-cache is set
+	if !disableCache {
+		cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
+		if foundInCache {
+			if suppressOutput {
+				l.Debugf("run_cmd, cached output: [REDACTED]")
+			} else {
+				l.Debugf("run_cmd, cached output: [%s]", cachedValue)
+			}
 
-		return cachedValue, nil
+			return cachedValue, nil
+		}
 	}
 
 	cmdOutput, err := shell.RunCommandWithOutput(ctx, l, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
@@ -392,9 +410,11 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 		l.Debugf("run_cmd output: [%s]", value)
 	}
 
-	// Persisting result in cache to avoid future re-evaluation
+	// Persisting result in cache to avoid future re-evaluation, unless --terragrunt-no-cache is set
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache.Put(ctx, cacheKey, value)
+	if !disableCache {
+		runCommandCache.Put(ctx, cacheKey, value)
+	}
 
 	return value, nil
 }
@@ -609,7 +629,7 @@ func getTerraformCliArgs(ctx *ParsingContext, l log.Logger) ([]string, error) {
 	return ctx.TerragruntOptions.TerraformCliArgs, nil
 }
 
-// getDefaultRetryableErrors returns default retryable errors
+// getDefaultRetryableErrors returns default retryable errors for use in errors.retry blocks
 func getDefaultRetryableErrors(ctx *ParsingContext, l log.Logger) ([]string, error) {
 	return options.DefaultRetryableErrors, nil
 }
@@ -700,10 +720,8 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 		path = filepath.Clean(path)
 	}
 
-	ctx.TerragruntOptions.AppendReadFile(
-		path,
-		ctx.TerragruntOptions.WorkingDir,
-	)
+	// Track that this file was read during parsing
+	trackFileRead(ctx.FilesRead, path)
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	l, opts, err := ctx.TerragruntOptions.CloneWithConfigPath(l, targetConfig)
@@ -711,20 +729,28 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 		return cty.NilVal, err
 	}
 
+	// Preserve the ParserOptions from the parent context when creating the new context
+	// This ensures that error suppression handlers and other parser options are propagated
+	// to nested read_terragrunt_config calls
+	parserOptions := ctx.ParserOptions
+
 	ctx = ctx.WithTerragruntOptions(opts)
+	if len(parserOptions) > 0 {
+		ctx = ctx.WithParseOption(parserOptions)
+	}
 
 	// check if file is stack file, decode as stack file
 	if strings.HasSuffix(targetConfig, DefaultStackFile) {
 		stackSourceDir := filepath.Dir(targetConfig)
 
-		values, err := ReadValues(ctx, l, opts, stackSourceDir)
-		if err != nil {
-			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, err)
+		values, readErr := ReadValues(ctx, l, opts, stackSourceDir)
+		if readErr != nil {
+			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, readErr)
 		}
 
-		stackFile, err := ReadStackConfigFile(ctx, l, opts, targetConfig, values)
-		if err != nil {
-			return cty.NilVal, errors.New(err)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, opts, targetConfig, values)
+		if readErr != nil {
+			return cty.NilVal, errors.New(readErr)
 		}
 
 		return stackConfigAsCty(stackFile)
@@ -732,9 +758,9 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 
 	// check if file is a values file, decode as values file
 	if strings.HasSuffix(targetConfig, valuesFile) {
-		unitValues, err := ReadValues(ctx.Context, l, ctx.TerragruntOptions, filepath.Dir(targetConfig))
-		if err != nil {
-			return cty.NilVal, errors.New(err)
+		unitValues, readErr := ReadValues(ctx.Context, l, ctx.TerragruntOptions, filepath.Dir(targetConfig))
+		if readErr != nil {
+			return cty.NilVal, errors.New(readErr)
 		}
 
 		return *unitValues, nil
@@ -913,10 +939,8 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 		path = filepath.Clean(path)
 	}
 
-	ctx.TerragruntOptions.AppendReadFile(
-		path,
-		ctx.TerragruntOptions.WorkingDir,
-	)
+	// Track that this file was read during parsing
+	trackFileRead(ctx.FilesRead, path)
 
 	// Set environment variables from the TerragruntOptions.Env map.
 	// This is especially useful for integrations with things like the `auth-provider` flag,
@@ -1114,10 +1138,8 @@ func readTFVarsFile(ctx *ParsingContext, l log.Logger, args []string) (string, e
 		return "", errors.New(TFVarFileNotFoundError{File: varFile})
 	}
 
-	ctx.TerragruntOptions.AppendReadFile(
-		varFile,
-		ctx.TerragruntOptions.WorkingDir,
-	)
+	// Track that this file was read during parsing
+	trackFileRead(ctx.FilesRead, varFile)
 
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
@@ -1165,10 +1187,8 @@ func markAsRead(ctx *ParsingContext, l log.Logger, args []string) (string, error
 		path = filepath.Clean(path)
 	}
 
-	ctx.TerragruntOptions.AppendReadFile(
-		path,
-		ctx.TerragruntOptions.WorkingDir,
-	)
+	// Track that this file was read during parsing
+	trackFileRead(ctx.FilesRead, path)
 
 	return file, nil
 }
@@ -1281,4 +1301,18 @@ func ConstraintCheck(ctx *ParsingContext, args []string) (bool, error) {
 	}
 
 	return c.Check(v), nil
+}
+
+// trackFileRead adds a file path to the FilesRead slice if it's not already present.
+// This prevents duplicate entries when the same file is read multiple times during parsing.
+func trackFileRead(filesRead *[]string, path string) {
+	if filesRead == nil {
+		return
+	}
+
+	if slices.Contains(*filesRead, path) {
+		return
+	}
+
+	*filesRead = append(*filesRead, path)
 }

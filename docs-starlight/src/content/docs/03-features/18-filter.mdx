@@ -1,0 +1,339 @@
+---
+title: Filters
+description: Learn how to use the --filter flag to target specific infrastructure
+slug: docs/features/filter
+sidebar:
+  order: 18
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --filter 'foo'
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+
+The `--filter` flag is available in the `find`, `list`, `run`, `hcl fmt`, and `hcl validate` commands.
+</Aside>
+
+The `--filter` flag provides a sophisticated querying syntax for targeting specific [units](/docs/features/units) and [stacks](/docs/features/stacks) in Terragrunt commands. This unified approach offers powerful filtering capabilities using a flexible query language.
+
+## Filter Syntax Overview
+
+The filter syntax allows you to target units and stacks using several different approaches. Usage of the filter flag in a command can look like this:
+
+```bash
+$ terragrunt find --filter './prod/** | name=web'
+prod/services/web
+```
+
+Where the result of `find` above might have been:
+
+```bash
+$ terragrunt find
+prod/services/web
+prod/services/api
+prod/data/db
+dev/services/web
+dev/services/api
+dev/data/db
+```
+
+For the following file tree:
+
+<FileTree>
+- prod
+  - services
+    - **web** \<-- Matched by the filter
+      - terragrunt.hcl
+    - api
+      - terragrunt.hcl
+  - data
+    - db
+      - terragrunt.hcl
+- dev
+  - services
+    - web
+      - terragrunt.hcl
+    - api
+      - terragrunt.hcl
+  - data
+    - db
+      - terragrunt.hcl
+</FileTree>
+
+## Filter Types
+
+There are several different types of filters, and particular ways in which they can be combined to achieve different results. You can learn more about that below.
+
+### Name-Based Filtering
+
+Match units and stacks by their name. This is the simplest form of filtering.
+
+```bash
+# Exact match
+terragrunt find --filter app1
+
+# Glob pattern
+terragrunt find --filter 'app*'
+```
+
+<FileTree>
+- apps
+  - **app1** \<-- Matched by the first and second filter
+    - terragrunt.hcl
+  - **app2** \<-- Matched only by the second filter
+    - terragrunt.hcl
+  - other
+    - terragrunt.hcl
+</FileTree>
+
+<Aside type="note">
+Note that `app1` and `app2` were selected _within_ the `apps` directory. Filtering on names will match _any_ unit/stack that has a name that matches the filter.
+</Aside>
+
+### Path-Based Filtering
+
+Match units and stacks by their file system path.
+
+```bash
+# Relative paths
+terragrunt find --filter './envs/prod/apps/app1'
+terragrunt find --filter './envs/stage/**'
+
+# Absolute paths
+terragrunt find --filter '/absolute/path/to/envs/dev/apps/*'
+
+# Wrapped paths (useful for explicitly indicating that an expression is for a path if ambiguous)
+terragrunt find --filter '{./envs/prod/apps/app2}'
+```
+
+<FileTree>
+- envs
+  - prod
+    - apps
+      - **app1** \<-- Matched by the first filter
+        - terragrunt.hcl
+      - **app2** \<-- Matched by the fourth filter
+        - terragrunt.hcl
+  - stage
+    - apps
+      - **app1** \<-- Matched by the second filter
+        - terragrunt.hcl
+      - **app2** \<-- Also matched by the second filter
+        - terragrunt.hcl
+  - dev
+    - apps
+      - **app1** \<-- Matched by the third filter
+        - terragrunt.hcl
+      - **app2** \<-- Also matched by the third filter
+        - terragrunt.hcl
+</FileTree>
+
+<Aside type="note">
+Note that globs used in path-based filtering will not recursively match nested directories unless you use the `**` wildcard.
+
+(That's why `./envs/stage/**` is used above)
+</Aside>
+
+### Attribute-Based Filtering
+
+Match units and stacks by their configuration attributes.
+
+```bash
+# Filter by component type
+terragrunt find --filter 'type=unit'
+terragrunt find --filter 'type=stack'
+
+# Filter by external dependency status
+terragrunt find --dependencies --external --filter 'external=false'
+terragrunt find --dependencies --external --filter 'external=true'
+
+# Explicitly filter by name (useful for explicitly indicating that an expression is for a name if ambiguous)
+terragrunt find --filter 'name=stack*'
+```
+
+<FileTree>
+- .
+  - **unit1** \<-- Selected by the first filter
+    - terragrunt.hcl
+  - **stack1** \<-- Selected by the second and fifth filter
+    - terragrunt.stack.hcl
+- ..
+  - dependencies \<-- Note that this directory is sibling to the current working directory
+    - **dependency-of-app1** \<-- Matched by the fourth filter, but not the third filter
+        - terragrunt.hcl
+</FileTree>
+
+### Negation
+
+Exclude units and stacks using the `!` prefix.
+
+```bash
+# Exclude by name
+terragrunt find --filter '!app1'
+
+# Exclude by path
+terragrunt find --filter '!./prod/**'
+
+# Exclude by type
+terragrunt find --filter '!type=stack'
+```
+
+<FileTree>
+- envs
+  - prod
+    - apps
+      - app1 \<-- Excluded by _both_ the first and second filter
+        - terragrunt.hcl
+      - app2 \<-- Matched by all filters _except_ the second filter
+        - terragrunt.hcl
+    - stacks
+      - **stack1** \<-- Excluded by _both_ the second and third filter
+        - terragrunt.stack.hcl
+  - stage
+    - apps
+      - **app1** \<-- Matched by all filters _except_ the first filter
+        - terragrunt.hcl
+      - **app2** \<-- Matched by all filters
+        - terragrunt.hcl
+    - stacks
+      - **stack1** \<-- Matched by all filters _except_ the third filter
+        - terragrunt.stack.hcl
+
+</FileTree>
+
+### Intersection (Refinement)
+
+Use the `|` operator to refine results. The right side of the operator is applied to the results from the left side.
+
+```bash
+# Find all components in ./prod/** that are also units
+terragrunt find --filter './prod/** | type=unit'
+
+# Find all components in ./prod/** that are not units
+terragrunt find --filter './prod/** | !type=unit'
+
+# You can chain as many filters as you want to further refine the results
+terragrunt find --filter './dev/** | type=unit | !name=unit1'
+```
+
+<FileTree>
+- prod
+  - units
+    - **unit1** \<-- Matched by first filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by first filter
+      - terragrunt.hcl
+  - stacks
+    - **stack1** \<-- Matched by second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by second filter
+      - terragrunt.stack.hcl
+- dev
+  - units
+    - unit1
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by third filter
+      - terragrunt.hcl
+  - stacks
+    - stack1
+      - terragrunt.stack.hcl
+    - stack2
+      - terragrunt.stack.hcl
+</FileTree>
+
+### Union (Multiple Filters)
+
+Specify multiple `--filter` flags to combine results using OR logic.
+
+```bash
+# Find components named 'unit1' OR 'stack1'
+terragrunt find --filter unit1 --filter stack1
+
+# Find components in ./envs/prod/* OR ./envs/stage/*
+terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
+
+# Find components named 'stack2' _except_ those in ./envs/prod/* and ./envs/stage/*
+terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/stage/**'
+```
+
+<FileTree>
+- envs
+  - prod
+    - **unit1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by the second filter
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the second filter
+      - terragrunt.stack.hcl
+  - stage
+    - **unit1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by the second filter
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the second filter
+      - terragrunt.stack.hcl
+  - dev
+    - **unit1** \<-- Matched by the first filter
+      - terragrunt.hcl
+    - unit2
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the third filter
+      - terragrunt.stack.hcl
+</FileTree>
+
+<Aside type="caution" title="Unions of negated filters">
+
+When a filter query starts with a negation (`!`), the result is applied after _all_ positive filters have been applied.
+
+This means that if you have a filter query like this:
+```bash
+terragrunt find --filter '!type=unit' --filter 'name=unit1'
+```
+
+The result will be the components that are not units _and_ are named `unit1`.
+
+As a result, you should be able to expect any negative filter to take effect, regardless of how other positive filters may result in the addition of results.
+
+</Aside>
+
+## Usage with Commands
+
+The following commands all support the `--filter` flag, and use it to filter results in the same way:
+
+- [x] [find](/docs/reference/cli/commands/find)
+- [x] [list](/docs/reference/cli/commands/list)
+- [x] [run](/docs/reference/cli/commands/run)
+- [x] [hcl fmt](/docs/reference/cli/commands/hcl/fmt)
+- [x] [hcl validate](/docs/reference/cli/commands/hcl/validate)
+
+This flag is intended to be a flexible way to target specific infrastructure that allows you to dry-run infrastructure targeting using discovery commands (like `find` and `list`) before running a command that actually affects infrastructure (like `run`).
+
+<Aside type="note">
+Note that these commands _may_ have different logic for _discovery_, which is the process of surfacing the initial set of components to filter, but the filtering logic itself should be the same.
+</Aside>
+
+## Comparison with Queue Control Flags
+
+The `--filter` flag provides a unified alternative to multiple queue control flags:
+
+| Legacy Flag | Filter Equivalent |
+|-------------|-------------------|
+| `--queue-include-dir` | `--filter './path/*'` |
+| `--queue-exclude-dir` | `--filter '!./path/*'` |
+| `--queue-exclude-external` | `--filter '!external=true'` |
+| `--queue-include-external` | `--filter 'external=true'` |

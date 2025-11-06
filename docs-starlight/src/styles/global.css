@@ -8,6 +8,7 @@
 
 /* Starlight Fixes */
 @import "./starlight-search.css" layer(components);
+@import "./starlight-right-sidebar.css" layer(components);
 
 @font-face {
   font-family: 'Inter';
@@ -40,8 +41,8 @@
 
   /* Buttons */
   --color-button-bg: #EEECF7;
-  --color-radio-stroke: #E3DFF4;
-  --color-radio-stroke-active: #4a31c8;
+  --color-checkout-radio: #eeecf6;
+  --color-checkout-radio-active: #4a31c8;
 
   /* Colors Nav */
   --color-nav-link: #A0A1AC;

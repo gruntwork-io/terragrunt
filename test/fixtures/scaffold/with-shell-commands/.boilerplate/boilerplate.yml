@@ -1,0 +1,5 @@
+variables:
+  - name: TestVariable
+    description: A test variable
+    type: string
+    default: "test-value"

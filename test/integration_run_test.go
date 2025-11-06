@@ -77,7 +77,7 @@ func TestRunNoStacksGenerate(t *testing.T) {
 			name:       "AllNoGenerate",
 			cmd:        "terragrunt run apply --all --no-stack-generate --non-interactive",
 			subfolder:  "live",
-			shouldFail: true,
+			shouldFail: false,
 		},
 		{
 			name:       "Standard",
@@ -118,7 +118,6 @@ func TestRunNoStacksGenerate(t *testing.T) {
 				// assert.Empty(t, stderr)
 			} else {
 				require.NoError(t, err)
-				assert.NotEmpty(t, stdout)
 				assert.NotEmpty(t, stderr)
 			}
 

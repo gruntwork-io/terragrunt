@@ -1156,10 +1156,7 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 			setup: func(r *report.Report) {
 				// No runs added
 			},
-			expected: `
-❯❯ Run Summary  0 units  x
-   ────────────────────────────
-`,
+			expected: ``,
 		},
 		{
 			name: "single run",

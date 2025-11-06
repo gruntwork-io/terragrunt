@@ -87,3 +87,21 @@ func WithReport(r *report.Report) Option {
 		},
 	}
 }
+
+// WithUnitFilters provides unit filters to customize unit exclusions after resolution.
+// Filters are applied after units are discovered but before the queue is built.
+// This is useful for commands like graph that need to filter units based on custom logic.
+func WithUnitFilters(filters ...UnitFilter) Option {
+	return optionImpl{
+		apply: func(stack StackRunner) {
+			if setter, ok := stack.(UnitFiltersSetter); ok {
+				setter.SetUnitFilters(filters...)
+			}
+		},
+	}
+}
+
+// UnitFiltersSetter is an interface for stack runners that support unit filtering.
+type UnitFiltersSetter interface {
+	SetUnitFilters(filters ...UnitFilter)
+}

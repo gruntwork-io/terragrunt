@@ -72,6 +72,35 @@ func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
 	validateStackDir(t, path)
 }
 
+func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --filter './.terragrunt-stack/chicks/chick-2' --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/chicks/chick-1")
+	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/father")
+	assert.NotContains(t, stderr, "- Unit ./.terragrunt-stack/mother")
+	assert.Contains(t, stderr, "- Unit ./.terragrunt-stack/chicks/chick-2")
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
 func TestStacksGenerateBasicWithQueueExcludeDirFlag(t *testing.T) {
 	t.Parallel()
 
@@ -209,12 +238,14 @@ func TestStacksNoGenerate(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, entry := range entries {
-		err := os.RemoveAll(filepath.Join(path, entry.Name()))
+		err = os.RemoveAll(filepath.Join(path, entry.Name()))
 		require.NoError(t, err)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath)
-	require.Error(t, err)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "No units discovered. Creating an empty runner.")
 }
 
 func TestStacksInputs(t *testing.T) {
@@ -878,10 +909,46 @@ func TestStackApplyStrictInclude(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app1")
+	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/app2")
+	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/app-with-dependency")
+
+	// check that test file wasn't created
+	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
+	assert.True(t, util.FileNotExists(dataPath))
+}
+
+func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --non-interactive --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run apply --filter ./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app1")

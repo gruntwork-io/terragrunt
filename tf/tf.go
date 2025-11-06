@@ -1,8 +1,13 @@
 package tf
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
 )
 
 const (
@@ -130,20 +135,77 @@ var (
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into
 // account all the generated sources. This function will return the required and optional variables separately.
 func ModuleVariables(modulePath string) ([]string, []string, error) {
-	module, diags := tfconfig.LoadModule(modulePath)
-	if diags.HasErrors() {
-		return nil, nil, errors.New(diags)
+	parser := hclparse.NewParser()
+
+	files, err := os.ReadDir(modulePath)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	required := []string{}
-	optional := []string{}
+	hclFiles := []*hcl.File{}
+	allDiags := hcl.Diagnostics{}
 
-	for _, variable := range module.Variables {
-		if variable.Required {
-			required = append(required, variable.Name)
-		} else {
-			optional = append(optional, variable.Name)
+	for _, file := range files {
+		if file.IsDir() {
+			continue
 		}
+
+		parseFunc := parser.ParseHCLFile
+
+		suffix := filepath.Ext(file.Name())
+
+		if suffix == ".json" {
+			parseFunc = parser.ParseJSONFile
+		}
+
+		if !(slices.Contains([]string{".tf", ".tofu", ".json"}, suffix)) {
+			continue
+		}
+
+		file, parseDiags := parseFunc(filepath.Join(modulePath, file.Name()))
+
+		hclFiles = append(hclFiles, file)
+		allDiags = append(allDiags, parseDiags...)
+	}
+
+	body := hcl.MergeFiles(hclFiles)
+
+	varsSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{
+				Type:       "variable",
+				LabelNames: []string{"name"},
+			},
+		},
+	}
+
+	varsAttributesSchema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{
+				Name:     "default",
+				Required: false,
+			},
+		},
+	}
+
+	varsContent, _, contentDiags := body.PartialContent(varsSchema)
+	allDiags = append(allDiags, contentDiags...)
+	optional, required := []string{}, []string{}
+
+	for _, b := range varsContent.Blocks {
+		name := b.Labels[0]
+		varBodyContent, _, attrDiags := b.Body.PartialContent(varsAttributesSchema)
+
+		allDiags = append(allDiags, attrDiags...)
+		if _, ok := varBodyContent.Attributes["default"]; ok {
+			optional = append(optional, name)
+		} else {
+			required = append(required, name)
+		}
+	}
+
+	if allDiags.HasErrors() {
+		return nil, nil, errors.New(allDiags)
 	}
 
 	return required, optional, nil

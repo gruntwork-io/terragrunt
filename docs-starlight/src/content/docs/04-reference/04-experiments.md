@@ -69,9 +69,7 @@ The following experiments are available:
 
 - [symlinks](#symlinks)
 - [cas](#cas)
-- [report](#report)
-- [runner-pool](#runner-pool)
-- [auto-provider-cache-dir](#auto-provider-cache-dir)
+- [filter-flag](#filter-flag)
 
 ### symlinks
 
@@ -120,111 +118,81 @@ To transition the `cas` feature to a stable release, the following must be addre
 - [x] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
 
-### `report`
+### `filter-flag`
 
-Support for Terragrunt Run Reports and Summaries.
+Support for sophisticated unit and stack filtering using the `--filter` flag.
 
-#### `report` - What it does
+#### `filter-flag` - What it does
 
-Allow usage of experimental run report generation, and summary displays.
+The `--filter` flag provides a sophisticated querying syntax for targeting units and stacks in Terragrunt commands. This unified approach replaces the need for multiple queue control flags and offers powerful filtering capabilities.
 
-#### `report` - How to provide feedback
+**Current Support Status:**
 
-Provide your feedback on the [Run Summary RFC](https://github.com/gruntwork-io/terragrunt/issues/3628).
+- ✅ Available in `find`, `list`, and `run` commands
 
-#### `report` - Criteria for stabilization
+**Supported Filtering Types:**
 
-To transition the `report` feature to a stable release, the following must be addressed:
+1. **Name-based filtering**: Target units/stacks by their directory name (exact match or glob patterns)
+2. **Path-based filtering**: Target units/stacks by their file system path (relative, absolute, or glob patterns)
+3. **Attribute-based filtering**: Target units by configuration attributes:
+   - `type=unit` or `type=stack` - Filter by component type
+   - `external=true` or `external=false` - Filter by whether the unit/stack is an external dependency (outside the current working directory)
+   - `name=pattern` - Filter by name using glob patterns
+4. **Negation filters**: Exclude units using the `!` prefix
+5. **Filter intersection**: Combine filters using the `|` operator for results pruning
+6. **Multiple filters**: Specify multiple `--filter` flags to union results
 
-- [x] Add support for generating reports (in CSV format by default).
-- [x] Add support for displaying summaries of runs.
-- [x] Add ability to disable summary display.
-- [x] Add support for generating reports in JSON format.
-- [x] Add comprehensive integration tests for the `report` experiment.
-- [x] Finalize the design of run summaries and reports.
+**Not Yet Implemented:**
 
-### `runner-pool`
+- Git-based filtering (`[ref...ref]` syntax)
+- Dependency/dependent traversal (`...` syntax)
 
-Proposes replacing Terragrunt's group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
-This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
+#### `filter-flag` - How to provide feedback
 
-#### `runner-pool` - What it does
+Provide your feedback on the [Filter Flag RFC](https://github.com/gruntwork-io/terragrunt/issues/4060) GitHub issue.
 
-Allow usage of experimental runner pool implementation for units execution.
+#### `filter-flag` - Criteria for stabilization
 
-#### `runner-pool` - How to provide feedback
+To transition the `filter-flag` feature to a stable release, the following must be addressed, at a minimum:
 
-Provide your feedback on the [Runner Pool](https://github.com/gruntwork-io/terragrunt/issues/3629).
+- [x] Add support for name-based filtering
+- [x] Add support for path-based filtering (relative, absolute, glob)
+- [x] Add support for attribute-based filtering (type, external, name)
+- [x] Add support for negation filters (!)
+- [x] Add support for filter intersection (|)
+- [x] Add support for multiple filters (union/OR semantics)
+- [x] Integrate with the `find` command
+- [x] Integrate with the `list` command
+- [x] Integrate with the `run` command
+- [ ] Add support for git-based filtering ([ref...ref] syntax)
+- [ ] Add support for dependency/dependent traversal (... syntax)
+- [ ] Add support for `--filters-file` flag
+- [ ] Add support for `--filter-allow-destroy` flag
+- [ ] Add support for `--filter-affected` shorthand
+- [ ] Comprehensive integration testing across all commands
+- [ ] Deprecate legacy queue control flags (queue-exclude-dir, queue-include-dir, etc.)
 
-#### `runner-pool` - Criteria for stabilization
+**Future Deprecations:**
 
-To transition the `runner-pool` feature to a stable release, the following must be addressed:
+When this experiment stabilizes, the following queue control flags will be deprecated in favor of the unified `--filter` flag:
 
-- [x] Use new discovery and queue packages to discover units.
-- [x] Add support for including/excluding external units in the discovery process.
-- [x] Add runner pool implementation to execute discovered units.
-- [x] Add integration tests to track that the runner pool works in the same way as the current implementation.
-- [x] Add performance tests to track that the runner pool implementation is faster than the current implementation.
-- [x] Add support for fail fast behavior in the runner pool.
-- [x] Improve the UI to queue to apply.
-- [x] Add OpenTelemetry support to the runner pool.
+- `--queue-exclude-dir`
+- `--queue-excludes-file`
+- `--queue-exclude-external`
+- `--queue-include-dir`
+- `--queue-include-external`
+- `--queue-include-units-including`
+- `--queue-strict-include`
 
-### `auto-provider-cache-dir`
-
-Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
-
-#### `auto-provider-cache-dir` - What it does
-
-When enabled, this experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
-
-**Requirements:**
-
-- OpenTofu version >= 1.10 is required
-- Only works when using OpenTofu (not Terraform)
-- If the requirements are not met, the experiment silently does nothing
-
-**Usage:**
-
-```bash
-terragrunt run --all apply --experiment auto-provider-cache-dir
-```
-
-Or with environment variables:
-
-```bash
-TG_EXPERIMENT='auto-provider-cache-dir' \
-terragrunt run --all apply
-```
-
-**Disabling the feature:**
-
-Even when the experiment is enabled, you can still disable the auto-provider-cache-dir feature for specific runs using the `--no-auto-provider-cache-dir` flag:
-
-```bash
-terragrunt run --all apply --experiment auto-provider-cache-dir --no-auto-provider-cache-dir
-```
-
-This will be most important post-stabilization, when the feature is enabled by default.
-
-#### `auto-provider-cache-dir` - How to provide feedback
-
-Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: auto-provider-cache-dir` label.
-
-#### `auto-provider-cache-dir` - Criteria for stabilization
-
-To transition the `auto-provider-cache-dir` feature to a stable release, the following must be addressed:
-
-- [ ] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
-- [ ] Performance comparison with the existing provider cache server approach.
-- [ ] Documentation and examples of best practices for usage.
-- [ ] Community feedback on real-world usage and any edge cases discovered.
-
-Note that the current plan for stabilization is to have the feature be enabled by default, and to allow users to opt-out if they need to, or use the provider cache server if they want to do something more advanced, like store their provider cache in a different filesystem.
+The current plan is to continue to support the flags as aliases for particular `--filter` patterns.
 
 ## Completed Experiments
 
 - [cli-redesign](#cli-redesign)
 - [stacks](#stacks)
+- [runner-pool](#runner-pool)
+- [report](#report)
+- [auto-provider-cache-dir](#auto-provider-cache-dir)
 
 ### `cli-redesign`
 
@@ -301,3 +269,88 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
 - [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
+
+### `runner-pool`
+
+Proposes replacing Terragrunt's group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
+This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
+
+#### `runner-pool` - What it does
+
+Allow usage of experimental runner pool implementation for units execution.
+
+#### `runner-pool` - How to provide feedback
+
+Provide your feedback on the [Runner Pool](https://github.com/gruntwork-io/terragrunt/issues/3629).
+
+#### `runner-pool` - Criteria for stabilization
+
+To transition the `runner-pool` feature to a stable release, the following must be addressed:
+
+- [x] Use new discovery and queue packages to discover units.
+- [x] Add support for including/excluding external units in the discovery process.
+- [x] Add runner pool implementation to execute discovered units.
+- [x] Add integration tests to track that the runner pool works in the same way as the current implementation.
+- [x] Add performance tests to track that the runner pool implementation is faster than the current implementation.
+- [x] Add support for fail fast behavior in the runner pool.
+- [x] Improve the UI to queue to apply.
+- [x] Add OpenTelemetry support to the runner pool.
+
+### `report`
+
+Support for Terragrunt Run Reports and Summaries.
+
+#### `report` - What it does
+
+Allows generation of run reports and summary displays. This experiment flag is no longer needed, as the report feature is now stable and available by default.
+
+#### `report` - How to provide feedback
+
+Now that the report experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+
+#### `report` - Criteria for stabilization
+
+To transition the `report` feature to stable, the following have been completed:
+
+- [x] Add support for generating reports (in CSV format by default).
+- [x] Add support for displaying summaries of runs.
+- [x] Add ability to disable summary display.
+- [x] Add support for generating reports in JSON format.
+- [x] Add comprehensive integration tests for the `report` experiment.
+- [x] Finalize the design of run summaries and reports.
+
+### `auto-provider-cache-dir`
+
+Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
+
+#### `auto-provider-cache-dir` - What it does
+
+This experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+
+This experiment flag is no longer needed, as the auto-provider-cache-dir feature is now enabled by default when using OpenTofu >= 1.10.
+
+**Requirements:**
+
+- OpenTofu version >= 1.10 is required
+- Only works when using OpenTofu (not Terraform)
+
+**Disabling the feature:**
+
+You can disable the auto-provider-cache-dir feature using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply --no-auto-provider-cache-dir
+```
+
+#### `auto-provider-cache-dir` - How to provide feedback
+
+Now that the auto-provider-cache-dir experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+
+#### `auto-provider-cache-dir` - Criteria for stabilization
+
+To transition the `auto-provider-cache-dir` feature to stable, the following have been completed:
+
+- [x] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
+- [x] Performance comparison with the existing provider cache server approach.
+- [x] Documentation and examples of best practices for usage.
+- [x] Community feedback on real-world usage and any edge cases discovered.
