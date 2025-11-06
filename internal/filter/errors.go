@@ -45,14 +45,14 @@ func NewEvaluationErrorWithCause(message string, cause error) error {
 	return errors.New(EvaluationError{Message: message, Cause: cause})
 }
 
-// FilterQueryRequiresHCLParsingError is an error that is returned when a filter query requires parsing Terragrunt configurations.
-type FilterQueryRequiresHCLParsingError struct {
+// FilterQueryRequiresDiscoveryError is an error that is returned when a filter query requires discovery of Terragrunt configurations.
+type FilterQueryRequiresDiscoveryError struct {
 	Query string
 }
 
-func (e FilterQueryRequiresHCLParsingError) Error() string {
+func (e FilterQueryRequiresDiscoveryError) Error() string {
 	return fmt.Sprintf(
-		"Filter query '%s' requires parsing Terragrunt configurations, which is not supported when evaluating filters on files",
+		"Filter query '%s' requires discovery of Terragrunt configurations, which is not supported when evaluating filters on generic files",
 		e.Query,
 	)
 }
