@@ -128,7 +128,28 @@ jobs:
         with:
           force-download-tools: 'true'
 
-      # Step 2: Restore P12 client certificate
+      # Step 2: Verify smctl installation
+      - name: Verify smctl installation
+        shell: pwsh
+        run: |
+          Write-Host "Checking smctl installation..."
+
+          # Check if smctl is available
+          $smctlPath = Get-Command smctl.exe -ErrorAction SilentlyContinue
+          if (-not $smctlPath) {
+            Write-Error "❌ smctl.exe not found in PATH"
+            exit 1
+          }
+
+          Write-Host "✅ smctl found at: $($smctlPath.Source)"
+
+          # Check smctl version
+          Write-Host "Checking smctl version..."
+          & smctl.exe --version
+
+          Write-Host "✅ smctl is ready"
+
+      # Step 3: Restore P12 client certificate
       - name: Restore P12 client certificate
         shell: pwsh
         run: |
@@ -154,35 +175,7 @@ jobs:
 
           Write-Host "✅ SM_CLIENT_CERT_FILE set to: $path"
 
-      # Step 3: Check DigiCert connection (healthcheck)
-      - name: Check DigiCert connection
-        shell: pwsh
-        run: |
-          Write-Host "Running smctl healthcheck..."
-          & smctl.exe healthcheck
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Healthcheck failed - authentication issue"
-            exit 1
-          }
-
-          Write-Host "✅ DigiCert connection verified"
-
-      # Step 4: List keypairs for verification
-      - name: Verify keypair access
-        shell: pwsh
-        run: |
-          Write-Host "Listing available keypairs..."
-          & smctl.exe keypair ls
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Failed to list keypairs"
-            exit 1
-          }
-
-          Write-Host "✅ Keypair access confirmed"
-
-      # Step 5: Sign Windows binaries
+      # Step 4: Sign Windows binaries
       - name: Sign Windows binaries
         shell: pwsh
         run: |
@@ -200,7 +193,7 @@ jobs:
 
           Write-Host "✅ All Windows binaries signed successfully!"
 
-      # Step 6: Verify signatures
+      # Step 5: Verify signatures
       - name: Verify signatures
         shell: pwsh
         run: |
@@ -214,7 +207,7 @@ jobs:
             Write-Host "✅ All signatures verified successfully!"
           }
 
-      # Step 7: Upload the signed artifacts
+      # Step 6: Upload the signed artifacts
       - name: Upload Signed Windows Binaries
         uses: actions/upload-artifact@v5
         with:
