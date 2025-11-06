@@ -2,10 +2,6 @@ name: Build
 
 on:
   workflow_call:
-    outputs:
-      artifact-name:
-        description: "Name of the artifact containing all signed binaries"
-        value: all-signed-binaries
 
 jobs:
   build:
@@ -70,155 +66,79 @@ jobs:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
-  # Add Windows version metadata on Windows runner
-  add-windows-metadata:
-    name: Add Windows Version Metadata
+  sign:
+    name: Sign Binaries
     needs: build
-    runs-on: windows-latest
+    runs-on: macos-latest
+    env:
+      MISE_PROFILE: cicd
+      GON_VERSION: v0.0.37
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Download Windows artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v6
         with:
-          pattern: terragrunt_windows_*
           path: artifacts/
 
-      - name: Prepare binaries
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path bin
-          Get-ChildItem -Path artifacts -Filter "terragrunt_windows_*" -Recurse -File | ForEach-Object {
-            Copy-Item $_.FullName -Destination bin/
-          }
-          Write-Host "Windows binaries downloaded:"
-          Get-ChildItem -Path bin
-
-      - name: Add version metadata
-        shell: pwsh
-        run: |
-          # Install goversioninfo
-          Write-Host "Installing goversioninfo..."
-          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
-
-          # Add Go bin to PATH
-          $goPath = & go env GOPATH
-          $goBinPath = Join-Path $goPath "bin"
-          $env:PATH = "$goBinPath;$env:PATH"
-
-          # Get version
-          $version = $env:GITHUB_REF_NAME
-          if ([string]::IsNullOrEmpty($version) -or $version -eq "refs/heads/main") {
-            $version = "0.0.0-dev"
-          }
-          $version = $version.TrimStart('v')
-
-          # Parse version components
-          $versionParts = $version.Split('.')
-          $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
-          $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
-          $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
-
-          $fileVersion = "$major.$minor.$patch.0"
-          $year = (Get-Date).Year
-
-          Write-Host "Generating version info for: $version (FileVersion: $fileVersion)"
-
-          # Update versioninfo.json
-          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
-          $versionInfo.StringFileInfo.FileVersion = $fileVersion
-          $versionInfo.StringFileInfo.ProductVersion = $version
-          $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
-          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
-
-          # Generate resource file
-          goversioninfo -o=rsrc.syso versioninfo.json
-
-          # Rebuild Windows binaries with metadata
-          $architectures = @("386", "amd64")
-          foreach ($arch in $architectures) {
-            $env:GOOS = "windows"
-            $env:GOARCH = $arch
-            $output = "bin\terragrunt_windows_$arch.exe"
-
-            Write-Host "Rebuilding windows/$arch with version metadata..."
-            go build -o $output `
-              -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$version -extldflags '-static'" `
-              .
-
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "Build failed for windows/$arch"
-              exit 1
-            }
-
-            Write-Host "✅ Built $output with metadata"
-          }
-
-          # Clean up
-          if (Test-Path rsrc.syso) {
-            Remove-Item rsrc.syso
-          }
-
-          Write-Host "✅ All Windows binaries rebuilt with version metadata"
-
-      - name: Upload Windows binaries with metadata
-        uses: actions/upload-artifact@v5
-        with:
-          name: windows-binaries-with-metadata
-          path: bin/terragrunt_windows_*.exe
-
-  # Sign macOS binaries on every build
-  sign-macos:
-    name: Sign macOS Binaries
-    needs: build
-    uses: ./.github/workflows/sign-macos.yml
-    secrets: inherit
-
-  # Sign Windows binaries on every build
-  sign-windows:
-    name: Sign Windows Binaries
-    needs: add-windows-metadata
-    uses: ./.github/workflows/sign-windows.yml
-    with:
-      artifact-pattern: 'windows-binaries-with-metadata'
-    secrets: inherit
-
-  # Combine all signed binaries into one artifact
-  combine:
-    name: Combine All Binaries
-    needs: [build, sign-macos, sign-windows]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download all signed artifacts
-        uses: actions/download-artifact@v6
-        with:
-          pattern: "*-signed-files"
-          path: artifacts/
-
-      - name: Download Linux artifacts (unsigned)
-        uses: actions/download-artifact@v6
-        with:
-          pattern: terragrunt_linux_*
-          path: artifacts/
-
-      - name: Combine all binaries
+      - name: Prepare build artifacts
         run: |
           mkdir -p bin
           find artifacts -type f -exec cp {} bin/ \;
-          echo "All binaries combined:"
           ls -lahrt bin/*
 
-      - name: Upload Combined Binaries
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.8.16
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache gon binary
+        id: cache-gon
+        uses: actions/cache@v4
+        with:
+          path: gon
+          key: gon-${{ env.GON_VERSION }}
+
+      - name: Download gon release
+        if: steps.cache-gon.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
+          unzip gon.zip
+          chmod +x gon
+
+      - name: Move gon to system path
+        run: |
+          sudo mv gon /usr/local/bin/gon
+          sudo chmod +x /usr/local/bin/gon
+
+      - name: Run gon version
+        run: |
+          gon --version
+
+      - name: Sign Binaries
+        env:
+          AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
+          AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
+          AC_USERNAME: ${{ secrets.MACOS_AC_LOGIN }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          ls -lahrt bin/*
+          file bin/terragrunt_linux_arm64
+          .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
+          .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
+          echo "Done signing the binary"
+
+          codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
+          codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
+
+      - name: Upload Signed Executables
         uses: actions/upload-artifact@v5
         with:
-          name: all-signed-binaries
+          name: signed-files
           path: bin/*
-          retention-days: 90
