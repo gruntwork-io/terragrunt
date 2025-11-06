@@ -47,7 +47,6 @@ jobs:
           go-version-file: go.mod
 
       # This step rebuilds the binaries to include Windows version metadata
-      # This is kept from your original workflow [cite: 648-656]
       - name: Add Windows version metadata
         shell: pwsh
         run: |
@@ -114,14 +113,9 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # --- THIS IS THE FIX ---
-      # This step calls your self-contained PowerShell script [cite: 145]
-      # It passes the required secrets as environment variables
-      # which the script knows how to use [cite: 151, 166-167]
       - name: Sign Windows Binaries
         shell: pwsh
         env:
-          # Map GitHub secrets to the env vars required by windows-sign.ps1 [cite: 151]
           DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
           DIGICERT_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
           DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
@@ -129,8 +123,6 @@ jobs:
         run: |
           Write-Host "Calling ./.github/scripts/setup/windows-sign.ps1"
           
-          # Call the script that already exists in your repository [cite: 145]
-          # It requires the binaries as a parameter [cite: 150, 153]
           ./.github/scripts/setup/windows-sign.ps1 -Binaries "bin/terragrunt_windows_*.exe"
 
       # This step uploads the newly signed artifacts
