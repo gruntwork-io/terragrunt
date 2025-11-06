@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SM_HOST: https://clientauth.one.digicert.com
+      SM_HOST: https://one.digicert.com
       SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
       SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
@@ -168,12 +168,50 @@ jobs:
           echo "SM_CLIENT_CERT_FILE=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "✅ SM_CLIENT_CERT_FILE set to: $path"
 
+      # Store credentials in Windows Credential Manager
+      - name: Save credentials to Windows Credential Manager
+        shell: pwsh
+        run: |
+          Write-Host "Saving credentials to Windows Credential Manager..."
+
+          & smctl.exe credentials save $env:SM_API_KEY $env:SM_CLIENT_CERT_PASSWORD
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Failed to save credentials"
+            exit 1
+          }
+
+          Write-Host "✅ Credentials saved to Windows Credential Manager"
+
       # Healthcheck against DigiCert
       - name: Run smctl healthcheck
         shell: pwsh
         run: |
           Write-Host "Running smctl healthcheck..."
-          smctl.exe healthcheck
+
+          & smctl.exe healthcheck
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "⚠️  Healthcheck failed (exit code: $LASTEXITCODE)"
+            Write-Warning "Continuing anyway - signing step will be the real test"
+          } else {
+            Write-Host "✅ Healthcheck passed"
+          }
+
+      # Sync certificates from DigiCert KeyLocker to Windows certificate store
+      - name: Sync certificates to Windows store
+        shell: pwsh
+        run: |
+          Write-Host "Syncing certificates from DigiCert KeyLocker..."
+
+          & smctl.exe windows certsync --keypair-alias "$env:SM_KEYPAIR_ALIAS"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Certificate sync failed"
+            exit 1
+          }
+
+          Write-Host "✅ Certificates synced to Windows store"
 
       # Sign binaries
       - name: Sign Windows binaries
@@ -181,16 +219,34 @@ jobs:
         run: |
           Write-Host "Signing all Windows binaries in bin/ directory..."
 
-          & smctl.exe sign `
-            --keypair-alias "$env:SM_KEYPAIR_ALIAS" `
-            --input "$PWD\bin"
+          # Get all .exe files to sign
+          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Signing failed with exit code: $LASTEXITCODE"
+          if ($binaries.Count -eq 0) {
+            Write-Error "❌ No binaries found to sign"
             exit 1
           }
 
-          Write-Host "✅ All Windows binaries signed successfully!"
+          Write-Host "Found $($binaries.Count) binaries to sign"
+
+          foreach ($binary in $binaries) {
+            Write-Host "`nSigning: $($binary.Name)"
+
+            & smctl.exe sign `
+              --keypair-alias "$env:SM_KEYPAIR_ALIAS" `
+              --input "$($binary.FullName)" `
+              --simple `
+              --verbose
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "❌ Signing failed for $($binary.Name)"
+              exit 1
+            }
+
+            Write-Host "✅ Signed: $($binary.Name)"
+          }
+
+          Write-Host "`n✅ All Windows binaries signed successfully!"
 
       # Verify signatures
       - name: Verify signatures
