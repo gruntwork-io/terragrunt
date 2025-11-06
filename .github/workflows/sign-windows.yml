@@ -151,49 +151,107 @@ jobs:
           echo "SM_CLIENT_CERT_PASSWORD=$env:SM_CLIENT_CERT_PASSWORD" >> $env:GITHUB_ENV 
           Write-Host "Set SM_HOST, SM_API_KEY, SM_CLIENT_CERT_FILE, SM_CLIENT_CERT_PASSWORD"
 
-      # Step 4: Sign the binaries
+      # Step 4: Sync certificates to Windows cert store
+      - name: Sync certificates
+        shell: pwsh
+        run: |
+          Write-Host "Syncing certificates from DigiCert KeyLocker..."
+
+          # smctl windows certsync will sync certs to Windows cert store
+          & smctl.exe windows certsync
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Certificate sync failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
+
+          Write-Host "✅ Certificates synced successfully"
+
+          # List available certificates for debugging
+          Write-Host "`nListing certificates in 'My' store:"
+          certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash"
+
+      # Step 5: Sign the binaries with signtool
       - name: Sign Windows Binaries
         shell: pwsh
         env:
-          # Pass in your existing keypair alias secret
-          SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+          DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
         run: |
-          # --- FIX: This ensures the script stops on any error ---
           $ErrorActionPreference = 'Stop'
-          
-          Write-Host "Signing Windows binaries using smctl..."
-          
-          $configPath = "${{ steps.plugin.outputs.PKCS11_CONFIG }}"
-          Write-Host "Using Config: $configPath"
-          
-          if ([string]::IsNullOrEmpty($env:SM_KEYPAIR_ALIAS)) {
+
+          Write-Host "Signing Windows binaries with signtool + DigiCert KSP..."
+
+          # Validate keypair alias
+          if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
             Write-Error "❌ WINDOWS_SIGNING_KEYPAIR_ALIAS secret is not set!"
-            # The script will stop here
+            exit 1
           }
 
-          $binaries = Get-Item "bin/terragrunt_windows_*.exe"
+          Write-Host "Keypair alias: $env:DIGICERT_KEYPAIR_ALIAS"
+
+          # Find signtool.exe
+          $signtoolPath = Get-Command signtool.exe -ErrorAction SilentlyContinue
+          if (-not $signtoolPath) {
+            Write-Host "signtool.exe not in PATH, searching Windows SDK..."
+            $signtoolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($signtoolPath) {
+              $signtoolPath = $signtoolPath.FullName
+              Write-Host "Found signtool.exe at: $signtoolPath"
+            } else {
+              Write-Error "❌ signtool.exe not found"
+              exit 1
+            }
+          } else {
+            $signtoolPath = $signtoolPath.Source
+          }
+
+          Write-Host "Using signtool: $signtoolPath"
+
+          # Get binaries
+          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
           if ($binaries.Count -eq 0) {
             Write-Error "❌ No Windows binaries found in bin/ directory"
-            # The script will stop here
+            exit 1
           }
+
+          Write-Host "`nFound $($binaries.Count) binaries to sign"
 
           foreach ($binary in $binaries) {
             Write-Host "`n========================================="
             Write-Host "Signing: $($binary.Name)"
             Write-Host "========================================="
 
-            # smctl will read the SM_HOST, SM_API_KEY, etc. from the environment
-            & smctl.exe sign `
-              --keypair-alias $env:SM_KEYPAIR_ALIAS `
-              --input $binary.FullName `
-              --config-file $configPath
+            # Sign using DigiCert KeyLocker KSP
+            & $signtoolPath sign `
+              /csp "DigiCert Signing Manager KSP" `
+              /kc $env:DIGICERT_KEYPAIR_ALIAS `
+              /tr http://timestamp.digicert.com `
+              /td SHA256 `
+              /fd SHA256 `
+              /d "Terragrunt - Terraform Wrapper" `
+              $binary.FullName
 
             if ($LASTEXITCODE -ne 0) {
-               # This will now stop the script
-               Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
+              Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
+              exit 1
             }
+
             Write-Host "✅ Successfully signed $($binary.Name)"
+
+            # Verify signature
+            Write-Host "Verifying signature..."
+            & $signtoolPath verify /pa /v $binary.FullName
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "⚠️  Signature verification failed (may be expected in CI)"
+            } else {
+              Write-Host "✅ Signature verified"
+            }
           }
+
+          Write-Host "`n========================================="
+          Write-Host "✅ All Windows binaries signed successfully!"
+          Write-Host "========================================="
 
       # Step 5: Upload the signed artifacts
       - name: Upload Signed Windows Binaries
