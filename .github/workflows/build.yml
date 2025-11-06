@@ -66,8 +66,8 @@ jobs:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
-  sign:
-    name: Sign Binaries
+  sign-macos:
+    name: Sign macOS Binaries
     needs: build
     runs-on: macos-latest
     env:
@@ -120,7 +120,7 @@ jobs:
         run: |
           gon --version
 
-      - name: Sign Binaries
+      - name: Sign macOS Binaries
         env:
           AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
           AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
@@ -137,8 +137,52 @@ jobs:
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
 
-      - name: Upload Signed Executables
+      - name: Upload Signed macOS Binaries
         uses: actions/upload-artifact@v5
         with:
-          name: signed-files
+          name: macos-signed-files
+          path: |
+            bin/terragrunt_darwin_amd64
+            bin/terragrunt_darwin_arm64
+
+  sign-windows:
+    name: Sign Windows Binaries
+    needs: build
+    uses: ./.github/workflows/sign-windows.yml
+    secrets: inherit
+
+  merge-signed-binaries:
+    name: Merge All Signed Binaries
+    needs: [sign-macos, sign-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download macOS signed binaries
+        uses: actions/download-artifact@v6
+        with:
+          name: macos-signed-files
+          path: bin/
+
+      - name: Download Windows signed binaries
+        uses: actions/download-artifact@v6
+        with:
+          name: windows-signed-files
+          path: bin/
+
+      - name: Download Linux binaries (unsigned)
+        uses: actions/download-artifact@v6
+        with:
+          pattern: terragrunt_linux_*
+          path: bin/
+          merge-multiple: true
+
+      - name: List all binaries
+        run: |
+          echo "All binaries ready for release:"
+          ls -lahrt bin/*
+
+      - name: Upload All Signed Binaries
+        uses: actions/upload-artifact@v5
+        with:
+          name: all-signed-binaries
           path: bin/*
