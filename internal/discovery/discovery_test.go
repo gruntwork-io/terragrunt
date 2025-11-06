@@ -180,7 +180,12 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				app := component.NewUnit(appDir)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
-				return component.Components{app, db, vpc}
+				// We include the external app in the expected results here, because we need it to be present for
+				// runnerpool to work right. Once runnerpool has been updated to not expect external dependencies
+				// in the discovery results, we can remove this.
+				//
+				// HACK: Hack for discovery -> runnerpool integration.
+				return component.Components{app, db, vpc, externalApp}
 			},
 		},
 		{

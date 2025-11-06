@@ -1113,18 +1113,22 @@ func (d *Discovery) Discover(
 						l.Debugf("Errors: %v", discoveryErr)
 					}
 
-					if !d.filterFlagEnabled {
-						externalDeps := dependencyDiscovery.ExternalDependencies()
-						for _, extDep := range externalDeps {
-							if unit, ok := extDep.(*component.Unit); ok && unit.Config() == nil {
-								parseErr := Parse(extDep, discoveryCtx, l, opts, d.suppressParseErrors, d.parserOptions)
-								if parseErr != nil && !d.suppressParseErrors {
-									l.Debugf("Failed to parse external dependency %s: %v", extDep.Path(), parseErr)
-								}
+					// This is a hack that should be removed once runnerpool has been updated to not expect external
+					// dependencies in the discovery results.
+					//
+					// It would be a much more invasive change to adjust this otherwise.
+					//
+					// HACK: Hack for discovery -> runnerpool integration.
+					externalDeps := dependencyDiscovery.ExternalDependencies()
+					for _, extDep := range externalDeps {
+						if unit, ok := extDep.(*component.Unit); ok && unit.Config() == nil {
+							parseErr := Parse(extDep, discoveryCtx, l, opts, d.suppressParseErrors, d.parserOptions)
+							if parseErr != nil && !d.suppressParseErrors {
+								l.Debugf("Failed to parse external dependency %s: %v", extDep.Path(), parseErr)
 							}
-
-							threadSafeComponents.EnsureComponent(extDep)
 						}
+
+						threadSafeComponents.EnsureComponent(extDep)
 					}
 
 					return nil
