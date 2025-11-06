@@ -20,7 +20,7 @@ function Show-Usage {
     Write-Host "Usage: $($MyInvocation.MyCommand.Name) -Binaries <paths> [OPTIONS]"
     Write-Host ""
     Write-Host "Required Environment Variables:"
-    Write-Host "  DIGICERT_API_KEY                DigiCert ONE API key for authentication"
+    Write-Host "  DIGICERT_API_KEY               DigiCert ONE API key for authentication"
     Write-Host "  DIGICERT_P12_BASE64             Client certificate in P12 format, base64 encoded"
     Write-Host "  DIGICERT_P12_PASSWORD           Password for the client certificate"
     Write-Host "  DIGICERT_KEYPAIR_ALIAS          The keypair alias name from KeyLocker portal"
@@ -78,7 +78,7 @@ function Install-Prerequisites {
         if (Test-Path $defaultSmctlPath) {
             $smctlDir = Split-Path $defaultSmctlPath
             $env:PATH += ";$smctlDir"
-            Write-Host "Found smctl.exe at: $defaultSmctlPath"
+            Write-Host "Found smctl.exe at: $defaultSmlPath"
         } else {
             Write-Error "smctl.exe not found. Please install DigiCert Signing Manager Tools."
             Write-Host "Download from: https://one.digicert.com/signingmanager/api-ui/v1/releases/smtools-windows-x64.msi"
@@ -89,6 +89,9 @@ function Install-Prerequisites {
     }
 }
 
+#
+# --- THIS FUNCTION HAS BEEN FIXED ---
+#
 function Initialize-DigiCertAuth {
     Write-Host "`nInitializing DigiCert authentication..."
 
@@ -107,18 +110,27 @@ function Initialize-DigiCertAuth {
 
     Write-Host "Client certificate saved to temporary location"
 
-    # Synchronize certificates using smctl
+    # 1. Set the API key
+    Write-Host "Configuring smctl API key..."
+    & smctl.exe config --api-key $env:DIGICERT_API_KEY
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to set smctl API key!"
+        Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+
+    # 2. Set the client certificate
+    Write-Host "Configuring smctl client certificate..."
+    & smctl.exe config --client-cert $certPath --client-cert-pass $env:DIGICERT_P12_PASSWORD
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to set smctl client certificate!"
+        Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+
+    # 3. Synchronize the certificates
     Write-Host "Synchronizing DigiCert certificates..."
-
-    $smctlArgs = @(
-        "windows", "certsync",
-        "--apikey", $env:DIGICERT_API_KEY,
-        "--pkcs12", $certPath,
-        "--password", $env:DIGICERT_P12_PASSWORD
-    )
-
-    & smctl.exe $smctlArgs
-
+    & smctl.exe windows certsync
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Certificate synchronization failed!"
         Remove-Item $certPath -Force -ErrorAction SilentlyContinue

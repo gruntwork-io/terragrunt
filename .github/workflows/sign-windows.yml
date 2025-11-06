@@ -113,30 +113,112 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # This step installs smctl.exe, signtool.exe, and the KSP
-      # and adds them to the PATH for the next step to use.
+      # Step 1: Install smctl.exe and signtool.exe
       - name: Install DigiCert Client Tools
         uses: digicert/ssm-code-signing@v1.1.0
         with:
           force-download-tools: 'true'
 
-      # This step now runs AFTER the tools are installed
-      - name: Sign Windows Binaries
+      # Step 2: Configure authentication using smctl config
+      - name: Initialize DigiCert Authentication
         shell: pwsh
         env:
-          # Map GitHub secrets to the env vars required by windows-sign.ps1
           DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
           DIGICERT_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
           DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+        run: |
+          Write-Host "`nInitializing DigiCert authentication..."
+
+          # Decode and save client certificate
+          $certPath = Join-Path $env:TEMP "digicert_client_auth_$(Get-Random).p12"
+          $certBytes = [System.Convert]::FromBase64String($env:DIGICERT_P12_BASE64)
+          [System.IO.File]::WriteAllBytes($certPath, $certBytes)
+          Write-Host "Client certificate saved to temporary location"
+
+          # 1. Set the API key
+          Write-Host "Configuring smctl API key..."
+          & smctl.exe config --api-key $env:DIGICERT_API_KEY
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to set smctl API key!"
+            Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          # 2. Set the client certificate
+          Write-Host "Configuring smctl client certificate..."
+          & smctl.exe config --client-cert $certPath --client-cert-pass $env:DIGICERT_P12_PASSWORD
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to set smctl client certificate!"
+            Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+          
+          # 3. Clean up the temporary certificate file
+          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+          Write-Host "Authentication configured."
+
+      # Step 3: Synchronize the certificate to the Windows Store
+      - name: Synchronize DigiCert Certificate
+        shell: pwsh
+        run: |
+          Write-Host "Synchronizing KeyLocker certificate to Windows store..."
+          & smctl.exe windows certsync
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Certificate synchronization failed!"
+            exit 1
+          }
+
+          Write-Host "✅ Certificate synchronization successful."
+          
+          # Now, list the certs again. We SHOULD see the DigiCert one.
+          Write-Host "`nListing certificates in 'My' store after sync:"
+          certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash|DigiCert"
+
+      # Step 4: Sign the binaries
+      - name: Sign Windows Binaries
+        shell: pwsh
+        env:
           DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
         run: |
-          Write-Host "Calling ./.github/scripts/setup/windows-sign.ps1"
-          
-          # Call the script that already exists in your repository
-          # It will now find smctl.exe and signtool.exe in the PATH
-          ./.github/scripts/setup/windows-sign.ps1 -Binaries "bin/terragrunt_windows_*.exe"
+          Write-Host "Signing Windows binaries..."
 
-      # This step uploads the newly signed artifacts
+          if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
+            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS is empty"
+            exit 1
+          }
+          Write-Host "Using Keypair alias / SHA1 thumbprint: $env:DIGICERT_KEYPAIR_ALIAS"
+
+          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
+          if ($binaries.Count -eq 0) {
+            Write-Error "❌ No Windows binaries found in bin/ directory"
+            exit 1
+          }
+          Write-Host "`nFound $($binaries.Count) binaries to sign"
+
+          foreach ($binary in $binaries) {
+            Write-Host "`n========================================="
+            Write-Host "Signing: $($binary.Name)"
+            Write-Host "========================================="
+
+            # Use /sha1 to find the cert in the store by its alias or thumbprint
+            & signtool.exe sign `
+              /sha1 $env:DIGICERT_KEYPAIR_ALIAS `
+              /tr http://timestamp.digicert.com `
+              /td SHA256 `
+              /fd SHA256 `
+              /d "Terragrunt - Terraform Wrapper" `
+              $binary.FullName
+
+            if ($LASTEXITCODE -ne 0) {
+               Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
+               exit 1
+            }
+
+            Write-Host "✅ Successfully signed $($binary.Name)"
+          }
+
+      # Step 5: Upload the signed artifacts
       - name: Upload Signed Windows Binaries
         uses: actions/upload-artifact@v5
         with:
