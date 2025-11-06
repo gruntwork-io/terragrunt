@@ -34,7 +34,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path bin
-          Get-ChildItem -Path artifacts -Filter "terraggunt_windows_*" -Recurse -File |
+          
+          # --- FIX: Corrected typo 'terraggunt' to 'terragrunt' ---
+          Get-ChildItem -Path artifacts -Filter "terragrunt_windows_*" -Recurse -File |
           ForEach-Object {
             Copy-Item $_.FullName -Destination bin/
           }
@@ -139,7 +141,7 @@ jobs:
         env:
           # Map your secrets to the names smctl expects
           SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          SM_HOST: ${{ secrets.SM_HOST }} # YOU MUST ADD THIS SECRET
+          SM_HOST: ${{ secrets.SM_HOST }} # This is the new secret you must add
           SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
         run: |
           # Add the variables to the GITHUB_ENV so smctl can read them
@@ -156,6 +158,9 @@ jobs:
           # Pass in your existing keypair alias secret
           SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
         run: |
+          # --- FIX: This ensures the script stops on any error ---
+          $ErrorActionPreference = 'Stop'
+          
           Write-Host "Signing Windows binaries using smctl..."
           
           $configPath = "${{ steps.plugin.outputs.PKCS11_CONFIG }}"
@@ -163,13 +168,13 @@ jobs:
           
           if ([string]::IsNullOrEmpty($env:SM_KEYPAIR_ALIAS)) {
             Write-Error "❌ WINDOWS_SIGNING_KEYPAIR_ALIAS secret is not set!"
-            exit 1
+            # The script will stop here
           }
 
           $binaries = Get-Item "bin/terragrunt_windows_*.exe"
           if ($binaries.Count -eq 0) {
             Write-Error "❌ No Windows binaries found in bin/ directory"
-            exit 1
+            # The script will stop here
           }
 
           foreach ($binary in $binaries) {
@@ -184,8 +189,8 @@ jobs:
               --config-file $configPath
 
             if ($LASTEXITCODE -ne 0) {
+               # This will now stop the script
                Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
-               exit 1
             }
             Write-Host "✅ Successfully signed $($binary.Name)"
           }
