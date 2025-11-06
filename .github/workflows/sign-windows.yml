@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SM_HOST: https://one.digicert.com
+      SM_HOST: https://clientauth.one.digicert.com
       SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
       SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
