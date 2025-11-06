@@ -47,7 +47,6 @@ jobs:
           go-version-file: go.mod
 
       # This step rebuilds the binaries to include version metadata
-      # This is kept from your original workflow
       - name: Add Windows version metadata
         shell: pwsh
         run: |
@@ -114,8 +113,7 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # This step is from your original file and is correct.
-      # It installs smctl, the KSP, and signtool.exe (as part of the SDK)
+      # This step installs smctl, the KSP, and signtool.exe
       - name: Install DigiCert Client Tools
         id: digicert_tools
         uses: digicert/ssm-code-signing@v1.1.0
@@ -127,33 +125,44 @@ jobs:
           client-cert-password: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
           keypair-alias: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
 
-      # This step is simplified from your original
+      # --- NEW STEP ---
+      # Explicitly synchronize the certificate to the Windows Store
+      - name: Synchronize DigiCert Certificate
+        shell: pwsh
+        run: |
+          Write-Host "Synchronizing KeyLocker certificate to Windows store..."
+          
+          # smctl.exe should be in the PATH after the previous step
+          # The auth (API key, client cert) should already be configured by the action
+          smctl.exe windows certsync
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Certificate synchronization failed!"
+            exit 1
+          }
+
+          Write-Host "✅ Certificate synchronization successful."
+          
+          # Now, list the certs again. We SHOULD see the DigiCert one.
+          Write-Host "`nListing certificates in 'My' store after sync:"
+          certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash|DigiCert"
+
+      # --- MODIFIED STEP ---
+      # Use the /sha1 command, which looks for the cert in the store
       - name: Sign Windows Binaries
         shell: pwsh
         env:
-          # This alias is passed to signtool via the /kc argument
+          # This alias is used for the /sha1 argument
           DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
         run: |
           Write-Host "Signing Windows binaries..."
 
-          # Validate keypair alias is set
           if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
-            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS environment variable is empty"
-            Write-Host "Please ensure the GitHub secret WINDOWS_SIGNING_KEYPAIR_ALIAS is set"
+            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS is empty"
             exit 1
           }
-          Write-Host "Using Keypair alias: $env:DIGICERT_KEYPAIR_ALIAS"
+          Write-Host "Using Keypair alias / SHA1 thumbprint: $env:DIGICERT_KEYPAIR_ALIAS"
 
-          # List available certificates in Windows store (for debugging)
-          # certutil.exe should be in the PATH after the digicert_tools step
-          Write-Host "`nListing certificates in 'My' store:"
-          try {
-             certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash"
-          } catch {
-            Write-Warning "Could not list certificates: $_"
-          }
-
-          # Get list of Windows executables
           $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
           if ($binaries.Count -eq 0) {
             Write-Error "❌ No Windows binaries found in bin/ directory"
@@ -166,11 +175,11 @@ jobs:
             Write-Host "Signing: $($binary.Name)"
             Write-Host "========================================="
 
-            # Sign using signtool with DigiCert KeyLocker KSP
-            # signtool.exe should be in the PATH after the digicert_tools step
+            # MODIFIED: Use /sha1 to find the cert in the store, as per your original script.
+            # The 'keypair-alias' secret should contain the certificate thumbprint 
+            # or an alias that signtool can find in the store.
             signtool sign `
-              /csp "DigiCert Signing Manager KSP" `
-              /kc $env:DIGICERT_KEYPAIR_ALIAS `
+              /sha1 $env:DIGICERT_KEYPAIR_ALIAS `
               /tr http://timestamp.digicert.com `
               /td SHA256 `
               /fd SHA256 `
@@ -185,7 +194,6 @@ jobs:
             Write-Host "✅ Successfully signed $($binary.Name)"
           }
 
-      # This step uploads the newly signed artifacts
       - name: Upload Signed Windows Binaries
         uses: actions/upload-artifact@v5
         with:
