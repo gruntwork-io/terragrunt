@@ -135,27 +135,32 @@ jobs:
           fi
           echo "$CERT_B64" | base64 --decode > /d/Certificate_pkcs12.p12 
 
-      # Step 3: Set environment variables for smctl
-      - name: Set variables for smctl
+      # Step 3: Sync certificates to Windows cert store
+      - name: Sync certificates from DigiCert KeyLocker
         shell: pwsh
         env:
-          # Map your secrets to the names smctl expects
           SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          SM_HOST: ${{ secrets.SM_HOST }} # This is the new secret you must add
+          SM_HOST: https://clientauth.one.digicert.com
+          SM_CLIENT_CERT_FILE: D:\Certificate_pkcs12.p12
           SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
         run: |
-          # Add the variables to the GITHUB_ENV so smctl can read them
-          echo "SM_HOST=$env:SM_HOST" >> $env:GITHUB_ENV 
-          echo "SM_API_KEY=$env:SM_API_KEY" >> $env:GITHUB_ENV 
-          echo "SM_CLIENT_CERT_FILE=D:\Certificate_pkcs12.p12" >> $env:GITHUB_ENV 
-          echo "SM_CLIENT_CERT_PASSWORD=$env:SM_CLIENT_CERT_PASSWORD" >> $env:GITHUB_ENV 
-          Write-Host "Set SM_HOST, SM_API_KEY, SM_CLIENT_CERT_FILE, SM_CLIENT_CERT_PASSWORD"
-
-      # Step 4: Sync certificates to Windows cert store
-      - name: Sync certificates
-        shell: pwsh
-        run: |
           Write-Host "Syncing certificates from DigiCert KeyLocker..."
+          Write-Host "SM_HOST: $env:SM_HOST"
+          Write-Host "SM_CLIENT_CERT_FILE: $env:SM_CLIENT_CERT_FILE"
+
+          # Verify environment variables are set
+          if ([string]::IsNullOrEmpty($env:SM_API_KEY)) {
+            Write-Error "❌ SM_API_KEY is not set"
+            exit 1
+          }
+          if ([string]::IsNullOrEmpty($env:SM_CLIENT_CERT_PASSWORD)) {
+            Write-Error "❌ SM_CLIENT_CERT_PASSWORD is not set"
+            exit 1
+          }
+          if (-not (Test-Path $env:SM_CLIENT_CERT_FILE)) {
+            Write-Error "❌ Certificate file not found: $env:SM_CLIENT_CERT_FILE"
+            exit 1
+          }
 
           # smctl windows certsync will sync certs to Windows cert store
           & smctl.exe windows certsync
