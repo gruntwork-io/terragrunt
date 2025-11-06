@@ -3,6 +3,7 @@ package discovery
 
 import (
 	"context"
+	stderrs "errors"
 	"io"
 	"io/fs"
 	"os"
@@ -160,6 +161,9 @@ type Discovery struct {
 
 	// filterFlagEnabled determines whether the filter flag experiment is active
 	filterFlagEnabled bool
+
+	// breakCycles determines whether to break cycles in the dependency graph if any exist.
+	breakCycles bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -371,6 +375,12 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 // This changes how discovery processes components during file traversal.
 func (d *Discovery) WithFilterFlagEnabled(enabled bool) *Discovery {
 	d.filterFlagEnabled = enabled
+	return d
+}
+
+// WithBreakCycles sets the BreakCycles flag to true.
+func (d *Discovery) WithBreakCycles() *Discovery {
+	d.breakCycles = true
 	return d
 }
 
@@ -774,8 +784,8 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 		}
 
 		if d.filterFlagEnabled {
-			cfg := d.createComponentFromPath(path, filenames)
-			if cfg == nil {
+			c := d.createComponentFromPath(path, filenames)
+			if c == nil {
 				return nil
 			}
 
@@ -791,9 +801,9 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 			shouldEvaluateFiltersNow := !d.discoverDependencies
 			if shouldEvaluateFiltersNow {
 				if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
-					filtered, err := d.filters.Evaluate(l, component.Components{cfg})
+					filtered, err := d.filters.Evaluate(l, component.Components{c})
 					if err != nil {
-						l.Debugf("Error evaluating filters for %s: %v", cfg.Path(), err)
+						l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
 						return nil
 					}
 
@@ -803,7 +813,7 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 				}
 			}
 
-			return cfg
+			return c
 		}
 
 		// Everything after this point is only relevant when the filter flag is disabled.
@@ -859,21 +869,28 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 // Returns nil if the file doesn't match any of the provided filenames.
 func (d *Discovery) createComponentFromPath(path string, filenames []string) component.Component {
 	base := filepath.Base(path)
-	for _, fname := range filenames {
-		if base == fname {
-			var cfg component.Component
-			if fname == config.DefaultStackFile {
-				cfg = component.NewStack(filepath.Dir(path))
-			} else {
-				cfg = component.NewUnit(filepath.Dir(path))
-			}
+	dir := filepath.Dir(path)
 
-			if d.discoveryContext != nil {
-				cfg.SetDiscoveryContext(d.discoveryContext)
-			}
-
-			return cfg
+	componentOfBase := func(dir, base string) component.Component {
+		if base == config.DefaultStackFile {
+			return component.NewStack(dir)
 		}
+
+		return component.NewUnit(dir)
+	}
+
+	for _, fname := range filenames {
+		if base != fname {
+			continue
+		}
+
+		c := componentOfBase(dir, base)
+
+		if d.discoveryContext != nil {
+			c.SetDiscoveryContext(d.discoveryContext)
+		}
+
+		return c
 	}
 
 	return nil
@@ -965,7 +982,7 @@ func (d *Discovery) parseWorker(
 	componentChan <-chan component.Component,
 	errorChan chan<- error,
 ) error {
-	for cfg := range componentChan {
+	for c := range componentChan {
 		// Context cancellation check
 		select {
 		case <-ctx.Done():
@@ -973,7 +990,7 @@ func (d *Discovery) parseWorker(
 		default:
 		}
 
-		err := Parse(cfg, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
+		err := Parse(c, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
 
 		// Send error or handle context cancellation
 		select {
@@ -1108,27 +1125,13 @@ func (d *Discovery) Discover(
 
 					discoveryErr := dependencyDiscovery.DiscoverAllDependencies(discoveryCtx, l, opts, dependencyStartingComponents)
 					if discoveryErr != nil {
+						if !d.suppressParseErrors {
+							return discoveryErr
+						}
+
 						l.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
 
 						l.Debugf("Errors: %v", discoveryErr)
-					}
-
-					// This is a hack that should be removed once runnerpool has been updated to not expect external
-					// dependencies in the discovery results.
-					//
-					// It would be a much more invasive change to adjust this otherwise.
-					//
-					// HACK: Hack for discovery -> runnerpool integration.
-					externalDeps := dependencyDiscovery.ExternalDependencies()
-					for _, extDep := range externalDeps {
-						if unit, ok := extDep.(*component.Unit); ok && unit.Config() == nil {
-							parseErr := Parse(extDep, discoveryCtx, l, opts, d.suppressParseErrors, d.parserOptions)
-							if parseErr != nil && !d.suppressParseErrors {
-								l.Debugf("Failed to parse external dependency %s: %v", extDep.Path(), parseErr)
-							}
-						}
-
-						threadSafeComponents.EnsureComponent(extDep)
 					}
 
 					return nil
@@ -1183,6 +1186,10 @@ func (d *Discovery) Discover(
 
 					discoveryErr := dependentDiscovery.DiscoverAllDependents(discoveryCtx, l, dependentStartingComponents)
 					if discoveryErr != nil {
+						if !d.suppressParseErrors {
+							return discoveryErr
+						}
+
 						l.Warnf("Parsing errors where encountered while discovering dependents. They were suppressed, and can be found in the debug logs.")
 
 						l.Debugf("Errors: %w", discoveryErr)
@@ -1210,10 +1217,11 @@ func (d *Discovery) Discover(
 
 				var removeErr error
 
-				// FIXME: We really should not be doing this unconditionally...
-				components, removeErr = RemoveCycles(components)
-				if removeErr != nil {
-					errs = append(errs, errors.New(removeErr))
+				if d.breakCycles {
+					components, removeErr = RemoveCycles(components)
+					if removeErr != nil {
+						errs = append(errs, errors.New(removeErr))
+					}
 				}
 			}
 
@@ -1244,7 +1252,13 @@ func (d *Discovery) Discover(
 
 		err = relationshipDiscovery.DiscoverAllRelationships(ctx, l, opts, components)
 		if err != nil {
-			errs = append(errs, errors.New(err))
+			if !d.suppressParseErrors {
+				errs = append(errs, errors.New(err))
+			} else {
+				l.Warnf("Parsing errors where encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
+
+				l.Debugf("Errors: %w", err)
+			}
 		}
 	}
 
@@ -1393,28 +1407,28 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 }
 
 // RemoveCycles removes cycles from the dependency graph.
-func RemoveCycles(c component.Components) (component.Components, error) {
+func RemoveCycles(components component.Components) (component.Components, error) {
 	var (
 		err error
-		cfg component.Component
+		c   component.Component
 	)
 
 	for range maxCycleRemovalAttempts {
-		if cfg, err = c.CycleCheck(); err == nil {
+		if c, err = components.CycleCheck(); err == nil {
 			break
 		}
 
 		// Cfg should never be nil if err is not nil,
 		// but we do this check to avoid a nil pointer dereference
 		// if our assumptions change in the future.
-		if cfg == nil {
+		if c == nil {
 			break
 		}
 
-		c = c.RemoveByPath(cfg.Path())
+		components = components.RemoveByPath(c.Path())
 	}
 
-	return c, err
+	return components, err
 }
 
 // hiddenDirMemo provides thread-safe memoization of hidden directories.
@@ -1494,4 +1508,18 @@ func isExternal(workingDir string, componentPath string) bool {
 	}
 
 	return strings.HasPrefix(relPath, "..")
+}
+
+// containsNoSettingsError returns true if the provided error (possibly a joined/wrapped error)
+// contains a config-level error indicating there were no Terragrunt configuration settings
+// (e.g., include-only file) that should be treated as non-fatal during discovery.
+func containsNoSettingsError(err error) bool {
+	for _, e := range errors.UnwrapErrors(err) {
+		var target config.CouldNotResolveTerragruntConfigInFileError
+		if stderrs.As(e, &target) {
+			return true
+		}
+	}
+
+	return false
 }

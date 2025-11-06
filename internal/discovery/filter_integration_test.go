@@ -826,6 +826,9 @@ func TestDiscoveryWithGraphExpressionFilters_ComplexGraph(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
+	// To speed up this test, we'll make the temporary directory a git repository.
+	helpers.CreateGitRepo(t, tmpDir)
+
 	// Create complex graph: vpc -> [db, cache] -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
 	dbDir := filepath.Join(tmpDir, "db")

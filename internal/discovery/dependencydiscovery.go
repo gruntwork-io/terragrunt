@@ -151,14 +151,15 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 		return errors.New("expected Unit component but got different type")
 	}
 
-	if unit.Config() == nil {
+	cfg := unit.Config()
+	if cfg == nil {
 		err := Parse(dComponent, ctx, l, opts, dd.suppressParseErrors, dd.parserOptions)
 		if err != nil {
 			return errors.New(err)
 		}
-	}
 
-	cfg := unit.Config()
+		cfg = unit.Config()
+	}
 
 	depPaths, err := extractDependencyPaths(cfg, dComponent)
 	if err != nil {
