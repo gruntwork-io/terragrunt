@@ -40,6 +40,78 @@ jobs:
           Write-Host "Binary files to sign:"
           Get-ChildItem -Path bin | ForEach-Object { Write-Host $_.FullName }
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Add Windows version metadata
+        shell: pwsh
+        run: |
+          # Install goversioninfo
+          Write-Host "Installing goversioninfo..."
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
+
+          # Add Go bin to PATH
+          $goPath = & go env GOPATH
+          $goBinPath = Join-Path $goPath "bin"
+          $env:PATH = "$goBinPath;$env:PATH"
+
+          # Get version
+          $version = $env:GITHUB_REF_NAME
+          if ([string]::IsNullOrEmpty($version) -or $version -eq "refs/heads/main") {
+            $version = "0.0.0-dev"
+          }
+          $version = $version.TrimStart('v')
+
+          # Parse version components
+          $versionParts = $version.Split('.')
+          $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
+          $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
+          $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
+
+          $fileVersion = "$major.$minor.$patch.0"
+          $year = (Get-Date).Year
+
+          Write-Host "Generating version info for: $version (FileVersion: $fileVersion)"
+
+          # Update versioninfo.json
+          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
+          $versionInfo.StringFileInfo.FileVersion = $fileVersion
+          $versionInfo.StringFileInfo.ProductVersion = $version
+          $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
+          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
+
+          # Generate resource file
+          goversioninfo -o=rsrc.syso versioninfo.json
+
+          # Rebuild Windows binaries with metadata
+          $architectures = @("386", "amd64")
+          foreach ($arch in $architectures) {
+            $env:GOOS = "windows"
+            $env:GOARCH = $arch
+            $output = "bin\terragrunt_windows_$arch.exe"
+
+            Write-Host "Rebuilding windows/$arch with version metadata..."
+            go build -o $output `
+              -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$version -extldflags '-static'" `
+              .
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Build failed for windows/$arch"
+              exit 1
+            }
+
+            Write-Host "✅ Built $output with metadata"
+          }
+
+          # Clean up
+          if (Test-Path rsrc.syso) {
+            Remove-Item rsrc.syso
+          }
+
+          Write-Host "✅ All Windows binaries rebuilt with version metadata"
+
       - name: Install DigiCert Client Tools
         id: digicert_tools
         uses: digicert/ssm-code-signing@v1.1.0
