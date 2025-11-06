@@ -1,6 +1,10 @@
 package discovery
 
 import (
+	"path/filepath"
+	"runtime"
+
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -81,13 +85,17 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		})
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		d = d.WithFilterFlagEnabled(true)
 
-		d = d.WithFilters(filters)
+		if len(opts.FilterQueries) > 0 {
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			if err != nil {
+				return nil, err
+			}
+
+			d = d.WithFilters(filters)
+		}
 	}
 
 	return d, nil
@@ -97,14 +105,40 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) && len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		d = d.WithFilterFlagEnabled(true)
 
-		d = d.WithFilters(filters)
+		if len(opts.FilterQueries) > 0 {
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			if err != nil {
+				return nil, err
+			}
+
+			d = d.WithFilters(filters)
+		}
 	}
 
 	return d, nil
+}
+
+// NewDiscovery creates a new Discovery.
+func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
+	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
+
+	discovery := &Discovery{
+		workingDir: dir,
+		hidden:     false,
+		includeDirs: []string{
+			config.StackDir,
+			filepath.Join(config.StackDir, "**"),
+		},
+		numWorkers:         numWorkers,
+		useDefaultExcludes: true,
+	}
+
+	for _, opt := range opts {
+		opt(discovery)
+	}
+
+	return discovery
 }
