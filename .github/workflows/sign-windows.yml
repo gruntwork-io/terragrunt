@@ -113,108 +113,83 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # Step 1: Install smctl.exe and signtool.exe
-      - name: Install DigiCert Client Tools
+      # Step 1: Install DigiCert Client Tools
+      # This installs smctl and other tools
+      - name: Install DigiCert Client tools
+        id: plugin # We give this step an ID to get its outputs
         uses: digicert/ssm-code-signing@v1.1.0
         with:
           force-download-tools: 'true'
 
-      # Step 2: Configure authentication using smctl config
-      - name: Initialize DigiCert Authentication
+      # Step 2: Set up certificate
+      # This decodes the secret and saves it as a temp file
+      # This is taken directly from the documentation
+      - name: Set up certificate
+        shell: bash
+        env:
+          # We use your old secret name here
+          CERT_B64: ${{ secrets.DIGICERT_P12_BASE64 }}
+        run: |
+          echo "$CERT_B64" | base64 --decode > /d/Certificate_pkcs12.p12 
+
+      # Step 3: Set environment variables for smctl
+      # This maps your secrets to the env vars smctl expects
+      # This is the step that fixes the "unknown flag" error
+      - name: Set variables for smctl
         shell: pwsh
         env:
-          DIGICERT_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
-          DIGICERT_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
-          DIGICERT_P12_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+          # Map your old secrets to the new names smctl needs
+          SM_API_KEY: ${{ secrets.DIGICERT_API_KEY }}
+          SM_HOST: ${{ secrets.SM_HOST }} # YOU MUST ADD THIS SECRET
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.DIGICERT_P12_PASSWORD }}
         run: |
-          Write-Host "`nInitializing DigiCert authentication..."
-
-          # Decode and save client certificate
-          $certPath = Join-Path $env:TEMP "digicert_client_auth_$(Get-Random).p12"
-          $certBytes = [System.Convert]::FromBase64String($env:DIGICERT_P12_BASE64)
-          [System.IO.File]::WriteAllBytes($certPath, $certBytes)
-          Write-Host "Client certificate saved to temporary location"
-
-          # 1. Set the API key
-          Write-Host "Configuring smctl API key..."
-          & smctl.exe config --api-key $env:DIGICERT_API_KEY
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to set smctl API key!"
-            Remove-Item $certPath -Force -ErrorAction SilentlyContinue
-            exit 1
-          }
-
-          # 2. Set the client certificate
-          Write-Host "Configuring smctl client certificate..."
-          & smctl.exe config --client-cert $certPath --client-cert-pass $env:DIGICERT_P12_PASSWORD
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to set smctl client certificate!"
-            Remove-Item $certPath -Force -ErrorAction SilentlyContinue
-            exit 1
-          }
-          
-          # 3. Clean up the temporary certificate file
-          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
-          Write-Host "Authentication configured."
-
-      # Step 3: Synchronize the certificate to the Windows Store
-      - name: Synchronize DigiCert Certificate
-        shell: pwsh
-        run: |
-          Write-Host "Synchronizing KeyLocker certificate to Windows store..."
-          & smctl.exe windows certsync
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Certificate synchronization failed!"
-            exit 1
-          }
-
-          Write-Host "✅ Certificate synchronization successful."
-          
-          # Now, list the certs again. We SHOULD see the DigiCert one.
-          Write-Host "`nListing certificates in 'My' store after sync:"
-          certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash|DigiCert"
+          echo "SM_HOST=$env:SM_HOST" >> $env:GITHUB_ENV 
+          echo "SM_API_KEY=$env:SM_API_KEY" >> $env:GITHUB_ENV 
+          echo "SM_CLIENT_CERT_FILE=D:\Certificate_pkcs12.p12" >> $env:GITHUB_ENV 
+          echo "SM_CLIENT_CERT_PASSWORD=$env:SM_CLIENT_CERT_PASSWORD" >> $env:GITHUB_ENV 
+          Write-Host "Set SM_HOST, SM_API_KEY, SM_CLIENT_CERT_FILE, SM_CLIENT_CERT_PASSWORD"
 
       # Step 4: Sign the binaries
+      # This uses the 'smctl sign' command, which reads the env vars
       - name: Sign Windows Binaries
         shell: pwsh
         env:
-          DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+          # Pass in the keypair alias
+          SM_KEYPAIR_ALIAS: ${{ secrets.DIGICERT_KEYPAIR_ALIAS }}
         run: |
-          Write-Host "Signing Windows binaries..."
-
-          if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
-            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS is empty"
+          Write-Host "Signing Windows binaries using smctl..."
+          
+          # Get the config file path from the 'plugin' step's output
+          $configPath = "${{ steps.plugin.outputs.PKCS11_CONFIG }}"
+          Write-Host "Using Config: $configPath"
+          
+          if ([string]::IsNullOrEmpty($env:SM_KEYPAIR_ALIAS)) {
+            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS secret is not set!"
             exit 1
           }
-          Write-Host "Using Keypair alias / SHA1 thumbprint: $env:DIGICERT_KEYPAIR_ALIAS"
 
-          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
+          $binaries = Get-Item "bin/terragrunt_windows_*.exe"
           if ($binaries.Count -eq 0) {
             Write-Error "❌ No Windows binaries found in bin/ directory"
             exit 1
           }
-          Write-Host "`nFound $($binaries.Count) binaries to sign"
 
           foreach ($binary in $binaries) {
             Write-Host "`n========================================="
             Write-Host "Signing: $($binary.Name)"
             Write-Host "========================================="
 
-            # Use /sha1 to find the cert in the store by its alias or thumbprint
-            & signtool.exe sign `
-              /sha1 $env:DIGICERT_KEYPAIR_ALIAS `
-              /tr http://timestamp.digicert.com `
-              /td SHA256 `
-              /fd SHA256 `
-              /d "Terragrunt - Terraform Wrapper" `
-              $binary.FullName
+            # Call smctl sign as shown in the documentation
+            # It will automatically pick up the SM_HOST, SM_API_KEY, etc. env vars
+            & smctl.exe sign `
+              --keypair-alias $env:SM_KEYPAIR_ALIAS `
+              --input $binary.FullName `
+              --config-file $configPath
 
             if ($LASTEXITCODE -ne 0) {
                Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
                exit 1
             }
-
             Write-Host "✅ Successfully signed $($binary.Name)"
           }
 
