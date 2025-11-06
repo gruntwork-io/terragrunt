@@ -19,7 +19,6 @@ jobs:
     name: Sign Windows Binaries
     runs-on: windows-latest
 
-    # Set environment variables at job level for all steps
     env:
       SM_HOST: https://clientauth.one.digicert.com
       SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
@@ -42,11 +41,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path bin
           
-          # --- FIX: Corrected typo 'terraggunt' to 'terragrunt' ---
           Get-ChildItem -Path artifacts -Filter "terragrunt_windows_*" -Recurse -File |
           ForEach-Object {
             Copy-Item $_.FullName -Destination bin/
           }
+
           Write-Host "Binary files to sign:"
           Get-ChildItem -Path bin | ForEach-Object { Write-Host $_.FullName }
 
@@ -55,7 +54,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # This step rebuilds the binaries to include Windows version metadata
       - name: Add Windows version metadata
         shell: pwsh
         run: |
@@ -115,26 +113,24 @@ jobs:
             Write-Host "✅ Built $output with metadata"
           }
 
-          # Clean up
           if (Test-Path rsrc.syso) {
             Remove-Item rsrc.syso
           }
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # Step 1: Install DigiCert smtools
+      # Install DigiCert smtools (smctl)
       - name: Install DigiCert smtools
         uses: digicert/ssm-code-signing@v1.1.0
         with:
           force-download-tools: 'true'
 
-      # Step 2: Verify smctl installation
+      # Verify smctl is available
       - name: Verify smctl installation
         shell: pwsh
         run: |
           Write-Host "Checking smctl installation..."
 
-          # Check if smctl is available
           $smctlPath = Get-Command smctl.exe -ErrorAction SilentlyContinue
           if (-not $smctlPath) {
             Write-Error "❌ smctl.exe not found in PATH"
@@ -143,13 +139,12 @@ jobs:
 
           Write-Host "✅ smctl found at: $($smctlPath.Source)"
 
-          # Check smctl version
           Write-Host "Checking smctl version..."
           & smctl.exe --version
 
           Write-Host "✅ smctl is ready"
 
-      # Step 3: Restore P12 client certificate
+      # Restore P12 client certificate and set SM_CLIENT_CERT_FILE
       - name: Restore P12 client certificate
         shell: pwsh
         run: |
@@ -170,18 +165,22 @@ jobs:
             exit 1
           }
 
-          # Set SM_CLIENT_CERT_FILE for subsequent steps
           echo "SM_CLIENT_CERT_FILE=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
           Write-Host "✅ SM_CLIENT_CERT_FILE set to: $path"
 
-      # Step 4: Sign Windows binaries
+      # Healthcheck against DigiCert
+      - name: Run smctl healthcheck
+        shell: pwsh
+        run: |
+          Write-Host "Running smctl healthcheck..."
+          smctl.exe healthcheck
+
+      # Sign binaries
       - name: Sign Windows binaries
         shell: pwsh
         run: |
           Write-Host "Signing all Windows binaries in bin/ directory..."
 
-          # Sign all .exe files in bin/ directory using the keypair alias from job env
           & smctl.exe sign `
             --keypair-alias "$env:SM_KEYPAIR_ALIAS" `
             --input "$PWD\bin"
@@ -193,7 +192,7 @@ jobs:
 
           Write-Host "✅ All Windows binaries signed successfully!"
 
-      # Step 5: Verify signatures
+      # Verify signatures
       - name: Verify signatures
         shell: pwsh
         run: |
@@ -205,9 +204,8 @@ jobs:
             Write-Warning "⚠️  Signature verification returned non-zero exit code (may be expected)"
           } else {
             Write-Host "✅ All signatures verified successfully!"
-          }
 
-      # Step 6: Upload the signed artifacts
+      # Upload signed artifacts
       - name: Upload Signed Windows Binaries
         uses: actions/upload-artifact@v5
         with:
