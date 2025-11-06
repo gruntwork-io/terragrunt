@@ -114,32 +114,76 @@ jobs:
 
           Write-Host "✅ All Windows binaries rebuilt with version metadata"
 
-      # --- IMPROVED SIGNING STEP ---
-      # This single step replaces the old "Install", "Verify", and "Sign" steps
-      - name: Sign Windows Binaries
-        uses: digicert/ssm-code-signing@v2
+      # This step is from your original file and is correct.
+      # It installs smctl, the KSP, and signtool.exe (as part of the SDK)
+      - name: Install DigiCert Client Tools
+        id: digicert_tools
+        uses: digicert/ssm-code-signing@v1.1.0
+        env:
+          FORCE_DOWNLOAD_TOOLS: 'true'
         with:
-          # --- Authentication ---
-          # These secrets must be set in your GitHub repository
           api-key: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
           client-cert-base64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
           client-cert-password: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
-
-          # --- Signing Configuration ---
-          # This is the alias for your KeyLocker key
           keypair-alias: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
 
-          # --- File Inputs ---
-          # Glob pattern for the binaries you rebuilt in the previous step
-          sign-files: 'bin/terragrunt_windows_*.exe'
+      # This step is simplified from your original
+      - name: Sign Windows Binaries
+        shell: pwsh
+        env:
+          # This alias is passed to signtool via the /kc argument
+          DIGICERT_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+        run: |
+          Write-Host "Signing Windows binaries..."
 
-          # --- SignTool.exe Arguments ---
-          # These are passed directly to signtool.exe
-          signtool-args: |
-            /tr http://timestamp.digicert.com
-            /td SHA256
-            /fd SHA256
-            /d "Terragrunt - Terraform Wrapper"
+          # Validate keypair alias is set
+          if ([string]::IsNullOrEmpty($env:DIGICERT_KEYPAIR_ALIAS)) {
+            Write-Error "❌ DIGICERT_KEYPAIR_ALIAS environment variable is empty"
+            Write-Host "Please ensure the GitHub secret WINDOWS_SIGNING_KEYPAIR_ALIAS is set"
+            exit 1
+          }
+          Write-Host "Using Keypair alias: $env:DIGICERT_KEYPAIR_ALIAS"
+
+          # List available certificates in Windows store (for debugging)
+          # certutil.exe should be in the PATH after the digicert_tools step
+          Write-Host "`nListing certificates in 'My' store:"
+          try {
+             certutil -store My | Select-String -Pattern "Subject|Thumbprint|Cert Hash"
+          } catch {
+            Write-Warning "Could not list certificates: $_"
+          }
+
+          # Get list of Windows executables
+          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
+          if ($binaries.Count -eq 0) {
+            Write-Error "❌ No Windows binaries found in bin/ directory"
+            exit 1
+          }
+          Write-Host "`nFound $($binaries.Count) binaries to sign"
+
+          foreach ($binary in $binaries) {
+            Write-Host "`n========================================="
+            Write-Host "Signing: $($binary.Name)"
+            Write-Host "========================================="
+
+            # Sign using signtool with DigiCert KeyLocker KSP
+            # signtool.exe should be in the PATH after the digicert_tools step
+            signtool sign `
+              /csp "DigiCert Signing Manager KSP" `
+              /kc $env:DIGICERT_KEYPAIR_ALIAS `
+              /tr http://timestamp.digicert.com `
+              /td SHA256 `
+              /fd SHA256 `
+              /d "Terragrunt - Terraform Wrapper" `
+              $binary.FullName
+
+            if ($LASTEXITCODE -ne 0) {
+               Write-Error "❌ Signing failed for $($binary.Name) with exit code: $LASTEXITCODE"
+               exit 1
+            }
+
+            Write-Host "✅ Successfully signed $($binary.Name)"
+          }
 
       # This step uploads the newly signed artifacts
       - name: Upload Signed Windows Binaries
