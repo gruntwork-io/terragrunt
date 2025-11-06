@@ -28,6 +28,7 @@ jobs:
         with:
           pattern: ${{ inputs.artifact-pattern }}
           path: artifacts/
+          merge-multiple: true
 
       - name: Prepare build artifacts
         shell: pwsh

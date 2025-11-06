@@ -51,40 +51,6 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
 
-      - name: Generate Windows version metadata
-        if: matrix.os == 'windows'
-        run: |
-          # Install goversioninfo for Windows metadata
-          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
-
-          # Get version
-          VERSION="${GITHUB_REF_NAME:-dev}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix
-
-          # Parse version components
-          IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
-          MAJOR="${VERSION_PARTS[0]:-0}"
-          MINOR="${VERSION_PARTS[1]:-0}"
-          PATCH=$(echo "${VERSION_PARTS[2]:-0}" | cut -d'-' -f1)
-          FILE_VERSION="$MAJOR.$MINOR.$PATCH.0"
-          YEAR=$(date +%Y)
-
-          echo "Generating Windows version info: $VERSION (FileVersion: $FILE_VERSION)"
-
-          # Update versioninfo.json
-          cat versioninfo.json | \
-            jq --arg fv "$FILE_VERSION" --arg pv "$VERSION" --arg yr "$YEAR" \
-              '.StringFileInfo.FileVersion = $fv |
-               .StringFileInfo.ProductVersion = $pv |
-               .StringFileInfo.LegalCopyright = "Copyright (C) \($yr) Gruntwork, Inc."' \
-            > versioninfo.tmp.json
-          mv versioninfo.tmp.json versioninfo.json
-
-          # Generate resource file
-          $(go env GOPATH)/bin/goversioninfo -o=rsrc.syso versioninfo.json
-
-          echo "✅ Windows version metadata generated"
-
       - name: Build Terragrunt
         env:
           GOOS: ${{ matrix.os }}
@@ -98,16 +64,115 @@ jobs:
             -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
             .
 
-          # Clean up Windows resource file
-          if [[ "${GOOS}" == "windows" ]] && [[ -f rsrc.syso ]]; then
-            rm -f rsrc.syso
-          fi
-
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v5
         with:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
+
+  # Add Windows version metadata on Windows runner
+  add-windows-metadata:
+    name: Add Windows Version Metadata
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: terragrunt_windows_*
+          path: artifacts/
+
+      - name: Prepare binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin
+          Get-ChildItem -Path artifacts -Filter "terragrunt_windows_*" -Recurse -File | ForEach-Object {
+            Copy-Item $_.FullName -Destination bin/
+          }
+          Write-Host "Windows binaries downloaded:"
+          Get-ChildItem -Path bin
+
+      - name: Add version metadata
+        shell: pwsh
+        run: |
+          # Install goversioninfo
+          Write-Host "Installing goversioninfo..."
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
+
+          # Add Go bin to PATH
+          $goPath = & go env GOPATH
+          $goBinPath = Join-Path $goPath "bin"
+          $env:PATH = "$goBinPath;$env:PATH"
+
+          # Get version
+          $version = $env:GITHUB_REF_NAME
+          if ([string]::IsNullOrEmpty($version) -or $version -eq "refs/heads/main") {
+            $version = "0.0.0-dev"
+          }
+          $version = $version.TrimStart('v')
+
+          # Parse version components
+          $versionParts = $version.Split('.')
+          $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
+          $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
+          $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
+
+          $fileVersion = "$major.$minor.$patch.0"
+          $year = (Get-Date).Year
+
+          Write-Host "Generating version info for: $version (FileVersion: $fileVersion)"
+
+          # Update versioninfo.json
+          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
+          $versionInfo.StringFileInfo.FileVersion = $fileVersion
+          $versionInfo.StringFileInfo.ProductVersion = $version
+          $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
+          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
+
+          # Generate resource file
+          goversioninfo -o=rsrc.syso versioninfo.json
+
+          # Rebuild Windows binaries with metadata
+          $architectures = @("386", "amd64")
+          foreach ($arch in $architectures) {
+            $env:GOOS = "windows"
+            $env:GOARCH = $arch
+            $output = "bin\terragrunt_windows_$arch.exe"
+
+            Write-Host "Rebuilding windows/$arch with version metadata..."
+            go build -o $output `
+              -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$version -extldflags '-static'" `
+              .
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Build failed for windows/$arch"
+              exit 1
+            }
+
+            Write-Host "✅ Built $output with metadata"
+          }
+
+          # Clean up
+          if (Test-Path rsrc.syso) {
+            Remove-Item rsrc.syso
+          }
+
+          Write-Host "✅ All Windows binaries rebuilt with version metadata"
+
+      - name: Upload Windows binaries with metadata
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-binaries-with-metadata
+          path: bin/terragrunt_windows_*.exe
 
   # Sign macOS binaries on every build
   sign-macos:
@@ -119,8 +184,10 @@ jobs:
   # Sign Windows binaries on every build
   sign-windows:
     name: Sign Windows Binaries
-    needs: build
+    needs: add-windows-metadata
     uses: ./.github/workflows/sign-windows.yml
+    with:
+      artifact-pattern: 'windows-binaries-with-metadata'
     secrets: inherit
 
   # Combine all signed binaries into one artifact
