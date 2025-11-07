@@ -94,7 +94,10 @@ func TestExcludeByFeatureFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude2=false --non-interactive --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --feature exclude2=false --non-interactive --working-dir "+rootPath,
+	)
 
 	require.NoError(t, err)
 

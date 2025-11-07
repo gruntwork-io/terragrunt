@@ -331,28 +331,28 @@ type Units []*Unit
 type UnitsMap map[string]*Unit
 
 // String renders this unit as a human-readable string
-func (unit *Unit) String() string {
-	var dependencies = make([]string, 0, len(unit.Dependencies()))
-	for _, dependency := range unit.Dependencies() {
+func (u *Unit) String() string {
+	var dependencies = make([]string, 0, len(u.Dependencies()))
+	for _, dependency := range u.Dependencies() {
 		dependencies = append(dependencies, dependency.Path())
 	}
 
-	assumeApplied := unit.External() && !unit.ShouldApplyExternal()
+	assumeApplied := u.External() && !u.ShouldApplyExternal()
 
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		unit.Path(), unit.Excluded(), assumeApplied, strings.Join(dependencies, ", "),
+		u.Path(), u.Excluded(), assumeApplied, strings.Join(dependencies, ", "),
 	)
 }
 
 // FlushOutput flushes buffer data to the output writer.
-func (unit *Unit) FlushOutput(l log.Logger) error {
-	if unit == nil || unit.Opts() == nil || unit.Opts().Writer == nil {
+func (u *Unit) FlushOutput(l log.Logger) error {
+	if u == nil || u.Opts() == nil || u.Opts().Writer == nil {
 		return nil
 	}
 
-	if writer, ok := unit.Opts().Writer.(*UnitWriter); ok {
-		key := unit.AbsolutePath(l)
+	if writer, ok := u.Opts().Writer.(*UnitWriter); ok {
+		key := u.AbsolutePath(l)
 
 		mu := getUnitOutputLock(key)
 
@@ -366,16 +366,16 @@ func (unit *Unit) FlushOutput(l log.Logger) error {
 }
 
 // PlanFile - return plan file location, if output folder is set
-func (unit *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string {
+func (u *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string {
 	var planFile string
 
 	// set plan file location if output folder is set
-	planFile = unit.OutputFile(l, opts)
+	planFile = u.OutputFile(l, opts)
 
-	planCommand := unit.Opts().TerraformCommand == tf.CommandNamePlan || unit.Opts().TerraformCommand == tf.CommandNameShow
+	planCommand := u.Opts().TerraformCommand == tf.CommandNamePlan || u.Opts().TerraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified PlanFile, save plan in working dir
-	if planCommand && planFile == "" && unit.Opts().JSONOutputFolder != "" {
+	if planCommand && planFile == "" && u.Opts().JSONOutputFolder != "" {
 		planFile = tf.TerraformPlanFile
 	}
 
@@ -383,25 +383,25 @@ func (unit *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string
 }
 
 // OutputFile - return plan file location, if output folder is set
-func (unit *Unit) OutputFile(l log.Logger, opts *options.TerragruntOptions) string {
-	return unit.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
+func (u *Unit) OutputFile(l log.Logger, opts *options.TerragruntOptions) string {
+	return u.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // OutputJSONFile - return plan JSON file location, if JSON output folder is set
-func (unit *Unit) OutputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
-	return unit.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+func (u *Unit) OutputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
+	return u.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
 // getPlanFilePath - return plan graph file location, if output folder is set
-func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
+func (u *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
 
-	path, err := filepath.Rel(opts.RootWorkingDir, unit.Path())
+	path, err := filepath.Rel(opts.RootWorkingDir, u.Path())
 	if err != nil {
-		l.Warnf("Failed to get relative path for %s: %v", unit.Path(), err)
-		path = unit.Path()
+		l.Warnf("Failed to get relative path for %s: %v", u.Path(), err)
+		path = u.Path()
 	}
 
 	dir := filepath.Join(outputFolder, path)
@@ -433,41 +433,41 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 
 // FindUnitInPath returns true if a unit is located under one of the target directories.
 // Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
-func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
-	return slices.Contains(targetDirs, unit.Path())
+func (u *Unit) FindUnitInPath(targetDirs []string) bool {
+	return slices.Contains(targetDirs, u.Path())
 }
 
 // AbsolutePath returns the absolute path of the unit.
 // If path conversion fails, returns the original path and logs a warning.
-func (unit *Unit) AbsolutePath(l log.Logger) string {
-	if filepath.IsAbs(unit.Path()) {
-		return unit.Path()
+func (u *Unit) AbsolutePath(l log.Logger) string {
+	if filepath.IsAbs(u.Path()) {
+		return u.Path()
 	}
 
-	absPath, err := filepath.Abs(unit.Path())
+	absPath, err := filepath.Abs(u.Path())
 	if err != nil {
 		if l != nil {
-			l.Warnf("Failed to get absolute path for %s: %v", unit.Path(), err)
+			l.Warnf("Failed to get absolute path for %s: %v", u.Path(), err)
 		}
 
-		return unit.Path()
+		return u.Path()
 	}
 
 	return absPath
 }
 
 // getDependenciesForUnit Get the list of units this unit depends on
-func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
+func (u *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
 	dependencies := Units{}
 
-	if unit.Config() == nil ||
-		unit.Config().Dependencies == nil ||
-		len(unit.Config().Dependencies.Paths) == 0 {
+	if u.Config() == nil ||
+		u.Config().Dependencies == nil ||
+		len(u.Config().Dependencies.Paths) == 0 {
 		return dependencies, nil
 	}
 
-	for _, dependencyPath := range unit.Config().Dependencies.Paths {
-		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path())
+	for _, dependencyPath := range u.Config().Dependencies.Paths {
+		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, u.Path())
 		if err != nil {
 			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
 		}
@@ -479,7 +479,7 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
 			dependencyErr := UnrecognizedDependencyError{
-				UnitPath:              unit.Path(),
+				UnitPath:              u.Path(),
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
