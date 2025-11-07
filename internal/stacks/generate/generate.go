@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -274,9 +275,13 @@ func ListStackFilesMaybeWithDiscovery(
 		return nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
-	foundFiles := make([]string, len(components))
-	for i, component := range components {
-		foundFiles[i] = filepath.Join(component.Path(), config.DefaultStackFile)
+	foundFiles := make([]string, 0, len(components))
+	for _, c := range components {
+		if _, ok := c.(*component.Stack); !ok {
+			continue
+		}
+
+		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 	}
 
 	return foundFiles, nil

@@ -3,7 +3,6 @@ package discovery
 import (
 	"path/filepath"
 	"runtime"
-	"slices"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -138,24 +137,12 @@ func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			// These ensure that regardless of the query that the user has provided, we always discover stacks for
-			// discovery in stack generate, and don't discover units. There may be a more elegant way to say:
-			// "When discovering for stack generate, make sure you discover all stacks and no units, regardless
-			// of the query the user has provided.", but I'm not sure what that would be.
-			if !slices.Contains(opts.FilterQueries, "!type=unit") {
-				opts.FilterQueries = append(opts.FilterQueries, "!type=unit")
-			}
-
-			if !slices.Contains(opts.FilterQueries, "type=stack") {
-				opts.FilterQueries = append(opts.FilterQueries, "type=stack")
-			}
-
 			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
 			if err != nil {
 				return nil, err
 			}
 
-			d = d.WithFilters(filters)
+			d = d.WithFilters(filters.RestrictToStacks())
 		}
 	}
 
