@@ -3,6 +3,7 @@ package discovery
 import (
 	"path/filepath"
 	"runtime"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -27,6 +28,13 @@ type DiscoveryCommandOptions struct {
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
 type HCLCommandOptions struct {
+	WorkingDir    string
+	FilterQueries []string
+	Experiments   experiment.Experiments
+}
+
+// StackGenerateOptions contains options for stack generate commands.
+type StackGenerateOptions struct {
 	WorkingDir    string
 	FilterQueries []string
 	Experiments   experiment.Experiments
@@ -110,6 +118,38 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			if err != nil {
+				return nil, err
+			}
+
+			d = d.WithFilters(filters)
+		}
+	}
+
+	return d, nil
+}
+
+// NewForStackGenerate creates a Discovery configured for `stack generate`.
+func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
+	d := NewDiscovery(opts.WorkingDir)
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		d = d.WithFilterFlagEnabled()
+
+		if len(opts.FilterQueries) > 0 {
+			// These ensure that regardless of the query that the user has provided, we always discover stacks for
+			// discovery in stack generate, and don't discover units. There may be a more elegant way to say:
+			// "When discovering for stack generate, make sure you discover all stacks and no units, regardless
+			// of the query the user has provided.", but I'm not sure what that would be.
+			if !slices.Contains(opts.FilterQueries, "!type=unit") {
+				opts.FilterQueries = append(opts.FilterQueries, "!type=unit")
+			}
+
+			if !slices.Contains(opts.FilterQueries, "type=stack") {
+				opts.FilterQueries = append(opts.FilterQueries, "type=stack")
+			}
+
 			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
 			if err != nil {
 				return nil, err

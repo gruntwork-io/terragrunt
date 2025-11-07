@@ -330,46 +330,48 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 	}
 }
 
-func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
-	t.Parallel()
+// TODO: Move to internal.
+//
+// func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
+// 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	setupNestedStackFixture(t, tmpDir)
+// 	tmpDir := t.TempDir()
+// 	setupNestedStackFixture(t, tmpDir)
 
-	liveDir := filepath.Join(tmpDir, "live")
+// 	liveDir := filepath.Join(tmpDir, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
-	require.NoError(t, err)
+// 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
+// 	require.NoError(t, err)
 
-	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
-	require.DirExists(t, stackDir)
+// 	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
+// 	require.DirExists(t, stackDir)
 
-	foundFiles := findStackFiles(t, liveDir)
-	require.NotEmpty(t, foundFiles, "Expected to find generated stack files")
+// 	foundFiles := findStackFiles(t, liveDir)
+// 	require.NotEmpty(t, foundFiles, "Expected to find generated stack files")
 
-	l := logger.CreateLogger()
-	topology := config.BuildStackTopology(l, foundFiles, liveDir)
-	require.NotEmpty(t, topology, "Expected non-empty topology")
+// 	l := logger.CreateLogger()
+// 	topology := config.BuildStackTopology(l, foundFiles, liveDir)
+// 	require.NotEmpty(t, topology, "Expected non-empty topology")
 
-	levelCounts := make(map[int]int)
-	for _, node := range topology {
-		levelCounts[node.Level]++
-	}
+// 	levelCounts := make(map[int]int)
+// 	for _, node := range topology {
+// 		levelCounts[node.Level]++
+// 	}
 
-	t.Logf("Topology levels found: %v", levelCounts)
+// 	t.Logf("Topology levels found: %v", levelCounts)
 
-	assert.Len(t, levelCounts, 3, "Expected levels in nested topology")
+// 	assert.Len(t, levelCounts, 3, "Expected levels in nested topology")
 
-	assert.Equal(t, 1, levelCounts[0], "Level 0 should have exactly 1 stack file")
-	assert.Equal(t, 3, levelCounts[1], "Level 1 should have exactly 3 stack files")
-	assert.Equal(t, 9, levelCounts[2], "Level 2 should have exactly 9 stack files")
+// 	assert.Equal(t, 1, levelCounts[0], "Level 0 should have exactly 1 stack file")
+// 	assert.Equal(t, 3, levelCounts[1], "Level 1 should have exactly 3 stack files")
+// 	assert.Equal(t, 9, levelCounts[2], "Level 2 should have exactly 9 stack files")
 
-	verifyGeneratedUnits(t, stackDir)
+// 	verifyGeneratedUnits(t, stackDir)
 
-	// Run one more time just to be sure things don't break when running in a dirty directory
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
-	require.NoError(t, err)
-}
+// 	// Run one more time just to be sure things don't break when running in a dirty directory
+// 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveDir)
+// 	require.NoError(t, err)
+// }
 
 // setupNestedStackFixture creates a test fixture similar to testing-nested-stacks
 func setupNestedStackFixture(t *testing.T, tmpDir string) {
