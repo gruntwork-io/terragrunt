@@ -365,15 +365,15 @@ func runTerragruntWithConfig(
 
 // confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
 func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
-	modules := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
-	if len(modules) != 0 {
+	units := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
+	if len(units) != 0 {
 		if _, err := opts.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			l.Error(err)
 			return false
 		}
 
-		for _, module := range modules {
-			if _, err := opts.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
+		for _, u := range units {
+			if _, err := opts.ErrWriter.Write([]byte(u.Component.Path() + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}

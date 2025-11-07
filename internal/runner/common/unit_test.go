@@ -11,24 +11,23 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	common "github.com/gruntwork-io/terragrunt/internal/runner/common"
 )
 
 func TestUnit_String(t *testing.T) {
 	t.Parallel()
 
+	c := component.NewUnit("test/path")
+	c.AddDependency(component.NewUnit("dep1"))
+	c.AddDependency(component.NewUnit("dep2"))
+
 	unit := &common.Unit{
-		Path:                 "test/path",
-		FlagExcluded:         true,
-		AssumeAlreadyApplied: false,
-		Dependencies: common.Units{
-			&common.Unit{Path: "dep1"},
-			&common.Unit{Path: "dep2"},
-		},
+		Component: c,
 	}
 	str := unit.String()
 	assert.Contains(t, str, "test/path")
-	assert.Contains(t, str, "excluded: true")
+	assert.Contains(t, str, "excluded: false")
 	assert.Contains(t, str, "dependencies: [dep1, dep2]")
 }
 
@@ -39,6 +38,7 @@ func TestUnit_FlushOutput(t *testing.T) {
 
 	writer := common.NewUnitWriter(&buf)
 	unit := &common.Unit{
+		Component:         component.NewUnit("/test/path"),
 		TerragruntOptions: &options.TerragruntOptions{Writer: writer},
 	}
 	_, _ = writer.Write([]byte("test output"))
@@ -57,7 +57,7 @@ func TestUnit_PlanFile_OutputFile_JSONOutputFolder(t *testing.T) {
 	t.Parallel()
 
 	unit := &common.Unit{
-		Path: "module/path",
+		Component: component.NewUnit("module/path"),
 		TerragruntOptions: &options.TerragruntOptions{
 			TerraformCommand: "plan",
 			JSONOutputFolder: "json-folder",
@@ -90,7 +90,7 @@ func hasSuffix(path, suffix string) bool {
 func TestUnit_FindUnitInPath(t *testing.T) {
 	t.Parallel()
 
-	unit := &common.Unit{Path: "foo/bar"}
+	unit := &common.Unit{Component: component.NewUnit("foo/bar")}
 	assert.True(t, unit.FindUnitInPath([]string{"foo/bar", "baz"}))
 	assert.False(t, unit.FindUnitInPath([]string{"baz"}))
 }
@@ -98,8 +98,8 @@ func TestUnit_FindUnitInPath(t *testing.T) {
 func TestUnitsMap_MergeMaps(t *testing.T) {
 	t.Parallel()
 
-	m1 := common.UnitsMap{"a": &common.Unit{Path: "a"}}
-	m2 := common.UnitsMap{"b": &common.Unit{Path: "b"}}
+	m1 := common.UnitsMap{"a": &common.Unit{Component: component.NewUnit("a")}}
+	m2 := common.UnitsMap{"b": &common.Unit{Component: component.NewUnit("b")}}
 	merged := m1.MergeMaps(m2)
 	assert.Contains(t, merged, "a")
 	assert.Contains(t, merged, "b")
@@ -108,8 +108,8 @@ func TestUnitsMap_MergeMaps(t *testing.T) {
 func TestUnitsMap_FindByPath(t *testing.T) {
 	t.Parallel()
 
-	m := common.UnitsMap{"foo": &common.Unit{Path: "foo"}}
-	assert.Equal(t, "foo", m.FindByPath("foo").Path)
+	m := common.UnitsMap{"foo": &common.Unit{Component: component.NewUnit("foo")}}
+	assert.Equal(t, "foo", m.FindByPath("foo").Component.Path())
 	assert.Nil(t, m.FindByPath("bar"))
 }
 
@@ -127,24 +127,17 @@ func TestUnitsMap_ConvertDiscoveryToRunner(t *testing.T) {
 	aPath := "/abs/a"
 	bPath := "/abs/b"
 	m := common.UnitsMap{
-		aPath: &common.Unit{Path: aPath, Config: config.TerragruntConfig{}},
-		bPath: &common.Unit{Path: bPath, Config: config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{aPath}}}},
+		aPath: &common.Unit{Component: component.NewUnit(aPath)},
+		bPath: &common.Unit{
+			Component: component.NewUnit(bPath).WithConfig(&config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{aPath}},
+			}),
+		},
 	}
 	units, err := m.ConvertDiscoveryToRunner([]string{aPath, bPath})
 	require.NoError(t, err)
 	assert.Len(t, units, 2)
-	assert.Equal(t, aPath, units[0].Path)
-	assert.Equal(t, bPath, units[1].Path)
-	assert.Equal(t, aPath, units[1].Dependencies[0].Path)
-}
-
-func TestUnits_CheckForCycles(t *testing.T) {
-	t.Parallel()
-
-	unitA := &common.Unit{Path: "a"}
-	unitB := &common.Unit{Path: "b", Dependencies: common.Units{unitA}}
-	unitA.Dependencies = common.Units{unitB} // cycle
-	units := common.Units{unitA, unitB}
-	err := units.CheckForCycles()
-	assert.Error(t, err)
+	assert.Equal(t, aPath, units[0].Component.Path())
+	assert.Equal(t, bPath, units[1].Component.Path())
+	assert.Equal(t, aPath, units[1].Component.Dependencies()[0].Path())
 }

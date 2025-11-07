@@ -17,13 +17,19 @@ type UnitFilterGraph struct {
 // Filter implements UnitFilter.
 // It marks all units as excluded except for the target directory and units that depend on it.
 func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
-	// Build dependency map first
+	// Normalize target directory path for consistent comparison
+	targetDir := util.CleanPath(f.TargetDir)
+
+	// Build dependency map first, using normalized paths
 	dependentUnits := make(map[string][]string)
 
 	for _, unit := range units {
-		if len(unit.Dependencies) != 0 {
-			for _, dep := range unit.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
+		deps := unit.Component.Dependencies()
+		if len(deps) != 0 {
+			unitPath := util.CleanPath(unit.Component.Path())
+			for _, dep := range deps {
+				depPath := util.CleanPath(dep.Path())
+				dependentUnits[depPath] = util.RemoveDuplicatesFromList(append(dependentUnits[depPath], unitPath))
 			}
 		}
 	}
@@ -31,7 +37,7 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options
 	// Propagate transitive dependencies across all units.
 	// A DAG can have up to N−1 levels, so at most N iterations are needed.
 	// Each iteration propagates one level deeper; exceeding N implies a cycle.
-	//See: https://en.wikipedia.org/wiki/Topological_sorting#Properties
+	// See: https://en.wikipedia.org/wiki/Topological_sorting#Properties
 	maxIterations := len(units)
 	for i := 0; i < maxIterations; i++ {
 		updated := false
@@ -57,14 +63,20 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options
 	}
 
 	// Determine which modules to include
-	modulesToInclude := dependentUnits[f.TargetDir]
-	modulesToInclude = append(modulesToInclude, f.TargetDir)
+	modulesToInclude := dependentUnits[targetDir]
+	if modulesToInclude == nil {
+		modulesToInclude = []string{}
+	}
+
+	modulesToInclude = append(modulesToInclude, targetDir)
 
 	// Mark units as excluded unless they are in modulesToInclude
-	for _, module := range units {
-		module.FlagExcluded = true
-		if util.ListContainsElement(modulesToInclude, module.Path) {
-			module.FlagExcluded = false
+	for _, unit := range units {
+		unitPath := util.CleanPath(unit.Component.Path())
+		unit.Component.SetFilterExcluded(true)
+
+		if util.ListContainsElement(modulesToInclude, unitPath) {
+			unit.Component.SetFilterExcluded(false)
 		}
 	}
 

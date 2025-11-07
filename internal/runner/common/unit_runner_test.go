@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
@@ -22,7 +23,7 @@ import (
 // You may want to expand this for more complex tests
 func newMockUnit() *common.Unit {
 	return &common.Unit{
-		Path:              "mock/path",
+		Component:         component.NewUnit("mock/path"),
 		TerragruntOptions: &options.TerragruntOptions{},
 	}
 }
@@ -40,7 +41,7 @@ func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.AssumeAlreadyApplied = true
+	unit.Component.SetExternal()
 	runner := common.NewUnitRunner(unit)
 	report := &report.Report{}
 	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{}, report)
@@ -60,7 +61,7 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	}
 	runner := common.NewUnitRunner(unit)
 	path := t.TempDir()
-	unit.Path = path
+	unit.Component.SetPath(path)
 	report := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
 	require.Error(t, err)
@@ -79,7 +80,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 		},
 	}
 	path := t.TempDir()
-	unit.Path = path
+	unit.Component.SetPath(path)
 	runner := common.NewUnitRunner(unit)
 	report := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)

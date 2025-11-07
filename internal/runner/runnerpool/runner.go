@@ -114,10 +114,6 @@ func NewRunnerPoolStack(
 
 	runner.Stack.Units = unitsMap
 
-	if isDestroyCommand(terragruntOptions) {
-		applyPreventDestroyExclusions(l, unitsMap)
-	}
-
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
 	// This ensures excluded units are not shown in lists or scheduled at all.
 	filtered := FilterDiscoveredUnits(discovered, unitsMap)
@@ -220,11 +216,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
 	if r.Stack.Report != nil {
 		for _, u := range r.Stack.Units {
-			if u.FlagExcluded {
+			if u.Component.Excluded() {
 				// Ensure path is absolute for reporting
-				unitPath, err := common.EnsureAbsolutePath(u.Path)
+				unitPath, err := common.EnsureAbsolutePath(u.Component.Path())
 				if err != nil {
-					l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
+					l.Errorf("Error getting absolute path for unit %s: %v", u.Component.Path(), err)
 					continue
 				}
 
@@ -241,7 +237,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					// Determine the reason for exclusion
 					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
 					reason := report.ReasonExcludeBlock
-					if u.AssumeAlreadyApplied {
+					if u.Component.External() && !u.Component.ShouldApplyExternal() {
 						reason = report.ReasonExcludeExternal
 					}
 
@@ -299,9 +295,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 
 				// Ensure path is absolute for reporting
-				unitPath, absErr := common.EnsureAbsolutePath(unit.Path)
+				unitPath, absErr := common.EnsureAbsolutePath(unit.Component.Path())
 				if absErr != nil {
-					l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+					l.Errorf("Error getting absolute path for unit %s: %v", unit.Component.Path(), absErr)
 					continue
 				}
 
@@ -480,9 +476,9 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
 
-			if len(r.Stack.Units[i].Dependencies) > 0 {
-				if r.Stack.Units[i].Config.Dependencies != nil {
-					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Config.Dependencies.Paths)
+			if len(r.Stack.Units[i].Component.Dependencies()) > 0 {
+				if r.Stack.Units[i].Component.Dependencies() != nil {
+					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Component.Dependencies().Paths())
 				} else {
 					dependenciesMsg = " contains dependencies and"
 				}
@@ -490,7 +486,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 
 			l.Infof("%v%v refers to remote State "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
-				r.Stack.Units[i].Path,
+				r.Stack.Units[i].Component.Path(),
 				dependenciesMsg,
 			)
 		}
@@ -514,8 +510,8 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 	// Build allowlist from non-excluded unit paths
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
-		if !u.FlagExcluded {
-			allowed[u.Path] = struct{}{}
+		if !u.Component.Excluded() {
+			allowed[u.Component.Path()] = struct{}{}
 		}
 	}
 
@@ -556,61 +552,57 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 
 	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
 	for _, u := range units {
-		if u.FlagExcluded {
+		if u.Component.Excluded() {
 			continue
 		}
 
-		if _, ok := present[u.Path]; ok {
+		if _, ok := present[u.Component.Path()]; ok {
 			continue
 		}
 
 		// Create a minimal discovered config for the missing unit
-		copyCfg := component.NewUnit(u.Path)
+		copyCfg := component.NewUnit(u.Component.Path())
 
 		filtered = append(filtered, copyCfg)
-		present[u.Path] = copyCfg
+		present[u.Component.Path()] = copyCfg
 	}
 
 	// Augment dependencies from resolved units to ensure DAG edges are complete
 	for _, u := range units {
-		if u.FlagExcluded {
+		if u.Component.Excluded() {
 			continue
 		}
 
-		cfg := present[u.Path]
-		if cfg == nil {
+		c := present[u.Component.Path()]
+		if c == nil {
 			continue
 		}
 
 		// Build a set of existing dependency paths on cfg to avoid duplicates
-		existing := make(map[string]struct{}, len(cfg.Dependencies()))
-		for _, dep := range cfg.Dependencies() {
+		existing := make(map[string]struct{}, len(c.Dependencies()))
+		for _, dep := range c.Dependencies() {
 			existing[dep.Path()] = struct{}{}
 		}
 
 		// Add any missing allowed dependencies from the resolved unit graph
-		for _, depUnit := range u.Dependencies {
-			if depUnit == nil {
+		for _, depUnit := range u.Component.Dependencies() {
+			if _, ok := allowed[depUnit.Path()]; !ok {
 				continue
 			}
 
-			if _, ok := allowed[depUnit.Path]; !ok {
-				continue
-			}
-
-			if _, ok := existing[depUnit.Path]; ok {
+			if _, ok := existing[depUnit.Path()]; ok {
 				continue
 			}
 
 			// Ensure the dependency config exists in the filtered set
-			depCfg, ok := present[depUnit.Path]
+			depCfg, ok := present[depUnit.Path()]
 			if !ok {
-				depCfg = component.NewUnit(depUnit.Path)
+				depCfg = component.NewUnit(depUnit.Path())
 				filtered = append(filtered, depCfg)
-				present[depUnit.Path] = depCfg
+				present[depUnit.Path()] = depCfg
 			}
 
-			cfg.AddDependency(depCfg)
+			c.AddDependency(depCfg)
 		}
 	}
 
@@ -674,69 +666,4 @@ func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool 
 	}
 
 	return false
-}
-
-// isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(opts *options.TerragruntOptions) bool {
-	return opts.TerraformCommand == tf.CommandNameDestroy ||
-		util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy)
-}
-
-// applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
-// from being destroyed. This prevents accidental destruction of protected infrastructure.
-func applyPreventDestroyExclusions(l log.Logger, units common.Units) {
-	// First pass: identify units with prevent_destroy=true
-	protectedUnits := make(map[string]bool)
-
-	for _, unit := range units {
-		if unit.Config.PreventDestroy != nil && *unit.Config.PreventDestroy {
-			protectedUnits[unit.Path] = true
-			unit.FlagExcluded = true
-			l.Debugf("Unit %s is protected by prevent_destroy flag", unit.Path)
-		}
-	}
-
-	if len(protectedUnits) == 0 {
-		return
-	}
-
-	// Second pass: find all dependencies of protected units
-	// We need to prevent destruction of any unit that a protected unit depends on
-	dependencyPaths := make(map[string]bool)
-
-	for _, unit := range units {
-		if protectedUnits[unit.Path] {
-			collectDependencies(unit, dependencyPaths)
-		}
-	}
-
-	// Third pass: mark dependencies as excluded
-	for _, unit := range units {
-		if dependencyPaths[unit.Path] && !protectedUnits[unit.Path] {
-			unit.FlagExcluded = true
-			l.Debugf("Unit %s is excluded because it's a dependency of a protected unit", unit.Path)
-		}
-	}
-}
-
-// maxDependencyTraversalDepth bounds the depth of dependency traversal to prevent excessive recursion.
-const maxDependencyTraversalDepth = 256
-
-// collectDependencies collects dependency paths for a unit with a bounded recursion depth.
-func collectDependencies(unit *common.Unit, paths map[string]bool) {
-	collectDependenciesBounded(unit, paths, 0)
-}
-
-// collectDependenciesBounded recursively collects all dependency paths for a unit up to maxDependencyTraversalDepth.
-func collectDependenciesBounded(unit *common.Unit, paths map[string]bool, depth int) {
-	if depth >= maxDependencyTraversalDepth {
-		return
-	}
-
-	for _, dep := range unit.Dependencies {
-		if !paths[dep.Path] {
-			paths[dep.Path] = true
-			collectDependenciesBounded(dep, paths, depth+1)
-		}
-	}
 }

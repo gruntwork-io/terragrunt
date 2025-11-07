@@ -21,6 +21,8 @@ type Unit struct {
 	dependencies     Components
 	dependents       Components
 	external         bool
+	applyExternal    bool
+	filterExcluded   bool
 	mu               sync.RWMutex
 }
 
@@ -58,6 +60,35 @@ func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	u.cfg = cfg
 }
 
+// Excluded returns whether the unit is excluded.
+func (u *Unit) Excluded() bool {
+	u.rLock()
+	defer u.rUnlock()
+
+	// Filter-based exclusion takes precedence
+	if u.filterExcluded {
+		return true
+	}
+
+	if u.cfg == nil {
+		return false
+	}
+
+	if u.cfg.Exclude == nil {
+		return false
+	}
+
+	if u.discoveryContext == nil {
+		return false
+	}
+
+	if u.isDestroyCommand() && u.isProtectedByPreventDestroy() {
+		return true
+	}
+
+	return u.cfg.Exclude.IsActionListed(u.discoveryContext.Cmd)
+}
+
 // Filename returns the filename of the unit.
 func (u *Unit) Filename() string {
 	return u.filename
@@ -93,6 +124,40 @@ func (u *Unit) SetExternal() {
 	u.external = true
 }
 
+// ShouldApplyExternal returns whether an external dependency should be applied.
+// For non-external components, this always returns true.
+// For external components, it returns the value set via SetShouldApplyExternal.
+func (u *Unit) ShouldApplyExternal() bool {
+	u.rLock()
+	defer u.rUnlock()
+
+	// Non-external components should always be applied
+	if !u.external {
+		return true
+	}
+
+	// For external components, return the stored value (defaults to false if not set)
+	return u.applyExternal
+}
+
+// SetShouldApplyExternal sets whether an external dependency should be applied.
+// This only has effect for external components.
+func (u *Unit) SetShouldApplyExternal() {
+	u.lock()
+	defer u.unlock()
+
+	u.applyExternal = true
+}
+
+// SetFilterExcluded sets whether the unit is excluded by a filter.
+// This is used by unit filters to mark units as excluded based on filtering logic.
+func (u *Unit) SetFilterExcluded(excluded bool) {
+	u.lock()
+	defer u.unlock()
+
+	u.filterExcluded = excluded
+}
+
 // Reading returns the list of files being read by this component.
 func (u *Unit) Reading() []string {
 	return u.reading
@@ -113,26 +178,6 @@ func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 	u.discoveryContext = ctx
 }
 
-// lock locks the Unit.
-func (u *Unit) lock() {
-	u.mu.Lock()
-}
-
-// unlock unlocks the Unit.
-func (u *Unit) unlock() {
-	u.mu.Unlock()
-}
-
-// rLock locks the Unit for reading.
-func (u *Unit) rLock() {
-	u.mu.RLock()
-}
-
-// rUnlock unlocks the Unit for reading.
-func (u *Unit) rUnlock() {
-	u.mu.RUnlock()
-}
-
 // AddDependency adds a dependency to the Unit and vice versa.
 //
 // Using this method ensure that the dependency graph is properly maintained,
@@ -142,26 +187,6 @@ func (u *Unit) AddDependency(dependency Component) {
 	u.ensureDependency(dependency)
 
 	dependency.ensureDependent(u)
-}
-
-// ensureDependency adds a dependency to a unit if it's not already present.
-func (u *Unit) ensureDependency(dependency Component) {
-	u.lock()
-	defer u.unlock()
-
-	if !slices.Contains(u.dependencies, dependency) {
-		u.dependencies = append(u.dependencies, dependency)
-	}
-}
-
-// ensureDependent adds a dependent to a unit if it's not already present.
-func (u *Unit) ensureDependent(dependent Component) {
-	u.lock()
-	defer u.unlock()
-
-	if !slices.Contains(u.dependents, dependent) {
-		u.dependents = append(u.dependents, dependent)
-	}
 }
 
 // AddDependent adds a dependent to the Unit and vice versa.
@@ -189,4 +214,78 @@ func (u *Unit) Dependents() Components {
 	defer u.rUnlock()
 
 	return u.dependents
+}
+
+// ensureDependency adds a dependency to a unit if it's not already present.
+func (u *Unit) ensureDependency(dependency Component) {
+	u.lock()
+	defer u.unlock()
+
+	if !slices.Contains(u.dependencies, dependency) {
+		u.dependencies = append(u.dependencies, dependency)
+	}
+}
+
+// ensureDependent adds a dependent to a unit if it's not already present.
+func (u *Unit) ensureDependent(dependent Component) {
+	u.lock()
+	defer u.unlock()
+
+	if !slices.Contains(u.dependents, dependent) {
+		u.dependents = append(u.dependents, dependent)
+	}
+}
+
+// lock locks the Unit.
+func (u *Unit) lock() {
+	u.mu.Lock()
+}
+
+// unlock unlocks the Unit.
+func (u *Unit) unlock() {
+	u.mu.Unlock()
+}
+
+// rLock locks the Unit for reading.
+func (u *Unit) rLock() {
+	u.mu.RLock()
+}
+
+// rUnlock unlocks the Unit for reading.
+func (u *Unit) rUnlock() {
+	u.mu.RUnlock()
+}
+
+// isProtectedByPreventDestroy returns true if the unit any dependency, or any ancestor dependency, is protected
+// by the prevent_destroy flag.
+func (u *Unit) isProtectedByPreventDestroy() bool {
+	if u.cfg.PreventDestroy != nil && *u.cfg.PreventDestroy {
+		return true
+	}
+
+	for _, dep := range u.Dependencies() {
+		unit, ok := dep.(*Unit)
+		if !ok {
+			continue
+		}
+
+		if unit.isProtectedByPreventDestroy() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isDestroyCommand checks if the current command is a destroy operation
+func (u *Unit) isDestroyCommand() bool {
+	if u.discoveryContext.Cmd == "destroy" {
+		return true
+	}
+
+	if u.discoveryContext.Cmd == "apply" && slices.Contains(u.discoveryContext.Args, "-destroy") {
+		return true
+	}
+
+	return false
 }

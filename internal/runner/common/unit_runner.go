@@ -40,13 +40,13 @@ func NewUnitRunner(unit *Unit) *UnitRunner {
 }
 
 func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-	l.Debugf("Running %s", runner.Unit.Path)
+	l.Debugf("Running %s", runner.Unit.Component.Path())
 
 	opts.Writer = NewUnitWriter(opts.Writer)
 
 	defer func() {
-		outputLocks.Lock(runner.Unit.Path)
-		defer outputLocks.Unlock(runner.Unit.Path)
+		outputLocks.Lock(runner.Unit.Component.Path())
+		defer outputLocks.Unlock(runner.Unit.Component.Path())
 
 		runner.Unit.FlushOutput(l) //nolint:errcheck
 	}()
@@ -54,7 +54,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 	// Only create report entries if report is not nil
 	if r != nil {
 		// Ensure path is absolute and normalized for reporting
-		unitPath, err := EnsureAbsolutePath(runner.Unit.Path)
+		unitPath, err := EnsureAbsolutePath(runner.Unit.Component.Path())
 		if err != nil {
 			return err
 		}
@@ -115,8 +115,8 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
-	if runner.Unit.AssumeAlreadyApplied {
-		l.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
+	if runner.Unit.Component.External() && !runner.Unit.Component.ShouldApplyExternal() {
+		l.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Component.Path())
 		return nil
 	}
 

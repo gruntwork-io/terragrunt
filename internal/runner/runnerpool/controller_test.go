@@ -19,9 +19,13 @@ import (
 
 // mockUnit creates a common.Unit with the given path and dependencies.
 func mockUnit(path string, deps ...*common.Unit) *common.Unit {
+	c := component.NewUnit(path)
+	for _, dep := range deps {
+		c.AddDependency(dep.Component)
+	}
+
 	return &common.Unit{
-		Path:         path,
-		Dependencies: deps,
+		Component: c,
 	}
 }
 
@@ -31,15 +35,18 @@ func discoveryFromUnits(units []*common.Unit) component.Components {
 	unitMap := make(map[*common.Unit]*component.Unit)
 	// First pass: create components
 	for _, u := range units {
-		cfg := component.NewUnit(u.Path)
+		cfg := component.NewUnit(u.Component.Path())
 		unitMap[u] = cfg
 		discovered = append(discovered, cfg)
 	}
 	// Second pass: wire dependencies
 	for i, u := range units {
-		for _, dep := range u.Dependencies {
-			if depCfg, ok := unitMap[dep]; ok {
-				discovered[i].AddDependency(depCfg)
+		for _, dep := range u.Component.Dependencies() {
+			for _, u := range units {
+				if u.Component.Path() == dep.Path() {
+					discovered[i].AddDependency(u.Component)
+					break
+				}
 			}
 		}
 	}
@@ -118,7 +125,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	units := []*common.Unit{unitA, unitB, unitC}
 
 	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "A" {
+		if u.Component.Path() == "A" {
 			return errors.New("unit A failed")
 		}
 
@@ -167,7 +174,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	units := buildComplexUnits()
 
 	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "B" {
+		if u.Component.Path() == "B" {
 			return errors.New("unit B failed")
 		}
 
@@ -197,7 +204,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 	units := buildComplexUnits()
 
 	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "A" {
+		if u.Component.Path() == "A" {
 			return errors.New("unit A failed")
 		}
 
@@ -234,7 +241,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	units := buildComplexUnits()
 
 	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "B" {
+		if u.Component.Path() == "B" {
 			return errors.New("unit B failed")
 		}
 

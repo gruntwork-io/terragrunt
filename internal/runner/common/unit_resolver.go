@@ -144,41 +144,15 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	// Convert Units list back to map for flagging
 	crossLinkedMap := make(UnitsMap)
 	for _, unit := range crossLinkedUnits {
-		crossLinkedMap[unit.Path] = unit
+		crossLinkedMap[unit.Component.Path()] = unit
 	}
 
 	if err := r.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
 		return nil, err
 	}
 
-	withUnitsIncluded, err := r.telemetryApplyIncludeDirs(ctx, l, crossLinkedUnits)
-	if err != nil {
-		return nil, err
-	}
-
-	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
-	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
-	// This handles both --units-that-include and legacy ModulesThatInclude flags.
-	// Discovery already tracked all files read during parsing, so we check against unit.Reading.
-	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsIncluded)
-	if err != nil {
-		return nil, err
-	}
-
-	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
-	// This ensures units excluded via CLI get the correct reason in reports
-	withUnitsExcludedByDirs, err := r.telemetryApplyExcludeDirs(ctx, l, withUnitsRead)
-	if err != nil {
-		return nil, err
-	}
-
-	withExcludedUnits, err := r.telemetryApplyExcludeModules(ctx, l, withUnitsExcludedByDirs)
-	if err != nil {
-		return nil, err
-	}
-
 	// Apply custom filters after standard resolution logic
-	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
+	filteredUnits, err := r.telemetryApplyFilters(ctx, l, crossLinkedUnits)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +242,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 		// Exclusion check - create a temporary unit for matching
-		unitToExclude := &Unit{Path: unitPath, TerragruntOptions: opts, FlagExcluded: true}
+		unitToExclude := &Unit{Component: component.NewUnit(unitPath), TerragruntOptions: opts}
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -307,15 +281,13 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 			continue
 		}
 
-		// Preserve the external flag from discovery component
-		isExternal := dUnit.External()
+		c := component.NewUnit(unitPath).WithConfig(terragruntConfig)
+		c.SetReading(dUnit.Reading()...)
+		c.SetExternal()
 
 		units[unitPath] = &Unit{
-			Path:              unitPath,
-			Config:            *terragruntConfig,
+			Component:         c,
 			TerragruntOptions: opts,
-			Reading:           dUnit.Reading(),
-			IsExternal:        isExternal,
 		}
 	}
 

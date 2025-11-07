@@ -10,10 +10,10 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -24,14 +24,8 @@ import (
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type Unit struct {
-	TerragruntOptions    *options.TerragruntOptions
-	Path                 string
-	Reading              []string
-	Dependencies         Units
-	Config               config.TerragruntConfig
-	AssumeAlreadyApplied bool
-	FlagExcluded         bool
-	IsExternal           bool // Set to true if this unit is outside the working directory (discovered as external dependency)
+	TerragruntOptions *options.TerragruntOptions
+	Component         *component.Unit
 }
 
 // per-path output locks to serialize flushes for the same unit
@@ -72,14 +66,16 @@ func EnsureAbsolutePath(path string) (string, error) {
 
 // String renders this unit as a human-readable string
 func (unit *Unit) String() string {
-	var dependencies = make([]string, 0, len(unit.Dependencies))
-	for _, dependency := range unit.Dependencies {
-		dependencies = append(dependencies, dependency.Path)
+	var dependencies = make([]string, 0, len(unit.Component.Dependencies()))
+	for _, dependency := range unit.Component.Dependencies() {
+		dependencies = append(dependencies, dependency.Path())
 	}
+
+	assumeApplied := unit.Component.External() && !unit.Component.ShouldApplyExternal()
 
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		unit.Path, unit.FlagExcluded, unit.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+		unit.Component.Path(), unit.Component.Excluded(), assumeApplied, strings.Join(dependencies, ", "),
 	)
 }
 
@@ -136,10 +132,10 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 		return ""
 	}
 
-	path, err := filepath.Rel(opts.RootWorkingDir, unit.Path)
+	path, err := filepath.Rel(opts.RootWorkingDir, unit.Component.Path())
 	if err != nil {
-		l.Warnf("Failed to get relative path for %s: %v", unit.Path, err)
-		path = unit.Path
+		l.Warnf("Failed to get relative path for %s: %v", unit.Component.Path(), err)
+		path = unit.Component.Path()
 	}
 
 	dir := filepath.Join(outputFolder, path)
@@ -172,23 +168,23 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 // FindUnitInPath returns true if a unit is located under one of the target directories.
 // Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
 func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
-	return slices.Contains(targetDirs, unit.Path)
+	return slices.Contains(targetDirs, unit.Component.Path())
 }
 
 // AbsolutePath returns the absolute path of the unit.
 // If path conversion fails, returns the original path and logs a warning.
 func (unit *Unit) AbsolutePath(l log.Logger) string {
-	if filepath.IsAbs(unit.Path) {
-		return unit.Path
+	if filepath.IsAbs(unit.Component.Path()) {
+		return unit.Component.Path()
 	}
 
-	absPath, err := filepath.Abs(unit.Path)
+	absPath, err := filepath.Abs(unit.Component.Path())
 	if err != nil {
 		if l != nil {
-			l.Warnf("Failed to get absolute path for %s: %v", unit.Path, err)
+			l.Warnf("Failed to get absolute path for %s: %v", unit.Component.Path(), err)
 		}
 
-		return unit.Path
+		return unit.Component.Path()
 	}
 
 	return absPath
@@ -198,12 +194,15 @@ func (unit *Unit) AbsolutePath(l log.Logger) string {
 func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
 	dependencies := Units{}
 
-	if unit.Config.Dependencies == nil || len(unit.Config.Dependencies.Paths) == 0 {
+	if unit.Component == nil ||
+		unit.Component.Config() == nil ||
+		unit.Component.Config().Dependencies == nil ||
+		len(unit.Component.Config().Dependencies.Paths) == 0 {
 		return dependencies, nil
 	}
 
-	for _, dependencyPath := range unit.Config.Dependencies.Paths {
-		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path)
+	for _, dependencyPath := range unit.Component.Config().Dependencies.Paths {
+		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Component.Path())
 		if err != nil {
 			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
 		}
@@ -215,7 +214,7 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
 			dependencyErr := UnrecognizedDependencyError{
-				UnitPath:              unit.Path,
+				UnitPath:              unit.Component.Path(),
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
@@ -267,27 +266,14 @@ func (unitsMap UnitsMap) ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths
 			return units, err
 		}
 
-		unit.Dependencies = dependencies
+		for _, dep := range dependencies {
+			unit.Component.AddDependency(dep.Component)
+		}
+
 		units = append(units, unit)
 	}
 
 	return units, nil
-}
-
-// CheckForCycles checks for dependency cycles in the given list of units and return an error if one is found.
-func (units Units) CheckForCycles() error {
-	var visitedPaths []string
-
-	var currentTraversalPaths []string
-
-	for _, unit := range units {
-		err := checkForCyclesUsingDepthFirstSearch(unit, &visitedPaths, &currentTraversalPaths)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // SortedKeys Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of units
@@ -301,34 +287,4 @@ func (unitsMap UnitsMap) SortedKeys() []string {
 	sort.Strings(keys)
 
 	return keys
-}
-
-// Check for cycles using a depth-first-search as described here:
-// https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
-//
-// Note that this method uses two lists, visitedPaths, and currentTraversalPaths, to track what nodes have already been
-// seen. We need to use lists to maintain ordering so we can show the proper order of paths in a cycle. Of course, a
-// list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
-// Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
-// small (at most, a few dozen paths), there is no point in worrying about performance.
-func checkForCyclesUsingDepthFirstSearch(unit *Unit, visitedPaths *[]string, currentTraversalPaths *[]string) error {
-	if util.ListContainsElement(*visitedPaths, unit.Path) {
-		return nil
-	}
-
-	if util.ListContainsElement(*currentTraversalPaths, unit.Path) {
-		return DependencyCycleError(append(*currentTraversalPaths, unit.Path))
-	}
-
-	*currentTraversalPaths = append(*currentTraversalPaths, unit.Path)
-	for _, dependency := range unit.Dependencies {
-		if err := checkForCyclesUsingDepthFirstSearch(dependency, visitedPaths, currentTraversalPaths); err != nil {
-			return err
-		}
-	}
-
-	*visitedPaths = append(*visitedPaths, unit.Path)
-	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, unit.Path)
-
-	return nil
 }

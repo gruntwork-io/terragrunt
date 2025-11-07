@@ -78,7 +78,8 @@ func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.Te
 
 		dependentModulesPath := make([]*string, 0, len(dependentModules))
 		for _, module := range dependentModules {
-			dependentModulesPath = append(dependentModulesPath, &module.Path)
+			path := module.Component.Path()
+			dependentModulesPath = append(dependentModulesPath, &path)
 		}
 
 		cfg.DependentModulesPath = dependentModulesPath

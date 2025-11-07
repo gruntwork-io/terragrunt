@@ -61,8 +61,8 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 	unitsMap := make(map[string]*common.Unit)
 
 	for _, u := range units {
-		if u != nil && u.Path != "" {
-			unitsMap[u.Path] = u
+		if u != nil && u.Component.Path() != "" {
+			unitsMap[u.Component.Path()] = u
 		}
 	}
 
