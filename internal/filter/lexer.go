@@ -49,9 +49,26 @@ func (l *Lexer) NextToken() Token {
 	case '}':
 		tok = NewToken(RBRACE, string(l.ch), startPosition)
 		l.readChar()
+	case '^':
+		tok = NewToken(CARET, string(l.ch), startPosition)
+		l.readChar()
 	case 0:
 		tok = NewToken(EOF, "", startPosition)
 	case '.':
+		// Check for ellipsis (three consecutive dots)
+		if l.peekChar() == '.' {
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				l.readChar()
+				l.readChar()
+
+				tok = NewToken(ELLIPSIS, "...", startPosition)
+
+				l.readChar()
+
+				return tok
+			}
+		}
+
 		switch nextCh := l.peekChar(); {
 		case nextCh == '/':
 			tok = l.readPath(startPosition)
@@ -130,6 +147,13 @@ func (l *Lexer) skipWhitespace() {
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isIdentifierChar(l.ch) {
+		// Check if we're about to read an ellipsis (...)
+		if l.ch == '.' && l.peekChar() == '.' {
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				break
+			}
+		}
+
 		l.readChar()
 	}
 
@@ -145,6 +169,13 @@ func (l *Lexer) readIdentifier() string {
 func (l *Lexer) readAttributeValue() string {
 	position := l.position
 	for isAttributeValueChar(l.ch) {
+		// Check if we're about to read an ellipsis (...)
+		if l.ch == '.' && l.peekChar() == '.' {
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				break
+			}
+		}
+
 		l.readChar()
 	}
 
@@ -159,6 +190,13 @@ func (l *Lexer) readAttributeValue() string {
 func (l *Lexer) readPath(startPosition int) Token {
 	position := l.position
 	for isPathChar(l.ch) {
+		// Check if we're about to read an ellipsis (...)
+		if l.ch == '.' && l.peekChar() == '.' {
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				break
+			}
+		}
+
 		l.readChar()
 	}
 
@@ -171,7 +209,7 @@ func (l *Lexer) readPath(startPosition int) Token {
 
 // isSpecialChar returns true if the character is a special operator or delimiter.
 func isSpecialChar(ch byte) bool {
-	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == 0
+	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == '^' || ch == 0
 }
 
 // isPathSeparator returns true if the character is a path separator.

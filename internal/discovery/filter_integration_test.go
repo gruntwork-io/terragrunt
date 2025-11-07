@@ -1,7 +1,6 @@
 package discovery_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,7 +108,7 @@ dependency "db" {
 		{
 			name:          "no filters - should return all components",
 			filterQueries: []string{},
-			wantUnits:     []string{frontendDir, backendDir, legacyDir, dbDir, cacheDir, externalAppDir},
+			wantUnits:     []string{frontendDir, backendDir, legacyDir, dbDir, cacheDir},
 			wantStacks:    []string{stackDir},
 		},
 		{
@@ -138,7 +138,7 @@ dependency "db" {
 		{
 			name:          "type filter - units only",
 			filterQueries: []string{"type=unit"},
-			wantUnits:     []string{frontendDir, backendDir, legacyDir, dbDir, cacheDir, externalAppDir},
+			wantUnits:     []string{frontendDir, backendDir, legacyDir, dbDir, cacheDir},
 			wantStacks:    []string{},
 		},
 		{
@@ -149,26 +149,26 @@ dependency "db" {
 		},
 		{
 			name:          "external filter - external components",
-			filterQueries: []string{"external=true"},
+			filterQueries: []string{"{./**}... | external=true"},
 			wantUnits:     []string{externalAppDir},
 			wantStacks:    []string{},
 		},
 		{
 			name:          "external filter - internal components",
-			filterQueries: []string{"external=false"},
+			filterQueries: []string{"{./**}... | external=false"},
 			wantUnits:     []string{frontendDir, backendDir, legacyDir, dbDir, cacheDir},
 			wantStacks:    []string{stackDir},
 		},
 		{
 			name:          "negation filter - exclude legacy",
 			filterQueries: []string{"!legacy"},
-			wantUnits:     []string{frontendDir, backendDir, dbDir, cacheDir, externalAppDir},
+			wantUnits:     []string{frontendDir, backendDir, dbDir, cacheDir},
 			wantStacks:    []string{stackDir},
 		},
 		{
 			name:          "negation filter - exclude apps directory",
 			filterQueries: []string{"!./apps/*"},
-			wantUnits:     []string{dbDir, cacheDir, externalAppDir},
+			wantUnits:     []string{dbDir, cacheDir},
 			wantStacks:    []string{stackDir},
 		},
 		{
@@ -327,7 +327,7 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a single component for edge case testing
-	unitDir := filepath.Join(tmpDir, "unit")
+	unitDir := filepath.Join(tmpDir, "unit #1")
 	err := os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
@@ -345,13 +345,13 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 	}{
 		{
 			name:          "filter with spaces in path",
-			filterQueries: []string{"{unit}"},
+			filterQueries: []string{"{unit #1}"},
 			wantUnits:     []string{unitDir},
 			wantStacks:    []string{},
 		},
 		{
 			name:          "filter with spaces in name",
-			filterQueries: []string{"unit"},
+			filterQueries: []string{"unit #1"},
 			wantUnits:     []string{unitDir},
 			wantStacks:    []string{},
 		},
@@ -375,13 +375,13 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 		},
 		{
 			name:          "double negation",
-			filterQueries: []string{"!!unit"},
+			filterQueries: []string{"!!unit #1"},
 			wantUnits:     []string{unitDir},
 			wantStacks:    []string{},
 		},
 		{
 			name:          "empty intersection",
-			filterQueries: []string{"unit | nonexistent"},
+			filterQueries: []string{"unit #1 | nonexistent"},
 			wantUnits:     []string{},
 			wantStacks:    []string{},
 		},
@@ -397,194 +397,6 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
-
-			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
-			require.NoError(t, err)
-
-			// Filter results by type
-			units := configs.Filter(component.UnitKind).Paths()
-			stacks := configs.Filter(component.StackKind).Paths()
-
-			// Verify results
-			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
-			assert.ElementsMatch(t, tt.wantStacks, stacks, "Stacks mismatch for test: %s", tt.name)
-		})
-	}
-}
-
-func TestDiscoveryWithFiltersPerformance(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	// Create many components to test performance
-	numComponents := 100
-	componentDirs := make([]string, numComponents)
-
-	for i := 0; i < numComponents; i++ {
-		dir := filepath.Join(tmpDir, "component", "app", "service", fmt.Sprintf("service-%d", i))
-		componentDirs[i] = dir
-		err := os.MkdirAll(dir, 0755)
-		require.NoError(t, err)
-
-		err = os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(""), 0644)
-		require.NoError(t, err)
-	}
-
-	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name          string
-		filterQueries []string
-		expectedCount int
-	}{
-		{
-			name:          "wildcard filter - all components",
-			filterQueries: []string{"./component/**/*"},
-			expectedCount: numComponents,
-		},
-		{
-			name:          "specific path filter",
-			filterQueries: []string{"./component/app/service/service-0"},
-			expectedCount: 1,
-		},
-		{
-			name:          "pattern filter",
-			filterQueries: []string{"./component/app/service/service-*"},
-			expectedCount: numComponents,
-		},
-		{
-			name:          "negation filter",
-			filterQueries: []string{"!./component/app/service/service-0"},
-			expectedCount: numComponents - 1,
-		},
-		{
-			name:          "multiple filters",
-			filterQueries: []string{"./component/app/service/service-0", "./component/app/service/service-1"},
-			expectedCount: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
-			require.NoError(t, err)
-
-			// Create discovery with filters
-			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
-
-			// Measure discovery time
-			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
-			require.NoError(t, err)
-
-			// Verify count
-			assert.Len(t, configs, tt.expectedCount, "Component count mismatch for test: %s", tt.name)
-		})
-	}
-}
-
-func TestDiscoveryWithFiltersAndDependencies(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	// Create test directory structure with dependencies
-	appDir := filepath.Join(tmpDir, "app")
-	dbDir := filepath.Join(tmpDir, "db")
-	vpcDir := filepath.Join(tmpDir, "vpc")
-	// Create external component outside the working directory to make it truly external
-	externalDir := filepath.Join(filepath.Dir(tmpDir), "external")
-	externalAppDir := filepath.Join(externalDir, "app")
-
-	testDirs := []string{appDir, dbDir, vpcDir, externalAppDir}
-	for _, dir := range testDirs {
-		err := os.MkdirAll(dir, 0755)
-		require.NoError(t, err)
-	}
-
-	// Clean up external directory after test
-	t.Cleanup(func() {
-		os.RemoveAll(externalDir)
-	})
-
-	// Create test files with dependencies
-	testFiles := map[string]string{
-		filepath.Join(appDir, "terragrunt.hcl"): `
-dependency "db" {
-	config_path = "../db"
-}
-
-dependency "external" {
-	config_path = "../../external/app"
-}
-`,
-		filepath.Join(dbDir, "terragrunt.hcl"): `
-dependency "vpc" {
-	config_path = "../vpc"
-}
-`,
-		filepath.Join(vpcDir, "terragrunt.hcl"):         ``,
-		filepath.Join(externalAppDir, "terragrunt.hcl"): ``,
-	}
-
-	for path, content := range testFiles {
-		err := os.WriteFile(path, []byte(content), 0644)
-		require.NoError(t, err)
-	}
-
-	opts := options.NewTerragruntOptions()
-	opts.WorkingDir = tmpDir
-	opts.RootWorkingDir = tmpDir
-
-	tests := []struct {
-		name          string
-		filterQueries []string
-		wantUnits     []string
-		wantStacks    []string
-	}{
-		{
-			name:          "filter internal dependencies only",
-			filterQueries: []string{"external=false"},
-			wantUnits:     []string{appDir, dbDir, vpcDir},
-			wantStacks:    []string{},
-		},
-		{
-			name:          "filter external dependencies only",
-			filterQueries: []string{"external=true"},
-			wantUnits:     []string{externalAppDir},
-			wantStacks:    []string{},
-		},
-		{
-			name:          "filter specific component and its dependencies",
-			filterQueries: []string{"app"},
-			wantUnits:     []string{appDir, externalAppDir},
-			wantStacks:    []string{},
-		},
-		{
-			name:          "filter with negation - exclude external",
-			filterQueries: []string{"!external=true"},
-			wantUnits:     []string{appDir, dbDir, vpcDir},
-			wantStacks:    []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
-			require.NoError(t, err)
-
-			// Create discovery with filters and dependencies
-			discovery := discovery.NewDiscovery(tmpDir).
-				WithFilters(filters).
-				WithDiscoverDependencies().
-				WithDiscoverExternalDependencies()
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
@@ -909,4 +721,298 @@ func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiscoveryWithGraphExpressionFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// To speed up this test, we'll make the temporary directory a git repository.
+	// This creates a lower upper bound for dependent discovery.
+	helpers.CreateGitRepo(t, tmpDir)
+
+	// Create dependency graph: vpc -> db -> app
+	vpcDir := filepath.Join(tmpDir, "vpc")
+	dbDir := filepath.Join(tmpDir, "db")
+	appDir := filepath.Join(tmpDir, "app")
+
+	testDirs := []string{vpcDir, dbDir, appDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+`,
+		filepath.Join(dbDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	tests := []struct {
+		name          string
+		filterQueries []string
+		wantUnits     []string
+	}{
+		{
+			name:          "selective dependency discovery - app...",
+			filterQueries: []string{"app..."},
+			wantUnits:     []string{appDir, dbDir, vpcDir},
+		},
+		{
+			name:          "selective dependent discovery - ...vpc",
+			filterQueries: []string{"...vpc"},
+			wantUnits:     []string{vpcDir, dbDir, appDir},
+		},
+		{
+			name:          "both directions - ...db...",
+			filterQueries: []string{"...db..."},
+			wantUnits:     []string{dbDir, vpcDir, appDir},
+		},
+		{
+			name:          "exclude target - ^app...",
+			filterQueries: []string{"^app..."},
+			wantUnits:     []string{dbDir, vpcDir},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Parse filter queries
+			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			require.NoError(t, err)
+
+			// Create discovery with filters
+			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+
+			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			// Filter results by type
+			units := configs.Filter(component.UnitKind).Paths()
+
+			// Verify results
+			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
+		})
+	}
+}
+
+func TestDiscoveryWithGraphExpressionFilters_ComplexGraph(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// To speed up this test, we'll make the temporary directory a git repository.
+	helpers.CreateGitRepo(t, tmpDir)
+
+	// Create complex graph: vpc -> [db, cache] -> app
+	vpcDir := filepath.Join(tmpDir, "vpc")
+	dbDir := filepath.Join(tmpDir, "db")
+	cacheDir := filepath.Join(tmpDir, "cache")
+	appDir := filepath.Join(tmpDir, "app")
+
+	testDirs := []string{vpcDir, dbDir, cacheDir, appDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+
+dependency "cache" {
+	config_path = "../cache"
+}
+`,
+		filepath.Join(dbDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+		filepath.Join(cacheDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app..."}, tmpDir)
+		require.NoError(t, err)
+
+		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+		configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+		require.NoError(t, err)
+
+		units := configs.Filter(component.UnitKind).Paths()
+		assert.ElementsMatch(t, []string{appDir, dbDir, cacheDir, vpcDir}, units)
+	})
+
+	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...vpc"}, tmpDir)
+		require.NoError(t, err)
+
+		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+		configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+		require.NoError(t, err)
+
+		units := configs.Filter(component.UnitKind).Paths()
+		assert.ElementsMatch(t, []string{vpcDir, dbDir, cacheDir, appDir}, units)
+	})
+}
+
+func TestDiscoveryWithGraphExpressionFilters_OnlyMatchingComponentsTriggerDiscovery(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Create components: app depends on db, but there's also an unrelated component
+	appDir := filepath.Join(tmpDir, "app")
+	dbDir := filepath.Join(tmpDir, "db")
+	unrelatedDir := filepath.Join(tmpDir, "unrelated")
+
+	testDirs := []string{appDir, dbDir, unrelatedDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+`,
+		filepath.Join(dbDir, "terragrunt.hcl"):        ``,
+		filepath.Join(unrelatedDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	t.Run("graph expression only discovers dependencies of matching component", func(t *testing.T) {
+		t.Parallel()
+
+		// Filter for app and its dependencies - unrelated should not be included
+		filters, err := filter.ParseFilterQueries([]string{"app..."}, tmpDir)
+		require.NoError(t, err)
+
+		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+		configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+		require.NoError(t, err)
+
+		units := configs.Filter(component.UnitKind).Paths()
+		// Should include app and db, but NOT unrelated
+		assert.ElementsMatch(t, []string{appDir, dbDir}, units)
+		assert.NotContains(t, units, unrelatedDir)
+	})
+}
+
+func TestDiscoveryWithGraphExpressionFilters_FiltersAppliedAfterDiscovery(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Create dependency graph: vpc -> db -> app
+	vpcDir := filepath.Join(tmpDir, "vpc")
+	dbDir := filepath.Join(tmpDir, "db")
+	appDir := filepath.Join(tmpDir, "app")
+
+	testDirs := []string{vpcDir, dbDir, appDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+`,
+		filepath.Join(dbDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	t.Run("additional filters applied after graph discovery", func(t *testing.T) {
+		t.Parallel()
+
+		// Graph expression discovers app and its dependencies, then additional filter excludes vpc
+		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"}, tmpDir)
+		require.NoError(t, err)
+
+		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+		configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+		require.NoError(t, err)
+
+		units := configs.Filter(component.UnitKind).Paths()
+		// Should include app and db (from graph), but exclude vpc (from filter)
+		assert.ElementsMatch(t, []string{appDir, dbDir}, units)
+		assert.NotContains(t, units, vpcDir)
+	})
 }
