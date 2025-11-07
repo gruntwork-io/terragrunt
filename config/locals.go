@@ -106,7 +106,7 @@ func attemptEvaluateLocals(
 	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
 ) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
-	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
+	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		l.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err

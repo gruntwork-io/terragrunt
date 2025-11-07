@@ -174,7 +174,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.File, in
 		errs = errs.Append(err)
 	}
 
-	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
+	localsAsCtyVal, err := ConvertValuesMapToCtyVal(locals)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		}
 	}
 
-	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+	flagsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedFlags)
 	if err != nil {
 		return cty.NilVal, err
 	}

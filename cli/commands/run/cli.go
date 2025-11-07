@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -146,7 +147,7 @@ func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *c
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return config.GenerateStacks(ctx, l, opts)
+			return generate.GenerateStacks(ctx, l, opts)
 		})
 
 		// Handle any errors during stack generation

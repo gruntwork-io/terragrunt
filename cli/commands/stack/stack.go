@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -45,7 +47,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return config.GenerateStacks(ctx, l, opts)
+		return generate.GenerateStacks(ctx, l, opts)
 	})
 }
 
@@ -77,7 +79,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := config.StackOutput(ctx, l, opts)
+		stackOutputs, err := output.StackOutput(ctx, l, opts)
 		outputs = stackOutputs
 
 		return err

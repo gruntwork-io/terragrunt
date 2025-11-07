@@ -32,6 +32,13 @@ type HCLCommandOptions struct {
 	Experiments   experiment.Experiments
 }
 
+// StackGenerateOptions contains options for stack generate commands.
+type StackGenerateOptions struct {
+	WorkingDir    string
+	FilterQueries []string
+	Experiments   experiment.Experiments
+}
+
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
 func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
@@ -116,6 +123,26 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 			}
 
 			d = d.WithFilters(filters)
+		}
+	}
+
+	return d, nil
+}
+
+// NewForStackGenerate creates a Discovery configured for `stack generate`.
+func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
+	d := NewDiscovery(opts.WorkingDir)
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		d = d.WithFilterFlagEnabled()
+
+		if len(opts.FilterQueries) > 0 {
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			if err != nil {
+				return nil, err
+			}
+
+			d = d.WithFilters(filters.RestrictToStacks())
 		}
 	}
 

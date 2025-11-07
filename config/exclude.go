@@ -131,7 +131,7 @@ func evaluateExcludeBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.Fil
 		}
 	}
 
-	excludeAsCtyVal, err := convertValuesMapToCtyVal(evaluatedAttrs)
+	excludeAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedAttrs)
 	if err != nil {
 		return nil, err
 	}
