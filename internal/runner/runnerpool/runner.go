@@ -50,14 +50,23 @@ func NewRunnerPoolStack(
 ) (common.StackRunner, error) {
 	// Filter out Stack components - we only want Unit components
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
-	nonStackComponents := make(component.Components, 0, len(discovered))
+	units := make(component.Units, 0, len(discovered))
 	for _, c := range discovered {
-		if c.Kind() != component.StackKind {
-			nonStackComponents = append(nonStackComponents, c)
+		if u, ok := c.(*component.Unit); ok {
+			if u.Opts() == nil {
+				_, opts, err := terragruntOptions.CloneWithConfigPath(l, filepath.Join(u.Path(), u.Filename()))
+				if err != nil {
+					return nil, err
+				}
+
+				u.SetOpts(opts)
+			}
+
+			units = append(units, u)
 		}
 	}
 
-	if len(nonStackComponents) == 0 {
+	if len(units) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
 		stack := common.Stack{
@@ -94,31 +103,21 @@ func NewRunnerPoolStack(
 	// the report is available during unit resolution for tracking exclusions
 	runner = runner.WithOptions(opts...)
 
-	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
-	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
-	if err != nil {
-		return nil, err
+	runner.Stack.Units = units
+
+	for _, filter := range runner.unitFilters {
+		if err := filter.Filter(ctx, units, runner.Stack.TerragruntOptions); err != nil {
+			return nil, err
+		}
 	}
 
-	// Add unit filters to the resolver
-	if len(runner.unitFilters) > 0 {
-		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
+	components := make(component.Components, 0, len(units))
+
+	for _, unit := range units {
+		components = append(components, unit)
 	}
 
-	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
-	// Use nonStackComponents which has Stack components filtered out
-	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, nonStackComponents)
-	if err != nil {
-		return nil, err
-	}
-
-	runner.Stack.Units = unitsMap
-
-	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
-	// This ensures excluded units are not shown in lists or scheduled at all.
-	filtered := FilterDiscoveredUnits(discovered, unitsMap)
-
-	q, queueErr := queue.NewQueue(filtered)
+	q, queueErr := queue.NewQueue(components)
 	if queueErr != nil {
 		return nil, queueErr
 	}
