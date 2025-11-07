@@ -93,6 +93,11 @@ func TestGraphDependencyFilter_ComplexGraph(t *testing.T) {
 
 	unitB.AddDependency(unitA)
 	unitC.AddDependency(unitA)
+
+	unitD.AddDependency(unitB)
+	unitD.AddDependency(unitC)
+	unitE.AddDependency(unitD)
+
 	units := component.Units{unitA, unitB, unitC, unitD, unitE}
 
 	// Filter for D - should include D and E (E depends on D)
