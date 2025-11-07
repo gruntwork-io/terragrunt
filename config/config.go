@@ -2042,7 +2042,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 		var signals map[string]any
 
 		if ignoreBlock.Signals != nil {
-			value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
+			value, err := ConvertValuesMapToCtyVal(ignoreBlock.Signals)
 			if err != nil {
 				return nil, err
 			}

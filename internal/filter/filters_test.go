@@ -509,3 +509,47 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
 	})
 }
+
+func TestFilters_RestrictToStacks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filters - empty result", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		require.NoError(t, err)
+
+		restricted := filters.RestrictToStacks()
+		assert.Empty(t, restricted)
+	})
+
+	t.Run("single filter - restricted to stacks", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"type=stack"}, ".")
+		require.NoError(t, err)
+
+		restricted := filters.RestrictToStacks()
+		require.Len(t, restricted, 1)
+	})
+
+	t.Run("multiple filters - one of them restricted to stacks", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"type=stack", "name=app"}, ".")
+		require.NoError(t, err)
+
+		restricted := filters.RestrictToStacks()
+		require.Len(t, restricted, 1)
+	})
+
+	t.Run("multiple filters - none of them restricted to stacks", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"name=app", "type=unit"}, ".")
+		require.NoError(t, err)
+
+		restricted := filters.RestrictToStacks()
+		require.Empty(t, restricted)
+	})
+}
