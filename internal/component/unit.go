@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const (
@@ -14,16 +15,17 @@ const (
 // Unit represents a discovered Terragrunt unit configuration.
 type Unit struct {
 	cfg              *config.TerragruntConfig
+	discoveryContext *DiscoveryContext
+	opts             *options.TerragruntOptions
 	path             string
 	filename         string
 	reading          []string
-	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
+	mu               sync.RWMutex
 	external         bool
 	applyExternal    bool
 	filterExcluded   bool
-	mu               sync.RWMutex
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -46,6 +48,13 @@ func (u *Unit) WithReading(files ...string) *Unit {
 // WithConfig adds configuration to a Unit component.
 func (u *Unit) WithConfig(cfg *config.TerragruntConfig) *Unit {
 	u.cfg = cfg
+
+	return u
+}
+
+// WithOpts adds options to a Unit component.
+func (u *Unit) WithOpts(opts *options.TerragruntOptions) *Unit {
+	u.opts = opts
 
 	return u
 }
@@ -176,6 +185,16 @@ func (u *Unit) DiscoveryContext() *DiscoveryContext {
 // SetDiscoveryContext sets the discovery context for this component.
 func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 	u.discoveryContext = ctx
+}
+
+// Opts returns the Terragrunt options for this unit.
+func (u *Unit) Opts() *options.TerragruntOptions {
+	return u.opts
+}
+
+// SetOpts sets the Terragrunt options for this unit.
+func (u *Unit) SetOpts(opts *options.TerragruntOptions) {
+	u.opts = opts
 }
 
 // AddDependency adds a dependency to the Unit and vice versa.

@@ -23,8 +23,7 @@ import (
 // You may want to expand this for more complex tests
 func newMockUnit() *common.Unit {
 	return &common.Unit{
-		Component:         component.NewUnit("mock/path"),
-		TerragruntOptions: &options.TerragruntOptions{},
+		Component: component.NewUnit("mock/path").WithOpts(&options.TerragruntOptions{}),
 	}
 }
 
@@ -53,12 +52,12 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.TerragruntOptions = &options.TerragruntOptions{
+	unit.Component.SetOpts(&options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return errors.New("fail")
 		},
-	}
+	})
 	runner := common.NewUnitRunner(unit)
 	path := t.TempDir()
 	unit.Component.SetPath(path)
@@ -73,12 +72,13 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.TerragruntOptions = &options.TerragruntOptions{
+	unit.Component.SetOpts(&options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return nil
 		},
-	}
+	})
+
 	path := t.TempDir()
 	unit.Component.SetPath(path)
 	runner := common.NewUnitRunner(unit)

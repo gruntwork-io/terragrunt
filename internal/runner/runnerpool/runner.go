@@ -255,13 +255,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	task := func(ctx context.Context, u *common.Unit) error {
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
-			"terraform_command":      u.TerragruntOptions.TerraformCommand,
-			"terraform_cli_args":     u.TerragruntOptions.TerraformCliArgs,
-			"working_dir":            u.TerragruntOptions.WorkingDir,
-			"terragrunt_config_path": u.TerragruntOptions.TerragruntConfigPath,
+			"terraform_command":      u.Component.Opts().TerraformCommand,
+			"terraform_cli_args":     u.Component.Opts().TerraformCliArgs,
+			"working_dir":            u.Component.Opts().WorkingDir,
+			"terragrunt_config_path": u.Component.Opts().TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			unitRunner := common.NewUnitRunner(u)
-			return unitRunner.Run(childCtx, l, u.TerragruntOptions, r.Stack.Report)
+			return unitRunner.Run(childCtx, l, u.Component.Opts(), r.Stack.Report)
 		})
 	}
 
@@ -369,7 +369,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 func (r *Runner) handlePlan() []bytes.Buffer {
 	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units))
 	for i, u := range r.Stack.Units {
-		u.TerragruntOptions.ErrWriter = io.MultiWriter(&planErrorBuffers[i], u.TerragruntOptions.ErrWriter)
+		u.Component.Opts().ErrWriter = io.MultiWriter(&planErrorBuffers[i], u.Component.Opts().ErrWriter)
 	}
 
 	return planErrorBuffers
@@ -446,19 +446,19 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
-		unit.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		unit.Component.Opts().TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
 
 		planFile := unit.PlanFile(l, opts)
 		if planFile != "" {
-			l.Debugf("Using output file %s for unit %s", planFile, unit.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, unit.Component.Opts().TerragruntConfigPath)
 
-			if unit.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
+			if unit.Component.Opts().TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
+				unit.Component.Opts().TerraformCliArgs = append(unit.Component.Opts().TerraformCliArgs, "-out="+planFile)
 				continue
 			}
 
-			unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
+			unit.Component.Opts().TerraformCliArgs = append(unit.Component.Opts().TerraformCliArgs, planFile)
 		}
 	}
 }

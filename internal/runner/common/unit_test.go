@@ -37,10 +37,11 @@ func TestUnit_FlushOutput(t *testing.T) {
 	var buf bytes.Buffer
 
 	writer := common.NewUnitWriter(&buf)
-	unit := &common.Unit{
-		Component:         component.NewUnit("/test/path"),
-		TerragruntOptions: &options.TerragruntOptions{Writer: writer},
-	}
+
+	opts := &options.TerragruntOptions{Writer: writer}
+	c := component.NewUnit("test/path")
+	c.SetOpts(opts)
+	unit := &common.Unit{Component: c}
 	_, _ = writer.Write([]byte("test output"))
 
 	l := logger.CreateLogger()
@@ -49,21 +50,27 @@ func TestUnit_FlushOutput(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test output", buf.String())
 
-	unit.TerragruntOptions.Writer = &bytes.Buffer{}
+	opts.Writer = &bytes.Buffer{}
+	c.SetOpts(opts)
+
 	assert.NoError(t, unit.FlushOutput(l))
 }
 
 func TestUnit_PlanFile_OutputFile_JSONOutputFolder(t *testing.T) {
 	t.Parallel()
 
-	unit := &common.Unit{
-		Component: component.NewUnit("module/path"),
-		TerragruntOptions: &options.TerragruntOptions{
-			TerraformCommand: "plan",
-			JSONOutputFolder: "json-folder",
-		},
+	c := component.NewUnit("module/path")
+	opts := &options.TerragruntOptions{
+		TerraformCommand: "plan",
+		JSONOutputFolder: "json-folder",
 	}
-	opts := &options.TerragruntOptions{OutputFolder: "out-folder", JSONOutputFolder: "json-folder", WorkingDir: "/work"}
+	c.SetOpts(opts)
+
+	unit := &common.Unit{
+		Component: c,
+	}
+
+	opts = &options.TerragruntOptions{OutputFolder: "out-folder", JSONOutputFolder: "json-folder", WorkingDir: "/work"}
 	l := logger.CreateLogger()
 
 	planFile := unit.PlanFile(l, opts)

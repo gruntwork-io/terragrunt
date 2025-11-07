@@ -24,8 +24,7 @@ import (
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type Unit struct {
-	TerragruntOptions *options.TerragruntOptions
-	Component         *component.Unit
+	Component *component.Unit
 }
 
 // per-path output locks to serialize flushes for the same unit
@@ -81,11 +80,11 @@ func (unit *Unit) String() string {
 
 // FlushOutput flushes buffer data to the output writer.
 func (unit *Unit) FlushOutput(l log.Logger) error {
-	if unit == nil || unit.TerragruntOptions == nil || unit.TerragruntOptions.Writer == nil {
+	if unit == nil || unit.Component.Opts() == nil || unit.Component.Opts().Writer == nil {
 		return nil
 	}
 
-	if writer, ok := unit.TerragruntOptions.Writer.(*UnitWriter); ok {
+	if writer, ok := unit.Component.Opts().Writer.(*UnitWriter); ok {
 		key := unit.AbsolutePath(l)
 
 		mu := getUnitOutputLock(key)
@@ -106,10 +105,10 @@ func (unit *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string
 	// set plan file location if output folder is set
 	planFile = unit.OutputFile(l, opts)
 
-	planCommand := unit.TerragruntOptions.TerraformCommand == tf.CommandNamePlan || unit.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+	planCommand := unit.Component.Opts().TerraformCommand == tf.CommandNamePlan || unit.Component.Opts().TerraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified PlanFile, save plan in working dir
-	if planCommand && planFile == "" && unit.TerragruntOptions.JSONOutputFolder != "" {
+	if planCommand && planFile == "" && unit.Component.Opts().JSONOutputFolder != "" {
 		planFile = tf.TerraformPlanFile
 	}
 

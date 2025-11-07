@@ -97,7 +97,7 @@ func (r *UnitResolver) WithFilters(filters ...UnitFilter) *UnitResolver {
 // ResolveFromDiscovery builds units starting from discovery-parsed components, avoiding re-parsing
 // for initially discovered units. It preserves the same filtering and dependency resolution pipeline.
 // Discovery has already found and parsed all dependencies including external ones.
-func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (Units, error) {
+func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, discovered component.Components) (Units, error) {
 	unitsMap, err := r.telemetryBuildUnitsFromDiscovery(ctx, l, discovered)
 	if err != nil {
 		return nil, err
@@ -268,7 +268,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 		// Exclusion check - create a temporary unit for matching
-		unitToExclude := &Unit{Component: component.NewUnit(unitPath), TerragruntOptions: opts}
+		unitToExclude := &Unit{Component: component.NewUnit(unitPath).WithOpts(opts)}
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -326,8 +326,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 		}
 
 		units[unitPath] = &Unit{
-			Component:         c,
-			TerragruntOptions: opts,
+			Component: c.WithOpts(opts),
 		}
 	}
 

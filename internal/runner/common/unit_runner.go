@@ -120,13 +120,13 @@ func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.T
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, l, runner.Unit.TerragruntOptions, r); err != nil {
+	if err := runner.runTerragrunt(ctx, l, runner.Unit.Component.Opts(), r); err != nil {
 		return err
 	}
 
 	// convert terragrunt output to json
-	if runner.Unit.OutputJSONFile(l, runner.Unit.TerragruntOptions) != "" {
-		l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(l, runner.Unit.TerragruntOptions.TerragruntConfigPath)
+	if runner.Unit.OutputJSONFile(l, runner.Unit.Component.Opts()) != "" {
+		l, jsonOptions, err := runner.Unit.Component.Opts().CloneWithConfigPath(l, runner.Unit.Component.Opts().TerragruntConfigPath)
 		if err != nil {
 			return err
 		}

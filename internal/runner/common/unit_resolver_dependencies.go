@@ -43,7 +43,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 			if dependentUnit != nil {
 				var err error
 
-				shouldApply, err = r.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, unit.TerragruntOptions)
+				shouldApply, err = r.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, unit.Component.Opts())
 				if err != nil {
 					return err
 				}

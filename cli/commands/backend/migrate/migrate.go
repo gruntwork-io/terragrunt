@@ -46,18 +46,18 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.TerragruntOptions)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.Component.Opts())
 	if err != nil || srcRemoteState == nil {
 		return err
 	}
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.TerragruntOptions)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.Component.Opts())
 	if err != nil || dstRemoteState == nil {
 		return err
 	}
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcModule.TerragruntOptions)
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcModule.Component.Opts())
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -67,5 +67,5 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, l, srcModule.TerragruntOptions, dstModule.TerragruntOptions, dstRemoteState)
+	return srcRemoteState.Migrate(ctx, l, srcModule.Component.Opts(), dstModule.Component.Opts(), dstRemoteState)
 }
