@@ -177,6 +177,7 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 
 	for _, unit := range units {
 		unit.Component.SetFilterExcluded(true)
+
 		if includeFn(unit) {
 			unit.Component.SetFilterExcluded(false)
 		}
@@ -323,6 +324,7 @@ func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOp
 							r.reportUnitExclusion(l, u.Component.Path(), report.ReasonExcludeDir)
 						}
 					}
+
 					break
 				}
 			}
@@ -391,6 +393,7 @@ func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.Terragrun
 						if reportInstance != nil && !wasAlreadyExcluded {
 							r.reportUnitExclusion(l, u.Component.Path(), report.ReasonExcludeBlock)
 						}
+
 						break
 					}
 				}
