@@ -151,8 +151,34 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 		return nil, err
 	}
 
+	// Process units-reading BEFORE exclude dirs/blocks so that explicit CLI excludes
+	// (e.g., --queue-exclude-dir) can take precedence over inclusions by units-reading.
+	// This handles both --units-that-include and legacy ModulesThatInclude flags.
+	// Discovery already tracked all files read during parsing, so we check against unit.Reading.
+	withUnitsIncluded, err := r.telemetryApplyIncludeDirs(ctx, l, crossLinkedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsRead, err := r.telemetryFlagUnitsThatRead(ctx, withUnitsIncluded)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process --queue-exclude-dir BEFORE exclude blocks so that CLI flags take precedence
+	// This ensures units excluded via CLI get the correct reason in reports
+	withUnitsExcludedByDirs, err := r.telemetryApplyExcludeDirs(ctx, l, withUnitsRead)
+	if err != nil {
+		return nil, err
+	}
+
+	withExcludedUnits, err := r.telemetryApplyExcludeModules(ctx, l, withUnitsExcludedByDirs)
+	if err != nil {
+		return nil, err
+	}
+
 	// Apply custom filters after standard resolution logic
-	filteredUnits, err := r.telemetryApplyFilters(ctx, l, crossLinkedUnits)
+	filteredUnits, err := r.telemetryApplyFilters(ctx, l, withExcludedUnits)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +309,21 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 
 		c := component.NewUnit(unitPath).WithConfig(terragruntConfig)
 		c.SetReading(dUnit.Reading()...)
-		c.SetExternal()
+		// Preserve the external flag from discovery component
+		if dUnit.External() {
+			c.SetExternal()
+		}
+
+		// Set discovery context if available from discovered unit, otherwise create from TerragruntOptions
+		// This is needed for component.Unit.Excluded() to properly check exclude blocks and prevent_destroy
+		if dUnit.DiscoveryContext() != nil {
+			c.SetDiscoveryContext(dUnit.DiscoveryContext())
+		} else {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				Cmd:  r.Stack.TerragruntOptions.TerraformCommand,
+				Args: r.Stack.TerragruntOptions.TerraformCliArgs,
+			})
+		}
 
 		units[unitPath] = &Unit{
 			Component:         c,
