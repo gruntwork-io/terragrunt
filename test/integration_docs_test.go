@@ -386,7 +386,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "attribute-based-external-true",
 			fixtureDir:     "attribute-based",
-			filterQuery:    "external=true",
+			filterQuery:    "*... | external=true",
 			expectedOutput: "../dependencies/dependency-of-app1\n",
 			extraFlags:     "--dependencies --external",
 		},
