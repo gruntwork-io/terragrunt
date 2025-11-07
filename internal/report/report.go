@@ -62,6 +62,7 @@ const (
 	ReasonExcludeDir      Reason = "--queue-exclude-dir"
 	ReasonExcludeBlock    Reason = "exclude block"
 	ReasonExcludeExternal Reason = "--queue-exclude-external"
+	ReasonExcludeFilter   Reason = "unit filter"
 	ReasonAncestorError   Reason = "ancestor error"
 )
 

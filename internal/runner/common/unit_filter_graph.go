@@ -2,7 +2,9 @@ package common
 
 import (
 	"context"
+	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -16,57 +18,65 @@ type UnitFilterGraph struct {
 
 // Filter implements UnitFilter.
 // It marks all units as excluded except for the target directory and units that depend on it.
-func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
-	// Build dependency map first
-	dependentUnits := make(map[string][]string)
-
-	for _, unit := range units {
-		if len(unit.Dependencies) != 0 {
-			for _, dep := range unit.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
-			}
-		}
+func (f *UnitFilterGraph) Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error {
+	if len(units) == 0 {
+		return nil
 	}
 
-	// Propagate transitive dependencies across all units.
-	// A DAG can have up to N−1 levels, so at most N iterations are needed.
-	// Each iteration propagates one level deeper; exceeding N implies a cycle.
-	//See: https://en.wikipedia.org/wiki/Topological_sorting#Properties
-	maxIterations := len(units)
-	for i := 0; i < maxIterations; i++ {
-		updated := false
+	// Normalize target directory path for consistent comparison
+	targetDir := util.CleanPath(f.TargetDir)
 
-		for unit, dependents := range dependentUnits {
-			for _, dep := range dependents {
-				old := dependentUnits[unit]
-				newList := util.RemoveDuplicatesFromList(
-					append(old, dependentUnits[dep]...),
-				)
-				newList = util.RemoveElementFromList(newList, unit)
+	var dependency *component.Unit
 
-				if len(newList) != len(old) {
-					dependentUnits[unit] = newList
-					updated = true
-				}
-			}
-		}
-
-		if !updated {
+	for _, u := range units {
+		if u.Path() == targetDir {
+			dependency = u
 			break
 		}
 	}
 
-	// Determine which modules to include
-	modulesToInclude := dependentUnits[f.TargetDir]
-	modulesToInclude = append(modulesToInclude, f.TargetDir)
+	for _, u := range units {
+		u.SetFilterExcluded(true)
 
-	// Mark units as excluded unless they are in modulesToInclude
-	for _, module := range units {
-		module.FlagExcluded = true
-		if util.ListContainsElement(modulesToInclude, module.Path) {
-			module.FlagExcluded = false
+		if dependency == nil {
+			continue
+		}
+
+		if u == dependency || isDependent(u, dependency) {
+			u.SetFilterExcluded(false)
 		}
 	}
 
 	return nil
+}
+
+// isDependent returns true if x is a dependent of y (including by transitive dependents).
+func isDependent(x, y component.Component) bool {
+	const maxIterations = 1000000 // Sensible upper bound for discovery.
+	return isDependentBounded(x, y, maxIterations)
+}
+
+// isDependentBounded returns true if x is a dependent of y (including by transitive dependents).
+// It returns false if the remaining iterations is less than 0.
+func isDependentBounded(x, y component.Component, remaining int) bool {
+	if remaining <= 0 {
+		return false
+	}
+
+	dependents := y.Dependents()
+	if len(dependents) == 0 {
+		return false
+	}
+
+	if slices.Contains(dependents, x) {
+		return true
+	}
+
+	for _, dependent := range dependents {
+		if isDependentBounded(x, dependent, remaining-1) {
+			return true
+		}
+	}
+
+	return false
 }

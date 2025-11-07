@@ -48,7 +48,6 @@ func Build(
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(opts...).
-		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
@@ -65,16 +64,9 @@ func Build(
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
 
-	// NOTE: We do NOT pass ExcludeDirs to discovery because excluded units need to be
-	// discovered and reported (for --report-file functionality). The unit resolver will
-	// handle exclusions after discovery, ensuring excluded units appear in reports.
-	//
-	// For now... We can probably use the following once runnerpool has been updated to not expect external
-	// dependencies in the discovery results.
-	//
-	// if !terragruntOptions.IgnoreExternalDependencies {
-	// 	d = d.WithDiscoverExternalDependencies()
-	// }
+	if !terragruntOptions.IgnoreExternalDependencies {
+		d = d.WithDiscoverExternalDependencies()
+	}
 
 	// Pass include behavior flags
 	if terragruntOptions.StrictInclude {

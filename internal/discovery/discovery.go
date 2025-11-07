@@ -567,6 +567,9 @@ func Parse(
 	// Only Units are parsed during discovery; Stacks are not
 	if unit, ok := c.(*component.Unit); ok {
 		unit.StoreConfig(cfg)
+
+		// We might need to know what the filename is in the future for re-parsing.
+		unit.SetFilename(configFilename)
 	}
 
 	// Populate the Reading field with files read during parsing.

@@ -21,7 +21,7 @@ type JSONRun struct {
 	// Ended is the time when the run ended.
 	Ended time.Time `json:"Ended" jsonschema:"required"`
 	// Reason is the reason for the run result, if any.
-	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=ancestor error"`
+	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=--queue-exclude-external,enum=unit filter,enum=ancestor error"`
 	// Cause is the cause of the run result, if any.
 	Cause *string `json:"Cause,omitempty"`
 	// Name is the name of the run.
