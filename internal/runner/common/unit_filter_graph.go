@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -16,7 +17,7 @@ type UnitFilterGraph struct {
 
 // Filter implements UnitFilter.
 // It marks all units as excluded except for the target directory and units that depend on it.
-func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
+func (f *UnitFilterGraph) Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error {
 	// Normalize target directory path for consistent comparison
 	targetDir := util.CleanPath(f.TargetDir)
 

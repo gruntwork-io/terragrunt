@@ -218,7 +218,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		for _, u := range r.Stack.Units {
 			if u.Excluded() {
 				// Ensure path is absolute for reporting
-				unitPath, err := common.EnsureAbsolutePath(u.Path())
+				unitPath, err := component.EnsureAbsolutePath(u.Path())
 				if err != nil {
 					l.Errorf("Error getting absolute path for unit %s: %v", u.Path(), err)
 					continue
@@ -253,7 +253,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	task := func(ctx context.Context, u *common.Unit) error {
+	task := func(ctx context.Context, u *component.Unit) error {
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
 			"terraform_command":      u.Opts().TerraformCommand,
 			"terraform_cli_args":     u.Opts().TerraformCliArgs,
@@ -295,7 +295,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 
 				// Ensure path is absolute for reporting
-				unitPath, absErr := common.EnsureAbsolutePath(unit.Path())
+				unitPath, absErr := component.EnsureAbsolutePath(unit.Path())
 				if absErr != nil {
 					l.Errorf("Error getting absolute path for unit %s: %v", unit.Path(), absErr)
 					continue
@@ -506,7 +506,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 //   - For each included config, its Dependencies list is filtered to only include included configs.
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
-func FilterDiscoveredUnits(discovered component.Components, units common.Units) component.Components {
+func FilterDiscoveredUnits(discovered component.Components, units component.Units) component.Components {
 	// Build allowlist from non-excluded unit paths
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {

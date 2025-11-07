@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -18,21 +17,19 @@ import (
 )
 
 // mockUnit creates a common.Unit with the given path and dependencies.
-func mockUnit(path string, deps ...*common.Unit) *common.Unit {
+func mockUnit(path string, deps ...*component.Unit) *component.Unit {
 	c := component.NewUnit(path)
 	for _, dep := range deps {
 		c.AddDependency(dep)
 	}
 
-	return &common.Unit{
-		Unit: c,
-	}
+	return c
 }
 
 // Add a helper to convert units to discovered components
-func discoveryFromUnits(units []*common.Unit) component.Components {
+func discoveryFromUnits(units component.Units) component.Components {
 	discovered := make(component.Components, 0, len(units))
-	unitMap := make(map[*common.Unit]*component.Unit)
+	unitMap := make(map[*component.Unit]*component.Unit)
 	// First pass: create components
 	for _, u := range units {
 		cfg := component.NewUnit(u.Path())
@@ -70,9 +67,9 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitB)
-	units := []*common.Unit{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		return nil
 	}
 
@@ -97,9 +94,9 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitA)
-	units := []*common.Unit{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		return nil
 	}
 
@@ -122,9 +119,9 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitB)
-	units := []*common.Unit{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "A" {
 			return errors.New("unit A failed")
 		}
@@ -158,14 +155,14 @@ func TestRunnerPool_FailFast(t *testing.T) {
 //	/ \
 //
 // D   E
-func buildComplexUnits() []*common.Unit {
+func buildComplexUnits() component.Units {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitA)
 	unitD := mockUnit("D", unitB)
 	unitE := mockUnit("E", unitB)
 
-	return []*common.Unit{unitA, unitB, unitC, unitD, unitE}
+	return component.Units{unitA, unitB, unitC, unitD, unitE}
 }
 
 func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
@@ -173,7 +170,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "B" {
 			return errors.New("unit B failed")
 		}
@@ -203,7 +200,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "A" {
 			return errors.New("unit A failed")
 		}
@@ -240,7 +237,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "B" {
 			return errors.New("unit B failed")
 		}

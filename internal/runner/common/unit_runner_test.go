@@ -21,10 +21,8 @@ import (
 
 // mockUnit is a minimal mock for Unit to test UnitRunner logic
 // You may want to expand this for more complex tests
-func newMockUnit() *common.Unit {
-	return &common.Unit{
-		Unit: component.NewUnit("mock/path").WithOpts(&options.TerragruntOptions{}),
-	}
+func newMockUnit() *component.Unit {
+	return component.NewUnit("mock/path").WithOpts(&options.TerragruntOptions{})
 }
 
 func TestNewUnitRunner(t *testing.T) {

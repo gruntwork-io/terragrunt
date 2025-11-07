@@ -97,7 +97,7 @@ func (r *UnitResolver) WithFilters(filters ...UnitFilter) *UnitResolver {
 // ResolveFromDiscovery builds units starting from discovery-parsed components, avoiding re-parsing
 // for initially discovered units. It preserves the same filtering and dependency resolution pipeline.
 // Discovery has already found and parsed all dependencies including external ones.
-func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, discovered component.Components) (Units, error) {
+func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, discovered component.Components) (component.Units, error) {
 	unitsMap, err := r.telemetryBuildUnitsFromDiscovery(ctx, l, discovered)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 
 	// Convert from discovery domain to runner domain
 	// Discovery found all dependencies as Component interfaces, but runner needs concrete *Unit pointers
-	var crossLinkedUnits Units
+	var crossLinkedUnits component.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "convert_discovery_to_runner", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
@@ -142,7 +142,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	// Flag external dependencies and prompt user for confirmation
 	// This must happen AFTER cross-linking so Dependencies field is populated
 	// Convert Units list back to map for flagging
-	crossLinkedMap := make(UnitsMap)
+	crossLinkedMap := make(component.UnitsMap)
 	for _, unit := range crossLinkedUnits {
 		crossLinkedMap[unit.Path()] = unit
 	}
@@ -187,8 +187,8 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 }
 
 // telemetryBuildUnitsFromDiscovery wraps buildUnitsFromDiscovery in telemetry collection.
-func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (UnitsMap, error) {
-	var unitsMap UnitsMap
+func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l log.Logger, discovered []component.Component) (component.UnitsMap, error) {
+	var unitsMap component.UnitsMap
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "build_units_from_discovery", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
@@ -225,8 +225,8 @@ func (r *UnitResolver) telemetryBuildUnitsFromDiscovery(ctx context.Context, l l
 //
 // Units excluded at this stage have FlagExcluded=true and minimal configuration.
 // They are still included in the UnitsMap for dependency resolution but won't be executed.
-func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered component.Components) (UnitsMap, error) {
-	units := make(UnitsMap)
+func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered component.Components) (component.UnitsMap, error) {
+	units := make(component.UnitsMap)
 
 	for _, c := range discovered {
 		// Only handle terraform units; skip stacks and anything else
@@ -268,7 +268,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 		// Exclusion check - create a temporary unit for matching
-		unitToExclude := &Unit{Unit: component.NewUnit(unitPath).WithOpts(opts)}
+		unitToExclude := component.NewUnit(unitPath).WithOpts(opts)
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -325,9 +325,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 			})
 		}
 
-		units[unitPath] = &Unit{
-			Unit: c.WithOpts(opts),
-		}
+		units[unitPath] = c.WithOpts(opts)
 	}
 
 	return units, nil
@@ -335,7 +333,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 
 // telemetryFlagExternalDependencies flags external dependencies and prompts user for confirmation.
 // Discovery has already found and parsed external dependencies, so this only handles user prompts.
-func (r *UnitResolver) telemetryFlagExternalDependencies(ctx context.Context, l log.Logger, unitsMap UnitsMap) error {
+func (r *UnitResolver) telemetryFlagExternalDependencies(ctx context.Context, l log.Logger, unitsMap component.UnitsMap) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_external_dependencies", map[string]any{
 		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {

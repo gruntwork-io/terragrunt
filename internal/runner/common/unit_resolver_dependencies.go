@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -12,7 +13,7 @@ import (
 // prompting the user whether to apply them and setting appropriate flags.
 // Discovery has already found, parsed, and marked external dependencies.
 // This function only handles the user-facing logic for deciding whether to run them.
-func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logger, unitsMap UnitsMap) error {
+func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logger, unitsMap component.UnitsMap) error {
 	for _, unit := range unitsMap {
 		// Check if this unit was marked as external by discovery
 		// External units are outside the working directory
@@ -24,7 +25,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 
 		if !r.Stack.TerragruntOptions.IgnoreExternalDependencies {
 			// Find a unit that depends on this external dependency for context
-			var dependentUnit *Unit
+			var dependentUnit *component.Unit
 
 			for _, u := range unitsMap {
 				for _, dep := range u.Dependencies() {
@@ -63,7 +64,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --queue-include-external or --queue-include-dir flags.
-func (r *UnitResolver) confirmShouldApplyExternalDependency(ctx context.Context, unit *Unit, l log.Logger, dependency *Unit, opts *options.TerragruntOptions) (bool, error) {
+func (r *UnitResolver) confirmShouldApplyExternalDependency(ctx context.Context, unit *component.Unit, l log.Logger, dependency *component.Unit, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
 		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against unit %s, which is a dependency of unit %s.", dependency.Path(), unit.Path())
 		return true, nil

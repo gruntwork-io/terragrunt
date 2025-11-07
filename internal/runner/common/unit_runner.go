@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -26,13 +27,13 @@ const (
 // UnitRunner handles the logic for running a single unit.
 type UnitRunner struct {
 	Err    error
-	Unit   *Unit
+	Unit   *component.Unit
 	Status UnitStatus
 }
 
 var outputLocks = util.NewKeyLocks()
 
-func NewUnitRunner(unit *Unit) *UnitRunner {
+func NewUnitRunner(unit *component.Unit) *UnitRunner {
 	return &UnitRunner{
 		Unit:   unit,
 		Status: Waiting,
@@ -42,7 +43,7 @@ func NewUnitRunner(unit *Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 	l.Debugf("Running %s", runner.Unit.Path())
 
-	opts.Writer = NewUnitWriter(opts.Writer)
+	opts.Writer = component.NewUnitWriter(opts.Writer)
 
 	defer func() {
 		outputLocks.Lock(runner.Unit.Path())
@@ -54,7 +55,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 	// Only create report entries if report is not nil
 	if r != nil {
 		// Ensure path is absolute and normalized for reporting
-		unitPath, err := EnsureAbsolutePath(runner.Unit.Path())
+		unitPath, err := component.EnsureAbsolutePath(runner.Unit.Path())
 		if err != nil {
 			return err
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/shell"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
@@ -30,15 +31,15 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.Units {
-	matchedModulesMap := make(common.UnitsMap)
+func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) component.Units {
+	matchedModulesMap := make(component.UnitsMap)
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
 		maps.Copy(matchedModulesMap, findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig))
 	}
 
-	var matchedModules = make(common.Units, 0, len(matchedModulesMap))
+	var matchedModules = make(component.Units, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}
@@ -67,8 +68,8 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.UnitsMap {
-	matchedModulesMap := make(common.UnitsMap)
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) component.UnitsMap {
+	matchedModulesMap := make(component.UnitsMap)
 
 	// Construct the full path to terragrunt.hcl in the directory
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
