@@ -96,8 +96,8 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	deps, found := dependentModules[opts.WorkingDir]
 	if found {
 		for _, u := range stack.Units {
-			if slices.Contains(deps, u.Component.Path()) {
-				matchedModulesMap[u.Component.Path()] = u
+			if slices.Contains(deps, u.Path()) {
+				matchedModulesMap[u.Path()] = u
 			}
 		}
 	}

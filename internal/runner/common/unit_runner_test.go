@@ -23,7 +23,7 @@ import (
 // You may want to expand this for more complex tests
 func newMockUnit() *common.Unit {
 	return &common.Unit{
-		Component: component.NewUnit("mock/path").WithOpts(&options.TerragruntOptions{}),
+		Unit: component.NewUnit("mock/path").WithOpts(&options.TerragruntOptions{}),
 	}
 }
 
@@ -40,7 +40,7 @@ func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.Component.SetExternal()
+	unit.SetExternal()
 	runner := common.NewUnitRunner(unit)
 	report := &report.Report{}
 	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{}, report)
@@ -52,7 +52,7 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.Component.SetOpts(&options.TerragruntOptions{
+	unit.SetOpts(&options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return errors.New("fail")
@@ -60,7 +60,7 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	})
 	runner := common.NewUnitRunner(unit)
 	path := t.TempDir()
-	unit.Component.SetPath(path)
+	unit.SetPath(path)
 	report := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
 	require.Error(t, err)
@@ -72,7 +72,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.Component.SetOpts(&options.TerragruntOptions{
+	unit.SetOpts(&options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return nil
@@ -80,7 +80,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	})
 
 	path := t.TempDir()
-	unit.Component.SetPath(path)
+	unit.SetPath(path)
 	runner := common.NewUnitRunner(unit)
 	report := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)

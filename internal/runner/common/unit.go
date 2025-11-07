@@ -24,7 +24,7 @@ import (
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type Unit struct {
-	Component *component.Unit
+	*component.Unit
 }
 
 // per-path output locks to serialize flushes for the same unit
@@ -65,26 +65,26 @@ func EnsureAbsolutePath(path string) (string, error) {
 
 // String renders this unit as a human-readable string
 func (unit *Unit) String() string {
-	var dependencies = make([]string, 0, len(unit.Component.Dependencies()))
-	for _, dependency := range unit.Component.Dependencies() {
+	var dependencies = make([]string, 0, len(unit.Dependencies()))
+	for _, dependency := range unit.Dependencies() {
 		dependencies = append(dependencies, dependency.Path())
 	}
 
-	assumeApplied := unit.Component.External() && !unit.Component.ShouldApplyExternal()
+	assumeApplied := unit.External() && !unit.ShouldApplyExternal()
 
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		unit.Component.Path(), unit.Component.Excluded(), assumeApplied, strings.Join(dependencies, ", "),
+		unit.Path(), unit.Excluded(), assumeApplied, strings.Join(dependencies, ", "),
 	)
 }
 
 // FlushOutput flushes buffer data to the output writer.
 func (unit *Unit) FlushOutput(l log.Logger) error {
-	if unit == nil || unit.Component.Opts() == nil || unit.Component.Opts().Writer == nil {
+	if unit == nil || unit.Opts() == nil || unit.Opts().Writer == nil {
 		return nil
 	}
 
-	if writer, ok := unit.Component.Opts().Writer.(*UnitWriter); ok {
+	if writer, ok := unit.Opts().Writer.(*UnitWriter); ok {
 		key := unit.AbsolutePath(l)
 
 		mu := getUnitOutputLock(key)
@@ -105,10 +105,10 @@ func (unit *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string
 	// set plan file location if output folder is set
 	planFile = unit.OutputFile(l, opts)
 
-	planCommand := unit.Component.Opts().TerraformCommand == tf.CommandNamePlan || unit.Component.Opts().TerraformCommand == tf.CommandNameShow
+	planCommand := unit.Opts().TerraformCommand == tf.CommandNamePlan || unit.Opts().TerraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified PlanFile, save plan in working dir
-	if planCommand && planFile == "" && unit.Component.Opts().JSONOutputFolder != "" {
+	if planCommand && planFile == "" && unit.Opts().JSONOutputFolder != "" {
 		planFile = tf.TerraformPlanFile
 	}
 
@@ -131,10 +131,10 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 		return ""
 	}
 
-	path, err := filepath.Rel(opts.RootWorkingDir, unit.Component.Path())
+	path, err := filepath.Rel(opts.RootWorkingDir, unit.Path())
 	if err != nil {
-		l.Warnf("Failed to get relative path for %s: %v", unit.Component.Path(), err)
-		path = unit.Component.Path()
+		l.Warnf("Failed to get relative path for %s: %v", unit.Path(), err)
+		path = unit.Path()
 	}
 
 	dir := filepath.Join(outputFolder, path)
@@ -167,23 +167,23 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 // FindUnitInPath returns true if a unit is located under one of the target directories.
 // Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
 func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
-	return slices.Contains(targetDirs, unit.Component.Path())
+	return slices.Contains(targetDirs, unit.Path())
 }
 
 // AbsolutePath returns the absolute path of the unit.
 // If path conversion fails, returns the original path and logs a warning.
 func (unit *Unit) AbsolutePath(l log.Logger) string {
-	if filepath.IsAbs(unit.Component.Path()) {
-		return unit.Component.Path()
+	if filepath.IsAbs(unit.Path()) {
+		return unit.Path()
 	}
 
-	absPath, err := filepath.Abs(unit.Component.Path())
+	absPath, err := filepath.Abs(unit.Path())
 	if err != nil {
 		if l != nil {
-			l.Warnf("Failed to get absolute path for %s: %v", unit.Component.Path(), err)
+			l.Warnf("Failed to get absolute path for %s: %v", unit.Path(), err)
 		}
 
-		return unit.Component.Path()
+		return unit.Path()
 	}
 
 	return absPath
@@ -193,15 +193,14 @@ func (unit *Unit) AbsolutePath(l log.Logger) string {
 func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
 	dependencies := Units{}
 
-	if unit.Component == nil ||
-		unit.Component.Config() == nil ||
-		unit.Component.Config().Dependencies == nil ||
-		len(unit.Component.Config().Dependencies.Paths) == 0 {
+	if unit.Config() == nil ||
+		unit.Config().Dependencies == nil ||
+		len(unit.Config().Dependencies.Paths) == 0 {
 		return dependencies, nil
 	}
 
-	for _, dependencyPath := range unit.Component.Config().Dependencies.Paths {
-		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Component.Path())
+	for _, dependencyPath := range unit.Config().Dependencies.Paths {
+		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path())
 		if err != nil {
 			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
 		}
@@ -213,7 +212,7 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
 			dependencyErr := UnrecognizedDependencyError{
-				UnitPath:              unit.Component.Path(),
+				UnitPath:              unit.Path(),
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
@@ -266,7 +265,7 @@ func (unitsMap UnitsMap) ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths
 		}
 
 		for _, dep := range dependencies {
-			unit.Component.AddDependency(dep.Component)
+			unit.AddDependency(dep)
 		}
 
 		units = append(units, unit)

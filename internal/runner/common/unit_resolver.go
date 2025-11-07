@@ -144,7 +144,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	// Convert Units list back to map for flagging
 	crossLinkedMap := make(UnitsMap)
 	for _, unit := range crossLinkedUnits {
-		crossLinkedMap[unit.Component.Path()] = unit
+		crossLinkedMap[unit.Path()] = unit
 	}
 
 	if err := r.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
@@ -268,7 +268,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 		// Exclusion check - create a temporary unit for matching
-		unitToExclude := &Unit{Component: component.NewUnit(unitPath).WithOpts(opts)}
+		unitToExclude := &Unit{Unit: component.NewUnit(unitPath).WithOpts(opts)}
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -326,7 +326,7 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered componen
 		}
 
 		units[unitPath] = &Unit{
-			Component: c.WithOpts(opts),
+			Unit: c.WithOpts(opts),
 		}
 	}
 

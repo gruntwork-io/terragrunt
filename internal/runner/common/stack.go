@@ -35,7 +35,7 @@ func (stack *Stack) String() string {
 // FindUnitByPath finds a unit in the stack by its path
 func (stack *Stack) FindUnitByPath(path string) *Unit {
 	for _, unit := range stack.Units {
-		if unit.Component.Path() == path {
+		if unit.Path() == path {
 			return unit
 		}
 	}

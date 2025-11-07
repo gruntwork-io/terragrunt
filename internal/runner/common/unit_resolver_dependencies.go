@@ -16,7 +16,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 	for _, unit := range unitsMap {
 		// Check if this unit was marked as external by discovery
 		// External units are outside the working directory
-		if !unit.Component.External() {
+		if !unit.External() {
 			continue
 		}
 
@@ -27,8 +27,8 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 			var dependentUnit *Unit
 
 			for _, u := range unitsMap {
-				for _, dep := range u.Component.Dependencies() {
-					if dep.Path() == unit.Component.Path() {
+				for _, dep := range u.Dependencies() {
+					if dep.Path() == unit.Path() {
 						dependentUnit = u
 						break
 					}
@@ -43,7 +43,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 			if dependentUnit != nil {
 				var err error
 
-				shouldApply, err = r.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, unit.Component.Opts())
+				shouldApply, err = r.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, unit.Opts())
 				if err != nil {
 					return err
 				}
@@ -51,7 +51,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 		}
 
 		if shouldApply {
-			unit.Component.SetShouldApplyExternal()
+			unit.SetShouldApplyExternal()
 		}
 	}
 
@@ -65,22 +65,22 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 // with the --queue-include-external or --queue-include-dir flags.
 func (r *UnitResolver) confirmShouldApplyExternalDependency(ctx context.Context, unit *Unit, l log.Logger, dependency *Unit, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
-		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against unit %s, which is a dependency of unit %s.", dependency.Component.Path(), unit.Component.Path())
+		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against unit %s, which is a dependency of unit %s.", dependency.Path(), unit.Path())
 		return true, nil
 	}
 
 	if opts.NonInteractive {
-		l.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run --all command, will not run this command against unit %s, which is a dependency of unit %s.", dependency.Component.Path(), unit.Component.Path())
+		l.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run --all command, will not run this command against unit %s, which is a dependency of unit %s.", dependency.Path(), unit.Path())
 		return false, nil
 	}
 
 	stackCmd := opts.TerraformCommand
 	if stackCmd == "destroy" {
-		l.Debugf("run --all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run --all command, will not run this command against unit %s, which is a dependency of unit %s.", dependency.Component.Path(), unit.Component.Path())
+		l.Debugf("run --all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run --all command, will not run this command against unit %s, which is a dependency of unit %s.", dependency.Path(), unit.Path())
 		return false, nil
 	}
 
-	l.Infof("Unit %s has external dependency %s", unit.Component.Path(), dependency.Component.Path())
+	l.Infof("Unit %s has external dependency %s", unit.Path(), dependency.Path())
 
 	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
 }

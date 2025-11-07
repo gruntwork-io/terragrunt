@@ -15,12 +15,12 @@ func TestGraphDependencyFilter_SimpleChain(t *testing.T) {
 	t.Parallel()
 
 	// Create a simple dependency chain: A -> B -> C
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
 
-	unitC.Component.AddDependency(unitB.Component)
-	unitB.Component.AddDependency(unitA.Component)
+	unitC.Unit.AddDependency(unitB.Unit)
+	unitB.Unit.AddDependency(unitA.Unit)
 
 	units := common.Units{unitA, unitB, unitC}
 
@@ -33,11 +33,11 @@ func TestGraphDependencyFilter_SimpleChain(t *testing.T) {
 	require.NoError(t, err)
 
 	// C should be included (it's the target)
-	assert.False(t, unitC.Component.Excluded(), "Target unit C should be included")
+	assert.False(t, unitC.Unit.Excluded(), "Target unit C should be included")
 	// B should be excluded (it's a dependency of C, not a dependent)
-	assert.True(t, unitB.Component.Excluded(), "Unit B should be excluded (it's a dependency, not dependent)")
+	assert.True(t, unitB.Unit.Excluded(), "Unit B should be excluded (it's a dependency, not dependent)")
 	// A should be excluded (it's a dependency of B, not a dependent)
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded (it's a dependency, not dependent)")
+	assert.True(t, unitA.Unit.Excluded(), "Unit A should be excluded (it's a dependency, not dependent)")
 }
 
 func TestGraphDependencyFilter_WithDependents(t *testing.T) {
@@ -49,12 +49,12 @@ func TestGraphDependencyFilter_WithDependents(t *testing.T) {
 	//   B <- target
 	//   |
 	//   C
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
 
-	unitB.Component.AddDependency(unitA.Component)
-	unitC.Component.AddDependency(unitB.Component)
+	unitB.Unit.AddDependency(unitA.Unit)
+	unitC.Unit.AddDependency(unitB.Unit)
 
 	units := common.Units{unitA, unitB, unitC}
 
@@ -67,11 +67,11 @@ func TestGraphDependencyFilter_WithDependents(t *testing.T) {
 	require.NoError(t, err)
 
 	// A should be excluded (it's a dependency, not dependent)
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded")
+	assert.True(t, unitA.Unit.Excluded(), "Unit A should be excluded")
 	// B should be included (it's the target)
-	assert.False(t, unitB.Component.Excluded(), "Target unit B should be included")
+	assert.False(t, unitB.Unit.Excluded(), "Target unit B should be included")
 	// C should be included (it depends on B)
-	assert.False(t, unitC.Component.Excluded(), "Unit C should be included (it's a dependent)")
+	assert.False(t, unitC.Unit.Excluded(), "Unit C should be included (it's a dependent)")
 }
 
 func TestGraphDependencyFilter_ComplexGraph(t *testing.T) {
@@ -85,17 +85,17 @@ func TestGraphDependencyFilter_ComplexGraph(t *testing.T) {
 	//     D <- target
 	//     |
 	//     E
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
-	unitD := &common.Unit{Component: component.NewUnit("/project/d")}
-	unitE := &common.Unit{Component: component.NewUnit("/project/e")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
+	unitD := &common.Unit{Unit: component.NewUnit("/project/d")}
+	unitE := &common.Unit{Unit: component.NewUnit("/project/e")}
 
-	unitB.Component.AddDependency(unitA.Component)
-	unitC.Component.AddDependency(unitA.Component)
-	unitD.Component.AddDependency(unitB.Component)
-	unitD.Component.AddDependency(unitC.Component)
-	unitE.Component.AddDependency(unitD.Component)
+	unitB.Unit.AddDependency(unitA.Unit)
+	unitC.Unit.AddDependency(unitA.Unit)
+	unitD.Unit.AddDependency(unitB.Unit)
+	unitD.Unit.AddDependency(unitC.Unit)
+	unitE.Unit.AddDependency(unitD.Unit)
 
 	units := common.Units{unitA, unitB, unitC, unitD, unitE}
 
@@ -108,13 +108,13 @@ func TestGraphDependencyFilter_ComplexGraph(t *testing.T) {
 	require.NoError(t, err)
 
 	// A, B, C should be excluded (they are dependencies, not dependents)
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded")
-	assert.True(t, unitB.Component.Excluded(), "Unit B should be excluded")
-	assert.True(t, unitC.Component.Excluded(), "Unit C should be excluded")
+	assert.True(t, unitA.Excluded(), "Unit A should be excluded")
+	assert.True(t, unitB.Excluded(), "Unit B should be excluded")
+	assert.True(t, unitC.Excluded(), "Unit C should be excluded")
 	// D should be included (it's the target)
-	assert.False(t, unitD.Component.Excluded(), "Target unit D should be included")
+	assert.False(t, unitD.Excluded(), "Target unit D should be included")
 	// E should be included (it depends on D)
-	assert.False(t, unitE.Component.Excluded(), "Unit E should be included")
+	assert.False(t, unitE.Excluded(), "Unit E should be included")
 }
 
 func TestGraphDependencyFilter_TransitiveDependents(t *testing.T) {
@@ -123,14 +123,14 @@ func TestGraphDependencyFilter_TransitiveDependents(t *testing.T) {
 	// Create a chain to test transitive dependents:
 	// A <- B <- C <- D
 	// Filter for A, should include A, B, C, D
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
-	unitD := &common.Unit{Component: component.NewUnit("/project/d")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
+	unitD := &common.Unit{Unit: component.NewUnit("/project/d")}
 
-	unitB.Component.AddDependency(unitA.Component)
-	unitC.Component.AddDependency(unitB.Component)
-	unitD.Component.AddDependency(unitC.Component)
+	unitB.AddDependency(unitA.Unit)
+	unitC.AddDependency(unitB.Unit)
+	unitD.AddDependency(unitC.Unit)
 
 	units := common.Units{unitA, unitB, unitC, unitD}
 
@@ -142,10 +142,10 @@ func TestGraphDependencyFilter_TransitiveDependents(t *testing.T) {
 	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	assert.False(t, unitA.Component.Excluded(), "Unit A should be included (target)")
-	assert.False(t, unitB.Component.Excluded(), "Unit B should be included (depends on A)")
-	assert.False(t, unitC.Component.Excluded(), "Unit C should be included (transitively depends on A)")
-	assert.False(t, unitD.Component.Excluded(), "Unit D should be included (transitively depends on A)")
+	assert.False(t, unitA.Excluded(), "Unit A should be included (target)")
+	assert.False(t, unitB.Excluded(), "Unit B should be included (depends on A)")
+	assert.False(t, unitC.Excluded(), "Unit C should be included (transitively depends on A)")
+	assert.False(t, unitD.Excluded(), "Unit D should be included (transitively depends on A)")
 }
 
 func TestGraphDependencyFilter_NoDependents(t *testing.T) {
@@ -153,12 +153,12 @@ func TestGraphDependencyFilter_NoDependents(t *testing.T) {
 
 	// Create a structure where the target has no dependents:
 	// A <- B <- C (target)
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
 
-	unitB.Component.AddDependency(unitA.Component)
-	unitC.Component.AddDependency(unitB.Component)
+	unitB.AddDependency(unitA.Unit)
+	unitC.AddDependency(unitB.Unit)
 
 	units := common.Units{unitA, unitB, unitC}
 
@@ -170,9 +170,9 @@ func TestGraphDependencyFilter_NoDependents(t *testing.T) {
 	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded")
-	assert.True(t, unitB.Component.Excluded(), "Unit B should be excluded")
-	assert.False(t, unitC.Component.Excluded(), "Unit C should be included (target)")
+	assert.True(t, unitA.Excluded(), "Unit A should be excluded")
+	assert.True(t, unitB.Excluded(), "Unit B should be excluded")
+	assert.False(t, unitC.Excluded(), "Unit C should be included (target)")
 }
 
 func TestGraphDependencyFilter_MultiplePathsToTarget(t *testing.T) {
@@ -186,17 +186,17 @@ func TestGraphDependencyFilter_MultiplePathsToTarget(t *testing.T) {
 	//     D
 	//     |
 	//     E <- target
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
-	unitD := &common.Unit{Component: component.NewUnit("/project/d")}
-	unitE := &common.Unit{Component: component.NewUnit("/project/e")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
+	unitD := &common.Unit{Unit: component.NewUnit("/project/d")}
+	unitE := &common.Unit{Unit: component.NewUnit("/project/e")}
 
-	unitB.Component.AddDependency(unitA.Component)
-	unitC.Component.AddDependency(unitA.Component)
-	unitD.Component.AddDependency(unitB.Component)
-	unitD.Component.AddDependency(unitC.Component)
-	unitE.Component.AddDependency(unitD.Component)
+	unitB.AddDependency(unitA.Unit)
+	unitC.AddDependency(unitA.Unit)
+	unitD.AddDependency(unitB.Unit)
+	unitD.AddDependency(unitC.Unit)
+	unitE.AddDependency(unitD.Unit)
 
 	units := common.Units{unitA, unitB, unitC, unitD, unitE}
 
@@ -208,20 +208,20 @@ func TestGraphDependencyFilter_MultiplePathsToTarget(t *testing.T) {
 	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded")
-	assert.True(t, unitB.Component.Excluded(), "Unit B should be excluded")
-	assert.True(t, unitC.Component.Excluded(), "Unit C should be excluded")
-	assert.True(t, unitD.Component.Excluded(), "Unit D should be excluded")
-	assert.False(t, unitE.Component.Excluded(), "Unit E should be included (target)")
+	assert.True(t, unitA.Excluded(), "Unit A should be excluded")
+	assert.True(t, unitB.Excluded(), "Unit B should be excluded")
+	assert.True(t, unitC.Excluded(), "Unit C should be excluded")
+	assert.True(t, unitD.Excluded(), "Unit D should be excluded")
+	assert.False(t, unitE.Excluded(), "Unit E should be included (target)")
 }
 
 func TestGraphDependencyFilter_IsolatedUnits(t *testing.T) {
 	t.Parallel()
 
 	// Create units with no dependencies
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
-	unitC := &common.Unit{Component: component.NewUnit("/project/c")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
+	unitC := &common.Unit{Unit: component.NewUnit("/project/c")}
 
 	units := common.Units{unitA, unitB, unitC}
 
@@ -233,9 +233,9 @@ func TestGraphDependencyFilter_IsolatedUnits(t *testing.T) {
 	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded (no relationship)")
-	assert.False(t, unitB.Component.Excluded(), "Unit B should be included (target)")
-	assert.True(t, unitC.Component.Excluded(), "Unit C should be excluded (no relationship)")
+	assert.True(t, unitA.Excluded(), "Unit A should be excluded (no relationship)")
+	assert.False(t, unitB.Excluded(), "Unit B should be included (target)")
+	assert.True(t, unitC.Excluded(), "Unit C should be excluded (no relationship)")
 }
 
 func TestGraphDependencyFilter_EmptyUnits(t *testing.T) {
@@ -256,10 +256,10 @@ func TestGraphDependencyFilter_NonExistentTarget(t *testing.T) {
 	t.Parallel()
 
 	// Create units but target a non-existent directory
-	unitA := &common.Unit{Component: component.NewUnit("/project/a")}
-	unitB := &common.Unit{Component: component.NewUnit("/project/b")}
+	unitA := &common.Unit{Unit: component.NewUnit("/project/a")}
+	unitB := &common.Unit{Unit: component.NewUnit("/project/b")}
 
-	unitB.Component.AddDependency(unitA.Component)
+	unitB.AddDependency(unitA.Unit)
 
 	units := common.Units{unitA, unitB}
 
@@ -271,6 +271,6 @@ func TestGraphDependencyFilter_NonExistentTarget(t *testing.T) {
 	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	assert.True(t, unitA.Component.Excluded(), "Unit A should be excluded")
-	assert.True(t, unitB.Component.Excluded(), "Unit B should be excluded")
+	assert.True(t, unitA.Excluded(), "Unit A should be excluded")
+	assert.True(t, unitB.Excluded(), "Unit B should be excluded")
 }

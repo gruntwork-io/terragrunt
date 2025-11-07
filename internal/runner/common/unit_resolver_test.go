@@ -49,8 +49,8 @@ func TestResolveFromDiscovery_UsesDiscoveryConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, units, 1)
-	require.Equal(t, tmpDir, units[0].Component.Path())
-	require.NotNil(t, units[0].Component.Config().Terraform)
-	require.NotNil(t, units[0].Component.Config().Terraform.Source)
-	require.Equal(t, src, *units[0].Component.Config().Terraform.Source)
+	require.Equal(t, tmpDir, units[0].Path())
+	require.NotNil(t, units[0].Config().Terraform)
+	require.NotNil(t, units[0].Config().Terraform.Source)
+	require.Equal(t, src, *units[0].Config().Terraform.Source)
 }

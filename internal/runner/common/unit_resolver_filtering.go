@@ -69,8 +69,8 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 
 		return func(unit *Unit) bool {
 			for globPath, globPattern := range globs {
-				if globPattern.Match(unit.Component.Path()) {
-					l.Debugf("Unit %s is %s by glob %s", unit.Component.Path(), action, globPath)
+				if globPattern.Match(unit.Path()) {
+					l.Debugf("Unit %s is %s by glob %s", unit.Path(), action, globPath)
 					return true
 				}
 			}
@@ -95,8 +95,8 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 
 	return func(unit *Unit) bool {
 		for _, dir := range dirs {
-			if util.HasPathPrefix(unit.Component.Path(), dir) {
-				l.Debugf("Unit %s is %s by exact path match %s", unit.Component.Path(), action, dir)
+			if util.HasPathPrefix(unit.Path(), dir) {
+				l.Debugf("Unit %s is %s by exact path match %s", unit.Path(), action, dir)
 				return true
 			}
 		}
@@ -120,7 +120,7 @@ func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, l log.Logger, 
 		// Track which units were excluded before filters were applied
 		excludedBeforeFilters := make(map[string]bool)
 		for _, unit := range units {
-			excludedBeforeFilters[unit.Component.Path()] = unit.Component.Excluded()
+			excludedBeforeFilters[unit.Path()] = unit.Excluded()
 		}
 
 		// Apply all filters in sequence
@@ -136,8 +136,8 @@ func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, l log.Logger, 
 		if r.Stack.Report != nil && l != nil {
 			for _, unit := range units {
 				// Only report if the unit is now excluded but wasn't excluded before filters
-				if unit.Component.Excluded() && !excludedBeforeFilters[unit.Component.Path()] {
-					r.reportUnitExclusion(l, unit.Component.Path(), report.ReasonExcludeFilter)
+				if unit.Excluded() && !excludedBeforeFilters[unit.Path()] {
+					r.reportUnitExclusion(l, unit.Path(), report.ReasonExcludeFilter)
 				}
 			}
 		}
@@ -176,22 +176,22 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 	includeFn := r.createPathMatcherFunc("include", opts, l)
 
 	for _, unit := range units {
-		unit.Component.SetFilterExcluded(true)
+		unit.SetFilterExcluded(true)
 
 		if includeFn(unit) {
-			unit.Component.SetFilterExcluded(false)
+			unit.SetFilterExcluded(false)
 		}
 	}
 
 	// Mark all affected dependencies as included before proceeding if not in strict include mode.
 	if !opts.StrictInclude {
 		for _, unit := range units {
-			if !unit.Component.Excluded() {
-				for _, dependency := range unit.Component.Dependencies() {
+			if !unit.Excluded() {
+				for _, dependency := range unit.Dependencies() {
 					// Find the corresponding runner unit
 					for _, u := range units {
-						if u.Component.Path() == dependency.Path() {
-							u.Component.SetFilterExcluded(false)
+						if u.Path() == dependency.Path() {
+							u.SetFilterExcluded(false)
 							break
 						}
 					}
@@ -250,17 +250,17 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 	for _, normalizedPath := range normalizedPaths {
 		for _, unit := range units {
 			// Check unit.Reading (populated by discovery's FilesRead tracking)
-			if slices.Contains(unit.Component.Reading(), normalizedPath) {
-				unit.Component.SetFilterExcluded(false)
+			if slices.Contains(unit.Reading(), normalizedPath) {
+				unit.SetFilterExcluded(false)
 				continue
 			}
 
 			// Fallback: check Config.ProcessedIncludes (include blocks from config)
 			// This is needed because unit.Reading may not be populated in all cases
-			if unit.Component.Config() != nil {
-				for _, includeConfig := range unit.Component.Config().ProcessedIncludes {
+			if unit.Config() != nil {
+				for _, includeConfig := range unit.Config().ProcessedIncludes {
 					if includeConfig.Path == normalizedPath {
-						unit.Component.SetFilterExcluded(false)
+						unit.SetFilterExcluded(false)
 						break
 					}
 				}
@@ -303,25 +303,25 @@ func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOp
 	for _, unit := range units {
 		if excludeFn(unit) {
 			// Mark unit itself as excluded
-			unit.Component.SetFilterExcluded(true)
+			unit.SetFilterExcluded(true)
 
 			// Only update report if it's enabled
 			if reportInstance != nil {
-				r.reportUnitExclusion(l, unit.Component.Path(), report.ReasonExcludeDir)
+				r.reportUnitExclusion(l, unit.Path(), report.ReasonExcludeDir)
 			}
 		}
 
 		// Mark all affected dependencies as excluded
-		for _, dependency := range unit.Component.Dependencies() {
+		for _, dependency := range unit.Dependencies() {
 			// Find the corresponding runner unit
 			for _, u := range units {
-				if u.Component.Path() == dependency.Path() {
+				if u.Path() == dependency.Path() {
 					if excludeFn(u) {
-						u.Component.SetFilterExcluded(true)
+						u.SetFilterExcluded(true)
 
 						// Only update report if it's enabled
 						if reportInstance != nil {
-							r.reportUnitExclusion(l, u.Component.Path(), report.ReasonExcludeDir)
+							r.reportUnitExclusion(l, u.Path(), report.ReasonExcludeDir)
 						}
 					}
 
@@ -353,7 +353,7 @@ func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.L
 // applyExcludeModules sets filterExcluded on units based on the exclude block in their terragrunt.hcl.
 func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	for _, unit := range units {
-		cfg := unit.Component.Config()
+		cfg := unit.Config()
 		if cfg == nil || cfg.Exclude == nil {
 			continue
 		}
@@ -367,31 +367,31 @@ func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.Terragrun
 		if excludeConfig.If {
 			// Check if unit was already excluded (e.g., by --queue-exclude-dir)
 			// If so, don't overwrite the existing exclusion reason
-			wasAlreadyExcluded := unit.Component.Excluded()
-			unit.Component.SetFilterExcluded(true)
+			wasAlreadyExcluded := unit.Excluded()
+			unit.SetFilterExcluded(true)
 
 			// Only update report if it's enabled AND the unit wasn't already excluded
 			// This ensures CLI flags like --queue-exclude-dir take precedence over exclude blocks
 			if reportInstance != nil && !wasAlreadyExcluded {
-				r.reportUnitExclusion(l, unit.Component.Path(), report.ReasonExcludeBlock)
+				r.reportUnitExclusion(l, unit.Path(), report.ReasonExcludeBlock)
 			}
 		}
 
 		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
-			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Component.Path())
+			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path())
 
-			for _, dependency := range unit.Component.Dependencies() {
+			for _, dependency := range unit.Dependencies() {
 				// Find the corresponding runner unit
 				for _, u := range units {
-					if u.Component.Path() == dependency.Path() {
+					if u.Path() == dependency.Path() {
 						// Check if dependency was already excluded
-						wasAlreadyExcluded := u.Component.Excluded()
-						u.Component.SetFilterExcluded(true)
+						wasAlreadyExcluded := u.Excluded()
+						u.SetFilterExcluded(true)
 
 						// Only update report if it's enabled AND the dependency wasn't already excluded
 						// This ensures CLI exclusions take precedence over exclude blocks
 						if reportInstance != nil && !wasAlreadyExcluded {
-							r.reportUnitExclusion(l, u.Component.Path(), report.ReasonExcludeBlock)
+							r.reportUnitExclusion(l, u.Path(), report.ReasonExcludeBlock)
 						}
 
 						break

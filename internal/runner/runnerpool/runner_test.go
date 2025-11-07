@@ -43,5 +43,5 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 	fromDiscovery, err := resolver.ResolveFromDiscovery(context.Background(), l, discovered)
 	require.NoError(t, err)
 	require.Len(t, fromDiscovery, 1)
-	require.Equal(t, tmpDir, fromDiscovery[0].Component.Path())
+	require.Equal(t, tmpDir, fromDiscovery[0].Path())
 }

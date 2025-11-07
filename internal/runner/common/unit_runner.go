@@ -40,13 +40,13 @@ func NewUnitRunner(unit *Unit) *UnitRunner {
 }
 
 func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-	l.Debugf("Running %s", runner.Unit.Component.Path())
+	l.Debugf("Running %s", runner.Unit.Path())
 
 	opts.Writer = NewUnitWriter(opts.Writer)
 
 	defer func() {
-		outputLocks.Lock(runner.Unit.Component.Path())
-		defer outputLocks.Unlock(runner.Unit.Component.Path())
+		outputLocks.Lock(runner.Unit.Path())
+		defer outputLocks.Unlock(runner.Unit.Path())
 
 		runner.Unit.FlushOutput(l) //nolint:errcheck
 	}()
@@ -54,7 +54,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 	// Only create report entries if report is not nil
 	if r != nil {
 		// Ensure path is absolute and normalized for reporting
-		unitPath, err := EnsureAbsolutePath(runner.Unit.Component.Path())
+		unitPath, err := EnsureAbsolutePath(runner.Unit.Path())
 		if err != nil {
 			return err
 		}
@@ -115,18 +115,18 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
-	if runner.Unit.Component.External() && !runner.Unit.Component.ShouldApplyExternal() {
-		l.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Component.Path())
+	if runner.Unit.External() && !runner.Unit.ShouldApplyExternal() {
+		l.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path())
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, l, runner.Unit.Component.Opts(), r); err != nil {
+	if err := runner.runTerragrunt(ctx, l, runner.Unit.Opts(), r); err != nil {
 		return err
 	}
 
 	// convert terragrunt output to json
-	if runner.Unit.OutputJSONFile(l, runner.Unit.Component.Opts()) != "" {
-		l, jsonOptions, err := runner.Unit.Component.Opts().CloneWithConfigPath(l, runner.Unit.Component.Opts().TerragruntConfigPath)
+	if runner.Unit.OutputJSONFile(l, runner.Unit.Opts()) != "" {
+		l, jsonOptions, err := runner.Unit.Opts().CloneWithConfigPath(l, runner.Unit.Opts().TerragruntConfigPath)
 		if err != nil {
 			return err
 		}

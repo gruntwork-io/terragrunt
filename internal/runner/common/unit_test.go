@@ -23,7 +23,7 @@ func TestUnit_String(t *testing.T) {
 	c.AddDependency(component.NewUnit("dep2"))
 
 	unit := &common.Unit{
-		Component: c,
+		Unit: c,
 	}
 	str := unit.String()
 	assert.Contains(t, str, "test/path")
@@ -41,7 +41,7 @@ func TestUnit_FlushOutput(t *testing.T) {
 	opts := &options.TerragruntOptions{Writer: writer}
 	c := component.NewUnit("test/path")
 	c.SetOpts(opts)
-	unit := &common.Unit{Component: c}
+	unit := &common.Unit{Unit: c}
 	_, _ = writer.Write([]byte("test output"))
 
 	l := logger.CreateLogger()
@@ -67,7 +67,7 @@ func TestUnit_PlanFile_OutputFile_JSONOutputFolder(t *testing.T) {
 	c.SetOpts(opts)
 
 	unit := &common.Unit{
-		Component: c,
+		Unit: c,
 	}
 
 	opts = &options.TerragruntOptions{OutputFolder: "out-folder", JSONOutputFolder: "json-folder", WorkingDir: "/work"}
@@ -97,7 +97,7 @@ func hasSuffix(path, suffix string) bool {
 func TestUnit_FindUnitInPath(t *testing.T) {
 	t.Parallel()
 
-	unit := &common.Unit{Component: component.NewUnit("foo/bar")}
+	unit := &common.Unit{Unit: component.NewUnit("foo/bar")}
 	assert.True(t, unit.FindUnitInPath([]string{"foo/bar", "baz"}))
 	assert.False(t, unit.FindUnitInPath([]string{"baz"}))
 }
@@ -105,8 +105,8 @@ func TestUnit_FindUnitInPath(t *testing.T) {
 func TestUnitsMap_MergeMaps(t *testing.T) {
 	t.Parallel()
 
-	m1 := common.UnitsMap{"a": &common.Unit{Component: component.NewUnit("a")}}
-	m2 := common.UnitsMap{"b": &common.Unit{Component: component.NewUnit("b")}}
+	m1 := common.UnitsMap{"a": &common.Unit{Unit: component.NewUnit("a")}}
+	m2 := common.UnitsMap{"b": &common.Unit{Unit: component.NewUnit("b")}}
 	merged := m1.MergeMaps(m2)
 	assert.Contains(t, merged, "a")
 	assert.Contains(t, merged, "b")
@@ -115,8 +115,8 @@ func TestUnitsMap_MergeMaps(t *testing.T) {
 func TestUnitsMap_FindByPath(t *testing.T) {
 	t.Parallel()
 
-	m := common.UnitsMap{"foo": &common.Unit{Component: component.NewUnit("foo")}}
-	assert.Equal(t, "foo", m.FindByPath("foo").Component.Path())
+	m := common.UnitsMap{"foo": &common.Unit{Unit: component.NewUnit("foo")}}
+	assert.Equal(t, "foo", m.FindByPath("foo").Path())
 	assert.Nil(t, m.FindByPath("bar"))
 }
 
@@ -134,9 +134,9 @@ func TestUnitsMap_ConvertDiscoveryToRunner(t *testing.T) {
 	aPath := "/abs/a"
 	bPath := "/abs/b"
 	m := common.UnitsMap{
-		aPath: &common.Unit{Component: component.NewUnit(aPath)},
+		aPath: &common.Unit{Unit: component.NewUnit(aPath)},
 		bPath: &common.Unit{
-			Component: component.NewUnit(bPath).WithConfig(&config.TerragruntConfig{
+			Unit: component.NewUnit(bPath).WithConfig(&config.TerragruntConfig{
 				Dependencies: &config.ModuleDependencies{Paths: []string{aPath}},
 			}),
 		},
@@ -144,7 +144,7 @@ func TestUnitsMap_ConvertDiscoveryToRunner(t *testing.T) {
 	units, err := m.ConvertDiscoveryToRunner([]string{aPath, bPath})
 	require.NoError(t, err)
 	assert.Len(t, units, 2)
-	assert.Equal(t, aPath, units[0].Component.Path())
-	assert.Equal(t, bPath, units[1].Component.Path())
-	assert.Equal(t, aPath, units[1].Component.Dependencies()[0].Path())
+	assert.Equal(t, aPath, units[0].Path())
+	assert.Equal(t, bPath, units[1].Path())
+	assert.Equal(t, aPath, units[1].Dependencies()[0].Path())
 }
