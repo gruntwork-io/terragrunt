@@ -312,11 +312,6 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tc.name != "reading_from_hcl_with_include_and_exclude" {
-				t.Skip("Skipping test " + tc.name + " - not supported yet")
-				return
-			}
-
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 			rootPath, err := filepath.EvalSymlinks(rootPath)
