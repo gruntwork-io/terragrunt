@@ -1,4 +1,4 @@
-package cas
+package git
 
 import (
 	"bytes"
@@ -195,9 +195,9 @@ func GetRepoName(repo string) string {
 }
 
 // LsTree runs git ls-tree and returns the parsed tree
-func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, error) {
+func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	cmd := g.prepareCommand(ctx, "ls-tree", reference)
@@ -209,21 +209,21 @@ func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, 
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, &WrappedError{
+		return "", &WrappedError{
 			Op:      "git_ls_tree",
 			Context: stderr.String(),
 			Err:     ErrReadTree,
 		}
 	}
 
-	return ParseTree(stdout.String(), path)
+	return stdout.String(), nil
 }
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
 // This eliminates the need for multiple separate ls-tree calls on subtrees
-func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string) (*Tree, error) {
+func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Use recursive ls-tree to get all blobs in a single command
@@ -236,14 +236,14 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string)
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, &WrappedError{
+		return "", &WrappedError{
 			Op:      "git_ls_tree_recursive",
 			Context: stderr.String(),
 			Err:     ErrReadTree,
 		}
 	}
 
-	return ParseTree(stdout.String(), path)
+	return stdout.String(), nil
 }
 
 // CatFile writes the contents of a git object
