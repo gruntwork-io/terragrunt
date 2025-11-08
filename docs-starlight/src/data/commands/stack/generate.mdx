@@ -11,6 +11,8 @@ examples:
   - description: Generate a stack of units using the configurations in a terragrunt.stack.hcl file.
     code: |
       terragrunt stack generate
+flags:
+  - stack-generate-filter
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
