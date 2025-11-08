@@ -73,25 +73,39 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
 			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --units-that-include alpha.hcl",
 			modulePath,
 		),
-		&stdout,
-		&stderr,
 	)
 	require.NoError(t, err)
-	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+	assert.Contains(t, stdout, "alpha")
+	assert.NotContains(t, stdout, "beta")
+	assert.NotContains(t, stdout, "charlie")
+}
 
-	planOutput := stdout.String()
-	assert.Contains(t, planOutput, "alpha")
-	assert.NotContains(t, planOutput, "beta")
-	assert.NotContains(t, planOutput, "charlie")
+func TestTerragruntRunAllModulesThatIncludeRestrictsSetWithFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping test - filter flag experiment is not enabled")
+	}
+
+	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
+	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	helpers.CleanupTerraformFolder(t, modulePath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --log-level trace --working-dir "+modulePath+" --filter 'reading=alpha.hcl'",
+	)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "alpha")
+	assert.NotContains(t, stdout, "beta")
+	assert.NotContains(t, stdout, "charlie")
 }
 
 func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {

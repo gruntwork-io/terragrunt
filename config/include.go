@@ -136,6 +136,8 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 			logPrefix           string
 		)
 
+		trackFileRead(ctx.FilesRead, includeConfig.Path)
+
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, &includeConfig)
 			logPrefix = "[Partial] "
