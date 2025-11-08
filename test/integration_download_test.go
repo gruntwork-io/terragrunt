@@ -348,6 +348,97 @@ func TestExcludeDirs(t *testing.T) {
 	}
 }
 
+func TestExcludeDirsWithFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	// Populate module paths.
+	moduleNames := []string{
+		"integration-env/aws/module-aws-a",
+		"integration-env/gce/module-gce-b",
+		"integration-env/gce/module-gce-c",
+		"production-env/aws/module-aws-d",
+		"production-env/gce/module-gce-e",
+	}
+
+	testCases := []struct {
+		workingDir            string
+		excludeArgs           string
+		excludedModuleOutputs []string
+	}{
+		{
+			workingDir:            testFixtureLocalWithExcludeDir,
+			excludeArgs:           "--filter '!./**/gce/**'",
+			excludedModuleOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			workingDir:            testFixtureLocalWithExcludeDir,
+			excludeArgs:           "--filter '!./production-env/**' --filter '!./**/module-gce-c'",
+			excludedModuleOutputs: []string{"Module GCE C", "Module AWS D", "Module GCE E"},
+		},
+		{
+			workingDir:            testFixtureLocalWithExcludeDir,
+			excludeArgs:           "--filter '!./integration-env/gce/module-gce-b' --filter '!./integration-env/gce/module-gce-c' --filter '!./**/module-aws*'",
+			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
+		},
+		{
+			workingDir:            testFixtureLocalWithExcludeDir,
+			excludeArgs:           "--filter '!./**/gce/**'",
+			excludedModuleOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			workingDir:            testFixtureLocalWithExcludeDir,
+			excludeArgs:           "--filter '!./production-env/**' --filter '!./**/module-gce-c'",
+			excludedModuleOutputs: []string{"Module GCE C", "Module AWS D", "Module GCE E"},
+		},
+		{
+			workingDir:            testFixtureLocalWithExcludeDir,
+			excludeArgs:           "--filter '!./integration-env/gce/module-gce-b' --filter '!./integration-env/gce/module-gce-c' --filter '!./**/module-aws*'",
+			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
+		},
+	}
+
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(testFixtureLocalWithExcludeDir, moduleName)
+	}
+
+	for _, tc := range testCases {
+		// Cleanup all modules directories.
+		helpers.CleanupTerragruntFolder(t, testFixtureLocalWithExcludeDir)
+
+		for _, modulePath := range modulePaths {
+			helpers.CleanupTerragruntFolder(t, modulePath)
+		}
+
+		// Apply modules according to test cases
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s",
+				tc.workingDir,
+				tc.excludeArgs,
+			),
+		)
+		require.NoError(t, err)
+
+		// Check that the excluded module output is not present
+		for _, modulePath := range modulePaths {
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt show --non-interactive --log-level trace --working-dir "+modulePath)
+
+			require.NoError(t, err)
+
+			output := stdout
+			for _, excludedModuleOutput := range tc.excludedModuleOutputs {
+				assert.NotContains(t, output, excludedModuleOutput)
+			}
+		}
+	}
+}
+
 /*
 	TestIncludeDirs tests that the --queue-include-dir flag works as expected.
 
