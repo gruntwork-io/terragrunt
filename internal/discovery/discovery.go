@@ -572,6 +572,10 @@ func Parse(
 	// Only Units are parsed during discovery; Stacks are not
 	if unit, ok := c.(*component.Unit); ok {
 		unit.StoreConfig(cfg)
+
+		if cfg != nil && cfg.Terraform != nil && cfg.Terraform.Source != nil {
+			unit.SetSources(*cfg.Terraform.Source)
+		}
 	}
 
 	// Populate the Reading field with files read during parsing.

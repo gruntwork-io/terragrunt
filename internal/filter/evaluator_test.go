@@ -263,6 +263,55 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 	}
 }
 
+func TestEvaluate_AttributeFilter_Source(t *testing.T) {
+	t.Parallel()
+
+	components := []component.Component{
+		component.NewUnit("./apps/app1").WithSources("github.com/acme/foo"),
+		component.NewUnit("./apps/app2").WithSources("git::git@github.com:acme/bar?ref=v1.0.0"),
+	}
+
+	tests := []struct {
+		name     string
+		filter   *filter.AttributeFilter
+		expected []component.Component
+	}{
+		{
+			name:   "glob pattern with single wildcard - github.com/acme/*",
+			filter: &filter.AttributeFilter{Key: "source", Value: "github.com/acme/*"},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1").WithSources("github.com/acme/foo"),
+			},
+		},
+		{
+			name:   "glob pattern with double wildcard - git::git@github.com:acme/**",
+			filter: &filter.AttributeFilter{Key: "source", Value: "git::git@github.com:acme/**"},
+			expected: []component.Component{
+				component.NewUnit("./apps/app2").WithSources("git::git@github.com:acme/bar?ref=v1.0.0"),
+			},
+		},
+		{
+			name:   "glob pattern with double wildcard - **github.com**",
+			filter: &filter.AttributeFilter{Key: "source", Value: "**github.com**"},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1").WithSources("github.com/acme/foo"),
+				component.NewUnit("./apps/app2").WithSources("git::git@github.com:acme/bar?ref=v1.0.0"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := log.New()
+			result, err := filter.Evaluate(l, tt.filter, components)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
 func TestEvaluate_AttributeFilter_Reading_ComponentAddedOnlyOnce(t *testing.T) {
 	t.Parallel()
 

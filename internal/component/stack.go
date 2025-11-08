@@ -16,6 +16,7 @@ type Stack struct {
 	cfg              *config.StackConfig
 	path             string
 	reading          []string
+	sources          []string
 	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
@@ -85,6 +86,16 @@ func (s *Stack) Reading() []string {
 // SetReading sets the list of files being read by this component.
 func (s *Stack) SetReading(files ...string) {
 	s.reading = files
+}
+
+// Sources returns the list of sources for this component.
+func (s *Stack) Sources() []string {
+	return s.sources
+}
+
+// SetSources sets the list of sources for this component.
+func (s *Stack) SetSources(sources ...string) {
+	s.sources = sources
 }
 
 // DiscoveryContext returns the discovery context for this component.

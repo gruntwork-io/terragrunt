@@ -16,6 +16,7 @@ type Unit struct {
 	cfg              *config.TerragruntConfig
 	path             string
 	reading          []string
+	sources          []string
 	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
@@ -36,6 +37,13 @@ func NewUnit(path string) *Unit {
 // Useful for constructing components with all files read at once.
 func (u *Unit) WithReading(files ...string) *Unit {
 	u.SetReading(files...)
+
+	return u
+}
+
+// WithSources appends a source to the list of sources for this component.
+func (u *Unit) WithSources(sources ...string) *Unit {
+	u.SetSources(sources...)
 
 	return u
 }
@@ -90,6 +98,16 @@ func (u *Unit) Reading() []string {
 // SetReading sets the list of files being read by this component.
 func (u *Unit) SetReading(files ...string) {
 	u.reading = files
+}
+
+// Sources returns the list of sources for this component.
+func (u *Unit) Sources() []string {
+	return u.sources
+}
+
+// SetSources sets the list of sources for this component.
+func (u *Unit) SetSources(sources ...string) {
+	u.sources = sources
 }
 
 // DiscoveryContext returns the discovery context for this component.

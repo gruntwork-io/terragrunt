@@ -537,6 +537,7 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 		copyCfg := component.NewUnit(unit.Path())
 		copyCfg.SetDiscoveryContext(unit.DiscoveryContext())
 		copyCfg.SetReading(unit.Reading()...)
+		copyCfg.SetSources(unit.Sources()...)
 
 		if unit.External() {
 			copyCfg.SetExternal()

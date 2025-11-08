@@ -2,6 +2,7 @@ package filter
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -12,6 +13,7 @@ const (
 	AttributeType     = "type"
 	AttributeExternal = "external"
 	AttributeReading  = "reading"
+	AttributeSource   = "source"
 
 	AttributeTypeValueUnit  = string(component.UnitKind)
 	AttributeTypeValueStack = string(component.StackKind)
@@ -146,6 +148,17 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 					result = append(result, c)
 					break
 				}
+			}
+		}
+	case AttributeSource:
+		g, err := filter.CompileGlob()
+		if err != nil {
+			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for source filter: "+filter.Value, err)
+		}
+
+		for _, c := range components {
+			if slices.ContainsFunc(c.Sources(), g.Match) {
+				result = append(result, c)
 			}
 		}
 	default:

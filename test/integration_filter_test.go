@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	testFixtureFilterBasic = "fixtures/find/basic"
-	testFixtureFilterDAG   = "fixtures/find/dag"
-	testFixtureFilterList  = "fixtures/list/basic"
+	testFixtureFilterBasic  = "fixtures/find/basic"
+	testFixtureFilterDAG    = "fixtures/find/dag"
+	testFixtureFilterList   = "fixtures/list/basic"
+	testFixtureFilterSource = "fixtures/filter-source"
 )
 
 func TestFilterFlagWithFind(t *testing.T) {
@@ -615,6 +616,109 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+			}
+		})
+	}
+}
+
+func TestFilterFlagWithSource(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	workingDir, err := filepath.Abs(testFixtureFilterSource)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name           string
+		filterQuery    string
+		expectedOutput string
+		expectError    bool
+	}{
+		{
+			name:           "filter by source - exact match github.com/acme/foo",
+			filterQuery:    "source=github.com/acme/foo",
+			expectedOutput: "github-acme-foo\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - glob pattern *github.com**acme/*",
+			filterQuery:    "source=*github.com**acme/*",
+			expectedOutput: "github-acme-foo\ngithub-acme-bar\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - glob pattern git::git@github.com:acme/**",
+			filterQuery:    "source=git::git@github.com:acme/**",
+			expectedOutput: "github-acme-bar\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - glob pattern **github.com**",
+			filterQuery:    "source=**github.com**",
+			expectedOutput: "github-acme-foo\ngithub-acme-bar\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - exact match gitlab.com/example/baz",
+			filterQuery:    "source=gitlab.com/example/baz",
+			expectedOutput: "gitlab-example-baz\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - glob pattern gitlab.com/**",
+			filterQuery:    "source=gitlab.com/**",
+			expectedOutput: "gitlab-example-baz\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - local module",
+			filterQuery:    "source=./module",
+			expectedOutput: "local-module\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source - non-matching query",
+			filterQuery:    "source=nonexistent",
+			expectedOutput: "",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source with negation - exclude github.com/acme/foo",
+			filterQuery:    "!source=github.com/acme/foo",
+			expectedOutput: "github-acme-bar\ngitlab-example-baz\nlocal-module\n",
+			expectError:    false,
+		},
+		{
+			name:           "filter by source with intersection - github.com/acme/* and path",
+			filterQuery:    "source=github.com/acme/* | ./github-acme-foo",
+			expectedOutput: "github-acme-foo\n",
+			expectError:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, workingDir)
+
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
+				assert.NotEmpty(t, stderr, "Expected error message in stderr")
+			} else {
+				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
+				assert.Empty(t, stderr, "Unexpected error message in stderr")
+				// Sort both outputs for comparison since order may vary
+				expectedLines := strings.Fields(tc.expectedOutput)
+				actualLines := strings.Fields(stdout)
+				assert.ElementsMatch(t, expectedLines, actualLines, "Output mismatch for filter query: %s", tc.filterQuery)
 			}
 		})
 	}
