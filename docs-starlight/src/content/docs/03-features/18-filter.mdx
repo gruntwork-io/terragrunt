@@ -172,6 +172,43 @@ terragrunt find --filter 'name=stack*'
         - terragrunt.hcl
 </FileTree>
 
+### Source-Based Filtering
+
+Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files.
+
+```bash
+# Filter by exact source match
+terragrunt find --filter 'source=github.com/acme/foo'
+terragrunt find --filter 'source=gitlab.com/example/baz'
+terragrunt find --filter 'source=./module'
+
+# Filter by source using glob patterns
+terragrunt find --filter 'source=*github.com**acme/*'
+terragrunt find --filter 'source=git::git@github.com:acme/**'
+terragrunt find --filter 'source=**github.com**'
+terragrunt find --filter 'source=gitlab.com/**'
+```
+
+<FileTree>
+- .
+  - **github-acme-foo** \<-- Matched by source=github.com/acme/foo and source=*github.com**acme/*
+    - terragrunt.hcl (source: github.com/acme/foo)
+  - **github-acme-bar** \<-- Matched by source=*github.com**acme/* and source=git::git@github.com:acme/**
+    - terragrunt.hcl (source: git::git@github.com:acme/bar)
+  - **gitlab-example-baz** \<-- Matched by source=gitlab.com/example/baz and source=gitlab.com/**
+    - terragrunt.hcl (source: gitlab.com/example/baz)
+  - **local-module** \<-- Matched by source=./module
+    - terragrunt.hcl (source: ./module)
+    - module
+      - main.tf
+  - other-unit
+    - terragrunt.hcl (source: s3://bucket/module)
+</FileTree>
+
+<Aside type="note">
+The `source=` filter matches against the Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files in units. It supports glob patterns, allowing you to match multiple sources with patterns like `*github.com**` or `gitlab.com/**`. This is useful for filtering units that use specific module sources, such as all units using a particular GitHub organization's modules or all local modules. This attribute may be supported on stacks in the future.
+</Aside>
+
 ### Negation
 
 Exclude units and stacks using the `!` prefix.

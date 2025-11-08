@@ -315,6 +315,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 	generateIntersectionFixture(t, tmpDir)
 	generateReadingFixture(t, tmpDir)
 	generateGraphBasedFixture(t, tmpDir)
+	generateSourceBasedFixture(t, tmpDir)
 
 	testCases := []struct {
 		name           string
@@ -511,6 +512,50 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			fixtureDir:     "graph-based",
 			filterQuery:    "service... | !^db...",
 			expectedOutput: "cache\ndb\nservice\n",
+		},
+
+		// Source-based filtering
+		{
+			name:           "source-exact-match-github",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=github.com/acme/foo",
+			expectedOutput: "github-acme-foo\n",
+		},
+		{
+			name:           "source-exact-match-gitlab",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=gitlab.com/example/baz",
+			expectedOutput: "gitlab-example-baz\n",
+		},
+		{
+			name:           "source-exact-match-local",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=./module",
+			expectedOutput: "local-module\n",
+		},
+		{
+			name:           "source-glob-github-org",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=*github.com**acme/*",
+			expectedOutput: "github-acme-bar\ngithub-acme-foo\n",
+		},
+		{
+			name:           "source-glob-github-ssh",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=git::git@github.com:acme/**",
+			expectedOutput: "github-acme-bar\n",
+		},
+		{
+			name:           "source-glob-all-github",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=**github.com**",
+			expectedOutput: "github-acme-bar\ngithub-acme-foo\n",
+		},
+		{
+			name:           "source-glob-gitlab",
+			fixtureDir:     "source-based",
+			filterQuery:    "source=gitlab.com/**",
+			expectedOutput: "gitlab-example-baz\n",
 		},
 	}
 
@@ -831,6 +876,59 @@ dependency "cache" {
 }
 `), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(serviceDir, "main.tf"), []byte(""), 0644))
+}
+
+func generateSourceBasedFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "source-based", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create github-acme-foo with source github.com/acme/foo
+	githubAcmeFooDir := filepath.Join(rootDir, "github-acme-foo")
+	require.NoError(t, os.MkdirAll(githubAcmeFooDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeFooDir, "terragrunt.hcl"), []byte(`terraform {
+  source = "github.com/acme/foo"
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeFooDir, "main.tf"), []byte(""), 0644))
+
+	// Create github-acme-bar with source git::git@github.com:acme/bar
+	githubAcmeBarDir := filepath.Join(rootDir, "github-acme-bar")
+	require.NoError(t, os.MkdirAll(githubAcmeBarDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeBarDir, "terragrunt.hcl"), []byte(`terraform {
+  source = "git::git@github.com:acme/bar"
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeBarDir, "main.tf"), []byte(""), 0644))
+
+	// Create gitlab-example-baz with source gitlab.com/example/baz
+	gitlabExampleBazDir := filepath.Join(rootDir, "gitlab-example-baz")
+	require.NoError(t, os.MkdirAll(gitlabExampleBazDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(gitlabExampleBazDir, "terragrunt.hcl"), []byte(`terraform {
+  source = "gitlab.com/example/baz"
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(gitlabExampleBazDir, "main.tf"), []byte(""), 0644))
+
+	// Create local-module with source ./module
+	localModuleDir := filepath.Join(rootDir, "local-module")
+	require.NoError(t, os.MkdirAll(localModuleDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(localModuleDir, "terragrunt.hcl"), []byte(`terraform {
+  source = "./module"
+}
+`), 0644))
+	// Create the module directory with main.tf
+	moduleDir := filepath.Join(localModuleDir, "module")
+	require.NoError(t, os.MkdirAll(moduleDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main.tf"), []byte(""), 0644))
+
+	// Create other-unit with source s3://bucket/module (for non-matching examples)
+	otherUnitDir := filepath.Join(rootDir, "other-unit")
+	require.NoError(t, os.MkdirAll(otherUnitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(otherUnitDir, "terragrunt.hcl"), []byte(`terraform {
+  source = "s3://bucket/module"
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(otherUnitDir, "main.tf"), []byte(""), 0644))
 }
 
 // Helper functions to create Terragrunt configuration files
