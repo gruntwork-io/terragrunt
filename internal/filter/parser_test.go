@@ -1028,9 +1028,9 @@ func TestParser_GitFilterErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		expectError bool
 		name        string
 		input       string
+		expectError bool
 	}{
 		{
 			name:        "empty Git filter",

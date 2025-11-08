@@ -29,6 +29,7 @@ func gitAdd(t *testing.T, dir string, paths ...string) {
 // gitCommit creates a Git commit
 func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
 	t.Helper()
+
 	args := []string{"commit", "--no-gpg-sign", "-m", message}
 	args = append(args, extraArgs...)
 	cmd := exec.CommandContext(t.Context(), "git", args...)
@@ -46,6 +47,7 @@ func gitGetCurrentCommit(t *testing.T, dir string) string {
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	require.NoErrorf(t, err, "Error getting current commit: %v\n%s", err, string(output))
+
 	return strings.TrimSpace(string(output))
 }
 
@@ -1204,6 +1206,7 @@ locals {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Create discovery with filters
@@ -1214,6 +1217,7 @@ locals {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Cleanup worktrees after discovery

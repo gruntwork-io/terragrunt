@@ -2,7 +2,6 @@
 package discovery
 
 import (
-	"bytes"
 	"context"
 	stderrs "errors"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -415,6 +415,7 @@ func (d *Discovery) WithGitWorktrees(worktrees map[string]string) *Discovery {
 	}
 
 	maps.Copy(d.gitWorktrees, worktrees)
+
 	return d
 }
 
@@ -1275,8 +1276,7 @@ func (d *Discovery) Discover(
 		// Create Git worktrees if needed for Git-based filters
 		gitRefs := d.filters.RequiresGitReferences()
 		if len(gitRefs) > 0 {
-			worktreeErr := d.createGitWorktrees(ctx, l, opts)
-			if worktreeErr != nil {
+			if worktreeErr := d.createGitWorktrees(ctx, l); worktreeErr != nil {
 				errs = append(errs, worktreeErr)
 			}
 		}
@@ -1290,13 +1290,17 @@ func (d *Discovery) Discover(
 			}
 		}
 
-		var evaluateErr error
-		var filtered component.Components
+		var (
+			evaluateErr error
+			filtered    component.Components
+		)
+
 		if evalCtx != nil {
 			filtered, evaluateErr = d.filters.EvaluateWithContext(l, components, evalCtx)
 		} else {
 			filtered, evaluateErr = d.filters.Evaluate(l, components)
 		}
+
 		if evaluateErr != nil {
 			errs = append(errs, errors.New(evaluateErr))
 		}
@@ -1340,8 +1344,10 @@ func (d *Discovery) CleanupWorktrees(ctx context.Context, l log.Logger) error {
 	}
 
 	var errs []error
+
 	for ref, worktreePath := range d.gitWorktrees {
 		cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", worktreePath)
+
 		cmd.Dir = d.workingDir
 		if err := cmd.Run(); err != nil {
 			l.Debugf("Failed to remove Git worktree for %s: %v", ref, err)
@@ -1529,7 +1535,7 @@ func RemoveCycles(components component.Components) (component.Components, error)
 
 // createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
 // The worktrees are created in temporary directories and tracked in d.gitWorktrees.
-func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error {
 	gitRefs := d.filters.RequiresGitReferences()
 	if len(gitRefs) == 0 {
 		return nil
@@ -1539,35 +1545,63 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger, opts *
 		d.gitWorktrees = make(map[string]string)
 	}
 
+	gitRunner, err := git.NewGitRunner()
+	if err != nil {
+		return errors.New(err)
+	}
+
+	gitRunner = gitRunner.WithWorkDir(d.workingDir)
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(d.numWorkers)
+
+	var (
+		errs []error
+		mu   sync.Mutex
+	)
+
 	for _, ref := range gitRefs {
 		if _, exists := d.gitWorktrees[ref]; exists {
 			continue
 		}
 
-		tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
-		if err != nil {
-			return fmt.Errorf("failed to create temporary directory for worktree: %w", err)
-		}
+		g.Go(func() error {
+			tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
+			if err != nil {
+				mu.Lock()
 
-		cmd := exec.CommandContext(ctx, "git", "worktree", "add", "--detach", tempDir, ref)
-		cmd.Dir = d.workingDir
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
+				errs = append(errs, fmt.Errorf("failed to create temporary directory for worktree: %w", err))
 
-		if err := cmd.Run(); err != nil {
-			_ = os.RemoveAll(tempDir)
-			return fmt.Errorf(
-				"failed to create Git worktree for reference %s: %w (stderr: %s)",
-				ref,
-				err,
-				stderr.String(),
-			)
-		}
+				mu.Unlock()
 
-		d.gitWorktrees[ref] = tempDir
+				return nil
+			}
 
-		l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
+			err = gitRunner.CreateDetachedWorktree(ctx, tempDir, ref)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, fmt.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			d.gitWorktrees[ref] = tempDir
+
+			l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	return nil
@@ -1577,6 +1611,7 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger, opts *
 // It replaces invalid characters with underscores.
 func sanitizeRef(ref string) string {
 	result := strings.Builder{}
+
 	for _, r := range ref {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
 			result.WriteRune(r)

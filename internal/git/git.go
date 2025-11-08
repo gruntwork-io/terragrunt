@@ -1,3 +1,4 @@
+// Package git provides support for Git operations needed throughout the Terragrunt codebase.
 package git
 
 import (
@@ -20,10 +21,10 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
+	storage *memory.Storage
+
 	GitPath string
 	WorkDir string
-
-	storage *memory.Storage
 }
 
 // NewGitRunner creates a new GitRunner instance
@@ -203,13 +204,13 @@ func GetRepoName(repo string) string {
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
 // This eliminates the need for multiple separate ls-tree calls on subtrees
-func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string) (string, error) {
+func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return "", err
 	}
 
 	// Use recursive ls-tree to get all blobs in a single command
-	cmd := g.prepareCommand(ctx, "ls-tree", "-r", reference)
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", ref)
 	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
@@ -249,6 +250,32 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 		return &WrappedError{
 			Op:      "git_cat_file",
 			Context: context,
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return nil
+}
+
+// CreateDetachedWorktree creates a new detached worktree for a given reference
+// as a given directory
+func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "worktree", "add", "--detach", dir, ref)
+	cmd.Dir = g.WorkDir
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_create_detached_worktree",
+			Context: stderr.String(),
 			Err:     ErrCommandSpawn,
 		}
 	}

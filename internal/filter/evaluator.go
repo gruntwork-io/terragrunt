@@ -278,14 +278,16 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 
 // evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
 // It returns components that were added, removed, or changed between FromRef and ToRef.
-func evaluateGitFilter(l log.Logger, filter *GitFilter, components component.Components, ctx *EvaluationContext) (component.Components, error) {
+func evaluateGitFilter(_ log.Logger, filter *GitFilter, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if ctx == nil || ctx.WorkingDir == "" {
 		return nil, NewEvaluationError("Git filter requires evaluation context with working directory")
 	}
 
 	// Determine the "to" reference - use HEAD (current working directory) if ToRef is empty
-	var toRef string
-	var useCurrentDir bool
+	var (
+		toRef         string
+		useCurrentDir bool
+	)
 
 	if filter.ToRef == "" {
 		useCurrentDir = true
