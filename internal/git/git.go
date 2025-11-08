@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-git/go-git/v6/storage/memory"
 )
 
 const (
@@ -20,6 +22,8 @@ const (
 type GitRunner struct {
 	GitPath string
 	WorkDir string
+
+	storage *memory.Storage
 }
 
 // NewGitRunner creates a new GitRunner instance
@@ -33,7 +37,10 @@ func NewGitRunner() (*GitRunner, error) {
 		}
 	}
 
-	return &GitRunner{GitPath: gitPath}, nil
+	return &GitRunner{
+		GitPath: gitPath,
+		storage: memory.NewStorage(),
+	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
@@ -192,31 +199,6 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 func GetRepoName(repo string) string {
 	name := filepath.Base(repo)
 	return strings.TrimSuffix(name, ".git")
-}
-
-// LsTree runs git ls-tree and returns the parsed tree
-func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (string, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return "", err
-	}
-
-	cmd := g.prepareCommand(ctx, "ls-tree", reference)
-	cmd.Dir = g.WorkDir
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
-			Op:      "git_ls_tree",
-			Context: stderr.String(),
-			Err:     ErrReadTree,
-		}
-	}
-
-	return stdout.String(), nil
 }
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively

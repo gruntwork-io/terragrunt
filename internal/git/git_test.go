@@ -172,7 +172,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then try to ls-tree HEAD
-		tree, err := runner.LsTree(ctx, "HEAD", ".")
+		tree, err := runner.LsTreeRecursive(ctx, "HEAD", ".")
 		require.NoError(t, err)
 		require.NotEmpty(t, tree)
 	})
@@ -183,7 +183,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		_, err = runner.LsTree(ctx, "HEAD", ".")
+		_, err = runner.LsTreeRecursive(ctx, "HEAD", ".")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -204,7 +204,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to ls-tree an invalid reference
-		_, err = runner.LsTree(ctx, "nonexistent", ".")
+		_, err = runner.LsTreeRecursive(ctx, "nonexistent", ".")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -220,7 +220,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		runner = runner.WithWorkDir(t.TempDir())
 
 		// Try to ls-tree in an empty directory
-		_, err = runner.LsTree(ctx, "HEAD", ".")
+		_, err = runner.LsTreeRecursive(ctx, "HEAD", ".")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
