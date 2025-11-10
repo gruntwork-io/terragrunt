@@ -136,23 +136,9 @@ jobs:
             echo "Created: $binary.zip"
           done
 
-          # Create ZIP with all executables (preserving permissions)
-          zip -r ../terragrunt_all_platforms.zip terragrunt_* -x "*.zip"
-
           echo ""
-          echo "All platforms ZIP archive created:"
-          ls -lh ../terragrunt_all_platforms.zip
-
-          # Move ZIP to bin directory
-          mv ../terragrunt_all_platforms.zip .
-
-          echo ""
-          echo "All ZIP archives created:"
+          echo "All individual ZIP archives created:"
           ls -lh *.zip
-
-          echo ""
-          echo "Contents of all-platforms ZIP:"
-          unzip -l terragrunt_all_platforms.zip
 
       - name: Generate SHA256SUMS
         run: |
@@ -246,7 +232,7 @@ jobs:
 
           echo "Found $asset_count assets in release"
 
-          # Expected files (binaries + individual ZIPs + all-platforms ZIP + SHA256SUMS)
+          # Expected files (binaries + individual ZIPs + SHA256SUMS)
           expected_files=(
             # Individual binaries
             "terragrunt_darwin_amd64"
@@ -264,8 +250,6 @@ jobs:
             "terragrunt_linux_arm64.zip"
             "terragrunt_windows_386.exe.zip"
             "terragrunt_windows_amd64.exe.zip"
-            # All-platforms archive
-            "terragrunt_all_platforms.zip"
             # Checksums
             "SHA256SUMS"
           )
@@ -316,11 +300,11 @@ jobs:
 
           echo ""
           echo "All required assets verified!"
-          echo "Expected files: 16 (7 binaries + 7 individual ZIPs + all-platforms ZIP + SHA256SUMS)"
+          echo "Expected files: 15 (7 binaries + 7 individual ZIPs + SHA256SUMS)"
           echo "Actual files: $asset_count"
 
-          if [ "$asset_count" -lt 16 ]; then
-            echo "Warning: Expected 16 files, found $asset_count"
+          if [ "$asset_count" -lt 15 ]; then
+            echo "Warning: Expected 15 files, found $asset_count"
           fi
 
       - name: Upload summary
@@ -350,9 +334,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Archive Files**:" >> $GITHUB_STEP_SUMMARY
           echo "- Individual ZIP archives: 7 files (one per binary, with +x permissions)" >> $GITHUB_STEP_SUMMARY
-          echo "- **terragrunt_all_platforms.zip**: All executables in one archive (with +x permissions)" >> $GITHUB_STEP_SUMMARY
           echo "- **SHA256SUMS**: Checksums for all files" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Files**: 16 (7 binaries + 7 individual ZIPs + all-platforms ZIP + SHA256SUMS)" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Files**: 15 (7 binaries + 7 individual ZIPs + SHA256SUMS)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "All assets uploaded successfully to existing release!" >> $GITHUB_STEP_SUMMARY
