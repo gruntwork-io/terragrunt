@@ -12,10 +12,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
         with:
-          go-version-file: go.mod
+          version: 2025.8.16
+          experimental: true
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run go mod tidy
         run: go mod tidy
