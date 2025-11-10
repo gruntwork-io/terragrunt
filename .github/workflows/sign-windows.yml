@@ -3,12 +3,12 @@ name: Sign Windows Binaries
 on:
   workflow_call:
     inputs:
-      artifact-pattern:
+      artifact_pattern:
         description: 'Pattern for artifacts to download (default: terragrunt_windows_*)'
         required: false
         type: string
         default: 'terragrunt_windows_*'
-      upload-artifact-name:
+      upload_artifact_name:
         description: 'Name for the uploaded signed artifacts'
         required: false
         type: string
@@ -32,22 +32,13 @@ jobs:
       - name: Download Windows build artifacts
         uses: actions/download-artifact@v6
         with:
-          pattern: ${{ inputs.artifact-pattern }}
+          pattern: ${{ inputs.artifact_pattern }}
           path: artifacts/
           merge-multiple: true
 
       - name: Prepare build artifacts
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path bin
-          
-          Get-ChildItem -Path artifacts -Filter "terragrunt_windows_*" -Recurse -File |
-          ForEach-Object {
-            Copy-Item $_.FullName -Destination bin/
-          }
-
-          Write-Host "Binary files to sign:"
-          Get-ChildItem -Path bin | ForEach-Object { Write-Host $_.FullName }
+        run: .github/scripts/release/prepare-windows-artifacts.ps1 -ArtifactsDirectory artifacts -BinDirectory bin
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -56,152 +47,7 @@ jobs:
 
       - name: Install go-winres
         shell: pwsh
-        run: |
-          Write-Host "Installing go-winres..."
-          go install github.com/tc-hib/go-winres@latest
-
-          # Add Go bin to PATH
-          $goPath = & go env GOPATH
-          $goBinPath = Join-Path $goPath "bin"
-          $env:PATH = "$goBinPath;$env:PATH"
-
-          Write-Host "Verifying go-winres installation..."
-          & go-winres help
-
-      - name: Update winres.json with version info
-        shell: pwsh
-        run: |
-          # Get version from git ref
-          $rawVersion = $env:GITHUB_REF_NAME
-          if ([string]::IsNullOrEmpty($rawVersion) -or $rawVersion -eq "refs/heads/main") {
-            $rawVersion = "0.0.0-dev"
-          }
-
-          Write-Host "Raw version from git ref: $rawVersion"
-
-          # Parse version based on tag format
-          $version = ""
-          $major = "0"
-          $minor = "0"
-          $patch = "0"
-          $build = "0"
-
-          if ($rawVersion -match '^v(\d+)\.(\d+)\.(\d+)') {
-            # Standard version tag: v0.93.4
-            $major = $matches[1]
-            $minor = $matches[2]
-            $patch = $matches[3]
-            $version = "$major.$minor.$patch"
-            Write-Host "Detected standard version tag: v$version"
-          }
-          elseif ($rawVersion -match '^([a-zA-Z0-9_-]+)-(\d{4})(\d{2})(\d{2})(\d{2})') {
-            # Generic pre-release tag: <prefix>-YYYYMMDDNN
-            # Examples: beta-2025111001, alpha-2025110301, rc-2025120101, dev-2025110501
-            # Extract prefix and date components: prefix-YYYY-MM-DD-build
-            $prefix = $matches[1]
-            $year = $matches[2]
-            $month = $matches[3]
-            $day = $matches[4]
-            $buildNum = $matches[5]
-
-            # Windows FileVersion components are limited to 65535
-            # Use format: YYYY.MMDD.NN.0 (all components within limits)
-            $major = $year
-            $minor = "$month$day"
-            $patch = $buildNum
-            $version = "$prefix-$year$month$day$buildNum"
-            Write-Host "Detected pre-release tag: $version (Prefix: $prefix, FileVersion will be $year.$month$day.$buildNum.0)"
-          }
-          elseif ($rawVersion -match '^\d+\.\d+') {
-            # Version without 'v' prefix
-            $version = $rawVersion
-            $versionParts = $version.Split('.')
-            $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
-            $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
-            $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
-            Write-Host "Detected version without prefix: $version"
-          }
-          else {
-            # Branch name or dev version
-            $major = "0"
-            $minor = "0"
-            $patch = "0"
-            $version = "0.0.0-dev"
-            Write-Host "Using dev version: $version"
-          }
-
-          $fileVersion = "$major.$minor.$patch.0"
-          $copyrightYear = (Get-Date).Year
-
-          Write-Host "Final version: $version"
-          Write-Host "File version (for Windows): $fileVersion"
-          Write-Host ""
-
-          # Copy winres.json from .github/assets to current directory
-          Copy-Item ".github/assets/winres.json" "winres.json"
-          Write-Host "Copied winres.json from .github/assets/"
-
-          # Read winres.json
-          $winresConfig = Get-Content "winres.json" -Raw | ConvertFrom-Json
-
-          # Update version fields
-          $winresConfig.RT_VERSION.'#1'.'0409'.fixed.file_version = $fileVersion
-          $winresConfig.RT_VERSION.'#1'.'0409'.fixed.product_version = $fileVersion
-          $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.FileVersion = $version
-          $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.ProductVersion = $version
-          $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.LegalCopyright = "Copyright (C) $copyrightYear Gruntwork, Inc."
-          $winresConfig.RT_MANIFEST.'#1'.'0409'.assembly.identity.version = $fileVersion
-
-          # Write updated winres.json to current directory
-          $jsonOutput = $winresConfig | ConvertTo-Json -Depth 10 -Compress:$false
-          [System.IO.File]::WriteAllText("winres.json", $jsonOutput)
-
-          Write-Host "Updated winres.json:"
-          Get-Content winres.json
-
-          # Verify icon file exists
-          Write-Host ""
-          Write-Host "Verifying icon file..."
-          if (Test-Path ".github/assets/terragrunt.png") {
-            Write-Host "Icon file exists: .github/assets/terragrunt.png"
-            $iconInfo = Get-Item ".github/assets/terragrunt.png"
-            Write-Host "Icon size: $($iconInfo.Length) bytes"
-          } else {
-            Write-Error "Icon file not found: .github/assets/terragrunt.png"
-            exit 1
-          }
-
-      - name: Patch Windows binaries with resources
-        shell: pwsh
-        run: |
-          # Add Go bin to PATH
-          $goPath = & go env GOPATH
-          $goBinPath = Join-Path $goPath "bin"
-          $env:PATH = "$goBinPath;$env:PATH"
-
-          Write-Host "Patching Windows binaries with icon and version info..."
-
-          # Patch both Windows binaries
-          $binaries = @("bin\terragrunt_windows_386.exe", "bin\terragrunt_windows_amd64.exe")
-
-          foreach ($binary in $binaries) {
-            if (Test-Path $binary) {
-              Write-Host "Patching $binary..."
-              & go-winres patch --in winres.json $binary
-
-              if ($LASTEXITCODE -ne 0) {
-                Write-Error "Failed to patch $binary"
-                exit 1
-              }
-
-              Write-Host "Successfully patched $binary"
-            } else {
-              Write-Error "Binary not found: $binary"
-              exit 1
-            }
-          }
-
-          Write-Host "All Windows binaries patched with resources"
+        run: .github/scripts/release/install-go-winres.ps1
 
       # Install DigiCert smtools (smctl)
       - name: Install DigiCert smtools
@@ -212,139 +58,23 @@ jobs:
       # Verify smctl is available
       - name: Verify smctl installation
         shell: pwsh
-        run: |
-          Write-Host "Checking smctl installation..."
-
-          $smctlPath = Get-Command smctl.exe -ErrorAction SilentlyContinue
-          if (-not $smctlPath) {
-            Write-Error "smctl.exe not found in PATH"
-            exit 1
-          }
-
-          Write-Host "smctl found at: $($smctlPath.Source)"
-
-          Write-Host "Checking smctl version..."
-          & smctl.exe --version
-
-          Write-Host "smctl is ready"
+        run: .github/scripts/release/verify-smctl.ps1
 
       # Restore P12 client certificate and set SM_CLIENT_CERT_FILE
       - name: Restore P12 client certificate
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
+        run: .github/scripts/release/restore-p12-certificate.ps1 -Base64Certificate "${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}"
 
-          Write-Host "Restoring P12 client certificate from base64..."
-
-          $bytes = [Convert]::FromBase64String("${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}")
-          $path  = "$env:RUNNER_TEMP\sm_client_auth.p12"
-          [IO.File]::WriteAllBytes($path, $bytes)
-
-          if (Test-Path $path) {
-            Write-Host "Certificate file created: $path"
-            $fileInfo = Get-Item $path
-            Write-Host "   Size: $($fileInfo.Length) bytes"
-          } else {
-            Write-Error "Failed to create certificate file"
-            exit 1
-          }
-
-          echo "SM_CLIENT_CERT_FILE=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "SM_CLIENT_CERT_FILE set to: $path"
-
-      # Store credentials in Windows Credential Manager
-      - name: Save credentials to Windows Credential Manager
+      # Sign Windows binaries using external script
+      - name: Sign and patch Windows binaries
         shell: pwsh
-        run: |
-          Write-Host "Saving credentials to Windows Credential Manager..."
-
-          & smctl.exe credentials save $env:SM_API_KEY $env:SM_CLIENT_CERT_PASSWORD
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to save credentials"
-            exit 1
-          }
-
-          Write-Host "Credentials saved to Windows Credential Manager"
-
-      # Healthcheck against DigiCert
-      - name: Run smctl healthcheck
-        shell: pwsh
-        run: |
-          Write-Host "Running smctl healthcheck..."
-
-          & smctl.exe healthcheck
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Healthcheck failed (exit code: $LASTEXITCODE)"
-            Write-Warning "Continuing anyway - signing step will be the real test"
-          } else {
-            Write-Host "Healthcheck passed"
-          }
-
-      # Sync certificates from DigiCert KeyLocker to Windows certificate store
-      - name: Sync certificates to Windows store
-        shell: pwsh
-        run: |
-          Write-Host "Syncing certificates from DigiCert KeyLocker..."
-
-          & smctl.exe windows certsync --keypair-alias "$env:SM_KEYPAIR_ALIAS"
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Certificate sync failed"
-            exit 1
-          }
-
-          Write-Host "Certificates synced to Windows store"
-
-      # Sign binaries
-      - name: Sign Windows binaries
-        shell: pwsh
-        run: |
-          Write-Host "Signing Windows amd64 binary..."
-
-          # Only sign amd64 executable
-          $binary = Get-Item -Path "bin\terragrunt_windows_amd64.exe" -ErrorAction SilentlyContinue
-
-          if (-not $binary) {
-            Write-Error "Binary not found: bin\terragrunt_windows_amd64.exe"
-            exit 1
-          }
-
-          Write-Host "Signing: $($binary.Name)"
-
-          & smctl.exe sign `
-            --keypair-alias "$env:SM_KEYPAIR_ALIAS" `
-            --input "$($binary.FullName)" `
-            --simple `
-            --verbose
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Signing failed for $($binary.Name)"
-            exit 1
-          }
-
-          Write-Host "Successfully signed $($binary.Name)"
-
-      # Verify signatures
-      - name: Verify signatures
-        shell: pwsh
-        run: |
-          Write-Host "Verifying signature on signed binary..."
-
-          & smctl.exe sign verify --input "bin\terragrunt_windows_amd64.exe"
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Signature verification returned non-zero exit code (may be expected)"
-          } else {
-            Write-Host "Signature verified successfully"
-          }
+        run: .github/scripts/release/sign-windows.ps1 -BinDirectory bin
 
       # Upload Windows binaries (signed amd64 + unsigned 386)
       - name: Upload Windows Binaries
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ inputs.upload-artifact-name }}
+          name: ${{ inputs.upload_artifact_name }}
           path: |
             bin/terragrunt_windows_amd64.exe
             bin/terragrunt_windows_386.exe

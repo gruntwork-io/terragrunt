@@ -40,45 +40,14 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
           EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            VERSION="$INPUT_TAG"
-          else
-            VERSION="${GITHUB_REF#refs/tags/}"
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Release version: $VERSION"
+        run: .github/scripts/release/get-version.sh
 
       - name: Check if release exists
         id: check_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Checking if release exists for tag: $VERSION"
-
-          # Try to get the release using gh CLI
-          if ! gh release view "$VERSION" --json id,uploadUrl,isDraft > /dev/null 2>&1; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Release not found for tag $VERSION"
-            exit 1
-          fi
-
-          # Get release details
-          RELEASE_JSON=$(gh release view "$VERSION" --json id,uploadUrl,isDraft)
-          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
-          UPLOAD_URL=$(echo "$RELEASE_JSON" | jq -r '.uploadUrl')
-          IS_DRAFT=$(echo "$RELEASE_JSON" | jq -r '.isDraft')
-
-          echo "exists=true" >> "$GITHUB_OUTPUT"
-          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
-          echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
-          echo "is_draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
-
-          echo "Found existing release:"
-          echo "  Release ID: $RELEASE_ID"
-          echo "  Draft: $IS_DRAFT"
-          echo "  Upload URL: ${UPLOAD_URL%\{*}"
+        run: .github/scripts/release/check-release-exists.sh
 
       - name: Download pre-built signed binaries
         uses: actions/download-artifact@v6
@@ -104,208 +73,28 @@ jobs:
           echo "All binaries present"
 
       - name: Set execution permissions on binaries
-        run: |
-          cd bin
+        run: .github/scripts/release/set-permissions.sh bin
 
-          # Set execution permissions on all binaries
-          chmod +x terragrunt_darwin_amd64
-          chmod +x terragrunt_darwin_arm64
-          chmod +x terragrunt_linux_386
-          chmod +x terragrunt_linux_amd64
-          chmod +x terragrunt_linux_arm64
-          chmod +x terragrunt_windows_386.exe
-          chmod +x terragrunt_windows_amd64.exe
-
-          echo "Execution permissions set on all binaries"
-
-      - name: Create ZIP archives
-        run: |
-          cd bin
-
-          echo "Creating individual ZIP archives for each binary..."
-
-          # Create individual ZIP archives for each binary (preserving execute permissions)
-          for binary in terragrunt_*; do
-            # Skip if it's already a zip file
-            if [[ "$binary" == *.zip ]]; then
-              continue
-            fi
-
-            # Create zip with the binary
-            zip "$binary.zip" "$binary"
-            echo "Created: $binary.zip"
-          done
-
-          echo ""
-          echo "All individual ZIP archives created:"
-          ls -lh *.zip
+      - name: Create ZIP and TAR.GZ archives
+        run: .github/scripts/release/create-archives.sh bin
 
       - name: Generate SHA256SUMS
-        run: |
-          cd bin
-
-          # Generate checksums for all files including individual ZIPs and all-platforms ZIP
-          sha256sum terragrunt_* > SHA256SUMS
-
-          echo "SHA256SUMS generated:"
-          cat SHA256SUMS
-
-          echo ""
-          echo "Total files with checksums: $(wc -l < SHA256SUMS)"
+        run: .github/scripts/release/generate-checksums.sh bin
 
       - name: Verify signatures before upload
-        run: |
-          echo "Verifying required files..."
-
-          # Check macOS binaries
-          for file in terragrunt_darwin_amd64 terragrunt_darwin_arm64; do
-            if [ -f "bin/$file" ]; then
-              echo "$file present"
-            else
-              echo "$file missing"
-              exit 1
-            fi
-          done
-
-          # Check Windows binaries
-          for file in terragrunt_windows_amd64.exe terragrunt_windows_386.exe; do
-            if [ -f "bin/$file" ]; then
-              echo "$file present"
-            else
-              echo "$file missing"
-              exit 1
-            fi
-          done
-
-          # Check Linux binaries
-          for file in terragrunt_linux_386 terragrunt_linux_amd64 terragrunt_linux_arm64; do
-            if [ -f "bin/$file" ]; then
-              echo "$file present"
-            else
-              echo "$file missing"
-              exit 1
-            fi
-          done
-
-          # Check SHA256SUMS
-          if [ -f "bin/SHA256SUMS" ]; then
-            echo "SHA256SUMS present"
-          else
-            echo "SHA256SUMS missing"
-            exit 1
-          fi
-
-          echo "All required files verified"
+        run: .github/scripts/release/verify-files.sh bin
 
       - name: Upload assets to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Uploading assets to existing release $VERSION..."
-
-          # Upload all files using gh CLI
-          cd bin
-          for file in *; do
-            echo "Uploading $file..."
-            if gh release upload "$VERSION" "$file" --clobber; then
-              echo "Uploaded $file"
-            else
-              echo "Upload failed for $file (will retry in verification)"
-            fi
-          done
-
-          echo "Upload phase completed"
+        run: .github/scripts/release/upload-assets.sh bin
 
       - name: Verify all assets uploaded
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          MAX_RETRIES=10
-
-          echo "Verifying all assets are accessible..."
-
-          # Get list of assets in the release
-          ASSETS=$(gh release view "$VERSION" --json assets --jq '.assets[].name')
-          asset_count=$(echo "$ASSETS" | wc -l)
-
-          echo "Found $asset_count assets in release"
-
-          # Expected files (binaries + individual ZIPs + SHA256SUMS)
-          expected_files=(
-            # Individual binaries
-            "terragrunt_darwin_amd64"
-            "terragrunt_darwin_arm64"
-            "terragrunt_linux_386"
-            "terragrunt_linux_amd64"
-            "terragrunt_linux_arm64"
-            "terragrunt_windows_386.exe"
-            "terragrunt_windows_amd64.exe"
-            # Individual ZIP archives
-            "terragrunt_darwin_amd64.zip"
-            "terragrunt_darwin_arm64.zip"
-            "terragrunt_linux_386.zip"
-            "terragrunt_linux_amd64.zip"
-            "terragrunt_linux_arm64.zip"
-            "terragrunt_windows_386.exe.zip"
-            "terragrunt_windows_amd64.exe.zip"
-            # Checksums
-            "SHA256SUMS"
-          )
-
-          # Check each expected file
-          for expected_file in "${expected_files[@]}"; do
-            echo "Checking $expected_file..."
-
-            # Check if file exists in release
-            if ! echo "$ASSETS" | grep -q "^${expected_file}$"; then
-              echo "$expected_file not found in release, uploading..."
-
-              # Upload the missing file
-              if [ -f "bin/$expected_file" ]; then
-                for ((i=0; i<MAX_RETRIES; i++)); do
-                  if gh release upload "$VERSION" "bin/$expected_file" --clobber; then
-                    echo "Uploaded $expected_file"
-                    break
-                  else
-                    echo "Upload attempt $((i+1))/$MAX_RETRIES failed"
-                    sleep 5
-                  fi
-                done
-
-                if (( i == MAX_RETRIES )); then
-                  echo "Failed to upload $expected_file after $MAX_RETRIES retries"
-                  exit 1
-                fi
-              else
-                echo "File bin/$expected_file not found locally"
-                exit 1
-              fi
-            else
-              echo "$expected_file present"
-            fi
-          done
-
-          # Verify we can download assets (spot check)
-          echo ""
-          echo "Verifying asset downloads (spot check)..."
-          DOWNLOAD_URL=$(gh release view "$VERSION" --json assets --jq '.assets[0].url')
-
-          if curl -sILf "$DOWNLOAD_URL" > /dev/null; then
-            echo "Assets are downloadable"
-          else
-            echo "Warning: Could not verify asset download URL"
-          fi
-
-          echo ""
-          echo "All required assets verified!"
-          echo "Expected files: 15 (7 binaries + 7 individual ZIPs + SHA256SUMS)"
-          echo "Actual files: $asset_count"
-
-          if [ "$asset_count" -lt 15 ]; then
-            echo "Warning: Expected 15 files, found $asset_count"
-          fi
+        run: .github/scripts/release/verify-assets-uploaded.sh bin
 
       - name: Upload summary
         if: always()
@@ -316,9 +105,9 @@ jobs:
         run: |
           echo "## Release Asset Upload Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version**: $VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "**Release ID**: $RELEASE_ID" >> $GITHUB_STEP_SUMMARY
-          echo "**Was Draft**: $IS_DRAFT" >> $GITHUB_STEP_SUMMARY
+          printf '**Version**: %s\n' "$VERSION" >> $GITHUB_STEP_SUMMARY
+          printf '**Release ID**: %s\n' "$RELEASE_ID" >> $GITHUB_STEP_SUMMARY
+          printf '**Was Draft**: %s\n' "$IS_DRAFT" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Assets Uploaded" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -334,8 +123,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Archive Files**:" >> $GITHUB_STEP_SUMMARY
           echo "- Individual ZIP archives: 7 files (one per binary, with +x permissions)" >> $GITHUB_STEP_SUMMARY
+          echo "- Individual TAR.GZ archives: 7 files (one per binary, with +x permissions)" >> $GITHUB_STEP_SUMMARY
           echo "- **SHA256SUMS**: Checksums for all files" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Files**: 15 (7 binaries + 7 individual ZIPs + SHA256SUMS)" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Files**: 22 (7 binaries + 7 ZIPs + 7 TAR.GZ + SHA256SUMS)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "All assets uploaded successfully to existing release!" >> $GITHUB_STEP_SUMMARY

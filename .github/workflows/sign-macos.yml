@@ -45,11 +45,7 @@ jobs:
           path: artifacts/
 
       - name: Prepare build artifacts
-        run: |
-          mkdir -p bin
-          find artifacts -type f -exec cp {} bin/ \;
-          echo "Binary files to sign:"
-          ls -lahrt bin/*
+        run: .github/scripts/release/prepare-macos-artifacts.sh artifacts bin
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -66,19 +62,11 @@ jobs:
           path: gon
           key: gon-${{ env.GON_VERSION }}
 
-      - name: Download gon release
+      - name: Download and install gon
         if: steps.cache-gon.outputs.cache-hit != 'true'
-        run: |
-          curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
-          unzip gon.zip
-          chmod +x gon
+        run: .github/scripts/release/install-gon.sh ${{ env.GON_VERSION }}
 
-      - name: Move gon to system path
-        run: |
-          sudo mv gon /usr/local/bin/gon
-          sudo chmod +x /usr/local/bin/gon
-
-      - name: Run gon version
+      - name: Verify gon installation
         run: gon --version
 
       - name: Sign MacOS Binaries
@@ -88,23 +76,7 @@ jobs:
           AC_USERNAME: ${{ secrets.MACOS_AC_LOGIN }}
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          echo "Signing MacOS binaries..."
-          .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
-          .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
-          echo "Done signing the binaries"
-
-          # Unzip the signed binaries
-          unzip -o terragrunt_darwin_amd64.zip
-          mv terragrunt_darwin_amd64 bin/
-
-          unzip -o terragrunt_darwin_arm64.zip
-          mv terragrunt_darwin_arm64 bin/
-
-          # Verify signatures
-          echo "Verifying signatures..."
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
+        run: .github/scripts/release/sign-macos-binaries.sh bin
 
       - name: Upload Signed MacOS Binaries
         uses: actions/upload-artifact@v5

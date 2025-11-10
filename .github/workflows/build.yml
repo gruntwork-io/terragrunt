@@ -4,11 +4,11 @@ on:
   workflow_call:
 
 jobs:
-  detect-release:
+  detect_release:
     name: Detect if this is a release build
     runs-on: ubuntu-latest
     outputs:
-      is-release: ${{ steps.check.outputs.is-release }}
+      is_release: ${{ steps.check.outputs.is_release }}
     steps:
       - name: Check if release tag
         id: check
@@ -20,16 +20,16 @@ jobs:
           if [[ "$REF" =~ ^refs/tags/v.* ]] || \
              [[ "$REF" =~ ^refs/tags/alpha.* ]] || \
              [[ "$REF" =~ ^refs/tags/beta.* ]]; then
-            echo "is-release=true" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "This is a RELEASE build - signing will be enabled"
           else
-            echo "is-release=false" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
             echo "This is NOT a release build - signing will be skipped"
           fi
 
   build:
     name: Build (${{ matrix.os }}/${{ matrix.arch }})
-    needs: detect-release
+    needs: detect_release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -90,24 +90,24 @@ jobs:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
-  sign-macos:
+  sign_macos:
     name: Sign MacOS Binaries
-    if: ${{ needs.detect-release.outputs.is-release == 'true' }}
-    needs: [detect-release, build]
+    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    needs: [detect_release, build]
     uses: ./.github/workflows/sign-macos.yml
     secrets: inherit
 
-  sign-windows:
+  sign_windows:
     name: Sign Windows Binaries
-    if: ${{ needs.detect-release.outputs.is-release == 'true' }}
-    needs: [detect-release, build]
+    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    needs: [detect_release, build]
     uses: ./.github/workflows/sign-windows.yml
     secrets: inherit
 
-  merge-signed-binaries:
+  merge_signed_binaries:
     name: Merge All Signed Binaries
-    if: ${{ needs.detect-release.outputs.is-release == 'true' }}
-    needs: [detect-release, sign-macos, sign-windows]
+    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    needs: [detect_release, sign_macos, sign_windows]
     runs-on: ubuntu-latest
 
     steps:
