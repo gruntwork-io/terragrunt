@@ -69,81 +69,8 @@ jobs:
   sign-macos:
     name: Sign macOS Binaries
     needs: build
-    runs-on: macos-latest
-    env:
-      MISE_PROFILE: cicd
-      GON_VERSION: v0.0.37
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v6
-        with:
-          path: artifacts/
-
-      - name: Prepare build artifacts
-        run: |
-          mkdir -p bin
-          find artifacts -type f -exec cp {} bin/ \;
-          ls -lahrt bin/*
-
-      - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
-        with:
-          version: 2025.8.16
-          experimental: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache gon binary
-        id: cache-gon
-        uses: actions/cache@v4
-        with:
-          path: gon
-          key: gon-${{ env.GON_VERSION }}
-
-      - name: Download gon release
-        if: steps.cache-gon.outputs.cache-hit != 'true'
-        run: |
-          curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
-          unzip gon.zip
-          chmod +x gon
-
-      - name: Move gon to system path
-        run: |
-          sudo mv gon /usr/local/bin/gon
-          sudo chmod +x /usr/local/bin/gon
-
-      - name: Run gon version
-        run: |
-          gon --version
-
-      - name: Sign macOS Binaries
-        env:
-          AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
-          AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
-          AC_USERNAME: ${{ secrets.MACOS_AC_LOGIN }}
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          ls -lahrt bin/*
-          file bin/terragrunt_linux_arm64
-          .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
-          .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
-          echo "Done signing the binary"
-
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
-
-      - name: Upload Signed macOS Binaries
-        uses: actions/upload-artifact@v5
-        with:
-          name: macos-signed-files
-          path: |
-            bin/terragrunt_darwin_amd64
-            bin/terragrunt_darwin_arm64
+    uses: ./.github/workflows/sign-macos.yml
+    secrets: inherit
 
   sign-windows:
     name: Sign Windows Binaries

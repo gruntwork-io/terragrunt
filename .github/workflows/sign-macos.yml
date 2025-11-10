@@ -1,6 +1,18 @@
-name: Sign macOS Binaries
+name: Sign MacOS Binaries
 
 on:
+  workflow_dispatch:
+    inputs:
+      artifact-pattern:
+        description: 'Pattern for artifacts to download (default: terragrunt_darwin_*)'
+        required: false
+        type: string
+        default: 'terragrunt_darwin_*'
+      upload-artifact-name:
+        description: 'Name for the uploaded signed artifacts'
+        required: false
+        type: string
+        default: 'macos-signed-files'
   workflow_call:
     inputs:
       artifact-pattern:

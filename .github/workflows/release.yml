@@ -60,7 +60,7 @@ jobs:
           # Try to get the release using gh CLI
           if ! gh release view "$VERSION" --json id,uploadUrl,isDraft > /dev/null 2>&1; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "❌ Release not found for tag $VERSION"
+            echo "Release not found for tag $VERSION"
             exit 1
           fi
 
@@ -75,7 +75,7 @@ jobs:
           echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
           echo "is_draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
 
-          echo "✅ Found existing release:"
+          echo "Found existing release:"
           echo "  Release ID: $RELEASE_ID"
           echo "  Draft: $IS_DRAFT"
           echo "  Upload URL: ${UPLOAD_URL%\{*}"
@@ -101,12 +101,46 @@ jobs:
             exit 1
           fi
 
-          echo "✅ All binaries present"
+          echo "All binaries present"
+
+      - name: Set execution permissions on binaries
+        run: |
+          cd bin
+
+          # Set execution permissions on all binaries
+          chmod +x terragrunt_darwin_amd64
+          chmod +x terragrunt_darwin_arm64
+          chmod +x terragrunt_linux_386
+          chmod +x terragrunt_linux_amd64
+          chmod +x terragrunt_linux_arm64
+          chmod +x terragrunt_windows_386.exe
+          chmod +x terragrunt_windows_amd64.exe
+
+          echo "Execution permissions set on all binaries"
+
+      - name: Create ZIP archive with executables
+        run: |
+          cd bin
+
+          # Create ZIP with all executables (preserving permissions)
+          zip -r ../terragrunt_all_platforms.zip terragrunt_*
+
+          echo "ZIP archive created:"
+          ls -lh ../terragrunt_all_platforms.zip
+
+          # Move ZIP to bin directory
+          mv ../terragrunt_all_platforms.zip .
+
+          echo "Contents of ZIP:"
+          unzip -l terragrunt_all_platforms.zip
 
       - name: Generate SHA256SUMS
         run: |
           cd bin
-          sha256sum * > SHA256SUMS
+
+          # Generate checksums for all files including the ZIP
+          sha256sum terragrunt_* > SHA256SUMS
+
           echo "SHA256SUMS generated:"
           cat SHA256SUMS
 
@@ -117,9 +151,9 @@ jobs:
           # Check macOS binaries
           for file in terragrunt_darwin_amd64 terragrunt_darwin_arm64; do
             if [ -f "bin/$file" ]; then
-              echo "✅ $file present"
+              echo "$file present"
             else
-              echo "❌ $file missing"
+              echo "$file missing"
               exit 1
             fi
           done
@@ -127,9 +161,9 @@ jobs:
           # Check Windows binaries
           for file in terragrunt_windows_amd64.exe terragrunt_windows_386.exe; do
             if [ -f "bin/$file" ]; then
-              echo "✅ $file present"
+              echo "$file present"
             else
-              echo "❌ $file missing"
+              echo "$file missing"
               exit 1
             fi
           done
@@ -137,22 +171,22 @@ jobs:
           # Check Linux binaries
           for file in terragrunt_linux_386 terragrunt_linux_amd64 terragrunt_linux_arm64; do
             if [ -f "bin/$file" ]; then
-              echo "✅ $file present"
+              echo "$file present"
             else
-              echo "❌ $file missing"
+              echo "$file missing"
               exit 1
             fi
           done
 
           # Check SHA256SUMS
           if [ -f "bin/SHA256SUMS" ]; then
-            echo "✅ SHA256SUMS present"
+            echo "SHA256SUMS present"
           else
-            echo "❌ SHA256SUMS missing"
+            echo "SHA256SUMS missing"
             exit 1
           fi
 
-          echo "✅ All required files verified"
+          echo "All required files verified"
 
       - name: Upload assets to release
         env:
@@ -166,9 +200,9 @@ jobs:
           for file in *; do
             echo "Uploading $file..."
             if gh release upload "$VERSION" "$file" --clobber; then
-              echo "✅ Uploaded $file"
+              echo "Uploaded $file"
             else
-              echo "⚠️  Upload failed for $file (will retry in verification)"
+              echo "Upload failed for $file (will retry in verification)"
             fi
           done
 
@@ -199,6 +233,7 @@ jobs:
             "terragrunt_windows_386.exe"
             "terragrunt_windows_amd64.exe"
             "SHA256SUMS"
+            "terragrunt_all_platforms.zip"
           )
 
           # Check each expected file
@@ -207,30 +242,30 @@ jobs:
 
             # Check if file exists in release
             if ! echo "$ASSETS" | grep -q "^${expected_file}$"; then
-              echo "⚠️  $expected_file not found in release, uploading..."
+              echo "$expected_file not found in release, uploading..."
 
               # Upload the missing file
               if [ -f "bin/$expected_file" ]; then
                 for ((i=0; i<MAX_RETRIES; i++)); do
                   if gh release upload "$VERSION" "bin/$expected_file" --clobber; then
-                    echo "✅ Uploaded $expected_file"
+                    echo "Uploaded $expected_file"
                     break
                   else
-                    echo "⚠️  Upload attempt $((i+1))/$MAX_RETRIES failed"
+                    echo "Upload attempt $((i+1))/$MAX_RETRIES failed"
                     sleep 5
                   fi
                 done
 
                 if (( i == MAX_RETRIES )); then
-                  echo "❌ Failed to upload $expected_file after $MAX_RETRIES retries"
+                  echo "Failed to upload $expected_file after $MAX_RETRIES retries"
                   exit 1
                 fi
               else
-                echo "❌ File bin/$expected_file not found locally"
+                echo "File bin/$expected_file not found locally"
                 exit 1
               fi
             else
-              echo "✅ $expected_file present"
+              echo "$expected_file present"
             fi
           done
 
@@ -240,18 +275,18 @@ jobs:
           DOWNLOAD_URL=$(gh release view "$VERSION" --json assets --jq '.assets[0].url')
 
           if curl -sILf "$DOWNLOAD_URL" > /dev/null; then
-            echo "✅ Assets are downloadable"
+            echo "Assets are downloadable"
           else
-            echo "⚠️  Warning: Could not verify asset download URL"
+            echo "Warning: Could not verify asset download URL"
           fi
 
           echo ""
-          echo "✅ All required assets verified!"
-          echo "Expected files: 8 (7 binaries + SHA256SUMS)"
+          echo "All required assets verified!"
+          echo "Expected files: 9 (7 binaries + SHA256SUMS + ZIP archive)"
           echo "Actual files: $asset_count"
 
           if [ "$asset_count" -lt 8 ]; then
-            echo "⚠️  Warning: Expected 8 files, found $asset_count"
+            echo "Warning: Expected 8 files, found $asset_count"
           fi
 
       - name: Upload summary
@@ -271,16 +306,18 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Platform | Architecture | Signed | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| macOS    | amd64        | ✅ Yes | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| macOS    | arm64        | ✅ Yes | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux    | 386          | No     | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux    | amd64        | No     | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux    | arm64        | No     | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows  | 386          | ✅ Yes | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows  | amd64        | ✅ Yes | ✅ Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS    | amd64        | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS    | arm64        | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linux    | 386          | No     | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linux    | amd64        | No     | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linux    | arm64        | No     | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows  | 386          | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows  | amd64        | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**SHA256SUMS**: ✅ Uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "**Additional Files**:" >> $GITHUB_STEP_SUMMARY
+          echo "- **SHA256SUMS**: Uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "- **terragrunt_all_platforms.zip**: Uploaded (all executables with +x permissions)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Files**: 8" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Files**: 9 (7 binaries + SHA256SUMS + ZIP)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 All assets uploaded successfully to existing release!" >> $GITHUB_STEP_SUMMARY
+          echo "All assets uploaded successfully to existing release!" >> $GITHUB_STEP_SUMMARY
