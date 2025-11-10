@@ -93,33 +93,15 @@ jobs:
 
           Write-Host "Generating version info for: $version (FileVersion: $fileVersion)"
 
-          # Update versioninfo.json (preserves IconPath and other fields)
-          $versionInfo = Get-Content versioninfo.json -Raw | ConvertFrom-Json
+          # Update versioninfo.json
+          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
           $versionInfo.StringFileInfo.FileVersion = $fileVersion
           $versionInfo.StringFileInfo.ProductVersion = $version
           $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
+          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
 
-          # Save with proper formatting (preserves all existing fields including IconPath)
-          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json -Encoding UTF8
-
-          # Verify IconPath is still present
-          $savedInfo = Get-Content versioninfo.json -Raw | ConvertFrom-Json
-          if ($savedInfo.IconPath) {
-            Write-Host "IconPath preserved: $($savedInfo.IconPath)"
-          } else {
-            Write-Warning "IconPath was lost during update"
-          }
-
-          # Generate resource file (includes icon if IconPath is set)
-          Write-Host "Generating resource file with icon..."
+          # Generate resource file
           goversioninfo -o=rsrc.syso versioninfo.json
-
-          if (Test-Path rsrc.syso) {
-            Write-Host "Resource file generated: rsrc.syso"
-          } else {
-            Write-Error "Failed to generate resource file"
-            exit 1
-          }
 
           # Rebuild Windows binaries with metadata
           $architectures = @("386", "amd64")
