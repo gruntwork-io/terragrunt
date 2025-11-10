@@ -55,7 +55,7 @@ func (t *Tree) Data() []byte {
 	return t.data
 }
 
-// ParseTree parses the complete output of git ls-tree
+// ParseTree parses the stdout of git ls-tree [-r] into a Tree object.
 func ParseTree(output []byte, path string) (*Tree, error) {
 	entries := make([]TreeEntry, 0, bytes.Count(output, []byte("\n"))+1)
 

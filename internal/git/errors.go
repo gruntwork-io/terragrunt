@@ -22,6 +22,8 @@ const (
 	ErrReadFile Error = "failed to read file"
 	// ErrParseTree is returned when failing to parse git tree output
 	ErrParseTree Error = "failed to parse git tree output"
+	// ErrParseDiff is returned when failing to parse git diff output
+	ErrParseDiff Error = "failed to parse git diff output"
 	// ErrGitClone is returned when the git clone operation fails
 	ErrGitClone Error = "failed to complete git clone"
 	// ErrCreateTempDir is returned when failing to create a temporary directory

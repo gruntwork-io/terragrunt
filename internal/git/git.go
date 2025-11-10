@@ -295,6 +295,31 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 	return nil
 }
 
+// Diff determines the diff between two Git references.
+func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	cmd := g.prepareCommand(ctx, "diff", "--name-status", "--no-renames", fromRef, toRef)
+	cmd.Dir = g.WorkDir
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_diff",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return ParseDiff(stdout.Bytes())
+}
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 }
