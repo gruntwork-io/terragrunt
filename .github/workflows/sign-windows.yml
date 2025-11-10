@@ -144,7 +144,7 @@ jobs:
           foreach ($binary in $binaries) {
             if (Test-Path $binary) {
               Write-Host "Patching $binary..."
-              & go-winres patch --in $binary --config winres.json
+              & go-winres patch --in winres.json $binary
 
               if ($LASTEXITCODE -ne 0) {
                 Write-Error "Failed to patch $binary"
