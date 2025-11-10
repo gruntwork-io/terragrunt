@@ -23,6 +23,8 @@ jobs:
   build-and-sign:
     name: Build and Sign All Binaries
     uses: ./.github/workflows/build.yml
+    with:
+      skip-signing: false
     secrets: inherit
 
   # Upload binaries to existing GitHub release

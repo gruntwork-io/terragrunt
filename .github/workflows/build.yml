@@ -2,6 +2,12 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      skip-signing:
+        description: 'Skip code signing (use for non-release builds)'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -68,18 +74,21 @@ jobs:
 
   sign-macos:
     name: Sign macOS Binaries
+    if: ${{ !inputs.skip-signing }}
     needs: build
     uses: ./.github/workflows/sign-macos.yml
     secrets: inherit
 
   sign-windows:
     name: Sign Windows Binaries
+    if: ${{ !inputs.skip-signing }}
     needs: build
     uses: ./.github/workflows/sign-windows.yml
     secrets: inherit
 
   merge-signed-binaries:
     name: Merge All Signed Binaries
+    if: ${{ !inputs.skip-signing }}
     needs: [sign-macos, sign-windows]
     runs-on: ubuntu-latest
 
