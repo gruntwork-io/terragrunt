@@ -195,12 +195,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	b.Run("cat-file", func(b *testing.B) {
 		// First get a valid hash
-		out, err := g.LsTreeRecursive(ctx, "HEAD", ".")
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		tree, err := git.ParseTree(out, ".")
+		tree, err := g.LsTreeRecursive(ctx, "HEAD", ".")
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -142,7 +142,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 			return err
 		}
 
-		tree, err := git.ParseTree(string(treeData), targetDir)
+		tree, err := git.ParseTree(treeData, targetDir)
 		if err != nil {
 			return err
 		}
@@ -186,12 +186,7 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *Clon
 }
 
 func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
-	out, err := c.git.LsTreeRecursive(ctx, hash, ".")
-	if err != nil {
-		return err
-	}
-
-	tree, err := git.ParseTree(out, ".")
+	tree, err := c.git.LsTreeRecursive(ctx, hash, ".")
 	if err != nil {
 		return err
 	}

@@ -211,9 +211,9 @@ func GetRepoName(repo string) string {
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
 // This eliminates the need for multiple separate ls-tree calls on subtrees
-func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (string, error) {
+func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (*Tree, error) {
 	if err := g.RequiresWorkDir(); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Use recursive ls-tree to get all blobs in a single command
@@ -226,14 +226,19 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (stri
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
+		return nil, &WrappedError{
 			Op:      "git_ls_tree_recursive",
 			Context: stderr.String(),
 			Err:     ErrReadTree,
 		}
 	}
 
-	return stdout.String(), nil
+	tree, err := ParseTree(stdout.Bytes(), path)
+	if err != nil {
+		return nil, err
+	}
+
+	return tree, nil
 }
 
 // CatFile writes the contents of a git object

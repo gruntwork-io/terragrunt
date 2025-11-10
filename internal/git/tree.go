@@ -2,6 +2,7 @@ package git
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -55,13 +56,10 @@ func (t *Tree) Data() []byte {
 }
 
 // ParseTree parses the complete output of git ls-tree
-func ParseTree(output, path string) (*Tree, error) {
-	// Pre-allocate capacity based on newline count
-	capacity := strings.Count(output, "\n") + 1
-	entries := make([]TreeEntry, 0, capacity)
+func ParseTree(output []byte, path string) (*Tree, error) {
+	entries := make([]TreeEntry, 0, bytes.Count(output, []byte("\n"))+1)
 
-	// Use a scanner for more efficient line reading
-	scanner := bufio.NewScanner(strings.NewReader(output))
+	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {

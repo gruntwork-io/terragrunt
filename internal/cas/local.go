@@ -28,7 +28,7 @@ func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, 
 	}
 
 	// Parse the tree data and link to target directory
-	tree, err := git.ParseTree(string(treeData), targetDir)
+	tree, err := git.ParseTree(treeData, targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}

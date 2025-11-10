@@ -34,10 +34,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			str, err := g.LsTreeRecursive(ctx, "HEAD", ".")
-			require.NoError(b, err)
-
-			_, err = git.ParseTree(str, ".")
+			_, err := g.LsTreeRecursive(ctx, "HEAD", ".")
 			require.NoError(b, err)
 		}
 	})

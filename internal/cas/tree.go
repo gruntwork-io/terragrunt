@@ -85,7 +85,7 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 					return wrapError("read_tree", work.entry.Hash, err)
 				}
 
-				subTree, err := git.ParseTree(string(treeData), work.path)
+				subTree, err := git.ParseTree(treeData, work.path)
 				if err != nil {
 					return wrapError("parse_tree", work.entry.Hash, err)
 				}

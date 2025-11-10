@@ -88,7 +88,7 @@ func TestParseTree(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    string
+		input    []byte
 		path     string
 		wantPath string
 		wantLen  int
@@ -96,24 +96,24 @@ func TestParseTree(t *testing.T) {
 	}{
 		{
 			name: "multiple entries",
-			input: `100644 blob a1b2c3d4 README.md
+			input: []byte(`100644 blob a1b2c3d4 README.md
 100755 blob e5f6g7h8 scripts/test.sh
-040000 tree i9j0k1l2 src`,
+040000 tree i9j0k1l2 src`),
 			path:     "test-repo",
 			wantLen:  3,
 			wantPath: "test-repo",
 		},
 		{
 			name:     "empty input",
-			input:    "",
+			input:    []byte(""),
 			path:     "empty-repo",
 			wantLen:  0,
 			wantPath: "empty-repo",
 		},
 		{
 			name: "invalid entry",
-			input: `100644 blob a1b2c3d4 README.md
-invalid format`,
+			input: []byte(`100644 blob a1b2c3d4 README.md
+invalid format`),
 			path:    "invalid-repo",
 			wantErr: true,
 		},
@@ -142,7 +142,7 @@ func TestLinkTree(t *testing.T) {
 	tests := []struct {
 		name       string
 		setupStore func(t *testing.T) (*cas.Store, string)
-		treeData   string
+		treeData   []byte
 		wantFiles  []struct {
 			path    string
 			hash    string
@@ -174,9 +174,9 @@ func TestLinkTree(t *testing.T) {
 
 				return store, testHash
 			},
-			treeData: `100644 blob a1b2c3d4 README.md
+			treeData: []byte(`100644 blob a1b2c3d4 README.md
 100755 blob a1b2c3d4 scripts/test.sh
-040000 tree i9j0k1l2 src`,
+040000 tree i9j0k1l2 src`),
 			wantFiles: []struct {
 				path    string
 				hash    string
@@ -216,7 +216,7 @@ func TestLinkTree(t *testing.T) {
 				store := cas.NewStore(storeDir)
 				return store, ""
 			},
-			treeData: "",
+			treeData: []byte(""),
 			wantFiles: []struct {
 				path    string
 				hash    string
@@ -233,7 +233,7 @@ func TestLinkTree(t *testing.T) {
 				store := cas.NewStore(storeDir)
 				return store, ""
 			},
-			treeData: `100644 blob missing123 README.md`,
+			treeData: []byte(`100644 blob missing123 README.md`),
 			wantErr:  true,
 		},
 	}

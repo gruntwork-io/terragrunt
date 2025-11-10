@@ -143,7 +143,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse the tree data to confirm it's valid
-		tree, err := git.ParseTree(string(treeData), "")
+		tree, err := git.ParseTree(treeData, "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
 	})
