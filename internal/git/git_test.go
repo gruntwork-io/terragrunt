@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -254,4 +255,20 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 		require.ErrorAs(t, err, &wrappedErr)
 		assert.ErrorIs(t, wrappedErr.Err, git.ErrNoWorkDir)
 	})
+}
+
+func TestGitRunner_GoLsTreeRecursive(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+	runner = runner.WithWorkDir(t.TempDir())
+	err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
+	require.NoError(t, err)
+	tree, err := runner.GoLsTreeRecursive("HEAD", ".")
+	require.NoError(t, err)
+	require.NotEmpty(t, tree)
+	fmt.Println(tree)
 }

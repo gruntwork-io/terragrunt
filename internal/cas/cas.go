@@ -143,12 +143,12 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 			return err
 		}
 
-		tree, err := ParseTree(string(treeData), targetDir)
+		tree, err := git.ParseTree(string(treeData), targetDir)
 		if err != nil {
 			return err
 		}
 
-		return tree.LinkTree(childCtx, c.store, targetDir)
+		return LinkTree(childCtx, c.store, tree, targetDir)
 	})
 }
 
@@ -192,7 +192,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 		return err
 	}
 
-	tree, err := ParseTree(out, ".")
+	tree, err := git.ParseTree(out, ".")
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 }
 
 // storeTreeRecursive stores a tree fetched from git ls-tree -r
-func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *Tree) error {
+func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *git.Tree) error {
 	if !c.store.NeedsWrite(hash) {
 		return nil
 	}
@@ -264,7 +264,7 @@ func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string,
 }
 
 // storeBlobs stores blobs in the CAS
-func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
+func (c *CAS) storeBlobs(ctx context.Context, entries []git.TreeEntry) error {
 	for _, entry := range entries {
 		if !c.store.NeedsWrite(entry.Hash) {
 			continue

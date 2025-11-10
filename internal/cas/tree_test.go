@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,13 +17,13 @@ func TestParseTreeEntry(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    cas.TreeEntry
+		want    git.TreeEntry
 		wantErr bool
 	}{
 		{
 			name:  "regular file",
 			input: "100644 blob a1b2c3d4 README.md",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "100644",
 				Type: "blob",
 				Hash: "a1b2c3d4",
@@ -32,7 +33,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "executable file",
 			input: "100755 blob e5f6g7h8 scripts/test.sh",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "100755",
 				Type: "blob",
 				Hash: "e5f6g7h8",
@@ -42,7 +43,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "directory",
 			input: "040000 tree i9j0k1l2 src",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "040000",
 				Type: "tree",
 				Hash: "i9j0k1l2",
@@ -52,7 +53,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "path with spaces",
 			input: "100644 blob m3n4o5p6 path with spaces.txt",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "100644",
 				Type: "blob",
 				Hash: "m3n4o5p6",
@@ -70,7 +71,7 @@ func TestParseTreeEntry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cas.ParseTreeEntry(tt.input)
+			got, err := git.ParseTreeEntry(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -122,7 +123,7 @@ invalid format`,
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cas.ParseTree(tt.input, tt.path)
+			got, err := git.ParseTree(tt.input, tt.path)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -245,14 +246,14 @@ func TestLinkTree(t *testing.T) {
 			store, _ := tt.setupStore(t)
 
 			// Parse the tree
-			tree, err := cas.ParseTree(tt.treeData, "test-repo")
+			tree, err := git.ParseTree(tt.treeData, "test-repo")
 			require.NoError(t, err)
 
 			// Create target directory
 			targetDir := t.TempDir()
 
 			// Link the tree
-			err = tree.LinkTree(t.Context(), store, targetDir)
+			err = cas.LinkTree(t.Context(), store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

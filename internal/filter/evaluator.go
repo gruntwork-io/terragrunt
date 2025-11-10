@@ -318,6 +318,7 @@ func evaluateGitFilter(_ log.Logger, filter *GitFilter, components component.Com
 
 	// Filter components based on changed files
 	var result component.Components
+
 	for _, comp := range components {
 		compPath := comp.Path()
 
@@ -326,6 +327,7 @@ func evaluateGitFilter(_ log.Logger, filter *GitFilter, components component.Com
 		if !filepath.IsAbs(normalizedCompPath) && ctx.WorkingDir != "" {
 			normalizedCompPath = filepath.Join(ctx.WorkingDir, normalizedCompPath)
 		}
+
 		normalizedCompPath = filepath.ToSlash(filepath.Clean(normalizedCompPath))
 
 		// Check if the component's directory or any of its config files are in the changed set
@@ -354,6 +356,7 @@ func getChangedFilesBetweenRefs(fromRef, toRef string, useCurrentDir bool, worki
 	}
 
 	cmd.Dir = workingDir
+
 	output, err := cmd.Output()
 	if err != nil {
 		// If the command fails, return the error
@@ -362,7 +365,9 @@ func getChangedFilesBetweenRefs(fromRef, toRef string, useCurrentDir bool, worki
 
 	// Parse output into file list
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
 	var files []string
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line != "" {
@@ -380,6 +385,7 @@ func getChangedFilesBetweenRefs(fromRef, toRef string, useCurrentDir bool, worki
 func isComponentChanged(compPath, normalizedCompPath string, changedSet map[string]struct{}, workingDir string) bool {
 	// Get relative path of component from working directory for comparison with git diff output
 	var relCompPath string
+
 	if filepath.IsAbs(normalizedCompPath) && workingDir != "" {
 		relPath, err := filepath.Rel(workingDir, normalizedCompPath)
 		if err == nil {

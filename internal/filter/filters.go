@@ -212,6 +212,7 @@ func collectGitReferences(expr Expression) []string {
 		if gitFilter.ToRef != "" {
 			refs = append(refs, gitFilter.ToRef)
 		}
+
 		return refs
 	}
 
@@ -222,6 +223,7 @@ func collectGitReferences(expr Expression) []string {
 	case *InfixExpression:
 		leftRefs := collectGitReferences(node.Left)
 		rightRefs := collectGitReferences(node.Right)
+
 		return append(leftRefs, rightRefs...)
 	case *GraphExpression:
 		// Git filters can be nested inside graph expressions
@@ -281,6 +283,7 @@ func (f Filters) EvaluateWithContext(l log.Logger, components component.Componen
 		} else {
 			result, err = filter.Evaluate(l, combined)
 		}
+
 		if err != nil {
 			return nil, err
 		}
@@ -319,13 +322,17 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		var result component.Components
-		var err error
+		var (
+			result component.Components
+			err    error
+		)
+
 		if ctx != nil {
 			result, err = filter.EvaluateWithContext(l, components, ctx)
 		} else {
 			result, err = filter.Evaluate(l, components)
 		}
+
 		if err != nil {
 			return nil, err
 		}

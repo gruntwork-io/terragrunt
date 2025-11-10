@@ -122,11 +122,11 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get the commit hash
-		git, err := git.NewGitRunner()
+		g, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		git = git.WithWorkDir(filepath.Join(tempDir, "repo"))
-		results, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		g = g.WithWorkDir(filepath.Join(tempDir, "repo"))
+		results, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
@@ -143,7 +143,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse the tree data to confirm it's valid
-		tree, err := cas.ParseTree(string(treeData), "")
+		tree, err := git.ParseTree(string(treeData), "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
 	})

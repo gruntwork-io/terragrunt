@@ -275,6 +275,7 @@ func (g *GitFilter) String() string {
 	if g.ToRef == "" {
 		return "[" + g.FromRef + "]"
 	}
+
 	return "[" + g.FromRef + "..." + g.ToRef + "]"
 }
 func (g *GitFilter) RequiresDiscovery() (Expression, bool) {

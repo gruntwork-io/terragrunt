@@ -200,7 +200,7 @@ func BenchmarkGitOperations(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		tree, err := cas.ParseTree(out, ".")
+		tree, err := git.ParseTree(out, ".")
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -27,12 +28,12 @@ func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, 
 	}
 
 	// Parse the tree data and link to target directory
-	tree, err := ParseTree(string(treeData), targetDir)
+	tree, err := git.ParseTree(string(treeData), targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}
 
-	return tree.LinkTree(ctx, c.store, targetDir)
+	return LinkTree(ctx, c.store, tree, targetDir)
 }
 
 // hashDirectory creates a synthetic hash and tree structure for a local directory
