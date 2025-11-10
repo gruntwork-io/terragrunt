@@ -1549,6 +1549,27 @@ func TestBestEffortParseConfigString(t *testing.T) {
 	}
 }
 
+func TestParseConfigWithMissingIfExists(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path     = "test.tf"
+  contents = "foo"
+}`
+
+	l := createLogger()
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	errStr := err.Error()
+	hasIfExistsError := strings.Contains(errStr, "if_exists")
+	hasGenerateError := strings.Contains(errStr, "generate") || strings.Contains(errStr, "Missing required argument")
+	assert.True(t, hasIfExistsError || hasGenerateError, "Error message should mention missing if_exists attribute or generate block. Got: %s", errStr)
+	assert.NotNil(t, terragruntConfig)
+}
+
 func TestBestEffortParseConfigStringWDependency(t *testing.T) {
 	t.Parallel()
 

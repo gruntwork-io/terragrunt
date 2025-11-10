@@ -314,6 +314,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 	generateNegationFixture(t, tmpDir)
 	generateIntersectionFixture(t, tmpDir)
 	generateReadingFixture(t, tmpDir)
+	generateGraphBasedFixture(t, tmpDir)
 
 	testCases := []struct {
 		name           string
@@ -385,7 +386,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "attribute-based-external-true",
 			fixtureDir:     "attribute-based",
-			filterQuery:    "external=true",
+			filterQuery:    "*... | external=true",
 			expectedOutput: "../dependencies/dependency-of-app1\n",
 			extraFlags:     "--dependencies --external",
 		},
@@ -464,8 +465,52 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "reading-intersection",
 			fixtureDir:     "reading",
-			filterQuery:    "./apps/**|reading=shared.hcl", // Our testing arg parsing is busted. Don't put whitespace between these.
+			filterQuery:    "./apps/** | reading=shared.hcl",
 			expectedOutput: "apps/app1\napps/app2\n",
+		},
+
+		// Graph-based filtering
+		{
+			name:           "graph-dependency-traversal",
+			fixtureDir:     "graph-based",
+			filterQuery:    "service...",
+			expectedOutput: "cache\ndb\nservice\nvpc\n",
+		},
+		{
+			name:           "graph-dependent-traversal",
+			fixtureDir:     "graph-based",
+			filterQuery:    "...vpc",
+			expectedOutput: "cache\ndb\nservice\nvpc\n",
+		},
+		{
+			name:           "graph-both-directions",
+			fixtureDir:     "graph-based",
+			filterQuery:    "...db...",
+			expectedOutput: "db\nservice\nvpc\n",
+		},
+		{
+			name:           "graph-exclude-target",
+			fixtureDir:     "graph-based",
+			filterQuery:    "^service...",
+			expectedOutput: "cache\ndb\nvpc\n",
+		},
+		{
+			name:           "graph-with-path-filter",
+			fixtureDir:     "graph-based",
+			filterQuery:    "{./service}...",
+			expectedOutput: "cache\ndb\nservice\nvpc\n",
+		},
+		{
+			name:           "graph-with-attribute-filter",
+			fixtureDir:     "graph-based",
+			filterQuery:    "...name=vpc",
+			expectedOutput: "cache\ndb\nservice\nvpc\n",
+		},
+		{
+			name:           "graph-with-intersection",
+			fixtureDir:     "graph-based",
+			filterQuery:    "service... | !^db...",
+			expectedOutput: "cache\ndb\nservice\n",
 		},
 	}
 
@@ -473,12 +518,6 @@ func TestFilterDocumentationExamples(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			if tc.name != "intersection-by-path-and-attribute" {
-				t.Skip("Skipping test case - not supported yet")
-
-				return
-			}
 
 			fixturePath := filepath.Join(tmpDir, tc.fixtureDir)
 			workingDir := filepath.Join(fixturePath, "root")
@@ -752,6 +791,46 @@ terraform {
 	// Create libs/lib1 - doesn't read any files
 	lib1Dir := filepath.Join(rootDir, "libs", "lib1")
 	createTerragruntUnit(t, lib1Dir)
+}
+
+func generateGraphBasedFixture(t *testing.T, baseDir string) {
+	rootDir := filepath.Join(baseDir, "graph-based", "root")
+	require.NoError(t, os.MkdirAll(rootDir, 0755))
+
+	// Create a dependency graph:
+	// vpc (no dependencies)
+	// db -> vpc
+	// cache -> vpc
+	// service -> db, cache
+
+	// Create vpc (base dependency)
+	vpcDir := filepath.Join(rootDir, "vpc")
+	createTerragruntUnit(t, vpcDir)
+
+	// Create db (depends on vpc)
+	dbDir := filepath.Join(rootDir, "db")
+	createTerragruntUnitWithDependency(t, dbDir, "../vpc")
+
+	// Create cache (depends on vpc)
+	cacheDir := filepath.Join(rootDir, "cache")
+	createTerragruntUnitWithDependency(t, cacheDir, "../vpc")
+
+	// Create service (depends on db and cache)
+	serviceDir := filepath.Join(rootDir, "service")
+	require.NoError(t, os.MkdirAll(serviceDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(serviceDir, "terragrunt.hcl"), []byte(`terraform {
+	source = "."
+}
+
+dependency "db" {
+	config_path = "../db"
+}
+
+dependency "cache" {
+	config_path = "../cache"
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(serviceDir, "main.tf"), []byte(""), 0644))
 }
 
 // Helper functions to create Terragrunt configuration files

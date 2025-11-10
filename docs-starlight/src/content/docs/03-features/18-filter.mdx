@@ -153,8 +153,8 @@ terragrunt find --filter 'type=unit'
 terragrunt find --filter 'type=stack'
 
 # Filter by external dependency status
-terragrunt find --dependencies --external --filter 'external=false'
-terragrunt find --dependencies --external --filter 'external=true'
+terragrunt find --dependencies --external --filter '*... | external=false'
+terragrunt find --dependencies --external --filter '*... | external=true'
 
 # Explicitly filter by name (useful for explicitly indicating that an expression is for a name if ambiguous)
 terragrunt find --filter 'name=stack*'
@@ -249,6 +249,125 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
     - stack2
       - terragrunt.stack.hcl
 </FileTree>
+
+### Graph-Based Filtering
+
+Filter units and stacks based on their dependency relationships using graph traversal operators. This allows you to find components that depend on a target, or components that a target depends on.
+
+Graph-based filtering uses the ellipsis (`...`) operator to indicate graph traversal direction and the caret (`^`) operator to exclude the target from results.
+
+#### Include Dependencies
+
+Use `foo...` to include the target and all of its dependencies:
+
+```bash
+# Find 'service' and everything it depends on
+terragrunt find --filter 'service...'
+```
+
+<FileTree>
+- .
+  - **service** \<-- Matched (target)
+    - terragrunt.hcl (depends on: db, cache, vpc)
+  - **db** \<-- Matched (dependency of service)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (dependency of service)
+    - terragrunt.hcl (depends on: vpc)
+  - **vpc** \<-- Matched (dependency of service, db, cache)
+    - terragrunt.hcl
+</FileTree>
+
+#### Include Dependents
+
+Use `...foo` to include the target and all components that depend on it:
+
+```bash
+# Find 'vpc' and everything that depends on it
+terragrunt find --filter '...vpc'
+```
+
+<FileTree>
+- .
+  - **vpc** \<-- Matched (target)
+    - terragrunt.hcl
+  - **db** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (depends on vpc via db and cache)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+#### Include Both Directions
+
+Use `...foo...` to include the target, all its dependencies, and all its dependents:
+
+```bash
+# Find 'db' and its complete dependency graph
+terragrunt find --filter '...db...'
+```
+
+<FileTree>
+- .
+  - **vpc** \<-- Matched (dependency of db)
+    - terragrunt.hcl
+  - **db** \<-- Matched (target)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (depends on db)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+#### Exclude Target
+
+Use `^` to exclude the target component from results. This is useful when you want only the dependencies or dependents, but not the component itself:
+
+```bash
+# Find all dependents of 'vpc' but exclude 'vpc' itself
+terragrunt find --filter '...^vpc'
+```
+
+<FileTree>
+- .
+  - vpc \<-- Not matched by '...^vpc' (would be matched if ...vpc was used)
+    - terragrunt.hcl
+  - db \<-- Matched by '...^vpc' (dependent on vpc)
+    - terragrunt.hcl
+  - cache \<-- Matched by '...^vpc' (dependent on vpc)
+    - terragrunt.hcl
+  - service \<-- Excluded by '...^vpc' (dependent on vpc)
+    - terragrunt.hcl
+</FileTree>
+
+#### Combining with Other Filter Types
+
+Graph expressions work with path filters, attribute filters, and other filter types:
+
+```bash
+# Graph traversal with path filter
+terragrunt find --filter '{./service}...'
+
+# Graph traversal with attribute filter
+terragrunt find --filter '...type=unit'
+
+# Graph traversal with name filter using glob
+terragrunt find --filter '...app*...'
+```
+
+#### Combining with Intersection
+
+Use the `|` operator to refine graph traversal results:
+
+```bash
+# Find all dependencies of 'service', but filter out all the database's dependencies.
+terragrunt find --filter 'service... | !^db...'
+
+# Find all dependents of 'vpc' in the prod environment
+terragrunt find --filter './prod/** | ...vpc'
+```
+
+<Aside type="tip">
+Graph expressions require dependency/dependent discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components to enable graph traversal. This may add some overhead compared to simple name or path filters.
+</Aside>
 
 ### Union (Multiple Filters)
 
