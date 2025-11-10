@@ -1335,6 +1335,13 @@ func ParseConfig(
 			errs = errs.Append(err)
 			return config, errs.ErrorOrNil()
 		}
+
+		// We should never get a nil config here, so if we do, return the config we've been able to parse so far
+		// and return any errors that have occurred so far to avoid a nil pointer dereference below.
+		if mergedConfig == nil {
+			return config, errs.ErrorOrNil()
+		}
+
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		mergedConfig.ProcessedIncludes = ctx.TrackInclude.CurrentMap
 		// Make sure the top level information that is not automatically merged in is captured on the merged config to
@@ -1732,9 +1739,16 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	for _, block := range generateBlocks {
+		// Validate that if_exists is provided (required attribute)
+		if block.IfExists == "" {
+			errs = errs.Append(errors.Errorf("generate block %q is missing required attribute \"if_exists\"", block.Name))
+			continue
+		}
+
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			return nil, err
+			errs = errs.Append(errors.Errorf("generate block %q: %w", block.Name, err))
+			continue
 		}
 
 		if block.IfDisabled == nil {
