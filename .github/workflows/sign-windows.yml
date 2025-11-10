@@ -217,54 +217,49 @@ jobs:
       - name: Sign Windows binaries
         shell: pwsh
         run: |
-          Write-Host "Signing all Windows binaries in bin/ directory..."
+          Write-Host "Signing Windows amd64 binary..."
 
-          # Get all .exe files to sign
-          $binaries = Get-ChildItem -Path bin -Filter "terragrunt_windows_*.exe"
+          # Only sign amd64 executable
+          $binary = Get-Item -Path "bin\terragrunt_windows_amd64.exe" -ErrorAction SilentlyContinue
 
-          if ($binaries.Count -eq 0) {
-            Write-Error "❌ No binaries found to sign"
+          if (-not $binary) {
+            Write-Error "❌ Binary not found: bin\terragrunt_windows_amd64.exe"
             exit 1
           }
 
-          Write-Host "Found $($binaries.Count) binaries to sign"
+          Write-Host "Signing: $($binary.Name)"
 
-          foreach ($binary in $binaries) {
-            Write-Host "`nSigning: $($binary.Name)"
+          & smctl.exe sign `
+            --keypair-alias "$env:SM_KEYPAIR_ALIAS" `
+            --input "$($binary.FullName)" `
+            --simple `
+            --verbose
 
-            & smctl.exe sign `
-              --keypair-alias "$env:SM_KEYPAIR_ALIAS" `
-              --input "$($binary.FullName)" `
-              --simple `
-              --verbose
-
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "❌ Signing failed for $($binary.Name)"
-              exit 1
-            }
-
-            Write-Host "✅ Signed: $($binary.Name)"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Signing failed for $($binary.Name)"
+            exit 1
           }
 
-          Write-Host "`n✅ All Windows binaries signed successfully!"
+          Write-Host "✅ Successfully signed $($binary.Name)"
 
       # Verify signatures
       - name: Verify signatures
         shell: pwsh
         run: |
-          Write-Host "Verifying signatures on all binaries in bin/ directory..."
+          Write-Host "Verifying signature on signed binary..."
 
-          & smctl.exe sign verify --input "$PWD\bin"
+          & smctl.exe sign verify --input "bin\terragrunt_windows_amd64.exe"
 
           if ($LASTEXITCODE -ne 0) {
             Write-Warning "⚠️  Signature verification returned non-zero exit code (may be expected)"
           } else {
-            Write-Host "✅ All signatures verified successfully!"
+            Write-Host "✅ Signature verified successfully!"
+          }
 
       # Upload signed artifacts
-      - name: Upload Signed Windows Binaries
+      - name: Upload Signed Windows Binary
         uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.upload-artifact-name }}
-          path: bin/terragrunt_windows_*.exe
+          path: bin/terragrunt_windows_amd64.exe
           if-no-files-found: error
