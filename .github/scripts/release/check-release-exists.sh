@@ -16,8 +16,8 @@ function main {
 
   printf 'Checking if release exists for tag: %s\n' "$VERSION"
 
-  # Try to get the release using gh CLI
-  if ! gh release view "$VERSION" --json 'id,uploadUrl,isDraft' > /dev/null 2>&1; then
+  # Check if release exists using gh CLI (only care about exit code)
+  if ! gh release view "$VERSION" > /dev/null 2>&1; then
     printf 'exists=false\n' >> "$GITHUB_OUTPUT"
     printf 'Release not found for tag %s\n' "$VERSION"
     exit 1

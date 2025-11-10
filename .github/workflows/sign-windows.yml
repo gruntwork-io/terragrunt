@@ -24,6 +24,7 @@ jobs:
       SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
       SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+      WINDOWS_SIGNING_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
 
     steps:
       - name: Checkout code
@@ -63,7 +64,7 @@ jobs:
       # Restore P12 client certificate and set SM_CLIENT_CERT_FILE
       - name: Restore P12 client certificate
         shell: pwsh
-        run: .github/scripts/release/restore-p12-certificate.ps1 -Base64Certificate "${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}"
+        run: .github/scripts/release/restore-p12-certificate.ps1
 
       # Sign Windows binaries using external script
       - name: Sign and patch Windows binaries

@@ -92,26 +92,92 @@ function Update-WinresVersion {
     Write-Host "File version (for Windows): $fileVersion"
     Write-Host ""
 
-    # Copy winres.json from .github/assets to current directory
-    Copy-Item ".github/assets/winres.json" "winres.json"
-    Write-Host "Copied winres.json from .github/assets/"
+    # Generate winres.json dynamically
+    Write-Host "Generating winres.json..."
+    $winresConfig = @{
+        RT_GROUP_ICON = @{
+            APP = @{
+                "0409" = ".github/assets/terragrunt.png"
+            }
+        }
+        RT_MANIFEST = @{
+            "#1" = @{
+                "0409" = @{
+                    assembly = @{
+                        identity = @{
+                            name = "Terragrunt"
+                            version = $fileVersion
+                        }
+                        description = "Terragrunt - Orchestrate OpenTofu and Terraform at Scale"
+                    }
+                    compatibility = @{
+                        application = @(
+                            @{
+                                supportedOS = @{
+                                    Id = "{e2011457-1546-43c5-a5fe-008deee3d3f0}"
+                                    comment = "Windows Vista / Windows Server 2008"
+                                }
+                            },
+                            @{
+                                supportedOS = @{
+                                    Id = "{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"
+                                    comment = "Windows 7 / Windows Server 2008 R2"
+                                }
+                            },
+                            @{
+                                supportedOS = @{
+                                    Id = "{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"
+                                    comment = "Windows 8 / Windows Server 2012"
+                                }
+                            },
+                            @{
+                                supportedOS = @{
+                                    Id = "{1f676c76-80e1-4239-95bb-83d0f6d0da78}"
+                                    comment = "Windows 8.1 / Windows Server 2012 R2"
+                                }
+                            },
+                            @{
+                                supportedOS = @{
+                                    Id = "{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"
+                                    comment = "Windows 10, Windows 11 / Windows Server 2016, 2019, 2022"
+                                }
+                            }
+                        )
+                    }
+                    dpiAwareness = "PerMonitorV2, PerMonitor"
+                }
+            }
+        }
+        RT_VERSION = @{
+            "#1" = @{
+                "0409" = @{
+                    fixed = @{
+                        file_version = $fileVersion
+                        product_version = $fileVersion
+                    }
+                    info = @{
+                        "0409" = @{
+                            Comments = "Standardize IaC and manage growing infra complexity: define units, stacks, cut repetition with includes/hooks, execute modules in dependency order across environments"
+                            CompanyName = "Gruntwork, Inc."
+                            FileDescription = "Terragrunt - Orchestrate OpenTofu and Terraform at Scale"
+                            FileVersion = $version
+                            InternalName = "terragrunt"
+                            LegalCopyright = "Copyright (C) $copyrightYear Gruntwork, Inc."
+                            OriginalFilename = "terragrunt.exe"
+                            ProductName = "Terragrunt"
+                            ProductVersion = $version
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-    # Read winres.json
-    $winresConfig = Get-Content "winres.json" -Raw | ConvertFrom-Json
-
-    # Update version fields
-    $winresConfig.RT_VERSION.'#1'.'0409'.fixed.file_version = $fileVersion
-    $winresConfig.RT_VERSION.'#1'.'0409'.fixed.product_version = $fileVersion
-    $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.FileVersion = $version
-    $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.ProductVersion = $version
-    $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.LegalCopyright = "Copyright (C) $copyrightYear Gruntwork, Inc."
-    $winresConfig.RT_MANIFEST.'#1'.'0409'.assembly.identity.version = $fileVersion
-
-    # Write updated winres.json to current directory
+    # Write winres.json to current directory
     $jsonOutput = $winresConfig | ConvertTo-Json -Depth 10 -Compress:$false
     [System.IO.File]::WriteAllText("winres.json", $jsonOutput)
 
-    Write-Host "Updated winres.json:"
+    Write-Host "Generated winres.json:"
     Get-Content winres.json
 
     # Verify icon file exists

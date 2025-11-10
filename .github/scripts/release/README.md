@@ -376,16 +376,15 @@ Verifies that DigiCert smctl tool is installed and accessible.
 ### `restore-p12-certificate.ps1`
 Restores P12 client certificate from base64 encoding.
 
-**Parameters:**
-- `-Base64Certificate`: Base64 encoded P12 certificate (required)
-
 **Environment Variables:**
+- `WINDOWS_SIGNING_P12_BASE64`: Base64 encoded P12 certificate (required)
 - `RUNNER_TEMP`: Temporary directory for certificate file
 - `GITHUB_ENV`: Path to GitHub environment file
 
 **Usage:**
 ```powershell
-.github/scripts/release/restore-p12-certificate.ps1 -Base64Certificate "<base64-string>"
+$env:WINDOWS_SIGNING_P12_BASE64 = "<base64-string>"
+.github/scripts/release/restore-p12-certificate.ps1
 ```
 
 **Output:**
@@ -416,7 +415,7 @@ Comprehensive Windows binary signing script using DigiCert KeyLocker.
    - Standard: `v0.93.4` → `0.93.4`
    - Pre-release: `beta-2025111001` → `2025.1110.01.0`
    - Generic: `<prefix>-YYYYMMDDNN` → `YYYY.MMDD.NN.0`
-2. **Resource Patching**: Updates `winres.json` with version info
+2. **Resource Generation**: Dynamically generates `winres.json` with version info, icon, manifest, and metadata
 3. **Binary Patching**: Uses go-winres to patch icon and metadata
 4. **Credential Setup**: Saves DigiCert credentials
 5. **Healthcheck**: Runs smctl healthcheck
