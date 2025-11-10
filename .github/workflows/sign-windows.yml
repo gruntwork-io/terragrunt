@@ -54,18 +54,23 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Add Windows version metadata
+      - name: Install go-winres
         shell: pwsh
         run: |
-          # Install goversioninfo
-          Write-Host "Installing goversioninfo..."
-          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.5.0
+          Write-Host "Installing go-winres..."
+          go install github.com/tc-hib/go-winres@latest
 
           # Add Go bin to PATH
           $goPath = & go env GOPATH
           $goBinPath = Join-Path $goPath "bin"
           $env:PATH = "$goBinPath;$env:PATH"
 
+          Write-Host "Verifying go-winres installation..."
+          & go-winres --version
+
+      - name: Update winres.json with version info
+        shell: pwsh
+        run: |
           # Get version
           $version = $env:GITHUB_REF_NAME
           if ([string]::IsNullOrEmpty($version) -or $version -eq "refs/heads/main") {
@@ -91,46 +96,69 @@ jobs:
           $fileVersion = "$major.$minor.$patch.0"
           $year = (Get-Date).Year
 
-          Write-Host "Generating version info for: $version (FileVersion: $fileVersion)"
+          Write-Host "Updating winres.json for version: $version (FileVersion: $fileVersion)"
 
-          # Update versioninfo.json
-          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
-          $versionInfo.StringFileInfo.FileVersion = $fileVersion
-          $versionInfo.StringFileInfo.ProductVersion = $version
-          $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
-          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
+          # Read existing winres.json
+          $winresConfig = Get-Content "winres.json" -Raw | ConvertFrom-Json
 
-          # Print final versioninfo.json content
-          Write-Host "Final versioninfo.json content:"
-          Get-Content versioninfo.json | Write-Host
+          # Update version fields
+          $winresConfig.RT_VERSION.'#1'.'0409'.fixed.file_version = $fileVersion
+          $winresConfig.RT_VERSION.'#1'.'0409'.fixed.product_version = $fileVersion
+          $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.FileVersion = $version
+          $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.ProductVersion = $version
+          $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
+          $winresConfig.RT_MANIFEST.'#1'.'0409'.assembly.identity.version = $fileVersion
 
-          # Generate resource file
-          goversioninfo -o=rsrc.syso versioninfo.json
+          # Write updated winres.json
+          $jsonOutput = $winresConfig | ConvertTo-Json -Depth 10 -Compress:$false
+          [System.IO.File]::WriteAllText("winres.json", $jsonOutput)
 
-          # Rebuild Windows binaries with metadata
-          $architectures = @("386", "amd64")
-          foreach ($arch in $architectures) {
-            $env:GOOS = "windows"
-            $env:GOARCH = $arch
-            $output = "bin\terragrunt_windows_$arch.exe"
+          Write-Host "Updated winres.json:"
+          Get-Content winres.json
 
-            Write-Host "Rebuilding windows/$arch with version metadata..."
-            go build -o $output `
-              -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$version -extldflags '-static'" `
-              .
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "Build failed for windows/$arch"
+          # Verify icon file exists
+          Write-Host ""
+          Write-Host "Verifying icon file..."
+          if (Test-Path ".github/assets/terragrunt.ico") {
+            Write-Host "Icon file exists: .github/assets/terragrunt.ico"
+            $iconInfo = Get-Item ".github/assets/terragrunt.ico"
+            Write-Host "Icon size: $($iconInfo.Length) bytes"
+          } else {
+            Write-Error "Icon file not found: .github/assets/terragrunt.ico"
+            exit 1
+          }
+
+      - name: Patch Windows binaries with resources
+        shell: pwsh
+        run: |
+          # Add Go bin to PATH
+          $goPath = & go env GOPATH
+          $goBinPath = Join-Path $goPath "bin"
+          $env:PATH = "$goBinPath;$env:PATH"
+
+          Write-Host "Patching Windows binaries with icon and version info..."
+
+          # Patch both Windows binaries
+          $binaries = @("bin\terragrunt_windows_386.exe", "bin\terragrunt_windows_amd64.exe")
+
+          foreach ($binary in $binaries) {
+            if (Test-Path $binary) {
+              Write-Host "Patching $binary..."
+              & go-winres patch --in $binary --config winres.json
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to patch $binary"
+                exit 1
+              }
+
+              Write-Host "Successfully patched $binary"
+            } else {
+              Write-Error "Binary not found: $binary"
               exit 1
             }
-
-            Write-Host "Built $output with metadata"
           }
 
-          if (Test-Path rsrc.syso) {
-            Remove-Item rsrc.syso
-          }
-
-          Write-Host "All Windows binaries rebuilt with version metadata"
+          Write-Host "All Windows binaries patched with resources"
 
       # Install DigiCert smtools (smctl)
       - name: Install DigiCert smtools

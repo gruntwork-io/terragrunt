@@ -1,0 +1,73 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0409": ".github/assets/terragrunt.ico"
+    }
+  },
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "assembly": {
+          "identity": {
+            "name": "Terragrunt",
+            "version": "0.0.0.0"
+          },
+          "description": "Terragrunt - Terraform Wrapper"
+        },
+        "compatibility": {
+          "application": [
+            {
+              "supportedOS": {
+                "Id": "{e2011457-1546-43c5-a5fe-008deee3d3f0}"
+              }
+            },
+            {
+              "supportedOS": {
+                "Id": "{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"
+              }
+            },
+            {
+              "supportedOS": {
+                "Id": "{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"
+              }
+            },
+            {
+              "supportedOS": {
+                "Id": "{1f676c76-80e1-4239-95bb-83d0f6d0da78}"
+              }
+            },
+            {
+              "supportedOS": {
+                "Id": "{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"
+              }
+            }
+          ]
+        },
+        "dpiAwareness": "PerMonitorV2, PerMonitor"
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0409": {
+        "fixed": {
+          "file_version": "0.0.0.0",
+          "product_version": "0.0.0.0"
+        },
+        "info": {
+          "0409": {
+            "Comments": "Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple Terraform modules",
+            "CompanyName": "Gruntwork, Inc.",
+            "FileDescription": "Terragrunt - Terraform Wrapper",
+            "FileVersion": "0.0.0",
+            "InternalName": "terragrunt",
+            "LegalCopyright": "Copyright (C) 2025 Gruntwork, Inc.",
+            "OriginalFilename": "terragrunt.exe",
+            "ProductName": "Terragrunt",
+            "ProductVersion": "0.0.0"
+          }
+        }
+      }
+    }
+  }
+}
