@@ -1,8 +1,20 @@
 // Package git provides support for Git operations needed throughout the Terragrunt codebase.
+//
+// The package primarily uses the `git` binary installed on the host system, but experimentally supports
+// the `go-git` library for some operations. As of yet, the performance of the `go-git` library is not
+// as good as the `git` binary, so we don't use it by default. If we can optimize usage of the `go-git` library
+// so that the performance difference is negligible, we can choose to use it instead of the `git` binary for certain
+// operations.
+//
+// Even assuming the performance differences are negligible, we'll still prefer to use the `git` binary for certain
+// operations. For example, operations related to remotes are likely easier to support with the `git` binary, as
+// users might have git configurations for authentication that would be inconvenient to port over to configuration
+// of the `go-git` library. This might change in the future.
+//
+// We'll prefix usage of the `go-git` library with "Go" to make it clear when we're using it.
 package git
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -12,14 +24,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/go-git/go-billy/v6/osfs"
-	"github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing"
-	"github.com/go-git/go-git/v6/plumbing/cache"
-	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/go-git/go-git/v6/storage/filesystem"
-	"github.com/go-git/go-git/v6/storage/memory"
 )
 
 const (
@@ -28,8 +32,6 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	storage *memory.Storage
-
 	GitPath string
 	WorkDir string
 }
@@ -47,16 +49,14 @@ func NewGitRunner() (*GitRunner, error) {
 
 	return &GitRunner{
 		GitPath: gitPath,
-		storage: memory.NewStorage(),
 	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	copy := *g
-	copy.WorkDir = workDir
+	g.WorkDir = workDir
 
-	return &copy
+	return g
 }
 
 // RequiresWorkDir returns an error if no working directory is set
@@ -186,7 +186,7 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 		}
 	}
 
-	g.SetWorkDir(tempDir)
+	g.WithWorkDir(tempDir)
 
 	cleanup := func() error {
 		if err := os.RemoveAll(tempDir); err != nil {
@@ -234,155 +234,6 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (stri
 	}
 
 	return stdout.String(), nil
-}
-
-// ParseTree parses the complete output of git ls-tree
-func ParseTree(output, path string) (*Tree, error) {
-	// Pre-allocate capacity based on newline count
-	capacity := strings.Count(output, "\n") + 1
-	entries := make([]TreeEntry, 0, capacity)
-
-	// Use a scanner for more efficient line reading
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
-		entry, err := ParseTreeEntry(line)
-		if err != nil {
-			return nil, err
-		}
-
-		entries = append(entries, entry)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, &WrappedError{
-			Op:      "parse_tree",
-			Context: "failed to read tree output",
-			Err:     err,
-		}
-	}
-
-	return &Tree{
-		entries: entries,
-		path:    path,
-		data:    []byte(output),
-	}, nil
-}
-
-const (
-	minTreePartsLength = 4
-)
-
-// ParseTreeEntry parses a single line from git ls-tree output
-func ParseTreeEntry(line string) (TreeEntry, error) {
-	// Format: <mode> <type> <hash> <path>
-	parts := strings.Fields(line)
-	if len(parts) < minTreePartsLength {
-		return TreeEntry{}, &WrappedError{
-			Op:      "parse_tree_entry",
-			Context: "invalid tree entry format",
-			Err:     ErrParseTree,
-		}
-	}
-
-	return TreeEntry{
-		Mode: parts[0],
-		Type: parts[1],
-		Hash: parts[2],
-		Path: strings.Join(parts[3:], " "), // Handle paths with spaces
-	}, nil
-}
-
-// GoLsTreeRecursive uses the `go-git` library to recursively list the contents of a git tree.
-//
-// In testing, this is significantly slower than LsTreeRecursive, so we don't use it right now.
-// We'll keep it here and benchmark it again later if we can optimize it.
-func (g *GitRunner) GoLsTreeRecursive(ref, path string) ([]TreeEntry, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return nil, err
-	}
-
-	baseDir := g.WorkDir
-
-	fs := osfs.New(baseDir)
-	if _, err := fs.Stat(git.GitDirName); err == nil {
-		fs, err = fs.Chroot(git.GitDirName)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
-	repo, err := git.Open(s, fs)
-	if err != nil {
-		return nil, err
-	}
-	defer s.Close()
-
-	h, err := repo.ResolveRevision(plumbing.Revision(ref))
-	if err != nil {
-		return nil, err
-	}
-
-	c, err := repo.CommitObject(*h)
-	if err != nil {
-		return nil, err
-	}
-
-	tree, err := c.Tree()
-	if err != nil {
-		return nil, err
-	}
-
-	entries, err := g.goLsTreeOnTree(tree, path)
-	if err != nil {
-		return nil, err
-	}
-
-	return entries, nil
-}
-
-// goLsTreeOnTree uses the `go-git` library to recursively list the contents of a git tree.
-func (g *GitRunner) goLsTreeOnTree(tree *object.Tree, path string) ([]TreeEntry, error) {
-	entries := make([]TreeEntry, 0, len(tree.Entries))
-
-	for _, entry := range tree.Entries {
-		if entry.Mode.IsFile() {
-			entries = append(entries, TreeEntry{
-				Mode: entry.Mode.String(),
-				Type: "blob",
-				Hash: entry.Hash.String(),
-				Path: filepath.Join(path, entry.Name),
-			})
-		} else {
-			mode, err := entry.Mode.ToOSFileMode()
-			if err != nil {
-				return nil, err
-			}
-
-			if mode.IsDir() {
-				subTree, err := tree.Tree(entry.Name)
-				if err != nil {
-					return nil, err
-				}
-
-				subTreePath := filepath.Join(path, entry.Name)
-
-				subTreeEntries, err := g.goLsTreeOnTree(subTree, subTreePath)
-				if err != nil {
-					return nil, err
-				}
-
-				entries = append(entries, subTreeEntries...)
-			}
-		}
-	}
-
-	return entries, nil
 }
 
 // CatFile writes the contents of a git object
@@ -437,11 +288,6 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 	}
 
 	return nil
-}
-
-// SetWorkDir sets the working directory for git commands
-func (g *GitRunner) SetWorkDir(dir string) {
-	g.WorkDir = dir
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {

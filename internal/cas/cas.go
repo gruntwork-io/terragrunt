@@ -128,8 +128,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 				}
 			}()
 
-			// Set the working directory for git operations
-			c.git.SetWorkDir(tempDir)
+			c.git.WithWorkDir(tempDir)
 
 			if cloneAndStoreErr := c.cloneAndStoreContent(childCtx, l, opts, url, hash); cloneAndStoreErr != nil {
 				return cloneAndStoreErr
