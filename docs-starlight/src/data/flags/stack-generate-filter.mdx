@@ -1,0 +1,61 @@
+---
+name: filter
+description: Filter configurations using a flexible query language
+type: list(string)
+---
+
+import {Aside} from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt stack generate --experiment filter-flag --filter 'foo | type=stack'
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+</Aside>
+
+<Aside type="note" title="Filter Behavior for Stack Generate">
+The `--filter` flag works differently for `stack generate` compared to other commands. It requires that you explicitly target stacks using the `type=stack` attribute.
+
+Examples:
+
+```bash
+# Filter by name
+terragrunt stack generate --filter 'name=prod | type=stack'
+```
+
+</Aside>
+
+### Attribute-Based Filtering
+Match stacks by their configuration attributes:
+
+```bash
+# Filter by name
+terragrunt stack generate --filter 'prod | type=stack'
+
+# Filter by type
+terragrunt stack generate --filter 'type=stack'
+
+# Filter by path
+terragrunt stack generate --filter './envs/prod/** | type=stack'
+```
+
+### Negation
+Exclude paths using the `!` prefix:
+
+```bash
+# Exclude by path
+terragrunt stack generate --filter '!./prod/** | type=stack'
+```
+
+### Union (Multiple Filters)
+Specify multiple `--filter` flags to combine results using OR logic:
+
+```bash
+# Generate the dev and prod stacks
+terragrunt stack generate --filter 'dev | type=stack' --filter 'prod | type=stack'
+```

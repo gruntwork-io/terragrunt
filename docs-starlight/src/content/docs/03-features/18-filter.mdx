@@ -456,3 +456,45 @@ The `--filter` flag provides a unified alternative to multiple queue control fla
 | `--queue-exclude-dir` | `--filter '!./path/*'` |
 | `--queue-exclude-external` | `--filter '!external=true'` |
 | `--queue-include-external` | `--filter 'external=true'` |
+
+## Special Interactions
+
+Certain commands have special interactions with the `--filter` flag that are worth noting.
+
+### `hcl fmt`
+
+Unlike when used for most commands, the `--filter` flag is used to filter on individual HCL files when used with the `hcl fmt`.
+
+All other commands use `--filter` to filter on units and/or stacks (which are directories). As a result, only path-based filter expressions are supported. Attribute-based filters like `type=unit` or `name=my-app` are not applicable to file-level operations.
+
+Example:
+
+```bash
+# Supported: Path-based filtering
+terragrunt hcl fmt --filter './prod/**/*.hcl'
+
+# Not supported: Attribute-based filtering
+terragrunt hcl fmt --filter 'type=unit'  # This will not work
+```
+
+### `stack generate`
+
+When using `--filter` with `stack generate`, filter expressions will only be recognized if they explicitly target stacks. This is to ensure that filters are not over-applied, preventing any stack generation from occurring.
+
+```bash
+# Supported: Only generate the stacks that match the filter, as we are explicitly indicating that we are targeting stacks.
+terragrunt stack generate --filter 'name=prod | type=stack'
+
+# Not supported: This filter will be ignored, as we are not explicitly indicating that we are targeting stacks.
+terragrunt stack generate --filter 'name=prod'  # This will not work
+```
+
+The reason for this is that stack generation can also be done automatically as part of other commands, like `run`, and thus we need to make it clear that we're trying to control stack generation rather than run behavior.
+
+```bash
+# This will run any unit named 'vpc'
+terragrunt run --all --filter 'vpc' -- plan
+
+# This will run any unit named 'vpc', and prevent stack generation in any stack not named 'dev' (including any stacks named 'vpc')
+terragrunt stack run --filter 'vpc' --filter 'name=dev | type=stack' -- apply
+```
