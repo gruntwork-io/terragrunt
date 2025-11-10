@@ -95,30 +95,4 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           RELEASE_ID: ${{ steps.check_release.outputs.release_id }}
           IS_DRAFT: ${{ steps.check_release.outputs.is_draft }}
-        run: |
-          echo "## Release Asset Upload Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          printf '**Version**: %s\n' "$VERSION" >> $GITHUB_STEP_SUMMARY
-          printf '**Release ID**: %s\n' "$RELEASE_ID" >> $GITHUB_STEP_SUMMARY
-          printf '**Was Draft**: %s\n' "$IS_DRAFT" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Assets Uploaded" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | Architecture | Signed | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| macOS    | amd64        | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| macOS    | arm64        | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux    | 386          | No     | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux    | amd64        | No     | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux    | arm64        | No     | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows  | 386          | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows  | amd64        | Yes | Uploaded |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Archive Files**:" >> $GITHUB_STEP_SUMMARY
-          echo "- Individual ZIP archives: 7 files (one per binary, with +x permissions)" >> $GITHUB_STEP_SUMMARY
-          echo "- Individual TAR.GZ archives: 7 files (one per binary, with +x permissions)" >> $GITHUB_STEP_SUMMARY
-          echo "- **SHA256SUMS**: Checksums for all files" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Files**: 22 (7 binaries + 7 ZIPs + 7 TAR.GZ + SHA256SUMS)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All assets uploaded successfully to existing release!" >> $GITHUB_STEP_SUMMARY
+        run: .github/scripts/release/generate-upload-summary.sh
