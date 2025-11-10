@@ -100,6 +100,10 @@ jobs:
           $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
           $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
 
+          # Print final versioninfo.json content
+          Write-Host "Final versioninfo.json content:"
+          Get-Content versioninfo.json | Write-Host
+
           # Generate resource file
           goversioninfo -o=rsrc.syso versioninfo.json
 
