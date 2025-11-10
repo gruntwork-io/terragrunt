@@ -2,16 +2,34 @@ name: Build
 
 on:
   workflow_call:
-    inputs:
-      skip-signing:
-        description: 'Skip code signing (use for non-release builds)'
-        required: false
-        type: boolean
-        default: true
 
 jobs:
+  detect-release:
+    name: Detect if this is a release build
+    runs-on: ubuntu-latest
+    outputs:
+      is-release: ${{ steps.check.outputs.is-release }}
+    steps:
+      - name: Check if release tag
+        id: check
+        run: |
+          REF="${GITHUB_REF}"
+          echo "Git ref: $REF"
+
+          # Check if this is a release tag (v*, alpha*, beta*)
+          if [[ "$REF" =~ ^refs/tags/v.* ]] || \
+             [[ "$REF" =~ ^refs/tags/alpha.* ]] || \
+             [[ "$REF" =~ ^refs/tags/beta.* ]]; then
+            echo "is-release=true" >> "$GITHUB_OUTPUT"
+            echo "This is a RELEASE build - signing will be enabled"
+          else
+            echo "is-release=false" >> "$GITHUB_OUTPUT"
+            echo "This is NOT a release build - signing will be skipped"
+          fi
+
   build:
     name: Build (${{ matrix.os }}/${{ matrix.arch }})
+    needs: detect-release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -74,22 +92,22 @@ jobs:
 
   sign-macos:
     name: Sign MacOS Binaries
-    if: ${{ !inputs.skip-signing }}
-    needs: build
+    if: ${{ needs.detect-release.outputs.is-release == 'true' }}
+    needs: [detect-release, build]
     uses: ./.github/workflows/sign-macos.yml
     secrets: inherit
 
   sign-windows:
     name: Sign Windows Binaries
-    if: ${{ !inputs.skip-signing }}
-    needs: build
+    if: ${{ needs.detect-release.outputs.is-release == 'true' }}
+    needs: [detect-release, build]
     uses: ./.github/workflows/sign-windows.yml
     secrets: inherit
 
   merge-signed-binaries:
     name: Merge All Signed Binaries
-    if: ${{ !inputs.skip-signing }}
-    needs: [sign-macos, sign-windows]
+    if: ${{ needs.detect-release.outputs.is-release == 'true' }}
+    needs: [detect-release, sign-macos, sign-windows]
     runs-on: ubuntu-latest
 
     steps:
