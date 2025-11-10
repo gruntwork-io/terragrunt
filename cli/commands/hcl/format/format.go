@@ -113,7 +113,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	var components component.Components
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		components, err = filters.EvaluateOnFiles(files)
+		components, err = filters.EvaluateOnFiles(l, files)
 		if err != nil {
 			return errors.New(err)
 		}

@@ -131,3 +131,34 @@ func (i *InfixExpression) RequiresDiscovery() (Expression, bool) {
 
 	return nil, false
 }
+
+// GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "...foo...", "^foo").
+type GraphExpression struct {
+	Target              Expression
+	IncludeDependents   bool
+	IncludeDependencies bool
+	ExcludeTarget       bool
+}
+
+func (g *GraphExpression) expressionNode() {}
+func (g *GraphExpression) String() string {
+	result := ""
+	if g.IncludeDependents {
+		result += "..."
+	}
+
+	if g.ExcludeTarget {
+		result += "^"
+	}
+
+	result += g.Target.String()
+	if g.IncludeDependencies {
+		result += "..."
+	}
+
+	return result
+}
+func (g *GraphExpression) RequiresDiscovery() (Expression, bool) {
+	// Graph expressions require dependency discovery to traverse the graph
+	return g, true
+}

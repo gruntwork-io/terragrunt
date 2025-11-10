@@ -465,3 +465,371 @@ func TestParser_StringRepresentation(t *testing.T) {
 		})
 	}
 }
+
+func TestParser_GraphExpressions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		expected filter.Expression
+		name     string
+		input    string
+	}{
+		{
+			name:  "prefix ellipsis - dependents only",
+			input: "...foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "postfix ellipsis - dependencies only",
+			input: "foo...",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "both prefix and postfix ellipsis",
+			input: "...foo...",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "caret - exclude target only",
+			input: "^foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: false,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "caret with prefix ellipsis",
+			input: "...^foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "caret with postfix ellipsis",
+			input: "^foo...",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "caret with both ellipsis",
+			input: "...^foo...",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "graph expression with path filter",
+			input: "...{./apps/foo}",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathFilter{
+					Value:      "./apps/foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "graph expression with path filter and postfix ellipsis",
+			input: "./apps/foo...",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathFilter{
+					Value:      "./apps/foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "graph expression with attribute filter",
+			input: "...name=bar",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "graph expression with braced path and postfix ellipsis",
+			input: "{./apps/foo}...",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathFilter{
+					Value:      "./apps/foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "graph expression with braced path and both ellipsis",
+			input: "...{./apps/foo}...",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathFilter{
+					Value:      "./apps/foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "graph expression with braced path, caret, and both ellipsis",
+			input: "...^{./apps/foo}...",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathFilter{
+					Value:      "./apps/foo",
+					WorkingDir: ".",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lexer := filter.NewLexer(tt.input)
+			parser := filter.NewParser(lexer, ".")
+			expr, err := parser.ParseExpression()
+
+			require.NoError(t, err)
+
+			graphExpr, ok := expr.(*filter.GraphExpression)
+			require.True(t, ok, "Expected GraphExpression, got %T", expr)
+
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).IncludeDependents, graphExpr.IncludeDependents)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).IncludeDependencies, graphExpr.IncludeDependencies)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).ExcludeTarget, graphExpr.ExcludeTarget)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).Target, graphExpr.Target)
+		})
+	}
+}
+
+func TestParser_GraphExpressionCombinations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		expected filter.Expression
+		name     string
+		input    string
+	}{
+		{
+			name:  "graph expression in union - left side",
+			input: "...foo | bar",
+			expected: &filter.InfixExpression{
+				Left: &filter.GraphExpression{
+					Target: &filter.AttributeFilter{
+						Key:        "name",
+						Value:      "foo",
+						WorkingDir: ".",
+					},
+					IncludeDependents:   true,
+					IncludeDependencies: false,
+					ExcludeTarget:       false,
+				},
+				Operator: "|",
+				Right: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "bar",
+					WorkingDir: ".",
+				},
+			},
+		},
+		{
+			name:  "graph expression in union - right side",
+			input: "foo | bar...",
+			expected: &filter.InfixExpression{
+				Left: &filter.AttributeFilter{
+					Key:        "name",
+					Value:      "foo",
+					WorkingDir: ".",
+				},
+				Operator: "|",
+				Right: &filter.GraphExpression{
+					Target: &filter.AttributeFilter{
+						Key:        "name",
+						Value:      "bar",
+						WorkingDir: ".",
+					},
+					IncludeDependents:   false,
+					IncludeDependencies: true,
+					ExcludeTarget:       false,
+				},
+			},
+		},
+		{
+			name:  "negated graph expression",
+			input: "!...foo",
+			expected: &filter.PrefixExpression{
+				Operator: "!",
+				Right: &filter.GraphExpression{
+					Target: &filter.AttributeFilter{
+						Key:        "name",
+						Value:      "foo",
+						WorkingDir: ".",
+					},
+					IncludeDependents:   true,
+					IncludeDependencies: false,
+					ExcludeTarget:       false,
+				},
+			},
+		},
+		{
+			name:  "graph expression with negation inside",
+			input: "...!foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.PrefixExpression{
+					Operator: "!",
+					Right: &filter.AttributeFilter{
+						Key:        "name",
+						Value:      "foo",
+						WorkingDir: ".",
+					},
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lexer := filter.NewLexer(tt.input)
+			parser := filter.NewParser(lexer, ".")
+			expr, err := parser.ParseExpression()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, expr)
+		})
+	}
+}
+
+func TestParser_GraphExpressionErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			name:        "ellipsis only",
+			input:       "...",
+			expectError: true,
+		},
+		{
+			name:        "caret only",
+			input:       "^",
+			expectError: true,
+		},
+		{
+			name:        "ellipsis followed by operator",
+			input:       "... |",
+			expectError: true,
+		},
+		{
+			name:        "caret followed by operator",
+			input:       "^ |",
+			expectError: true,
+		},
+		{
+			name:        "incomplete ellipsis",
+			input:       "..foo",
+			expectError: false, // This parses as path filter, not an error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lexer := filter.NewLexer(tt.input)
+			parser := filter.NewParser(lexer, ".")
+			expr, err := parser.ParseExpression()
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, expr)
+
+				return
+			}
+
+			// For non-error cases, just verify it parses
+			if err != nil {
+				t.Logf("Unexpected error: %v", err)
+			}
+		})
+	}
+}

@@ -1315,7 +1315,12 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
 	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, includedModule)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --queue-exclude-external --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --queue-exclude-external --tf-forward-stdout --working-dir "+modulePath,
+		&applyAllStdout,
+		&applyAllStderr,
+	)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 

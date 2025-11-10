@@ -17,7 +17,7 @@ type DiscoveryCommandOptions struct {
 	QueueConstructAs string
 	FilterQueries    []string
 	Experiments      experiment.Experiments
-	Hidden           bool
+	NoHidden         bool
 	Dependencies     bool
 	External         bool
 	Exclude          bool
@@ -35,10 +35,11 @@ type HCLCommandOptions struct {
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
 func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
-		WithSuppressParseErrors()
+		WithSuppressParseErrors().
+		WithBreakCycles()
 
-	if opts.Hidden {
-		d = d.WithHidden()
+	if opts.NoHidden {
+		d = d.WithNoHidden()
 	}
 
 	if opts.Dependencies || opts.External {
@@ -127,13 +128,13 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 
 	discovery := &Discovery{
 		workingDir: dir,
-		hidden:     false,
 		includeDirs: []string{
 			config.StackDir,
 			filepath.Join(config.StackDir, "**"),
 		},
 		numWorkers:         numWorkers,
 		useDefaultExcludes: true,
+		maxDependencyDepth: defaultMaxDependencyDepth,
 	}
 
 	for _, opt := range opts {

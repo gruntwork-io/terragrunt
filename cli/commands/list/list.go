@@ -27,7 +27,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
 		WorkingDir:       opts.WorkingDir,
 		QueueConstructAs: opts.QueueConstructAs,
-		Hidden:           opts.Hidden,
+		NoHidden:         !opts.Hidden,
 		Dependencies:     shouldDiscoverDependencies(opts),
 		External:         opts.External,
 		FilterQueries:    opts.FilterQueries,
