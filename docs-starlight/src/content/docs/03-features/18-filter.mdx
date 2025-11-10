@@ -495,6 +495,6 @@ The reason for this is that stack generation can also be done automatically as p
 # This will run any unit named 'vpc'
 terragrunt run --all --filter 'vpc' -- plan
 
-# This will run any unit named 'vpc', and prevent stack generation in any stack not named 'dev'
+# This will run any unit named 'vpc', and prevent stack generation in any stack not named 'dev' (including any stacks named 'vpc')
 terragrunt stack run --filter 'vpc' --filter 'name=dev | type=stack' -- apply
 ```
