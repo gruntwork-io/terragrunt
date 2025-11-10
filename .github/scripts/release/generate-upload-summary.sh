@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # Script to generate GitHub Actions step summary for release uploads
 # Usage: generate-upload-summary.sh
@@ -10,63 +10,63 @@ set -e
 #   IS_DRAFT: Whether release was a draft
 #   GITHUB_STEP_SUMMARY: Path to GitHub step summary file
 
-function main {
-  assert_env_var_not_empty "VERSION"
-  assert_env_var_not_empty "RELEASE_ID"
-  assert_env_var_not_empty "IS_DRAFT"
-  assert_env_var_not_empty "GITHUB_STEP_SUMMARY"
+# Source configuration library
+# shellcheck source=lib-release-config.sh
+source "$(dirname "$0")/lib-release-config.sh"
+
+main() {
+  require_env_vars VERSION RELEASE_ID IS_DRAFT GITHUB_STEP_SUMMARY
+  verify_config_file
 
   echo "Generating upload summary..."
 
-  # Header
-  echo "## Release Asset Upload Summary" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
+  local binary_count
+  binary_count=$(get_binary_count)
+  local total_count
+  total_count=$(get_total_file_count)
 
-  # Release details
-  printf '**Version**: %s\n' "$VERSION" >> "$GITHUB_STEP_SUMMARY"
-  printf '**Release ID**: %s\n' "$RELEASE_ID" >> "$GITHUB_STEP_SUMMARY"
-  printf '**Was Draft**: %s\n' "$IS_DRAFT" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
+  cat >>"$GITHUB_STEP_SUMMARY" <<EOF
+## Release Asset Upload Summary
 
-  # Assets uploaded section
-  echo "### Assets Uploaded" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
+**Version**: $VERSION
+**Release ID**: $RELEASE_ID
+**Was Draft**: $IS_DRAFT
 
-  # Platform table
-  echo "| Platform | Architecture | Signed | Status |" >> "$GITHUB_STEP_SUMMARY"
-  echo "|----------|--------------|--------|--------|" >> "$GITHUB_STEP_SUMMARY"
-  echo "| macOS    | amd64        | Yes    | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "| macOS    | arm64        | Yes    | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "| Linux    | 386          | No     | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "| Linux    | amd64        | No     | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "| Linux    | arm64        | No     | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "| Windows  | 386          | Yes    | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "| Windows  | amd64        | Yes    | Uploaded |" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
+### Assets Uploaded
 
-  # Archive files section
-  echo "**Archive Files**:" >> "$GITHUB_STEP_SUMMARY"
-  echo "- Individual ZIP archives: 7 files (one per binary, with +x permissions)" >> "$GITHUB_STEP_SUMMARY"
-  echo "- Individual TAR.GZ archives: 7 files (one per binary, with +x permissions)" >> "$GITHUB_STEP_SUMMARY"
-  echo "- **SHA256SUMS**: Checksums for all files" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
+| Platform | Architecture | Signed | Status |
+|----------|--------------|--------|--------|
+EOF
 
-  # Total files
-  echo "**Total Files**: 22 (7 binaries + 7 ZIPs + 7 TAR.GZ + SHA256SUMS)" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
+  # Generate platform table rows from configuration
+  generate_platform_table_rows >>"$GITHUB_STEP_SUMMARY"
 
-  # Success message
-  echo "All assets uploaded successfully to existing release!" >> "$GITHUB_STEP_SUMMARY"
+  cat >>"$GITHUB_STEP_SUMMARY" <<EOF
+
+**Archive Files**:
+- Individual ZIP archives: $binary_count files (one per binary, with +x permissions)
+- Individual TAR.GZ archives: $binary_count files (one per binary, with +x permissions)
+- **SHA256SUMS**: Checksums for all files
+
+**Total Files**: $total_count ($binary_count binaries + $binary_count ZIPs + $binary_count TAR.GZ + SHA256SUMS)
+
+All assets uploaded successfully to existing release!
+EOF
 
   echo "Upload summary generated successfully"
 }
 
-function assert_env_var_not_empty {
-  local -r var_name="$1"
-  local -r var_value="${!var_name}"
+require_env_vars() {
+  local missing=0
 
-  if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment variable $var_name not set."
+  for var_name in "$@"; do
+    if [[ -z "${!var_name:-}" ]]; then
+      echo "ERROR: Required environment variable $var_name not set." >&2
+      missing=1
+    fi
+  done
+
+  if [[ "$missing" -eq 1 ]]; then
     exit 1
   fi
 }

@@ -5,6 +5,10 @@ set -e
 # Script to set execution permissions on binaries
 # Usage: set-permissions.sh <bin-directory>
 
+# Source configuration library
+# shellcheck source=lib-release-config.sh
+source "$(dirname "$0")/lib-release-config.sh"
+
 function main {
   local -r bin_dir="${1:-bin}"
 
@@ -13,16 +17,23 @@ function main {
     exit 1
   fi
 
+  verify_config_file
+
   cd "$bin_dir"
 
+  # Get list of all binaries from configuration
+  local binaries
+  mapfile -t binaries < <(get_all_binaries)
+
   # Set execution permissions on all binaries
-  chmod +x terragrunt_darwin_amd64
-  chmod +x terragrunt_darwin_arm64
-  chmod +x terragrunt_linux_386
-  chmod +x terragrunt_linux_amd64
-  chmod +x terragrunt_linux_arm64
-  chmod +x terragrunt_windows_386.exe
-  chmod +x terragrunt_windows_amd64.exe
+  for binary in "${binaries[@]}"; do
+    if [[ -f "$binary" ]]; then
+      chmod +x "$binary"
+      echo "Set +x on $binary"
+    else
+      echo "Warning: Binary $binary not found, skipping"
+    fi
+  done
 
   echo "Execution permissions set on all binaries"
 }

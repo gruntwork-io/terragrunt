@@ -9,6 +9,10 @@ set -e
 #   GH_TOKEN: GitHub token for authentication
 #   CLOBBER: Set to 'true' to overwrite existing assets during retry (default: false)
 
+# Source configuration library
+# shellcheck source=lib-release-config.sh
+source "$(dirname "$0")/lib-release-config.sh"
+
 readonly MAX_RETRIES=10
 
 function main {
@@ -17,6 +21,7 @@ function main {
 
   assert_env_var_not_empty "VERSION"
   assert_env_var_not_empty "GH_TOKEN"
+  verify_config_file
 
   # Build upload command with optional --clobber flag
   local clobber_flag=""
@@ -35,35 +40,9 @@ function main {
 
   echo "Found $asset_count assets in release"
 
-  # Expected files (binaries + individual ZIPs + individual TAR.GZ + SHA256SUMS)
-  local expected_files=(
-    # Individual binaries
-    "terragrunt_darwin_amd64"
-    "terragrunt_darwin_arm64"
-    "terragrunt_linux_386"
-    "terragrunt_linux_amd64"
-    "terragrunt_linux_arm64"
-    "terragrunt_windows_386.exe"
-    "terragrunt_windows_amd64.exe"
-    # Individual ZIP archives
-    "terragrunt_darwin_amd64.zip"
-    "terragrunt_darwin_arm64.zip"
-    "terragrunt_linux_386.zip"
-    "terragrunt_linux_amd64.zip"
-    "terragrunt_linux_arm64.zip"
-    "terragrunt_windows_386.exe.zip"
-    "terragrunt_windows_amd64.exe.zip"
-    # Individual TAR.GZ archives
-    "terragrunt_darwin_amd64.tar.gz"
-    "terragrunt_darwin_arm64.tar.gz"
-    "terragrunt_linux_386.tar.gz"
-    "terragrunt_linux_amd64.tar.gz"
-    "terragrunt_linux_arm64.tar.gz"
-    "terragrunt_windows_386.exe.tar.gz"
-    "terragrunt_windows_amd64.exe.tar.gz"
-    # Checksums
-    "SHA256SUMS"
-  )
+  # Get expected files from centralized configuration
+  local expected_files
+  mapfile -t expected_files < <(get_all_expected_files)
 
   # Check each expected file
   for expected_file in "${expected_files[@]}"; do
@@ -111,13 +90,18 @@ function main {
     echo "Warning: Could not verify asset download URL"
   fi
 
+  local expected_count
+  expected_count=$(get_total_file_count)
+  local binary_count
+  binary_count=$(get_binary_count)
+
   echo ""
   echo "All required assets verified!"
-  echo "Expected files: 22 (7 binaries + 7 ZIPs + 7 TAR.GZ + SHA256SUMS)"
+  echo "Expected files: $expected_count ($binary_count binaries + archives + checksums)"
   echo "Actual files: $asset_count"
 
-  if [ "$asset_count" -lt 22 ]; then
-    echo "Warning: Expected 22 files, found $asset_count"
+  if [ "$asset_count" -lt "$expected_count" ]; then
+    echo "Warning: Expected $expected_count files, found $asset_count"
   fi
 }
 
