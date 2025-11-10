@@ -43,7 +43,7 @@ jobs:
 
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, license_check]
     uses: ./.github/workflows/build-no-proxy.yml
     secrets: inherit
