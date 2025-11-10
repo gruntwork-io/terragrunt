@@ -1,4 +1,3 @@
-
 stack "dev" {
 	source = "${get_repo_root()}/stacks/dev"
 	path = "dev"
