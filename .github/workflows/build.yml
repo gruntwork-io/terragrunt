@@ -149,7 +149,6 @@ jobs:
     name: Sign Windows Binaries
     needs: build
     uses: ./.github/workflows/sign-windows.yml
-    secrets: inherit
 
   merge-signed-binaries:
     name: Merge All Signed Binaries
