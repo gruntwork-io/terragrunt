@@ -98,7 +98,11 @@ jobs:
 
           Write-Host "Updating winres.json for version: $version (FileVersion: $fileVersion)"
 
-          # Read existing winres.json
+          # Copy winres.json from .github/assets to current directory
+          Copy-Item ".github/assets/winres.json" "winres.json"
+          Write-Host "Copied winres.json from .github/assets/"
+
+          # Read winres.json
           $winresConfig = Get-Content "winres.json" -Raw | ConvertFrom-Json
 
           # Update version fields
@@ -109,7 +113,7 @@ jobs:
           $winresConfig.RT_VERSION.'#1'.'0409'.info.'0409'.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
           $winresConfig.RT_MANIFEST.'#1'.'0409'.assembly.identity.version = $fileVersion
 
-          # Write updated winres.json
+          # Write updated winres.json to current directory
           $jsonOutput = $winresConfig | ConvertTo-Json -Depth 10 -Compress:$false
           [System.IO.File]::WriteAllText("winres.json", $jsonOutput)
 
