@@ -68,6 +68,17 @@ func (f Filters) RequiresDiscovery() (Expression, bool) {
 	return nil, false
 }
 
+// RequiresParse returns the first expression that requires parsing of Terragrunt HCL configurations if any do.
+func (f Filters) RequiresParse() (Expression, bool) {
+	for _, filter := range f {
+		if e, ok := filter.expr.RequiresParse(); ok {
+			return e, true
+		}
+	}
+
+	return nil, false
+}
+
 // RequiresDependencyDiscovery returns all target expressions from graph expressions that require dependency traversal.
 func (f Filters) RequiresDependencyDiscovery() []Expression {
 	var targets []Expression

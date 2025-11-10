@@ -350,12 +350,12 @@ func (d *Discovery) WithoutDefaultExcludes() *Discovery {
 func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	d.filters = filters
 
-	d.filterFlagEnabled = true
+	d.WithFilterFlagEnabled()
 
 	// If there are any positive filters, we need to exclude by default,
 	// and only include components if they match filters.
 	if d.filters.HasPositiveFilter() {
-		d.excludeByDefault = true
+		d.WithExcludeByDefault()
 	}
 
 	// Collect target expressions from graph filters for selective graph traversal.
@@ -368,13 +368,18 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 		d.discoverExternalDependencies = true
 	}
 
+	// If any filters require parsing, we need to opt-in to parsing.
+	if _, ok := d.filters.RequiresParse(); ok {
+		d.WithRequiresParse()
+	}
+
 	return d
 }
 
 // WithFilterFlagEnabled sets whether the filter flag experiment is enabled.
 // This changes how discovery processes components during file traversal.
-func (d *Discovery) WithFilterFlagEnabled(enabled bool) *Discovery {
-	d.filterFlagEnabled = enabled
+func (d *Discovery) WithFilterFlagEnabled() *Discovery {
+	d.filterFlagEnabled = true
 	return d
 }
 

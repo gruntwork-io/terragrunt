@@ -13,8 +13,12 @@ type Expression interface {
 	expressionNode()
 	// String returns a string representation of the expression for debugging.
 	String() string
-	// RequiresDiscovery returns true if the expression requires parsing Terragrunt HCL configurations.
+	// RequiresDiscovery returns the first expression that requires discovery of Terragrunt components if any do.
+	// Additionally, it returns a secondary value of true if any do.
 	RequiresDiscovery() (Expression, bool)
+	// RequiresParse returns the first expression that requires parsing Terragrunt HCL configurations if any do.
+	// Additionally, it returns a secondary value of true if any do.
+	RequiresParse() (Expression, bool)
 }
 
 // PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
@@ -51,6 +55,7 @@ func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 func (p *PathFilter) expressionNode()                       {}
 func (p *PathFilter) String() string                        { return p.Value }
 func (p *PathFilter) RequiresDiscovery() (Expression, bool) { return p, false }
+func (p *PathFilter) RequiresParse() (Expression, bool)     { return p, false }
 
 // AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeFilter struct {
@@ -96,6 +101,20 @@ func (a *AttributeFilter) supportsGlob() bool {
 func (a *AttributeFilter) expressionNode()                       {}
 func (a *AttributeFilter) String() string                        { return a.Key + "=" + a.Value }
 func (a *AttributeFilter) RequiresDiscovery() (Expression, bool) { return a, true }
+func (a *AttributeFilter) RequiresParse() (Expression, bool) {
+	switch a.Key {
+	// All of these attributes can be determined based on the component + configuration filepath.
+	case AttributeName, AttributeType, AttributeExternal:
+		return nil, false
+	// We only know what a component reads if we parse it.
+	case AttributeReading:
+		return a, true
+	// We default to true to be conservative in-case we forget to register
+	// a new attribute here that does require parsing.
+	default:
+		return nil, true
+	}
+}
 
 // PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
 type PrefixExpression struct {
@@ -107,6 +126,9 @@ func (p *PrefixExpression) expressionNode() {}
 func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String() }
 func (p *PrefixExpression) RequiresDiscovery() (Expression, bool) {
 	return p.Right.RequiresDiscovery()
+}
+func (p *PrefixExpression) RequiresParse() (Expression, bool) {
+	return p.Right.RequiresParse()
 }
 
 // InfixExpression represents an infix operator expression (e.g., "./apps/* | name=bar").
@@ -126,6 +148,17 @@ func (i *InfixExpression) RequiresDiscovery() (Expression, bool) {
 	}
 
 	if _, ok := i.Right.RequiresDiscovery(); ok {
+		return i, true
+	}
+
+	return nil, false
+}
+func (i *InfixExpression) RequiresParse() (Expression, bool) {
+	if _, ok := i.Left.RequiresParse(); ok {
+		return i, true
+	}
+
+	if _, ok := i.Right.RequiresParse(); ok {
 		return i, true
 	}
 
@@ -160,5 +193,9 @@ func (g *GraphExpression) String() string {
 }
 func (g *GraphExpression) RequiresDiscovery() (Expression, bool) {
 	// Graph expressions require dependency discovery to traverse the graph
+	return g, true
+}
+func (g *GraphExpression) RequiresParse() (Expression, bool) {
+	// Graph expressions require parsing to traverse the graph.
 	return g, true
 }
