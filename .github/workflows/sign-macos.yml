@@ -28,7 +28,7 @@ on:
 
 jobs:
   sign-macos:
-    name: Sign macOS Binaries
+    name: Sign MacOS Binaries
     runs-on: macos-latest
     env:
       MISE_PROFILE: cicd
@@ -81,7 +81,7 @@ jobs:
       - name: Run gon version
         run: gon --version
 
-      - name: Sign macOS Binaries
+      - name: Sign MacOS Binaries
         env:
           AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
           AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
@@ -89,7 +89,7 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
-          echo "Signing macOS binaries..."
+          echo "Signing MacOS binaries..."
           .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
           .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
           echo "Done signing the binaries"
@@ -106,7 +106,7 @@ jobs:
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
 
-      - name: Upload Signed macOS Binaries
+      - name: Upload Signed MacOS Binaries
         uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.upload-artifact-name }}

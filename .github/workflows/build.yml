@@ -73,7 +73,7 @@ jobs:
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
   sign-macos:
-    name: Sign macOS Binaries
+    name: Sign MacOS Binaries
     if: ${{ !inputs.skip-signing }}
     needs: build
     uses: ./.github/workflows/sign-macos.yml

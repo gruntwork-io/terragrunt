@@ -104,11 +104,13 @@ jobs:
             $day = $matches[4]
             $buildNum = $matches[5]
 
-            $major = "0"
+            # Windows FileVersion components are limited to 65535
+            # Use format: YYYY.MMDD.NN.0 (all components within limits)
+            $major = $year
             $minor = "$month$day"
             $patch = $buildNum
             $version = "$prefix-$year$month$day$buildNum"
-            Write-Host "Detected pre-release tag: $version (Prefix: $prefix, FileVersion will be 0.$month$day.$buildNum.0)"
+            Write-Host "Detected pre-release tag: $version (Prefix: $prefix, FileVersion will be $year.$month$day.$buildNum.0)"
           }
           elseif ($rawVersion -match '^\d+\.\d+') {
             # Version without 'v' prefix
@@ -160,12 +162,12 @@ jobs:
           # Verify icon file exists
           Write-Host ""
           Write-Host "Verifying icon file..."
-          if (Test-Path ".github/assets/terragrunt.ico") {
-            Write-Host "Icon file exists: .github/assets/terragrunt.ico"
-            $iconInfo = Get-Item ".github/assets/terragrunt.ico"
+          if (Test-Path ".github/assets/terragrunt.png") {
+            Write-Host "Icon file exists: .github/assets/terragrunt.png"
+            $iconInfo = Get-Item ".github/assets/terragrunt.png"
             Write-Host "Icon size: $($iconInfo.Length) bytes"
           } else {
-            Write-Error "Icon file not found: .github/assets/terragrunt.ico"
+            Write-Error "Icon file not found: .github/assets/terragrunt.png"
             exit 1
           }
 
