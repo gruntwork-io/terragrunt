@@ -256,10 +256,12 @@ jobs:
             Write-Host "✅ Signature verified successfully!"
           }
 
-      # Upload signed artifacts
-      - name: Upload Signed Windows Binary
+      # Upload Windows binaries (signed amd64 + unsigned 386)
+      - name: Upload Windows Binaries
         uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.upload-artifact-name }}
-          path: bin/terragrunt_windows_amd64.exe
+          path: |
+            bin/terragrunt_windows_amd64.exe
+            bin/terragrunt_windows_386.exe
           if-no-files-found: error

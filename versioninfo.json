@@ -23,6 +23,6 @@
       "CharsetID": "0x04B0"
     }
   },
-  "IconPath": "",
+  "IconPath": ".github/assets/terragrunt.ico",
   "ManifestPath": ""
 }
