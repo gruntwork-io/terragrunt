@@ -5,6 +5,7 @@ package output
 import (
 	"context"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -134,28 +135,25 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		nameToPath := make(map[string]string) // Map to track which path each stack name came from
 
 		for stackPath, stackName := range declaredStacks {
-			if strings.Contains(path, stackPath) {
+			rel, relErr := filepath.Rel(stackPath, path)
+			if relErr != nil {
+				return cty.NilVal, errors.Errorf("Failed to get relative path for %s: %w", path, relErr)
+			}
+
+			if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 				stackNames = append(stackNames, stackName)
 				nameToPath[stackName] = stackPath
 			}
 		}
 
 		// Sort stackNames based on the length of stackPath to ensure correct order
-		stackNamesSorted := make([]string, len(stackNames))
-		copy(stackNamesSorted, stackNames)
-
-		for i := range stackNamesSorted {
-			for j := i + 1; j < len(stackNamesSorted); j++ {
-				// Compare lengths of the actual paths from the nameToPath map, not the declaredStacks lookup
-				if len(nameToPath[stackNamesSorted[i]]) < len(nameToPath[stackNamesSorted[j]]) {
-					stackNamesSorted[i], stackNamesSorted[j] = stackNamesSorted[j], stackNamesSorted[i]
-				}
-			}
-		}
+		sort.Slice(stackNames, func(i, j int) bool {
+			return len(nameToPath[stackNames[i]]) < len(nameToPath[stackNames[j]])
+		})
 
 		stackKey := unit.Name
-		if len(stackNamesSorted) > 0 {
-			stackKey = strings.Join(stackNamesSorted, ".") + "." + unit.Name
+		if len(stackNames) > 0 {
+			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
 		}
 
 		unitOutputs[stackKey] = output

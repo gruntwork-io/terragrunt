@@ -106,7 +106,14 @@ func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 
 		wp.Submit(func() error {
-			return config.GenerateStackFile(ctx, l, opts, wp, node.FilePath)
+			stackPool := worker.NewWorkerPool(opts.Parallelism)
+			defer stackPool.Stop()
+
+			if err := config.GenerateStackFile(ctx, l, opts, stackPool, node.FilePath); err != nil {
+				return err
+			}
+
+			return stackPool.Wait()
 		})
 	}
 
