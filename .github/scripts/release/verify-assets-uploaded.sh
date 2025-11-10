@@ -7,20 +7,28 @@ set -e
 # Environment variables:
 #   VERSION: The version/tag to verify
 #   GH_TOKEN: GitHub token for authentication
+#   CLOBBER: Set to 'true' to overwrite existing assets during retry (default: false)
 
 readonly MAX_RETRIES=10
 
 function main {
   local -r bin_dir="${1:-bin}"
+  local -r clobber="${CLOBBER:-false}"
 
   assert_env_var_not_empty "VERSION"
   assert_env_var_not_empty "GH_TOKEN"
+
+  # Build upload command with optional --clobber flag
+  local clobber_flag=""
+  if [[ "$clobber" == "true" ]]; then
+    clobber_flag="--clobber"
+  fi
 
   echo "Verifying all assets are accessible..."
 
   # Get list of assets in the release
   local assets
-  assets=$(gh release view "$VERSION" --json assets --jq '.assets[].name')
+  assets=$(gh release view "$VERSION" --json 'assets' --jq '.assets[].name')
 
   local asset_count
   asset_count=$(echo "$assets" | wc -l)
@@ -69,7 +77,7 @@ function main {
       if [ -f "$bin_dir/$expected_file" ]; then
         local i
         for ((i=0; i<MAX_RETRIES; i++)); do
-          if gh release upload "$VERSION" "$bin_dir/$expected_file" --clobber; then
+          if gh release upload "$VERSION" "$bin_dir/$expected_file" $clobber_flag; then
             echo "Uploaded $expected_file"
             break
           else
@@ -95,7 +103,7 @@ function main {
   echo ""
   echo "Verifying asset downloads (spot check)..."
   local download_url
-  download_url=$(gh release view "$VERSION" --json assets --jq '.assets[0].url')
+  download_url=$(gh release view "$VERSION" --json 'assets' --jq '.assets[0].url')
 
   if curl -sILf "$download_url" > /dev/null; then
     echo "Assets are downloadable"

@@ -17,7 +17,7 @@ function main {
   printf 'Checking if release exists for tag: %s\n' "$VERSION"
 
   # Try to get the release using gh CLI
-  if ! gh release view "$VERSION" --json id,uploadUrl,isDraft > /dev/null 2>&1; then
+  if ! gh release view "$VERSION" --json 'id,uploadUrl,isDraft' > /dev/null 2>&1; then
     printf 'exists=false\n' >> "$GITHUB_OUTPUT"
     printf 'Release not found for tag %s\n' "$VERSION"
     exit 1
@@ -25,15 +25,15 @@ function main {
 
   # Get release details
   local release_json
-  release_json=$(gh release view "$VERSION" --json id,uploadUrl,isDraft)
+  release_json=$(gh release view "$VERSION" --json 'id,uploadUrl,isDraft')
 
   local release_id
   local upload_url
   local is_draft
 
-  release_id=$(echo "$release_json" | jq -r '.id')
-  upload_url=$(echo "$release_json" | jq -r '.uploadUrl')
-  is_draft=$(echo "$release_json" | jq -r '.isDraft')
+  release_id=$(jq -r '.id' <<< "$release_json")
+  upload_url=$(jq -r '.uploadUrl' <<< "$release_json")
+  is_draft=$(jq -r '.isDraft' <<< "$release_json")
 
   # Write to GitHub output
   printf 'exists=true\n' >> "$GITHUB_OUTPUT"

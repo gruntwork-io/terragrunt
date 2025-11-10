@@ -12,6 +12,11 @@ on:
         description: 'Tag to release (e.g., v0.58.8)'
         required: true
         type: string
+      clobber:
+        description: 'Overwrite existing release assets (--clobber)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -56,21 +61,7 @@ jobs:
           path: bin/
 
       - name: Verify binaries downloaded
-        run: |
-          echo "Downloaded binaries:"
-          ls -lahrt bin/*
-
-          # Count binaries
-          binary_count=$(ls bin/ | wc -l)
-          echo "Total binaries: $binary_count"
-
-          # Should have 7 binaries (2 darwin, 3 linux, 2 windows)
-          if [ "$binary_count" -lt 7 ]; then
-            echo "Error: Expected at least 7 binaries, found $binary_count"
-            exit 1
-          fi
-
-          echo "All binaries present"
+        run: .github/scripts/release/verify-binaries-downloaded.sh bin 7
 
       - name: Set execution permissions on binaries
         run: .github/scripts/release/set-permissions.sh bin
@@ -88,12 +79,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
+          CLOBBER: ${{ github.event_name == 'workflow_dispatch' && inputs.clobber || 'false' }}
         run: .github/scripts/release/upload-assets.sh bin
 
       - name: Verify all assets uploaded
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
+          CLOBBER: ${{ github.event_name == 'workflow_dispatch' && inputs.clobber || 'false' }}
         run: .github/scripts/release/verify-assets-uploaded.sh bin
 
       - name: Upload summary
