@@ -112,7 +112,7 @@ jobs:
 
           # Generate resource file (includes icon if IconPath is set)
           Write-Host "Generating resource file with icon..."
-          goversioninfo -o=rsrc.syso versioninfo.json
+          goversioninfo -o rsrc.syso
 
           if (Test-Path rsrc.syso) {
             Write-Host "Resource file generated: rsrc.syso"
