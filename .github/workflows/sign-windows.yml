@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SM_HOST: https://clientauth.one.digicert.com
+      SM_HOST: https://one.digicert.com
       SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
       SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
@@ -84,15 +84,33 @@ jobs:
 
           Write-Host "Generating version info for: $version (FileVersion: $fileVersion)"
 
-          # Update versioninfo.json
-          $versionInfo = Get-Content versioninfo.json | ConvertFrom-Json
+          # Update versioninfo.json (preserves IconPath and other fields)
+          $versionInfo = Get-Content versioninfo.json -Raw | ConvertFrom-Json
           $versionInfo.StringFileInfo.FileVersion = $fileVersion
           $versionInfo.StringFileInfo.ProductVersion = $version
           $versionInfo.StringFileInfo.LegalCopyright = "Copyright (C) $year Gruntwork, Inc."
-          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json
 
-          # Generate resource file
+          # Save with proper formatting (preserves all existing fields including IconPath)
+          $versionInfo | ConvertTo-Json -Depth 10 | Set-Content -Path versioninfo.json -Encoding UTF8
+
+          # Verify IconPath is still present
+          $savedInfo = Get-Content versioninfo.json -Raw | ConvertFrom-Json
+          if ($savedInfo.IconPath) {
+            Write-Host "IconPath preserved: $($savedInfo.IconPath)"
+          } else {
+            Write-Warning "IconPath was lost during update"
+          }
+
+          # Generate resource file (includes icon if IconPath is set)
+          Write-Host "Generating resource file with icon..."
           goversioninfo -o=rsrc.syso versioninfo.json
+
+          if (Test-Path rsrc.syso) {
+            Write-Host "Resource file generated: rsrc.syso"
+          } else {
+            Write-Error "Failed to generate resource file"
+            exit 1
+          }
 
           # Rebuild Windows binaries with metadata
           $architectures = @("386", "amd64")
@@ -110,14 +128,14 @@ jobs:
               exit 1
             }
 
-            Write-Host "✅ Built $output with metadata"
+            Write-Host "Built $output with metadata"
           }
 
           if (Test-Path rsrc.syso) {
             Remove-Item rsrc.syso
           }
 
-          Write-Host "✅ All Windows binaries rebuilt with version metadata"
+          Write-Host "All Windows binaries rebuilt with version metadata"
 
       # Install DigiCert smtools (smctl)
       - name: Install DigiCert smtools
@@ -133,16 +151,16 @@ jobs:
 
           $smctlPath = Get-Command smctl.exe -ErrorAction SilentlyContinue
           if (-not $smctlPath) {
-            Write-Error "❌ smctl.exe not found in PATH"
+            Write-Error "smctl.exe not found in PATH"
             exit 1
           }
 
-          Write-Host "✅ smctl found at: $($smctlPath.Source)"
+          Write-Host "smctl found at: $($smctlPath.Source)"
 
           Write-Host "Checking smctl version..."
           & smctl.exe --version
 
-          Write-Host "✅ smctl is ready"
+          Write-Host "smctl is ready"
 
       # Restore P12 client certificate and set SM_CLIENT_CERT_FILE
       - name: Restore P12 client certificate
@@ -157,16 +175,16 @@ jobs:
           [IO.File]::WriteAllBytes($path, $bytes)
 
           if (Test-Path $path) {
-            Write-Host "✅ Certificate file created: $path"
+            Write-Host "Certificate file created: $path"
             $fileInfo = Get-Item $path
             Write-Host "   Size: $($fileInfo.Length) bytes"
           } else {
-            Write-Error "❌ Failed to create certificate file"
+            Write-Error "Failed to create certificate file"
             exit 1
           }
 
           echo "SM_CLIENT_CERT_FILE=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "✅ SM_CLIENT_CERT_FILE set to: $path"
+          Write-Host "SM_CLIENT_CERT_FILE set to: $path"
 
       # Store credentials in Windows Credential Manager
       - name: Save credentials to Windows Credential Manager
@@ -177,11 +195,11 @@ jobs:
           & smctl.exe credentials save $env:SM_API_KEY $env:SM_CLIENT_CERT_PASSWORD
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Failed to save credentials"
+            Write-Error "Failed to save credentials"
             exit 1
           }
 
-          Write-Host "✅ Credentials saved to Windows Credential Manager"
+          Write-Host "Credentials saved to Windows Credential Manager"
 
       # Healthcheck against DigiCert
       - name: Run smctl healthcheck
@@ -192,10 +210,10 @@ jobs:
           & smctl.exe healthcheck
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Warning "⚠️  Healthcheck failed (exit code: $LASTEXITCODE)"
+            Write-Warning "Healthcheck failed (exit code: $LASTEXITCODE)"
             Write-Warning "Continuing anyway - signing step will be the real test"
           } else {
-            Write-Host "✅ Healthcheck passed"
+            Write-Host "Healthcheck passed"
           }
 
       # Sync certificates from DigiCert KeyLocker to Windows certificate store
@@ -207,11 +225,11 @@ jobs:
           & smctl.exe windows certsync --keypair-alias "$env:SM_KEYPAIR_ALIAS"
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Certificate sync failed"
+            Write-Error "Certificate sync failed"
             exit 1
           }
 
-          Write-Host "✅ Certificates synced to Windows store"
+          Write-Host "Certificates synced to Windows store"
 
       # Sign binaries
       - name: Sign Windows binaries
@@ -223,7 +241,7 @@ jobs:
           $binary = Get-Item -Path "bin\terragrunt_windows_amd64.exe" -ErrorAction SilentlyContinue
 
           if (-not $binary) {
-            Write-Error "❌ Binary not found: bin\terragrunt_windows_amd64.exe"
+            Write-Error "Binary not found: bin\terragrunt_windows_amd64.exe"
             exit 1
           }
 
@@ -236,11 +254,11 @@ jobs:
             --verbose
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Signing failed for $($binary.Name)"
+            Write-Error "Signing failed for $($binary.Name)"
             exit 1
           }
 
-          Write-Host "✅ Successfully signed $($binary.Name)"
+          Write-Host "Successfully signed $($binary.Name)"
 
       # Verify signatures
       - name: Verify signatures
@@ -251,9 +269,9 @@ jobs:
           & smctl.exe sign verify --input "bin\terragrunt_windows_amd64.exe"
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Warning "⚠️  Signature verification returned non-zero exit code (may be expected)"
+            Write-Warning "Signature verification returned non-zero exit code (may be expected)"
           } else {
-            Write-Host "✅ Signature verified successfully!"
+            Write-Host "Signature verified successfully"
           }
 
       # Upload Windows binaries (signed amd64 + unsigned 386)
