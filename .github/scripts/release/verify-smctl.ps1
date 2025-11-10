@@ -16,11 +16,18 @@ if (-not $smctlPath) {
 Write-Host "smctl found at: $($smctlPath.Source)"
 
 Write-Host "Checking smctl version..."
-& smctl.exe --version
 
+# Capture stderr and stdout
+$output = & smctl.exe --version 2>&1
+
+# Check exit code
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "smctl --version returned non-zero exit code"
+    Write-Error "smctl --version failed with exit code $LASTEXITCODE. Output: $output"
+    exit $LASTEXITCODE
 }
+
+# Display output if successful
+Write-Host $output
 
 Write-Host ""
 Write-Host "smctl is ready"

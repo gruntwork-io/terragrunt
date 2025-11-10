@@ -19,8 +19,14 @@ function main {
   # Create bin directory
   mkdir -p "$bin_dir"
 
-  # Copy all artifacts to bin directory
-  find "$artifacts_dir" -type f -exec cp {} "$bin_dir/" \;
+  # Copy only macOS artifacts (terragrunt_darwin_*) to bin directory
+  find "$artifacts_dir" -type f -name 'terragrunt_darwin_*' -exec cp {} "$bin_dir/" \;
+
+  # Verify we found macOS binaries
+  if ! ls "$bin_dir"/terragrunt_darwin_* > /dev/null 2>&1; then
+    echo "ERROR: No macOS binaries (terragrunt_darwin_*) found in $artifacts_dir"
+    exit 1
+  fi
 
   echo "Binary files to sign:"
   ls -lahrt "$bin_dir"/*

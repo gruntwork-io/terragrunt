@@ -259,20 +259,46 @@ function Main {
     # Sync certificates
     Sync-Certificates
 
-    # Sign amd64 binary only
-    $amd64Binary = Get-Item -Path "$BinDirectory\terragrunt_windows_amd64.exe" -ErrorAction SilentlyContinue
+    # Sign both Windows binaries (amd64 and 386)
+    Write-Host ""
+    Write-Host "Locating Windows binaries..."
 
+    $amd64Binary = Get-Item -Path "$BinDirectory\terragrunt_windows_amd64.exe" -ErrorAction SilentlyContinue
+    $i386Binary = Get-Item -Path "$BinDirectory\terragrunt_windows_386.exe" -ErrorAction SilentlyContinue
+
+    # Check both binaries exist
     if (-not $amd64Binary) {
         Write-Error "Binary not found: $BinDirectory\terragrunt_windows_amd64.exe"
         exit 1
     }
 
+    if (-not $i386Binary) {
+        Write-Error "Binary not found: $BinDirectory\terragrunt_windows_386.exe"
+        exit 1
+    }
+
+    Write-Host "Found both Windows binaries:"
+    Write-Host "  - $($amd64Binary.FullName)"
+    Write-Host "  - $($i386Binary.FullName)"
+    Write-Host ""
+
+    # Sign amd64 binary
     Sign-Binary -BinaryPath $amd64Binary.FullName
 
-    # Verify signature
+    # Sign 386 binary
+    Sign-Binary -BinaryPath $i386Binary.FullName
+
+    Write-Host ""
+    Write-Host "Verifying signatures..."
+
+    # Verify amd64 signature
     Verify-Signature -BinaryPath $amd64Binary.FullName
 
-    Write-Host "Windows signing completed successfully"
+    # Verify 386 signature
+    Verify-Signature -BinaryPath $i386Binary.FullName
+
+    Write-Host ""
+    Write-Host "Windows signing completed successfully - both binaries signed and verified"
 }
 
 Main
