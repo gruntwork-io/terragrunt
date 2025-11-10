@@ -73,11 +73,20 @@ jobs:
           }
           $version = $version.TrimStart('v')
 
-          # Parse version components
-          $versionParts = $version.Split('.')
-          $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
-          $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
-          $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
+          # Parse version components - handle non-version strings (branch names)
+          if ($version -match '^\d+\.\d+') {
+            # Valid version format (starts with number.number)
+            $versionParts = $version.Split('.')
+            $major = if ($versionParts.Length -gt 0) { $versionParts[0] } else { "0" }
+            $minor = if ($versionParts.Length -gt 1) { $versionParts[1] } else { "0" }
+            $patch = if ($versionParts.Length -gt 2) { $versionParts[2].Split('-')[0] } else { "0" }
+          } else {
+            # Branch name or invalid version - use dev version
+            $major = "0"
+            $minor = "0"
+            $patch = "0"
+            $version = "0.0.0-dev"
+          }
 
           $fileVersion = "$major.$minor.$patch.0"
           $year = (Get-Date).Year
