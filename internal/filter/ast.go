@@ -19,6 +19,8 @@ type Expression interface {
 	// RequiresParse returns the first expression that requires parsing Terragrunt HCL configurations if any do.
 	// Additionally, it returns a secondary value of true if any do.
 	RequiresParse() (Expression, bool)
+	// IsRestrictedToStacks returns true if the expression is restricted to stacks.
+	IsRestrictedToStacks() bool
 }
 
 // PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
@@ -56,6 +58,7 @@ func (p *PathFilter) expressionNode()                       {}
 func (p *PathFilter) String() string                        { return p.Value }
 func (p *PathFilter) RequiresDiscovery() (Expression, bool) { return p, false }
 func (p *PathFilter) RequiresParse() (Expression, bool)     { return p, false }
+func (p *PathFilter) IsRestrictedToStacks() bool            { return false }
 
 // AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeFilter struct {
@@ -65,6 +68,11 @@ type AttributeFilter struct {
 	Value        string
 	WorkingDir   string
 	compileOnce  sync.Once
+}
+
+// NewAttributeFilter creates a new AttributeFilter with lazy glob compilation.
+func NewAttributeFilter(key string, value string, workingDir string) *AttributeFilter {
+	return &AttributeFilter{Key: key, Value: value, WorkingDir: workingDir}
 }
 
 // CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
@@ -115,11 +123,19 @@ func (a *AttributeFilter) RequiresParse() (Expression, bool) {
 		return nil, true
 	}
 }
+func (a *AttributeFilter) IsRestrictedToStacks() bool {
+	return a.Key == "type" && a.Value == "stack"
+}
 
 // PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
 type PrefixExpression struct {
 	Right    Expression
 	Operator string
+}
+
+// NewPrefixExpression creates a new PrefixExpression.
+func NewPrefixExpression(operator string, right Expression) *PrefixExpression {
+	return &PrefixExpression{Operator: operator, Right: right}
 }
 
 func (p *PrefixExpression) expressionNode() {}
@@ -130,12 +146,35 @@ func (p *PrefixExpression) RequiresDiscovery() (Expression, bool) {
 func (p *PrefixExpression) RequiresParse() (Expression, bool) {
 	return p.Right.RequiresParse()
 }
+func (p *PrefixExpression) IsRestrictedToStacks() bool {
+	switch p.Operator {
+	case "!":
+		switch a := p.Right.(type) {
+		case *AttributeFilter:
+			switch a.Key {
+			case "type":
+				return a.Value != "stack"
+			default:
+				return false
+			}
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
 
 // InfixExpression represents an infix operator expression (e.g., "./apps/* | name=bar").
 type InfixExpression struct {
 	Left     Expression
 	Right    Expression
 	Operator string
+}
+
+// NewInfixExpression creates a new InfixExpression.
+func NewInfixExpression(left Expression, operator string, right Expression) *InfixExpression {
+	return &InfixExpression{Left: left, Operator: operator, Right: right}
 }
 
 func (i *InfixExpression) expressionNode() {}
@@ -164,6 +203,14 @@ func (i *InfixExpression) RequiresParse() (Expression, bool) {
 
 	return nil, false
 }
+func (i *InfixExpression) IsRestrictedToStacks() bool {
+	switch i.Operator {
+	case "|":
+		return i.Left.IsRestrictedToStacks() || i.Right.IsRestrictedToStacks()
+	default:
+		return false
+	}
+}
 
 // GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "...foo...", "^foo").
 type GraphExpression struct {
@@ -171,6 +218,21 @@ type GraphExpression struct {
 	IncludeDependents   bool
 	IncludeDependencies bool
 	ExcludeTarget       bool
+}
+
+// NewGraphExpression creates a new GraphExpression.
+func NewGraphExpression(
+	target Expression,
+	includeDependents bool,
+	includeDependencies bool,
+	excludeTarget bool,
+) *GraphExpression {
+	return &GraphExpression{
+		Target:              target,
+		IncludeDependents:   includeDependents,
+		IncludeDependencies: includeDependencies,
+		ExcludeTarget:       excludeTarget,
+	}
 }
 
 func (g *GraphExpression) expressionNode() {}
@@ -199,3 +261,4 @@ func (g *GraphExpression) RequiresParse() (Expression, bool) {
 	// Graph expressions require parsing to traverse the graph.
 	return g, true
 }
+func (g *GraphExpression) IsRestrictedToStacks() bool { return false }

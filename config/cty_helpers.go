@@ -229,8 +229,8 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 	return &outCty, nil
 }
 
-// convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
-func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
+// ConvertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
+func ConvertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 	valMapAsCty := cty.NilVal
 
 	if len(valMap) > 0 {
@@ -286,7 +286,7 @@ func includeMapAsCtyVal(ctx *ParsingContext, l log.Logger) (cty.Value, error) {
 		}
 	}
 
-	return convertValuesMapToCtyVal(exposedIncludeMap)
+	return ConvertValuesMapToCtyVal(exposedIncludeMap)
 }
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return

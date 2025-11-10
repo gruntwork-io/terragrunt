@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -99,6 +100,17 @@ func (f Filters) RequiresDependentDiscovery() []Expression {
 	}
 
 	return targets
+}
+
+// RestrictToStacks returns a new Filters object with only the filters that are restricted to stacks.
+func (f Filters) RestrictToStacks() Filters {
+	return slices.Collect(func(yield func(*Filter) bool) {
+		for _, filter := range f {
+			if filter.expr.IsRestrictedToStacks() && !yield(filter) {
+				return
+			}
+		}
+	})
 }
 
 // collectGraphExpressionTargetsWithDependencies recursively collects target expressions from GraphExpression nodes that have IncludeDependencies set.

@@ -1225,7 +1225,7 @@ func ParseAndDecodeVarFile(l log.Logger, opts *options.TerragruntOptions, varFil
 		valMap[attr.Name] = val
 	}
 
-	ctyVal, err := convertValuesMapToCtyVal(valMap)
+	ctyVal, err := ConvertValuesMapToCtyVal(valMap)
 	if err != nil {
 		return err
 	}
