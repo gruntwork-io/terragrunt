@@ -44,6 +44,7 @@ function validate_version {
     exit 1
   fi
 
+  # Validate version matches expected pattern (tag-like: starts with letter/digit)
   if [[ ! "$version" =~ ^[a-zA-Z0-9] ]]; then
     echo "ERROR: Invalid version format: '$version' (must start with alphanumeric character)" >&2
     exit 1
