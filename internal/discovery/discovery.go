@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,10 +87,6 @@ type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
 	discoveryContext *component.DiscoveryContext
 
-	// gitWorktrees maps Git references to temporary worktree directory paths.
-	// This is used when Git-based filters are present to check out different Git references.
-	gitWorktrees map[string]string
-
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
@@ -113,6 +108,9 @@ type Discovery struct {
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
 
+	// worktreeDirs is a list of worktree directories to discover.
+	worktreeDirs []string
+
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
 
@@ -120,10 +118,13 @@ type Discovery struct {
 	filters filter.Filters
 
 	// dependencyTargetExpressions contains target expressions from graph filters that require dependency discovery
-	dependencyTargetExpressions []filter.Expression
+	dependencyTargetExpressions filter.Expressions
 
 	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
-	dependentTargetExpressions []filter.Expression
+	dependentTargetExpressions filter.Expressions
+
+	// gitExpressions contains Git filter expressions that require worktree discovery
+	gitExpressions filter.Expressions
 
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
@@ -367,8 +368,8 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	}
 
 	// Collect target expressions from graph filters for selective graph traversal.
-	d.dependencyTargetExpressions = d.filters.RequiresDependencyDiscovery()
-	d.dependentTargetExpressions = d.filters.RequiresDependentDiscovery()
+	d.dependencyTargetExpressions = d.filters.DependencyGraphExpressions()
+	d.dependentTargetExpressions = d.filters.DependentGraphExpressions()
 
 	// When working with graph filters, we always perform discovery of components,
 	// regardless of whether or not they are external. We can filter them out after the fact if necessary.
@@ -383,13 +384,7 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 
 	// Collect Git references from filters if any Git filters are present.
 	// The worktrees will be created during discovery before filtering.
-	gitRefs := d.filters.RequiresGitReferences()
-	if len(gitRefs) > 0 {
-		// Initialize gitWorktrees map if needed
-		if d.gitWorktrees == nil {
-			d.gitWorktrees = make(map[string]string)
-		}
-	}
+	d.gitExpressions = d.filters.GitExpressions()
 
 	return d
 }
@@ -404,18 +399,6 @@ func (d *Discovery) WithFilterFlagEnabled() *Discovery {
 // WithBreakCycles sets the BreakCycles flag to true.
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
-	return d
-}
-
-// WithGitWorktrees sets the Git worktree directories for Git-based filters.
-// The map should contain Git references as keys and their corresponding worktree directory paths as values.
-func (d *Discovery) WithGitWorktrees(worktrees map[string]string) *Discovery {
-	if d.gitWorktrees == nil {
-		d.gitWorktrees = make(map[string]string)
-	}
-
-	maps.Copy(d.gitWorktrees, worktrees)
-
 	return d
 }
 
@@ -1274,7 +1257,7 @@ func (d *Discovery) Discover(
 
 	if len(d.filters) > 0 {
 		// Create Git worktrees if needed for Git-based filters
-		gitRefs := d.filters.RequiresGitReferences()
+		gitRefs := d.gitExpressions.UniqueGitRefs()
 		if len(gitRefs) > 0 {
 			if worktreeErr := d.createGitWorktrees(ctx, l); worktreeErr != nil {
 				errs = append(errs, worktreeErr)
@@ -1326,30 +1309,30 @@ func (d *Discovery) Discover(
 // CleanupWorktrees removes all created Git worktrees and their temporary directories.
 // This should be called after Discover() when Git-based filters were used and worktrees are no longer needed.
 func (d *Discovery) CleanupWorktrees(ctx context.Context, l log.Logger) error {
-	if len(d.gitWorktrees) == 0 {
+	if len(d.worktreeDirs) == 0 {
 		return nil
 	}
 
 	var errs []error
 
-	for ref, worktreePath := range d.gitWorktrees {
+	for _, worktreePath := range d.worktreeDirs {
 		cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", worktreePath)
 
 		cmd.Dir = d.workingDir
 		if err := cmd.Run(); err != nil {
-			l.Debugf("Failed to remove Git worktree for %s: %v", ref, err)
+			l.Debugf("Failed to remove Git worktree at %s: %v", worktreePath, err)
 		}
 
 		if err := os.RemoveAll(worktreePath); err != nil {
-			errs = append(errs, fmt.Errorf("failed to remove worktree directory for %s: %w", ref, err))
+			errs = append(errs, fmt.Errorf("failed to remove worktree directory at %s: %w", worktreePath, err))
 
 			continue
 		}
 
-		l.Debugf("Cleaned up Git worktree for reference %s", ref)
+		l.Debugf("Cleaned up Git worktree at %s", worktreePath)
 	}
 
-	d.gitWorktrees = make(map[string]string)
+	d.worktreeDirs = []string{}
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
@@ -1523,13 +1506,9 @@ func RemoveCycles(components component.Components) (component.Components, error)
 // createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
 // The worktrees are created in temporary directories and tracked in d.gitWorktrees.
 func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error {
-	gitRefs := d.filters.RequiresGitReferences()
+	gitRefs := d.gitExpressions.UniqueGitRefs()
 	if len(gitRefs) == 0 {
 		return nil
-	}
-
-	if d.gitWorktrees == nil {
-		d.gitWorktrees = make(map[string]string)
 	}
 
 	gitRunner, err := git.NewGitRunner()
@@ -1548,10 +1527,6 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error 
 	)
 
 	for _, ref := range gitRefs {
-		if _, exists := d.gitWorktrees[ref]; exists {
-			continue
-		}
-
 		g.Go(func() error {
 			tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
 			if err != nil {
@@ -1575,7 +1550,7 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error 
 				return nil
 			}
 
-			d.gitWorktrees[ref] = tempDir
+			d.worktreeDirs = append(d.worktreeDirs, tempDir)
 
 			l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
 

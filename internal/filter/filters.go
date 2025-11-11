@@ -80,8 +80,8 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 
-// RequiresDependencyDiscovery returns all target expressions from graph expressions that require dependency traversal.
-func (f Filters) RequiresDependencyDiscovery() []Expression {
+// DependencyGraphExpressions returns all target expressions from graph expressions that require dependency traversal.
+func (f Filters) DependencyGraphExpressions() Expressions {
 	var targets []Expression
 
 	for _, filter := range f {
@@ -91,8 +91,8 @@ func (f Filters) RequiresDependencyDiscovery() []Expression {
 	return targets
 }
 
-// RequiresDependentDiscovery returns all target expressions from graph expressions that require dependent traversal.
-func (f Filters) RequiresDependentDiscovery() []Expression {
+// DependentGraphExpressions returns all target expressions from graph expressions that require dependent traversal.
+func (f Filters) DependentGraphExpressions() Expressions {
 	var targets []Expression
 
 	for _, filter := range f {
@@ -102,9 +102,9 @@ func (f Filters) RequiresDependentDiscovery() []Expression {
 	return targets
 }
 
-// RequiresWorktreeDiscovery returns all expressions that require worktree discovery.
-func (f Filters) RequiresWorktreeDiscovery() []Expression {
-	var targets []Expression
+// GitExpressions returns all expressions that require worktree discovery.
+func (f Filters) GitExpressions() Expressions {
+	var targets Expressions
 
 	for _, filter := range f {
 		targets = append(targets, collectWorktreeExpressions(filter.expr)...)
@@ -122,28 +122,6 @@ func (f Filters) RestrictToStacks() Filters {
 			}
 		}
 	})
-}
-
-// RequiresGitReferences returns all unique Git references used in Git filter expressions.
-// Returns a deduplicated list of reference strings (both FromRef and ToRef from GitFilter nodes).
-func (f Filters) RequiresGitReferences() []string {
-	refSet := make(map[string]struct{})
-
-	for _, filter := range f {
-		refs := collectGitReferences(filter.expr)
-		for _, ref := range refs {
-			if ref != "" {
-				refSet[ref] = struct{}{}
-			}
-		}
-	}
-
-	result := make([]string, 0, len(refSet))
-	for ref := range refSet {
-		result = append(result, ref)
-	}
-
-	return result
 }
 
 // collectGraphExpressionTargetsWithDependencies recursively collects target expressions from GraphExpression nodes that have IncludeDependencies set.

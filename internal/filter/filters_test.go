@@ -335,7 +335,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		assert.Empty(t, targets)
 	})
 
@@ -345,7 +345,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"app..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 1)
 
 		// Verify the target is the correct expression
@@ -359,7 +359,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"app...", "db..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 2)
 
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
@@ -372,7 +372,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		assert.Empty(t, targets)
 	})
 
@@ -382,7 +382,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 1)
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
@@ -393,7 +393,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"app... | db..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 2)
 	})
 
@@ -403,7 +403,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"!app..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 1)
 	})
 
@@ -413,7 +413,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"app...", "./apps/*"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependencyDiscovery()
+		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 1)
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
@@ -428,7 +428,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		assert.Empty(t, targets)
 	})
 
@@ -438,7 +438,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
 
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
@@ -450,7 +450,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app", "...db"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 2)
 
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
@@ -463,7 +463,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"app..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		assert.Empty(t, targets)
 	})
 
@@ -473,7 +473,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app..."}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
@@ -484,7 +484,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app | ...db"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 2)
 	})
 
@@ -494,7 +494,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"!...app"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
 	})
 
@@ -504,7 +504,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"...app", "./apps/*"}, ".")
 		require.NoError(t, err)
 
-		targets := filters.RequiresDependentDiscovery()
+		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
 		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
@@ -563,7 +563,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		assert.Empty(t, refs)
 	})
 
@@ -573,7 +573,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main]"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 1)
 		assert.Contains(t, refs, "main")
 	})
@@ -584,7 +584,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
@@ -596,7 +596,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[feature-branch]"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 3)
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
@@ -609,7 +609,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[HEAD...main]"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2) // main and HEAD, no duplicates
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
@@ -621,7 +621,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "./apps/*", "name=db"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
@@ -633,7 +633,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"![main...HEAD]"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
@@ -645,7 +645,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD] | ./apps/*"}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
@@ -657,7 +657,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]..."}, ".")
 		require.NoError(t, err)
 
-		refs := filters.RequiresGitReferences()
+		refs := filters.GitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.Contains(t, refs, "main")
 		assert.Contains(t, refs, "HEAD")
