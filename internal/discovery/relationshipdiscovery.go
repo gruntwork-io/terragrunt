@@ -52,8 +52,8 @@ func (rd *RelationshipDiscovery) WithParserOptions(parserOptions []hclparse.Opti
 	return rd
 }
 
-// DiscoverAllRelationships discovers any potential relationships between all components.
-func (rd *RelationshipDiscovery) DiscoverAllRelationships(
+// Discover discovers any potential relationships between all components.
+func (rd *RelationshipDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -83,7 +83,7 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 				}
 			})
 
-			err := rd.DiscoverRelationships(ctx, l, opts, c, terminalComponents, rd.maxDepth)
+			err := rd.discoverRelationships(ctx, l, opts, c, terminalComponents, rd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -107,8 +107,8 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 	return nil
 }
 
-// DiscoverRelationships discovers any potential relationships between a single component and all other components.
-func (rd *RelationshipDiscovery) DiscoverRelationships(
+// discoverRelationships discovers any potential relationships between a single component and all other components.
+func (rd *RelationshipDiscovery) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -189,7 +189,7 @@ func (rd *RelationshipDiscovery) DiscoverRelationships(
 
 	for _, dep := range depsToDiscover {
 		g.Go(func() error {
-			err := rd.DiscoverRelationships(ctx, l, opts, dep, terminalComponents, depthRemaining-1)
+			err := rd.discoverRelationships(ctx, l, opts, dep, terminalComponents, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 

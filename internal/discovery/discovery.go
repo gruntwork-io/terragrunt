@@ -108,8 +108,8 @@ type Discovery struct {
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
 
-	// worktreeDirs is a list of worktree directories to discover.
-	worktreeDirs []string
+	// workTrees is a map of references to the worktrees created for Git-based filters.
+	workTrees map[string]string
 
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
@@ -118,13 +118,13 @@ type Discovery struct {
 	filters filter.Filters
 
 	// dependencyTargetExpressions contains target expressions from graph filters that require dependency discovery
-	dependencyTargetExpressions filter.Expressions
+	dependencyTargetExpressions []filter.Expression
 
 	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
-	dependentTargetExpressions filter.Expressions
+	dependentTargetExpressions []filter.Expression
 
 	// gitExpressions contains Git filter expressions that require worktree discovery
-	gitExpressions filter.Expressions
+	gitExpressions filter.GitFilters
 
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
@@ -1085,6 +1085,30 @@ func (d *Discovery) Discover(
 
 	errs := []error{}
 
+	if len(d.gitExpressions) > 0 {
+		gitRefs := d.gitExpressions.UniqueGitRefs()
+		if len(gitRefs) > 0 {
+			if worktreeErr := d.createGitWorktrees(ctx, l); worktreeErr != nil {
+				return nil, worktreeErr
+			}
+		}
+
+		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions, d.workTrees).
+			WithNumWorkers(d.numWorkers).
+			WithWorkingDir(d.workingDir)
+
+		if d.discoveryContext != nil {
+			worktreeDiscovery = worktreeDiscovery.WithDiscoveryContext(d.discoveryContext)
+		}
+
+		worktreeComponents, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts)
+		if worktreeErr != nil {
+			return nil, worktreeErr
+		}
+
+		components = append(components, worktreeComponents...)
+	}
+
 	// We do an initial parse loop if we know we need to parse configurations,
 	// as we might need to parse configurations for multiple reasons.
 	// e.g. dependencies, exclude, etc.
@@ -1146,7 +1170,7 @@ func (d *Discovery) Discover(
 						dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
 					}
 
-					discoveryErr := dependencyDiscovery.DiscoverAllDependencies(discoveryCtx, l, opts, dependencyStartingComponents)
+					discoveryErr := dependencyDiscovery.Discover(discoveryCtx, l, opts, dependencyStartingComponents)
 					if discoveryErr != nil {
 						if !d.suppressParseErrors {
 							return discoveryErr
@@ -1207,7 +1231,7 @@ func (d *Discovery) Discover(
 						}
 					}
 
-					discoveryErr := dependentDiscovery.DiscoverAllDependents(discoveryCtx, l, dependentStartingComponents)
+					discoveryErr := dependentDiscovery.Discover(discoveryCtx, l, dependentStartingComponents)
 					if discoveryErr != nil {
 						if !d.suppressParseErrors {
 							return discoveryErr
@@ -1255,29 +1279,6 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	if len(d.filters) > 0 {
-		// Create Git worktrees if needed for Git-based filters
-		gitRefs := d.gitExpressions.UniqueGitRefs()
-		if len(gitRefs) > 0 {
-			if worktreeErr := d.createGitWorktrees(ctx, l); worktreeErr != nil {
-				errs = append(errs, worktreeErr)
-			}
-		}
-
-		var (
-			evaluateErr error
-			filtered    component.Components
-		)
-
-		filtered, evaluateErr = d.filters.Evaluate(l, components)
-
-		if evaluateErr != nil {
-			errs = append(errs, errors.New(evaluateErr))
-		}
-
-		components = filtered
-	}
-
 	if d.filterFlagEnabled && d.discoverDependencies {
 		relationshipDiscovery := NewRelationshipDiscovery(&components).
 			WithMaxDepth(d.maxDependencyDepth).
@@ -1287,7 +1288,7 @@ func (d *Discovery) Discover(
 			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
 		}
 
-		err = relationshipDiscovery.DiscoverAllRelationships(ctx, l, opts, components)
+		err = relationshipDiscovery.Discover(ctx, l, opts, components)
 		if err != nil {
 			if !d.suppressParseErrors {
 				errs = append(errs, errors.New(err))
@@ -1309,30 +1310,30 @@ func (d *Discovery) Discover(
 // CleanupWorktrees removes all created Git worktrees and their temporary directories.
 // This should be called after Discover() when Git-based filters were used and worktrees are no longer needed.
 func (d *Discovery) CleanupWorktrees(ctx context.Context, l log.Logger) error {
-	if len(d.worktreeDirs) == 0 {
+	if len(d.workTrees) == 0 {
 		return nil
 	}
 
 	var errs []error
 
-	for _, worktreePath := range d.worktreeDirs {
+	for ref, worktreePath := range d.workTrees {
 		cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", worktreePath)
 
 		cmd.Dir = d.workingDir
 		if err := cmd.Run(); err != nil {
-			l.Debugf("Failed to remove Git worktree at %s: %v", worktreePath, err)
+			l.Debugf("Failed to remove Git worktree for reference %s: %v", ref, err)
 		}
 
 		if err := os.RemoveAll(worktreePath); err != nil {
-			errs = append(errs, fmt.Errorf("failed to remove worktree directory at %s: %w", worktreePath, err))
+			errs = append(errs, fmt.Errorf("failed to remove worktree directory for reference %s: %w", ref, err))
 
 			continue
 		}
 
-		l.Debugf("Cleaned up Git worktree at %s", worktreePath)
+		l.Debugf("Cleaned up Git worktree for reference %s", ref)
 	}
 
-	d.worktreeDirs = []string{}
+	d.workTrees = map[string]string{}
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
@@ -1526,6 +1527,8 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error 
 		mu   sync.Mutex
 	)
 
+	d.workTrees = make(map[string]string, len(gitRefs))
+
 	for _, ref := range gitRefs {
 		g.Go(func() error {
 			tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
@@ -1550,7 +1553,11 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error 
 				return nil
 			}
 
-			d.worktreeDirs = append(d.worktreeDirs, tempDir)
+			mu.Lock()
+
+			d.workTrees[ref] = tempDir
+
+			mu.Unlock()
 
 			l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
 

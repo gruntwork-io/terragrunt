@@ -119,27 +119,10 @@ func (dd *DependentDiscovery) WithWorkingDir(workingDir string) *DependentDiscov
 	return dd
 }
 
-// CopyForDiscoveredDependent creates a copy of the DependentDiscovery with fresh state maps
-// for recursing on newly discovered dependents. This ensures that each recursive discovery
-// starts with a clean visited/checked state while preserving configuration and shared mutex.
-func (dd *DependentDiscovery) CopyForDiscoveredDependent() *DependentDiscovery {
-	dd.mu.RLock()
-	defer dd.mu.RUnlock()
-
-	dependentDiscovery := *dd
-
-	// We reset these to ensure that each recursive discovery for a
-	// discovered dependent starts with a clean visited/checked state
-	dependentDiscovery.visitedDirs = make(map[string]struct{})
-	dependentDiscovery.knownComponentPaths = make(map[string]struct{})
-
-	return &dependentDiscovery
-}
-
-// DiscoverAllDependents discovers dependents by traversing up the file system from starting components
+// Discover discovers dependents by traversing up the file system from starting components
 // to find new Terragrunt configs in parent directories that depend on the starting components.
 // It recursively discovers dependents of newly found dependents.
-func (dd *DependentDiscovery) DiscoverAllDependents(
+func (dd *DependentDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	startingComponents component.Components,
@@ -154,7 +137,7 @@ func (dd *DependentDiscovery) DiscoverAllDependents(
 
 	for _, c := range startingComponents {
 		g.Go(func() error {
-			err := dd.DiscoverDependents(ctx, l, c, filepath.Dir(c.Path()), dd.maxDepth)
+			err := dd.discoverDependents(ctx, l, c, filepath.Dir(c.Path()), dd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -178,9 +161,9 @@ func (dd *DependentDiscovery) DiscoverAllDependents(
 	return nil
 }
 
-// DiscoverDependents discovers dependents for a single target component by traversing up parent directories
+// discoverDependents discovers dependents for a single target component by traversing up parent directories
 // and walking down child directories to find Terragrunt configs that depend on the targetComponent.
-func (dd *DependentDiscovery) DiscoverDependents(
+func (dd *DependentDiscovery) discoverDependents(
 	ctx context.Context,
 	l log.Logger,
 	target component.Component,
@@ -373,9 +356,9 @@ func (dd *DependentDiscovery) DiscoverDependents(
 
 			g.Go(func() error {
 				// Use a copy with fresh state maps for recursive discovery of discovered dependents
-				recursiveDD := dd.CopyForDiscoveredDependent()
+				recursiveDD := dd.copyForDiscoveredDependent()
 
-				err := recursiveDD.DiscoverDependents(
+				err := recursiveDD.discoverDependents(
 					walkCtx,
 					l,
 					dependent,
@@ -401,7 +384,7 @@ func (dd *DependentDiscovery) DiscoverDependents(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		g.Go(func() error {
-			err := dd.DiscoverDependents(walkCtx, l, target, parentDir, depthRemaining-1)
+			err := dd.discoverDependents(walkCtx, l, target, parentDir, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
@@ -495,4 +478,21 @@ func (dd *DependentDiscovery) isChecked(component component.Component) bool {
 // ensureComponent adds a component to the components list if it's not already present.
 func (dd *DependentDiscovery) ensureComponent(component component.Component) {
 	dd.components.EnsureComponent(component)
+}
+
+// copyForDiscoveredDependent creates a copy of the DependentDiscovery with fresh state maps
+// for recursing on newly discovered dependents. This ensures that each recursive discovery
+// starts with a clean visited/checked state while preserving configuration and shared mutex.
+func (dd *DependentDiscovery) copyForDiscoveredDependent() *DependentDiscovery {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
+	dependentDiscovery := *dd
+
+	// We reset these to ensure that each recursive discovery for a
+	// discovered dependent starts with a clean visited/checked state
+	dependentDiscovery.visitedDirs = make(map[string]struct{})
+	dependentDiscovery.knownComponentPaths = make(map[string]struct{})
+
+	return &dependentDiscovery
 }

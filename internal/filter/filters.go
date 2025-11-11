@@ -81,7 +81,7 @@ func (f Filters) RequiresParse() (Expression, bool) {
 }
 
 // DependencyGraphExpressions returns all target expressions from graph expressions that require dependency traversal.
-func (f Filters) DependencyGraphExpressions() Expressions {
+func (f Filters) DependencyGraphExpressions() []Expression {
 	var targets []Expression
 
 	for _, filter := range f {
@@ -92,7 +92,7 @@ func (f Filters) DependencyGraphExpressions() Expressions {
 }
 
 // DependentGraphExpressions returns all target expressions from graph expressions that require dependent traversal.
-func (f Filters) DependentGraphExpressions() Expressions {
+func (f Filters) DependentGraphExpressions() []Expression {
 	var targets []Expression
 
 	for _, filter := range f {
@@ -103,8 +103,8 @@ func (f Filters) DependentGraphExpressions() Expressions {
 }
 
 // GitExpressions returns all expressions that require worktree discovery.
-func (f Filters) GitExpressions() Expressions {
-	var targets Expressions
+func (f Filters) GitExpressions() GitFilters {
+	var targets GitFilters
 
 	for _, filter := range f {
 		targets = append(targets, collectWorktreeExpressions(filter.expr)...)
@@ -193,8 +193,8 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 }
 
 // collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
-func collectWorktreeExpressions(expr Expression) []Expression {
-	var targets []Expression
+func collectWorktreeExpressions(expr Expression) []*GitFilter {
+	var targets []*GitFilter
 
 	if gitFilter, ok := expr.(*GitFilter); ok {
 		targets = append(targets, gitFilter)
@@ -210,10 +210,6 @@ func collectWorktreeExpressions(expr Expression) []Expression {
 
 		return append(leftTargets, rightTargets...)
 	case *GraphExpression:
-		if node.IncludeDependents {
-			targets = append(targets, node)
-		}
-		// Also check the target expression for nested graph expressions
 		targets = append(targets, collectWorktreeExpressions(node.Target)...)
 	}
 
@@ -226,8 +222,11 @@ func collectGitReferences(expr Expression) []string {
 
 	if gitFilter, ok := expr.(*GitFilter); ok {
 		refs = append(refs, gitFilter.FromRef)
+
 		if gitFilter.ToRef != "" {
 			refs = append(refs, gitFilter.ToRef)
+		} else {
+			refs = append(refs, "HEAD")
 		}
 
 		return refs

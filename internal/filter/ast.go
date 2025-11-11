@@ -7,9 +7,6 @@ import (
 	"github.com/gobwas/glob"
 )
 
-// Expressions is a slice of expressions.
-type Expressions []Expression
-
 // Expression is the interface that all AST nodes must implement.
 type Expression interface {
 	// expressionNode is a marker method to distinguish expression nodes.
@@ -260,13 +257,16 @@ func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
 // It filters components based on changes between Git references.
 type GitFilter struct {
 	FromRef string // The starting Git reference (e.g., "main", "HEAD~1")
-	ToRef   string // The ending Git reference (e.g., "HEAD", "feature-branch"). Empty means current working directory.
+	ToRef   string // The ending Git reference (e.g., "HEAD", "feature-branch"). Empty defaults to HEAD.
 }
+
+// GitFilters is a slice of Git filters.
+type GitFilters []*GitFilter
 
 func (g *GitFilter) expressionNode() {}
 func (g *GitFilter) String() string {
 	if g.ToRef == "" {
-		return "[" + g.FromRef + "]"
+		return "[HEAD]"
 	}
 
 	return "[" + g.FromRef + "..." + g.ToRef + "]"
@@ -282,15 +282,13 @@ func (g *GitFilter) RequiresParse() (Expression, bool) {
 func (g *GitFilter) IsRestrictedToStacks() bool { return false }
 
 // UniqueGitRefs returns all unique Git references in a slice of expressions.
-func (e Expressions) UniqueGitRefs() []string {
-	refSet := make(map[string]struct{})
+func (e GitFilters) UniqueGitRefs() []string {
+	refSet := make(map[string]struct{}, len(e))
 
 	for _, expr := range e {
 		refs := collectGitReferences(expr)
 		for _, ref := range refs {
-			if ref != "" {
-				refSet[ref] = struct{}{}
-			}
+			refSet[ref] = struct{}{}
 		}
 	}
 
