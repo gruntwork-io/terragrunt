@@ -3,9 +3,11 @@ package filter_test
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -257,6 +259,67 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 
 			l := log.New()
 			result, err := filter.Evaluate(l, tt.filter, testComponents)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEvaluate_AttributeFilter_Source(t *testing.T) {
+	t.Parallel()
+
+	components := []component.Component{
+		component.NewUnit("./apps/app1").WithConfig(
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source: helpers.PointerTo("github.com/acme/foo"),
+				},
+			},
+		),
+		component.NewUnit("./apps/app2").WithConfig(
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source: helpers.PointerTo("git::git@github.com:acme/bar?ref=v1.0.0"),
+				},
+			},
+		),
+	}
+
+	tests := []struct {
+		name     string
+		filter   *filter.AttributeFilter
+		expected []component.Component
+	}{
+		{
+			name:   "glob pattern with single wildcard - github.com/acme/*",
+			filter: &filter.AttributeFilter{Key: "source", Value: "github.com/acme/*"},
+			expected: []component.Component{
+				components[0],
+			},
+		},
+		{
+			name:   "glob pattern with double wildcard - git::git@github.com:acme/**",
+			filter: &filter.AttributeFilter{Key: "source", Value: "git::git@github.com:acme/**"},
+			expected: []component.Component{
+				components[1],
+			},
+		},
+		{
+			name:   "glob pattern with double wildcard - **github.com**",
+			filter: &filter.AttributeFilter{Key: "source", Value: "**github.com**"},
+			expected: []component.Component{
+				components[0],
+				components[1],
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := log.New()
+			result, err := filter.Evaluate(l, tt.filter, components)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
