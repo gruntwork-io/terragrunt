@@ -83,10 +83,6 @@ jobs:
           # Get list of expected macOS binaries from config
           macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
 
-          echo "=== Contents of bin/ directory ==="
-          ls -lah bin/
-          echo ""
-
           echo "Expected macOS binaries from config:"
           echo "$macos_binaries"
           echo ""
