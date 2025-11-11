@@ -111,14 +111,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
       - name: Download macOS signed binaries
         uses: actions/download-artifact@v6
         with:
           name: macos-signed-files
           path: bin/
-
-      - name: Checkout code
-        uses: actions/checkout@v5
 
       - name: Verify macOS binaries after download
         run: |
