@@ -508,12 +508,11 @@ These scripts are used by:
 
 The scripts support multiple version tag formats:
 
-| Format | Example | Windows FileVersion | Description |
-|--------|---------|---------------------|-------------|
-| Standard | `v0.93.4` | `0.93.4.0` | Semantic version with v prefix |
-| Beta | `beta-2025111001` | `2025.1110.01.0` | Pre-release with date timestamp |
-| Alpha | `alpha-2025110301` | `2025.1103.01.0` | Alpha with date timestamp |
-| Generic | `<prefix>-YYYYMMDDNN` | `YYYY.MMDD.NN.0` | Any prefix with date |
+| Format   | Example            | Windows FileVersion | Description                     |
+|----------|--------------------|---------------------|---------------------------------|
+| Standard | `v0.93.4`          | `0.93.4.0`          | Semantic version with v prefix  |
+| Beta     | `beta-2025111001`  | `2025.1110.01.0`    | Pre-release with date timestamp |
+| Alpha    | `alpha-2025110301` | `2025.1103.01.0`    | Alpha with date timestamp       |
 
 **Windows Version Constraints:**
 - Each component must be ≤ 65535
