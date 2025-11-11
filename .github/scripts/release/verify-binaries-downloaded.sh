@@ -26,12 +26,18 @@ function main {
     exit 1
   fi
 
-  echo "Downloaded binaries:"
-  ls -lahrt "$bin_dir"/*
-
-  # Count binaries
+  # Count binaries first
   local binary_count
   binary_count=$(find "$bin_dir/" -type f | wc -l)
+
+  # List binaries if any exist (resilient to empty directory)
+  if [ "$binary_count" -gt 0 ]; then
+    echo "Downloaded binaries:"
+    ls -lahrt "$bin_dir"/*
+  else
+    echo "No binaries found in $bin_dir"
+  fi
+
   echo "Total binaries: $binary_count"
 
   # Verify expected count
