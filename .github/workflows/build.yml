@@ -117,13 +117,28 @@ jobs:
           name: macos-signed-files
           path: bin/
 
+      - name: Checkout code
+        uses: actions/checkout@v5
+
       - name: Verify macOS binaries after download
         run: |
-          echo "macOS binaries downloaded:"
-          ls -lah bin/terragrunt_darwin_* 2>/dev/null || echo "No macOS binaries found"
+          # Get list of expected macOS binaries from config
+          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
+
+          echo "Expected macOS binaries from config:"
+          echo "$macos_binaries"
           echo ""
-          echo "File types:"
-          file bin/terragrunt_darwin_* 2>/dev/null || echo "Cannot check file types"
+
+          echo "macOS binaries downloaded:"
+          for binary in $macos_binaries; do
+            [[ -f "bin/$binary" ]] || {
+              echo "  ✗ bin/$binary (missing)"
+              exit 1
+            }
+
+            echo "  ✓ bin/$binary"
+            file "bin/$binary"
+          done
 
       - name: Download Windows signed binaries
         uses: actions/download-artifact@v6

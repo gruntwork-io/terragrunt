@@ -83,14 +83,33 @@ jobs:
           echo "Contents of bin/ directory:"
           ls -lah bin/
           echo ""
+
+          # Get list of expected macOS binaries from config
+          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
+
+          echo "Expected macOS binaries from config:"
+          echo "$macos_binaries"
+          echo ""
+
           echo "Checking signatures of binaries to be uploaded:"
-          for binary in bin/terragrunt_darwin_*; do
-            if [[ -f "$binary" ]]; then
-              echo "Checking $binary:"
-              codesign -dv --verbose=4 "$binary" 2>&1 || echo "ERROR: No signature found on $binary"
-              echo ""
-            fi
+          for binary in $macos_binaries; do
+            echo "Checking bin/$binary:"
+
+            [[ -f "bin/$binary" ]] || {
+              echo "  ERROR: Expected binary not found"
+              exit 1
+            }
+
+            codesign -dv --verbose=4 "bin/$binary" 2>&1 || {
+              echo "  ERROR: No valid signature found"
+              exit 1
+            }
+
+            echo "  ✓ Signature verified"
+            echo ""
           done
+
+          echo "All expected binaries verified successfully"
 
       - name: Upload Signed MacOS Binaries
         uses: actions/upload-artifact@v5

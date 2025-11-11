@@ -38,68 +38,78 @@ function main {
 
   echo "Done signing the binaries"
 
+  # Source configuration library
+  # shellcheck source=lib-release-config.sh
+  source "$(dirname "$0")/lib-release-config.sh"
+
+  verify_config_file
+
+  # Get list of macOS binaries from config
+  local macos_binaries
+  mapfile -t macos_binaries < <(jq -r '.platforms[] | select(.os == "darwin") | .binary' "$RELEASE_CONFIG_FILE")
+
+  echo "Expected macOS binaries from config: ${macos_binaries[*]}"
+
   # Remove old unsigned binaries from bin directory
   echo "Removing unsigned binaries from $bin_dir..."
-  rm -f "$bin_dir/terragrunt_darwin_amd64"
-  rm -f "$bin_dir/terragrunt_darwin_arm64"
-  echo "Unsigned binaries removed"
+  for binary in "${macos_binaries[@]}"; do
+    rm -f "$bin_dir/$binary"
+    echo "  Removed: $bin_dir/$binary"
+  done
 
-  # Unzip the signed binaries
-  echo "Extracting signed binaries..."
+  # Extract and verify signed binaries
+  echo ""
+  echo "Extracting and verifying signed binaries..."
 
-  if [[ -f terragrunt_darwin_amd64.zip ]]; then
-    echo "Found terragrunt_darwin_amd64.zip, extracting..."
-    unzip -o terragrunt_darwin_amd64.zip
-    if [[ -f terragrunt_darwin_amd64 ]]; then
-      echo "Extracted binary exists, checking signature before move..."
-      codesign -dv --verbose=4 terragrunt_darwin_amd64 2>&1 || echo "WARNING: Extracted binary signature check failed"
-      mv terragrunt_darwin_amd64 "$bin_dir/"
-      echo "Moved signed amd64 binary to $bin_dir/"
-    else
-      echo "ERROR: Failed to extract terragrunt_darwin_amd64 from ZIP"
+  for binary in "${macos_binaries[@]}"; do
+    local zip_file="${binary}.zip"
+
+    echo "Processing $binary..."
+
+    # Check ZIP file exists
+    [[ -f "$zip_file" ]] || {
+      echo "ERROR: $zip_file not found"
       exit 1
-    fi
-  else
-    echo "ERROR: terragrunt_darwin_amd64.zip not found"
-    exit 1
-  fi
+    }
 
-  if [[ -f terragrunt_darwin_arm64.zip ]]; then
-    echo "Found terragrunt_darwin_arm64.zip, extracting..."
-    unzip -o terragrunt_darwin_arm64.zip
-    if [[ -f terragrunt_darwin_arm64 ]]; then
-      echo "Extracted binary exists, checking signature before move..."
-      codesign -dv --verbose=4 terragrunt_darwin_arm64 2>&1 || echo "WARNING: Extracted binary signature check failed"
-      mv terragrunt_darwin_arm64 "$bin_dir/"
-      echo "Moved signed arm64 binary to $bin_dir/"
-    else
-      echo "ERROR: Failed to extract terragrunt_darwin_arm64 from ZIP"
+    echo "  Found $zip_file, extracting..."
+    unzip -o "$zip_file"
+
+    # Check extraction succeeded
+    [[ -f "$binary" ]] || {
+      echo "  ERROR: Failed to extract $binary from $zip_file"
       exit 1
-    fi
-  else
-    echo "ERROR: terragrunt_darwin_arm64.zip not found"
-    exit 1
-  fi
+    }
 
-  # Verify signatures
-  echo "Verifying signatures..."
+    echo "  Extracted binary exists, checking signature..."
+    codesign -dv --verbose=4 "$binary" 2>&1 || {
+      echo "  ERROR: Signature verification failed for $binary"
+      exit 1
+    }
 
-  if [[ -f "$bin_dir/terragrunt_darwin_amd64" ]]; then
-    echo "Verifying amd64 signature..."
-    codesign -dv --verbose=4 "$bin_dir/terragrunt_darwin_amd64"
-  else
-    echo "ERROR: $bin_dir/terragrunt_darwin_amd64 not found"
-    exit 1
-  fi
+    echo "  ✓ Signature verified"
+    mv "$binary" "$bin_dir/"
+    echo "  Moved signed binary to $bin_dir/"
+    echo ""
+  done
 
-  if [[ -f "$bin_dir/terragrunt_darwin_arm64" ]]; then
-    echo "Verifying arm64 signature..."
-    codesign -dv --verbose=4 "$bin_dir/terragrunt_darwin_arm64"
-  else
-    echo "ERROR: $bin_dir/terragrunt_darwin_arm64 not found"
-    exit 1
-  fi
+  # Final verification of all binaries in bin directory
+  echo "Final verification of all binaries in $bin_dir..."
+  for binary in "${macos_binaries[@]}"; do
+    echo "Verifying $binary..."
 
+    [[ -f "$bin_dir/$binary" ]] || {
+      echo "ERROR: $bin_dir/$binary not found"
+      exit 1
+    }
+
+    codesign -dv --verbose=4 "$bin_dir/$binary" || {
+      echo "ERROR: Signature verification failed for $bin_dir/$binary"
+      exit 1
+    }
+  done
+
+  echo ""
   echo "All macOS binaries signed and verified successfully"
 }
 
