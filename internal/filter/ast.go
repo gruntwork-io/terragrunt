@@ -7,6 +7,9 @@ import (
 	"github.com/gobwas/glob"
 )
 
+// Expressions is a slice of expressions.
+type Expressions []Expression
+
 // Expression is the interface that all AST nodes must implement.
 type Expression interface {
 	// expressionNode is a marker method to distinguish expression nodes.
@@ -28,13 +31,12 @@ type PathFilter struct {
 	compiledGlob glob.Glob
 	compileErr   error
 	Value        string
-	WorkingDir   string
 	compileOnce  sync.Once
 }
 
 // NewPathFilter creates a new PathFilter with lazy glob compilation.
 func NewPathFilter(value string, workingDir string) *PathFilter {
-	return &PathFilter{Value: value, WorkingDir: workingDir}
+	return &PathFilter{Value: value}
 }
 
 // CompileGlob returns the compiled glob pattern, compiling it on first call.
@@ -43,10 +45,6 @@ func NewPathFilter(value string, workingDir string) *PathFilter {
 func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	p.compileOnce.Do(func() {
 		pattern := p.Value
-		if !filepath.IsAbs(pattern) {
-			pattern = filepath.Join(p.WorkingDir, pattern)
-		}
-
 		pattern = filepath.ToSlash(pattern)
 		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
 	})
@@ -66,13 +64,12 @@ type AttributeFilter struct {
 	compileErr   error
 	Key          string
 	Value        string
-	WorkingDir   string
 	compileOnce  sync.Once
 }
 
 // NewAttributeFilter creates a new AttributeFilter with lazy glob compilation.
-func NewAttributeFilter(key string, value string, workingDir string) *AttributeFilter {
-	return &AttributeFilter{Key: key, Value: value, WorkingDir: workingDir}
+func NewAttributeFilter(key string, value string) *AttributeFilter {
+	return &AttributeFilter{Key: key, Value: value}
 }
 
 // CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
@@ -88,10 +85,6 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 		pattern := a.Value
 
 		if a.Key == AttributeReading {
-			if !filepath.IsAbs(pattern) {
-				pattern = filepath.Join(a.WorkingDir, pattern)
-			}
-
 			pattern = filepath.ToSlash(pattern)
 		}
 
@@ -287,3 +280,24 @@ func (g *GitFilter) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 func (g *GitFilter) IsRestrictedToStacks() bool { return false }
+
+// UniqueGitRefs returns all unique Git references in a slice of expressions.
+func (e Expressions) UniqueGitRefs() []string {
+	refSet := make(map[string]struct{})
+
+	for _, expr := range e {
+		refs := collectGitReferences(expr)
+		for _, ref := range refs {
+			if ref != "" {
+				refSet[ref] = struct{}{}
+			}
+		}
+	}
+
+	result := make([]string, 0, len(refSet))
+	for ref := range refSet {
+		result = append(result, ref)
+	}
+
+	return result
+}

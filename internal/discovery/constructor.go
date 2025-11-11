@@ -88,8 +88,9 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		}
 
 		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
+			WorkingDir: opts.WorkingDir,
+			Cmd:        cmd,
+			Args:       args,
 		})
 	}
 

@@ -106,7 +106,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			break
 		}
 
-		leftExpr = &AttributeFilter{Key: "name", Value: p.curToken.Literal, WorkingDir: p.workingDir}
+		leftExpr = &AttributeFilter{Key: "name", Value: p.curToken.Literal}
 		p.nextToken()
 	case ILLEGAL:
 		p.addError("illegal token: " + p.curToken.Literal)
@@ -255,9 +255,8 @@ func (p *Parser) parseAttributeFilter() Expression {
 	p.nextToken()
 
 	return &AttributeFilter{
-		Key:        key,
-		Value:      value,
-		WorkingDir: p.workingDir,
+		Key:   key,
+		Value: value,
 	}
 }
 

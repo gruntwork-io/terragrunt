@@ -20,83 +20,73 @@ func TestParser_SimpleExpressions(t *testing.T) {
 			name:  "simple name filter",
 			input: "foo",
 			expected: &filter.AttributeFilter{
-				Key:        "name",
-				Value:      "foo",
-				WorkingDir: ".",
+				Key:   "name",
+				Value: "foo",
 			},
 		},
 		{
 			name:  "attribute filter",
 			input: "name=bar",
 			expected: &filter.AttributeFilter{
-				Key:        "name",
-				Value:      "bar",
-				WorkingDir: ".",
+				Key:   "name",
+				Value: "bar",
 			},
 		},
 		{
 			name:  "type attribute filter",
 			input: "type=unit",
 			expected: &filter.AttributeFilter{
-				Key:        "type",
-				Value:      "unit",
-				WorkingDir: ".",
+				Key:   "type",
+				Value: "unit",
 			},
 		},
 		{
 			name:  "path filter relative",
 			input: "./apps/foo",
 			expected: &filter.PathFilter{
-				Value:      "./apps/foo",
-				WorkingDir: ".",
+				Value: "./apps/foo",
 			},
 		},
 		{
 			name:  "path filter absolute",
 			input: "/absolute/path",
 			expected: &filter.PathFilter{
-				Value:      "/absolute/path",
-				WorkingDir: ".",
+				Value: "/absolute/path",
 			},
 		},
 		{
 			name:  "path filter with wildcard",
 			input: "./apps/*",
 			expected: &filter.PathFilter{
-				Value:      "./apps/*",
-				WorkingDir: ".",
+				Value: "./apps/*",
 			},
 		},
 		{
 			name:  "path filter with recursive wildcard",
 			input: "./apps/**/foo",
 			expected: &filter.PathFilter{
-				Value:      "./apps/**/foo",
-				WorkingDir: ".",
+				Value: "./apps/**/foo",
 			},
 		},
 		{
 			name:  "braced path filter",
 			input: "{./apps/*}",
 			expected: &filter.PathFilter{
-				Value:      "./apps/*",
-				WorkingDir: ".",
+				Value: "./apps/*",
 			},
 		},
 		{
 			name:  "braced path without prefix",
 			input: "{apps}",
 			expected: &filter.PathFilter{
-				Value:      "apps",
-				WorkingDir: ".",
+				Value: "apps",
 			},
 		},
 		{
 			name:  "braced path with spaces",
 			input: "{my path/file}",
 			expected: &filter.PathFilter{
-				Value:      "my path/file",
-				WorkingDir: ".",
+				Value: "my path/file",
 			},
 		},
 	}
@@ -129,9 +119,8 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 			},
 		},
@@ -141,9 +130,8 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 			},
 		},
@@ -153,8 +141,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.PathFilter{
-					Value:      "./apps/legacy",
-					WorkingDir: ".",
+					Value: "./apps/legacy",
 				},
 			},
 		},
@@ -187,15 +174,13 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "foo | bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 			},
 		},
@@ -204,15 +189,13 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "name=foo | name=bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 			},
 		},
@@ -221,14 +204,12 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "./apps/* | name=bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.PathFilter{
-					Value:      "./apps/*",
-					WorkingDir: ".",
+					Value: "./apps/*",
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 			},
 		},
@@ -238,22 +219,19 @@ func TestParser_InfixExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
 					Left: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "foo",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "foo",
 					},
 					Operator: "|",
 					Right: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "bar",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "bar",
 					},
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "baz",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "baz",
 				},
 			},
 		},
@@ -288,16 +266,14 @@ func TestParser_ComplexExpressions(t *testing.T) {
 				Left: &filter.PrefixExpression{
 					Operator: "!",
 					Right: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "foo",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "foo",
 					},
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 			},
 		},
@@ -306,17 +282,15 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			input: "foo | !bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				Operator: "|",
 				Right: &filter.PrefixExpression{
 					Operator: "!",
 					Right: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "bar",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "bar",
 					},
 				},
 			},
@@ -327,23 +301,20 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
 					Left: &filter.PathFilter{
-						Value:      "./apps/*",
-						WorkingDir: ".",
+						Value: "./apps/*",
 					},
 					Operator: "|",
 					Right: &filter.PrefixExpression{
 						Operator: "!",
 						Right: &filter.PathFilter{
-							Value:      "./legacy",
-							WorkingDir: ".",
+							Value: "./legacy",
 						},
 					},
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 			},
 		},
@@ -479,9 +450,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...foo",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: false,
@@ -493,9 +463,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "foo...",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   false,
 				IncludeDependencies: true,
@@ -507,9 +476,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...foo...",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: true,
@@ -521,9 +489,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "^foo",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   false,
 				IncludeDependencies: false,
@@ -535,9 +502,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...^foo",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: false,
@@ -549,9 +515,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "^foo...",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   false,
 				IncludeDependencies: true,
@@ -563,9 +528,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...^foo...",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: true,
@@ -577,8 +541,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...{./apps/foo}",
 			expected: &filter.GraphExpression{
 				Target: &filter.PathFilter{
-					Value:      "./apps/foo",
-					WorkingDir: ".",
+					Value: "./apps/foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: false,
@@ -590,8 +553,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "./apps/foo...",
 			expected: &filter.GraphExpression{
 				Target: &filter.PathFilter{
-					Value:      "./apps/foo",
-					WorkingDir: ".",
+					Value: "./apps/foo",
 				},
 				IncludeDependents:   false,
 				IncludeDependencies: true,
@@ -603,9 +565,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...name=bar",
 			expected: &filter.GraphExpression{
 				Target: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: false,
@@ -617,8 +578,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "{./apps/foo}...",
 			expected: &filter.GraphExpression{
 				Target: &filter.PathFilter{
-					Value:      "./apps/foo",
-					WorkingDir: ".",
+					Value: "./apps/foo",
 				},
 				IncludeDependents:   false,
 				IncludeDependencies: true,
@@ -630,8 +590,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...{./apps/foo}...",
 			expected: &filter.GraphExpression{
 				Target: &filter.PathFilter{
-					Value:      "./apps/foo",
-					WorkingDir: ".",
+					Value: "./apps/foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: true,
@@ -643,8 +602,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			input: "...^{./apps/foo}...",
 			expected: &filter.GraphExpression{
 				Target: &filter.PathFilter{
-					Value:      "./apps/foo",
-					WorkingDir: ".",
+					Value: "./apps/foo",
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: true,
@@ -688,9 +646,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left: &filter.GraphExpression{
 					Target: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "foo",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "foo",
 					},
 					IncludeDependents:   true,
 					IncludeDependencies: false,
@@ -698,9 +655,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "bar",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "bar",
 				},
 			},
 		},
@@ -709,16 +665,14 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			input: "foo | bar...",
 			expected: &filter.InfixExpression{
 				Left: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "foo",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "foo",
 				},
 				Operator: "|",
 				Right: &filter.GraphExpression{
 					Target: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "bar",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "bar",
 					},
 					IncludeDependents:   false,
 					IncludeDependencies: true,
@@ -733,9 +687,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 				Operator: "!",
 				Right: &filter.GraphExpression{
 					Target: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "foo",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "foo",
 					},
 					IncludeDependents:   true,
 					IncludeDependencies: false,
@@ -750,9 +703,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 				Target: &filter.PrefixExpression{
 					Operator: "!",
 					Right: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "foo",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "foo",
 					},
 				},
 				IncludeDependents:   true,
@@ -951,8 +903,7 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 				},
 				Operator: "|",
 				Right: &filter.PathFilter{
-					Value:      "./apps/*",
-					WorkingDir: ".",
+					Value: "./apps/*",
 				},
 			},
 		},
@@ -961,8 +912,7 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 			input: "./apps/* | [main...HEAD]",
 			expected: &filter.InfixExpression{
 				Left: &filter.PathFilter{
-					Value:      "./apps/*",
-					WorkingDir: ".",
+					Value: "./apps/*",
 				},
 				Operator: "|",
 				Right: &filter.GitFilter{
@@ -981,9 +931,8 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 				},
 				Operator: "|",
 				Right: &filter.AttributeFilter{
-					Key:        "name",
-					Value:      "app",
-					WorkingDir: ".",
+					Key:   "name",
+					Value: "app",
 				},
 			},
 		},
@@ -998,9 +947,8 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 				Operator: "|",
 				Right: &filter.GraphExpression{
 					Target: &filter.AttributeFilter{
-						Key:        "name",
-						Value:      "app",
-						WorkingDir: ".",
+						Key:   "name",
+						Value: "app",
 					},
 					IncludeDependencies: true,
 					IncludeDependents:   false,

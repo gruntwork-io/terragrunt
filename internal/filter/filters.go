@@ -102,6 +102,17 @@ func (f Filters) RequiresDependentDiscovery() []Expression {
 	return targets
 }
 
+// RequiresWorktreeDiscovery returns all expressions that require worktree discovery.
+func (f Filters) RequiresWorktreeDiscovery() []Expression {
+	var targets []Expression
+
+	for _, filter := range f {
+		targets = append(targets, collectWorktreeExpressions(filter.expr)...)
+	}
+
+	return targets
+}
+
 // RestrictToStacks returns a new Filters object with only the filters that are restricted to stacks.
 func (f Filters) RestrictToStacks() Filters {
 	return slices.Collect(func(yield func(*Filter) bool) {
@@ -203,6 +214,34 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	return targets
 }
 
+// collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
+func collectWorktreeExpressions(expr Expression) []Expression {
+	var targets []Expression
+
+	if gitFilter, ok := expr.(*GitFilter); ok {
+		targets = append(targets, gitFilter)
+	}
+
+	// Check nested expressions
+	switch node := expr.(type) {
+	case *PrefixExpression:
+		return collectWorktreeExpressions(node.Right)
+	case *InfixExpression:
+		leftTargets := collectWorktreeExpressions(node.Left)
+		rightTargets := collectWorktreeExpressions(node.Right)
+
+		return append(leftTargets, rightTargets...)
+	case *GraphExpression:
+		if node.IncludeDependents {
+			targets = append(targets, node)
+		}
+		// Also check the target expression for nested graph expressions
+		targets = append(targets, collectWorktreeExpressions(node.Target)...)
+	}
+
+	return targets
+}
+
 // collectGitReferences recursively collects Git references from GitFilter nodes.
 func collectGitReferences(expr Expression) []string {
 	var refs []string
@@ -240,16 +279,6 @@ func collectGitReferences(expr Expression) []string {
 //
 // If logger is provided, it will be used for logging warnings during evaluation.
 func (f Filters) Evaluate(l log.Logger, components component.Components) (component.Components, error) {
-	return f.EvaluateWithContext(l, components, nil)
-}
-
-// EvaluateWithContext applies all filters with union (OR) semantics in two phases with additional context.
-//  1. Positive filters (non-negated) are evaluated and their results are unioned
-//  2. Negative filters (starting with negation) are evaluated against the combined
-//     results and remove matching components
-//
-// If logger is provided, it will be used for logging warnings during evaluation.
-func (f Filters) EvaluateWithContext(l log.Logger, components component.Components, ctx *EvaluationContext) (component.Components, error) {
 	if len(f) == 0 {
 		return components, nil
 	}
@@ -270,7 +299,7 @@ func (f Filters) EvaluateWithContext(l log.Logger, components component.Componen
 	}
 
 	// Phase 1: Get initial set of components, which might need to be filtered further by negative filters
-	combined, err := initialComponents(l, positiveFilters, components, ctx)
+	combined, err := initialComponents(l, positiveFilters, components)
 	if err != nil {
 		return nil, err
 	}
@@ -278,11 +307,7 @@ func (f Filters) EvaluateWithContext(l log.Logger, components component.Componen
 	// Phase 2: Apply negative filters to remove components
 	for _, filter := range negativeFilters {
 		var result component.Components
-		if ctx != nil {
-			result, err = filter.EvaluateWithContext(l, combined, ctx)
-		} else {
-			result, err = filter.Evaluate(l, combined)
-		}
+		result, err = filter.Evaluate(l, combined)
 
 		if err != nil {
 			return nil, err
@@ -314,7 +339,7 @@ func (f Filters) EvaluateOnFiles(l log.Logger, files []string) (component.Compon
 	return f.Evaluate(l, comps)
 }
 
-func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components, ctx *EvaluationContext) (component.Components, error) {
+func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components) (component.Components, error) {
 	if len(positiveFilters) == 0 {
 		return components, nil
 	}
@@ -327,12 +352,7 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 			err    error
 		)
 
-		if ctx != nil {
-			result, err = filter.EvaluateWithContext(l, components, ctx)
-		} else {
-			result, err = filter.Evaluate(l, components)
-		}
-
+		result, err = filter.Evaluate(l, components)
 		if err != nil {
 			return nil, err
 		}

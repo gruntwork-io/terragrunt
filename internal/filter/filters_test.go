@@ -349,7 +349,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		require.Len(t, targets, 1)
 
 		// Verify the target is the correct expression
-		expectedTarget := &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}
+		expectedTarget := &filter.AttributeFilter{Key: "name", Value: "app"}
 		assert.Equal(t, expectedTarget, targets[0])
 	})
 
@@ -362,8 +362,8 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		targets := filters.RequiresDependencyDiscovery()
 		require.Len(t, targets, 2)
 
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."}, targets[1])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "db"}, targets[1])
 	})
 
 	t.Run("dependent-only graph expression - no dependency discovery", func(t *testing.T) {
@@ -384,7 +384,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 
 		targets := filters.RequiresDependencyDiscovery()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
 
 	t.Run("nested graph expressions in infix", func(t *testing.T) {
@@ -415,7 +415,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 
 		targets := filters.RequiresDependencyDiscovery()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
 }
 
@@ -441,7 +441,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		targets := filters.RequiresDependentDiscovery()
 		require.Len(t, targets, 1)
 
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
 
 	t.Run("multiple dependent graph expressions", func(t *testing.T) {
@@ -453,8 +453,8 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		targets := filters.RequiresDependentDiscovery()
 		require.Len(t, targets, 2)
 
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."}, targets[1])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "db"}, targets[1])
 	})
 
 	t.Run("dependency-only graph expression - no dependent discovery", func(t *testing.T) {
@@ -475,7 +475,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 
 		targets := filters.RequiresDependentDiscovery()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
 
 	t.Run("nested graph expressions in infix", func(t *testing.T) {
@@ -506,7 +506,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 
 		targets := filters.RequiresDependentDiscovery()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."}, targets[0])
+		assert.Equal(t, &filter.AttributeFilter{Key: "name", Value: "app"}, targets[0])
 	})
 }
 

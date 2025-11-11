@@ -1281,25 +1281,12 @@ func (d *Discovery) Discover(
 			}
 		}
 
-		// Build evaluation context with worktrees and working directory
-		var evalCtx *filter.EvaluationContext
-		if len(d.gitWorktrees) > 0 || d.workingDir != "" {
-			evalCtx = &filter.EvaluationContext{
-				GitWorktrees: d.gitWorktrees,
-				WorkingDir:   d.workingDir,
-			}
-		}
-
 		var (
 			evaluateErr error
 			filtered    component.Components
 		)
 
-		if evalCtx != nil {
-			filtered, evaluateErr = d.filters.EvaluateWithContext(l, components, evalCtx)
-		} else {
-			filtered, evaluateErr = d.filters.Evaluate(l, components)
-		}
+		filtered, evaluateErr = d.filters.Evaluate(l, components)
 
 		if evaluateErr != nil {
 			errs = append(errs, errors.New(evaluateErr))

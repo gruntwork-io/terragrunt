@@ -634,7 +634,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependency traversal - app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."},
+				Target:              &filter.AttributeFilter{Key: "name", Value: "app"},
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       false,
@@ -644,7 +644,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependent traversal - ...vpc",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "vpc", WorkingDir: "."},
+				Target:              &filter.AttributeFilter{Key: "name", Value: "vpc"},
 				IncludeDependencies: false,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
@@ -654,7 +654,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "both directions - ...db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."},
+				Target:              &filter.AttributeFilter{Key: "name", Value: "db"},
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
@@ -664,7 +664,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target - ^app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."},
+				Target:              &filter.AttributeFilter{Key: "name", Value: "app"},
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       true,
@@ -674,7 +674,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target with dependents - ...^db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."},
+				Target:              &filter.AttributeFilter{Key: "name", Value: "db"},
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       true,
@@ -716,7 +716,7 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "app"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -732,7 +732,7 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "vpc", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "vpc"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -757,7 +757,7 @@ func TestEvaluate_GraphExpression_EmptyResults(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "nonexistent", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
 			IncludeDependencies: true,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -783,7 +783,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -799,7 +799,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -829,7 +829,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "a", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "a"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -847,7 +847,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "a", WorkingDir: "."},
+			Target:              &filter.AttributeFilter{Key: "name", Value: "a"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -878,7 +878,7 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.PathFilter{Value: "./app", WorkingDir: "."},
+			Target:              &filter.PathFilter{Value: "./app"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -924,13 +924,8 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			ToRef:   "HEAD",
 		}
 
-		ctx := &filter.EvaluationContext{
-			GitWorktrees: make(map[string]string),
-			WorkingDir:   "",
-		}
-
 		l := log.New()
-		result, err := filter.EvaluateWithContext(l, gitFilter, components, ctx)
+		result, err := filter.Evaluate(l, gitFilter, components)
 
 		require.Error(t, err)
 		assert.Nil(t, result)

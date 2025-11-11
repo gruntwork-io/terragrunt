@@ -55,8 +55,9 @@ func Build(
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  terragruntOptions.TerraformCliArgs.First(),
-			Args: terragruntOptions.TerraformCliArgs.Tail(),
+			WorkingDir: workingDir,
+			Cmd:        terragruntOptions.TerraformCliArgs.First(),
+			Args:       terragruntOptions.TerraformCliArgs.Tail(),
 		})
 
 	// Pass include directory filters to discovery
