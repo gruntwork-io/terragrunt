@@ -68,7 +68,7 @@ function main {
 
     # Check ZIP file exists
     [[ -f "$zip_file" ]] || {
-      echo "ERROR: $zip_file not found"
+      echo "ERROR: ZIP file $zip_file not found for binary $binary"
       exit 1
     }
 
@@ -77,19 +77,23 @@ function main {
 
     # Check extraction succeeded
     [[ -f "$binary" ]] || {
-      echo "  ERROR: Failed to extract $binary from $zip_file"
+      echo "  ERROR: Failed to extract binary $binary from $zip_file"
       exit 1
     }
 
     echo "  Extracted binary exists, checking signature..."
     codesign -dv --verbose=4 "$binary" 2>&1 || {
-      echo "  ERROR: Signature verification failed for $binary"
+      echo "  ERROR: Signature verification failed for binary $binary"
       exit 1
     }
 
-    echo "  ✓ Signature verified"
+    echo "  Signature verified"
     mv "$binary" "$bin_dir/"
     echo "  Moved signed binary to $bin_dir/"
+
+    # Also move the ZIP file to bin directory
+    mv "$zip_file" "$bin_dir/"
+    echo "  Moved $zip_file to $bin_dir/"
     echo ""
   done
 
@@ -99,18 +103,23 @@ function main {
     echo "Verifying $binary..."
 
     [[ -f "$bin_dir/$binary" ]] || {
-      echo "ERROR: $bin_dir/$binary not found"
+      echo "ERROR: Binary $bin_dir/$binary not found after processing"
       exit 1
     }
 
     codesign -dv --verbose=4 "$bin_dir/$binary" || {
-      echo "ERROR: Signature verification failed for $bin_dir/$binary"
+      echo "ERROR: Signature verification failed for binary $bin_dir/$binary"
       exit 1
     }
   done
 
   echo ""
   echo "All macOS binaries signed and verified successfully"
+
+  # Show final contents of bin directory for debugging
+  echo ""
+  echo "Final contents of $bin_dir directory:"
+  ls -lah "$bin_dir/"
 }
 
 main "$@"

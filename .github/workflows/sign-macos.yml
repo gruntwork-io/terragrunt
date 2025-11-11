@@ -80,15 +80,26 @@ jobs:
 
       - name: Verify signed binaries before upload
         run: |
-          echo "Contents of bin/ directory:"
-          ls -lah bin/
-          echo ""
-
           # Get list of expected macOS binaries from config
           macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
 
+          echo "=== Contents of bin/ directory ==="
+          ls -lah bin/
+          echo ""
+
           echo "Expected macOS binaries from config:"
           echo "$macos_binaries"
+          echo ""
+
+          echo "Listing expected files in bin/:"
+          for binary in $macos_binaries; do
+            if [[ -f "bin/$binary" ]]; then
+              ls -lh "bin/$binary"
+            fi
+            if [[ -f "bin/$binary.zip" ]]; then
+              ls -lh "bin/$binary.zip"
+            fi
+          done
           echo ""
 
           echo "Checking signatures of binaries to be uploaded:"
@@ -96,20 +107,28 @@ jobs:
             echo "Checking bin/$binary:"
 
             [[ -f "bin/$binary" ]] || {
-              echo "  ERROR: Expected binary not found"
+              echo "  ERROR: Binary bin/$binary not found"
               exit 1
             }
 
             codesign -dv --verbose=4 "bin/$binary" 2>&1 || {
-              echo "  ERROR: No valid signature found"
+              echo "  ERROR: No valid signature found for bin/$binary"
               exit 1
             }
 
-            echo "  ✓ Signature verified"
+            echo "  Signature verified"
+
+            # Also check that ZIP file exists
+            [[ -f "bin/$binary.zip" ]] || {
+              echo "  ERROR: ZIP file bin/$binary.zip not found"
+              exit 1
+            }
+
+            echo "  ZIP file present: bin/$binary.zip"
             echo ""
           done
 
-          echo "All expected binaries verified successfully"
+          echo "All expected binaries and ZIP files verified successfully"
 
       - name: Upload Signed MacOS Binaries
         uses: actions/upload-artifact@v5
