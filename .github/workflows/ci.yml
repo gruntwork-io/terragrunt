@@ -42,12 +42,14 @@ jobs:
     secrets: inherit
 
   build_no_proxy:
+    # Only run no_proxy builds on main branch to save CI time
+    if: github.ref == 'refs/heads/main'
     needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, license_check]
     uses: ./.github/workflows/build-no-proxy.yml
     secrets: inherit
 
   integration_tests:
-    needs: [base_tests, build, build_no_proxy]
+    needs: [base_tests, build]
     uses: ./.github/workflows/integration-test.yml
     permissions:
       contents: read
@@ -55,7 +57,7 @@ jobs:
     secrets: inherit
 
   oidc_integration_tests:
-    needs: [base_tests, build, build_no_proxy]
+    needs: [base_tests, build]
     uses: ./.github/workflows/oidc-integration-test.yml
     permissions:
       id-token: write
