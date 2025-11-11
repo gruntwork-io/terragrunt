@@ -92,6 +92,15 @@ func (u *Unit) SetReading(files ...string) {
 	u.reading = files
 }
 
+// Sources returns the list of sources for this component.
+func (u *Unit) Sources() []string {
+	if u.cfg == nil || u.cfg.Terraform == nil || u.cfg.Terraform.Source == nil {
+		return []string{}
+	}
+
+	return []string{*u.cfg.Terraform.Source}
+}
+
 // DiscoveryContext returns the discovery context for this component.
 func (u *Unit) DiscoveryContext() *DiscoveryContext {
 	return u.discoveryContext

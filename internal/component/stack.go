@@ -87,6 +87,13 @@ func (s *Stack) SetReading(files ...string) {
 	s.reading = files
 }
 
+// Sources returns the list of sources for this component.
+//
+// Stacks don't support leveraging sources right now, so we just return an empty list.
+func (s *Stack) Sources() []string {
+	return []string{}
+}
+
 // DiscoveryContext returns the discovery context for this component.
 func (s *Stack) DiscoveryContext() *DiscoveryContext {
 	return s.discoveryContext

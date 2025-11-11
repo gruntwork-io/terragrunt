@@ -28,6 +28,7 @@ type Component interface {
 	SetExternal()
 	Reading() []string
 	SetReading(...string)
+	Sources() []string
 	DiscoveryContext() *DiscoveryContext
 	SetDiscoveryContext(*DiscoveryContext)
 	AddDependency(Component)

@@ -98,6 +98,12 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	require.NoError(t, err)
 }
 
+// PointerTo returns a pointer to the given parameter.
+// Useful for constructing pointers to primitive types in test tables, etc.
+func PointerTo[T any](v T) *T {
+	return &v
+}
+
 type testLogger struct {
 	t      *testing.T
 	prefix string
