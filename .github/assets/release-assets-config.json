@@ -46,11 +46,11 @@
   "archive_formats": [
     {
       "extension": "zip",
-      "description": "ZIP archives (preserves +x permissions)"
+      "description": "ZIP archive"
     },
     {
       "extension": "tar.gz",
-      "description": "TAR.GZ archives (preserves +x permissions)"
+      "description": "TAR.GZ archive"
     }
   ],
   "additional_files": [
