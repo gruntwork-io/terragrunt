@@ -19,7 +19,8 @@ function main {
 
   verify_config_file
 
-  cd "$bin_dir"
+  # Use pushd/popd to avoid side effects on caller's working directory
+  pushd "$bin_dir" || return 1
 
   # Get list of all binaries from configuration
   local binaries
@@ -36,6 +37,9 @@ function main {
   done
 
   echo "Execution permissions set on all binaries"
+
+  # Return to original directory
+  popd || return 1
 }
 
 main "$@"

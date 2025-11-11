@@ -9,17 +9,25 @@ set -e
 # shellcheck source=lib-release-config.sh
 source "$(dirname "$0")/lib-release-config.sh"
 
+function resolve_expected_count {
+  local -r count_override="$1"
+
+  # If override provided, use it; otherwise get from config
+  if [[ -n "$count_override" ]]; then
+    echo "$count_override"
+    return 0
+  fi
+
+  verify_config_file
+  get_binary_count
+}
+
 function main {
   local -r bin_dir="${1:-bin}"
+  local -r count_override="${2:-}"
 
-  # Get expected count from configuration, or use parameter if provided
   local expected_count
-  if [[ -n "${2:-}" ]]; then
-    expected_count="$2"
-  else
-    verify_config_file
-    expected_count=$(get_binary_count)
-  fi
+  expected_count=$(resolve_expected_count "$count_override")
 
   if [[ ! -d "$bin_dir" ]]; then
     echo "ERROR: Directory $bin_dir does not exist"

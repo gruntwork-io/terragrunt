@@ -14,12 +14,12 @@ set -e
 function main {
   local -r bin_dir="${1:-bin}"
 
-  # Verify environment variables
-  assert_env_var_not_empty "AC_PASSWORD"
-  assert_env_var_not_empty "AC_PROVIDER"
-  assert_env_var_not_empty "AC_USERNAME"
-  assert_env_var_not_empty "MACOS_CERTIFICATE"
-  assert_env_var_not_empty "MACOS_CERTIFICATE_PASSWORD"
+  # Validate required environment variables
+  : "${AC_PASSWORD:?ERROR: AC_PASSWORD is a required environment variable}"
+  : "${AC_PROVIDER:?ERROR: AC_PROVIDER is a required environment variable}"
+  : "${AC_USERNAME:?ERROR: AC_USERNAME is a required environment variable}"
+  : "${MACOS_CERTIFICATE:?ERROR: MACOS_CERTIFICATE is a required environment variable}"
+  : "${MACOS_CERTIFICATE_PASSWORD:?ERROR: MACOS_CERTIFICATE_PASSWORD is a required environment variable}"
 
   if [[ ! -d "$bin_dir" ]]; then
     echo "ERROR: Directory $bin_dir does not exist"
@@ -79,16 +79,6 @@ function main {
   fi
 
   echo "All macOS binaries signed and verified successfully"
-}
-
-function assert_env_var_not_empty {
-  local -r var_name="$1"
-  local -r var_value="${!var_name}"
-
-  if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment variable $var_name not set."
-    exit 1
-  fi
 }
 
 main "$@"

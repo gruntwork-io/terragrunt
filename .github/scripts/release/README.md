@@ -45,7 +45,7 @@ All inline bash and PowerShell code from GitHub Actions workflows has been extra
 Release asset configuration is maintained in a single source of truth:
 
 ### `../assets/release-assets-config.json`
-JSON file defining all platforms, binaries, archive formats, and file counts.
+JSON file defining all platforms, binaries, archive formats, and additional files.
 
 **Schema:**
 ```json
@@ -69,14 +69,7 @@ JSON file defining all platforms, binaries, archive formats, and file counts.
       "name": "SHA256SUMS",
       "description": "File description"
     }
-  ],
-  "counts": {
-    "binaries": 7,
-    "archives_per_format": 7,
-    "archive_formats": 2,
-    "additional_files": 1,
-    "total": 22
-  }
+  ]
 }
 ```
 

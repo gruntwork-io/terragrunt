@@ -13,8 +13,9 @@ function main {
   local -r bin_dir="${1:-bin}"
   local -r clobber="${CLOBBER:-false}"
 
-  assert_env_var_not_empty "VERSION"
-  assert_env_var_not_empty "GH_TOKEN"
+  # Validate required environment variables
+  : "${VERSION:?ERROR: VERSION is a required environment variable}"
+  : "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
 
   if [[ ! -d "$bin_dir" ]]; then
     echo "ERROR: Directory $bin_dir does not exist"
@@ -32,8 +33,10 @@ function main {
 
   printf 'Uploading assets to existing release %s...\n' "$VERSION"
 
+  # Use pushd/popd to avoid side effects on caller's working directory
+  pushd "$bin_dir" || return 1
+
   # Upload all files using gh CLI
-  cd "$bin_dir"
   for file in *; do
     echo "Uploading $file..."
     if gh release upload "$VERSION" "$file" $clobber_flag; then
@@ -43,17 +46,10 @@ function main {
     fi
   done
 
+  # Return to original directory
+  popd || return 1
+
   echo "Upload phase completed"
-}
-
-function assert_env_var_not_empty {
-  local -r var_name="$1"
-  local -r var_value="${!var_name}"
-
-  if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment variable $var_name not set."
-    exit 1
-  fi
 }
 
 main "$@"
