@@ -15,6 +15,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Path to centralized configuration
+$ConfigFile = ".github/assets/release-assets-config.json"
+
 function Assert-EnvVar {
     param([string]$Name)
 
@@ -23,6 +26,28 @@ function Assert-EnvVar {
         Write-Error "ERROR: Required environment variable $Name not set."
         exit 1
     }
+}
+
+function Get-WindowsPlatforms {
+    # Read configuration file
+    if (-not (Test-Path $ConfigFile)) {
+        Write-Error "Configuration file not found: $ConfigFile"
+        exit 1
+    }
+
+    Write-Host "Reading configuration from: $ConfigFile"
+    $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+
+    # Filter Windows platforms
+    $windowsPlatforms = $config.platforms | Where-Object { $_.os -eq "windows" }
+
+    if ($windowsPlatforms.Count -eq 0) {
+        Write-Error "No Windows platforms found in configuration"
+        exit 1
+    }
+
+    Write-Host "Found $($windowsPlatforms.Count) Windows platform(s) in configuration"
+    return $windowsPlatforms
 }
 
 function Update-WinresVersion {
@@ -194,6 +219,8 @@ function Update-WinresVersion {
 }
 
 function Patch-Binaries {
+    param([array]$Platforms)
+
     # Add Go bin to PATH
     $goPath = & go env GOPATH
     $goBinPath = Join-Path $goPath "bin"
@@ -201,22 +228,21 @@ function Patch-Binaries {
 
     Write-Host "Patching Windows binaries with icon and version info..."
 
-    # Patch both Windows binaries
-    $binaries = @("$BinDirectory\terragrunt_windows_386.exe", "$BinDirectory\terragrunt_windows_amd64.exe")
+    foreach ($platform in $Platforms) {
+        $binaryPath = Join-Path $BinDirectory $platform.binary
 
-    foreach ($binary in $binaries) {
-        if (Test-Path $binary) {
-            Write-Host "Patching $binary..."
-            & go-winres patch --in winres.json $binary
+        if (Test-Path $binaryPath) {
+            Write-Host "Patching $($platform.binary) ($($platform.arch))..."
+            & go-winres patch --in winres.json $binaryPath
 
             if ($LASTEXITCODE -ne 0) {
-                Write-Error "Failed to patch $binary"
+                Write-Error "Failed to patch $($platform.binary)"
                 exit 1
             }
 
-            Write-Host "Successfully patched $binary"
+            Write-Host "Successfully patched $($platform.binary)"
         } else {
-            Write-Error "Binary not found: $binary"
+            Write-Error "Binary not found: $binaryPath"
             exit 1
         }
     }
@@ -310,11 +336,14 @@ function Main {
         exit 1
     }
 
+    # Get Windows platforms from configuration
+    $windowsPlatforms = Get-WindowsPlatforms
+
     # Update winres.json with version info
     Update-WinresVersion
 
-    # Patch binaries with resources
-    Patch-Binaries
+    # Patch all Windows binaries with resources (icon, manifest, version info)
+    Patch-Binaries -Platforms $windowsPlatforms
 
     # Save credentials
     Save-Credentials
@@ -325,46 +354,43 @@ function Main {
     # Sync certificates
     Sync-Certificates
 
-    # Sign both Windows binaries (amd64 and 386)
+    # Sign binaries based on configuration
     Write-Host ""
-    Write-Host "Locating Windows binaries..."
+    Write-Host "Processing Windows binaries for signing..."
+    Write-Host ""
 
-    $amd64Binary = Get-Item -Path "$BinDirectory\terragrunt_windows_amd64.exe" -ErrorAction SilentlyContinue
-    $i386Binary = Get-Item -Path "$BinDirectory\terragrunt_windows_386.exe" -ErrorAction SilentlyContinue
+    $signedCount = 0
+    $unsignedCount = 0
 
-    # Check both binaries exist
-    if (-not $amd64Binary) {
-        Write-Error "Binary not found: $BinDirectory\terragrunt_windows_amd64.exe"
-        exit 1
+    foreach ($platform in $windowsPlatforms) {
+        $binaryPath = Join-Path $BinDirectory $platform.binary
+
+        if (-not (Test-Path $binaryPath)) {
+            Write-Error "Binary not found: $binaryPath"
+            exit 1
+        }
+
+        if ($platform.signed -eq $true) {
+            Write-Host "Signing $($platform.binary) ($($platform.arch))..."
+            Sign-Binary -BinaryPath $binaryPath
+
+            Write-Host "Verifying signature on $($platform.binary)..."
+            Verify-Signature -BinaryPath $binaryPath
+
+            Write-Host "✓ $($platform.binary): signed and verified"
+            $signedCount++
+        } else {
+            Write-Host "○ $($platform.binary) ($($platform.arch)): patched with resources only (not signed per config)"
+            $unsignedCount++
+        }
+        Write-Host ""
     }
 
-    if (-not $i386Binary) {
-        Write-Error "Binary not found: $BinDirectory\terragrunt_windows_386.exe"
-        exit 1
-    }
-
-    Write-Host "Found both Windows binaries:"
-    Write-Host "  - $($amd64Binary.FullName)"
-    Write-Host "  - $($i386Binary.FullName)"
+    Write-Host "Windows processing completed successfully:"
+    Write-Host "  - Signed: $signedCount binary(ies)"
+    Write-Host "  - Patched only: $unsignedCount binary(ies)"
     Write-Host ""
-
-    # Sign amd64 binary
-    Sign-Binary -BinaryPath $amd64Binary.FullName
-
-    # Sign 386 binary
-    Sign-Binary -BinaryPath $i386Binary.FullName
-
-    Write-Host ""
-    Write-Host "Verifying signatures..."
-
-    # Verify amd64 signature
-    Verify-Signature -BinaryPath $amd64Binary.FullName
-
-    # Verify 386 signature
-    Verify-Signature -BinaryPath $i386Binary.FullName
-
-    Write-Host ""
-    Write-Host "Windows signing completed successfully - both binaries signed and verified"
+    Write-Host "All decisions based on configuration: $ConfigFile"
 }
 
 Main

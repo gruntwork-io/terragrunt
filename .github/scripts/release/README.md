@@ -38,7 +38,7 @@ All inline bash and PowerShell code from GitHub Actions workflows has been extra
 - **`install-go-winres.ps1`** - Installs go-winres tool for patching Windows resources
 - **`verify-smctl.ps1`** - Verifies DigiCert smctl tool is installed and accessible
 - **`restore-p12-certificate.ps1`** - Restores P12 client certificate from base64 encoding
-- **`sign-windows.ps1`** - Comprehensive Windows binary signing using DigiCert KeyLocker
+- **`sign-windows.ps1`** - Config-driven: patches all binaries, signs only those marked `signed: true`
 
 ## Centralized Configuration
 
@@ -392,7 +392,7 @@ $env:WINDOWS_SIGNING_P12_BASE64 = "<base64-string>"
 - Exports `SM_CLIENT_CERT_FILE` environment variable
 
 ### `sign-windows.ps1`
-Comprehensive Windows binary signing script using DigiCert KeyLocker.
+Comprehensive Windows binary signing script using DigiCert KeyLocker. **Fully driven by configuration**.
 
 **Environment Variables:**
 - `GITHUB_REF_NAME`: Git ref name (e.g., v0.93.4 or beta-2025111001)
@@ -411,17 +411,51 @@ Comprehensive Windows binary signing script using DigiCert KeyLocker.
 ```
 
 **Process:**
-1. **Version Detection**: Parses git ref to extract version
+1. **Configuration Loading**: Reads `release-assets-config.json` to discover all Windows platforms
+2. **Version Detection**: Parses git ref to extract version
    - Standard: `v0.93.4` → `0.93.4`
    - Pre-release: `beta-2025111001` → `2025.1110.01.0`
    - Generic: `<prefix>-YYYYMMDDNN` → `YYYY.MMDD.NN.0`
-2. **Resource Generation**: Dynamically generates `winres.json` with version info, icon, manifest, and metadata
-3. **Binary Patching**: Uses go-winres to patch icon and metadata
-4. **Credential Setup**: Saves DigiCert credentials
-5. **Healthcheck**: Runs smctl healthcheck
-6. **Certificate Sync**: Syncs certificates from DigiCert KeyLocker
-7. **Code Signing**: Signs amd64 binary using smctl
-8. **Verification**: Verifies signature using smctl
+3. **Resource Generation**: Dynamically generates `winres.json` with version info, icon, manifest, and metadata
+4. **Binary Patching**: Uses go-winres to patch **all** Windows binaries with icon and metadata (regardless of signing status)
+5. **Credential Setup**: Saves DigiCert credentials
+6. **Healthcheck**: Runs smctl healthcheck
+7. **Certificate Sync**: Syncs certificates from DigiCert KeyLocker
+8. **Selective Signing**: For each Windows platform in config:
+   - If `"signed": true` → Signs with DigiCert and verifies signature
+   - If `"signed": false` → Skips signing (patching only)
+9. **Summary**: Reports how many binaries were signed vs. patched-only
+
+**Configuration-Driven Behavior:**
+The script reads `.github/assets/release-assets-config.json` to determine:
+- Which Windows binaries exist (`binary` field)
+- Which binaries should be signed (`signed: true/false`)
+- All patching decisions are automated based on JSON
+
+**Example Config:**
+```json
+{
+  "platforms": [
+    {
+      "os": "windows",
+      "arch": "386",
+      "signed": false,
+      "binary": "terragrunt_windows_386.exe"
+    },
+    {
+      "os": "windows",
+      "arch": "amd64",
+      "signed": true,
+      "binary": "terragrunt_windows_amd64.exe"
+    }
+  ]
+}
+```
+
+With this config, the script will:
+- Patch both binaries with icon/manifest
+- Sign only the amd64 binary (conserving signature quota)
+- Leave 386 unsigned
 
 ## Testing
 

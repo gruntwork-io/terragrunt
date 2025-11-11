@@ -33,7 +33,7 @@
     {
       "os": "windows",
       "arch": "386",
-      "signed": true,
+      "signed": false,
       "binary": "terragrunt_windows_386.exe"
     },
     {
