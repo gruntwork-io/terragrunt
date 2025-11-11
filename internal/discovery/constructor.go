@@ -98,7 +98,7 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 			if err != nil {
 				return nil, err
 			}
@@ -118,7 +118,7 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 			if err != nil {
 				return nil, err
 			}
@@ -138,7 +138,7 @@ func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 			if err != nil {
 				return nil, err
 			}

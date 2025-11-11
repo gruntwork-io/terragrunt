@@ -19,7 +19,7 @@ func Example_basicPathFilter() {
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "./apps/*", ".", components)
+	result, _ := filter.Apply(l, "./apps/*", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -38,7 +38,7 @@ func Example_attributeFilter() {
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "name=api", ".", components)
+	result, _ := filter.Apply(l, "name=api", components)
 
 	for _, c := range result {
 		fmt.Println(c.Path())
@@ -56,7 +56,7 @@ func Example_exclusionFilter() {
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "!legacy", ".", components)
+	result, _ := filter.Apply(l, "!legacy", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -77,7 +77,7 @@ func Example_intersectionFilter() {
 
 	// Select components in ./apps/ that are named "frontend"
 	l := log.New()
-	result, _ := filter.Apply(l, "./apps/* | frontend", ".", components)
+	result, _ := filter.Apply(l, "./apps/* | frontend", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -98,7 +98,7 @@ func Example_complexQuery() {
 
 	// Select all services except worker
 	l := log.New()
-	result, _ := filter.Apply(l, "./services/* | !worker", ".", components)
+	result, _ := filter.Apply(l, "./services/* | !worker", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -115,7 +115,7 @@ func Example_parseAndEvaluate() {
 	}
 
 	// Parse the filter once
-	f, err := filter.Parse("app1", ".")
+	f, err := filter.Parse("app1")
 	if err != nil {
 		fmt.Println("Parse error:", err)
 		return
@@ -144,7 +144,7 @@ func Example_recursiveWildcard() {
 
 	// Match all infrastructure components at any depth
 	l := log.New()
-	result, _ := filter.Apply(l, "./infrastructure/**", ".", components)
+	result, _ := filter.Apply(l, "./infrastructure/**", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -158,13 +158,13 @@ func Example_recursiveWildcard() {
 // Example_errorHandling demonstrates handling parsing errors.
 func Example_errorHandling() {
 	// Invalid syntax - missing value after =
-	_, err := filter.Parse("name=", ".")
+	_, err := filter.Parse("name=")
 	if err != nil {
 		fmt.Println("Error occurred")
 	}
 
 	// Valid syntax
-	_, err = filter.Parse("name=foo", ".")
+	_, err = filter.Parse("name=foo")
 	if err == nil {
 		fmt.Println("Successfully parsed")
 	}
@@ -187,7 +187,7 @@ func Example_multipleFilters() {
 	filters, _ := filter.ParseFilterQueries([]string{
 		"./apps/*",
 		"name=db",
-	}, ".")
+	})
 
 	l := log.New()
 	result, _ := filters.Evaluate(l, components)

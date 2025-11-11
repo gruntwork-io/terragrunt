@@ -96,7 +96,7 @@ func TestParser_SimpleExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestParser_InfixExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -325,7 +325,7 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -379,7 +379,7 @@ func TestParser_ErrorCases(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			if tt.expectError {
@@ -428,7 +428,7 @@ func TestParser_StringRepresentation(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -616,7 +616,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -719,7 +719,7 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -768,7 +768,7 @@ func TestParser_GraphExpressionErrors(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			if tt.expectError {
@@ -795,68 +795,44 @@ func TestParser_GitFilterExpressions(t *testing.T) {
 		input    string
 	}{
 		{
-			name:  "single Git reference",
-			input: "[main]",
-			expected: &filter.GitFilter{
-				FromRef: "main",
-				ToRef:   "",
-			},
+			name:     "single Git reference",
+			input:    "[main]",
+			expected: filter.NewGitFilter("main", "HEAD"),
 		},
 		{
-			name:  "two Git references with ellipsis",
-			input: "[main...HEAD]",
-			expected: &filter.GitFilter{
-				FromRef: "main",
-				ToRef:   "HEAD",
-			},
+			name:     "two Git references with ellipsis",
+			input:    "[main...HEAD]",
+			expected: filter.NewGitFilter("main", "HEAD"),
 		},
 		{
-			name:  "Git reference with branch name",
-			input: "[feature-branch]",
-			expected: &filter.GitFilter{
-				FromRef: "feature-branch",
-				ToRef:   "",
-			},
+			name:     "Git reference with branch name",
+			input:    "[feature-branch]",
+			expected: filter.NewGitFilter("feature-branch", "HEAD"),
 		},
 		{
-			name:  "Git reference with commit SHA",
-			input: "[abc123...def456]",
-			expected: &filter.GitFilter{
-				FromRef: "abc123",
-				ToRef:   "def456",
-			},
+			name:     "Git reference with commit SHA",
+			input:    "[abc123...def456]",
+			expected: filter.NewGitFilter("abc123", "def456"),
 		},
 		{
-			name:  "Git reference with tag",
-			input: "[v1.0.0...v2.0.0]",
-			expected: &filter.GitFilter{
-				FromRef: "v1.0.0",
-				ToRef:   "v2.0.0",
-			},
+			name:     "Git reference with tag",
+			input:    "[v1.0.0...v2.0.0]",
+			expected: filter.NewGitFilter("v1.0.0", "v2.0.0"),
 		},
 		{
-			name:  "Git reference with relative ref",
-			input: "[HEAD~1...HEAD]",
-			expected: &filter.GitFilter{
-				FromRef: "HEAD~1",
-				ToRef:   "HEAD",
-			},
+			name:     "Git reference with relative ref",
+			input:    "[HEAD~1...HEAD]",
+			expected: filter.NewGitFilter("HEAD~1", "HEAD"),
 		},
 		{
-			name:  "Git reference with underscore in branch name",
-			input: "[feature_branch]",
-			expected: &filter.GitFilter{
-				FromRef: "feature_branch",
-				ToRef:   "",
-			},
+			name:     "Git reference with underscore in branch name",
+			input:    "[feature_branch]",
+			expected: filter.NewGitFilter("feature_branch", "HEAD"),
 		},
 		{
-			name:  "Git reference with slash in branch name",
-			input: "[feature/name]",
-			expected: &filter.GitFilter{
-				FromRef: "feature/name",
-				ToRef:   "",
-			},
+			name:     "Git reference with slash in branch name",
+			input:    "[feature/name]",
+			expected: filter.NewGitFilter("feature/name", "HEAD"),
 		},
 	}
 
@@ -865,7 +841,7 @@ func TestParser_GitFilterExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -887,20 +863,14 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 			input: "![main...HEAD]",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.GitFilter{
-					FromRef: "main",
-					ToRef:   "HEAD",
-				},
+				Right:    filter.NewGitFilter("main", "HEAD"),
 			},
 		},
 		{
 			name:  "Git filter with path filter intersection",
 			input: "[main...HEAD] | ./apps/*",
 			expected: &filter.InfixExpression{
-				Left: &filter.GitFilter{
-					FromRef: "main",
-					ToRef:   "HEAD",
-				},
+				Left:     filter.NewGitFilter("main", "HEAD"),
 				Operator: "|",
 				Right: &filter.PathFilter{
 					Value: "./apps/*",
@@ -915,20 +885,14 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 					Value: "./apps/*",
 				},
 				Operator: "|",
-				Right: &filter.GitFilter{
-					FromRef: "main",
-					ToRef:   "HEAD",
-				},
+				Right:    filter.NewGitFilter("main", "HEAD"),
 			},
 		},
 		{
 			name:  "Git filter with name filter intersection",
 			input: "[main...HEAD] | name=app",
 			expected: &filter.InfixExpression{
-				Left: &filter.GitFilter{
-					FromRef: "main",
-					ToRef:   "HEAD",
-				},
+				Left:     filter.NewGitFilter("main", "HEAD"),
 				Operator: "|",
 				Right: &filter.AttributeFilter{
 					Key:   "name",
@@ -940,10 +904,7 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 			name:  "Git filter with graph expression",
 			input: "[main...HEAD] | app...",
 			expected: &filter.InfixExpression{
-				Left: &filter.GitFilter{
-					FromRef: "main",
-					ToRef:   "HEAD",
-				},
+				Left:     filter.NewGitFilter("main", "HEAD"),
 				Operator: "|",
 				Right: &filter.GraphExpression{
 					Target: &filter.AttributeFilter{
@@ -963,7 +924,7 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			require.NoError(t, err)
@@ -1012,7 +973,7 @@ func TestParser_GitFilterErrors(t *testing.T) {
 			t.Parallel()
 
 			lexer := filter.NewLexer(tt.input)
-			parser := filter.NewParser(lexer, ".")
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			if tt.expectError {

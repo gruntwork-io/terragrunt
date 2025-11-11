@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 )
 
 // Expression is the interface that all AST nodes must implement.
@@ -23,6 +25,9 @@ type Expression interface {
 	IsRestrictedToStacks() bool
 }
 
+// Expressions is a slice of expressions.
+type Expressions []Expression
+
 // PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
 type PathFilter struct {
 	compiledGlob glob.Glob
@@ -32,7 +37,7 @@ type PathFilter struct {
 }
 
 // NewPathFilter creates a new PathFilter with lazy glob compilation.
-func NewPathFilter(value string, workingDir string) *PathFilter {
+func NewPathFilter(value string) *PathFilter {
 	return &PathFilter{Value: value}
 }
 
@@ -256,19 +261,16 @@ func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
 // GitFilter represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
 // It filters components based on changes between Git references.
 type GitFilter struct {
-	FromRef string // The starting Git reference (e.g., "main", "HEAD~1")
-	ToRef   string // The ending Git reference (e.g., "HEAD", "feature-branch"). Empty defaults to HEAD.
+	FromRef string
+	ToRef   string
 }
 
-// GitFilters is a slice of Git filters.
-type GitFilters []*GitFilter
+func NewGitFilter(fromRef, toRef string) *GitFilter {
+	return &GitFilter{FromRef: fromRef, ToRef: toRef}
+}
 
 func (g *GitFilter) expressionNode() {}
 func (g *GitFilter) String() string {
-	if g.ToRef == "" {
-		return "[HEAD]"
-	}
-
 	return "[" + g.FromRef + "..." + g.ToRef + "]"
 }
 func (g *GitFilter) RequiresDiscovery() (Expression, bool) {
@@ -280,6 +282,54 @@ func (g *GitFilter) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 func (g *GitFilter) IsRestrictedToStacks() bool { return false }
+
+// Expand expands a Git filter into the equivalent to and from filter expressions based on the provided
+// diffs for the Git reference pair.
+func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
+	// Build simple expressions that can be determined simply from the diffs.
+	fromExpressions := make(Expressions, 0, len(diffs.Removed))
+	for _, path := range diffs.Removed {
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
+		case config.DefaultStackFile:
+			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
+		}
+	}
+
+	toExpressions := make(Expressions, 0, len(diffs.Added)+len(diffs.Changed))
+	for _, path := range diffs.Added {
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
+		case config.DefaultStackFile:
+			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
+		}
+	}
+	for _, path := range diffs.Changed {
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
+		case config.DefaultStackFile:
+			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
+		}
+	}
+
+	fromFilters := make(Filters, 0, len(fromExpressions))
+	for _, expression := range fromExpressions {
+		fromFilters = append(fromFilters, &Filter{expr: expression, originalQuery: expression.String()})
+	}
+
+	toFilters := make(Filters, 0, len(toExpressions))
+	for _, expression := range toExpressions {
+		toFilters = append(toFilters, &Filter{expr: expression, originalQuery: expression.String()})
+	}
+
+	return fromFilters, toFilters, nil
+}
+
+// GitFilters is a slice of Git filters.
+type GitFilters []*GitFilter
 
 // UniqueGitRefs returns all unique Git references in a slice of expressions.
 func (e GitFilters) UniqueGitRefs() []string {

@@ -17,7 +17,7 @@ func TestRestrictToStacks(t *testing.T) {
 	}{
 		{
 			name:     "path filter",
-			expr:     filter.NewPathFilter("./apps/*", "."),
+			expr:     filter.NewPathFilter("./apps/*"),
 			expected: false,
 		},
 		{

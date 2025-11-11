@@ -25,11 +25,10 @@ var precedences = map[TokenType]int{
 }
 
 // NewParser creates a new Parser for the given lexer.
-func NewParser(lexer *Lexer, workingDir string) *Parser {
+func NewParser(lexer *Lexer) *Parser {
 	p := &Parser{
-		lexer:      lexer,
-		errors:     []error{},
-		workingDir: workingDir,
+		lexer:  lexer,
+		errors: []error{},
 	}
 
 	// Read two tokens to initialize curToken and peekToken
@@ -199,7 +198,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 
 // parsePathFilter parses a path filter (e.g., "./apps/*").
 func (p *Parser) parsePathFilter() Expression {
-	expr := NewPathFilter(p.curToken.Literal, p.workingDir)
+	expr := NewPathFilter(p.curToken.Literal)
 	p.nextToken()
 
 	return expr
@@ -233,7 +232,7 @@ func (p *Parser) parseBracedPath() Expression {
 	// Join all parts to form the complete path
 	pathValue := strings.Join(pathParts, "")
 
-	return NewPathFilter(pathValue, p.workingDir)
+	return NewPathFilter(pathValue)
 }
 
 // parseAttributeFilter parses an attribute filter (e.g., "name=foo").
@@ -311,10 +310,7 @@ func (p *Parser) parseGitFilter() Expression {
 		// Move past RBRACKET
 		p.nextToken()
 
-		return &GitFilter{
-			FromRef: fromRef,
-			ToRef:   toRef,
-		}
+		return NewGitFilter(fromRef, toRef)
 	}
 
 	// Single reference case
@@ -326,10 +322,7 @@ func (p *Parser) parseGitFilter() Expression {
 	// Move past RBRACKET
 	p.nextToken()
 
-	return &GitFilter{
-		FromRef: fromRef,
-		ToRef:   "",
-	}
+	return NewGitFilter(fromRef, "HEAD")
 }
 
 // expectPeek checks if the next token is of the expected type and advances if so.

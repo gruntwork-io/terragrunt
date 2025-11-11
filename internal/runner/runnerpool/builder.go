@@ -87,7 +87,7 @@ func Build(
 
 	// Apply filter queries if the filter-flag experiment is enabled
 	if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(terragruntOptions.FilterQueries, workingDir)
+		filters, err := filter.ParseFilterQueries(terragruntOptions.FilterQueries)
 		if err != nil {
 			return nil, err
 		}

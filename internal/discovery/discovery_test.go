@@ -704,7 +704,7 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(tt.filters, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).WithFilters(filters)

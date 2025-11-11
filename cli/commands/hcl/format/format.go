@@ -68,7 +68,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	)
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, err = filter.ParseFilterQueries(opts.FilterQueries, workingDir)
+		filters, err = filter.ParseFilterQueries(opts.FilterQueries)
 		if err != nil {
 			return errors.New(err)
 		}

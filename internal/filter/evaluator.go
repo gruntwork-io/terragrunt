@@ -38,6 +38,10 @@ type EvaluationContext struct {
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 // If logger is provided, it will be used for logging warnings during evaluation.
 func Evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
+	if expr == nil {
+		return nil, NewEvaluationError("expression is nil")
+	}
+
 	switch node := expr.(type) {
 	case *PathFilter:
 		return evaluatePathFilter(node, components)
@@ -137,15 +141,8 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 		}
 
 		for _, c := range components {
-			for _, readFile := range c.Reading() {
-				matches, err := doesComponentValueMatchGlob(c, readFile, filter.Value, g)
-				if err != nil {
-					return nil, err
-				}
-
-				if matches {
-					result = append(result, c)
-				}
+			if slices.ContainsFunc(c.Reading(), g.Match) {
+				result = append(result, c)
 			}
 		}
 	case AttributeSource:

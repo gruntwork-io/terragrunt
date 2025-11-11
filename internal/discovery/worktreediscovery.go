@@ -22,6 +22,9 @@ type WorktreeDiscovery struct {
 	// discoveryContext is the context in which discovery was originally triggered.
 	discoveryContext *component.DiscoveryContext
 
+	// originalDiscovery is the original discovery object that triggered the worktree discovery.
+	originalDiscovery *Discovery
+
 	// workTrees is a map of references to the worktrees created for Git-based filters.
 	workTrees map[string]string
 
@@ -65,37 +68,29 @@ func (wd *WorktreeDiscovery) WithWorkingDir(workingDir string) *WorktreeDiscover
 	return wd
 }
 
+// WithOriginalDiscovery sets the original discovery object that triggered the worktree discovery.
+func (wd *WorktreeDiscovery) WithOriginalDiscovery(originalDiscovery *Discovery) *WorktreeDiscovery {
+	wd.originalDiscovery = originalDiscovery
+	return wd
+}
+
 // Discover discovers components in all worktrees.
 func (wd *WorktreeDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
-	diffsToCheck := make(map[string]string, len(wd.gitExpressions))
-
-	// We do this to deduplicate multiple calls to `git diff` for the same
-	// Git reference pair.
-	for _, diff := range wd.gitExpressions {
-		fromRef := diff.FromRef
-		toRef := diff.ToRef
-		if toRef == "" {
-			toRef = "HEAD"
-		}
-
-		diffsToCheck[fromRef] = toRef
-	}
-
 	var (
 		errs []error
 		mu   sync.Mutex
 	)
 
-	expressionToDiffs := make(map[string]*git.Diffs, len(wd.gitExpressions))
+	expressionToDiffs := make(map[*filter.GitFilter]*git.Diffs, len(wd.gitExpressions))
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(wd.numWorkers)
 
-	for from, to := range diffsToCheck {
+	for _, gitExpression := range wd.gitExpressions {
 		g.Go(func() error {
 			gitRunner, err := git.NewGitRunner()
 			if err != nil {
@@ -108,7 +103,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 			gitRunner = gitRunner.WithWorkDir(wd.workingDir)
 
-			diffs, err := gitRunner.Diff(ctx, from, to)
+			diffs, err := gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)
@@ -117,7 +112,7 @@ func (wd *WorktreeDiscovery) Discover(
 				return nil
 			}
 
-			expressionToDiffs[from+"..."+to] = diffs
+			expressionToDiffs[gitExpression] = diffs
 
 			return nil
 		})
@@ -129,6 +124,41 @@ func (wd *WorktreeDiscovery) Discover(
 
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
+	}
+
+	for gitExpression, diffs := range expressionToDiffs {
+		fromExpressions, toExpressions, err := gitExpression.Expand(diffs)
+		if err != nil {
+			return nil, err
+		}
+
+		// Copy the original discovery to avoid mutating it.
+		fromDiscovery := *wd.originalDiscovery
+		components, err := fromDiscovery.
+			WithFilters(fromExpressions).
+			WithWorkingDir(wd.workTrees[gitExpression.FromRef]).
+			Discover(ctx, l, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, component := range components {
+			wd.discoveredComponents.EnsureComponent(component)
+		}
+
+		// Copy the original discovery to avoid mutating it.
+		toDiscovery := *wd.originalDiscovery
+		toComponents, err := toDiscovery.
+			WithFilters(toExpressions).
+			WithWorkingDir(wd.workTrees[gitExpression.ToRef]).
+			Discover(ctx, l, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, component := range toComponents {
+			wd.discoveredComponents.EnsureComponent(component)
+		}
 	}
 
 	return nil, nil

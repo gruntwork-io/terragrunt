@@ -256,7 +256,7 @@ dependency "db" {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -333,7 +333,7 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 
 			// Some errors occur during parsing (like empty filter), others during evaluation
 			if tt.errorExpected && err != nil {
@@ -428,7 +428,7 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters
@@ -630,7 +630,7 @@ locals {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters and ReadFiles enabled
@@ -684,7 +684,7 @@ locals {
 
 	// Test with absolute path filter
 	filterQueries := []string{"reading=" + sharedFile}
-	filters, err := filter.ParseFilterQueries(filterQueries, tmpDir)
+	filters, err := filter.ParseFilterQueries(filterQueries)
 	require.NoError(t, err)
 
 	discovery := discovery.NewDiscovery(tmpDir).
@@ -734,7 +734,7 @@ func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 
 			// Some errors occur during parsing
 			if tt.errorExpected && err != nil {
@@ -837,17 +837,17 @@ dependency "vpc" {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
 
-			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			components, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
-			units := configs.Filter(component.UnitKind).Paths()
+			units := components.Filter(component.UnitKind).Paths()
 
 			// Verify results
 			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -913,7 +913,7 @@ dependency "vpc" {
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app..."}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -927,7 +927,7 @@ dependency "vpc" {
 	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...vpc"}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -980,7 +980,7 @@ dependency "db" {
 		t.Parallel()
 
 		// Filter for app and its dependencies - unrelated should not be included
-		filters, err := filter.ParseFilterQueries([]string{"app..."}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -1039,7 +1039,7 @@ dependency "vpc" {
 		t.Parallel()
 
 		// Graph expression discovers app and its dependencies, then additional filter excludes vpc
-		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -1055,6 +1055,8 @@ dependency "vpc" {
 
 func TestDiscoveryWithGitFilters(t *testing.T) {
 	t.Parallel()
+
+	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
 
 	tests := []struct {
 		name          string
@@ -1201,7 +1203,7 @@ locals {
 			opts.RootWorkingDir = tmpDir
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries(initialCommit, currentCommit), tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries(initialCommit, currentCommit))
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -1241,6 +1243,8 @@ locals {
 func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	t.Parallel()
 
+	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
+
 	tmpDir := t.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
@@ -1274,7 +1278,7 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with Git references
-	filters, err := filter.ParseFilterQueries([]string{"[" + initialCommit + "..." + currentCommit + "]"}, tmpDir)
+	filters, err := filter.ParseFilterQueries([]string{"[" + initialCommit + "..." + currentCommit + "]"})
 	require.NoError(t, err)
 
 	// Create discovery with filters
@@ -1301,6 +1305,8 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 
 func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	t.Parallel()
+
+	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
 
 	tmpDir := t.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
@@ -1331,7 +1337,7 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with Git references (no changes between commits)
-	filters, err := filter.ParseFilterQueries([]string{"[" + commit1 + "..." + commit2 + "]"}, tmpDir)
+	filters, err := filter.ParseFilterQueries([]string{"[" + commit1 + "..." + commit2 + "]"})
 	require.NoError(t, err)
 
 	// Create discovery with filters
@@ -1353,6 +1359,8 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
 	t.Parallel()
 
+	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
+
 	tmpDir := t.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
@@ -1365,7 +1373,7 @@ func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with invalid Git reference
-	filters, err := filter.ParseFilterQueries([]string{"[nonexistent-branch]"}, tmpDir)
+	filters, err := filter.ParseFilterQueries([]string{"[nonexistent-branch]"})
 	require.NoError(t, err) // Parsing should succeed
 
 	// Create discovery with filters

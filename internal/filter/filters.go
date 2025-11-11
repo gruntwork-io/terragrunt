@@ -18,7 +18,7 @@ type Filters []*Filter
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
-func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, error) {
+func ParseFilterQueries(filterStrings []string) (Filters, error) {
 	if len(filterStrings) == 0 {
 		return Filters{}, nil
 	}
@@ -28,7 +28,7 @@ func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, err
 	var parseErrors []error
 
 	for i, filterString := range filterStrings {
-		filter, err := Parse(filterString, workingDir)
+		filter, err := Parse(filterString)
 		if err != nil {
 			parseErrors = append(parseErrors, fmt.Errorf("filter %d (%q): %w", i, filterString, err))
 
@@ -102,12 +102,23 @@ func (f Filters) DependentGraphExpressions() []Expression {
 	return targets
 }
 
-// GitExpressions returns all expressions that require worktree discovery.
-func (f Filters) GitExpressions() GitFilters {
+// UniqueGitExpressions returns all unique Git expressions that require worktree discovery.
+func (f Filters) UniqueGitExpressions() GitFilters {
 	var targets GitFilters
 
+	seen := make(map[string]struct{})
+
 	for _, filter := range f {
-		targets = append(targets, collectWorktreeExpressions(filter.expr)...)
+		filterWorktreeExpressions := collectWorktreeExpressions(filter.expr)
+
+		for _, filterWorktreeExpression := range filterWorktreeExpressions {
+			if _, ok := seen[filterWorktreeExpression.String()]; ok {
+				continue
+			}
+
+			seen[filterWorktreeExpression.String()] = struct{}{}
+			targets = append(targets, filterWorktreeExpression)
+		}
 	}
 
 	return targets
@@ -221,13 +232,7 @@ func collectGitReferences(expr Expression) []string {
 	var refs []string
 
 	if gitFilter, ok := expr.(*GitFilter); ok {
-		refs = append(refs, gitFilter.FromRef)
-
-		if gitFilter.ToRef != "" {
-			refs = append(refs, gitFilter.ToRef)
-		} else {
-			refs = append(refs, "HEAD")
-		}
+		refs = append(refs, gitFilter.FromRef, gitFilter.ToRef)
 
 		return refs
 	}

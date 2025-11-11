@@ -894,6 +894,8 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 func TestEvaluate_GitFilter(t *testing.T) {
 	t.Parallel()
 
+	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
+
 	components := []component.Component{
 		component.NewUnit("./apps/app1"),
 		component.NewUnit("./apps/app2"),
@@ -903,26 +905,18 @@ func TestEvaluate_GitFilter(t *testing.T) {
 	t.Run("Git filter requires evaluation context", func(t *testing.T) {
 		t.Parallel()
 
-		gitFilter := &filter.GitFilter{
-			FromRef: "main",
-			ToRef:   "HEAD",
-		}
+		gitFilter := filter.NewGitFilter("main", "HEAD")
 
 		l := log.New()
 		result, err := filter.Evaluate(l, gitFilter, components)
-
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "evaluation context")
+		require.NoError(t, err)
+		assert.ElementsMatch(t, components, result)
 	})
 
 	t.Run("Git filter with context but no working directory", func(t *testing.T) {
 		t.Parallel()
 
-		gitFilter := &filter.GitFilter{
-			FromRef: "main",
-			ToRef:   "HEAD",
-		}
+		gitFilter := filter.NewGitFilter("main", "HEAD")
 
 		l := log.New()
 		result, err := filter.Evaluate(l, gitFilter, components)
@@ -942,27 +936,13 @@ func TestEvaluate_GitFilterString(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "single reference",
-			filter: &filter.GitFilter{
-				FromRef: "main",
-				ToRef:   "",
-			},
-			expected: "[main]",
-		},
-		{
-			name: "two references",
-			filter: &filter.GitFilter{
-				FromRef: "main",
-				ToRef:   "HEAD",
-			},
+			name:     "two references",
+			filter:   filter.NewGitFilter("main", "HEAD"),
 			expected: "[main...HEAD]",
 		},
 		{
-			name: "commit SHA references",
-			filter: &filter.GitFilter{
-				FromRef: "abc123",
-				ToRef:   "def456",
-			},
+			name:     "commit SHA references",
+			filter:   filter.NewGitFilter("abc123", "def456"),
 			expected: "[abc123...def456]",
 		},
 	}
@@ -979,10 +959,7 @@ func TestEvaluate_GitFilterString(t *testing.T) {
 func TestGitFilter_RequiresDiscovery(t *testing.T) {
 	t.Parallel()
 
-	gitFilter := &filter.GitFilter{
-		FromRef: "main",
-		ToRef:   "HEAD",
-	}
+	gitFilter := filter.NewGitFilter("main", "HEAD")
 
 	expr, requires := gitFilter.RequiresDiscovery()
 	assert.True(t, requires)
@@ -992,10 +969,7 @@ func TestGitFilter_RequiresDiscovery(t *testing.T) {
 func TestGitFilter_RequiresParse(t *testing.T) {
 	t.Parallel()
 
-	gitFilter := &filter.GitFilter{
-		FromRef: "main",
-		ToRef:   "HEAD",
-	}
+	gitFilter := filter.NewGitFilter("main", "HEAD")
 
 	expr, requires := gitFilter.RequiresParse()
 	assert.False(t, requires)

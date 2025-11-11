@@ -16,7 +16,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("empty filter list", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 		assert.NotNil(t, filters)
 		assert.Equal(t, "[]", filters.String())
@@ -25,7 +25,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("single valid filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
 		assert.NotNil(t, filters)
 		assert.Equal(t, `["./apps/*"]`, filters.String())
@@ -34,7 +34,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("multiple valid filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"})
 		require.NoError(t, err)
 		assert.NotNil(t, filters)
 		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
@@ -43,7 +43,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("single invalid filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"invalid |"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"invalid |"})
 		require.Error(t, err)
 		assert.NotNil(t, filters)
 		assert.Contains(t, err.Error(), "filter 0")
@@ -53,7 +53,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("mixed valid and invalid filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=", "!legacy"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=", "!legacy"})
 		require.Error(t, err)
 		assert.NotNil(t, filters)
 		// Should have 2 valid filters parsed
@@ -67,7 +67,7 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("multiple invalid filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"foo |", "bar |", "!baz"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"foo |", "bar |", "!baz"})
 		require.Error(t, err)
 		assert.NotNil(t, filters)
 		// Should have 1 valid filter
@@ -92,7 +92,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("empty filters returns all components", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -104,7 +104,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("single positive filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -123,7 +123,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("union of multiple positive filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/app1", "name=db"})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -141,7 +141,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("union with overlapping results (deduplication)", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=app1"})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -162,7 +162,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("positive filters then negative filter removes results", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -180,7 +180,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("multiple negative filters applied in sequence", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy", "!app2"})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -197,7 +197,7 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("only negative filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!db"})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -221,7 +221,7 @@ func TestFilters_Evaluate(t *testing.T) {
 			"./libs/*",
 			"!legacy",
 			"!api",
-		}, ".")
+		})
 		require.NoError(t, err)
 
 		l := log.New()
@@ -244,7 +244,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("empty filters - has positive filter is false", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 		assert.False(t, filters.HasPositiveFilter())
 	})
@@ -252,7 +252,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("single positive filter - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
 		assert.True(t, filters.HasPositiveFilter())
 	})
@@ -260,7 +260,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("single negative filter - has positive filter is false", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"!legacy"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"!legacy"})
 		require.NoError(t, err)
 		assert.False(t, filters.HasPositiveFilter())
 	})
@@ -268,7 +268,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("multiple negative filters - has positive filter is false", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!test"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"!legacy", "!test"})
 		require.NoError(t, err)
 		assert.False(t, filters.HasPositiveFilter())
 	})
@@ -276,7 +276,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("multiple positive filters - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "./libs/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "./libs/*"})
 		require.NoError(t, err)
 		assert.True(t, filters.HasPositiveFilter())
 	})
@@ -284,7 +284,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("mixed positive and negative - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!legacy"})
 		require.NoError(t, err)
 		assert.True(t, filters.HasPositiveFilter())
 	})
@@ -292,7 +292,7 @@ func TestFilters_HasPositiveFilter(t *testing.T) {
 	t.Run("negative then positive - has positive filter is true", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"!legacy", "./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"!legacy", "./apps/*"})
 		require.NoError(t, err)
 		assert.True(t, filters.HasPositiveFilter())
 	})
@@ -304,7 +304,7 @@ func TestFilters_String(t *testing.T) {
 	t.Run("empty filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 		assert.Equal(t, "[]", filters.String())
 	})
@@ -312,7 +312,7 @@ func TestFilters_String(t *testing.T) {
 	t.Run("single filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 		require.NoError(t, err)
 		assert.Equal(t, `["./apps/*"]`, filters.String())
 	})
@@ -320,7 +320,7 @@ func TestFilters_String(t *testing.T) {
 	t.Run("multiple filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db", "!legacy"})
 		require.NoError(t, err)
 		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
 	})
@@ -332,7 +332,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("no graph expressions - empty result", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -342,7 +342,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("single dependency graph expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -356,7 +356,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("multiple dependency graph expressions", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app...", "db..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"app...", "db..."})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -369,7 +369,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("dependent-only graph expression - no dependency discovery", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app"})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -379,7 +379,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("both directions graph expression - includes dependency discovery", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app..."})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -390,7 +390,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("nested graph expressions in infix", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app... | db..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"app... | db..."})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -400,7 +400,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("graph expression in prefix expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"!app..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"!app..."})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -410,7 +410,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 	t.Run("mixed graph and non-graph expressions", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app...", "./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"app...", "./apps/*"})
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -425,7 +425,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("no graph expressions - empty result", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -435,7 +435,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("single dependent graph expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app"})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -447,7 +447,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("multiple dependent graph expressions", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app", "...db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app", "...db"})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -460,7 +460,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("dependency-only graph expression - no dependent discovery", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -470,7 +470,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("both directions graph expression - includes dependent discovery", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app..."})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -481,7 +481,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("nested graph expressions in infix", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app | ...db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app | ...db"})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -491,7 +491,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("graph expression in prefix expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"!...app"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"!...app"})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -501,7 +501,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 	t.Run("mixed graph and non-graph expressions", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...app", "./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"...app", "./apps/*"})
 		require.NoError(t, err)
 
 		targets := filters.DependentGraphExpressions()
@@ -516,7 +516,7 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	t.Run("empty filters - empty result", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{}, ".")
+		filters, err := filter.ParseFilterQueries([]string{})
 		require.NoError(t, err)
 
 		restricted := filters.RestrictToStacks()
@@ -526,7 +526,7 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	t.Run("single filter - restricted to stacks", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"type=stack"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"type=stack"})
 		require.NoError(t, err)
 
 		restricted := filters.RestrictToStacks()
@@ -536,7 +536,7 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	t.Run("multiple filters - one of them restricted to stacks", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"type=stack", "name=app"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"type=stack", "name=app"})
 		require.NoError(t, err)
 
 		restricted := filters.RestrictToStacks()
@@ -546,7 +546,7 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	t.Run("multiple filters - none of them restricted to stacks", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"name=app", "type=unit"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"name=app", "type=unit"})
 		require.NoError(t, err)
 
 		restricted := filters.RestrictToStacks()
@@ -560,106 +560,98 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Run("no Git filters - empty result", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		assert.Empty(t, refs)
 	})
 
 	t.Run("single Git filter with one reference", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main]"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main]"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
-		require.Len(t, refs, 1)
-		assert.Contains(t, refs, "main")
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		require.Len(t, refs, 2)
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 
 	t.Run("single Git filter with two references", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 
 	t.Run("multiple Git filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[feature-branch]"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[feature-branch]"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 3)
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
-		assert.Contains(t, refs, "feature-branch")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD", "feature-branch"})
 	})
 
 	t.Run("Git filters with deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[HEAD...main]"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[HEAD...main]"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2) // main and HEAD, no duplicates
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 
 	t.Run("Git filter combined with other filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "./apps/*", "name=db"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "./apps/*", "name=db"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 
 	t.Run("Git filter with negation", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"![main...HEAD]"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"![main...HEAD]"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 
 	t.Run("Git filter with intersection", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD] | ./apps/*"}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD] | ./apps/*"})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 
 	t.Run("Git filter nested in graph expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]..."}, ".")
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]..."})
 		require.NoError(t, err)
 
-		refs := filters.GitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitExpressions().UniqueGitRefs()
 		require.Len(t, refs, 2)
-		assert.Contains(t, refs, "main")
-		assert.Contains(t, refs, "HEAD")
+		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 }

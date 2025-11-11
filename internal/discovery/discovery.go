@@ -126,9 +126,6 @@ type Discovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitFilters
 
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo hiddenDirMemo
-
 	// numWorkers determines the number of concurrent workers for discovery operations.
 	numWorkers int
 
@@ -186,6 +183,12 @@ type CompiledPattern struct {
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+
+// WithWorkingDir sets the working directory for the discovery.
+func (d *Discovery) WithWorkingDir(dir string) *Discovery {
+	d.workingDir = dir
+	return d
+}
 
 // WithNoHidden sets the Hidden flag to true.
 func (d *Discovery) WithNoHidden() *Discovery {
@@ -384,7 +387,7 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 
 	// Collect Git references from filters if any Git filters are present.
 	// The worktrees will be created during discovery before filtering.
-	d.gitExpressions = d.filters.GitExpressions()
+	d.gitExpressions = d.filters.UniqueGitExpressions()
 
 	return d
 }
@@ -598,8 +601,8 @@ func Parse(
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
-func (d *Discovery) isInHiddenDirectory(path string) bool {
-	ok := d.hiddenDirMemo.contains(path)
+func (d *Discovery) isInHiddenDirectory(hiddenDirMemo *hiddenDirMemo, path string) bool {
+	ok := hiddenDirMemo.contains(path)
 	if ok {
 		return true
 	}
@@ -619,7 +622,7 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 		}
 
 		if strings.HasPrefix(part, ".") && part != "." && part != ".." {
-			d.hiddenDirMemo.append(hiddenPath)
+			hiddenDirMemo.append(hiddenPath)
 
 			return true
 		}
@@ -633,6 +636,7 @@ func (d *Discovery) discoverConcurrently(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	hiddenDirMemo *hiddenDirMemo,
 	filenames []string,
 ) (component.Components, error) {
 	g, ctx := errgroup.WithContext(ctx)
@@ -648,7 +652,7 @@ func (d *Discovery) discoverConcurrently(
 
 	for range d.numWorkers {
 		g.Go(func() error {
-			return d.configWorker(ctx, l, filePaths, results, filenames)
+			return d.configWorker(ctx, l, filePaths, results, hiddenDirMemo, filenames)
 		})
 	}
 
@@ -762,6 +766,7 @@ func (d *Discovery) configWorker(
 	l log.Logger,
 	filePaths <-chan string,
 	results chan<- component.Component,
+	hiddenDirMemo *hiddenDirMemo,
 	filenames []string,
 ) error {
 	for path := range filePaths {
@@ -771,7 +776,7 @@ func (d *Discovery) configWorker(
 		default:
 		}
 
-		config := d.processFile(path, l, filenames)
+		config := d.processFile(l, path, hiddenDirMemo, filenames)
 
 		if config != nil {
 			select {
@@ -786,7 +791,12 @@ func (d *Discovery) configWorker(
 }
 
 // processFile processes a single file to determine if it's a Terragrunt configuration.
-func (d *Discovery) processFile(path string, l log.Logger, filenames []string) component.Component {
+func (d *Discovery) processFile(
+	l log.Logger,
+	path string,
+	hiddenDirMemo *hiddenDirMemo,
+	filenames []string,
+) component.Component {
 	dir := filepath.Dir(path)
 
 	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
@@ -809,7 +819,7 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 			}
 
 			// Check for hidden directories before returning
-			if d.noHidden && d.isInHiddenDirectory(path) {
+			if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
 				// Always allow .terragrunt-stack contents
 				cleanDir := util.CleanPath(canonicalDir)
 				if !isInStackDirectory(cleanDir) {
@@ -856,7 +866,7 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 	}
 
 	// Now enforce hidden directory check if still applicable
-	if d.noHidden && d.isInHiddenDirectory(path) {
+	if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
 		// If the directory is hidden, allow it only if it matches an include pattern
 		allowHidden := false
 
@@ -1078,7 +1088,7 @@ func (d *Discovery) Discover(
 	}
 
 	// Use concurrent discovery for better performance
-	components, err := d.discoverConcurrently(ctx, l, opts, filenames)
+	components, err := d.discoverConcurrently(ctx, l, opts, &hiddenDirMemo{}, filenames)
 	if err != nil {
 		return components, err
 	}
@@ -1095,7 +1105,8 @@ func (d *Discovery) Discover(
 
 		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions, d.workTrees).
 			WithNumWorkers(d.numWorkers).
-			WithWorkingDir(d.workingDir)
+			WithWorkingDir(d.workingDir).
+			WithOriginalDiscovery(d)
 
 		if d.discoveryContext != nil {
 			worktreeDiscovery = worktreeDiscovery.WithDiscoveryContext(d.discoveryContext)
@@ -1298,6 +1309,15 @@ func (d *Discovery) Discover(
 				l.Debugf("Errors: %w", err)
 			}
 		}
+	}
+
+	if len(d.filters) > 0 {
+		filtered, evaluateErr := d.filters.Evaluate(l, components)
+		if evaluateErr != nil {
+			errs = append(errs, errors.New(evaluateErr))
+		}
+
+		components = filtered
 	}
 
 	if len(errs) > 0 {
