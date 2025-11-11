@@ -44,15 +44,15 @@ function main {
 
   verify_config_file
 
-  # Get list of macOS binaries from config
+  # Get list of macOS binaries from config (compatible with bash 3.2+)
   local macos_binaries
-  mapfile -t macos_binaries < <(jq -r '.platforms[] | select(.os == "darwin") | .binary' "$RELEASE_CONFIG_FILE")
+  macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' "$RELEASE_CONFIG_FILE")
 
-  echo "Expected macOS binaries from config: ${macos_binaries[*]}"
+  echo "Expected macOS binaries from config: $macos_binaries"
 
   # Remove old unsigned binaries from bin directory
   echo "Removing unsigned binaries from $bin_dir..."
-  for binary in "${macos_binaries[@]}"; do
+  for binary in $macos_binaries; do
     rm -f "$bin_dir/$binary"
     echo "  Removed: $bin_dir/$binary"
   done
@@ -61,7 +61,7 @@ function main {
   echo ""
   echo "Extracting and verifying signed binaries..."
 
-  for binary in "${macos_binaries[@]}"; do
+  for binary in $macos_binaries; do
     local zip_file="${binary}.zip"
 
     echo "Processing $binary..."
@@ -95,7 +95,7 @@ function main {
 
   # Final verification of all binaries in bin directory
   echo "Final verification of all binaries in $bin_dir..."
-  for binary in "${macos_binaries[@]}"; do
+  for binary in $macos_binaries; do
     echo "Verifying $binary..."
 
     [[ -f "$bin_dir/$binary" ]] || {
