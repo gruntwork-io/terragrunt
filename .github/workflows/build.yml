@@ -117,6 +117,14 @@ jobs:
           name: macos-signed-files
           path: bin/
 
+      - name: Verify macOS binaries after download
+        run: |
+          echo "macOS binaries downloaded:"
+          ls -lah bin/terragrunt_darwin_* 2>/dev/null || echo "No macOS binaries found"
+          echo ""
+          echo "File types:"
+          file bin/terragrunt_darwin_* 2>/dev/null || echo "Cannot check file types"
+
       - name: Download Windows signed binaries
         uses: actions/download-artifact@v6
         with:

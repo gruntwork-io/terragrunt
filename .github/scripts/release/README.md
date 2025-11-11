@@ -321,9 +321,10 @@ export MACOS_CERTIFICATE_PASSWORD=<password>
 **Process:**
 1. Signs amd64 binary using `.gon_amd64.hcl`
 2. Signs arm64 binary using `.gon_arm64.hcl`
-3. Extracts signed binaries from ZIP archives
-4. Moves signed binaries to bin directory
-5. Verifies signatures using `codesign -dv --verbose=4`
+3. Removes unsigned binaries from bin directory
+4. Extracts signed binaries from ZIP archives
+5. Moves signed binaries to bin directory (replacing unsigned versions)
+6. Verifies signatures using `codesign -dv --verbose=4`
 
 ## Windows Scripts
 

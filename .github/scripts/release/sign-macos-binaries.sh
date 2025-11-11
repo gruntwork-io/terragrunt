@@ -38,22 +38,44 @@ function main {
 
   echo "Done signing the binaries"
 
+  # Remove old unsigned binaries from bin directory
+  echo "Removing unsigned binaries from $bin_dir..."
+  rm -f "$bin_dir/terragrunt_darwin_amd64"
+  rm -f "$bin_dir/terragrunt_darwin_arm64"
+  echo "Unsigned binaries removed"
+
   # Unzip the signed binaries
   echo "Extracting signed binaries..."
 
   if [[ -f terragrunt_darwin_amd64.zip ]]; then
+    echo "Found terragrunt_darwin_amd64.zip, extracting..."
     unzip -o terragrunt_darwin_amd64.zip
-    mv terragrunt_darwin_amd64 "$bin_dir/"
-    echo "Moved signed amd64 binary to $bin_dir/"
+    if [[ -f terragrunt_darwin_amd64 ]]; then
+      echo "Extracted binary exists, checking signature before move..."
+      codesign -dv --verbose=4 terragrunt_darwin_amd64 2>&1 || echo "WARNING: Extracted binary signature check failed"
+      mv terragrunt_darwin_amd64 "$bin_dir/"
+      echo "Moved signed amd64 binary to $bin_dir/"
+    else
+      echo "ERROR: Failed to extract terragrunt_darwin_amd64 from ZIP"
+      exit 1
+    fi
   else
     echo "ERROR: terragrunt_darwin_amd64.zip not found"
     exit 1
   fi
 
   if [[ -f terragrunt_darwin_arm64.zip ]]; then
+    echo "Found terragrunt_darwin_arm64.zip, extracting..."
     unzip -o terragrunt_darwin_arm64.zip
-    mv terragrunt_darwin_arm64 "$bin_dir/"
-    echo "Moved signed arm64 binary to $bin_dir/"
+    if [[ -f terragrunt_darwin_arm64 ]]; then
+      echo "Extracted binary exists, checking signature before move..."
+      codesign -dv --verbose=4 terragrunt_darwin_arm64 2>&1 || echo "WARNING: Extracted binary signature check failed"
+      mv terragrunt_darwin_arm64 "$bin_dir/"
+      echo "Moved signed arm64 binary to $bin_dir/"
+    else
+      echo "ERROR: Failed to extract terragrunt_darwin_arm64 from ZIP"
+      exit 1
+    fi
   else
     echo "ERROR: terragrunt_darwin_arm64.zip not found"
     exit 1

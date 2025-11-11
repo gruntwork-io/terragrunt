@@ -78,6 +78,20 @@ jobs:
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: .github/scripts/release/sign-macos-binaries.sh bin
 
+      - name: Verify signed binaries before upload
+        run: |
+          echo "Contents of bin/ directory:"
+          ls -lah bin/
+          echo ""
+          echo "Checking signatures of binaries to be uploaded:"
+          for binary in bin/terragrunt_darwin_*; do
+            if [[ -f "$binary" ]]; then
+              echo "Checking $binary:"
+              codesign -dv --verbose=4 "$binary" 2>&1 || echo "ERROR: No signature found on $binary"
+              echo ""
+            fi
+          done
+
       - name: Upload Signed MacOS Binaries
         uses: actions/upload-artifact@v5
         with:
