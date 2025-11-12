@@ -69,11 +69,6 @@ func (wd *WorktreeDiscovery) Discover(
 	opts *options.TerragruntOptions,
 ) (component.Components, map[string]string, error) {
 	gitRefs := wd.gitExpressions.UniqueGitRefs()
-	if len(gitRefs) > 0 {
-		if worktreeErr := wd.createGitWorktrees(ctx, l); worktreeErr != nil {
-			return nil, wd.workTrees, worktreeErr
-		}
-	}
 
 	var (
 		errs []error
@@ -82,11 +77,27 @@ func (wd *WorktreeDiscovery) Discover(
 
 	expressionToDiffs := make(map[*filter.GitFilter]*git.Diffs, len(wd.gitExpressions))
 
-	g, gitDiffCtx := errgroup.WithContext(ctx)
-	g.SetLimit(wd.numWorkers)
+	gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
+	gitCmdGroup.SetLimit(wd.numWorkers)
+
+	if len(gitRefs) > 0 {
+		gitCmdGroup.Go(func() error {
+			if worktreeErr := wd.createGitWorktrees(gitCmdCtx, l); worktreeErr != nil {
+				mu.Lock()
+
+				errs = append(errs, worktreeErr)
+
+				mu.Unlock()
+
+				return worktreeErr
+			}
+
+			return nil
+		})
+	}
 
 	for _, gitExpression := range wd.gitExpressions {
-		g.Go(func() error {
+		gitCmdGroup.Go(func() error {
 			gitRunner, err := git.NewGitRunner()
 			if err != nil {
 				mu.Lock()
@@ -100,7 +111,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 			gitRunner = gitRunner.WithWorkDir(wd.discoveryContext.WorkingDir)
 
-			diffs, err := gitRunner.Diff(gitDiffCtx, gitExpression.FromRef, gitExpression.ToRef)
+			diffs, err := gitRunner.Diff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef)
 			if err != nil {
 				mu.Lock()
 
@@ -111,13 +122,17 @@ func (wd *WorktreeDiscovery) Discover(
 				return nil
 			}
 
+			mu.Lock()
+
 			expressionToDiffs[gitExpression] = diffs
+
+			mu.Unlock()
 
 			return nil
 		})
 	}
 
-	if err := g.Wait(); err != nil {
+	if err := gitCmdGroup.Wait(); err != nil {
 		return nil, wd.workTrees, err
 	}
 
@@ -127,68 +142,93 @@ func (wd *WorktreeDiscovery) Discover(
 
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
+	// Run from and to discovery concurrently for each expression
+	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
+	discoveryGroup.SetLimit(wd.numWorkers)
+
 	for gitExpression, diffs := range expressionToDiffs {
-		fromExpressions, toExpressions, err := gitExpression.Expand(diffs)
-		if err != nil {
-			return nil, wd.workTrees, err
-		}
+		discoveryGroup.Go(func() error {
+			fromExpressions, toExpressions, err := gitExpression.Expand(diffs)
+			if err != nil {
+				return err
+			}
 
-		fromDiscovery := *wd.originalDiscovery
+			// Run from and to discovery concurrently
+			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
-		fromDiscoveryContext := *fromDiscovery.discoveryContext
-		fromDiscoveryContext.Ref = gitExpression.FromRef
-		fromDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.FromRef]
+			// From discovery
+			fromToG.Go(func() error {
+				fromDiscovery := *wd.originalDiscovery
 
-		switch {
-		case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
-			!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
-			fromDiscoveryContext.Args = append(fromDiscoveryContext.Args, "-destroy")
-		case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
-			// This is the case when using a discovery command like find or list.
-			// It's fine for these commands to not have any command or arguments.
-		default:
-			return nil, wd.workTrees, NewGitFilterCommandError(fromDiscoveryContext.Cmd, fromDiscoveryContext.Args)
-		}
+				fromDiscoveryContext := *fromDiscovery.discoveryContext
+				fromDiscoveryContext.Ref = gitExpression.FromRef
+				fromDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.FromRef]
 
-		components, err := fromDiscovery.
-			WithFilters(fromExpressions).
-			WithDiscoveryContext(&fromDiscoveryContext).
-			Discover(ctx, l, opts)
-		if err != nil {
-			return nil, wd.workTrees, err
-		}
+				switch {
+				case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
+					!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
+					fromDiscoveryContext.Args = append(fromDiscoveryContext.Args, "-destroy")
+				case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
+					// This is the case when using a discovery command like find or list.
+					// It's fine for these commands to not have any command or arguments.
+				default:
+					return NewGitFilterCommandError(fromDiscoveryContext.Cmd, fromDiscoveryContext.Args)
+				}
 
-		for _, component := range components {
-			discoveredComponents.EnsureComponent(component)
-		}
+				components, err := fromDiscovery.
+					WithFilters(fromExpressions).
+					WithDiscoveryContext(&fromDiscoveryContext).
+					Discover(fromToCtx, l, opts)
+				if err != nil {
+					return err
+				}
 
-		toDiscovery := *wd.originalDiscovery
+				for _, component := range components {
+					discoveredComponents.EnsureComponent(component)
+				}
 
-		toDiscoveryContext := *toDiscovery.discoveryContext
-		toDiscoveryContext.Ref = gitExpression.ToRef
-		toDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.ToRef]
+				return nil
+			})
 
-		switch {
-		case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
-			!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
-		case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
-			// This is the case when using a discovery command like find or list.
-			// It's fine for these commands to not have any command or arguments.
-		default:
-			return nil, wd.workTrees, NewGitFilterCommandError(fromDiscoveryContext.Cmd, fromDiscoveryContext.Args)
-		}
+			// To discovery
+			fromToG.Go(func() error {
+				toDiscovery := *wd.originalDiscovery
 
-		toComponents, err := toDiscovery.
-			WithFilters(toExpressions).
-			WithDiscoveryContext(&toDiscoveryContext).
-			Discover(ctx, l, opts)
-		if err != nil {
-			return nil, wd.workTrees, err
-		}
+				toDiscoveryContext := *toDiscovery.discoveryContext
+				toDiscoveryContext.Ref = gitExpression.ToRef
+				toDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.ToRef]
 
-		for _, component := range toComponents {
-			discoveredComponents.EnsureComponent(component)
-		}
+				switch {
+				case (toDiscoveryContext.Cmd == "plan" || toDiscoveryContext.Cmd == "apply") &&
+					!slices.Contains(toDiscoveryContext.Args, "-destroy"):
+				case (toDiscoveryContext.Cmd == "" && len(toDiscoveryContext.Args) == 0):
+					// This is the case when using a discovery command like find or list.
+					// It's fine for these commands to not have any command or arguments.
+				default:
+					return NewGitFilterCommandError(toDiscoveryContext.Cmd, toDiscoveryContext.Args)
+				}
+
+				toComponents, err := toDiscovery.
+					WithFilters(toExpressions).
+					WithDiscoveryContext(&toDiscoveryContext).
+					Discover(fromToCtx, l, opts)
+				if err != nil {
+					return err
+				}
+
+				for _, component := range toComponents {
+					discoveredComponents.EnsureComponent(component)
+				}
+
+				return nil
+			})
+
+			return fromToG.Wait()
+		})
+	}
+
+	if err := discoveryGroup.Wait(); err != nil {
+		return nil, wd.workTrees, err
 	}
 
 	return discoveredComponents.ToComponents(), wd.workTrees, nil
