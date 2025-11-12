@@ -8,7 +8,7 @@ remote_state {
   }
 
   config = {
-    path = "${get_terragrunt_dir()}/${path_relative_to_include()}/terraform.tfstate"
+    path = "${get_terragrunt_dir()}/${path_relative_to_include()}/tofu.tfstate"
   }
 
   encryption = {
