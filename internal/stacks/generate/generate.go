@@ -45,7 +45,7 @@ func NewStackNode(filePath string) *StackNode {
 // GenerateStacks generates the stack files using topological ordering to prevent race conditions.
 // Stack files are generated level by level, ensuring parent stacks complete before their children.
 func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	foundFiles, err := ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -115,7 +115,7 @@ func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 // discoverAndAddNewNodes discovers new stack files and adds them to the dependency graph.
 func discoverAndAddNewNodes(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dependencyGraph map[string]*StackNode, generatedFiles map[string]bool, minLevel int) error {
-	newFiles, listErr := ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+	newFiles, listErr := ListStackFiles(ctx, l, opts, opts.WorkingDir)
 	if listErr != nil {
 		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -247,11 +247,11 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFilesMaybeWithDiscovery searches for stack files in the specified directory using the discovery package.
+// ListStackFiles searches for stack files in the specified directory.
 //
 // We only want to use the discovery package when the filter flag experiment is enabled, as we need to filter discovery
 // results to ensure that we get the right files back for generation.
-func ListStackFilesMaybeWithDiscovery(
+func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,

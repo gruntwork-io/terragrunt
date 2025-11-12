@@ -52,7 +52,7 @@ import (
 func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
 
-	foundFiles, err := generate.ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
