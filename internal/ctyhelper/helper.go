@@ -32,7 +32,9 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 
 	value = updatedValue
 
-	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
+	unmark, _ := value.Unmark()
+
+	jsonBytes, err := ctyjson.Marshal(unmark, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, errors.New(err)
 	}
