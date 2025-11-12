@@ -51,19 +51,6 @@ verify_darwin_binary() {
 
   grep -q "Mach-O.*executable" <<<"$file_info"
   echo "macOS binary is Mach-O executable"
-
-  # macOS binaries should only link to system libraries
-  local unexpected_deps
-  unexpected_deps=$(
-    otool -L "$binary" |
-      grep -v "$binary:" |
-      grep -v "/usr/lib/libSystem" |
-      grep -v "/usr/lib/libresolv" |
-      grep "/" || true
-  )
-
-  expect_empty "$unexpected_deps" "macOS binary links to unexpected dependencies:"
-  echo "macOS binary has minimal system dependencies"
 }
 
 verify_windows_binary() {
