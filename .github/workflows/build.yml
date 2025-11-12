@@ -75,6 +75,7 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
         run: |
           OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
           if [[ "${GOOS}" == "windows" ]]; then
