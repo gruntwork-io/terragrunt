@@ -398,6 +398,11 @@ func (d *Discovery) WithBreakCycles() *Discovery {
 	return d
 }
 
+// WorkTrees returns the worktrees created for Git-based filters.
+func (d *Discovery) WorkTrees() map[string]string {
+	return d.workTrees
+}
+
 // compileIncludePatterns compiles the include directory patterns for faster matching.
 func (d *Discovery) compileIncludePatterns(l log.Logger) {
 	d.compiledIncludePatterns = make([]CompiledPattern, 0, len(d.includeDirs))

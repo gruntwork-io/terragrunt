@@ -103,6 +103,11 @@ func TestWorktreeDiscovery(t *testing.T) {
 	components, worktrees, err := worktreeDiscovery.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		cleanupErr := originalDiscovery.CleanupWorktrees(t.Context(), l)
+		require.NoError(t, cleanupErr)
+	})
+
 	// Verify worktrees were created for both refs
 	assert.NotEmpty(t, worktrees, "Worktrees should be created")
 	assert.Contains(t, worktrees, "HEAD~1", "Worktree should exist for initial commit")

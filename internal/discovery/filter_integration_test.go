@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -1035,78 +1034,81 @@ dependency "vpc" {
 func TestDiscoveryWithGitFilters(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
-
 	tests := []struct {
 		name          string
 		filterQueries func(string, string) []string
-		wantUnits     func(string) []string
+		wantUnits     func(string, string) []string
 		wantStacks    []string
 		errorExpected bool
 	}{
 		{
 			name: "Git filter - changes between commits",
-			filterQueries: func(initialCommit, currentCommit string) []string {
-				return []string{"[" + initialCommit + "..." + currentCommit + "]"}
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "]"}
 			},
-			wantUnits: func(tmpDir string) []string {
+			wantUnits: func(fromDir string, toDir string) []string {
 				return []string{
-					filepath.Join(tmpDir, "app"),
-					filepath.Join(tmpDir, "new"),
+					filepath.Join(fromDir, "cache"),
+					filepath.Join(toDir, "app"),
+					filepath.Join(toDir, "new"),
 				}
 			},
 			wantStacks: []string{},
 		},
 		{
 			name: "Git filter - single reference (compared to HEAD)",
-			filterQueries: func(initialCommit, currentCommit string) []string {
-				return []string{"[" + initialCommit + "]"}
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "]"}
 			},
-			wantUnits: func(tmpDir string) []string {
+			wantUnits: func(fromDir string, toDir string) []string {
 				return []string{
-					filepath.Join(tmpDir, "app"),
-					filepath.Join(tmpDir, "new"),
+					filepath.Join(fromDir, "cache"),
+					filepath.Join(toDir, "app"),
+					filepath.Join(toDir, "new"),
 				}
 			},
 			wantStacks: []string{},
 		},
 		{
 			name: "Git filter combined with path filter",
-			filterQueries: func(initialCommit, currentCommit string) []string {
-				return []string{"[" + initialCommit + "..." + currentCommit + "] | ./app"}
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "] | ./app"}
 			},
-			wantUnits: func(tmpDir string) []string {
-				return []string{filepath.Join(tmpDir, "app")}
+			wantUnits: func(_ string, toDir string) []string {
+				return []string{filepath.Join(toDir, "app")}
 			},
 			wantStacks: []string{},
 		},
 		{
 			name: "Git filter combined with name filter",
-			filterQueries: func(initialCommit, currentCommit string) []string {
-				return []string{"[" + initialCommit + "..." + currentCommit + "] | name=new"}
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "] | name=new"}
 			},
-			wantUnits: func(tmpDir string) []string {
-				return []string{filepath.Join(tmpDir, "new")}
+			wantUnits: func(_ string, toDir string) []string {
+				return []string{filepath.Join(toDir, "new")}
 			},
 			wantStacks: []string{},
 		},
 		{
 			name: "Multiple Git filters - union",
-			filterQueries: func(initialCommit, currentCommit string) []string {
-				return []string{"[" + initialCommit + "] | ./app", "[" + initialCommit + "] | ./db"}
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "] | ./app", "[" + fromRef + "] | ./db"}
 			},
-			wantUnits: func(tmpDir string) []string {
-				return []string{filepath.Join(tmpDir, "app")}
+			wantUnits: func(_ string, toDir string) []string {
+				return []string{filepath.Join(toDir, "app")}
 			},
 			wantStacks: []string{},
 		},
 		{
 			name: "Git filter with negation",
-			filterQueries: func(initialCommit, currentCommit string) []string {
-				return []string{"[" + initialCommit + "..." + currentCommit + "] | !name=new"}
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "] | !name=new"}
 			},
-			wantUnits: func(tmpDir string) []string {
-				return []string{filepath.Join(tmpDir, "app")}
+			wantUnits: func(fromDir string, toDir string) []string {
+				return []string{
+					filepath.Join(fromDir, "cache"),
+					filepath.Join(toDir, "app"),
+				}
 			},
 			wantStacks: []string{},
 		},
@@ -1149,7 +1151,6 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 			// Commit initial state
 			gitAdd(t, tmpDir, ".")
 			gitCommit(t, tmpDir, "Initial commit")
-			initialCommit := gitGetCurrentCommit(t, tmpDir)
 
 			// Create new components and modify existing ones
 			newDir := filepath.Join(tmpDir, "new")
@@ -1175,14 +1176,13 @@ locals {
 			// Commit changes
 			gitAdd(t, tmpDir, ".")
 			gitCommit(t, tmpDir, "Changes: modified app, added new, removed cache")
-			currentCommit := gitGetCurrentCommit(t, tmpDir)
 
 			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries(initialCommit, currentCommit))
+			filters, err := filter.ParseFilterQueries(tt.filterQueries("HEAD~1", "HEAD"))
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -1202,15 +1202,20 @@ locals {
 			require.NoError(t, err)
 
 			// Cleanup worktrees after discovery
-			cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-			require.NoError(t, cleanupErr)
+			t.Cleanup(func() {
+				cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+				require.NoError(t, cleanupErr)
+			})
 
 			// Filter results by type
 			units := configs.Filter(component.UnitKind).Paths()
 			stacks := configs.Filter(component.StackKind).Paths()
 
+			// Extract worktrees from discovery
+			worktrees := discovery.WorkTrees()
+
 			// Get expected units
-			wantUnits := tt.wantUnits(tmpDir)
+			wantUnits := tt.wantUnits(worktrees["HEAD~1"], worktrees["HEAD"])
 
 			// Verify results
 			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -1221,8 +1226,6 @@ locals {
 
 func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	t.Parallel()
-
-	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
 
 	tmpDir := t.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
@@ -1242,7 +1245,6 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	// Commit initial state
 	gitAdd(t, tmpDir, ".")
 	gitCommit(t, tmpDir, "Initial commit")
-	initialCommit := gitGetCurrentCommit(t, tmpDir)
 
 	// Make a change
 	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`modified`), 0644)
@@ -1250,14 +1252,13 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 
 	gitAdd(t, tmpDir, ".")
 	gitCommit(t, tmpDir, "Modified app")
-	currentCommit := gitGetCurrentCommit(t, tmpDir)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with Git references
-	filters, err := filter.ParseFilterQueries([]string{"[" + initialCommit + "..." + currentCommit + "]"})
+	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
 	// Create discovery with filters
@@ -1274,18 +1275,20 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	// (indirectly, by ensuring discovery worked with Git filters)
 
 	// Cleanup worktrees - should succeed if worktrees exist
-	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-	require.NoError(t, cleanupErr)
+	t.Cleanup(func() {
+		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
 
 	// Verify cleanup is idempotent (can be called multiple times)
-	cleanupErr2 := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-	require.NoError(t, cleanupErr2)
+	t.Cleanup(func() {
+		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
 }
 
 func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	t.Parallel()
-
-	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
 
 	tmpDir := t.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
@@ -1305,40 +1308,38 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	// Commit initial state
 	gitAdd(t, tmpDir, ".")
 	gitCommit(t, tmpDir, "Initial commit")
-	commit1 := gitGetCurrentCommit(t, tmpDir)
 
 	// Commit again with no changes (empty commit)
 	gitCommit(t, tmpDir, "Empty commit", "--allow-empty")
-	commit2 := gitGetCurrentCommit(t, tmpDir)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with Git references (no changes between commits)
-	filters, err := filter.ParseFilterQueries([]string{"[" + commit1 + "..." + commit2 + "]"})
+	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
 	// Create discovery with filters
 	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
 
 	// Discover components
-	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	components, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	// Cleanup worktrees
-	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-	require.NoError(t, cleanupErr)
+	t.Cleanup(func() {
+		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
 
 	// Should return no components since nothing changed
-	units := configs.Filter(component.UnitKind).Paths()
+	units := components.Filter(component.UnitKind).Paths()
 	assert.Empty(t, units, "No components should be returned when there are no changes")
 }
 
 func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
 	t.Parallel()
-
-	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
 
 	tmpDir := t.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
@@ -1363,8 +1364,10 @@ func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
 	require.Error(t, err, "Discovery should fail with invalid Git reference")
 
 	// Cleanup should still work (even if no worktrees were created)
-	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-	require.NoError(t, cleanupErr)
+	t.Cleanup(func() {
+		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
 }
 
 // gitAdd adds files to Git staging area
@@ -1388,15 +1391,4 @@ func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
 	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
 	output, err := cmd.CombinedOutput()
 	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
-}
-
-// gitGetCurrentCommit returns the current commit SHA
-func gitGetCurrentCommit(t *testing.T, dir string) string {
-	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD")
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error getting current commit: %v\n%s", err, string(output))
-
-	return strings.TrimSpace(string(output))
 }
