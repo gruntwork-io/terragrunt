@@ -2,10 +2,8 @@ package discovery
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -146,17 +144,7 @@ func (wd *WorktreeDiscovery) Discover(
 			// This is the case when using a discovery command like find or list.
 			// It's fine for these commands to not have any command or arguments.
 		default:
-			return nil, fmt.Errorf(
-				"cannot perform Git-based filtering with command %s", strings.TrimSpace(
-					strings.Join(
-						append(
-							[]string{fromDiscoveryContext.Cmd},
-							fromDiscoveryContext.Args...,
-						),
-						" ",
-					),
-				),
-			)
+			return nil, NewGitFilterCommandError(fromDiscoveryContext.Cmd, fromDiscoveryContext.Args)
 		}
 
 		components, err := fromDiscovery.
@@ -184,17 +172,7 @@ func (wd *WorktreeDiscovery) Discover(
 			// This is the case when using a discovery command like find or list.
 			// It's fine for these commands to not have any command or arguments.
 		default:
-			return nil, fmt.Errorf(
-				"cannot perform Git-based filtering with command %s", strings.TrimSpace(
-					strings.Join(
-						append(
-							[]string{fromDiscoveryContext.Cmd},
-							fromDiscoveryContext.Args...,
-						),
-						" ",
-					),
-				),
-			)
+			return nil, NewGitFilterCommandError(fromDiscoveryContext.Cmd, fromDiscoveryContext.Args)
 		}
 
 		toComponents, err := toDiscovery.
