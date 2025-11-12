@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	stateFile = "tofu.tfstate"
+)
+
 // Check the statefile contains an encrypted_data key
 // and that the encrypted_data is base64 encoded
 func validateStateIsEncrypted(t *testing.T, fileName string, path string) { //nolint:unused
