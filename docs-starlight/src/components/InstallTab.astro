@@ -21,7 +21,7 @@ try {
     Invoke-WebRequest -Uri "$baseUrl/$binaryName" -OutFile $binaryName -UseBasicParsing
     Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile "SHA256SUMS" -UseBasicParsing
     $actualChecksum = (Get-FileHash -Algorithm SHA256 $binaryName).Hash.ToLower()
-    $expectedChecksum = (Get-Content "SHA256SUMS" | Select-String -Pattern $binaryName).Line.Split()[0].ToLower()
+    $expectedChecksum = (Get-Content "SHA256SUMS" | ForEach-Object { $parts = $_ -split '\s+'; if ($parts[1] -eq $binaryName) { return $parts[0].ToLower() } } | Select-Object -First 1)
     if ($actualChecksum -ne $expectedChecksum) {
         Write-Error "Checksum verification failed"
         exit 1
@@ -53,19 +53,19 @@ VERSION="${version}"
 BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
 
 # Download the binary
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
+curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/\$VERSION/\$BINARY_NAME" -o "\$BINARY_NAME"
 
 # Generate the checksum
-CHECKSUM="$(${os == 'linux' ? 'sha256sum' : 'shasum -a 256'} "$BINARY_NAME" | awk '{print $1}')"
+CHECKSUM="\$(${os == 'linux' ? 'sha256sum' : 'shasum -a 256'} "\$BINARY_NAME" | awk '{print \$1}')"
 
 # Download the checksum file
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
+curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/\$VERSION/SHA256SUMS" -o SHA256SUMS
 
-# Grab the expected checksum
-EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
+# Grab the expected checksum (exact match on filename)
+EXPECTED_CHECKSUM="\$(awk -v binary="\$BINARY_NAME" '\$2 == binary {print \$1; exit}' SHA256SUMS)"
 
 # Compare the checksums
-if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
+if [ "\$CHECKSUM" == "\$EXPECTED_CHECKSUM" ]; then
  echo "Checksums match!"
 else
  echo "Checksums do not match!"
