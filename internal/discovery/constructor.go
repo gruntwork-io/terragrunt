@@ -155,7 +155,6 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
 
 	discovery := &Discovery{
-		workingDir: dir,
 		includeDirs: []string{
 			config.StackDir,
 			filepath.Join(config.StackDir, "**"),
@@ -163,6 +162,9 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 		numWorkers:         numWorkers,
 		useDefaultExcludes: true,
 		maxDependencyDepth: defaultMaxDependencyDepth,
+		discoveryContext: &component.DiscoveryContext{
+			WorkingDir: dir,
+		},
 	}
 
 	for _, opt := range opts {

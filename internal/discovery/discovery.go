@@ -85,10 +85,10 @@ type Sort string
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
+	//
+	// This is passed into objects created during discovery, like Components, and might be adjusted if discovery is
+	// performed in a worktree.
 	discoveryContext *component.DiscoveryContext
-
-	// workingDir is the directory to search for Terragrunt configurations.
-	workingDir string
 
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
@@ -183,12 +183,6 @@ type CompiledPattern struct {
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
-
-// WithWorkingDir sets the working directory for the discovery.
-func (d *Discovery) WithWorkingDir(dir string) *Discovery {
-	d.workingDir = dir
-	return d
-}
 
 // WithNoHidden sets the Hidden flag to true.
 func (d *Discovery) WithNoHidden() *Discovery {
@@ -712,7 +706,7 @@ func (d *Discovery) walkDirectoryConcurrently(
 		return nil
 	}
 
-	return walkFn(d.workingDir, processFn)
+	return walkFn(d.discoveryContext.WorkingDir, processFn)
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.
@@ -733,7 +727,7 @@ func (d *Discovery) skipDirIfIgnorable(l log.Logger, path string) error {
 		return nil
 	}
 
-	canonicalDir, canErr := util.CanonicalPath(path, d.workingDir)
+	canonicalDir, canErr := util.CanonicalPath(path, d.discoveryContext.WorkingDir)
 	if canErr == nil {
 		for _, pattern := range d.compiledExcludePatterns {
 			if pattern.Compiled.Match(canonicalDir) {
@@ -799,7 +793,7 @@ func (d *Discovery) processFile(
 ) component.Component {
 	dir := filepath.Dir(path)
 
-	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
+	canonicalDir, canErr := util.CanonicalPath(dir, d.discoveryContext.WorkingDir)
 	if canErr == nil {
 		// Eventually, this is going to be removed entirely, as filter evaluation
 		// will be all that's needed.
@@ -1059,7 +1053,7 @@ func (d *Discovery) Discover(
 	if len(d.includeDirs) > 0 {
 		for _, p := range d.includeDirs {
 			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.workingDir, p)
+				p = filepath.Join(d.discoveryContext.WorkingDir, p)
 			}
 
 			includePatterns = append(includePatterns, util.CleanPath(p))
@@ -1069,7 +1063,7 @@ func (d *Discovery) Discover(
 	if len(d.excludeDirs) > 0 {
 		for _, p := range d.excludeDirs {
 			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.workingDir, p)
+				p = filepath.Join(d.discoveryContext.WorkingDir, p)
 			}
 
 			excludePatterns = append(excludePatterns, util.CleanPath(p))
@@ -1105,7 +1099,7 @@ func (d *Discovery) Discover(
 
 		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions, d.workTrees).
 			WithNumWorkers(d.numWorkers).
-			WithWorkingDir(d.workingDir).
+			WithWorkingDir(d.discoveryContext.WorkingDir).
 			WithOriginalDiscovery(d)
 
 		if d.discoveryContext != nil {
@@ -1153,7 +1147,7 @@ func (d *Discovery) Discover(
 		if shouldRunDependencyDiscovery {
 			g.Go(func() error {
 				return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
-					"working_dir":                    d.workingDir,
+					"working_dir":                    d.discoveryContext.WorkingDir,
 					"config_count":                   len(components),
 					"starting_component_count":       len(dependencyStartingComponents),
 					"discover_external_dependencies": d.discoverExternalDependencies,
@@ -1161,7 +1155,7 @@ func (d *Discovery) Discover(
 				}, func(ctx context.Context) error {
 					dependencyDiscovery := NewDependencyDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
-						WithWorkingDir(d.workingDir).
+						WithWorkingDir(d.discoveryContext.WorkingDir).
 						WithNumWorkers(d.numWorkers)
 
 					if d.discoveryContext != nil {
@@ -1200,14 +1194,14 @@ func (d *Discovery) Discover(
 		if shouldRunDependentDiscovery {
 			g.Go(func() error {
 				return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependents", map[string]any{
-					"working_dir":              d.workingDir,
+					"working_dir":              d.discoveryContext.WorkingDir,
 					"config_count":             len(components),
 					"starting_component_count": len(dependentStartingComponents),
 					"max_dependency_depth":     d.maxDependencyDepth,
 				}, func(ctx context.Context) error {
 					dependentDiscovery := NewDependentDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
-						WithWorkingDir(d.workingDir).
+						WithWorkingDir(d.discoveryContext.WorkingDir).
 						WithNumWorkers(d.numWorkers)
 
 					if d.discoveryContext != nil {
@@ -1265,7 +1259,7 @@ func (d *Discovery) Discover(
 		components = threadSafeComponents.ToComponents()
 
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
-			"working_dir":  d.workingDir,
+			"working_dir":  d.discoveryContext.WorkingDir,
 			"config_count": len(components),
 		}, func(ctx context.Context) error {
 			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
@@ -1339,7 +1333,7 @@ func (d *Discovery) CleanupWorktrees(ctx context.Context, l log.Logger) error {
 	for ref, worktreePath := range d.workTrees {
 		cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", worktreePath)
 
-		cmd.Dir = d.workingDir
+		cmd.Dir = d.discoveryContext.WorkingDir
 		if err := cmd.Run(); err != nil {
 			l.Debugf("Failed to remove Git worktree for reference %s: %v", ref, err)
 		}
@@ -1537,7 +1531,7 @@ func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error 
 		return errors.New(err)
 	}
 
-	gitRunner = gitRunner.WithWorkDir(d.workingDir)
+	gitRunner = gitRunner.WithWorkDir(d.discoveryContext.WorkingDir)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(d.numWorkers)

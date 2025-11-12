@@ -47,7 +47,7 @@ func NewPathFilter(value string) *PathFilter {
 func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	p.compileOnce.Do(func() {
 		pattern := p.Value
-		pattern = filepath.ToSlash(pattern)
+		pattern = filepath.Clean(filepath.ToSlash(pattern))
 		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
 	})
 
@@ -87,7 +87,7 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 		pattern := a.Value
 
 		if a.Key == AttributeReading {
-			pattern = filepath.ToSlash(pattern)
+			pattern = filepath.Clean(filepath.ToSlash(pattern))
 		}
 
 		a.compiledGlob, a.compileErr = glob.Compile(pattern, '/')

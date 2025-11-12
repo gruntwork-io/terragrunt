@@ -17,45 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// gitAdd adds files to Git staging area
-func gitAdd(t *testing.T, dir string, paths ...string) {
-	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", append([]string{"add"}, paths...)...)
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error adding files to git: %v\n%s", err, string(output))
-}
-
-// gitCommit creates a Git commit
-func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
-	t.Helper()
-
-	args := []string{"commit", "--no-gpg-sign", "-m", message}
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(t.Context(), "git", args...)
-	cmd.Dir = dir
-	// Set git config for test environment
-	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
-}
-
-// gitGetCurrentCommit returns the current commit SHA
-func gitGetCurrentCommit(t *testing.T, dir string) string {
-	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD")
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error getting current commit: %v\n%s", err, string(output))
-
-	return strings.TrimSpace(string(output))
-}
-
 func TestDiscoveryWithFilters(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create test directory structure
 	appsDir := filepath.Join(tmpDir, "apps")
@@ -268,7 +236,9 @@ dependency "db" {
 			discovery := discovery.NewDiscovery(tmpDir, tt.discoveryOpts...).WithFilters(filters)
 
 			// Discover components with dependencies to test external filtering
-			discovery = discovery.WithDiscoverDependencies().WithDiscoverExternalDependencies()
+			discovery = discovery.
+				WithDiscoverDependencies().
+				WithDiscoverExternalDependencies()
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
@@ -288,6 +258,9 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
@@ -361,10 +334,12 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create a single component for edge case testing
 	unitDir := filepath.Join(tmpDir, "unit #1")
-	err := os.MkdirAll(unitDir, 0755)
+	err = os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644)
@@ -432,7 +407,9 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create discovery with filters
-			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+			discovery := discovery.NewDiscovery(tmpDir).
+				WithFilters(filters).
+				WithDiscoverExternalDependencies()
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
@@ -452,6 +429,8 @@ func TestDiscoveryWithReadingFilters(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create shared configuration files
 	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
@@ -1386,4 +1365,38 @@ func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
 	// Cleanup should still work (even if no worktrees were created)
 	cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
 	require.NoError(t, cleanupErr)
+}
+
+// gitAdd adds files to Git staging area
+func gitAdd(t *testing.T, dir string, paths ...string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", append([]string{"add"}, paths...)...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "Error adding files to git: %v\n%s", err, string(output))
+}
+
+// gitCommit creates a Git commit
+func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
+	t.Helper()
+
+	args := []string{"commit", "--no-gpg-sign", "-m", message}
+	args = append(args, extraArgs...)
+	cmd := exec.CommandContext(t.Context(), "git", args...)
+	cmd.Dir = dir
+	// Set git config for test environment
+	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
+	output, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
+}
+
+// gitGetCurrentCommit returns the current commit SHA
+func gitGetCurrentCommit(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD")
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "Error getting current commit: %v\n%s", err, string(output))
+
+	return strings.TrimSpace(string(output))
 }

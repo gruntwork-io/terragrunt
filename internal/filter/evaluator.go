@@ -143,6 +143,27 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 		for _, c := range components {
 			if slices.ContainsFunc(c.Reading(), g.Match) {
 				result = append(result, c)
+
+				continue
+			}
+
+			discoveryCtx := c.DiscoveryContext()
+			if discoveryCtx == nil || discoveryCtx.WorkingDir == "" {
+				continue
+			}
+
+			relReading := make([]string, 0, len(c.Reading()))
+			for _, reading := range c.Reading() {
+				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
+				if err != nil {
+					return nil, NewEvaluationErrorWithCause("failed to get relative path: "+reading, err)
+				}
+
+				relReading = append(relReading, filepath.ToSlash(rel))
+			}
+
+			if slices.ContainsFunc(relReading, g.Match) {
+				result = append(result, c)
 			}
 		}
 	case AttributeSource:

@@ -2,7 +2,10 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"runtime"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -16,9 +19,6 @@ import (
 
 // WorktreeDiscovery is the configuration for discovery in Git worktrees.
 type WorktreeDiscovery struct {
-	// discoveredComponents is a thread-safe collection of components that have been discovered.
-	discoveredComponents *component.ThreadSafeComponents
-
 	// discoveryContext is the context in which discovery was originally triggered.
 	discoveryContext *component.DiscoveryContext
 
@@ -40,13 +40,10 @@ type WorktreeDiscovery struct {
 
 // NewWorktreeDiscovery creates a new WorktreeDiscovery with the given configuration.
 func NewWorktreeDiscovery(gitExpressions filter.GitFilters, workTrees map[string]string) *WorktreeDiscovery {
-	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
-
 	return &WorktreeDiscovery{
-		discoveredComponents: discoveredComponents,
-		gitExpressions:       gitExpressions,
-		workTrees:            workTrees,
-		numWorkers:           runtime.NumCPU(),
+		gitExpressions: gitExpressions,
+		workTrees:      workTrees,
+		numWorkers:     runtime.NumCPU(),
 	}
 }
 
@@ -126,40 +123,92 @@ func (wd *WorktreeDiscovery) Discover(
 		return nil, errors.Join(errs...)
 	}
 
+	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
+
 	for gitExpression, diffs := range expressionToDiffs {
 		fromExpressions, toExpressions, err := gitExpression.Expand(diffs)
 		if err != nil {
 			return nil, err
 		}
 
-		// Copy the original discovery to avoid mutating it.
 		fromDiscovery := *wd.originalDiscovery
+
+		fromDiscoveryContext := *fromDiscovery.discoveryContext
+		fromDiscoveryContext.Ref = gitExpression.FromRef
+		fromDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.FromRef]
+
+		switch {
+		case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
+			!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
+
+			fromDiscoveryContext.Args = append(fromDiscoveryContext.Args, "-destroy")
+		case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
+			// This is the case when using a discovery command like find or list.
+			// It's fine for these commands to not have any command or arguments.
+		default:
+			return nil, fmt.Errorf(
+				"cannot perform Git-based filtering with command %s", strings.TrimSpace(
+					strings.Join(
+						append(
+							[]string{fromDiscoveryContext.Cmd},
+							fromDiscoveryContext.Args...,
+						),
+						" ",
+					),
+				),
+			)
+		}
+
 		components, err := fromDiscovery.
 			WithFilters(fromExpressions).
-			WithWorkingDir(wd.workTrees[gitExpression.FromRef]).
+			WithDiscoveryContext(&fromDiscoveryContext).
 			Discover(ctx, l, opts)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, component := range components {
-			wd.discoveredComponents.EnsureComponent(component)
+			discoveredComponents.EnsureComponent(component)
 		}
 
-		// Copy the original discovery to avoid mutating it.
 		toDiscovery := *wd.originalDiscovery
+
+		toDiscoveryContext := *toDiscovery.discoveryContext
+		toDiscoveryContext.Ref = gitExpression.ToRef
+		toDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.ToRef]
+
+		switch {
+		case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
+			!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
+		case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
+			// This is the case when using a discovery command like find or list.
+			// It's fine for these commands to not have any command or arguments.
+		default:
+			return nil, fmt.Errorf(
+				"cannot perform Git-based filtering with command %s", strings.TrimSpace(
+					strings.Join(
+						append(
+							[]string{fromDiscoveryContext.Cmd},
+							fromDiscoveryContext.Args...,
+						),
+						" ",
+					),
+				),
+			)
+		}
+
 		toComponents, err := toDiscovery.
 			WithFilters(toExpressions).
-			WithWorkingDir(wd.workTrees[gitExpression.ToRef]).
+			WithDiscoveryContext(&toDiscoveryContext).
 			Discover(ctx, l, opts)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, component := range toComponents {
-			wd.discoveredComponents.EnsureComponent(component)
+			discoveredComponents.EnsureComponent(component)
 		}
 	}
 
-	return nil, nil
+	return discoveredComponents.ToComponents(), nil
 }
