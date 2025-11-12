@@ -14,7 +14,7 @@ import (
 
 // Check the statefile contains an encrypted_data key
 // and that the encrypted_data is base64 encoded
-func validateStateIsEncrypted(t *testing.T, fileName string, path string) {
+func validateStateIsEncrypted(t *testing.T, fileName string, path string) { //nolint:unused
 	t.Helper()
 
 	filePath := filepath.Join(path, fileName)
