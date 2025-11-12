@@ -14,7 +14,6 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -1090,13 +1089,6 @@ func (d *Discovery) Discover(
 	errs := []error{}
 
 	if len(d.gitExpressions) > 0 {
-		gitRefs := d.gitExpressions.UniqueGitRefs()
-		if len(gitRefs) > 0 {
-			if worktreeErr := d.createGitWorktrees(ctx, l); worktreeErr != nil {
-				return nil, worktreeErr
-			}
-		}
-
 		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions, d.workTrees).
 			WithNumWorkers(d.numWorkers).
 			WithWorkingDir(d.discoveryContext.WorkingDir).
@@ -1106,12 +1098,13 @@ func (d *Discovery) Discover(
 			worktreeDiscovery = worktreeDiscovery.WithDiscoveryContext(d.discoveryContext)
 		}
 
-		worktreeComponents, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts)
+		worktreeComponents, worktrees, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts)
 		if worktreeErr != nil {
 			return nil, worktreeErr
 		}
 
 		components = append(components, worktreeComponents...)
+		d.workTrees = worktrees
 	}
 
 	// We do an initial parse loop if we know we need to parse configurations,
@@ -1516,78 +1509,6 @@ func RemoveCycles(components component.Components) (component.Components, error)
 	}
 
 	return components, err
-}
-
-// createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
-// The worktrees are created in temporary directories and tracked in d.gitWorktrees.
-func (d *Discovery) createGitWorktrees(ctx context.Context, l log.Logger) error {
-	gitRefs := d.gitExpressions.UniqueGitRefs()
-	if len(gitRefs) == 0 {
-		return nil
-	}
-
-	gitRunner, err := git.NewGitRunner()
-	if err != nil {
-		return errors.New(err)
-	}
-
-	gitRunner = gitRunner.WithWorkDir(d.discoveryContext.WorkingDir)
-
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(d.numWorkers)
-
-	var (
-		errs []error
-		mu   sync.Mutex
-	)
-
-	d.workTrees = make(map[string]string, len(gitRefs))
-
-	for _, ref := range gitRefs {
-		g.Go(func() error {
-			tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, fmt.Errorf("failed to create temporary directory for worktree: %w", err))
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			err = gitRunner.CreateDetachedWorktree(ctx, tempDir, ref)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, fmt.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			mu.Lock()
-
-			d.workTrees[ref] = tempDir
-
-			mu.Unlock()
-
-			l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
-
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return err
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
 }
 
 // sanitizeRef sanitizes a Git reference string for use in file paths.
