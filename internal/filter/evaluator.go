@@ -54,7 +54,7 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 	case *GraphExpression:
 		return evaluateGraphExpression(l, node, components)
 	case *GitFilter:
-		return evaluateGitFilter(l, node, components)
+		return evaluateGitFilter(node, components)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
@@ -275,10 +275,21 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 
 // evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
 // It returns components that were added, removed, or changed between FromRef and ToRef.
-func evaluateGitFilter(_ log.Logger, filter *GitFilter, components component.Components) (component.Components, error) {
-	// TODO: Implement this.
+func evaluateGitFilter(filter *GitFilter, components component.Components) (component.Components, error) {
+	results := make(component.Components, 0, len(components))
 
-	return components, nil
+	for _, c := range components {
+		discoveryCtx := c.DiscoveryContext()
+		if discoveryCtx == nil || discoveryCtx.Ref == "" {
+			continue
+		}
+
+		if discoveryCtx.Ref == filter.FromRef || discoveryCtx.Ref == filter.ToRef {
+			results = append(results, c)
+		}
+	}
+
+	return results, nil
 }
 
 // traverseDependencies recursively traverses the dependency graph downward (from a component to its dependencies).
