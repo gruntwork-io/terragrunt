@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sync"
@@ -81,7 +82,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	expressionToDiffs := make(map[*filter.GitFilter]*git.Diffs, len(wd.gitExpressions))
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, gitDiffCtx := errgroup.WithContext(ctx)
 	g.SetLimit(wd.numWorkers)
 
 	for _, gitExpression := range wd.gitExpressions {
@@ -97,7 +98,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 			gitRunner = gitRunner.WithWorkDir(wd.discoveryContext.WorkingDir)
 
-			diffs, err := gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
+			diffs, err := gitRunner.Diff(gitDiffCtx, gitExpression.FromRef, gitExpression.ToRef)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)
@@ -217,7 +218,7 @@ func (wd *WorktreeDiscovery) createGitWorktrees(ctx context.Context, l log.Logge
 
 	for _, ref := range gitRefs {
 		g.Go(func() error {
-			tempDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
+			tmpDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
 			if err != nil {
 				mu.Lock()
 
@@ -228,7 +229,19 @@ func (wd *WorktreeDiscovery) createGitWorktrees(ctx context.Context, l log.Logge
 				return nil
 			}
 
-			err = gitRunner.CreateDetachedWorktree(ctx, tempDir, ref)
+			// macOS will create the temporary directory with symlinks, so we need to evaluate them.
+			tmpDir, err = filepath.EvalSymlinks(tmpDir)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			err = gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
 			if err != nil {
 				mu.Lock()
 
@@ -241,11 +254,11 @@ func (wd *WorktreeDiscovery) createGitWorktrees(ctx context.Context, l log.Logge
 
 			mu.Lock()
 
-			wd.workTrees[ref] = tempDir
+			wd.workTrees[ref] = tmpDir
 
 			mu.Unlock()
 
-			l.Debugf("Created Git worktree for reference %s at %s", ref, tempDir)
+			l.Debugf("Created Git worktree for reference %s at %s", ref, tmpDir)
 
 			return nil
 		})

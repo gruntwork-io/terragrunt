@@ -108,19 +108,27 @@ func TestWorktreeDiscovery(t *testing.T) {
 	assert.Contains(t, worktrees, "HEAD~1", "Worktree should exist for initial commit")
 	assert.Contains(t, worktrees, "HEAD", "Worktree should exist for current commit")
 
-	// Verify components were discovered
-	// The unit was created in initialCommit, then modified and removed in currentCommit.
-	// The diff between initialCommit and currentCommit should show:
-	// - The unit exists in initialCommit (fromRef)
-	// - The unit was removed in currentCommit (toRef)
-	// Worktree discovery should find the unit in the "from" commit worktree
+	// Verify units were discovered
 	units := components.Filter(component.UnitKind)
 	unitPaths := units.Paths()
 
-	// The unit should be discovered because it existed in initialCommit and was removed in currentCommit
-	// This makes it a "removed" component that should be found in the fromExpressions
-	assert.Contains(t, unitPaths, unitToBeCreatedDir, "Unit should be discovered as it was created between commits")
-	assert.Contains(t, unitPaths, unitToBeModifiedDir, "Unit should be discovered as it was modified between commits")
-	assert.Contains(t, unitPaths, unitToBeRemovedDir, "Unit should be discovered as it was removed between commits")
-	assert.NotContains(t, unitPaths, unitToBeUntouchedDir, "Unit should not be discovered as it was untouched between commits")
+	fromWorktree := worktrees["HEAD~1"]
+	toWorktree := worktrees["HEAD"]
+
+	expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
+	expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
+	expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
+	expectedUnitToBeUntouched := filepath.Join(toWorktree, "unit-to-be-untouched")
+
+	assert.Contains(t, unitPaths, expectedUnitToBeCreated, "Unit should be discovered as it was created between commits")
+	assert.DirExists(t, expectedUnitToBeCreated)
+
+	assert.Contains(t, unitPaths, expectedUnitToBeModified, "Unit should be discovered as it was modified between commits")
+	assert.DirExists(t, expectedUnitToBeModified)
+
+	assert.Contains(t, unitPaths, expectedUnitToBeRemoved, "Unit should be discovered as it was removed between commits")
+	assert.DirExists(t, expectedUnitToBeRemoved)
+
+	assert.NotContains(t, unitPaths, expectedUnitToBeUntouched, "Unit should not be discovered as it was untouched between commits")
+	assert.DirExists(t, expectedUnitToBeUntouched)
 }
