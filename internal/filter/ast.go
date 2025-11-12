@@ -293,7 +293,11 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 		case config.DefaultTerragruntConfigPath:
 			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
 		case config.DefaultStackFile:
-			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
+			fromExpressions = append(fromExpressions, NewInfixExpression(
+				NewPathFilter(filepath.Dir(path)),
+				"|",
+				NewAttributeFilter(AttributeType, AttributeTypeValueStack),
+			))
 		}
 	}
 
@@ -303,7 +307,11 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 		case config.DefaultTerragruntConfigPath:
 			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
 		case config.DefaultStackFile:
-			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
+			toExpressions = append(toExpressions, NewInfixExpression(
+				NewPathFilter(filepath.Dir(path)),
+				"|",
+				NewAttributeFilter(AttributeType, AttributeTypeValueStack),
+			))
 		}
 	}
 
@@ -312,7 +320,13 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 		case config.DefaultTerragruntConfigPath:
 			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
 		case config.DefaultStackFile:
-			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
+			toExpressions = append(toExpressions, NewInfixExpression(
+				NewPathFilter(filepath.Dir(path)),
+				"|",
+				NewAttributeFilter(AttributeType, AttributeTypeValueStack),
+			))
+		default:
+			toExpressions = append(toExpressions, NewAttributeFilter(AttributeReading, path))
 		}
 	}
 

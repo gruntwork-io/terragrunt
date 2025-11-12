@@ -89,6 +89,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		component.NewUnit("./libs/api"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	t.Run("empty filters returns all components", func(t *testing.T) {
 		t.Parallel()
 
@@ -117,6 +123,12 @@ func TestFilters_Evaluate(t *testing.T) {
 			component.NewUnit("./apps/legacy"),
 		}
 
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
+		}
+
 		assert.ElementsMatch(t, expected, result)
 	})
 
@@ -133,6 +145,12 @@ func TestFilters_Evaluate(t *testing.T) {
 		expected := component.Components{
 			component.NewUnit("./apps/app1"),
 			component.NewUnit("./libs/db"),
+		}
+
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -152,6 +170,12 @@ func TestFilters_Evaluate(t *testing.T) {
 			component.NewUnit("./apps/app1"),
 			component.NewUnit("./apps/app2"),
 			component.NewUnit("./apps/legacy"),
+		}
+
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -174,6 +198,12 @@ func TestFilters_Evaluate(t *testing.T) {
 			component.NewUnit("./apps/app2"),
 		}
 
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
+		}
+
 		assert.ElementsMatch(t, expected, result)
 	})
 
@@ -189,6 +219,12 @@ func TestFilters_Evaluate(t *testing.T) {
 
 		expected := component.Components{
 			component.NewUnit("./apps/app1"),
+		}
+
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -208,6 +244,12 @@ func TestFilters_Evaluate(t *testing.T) {
 			component.NewUnit("./apps/app1"),
 			component.NewUnit("./apps/app2"),
 			component.NewUnit("./libs/api"),
+		}
+
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -232,6 +274,12 @@ func TestFilters_Evaluate(t *testing.T) {
 			component.NewUnit("./apps/app1"),
 			component.NewUnit("./apps/app2"),
 			component.NewUnit("./libs/db"),
+		}
+
+		for _, c := range expected {
+			c.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			})
 		}
 
 		assert.ElementsMatch(t, expected, result)

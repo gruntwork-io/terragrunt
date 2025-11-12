@@ -24,6 +24,12 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		component.NewUnit("./apps/subdir/nested"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		filter   *filter.PathFilter
@@ -33,34 +39,54 @@ func TestEvaluate_PathFilter(t *testing.T) {
 			name:   "exact path match",
 			filter: &filter.PathFilter{Value: "./apps/app1"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:   "glob with single wildcard",
 			filter: &filter.PathFilter{Value: "./apps/*"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:   "glob with single wildcard and partial match",
 			filter: &filter.PathFilter{Value: "./apps/app*"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:   "glob with recursive wildcard",
 			filter: &filter.PathFilter{Value: "./apps/**"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
-				component.NewUnit("./apps/subdir/nested"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/subdir/nested").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -354,6 +380,12 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		component.NewUnit("./libs/db"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		expr     *filter.PrefixExpression
@@ -366,9 +398,15 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -378,9 +416,15 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Right:    &filter.PathFilter{Value: "./apps/legacy"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -390,7 +434,9 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Right:    &filter.PathFilter{Value: "./apps/*"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -434,6 +480,12 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		component.NewUnit("./libs/api"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		expr     *filter.InfixExpression
@@ -447,7 +499,9 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -467,7 +521,9 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -505,6 +561,12 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		component.NewUnit("./special/unit"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		expr     filter.Expression
@@ -521,8 +583,12 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -536,11 +602,21 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
-				component.NewUnit("./libs/db"),
-				component.NewUnit("./libs/api"),
-				component.NewUnit("./special/unit"),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./special/unit").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -555,7 +631,9 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 	}
@@ -865,9 +943,15 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 	t.Parallel()
 
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	app := component.NewUnit("./app")
+	vpc := component.NewUnit("./vpc").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	})
+	db := component.NewUnit("./db").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	})
+	app := component.NewUnit("./app").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	})
 
 	app.AddDependency(db)
 	db.AddDependency(vpc)

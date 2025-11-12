@@ -32,16 +32,6 @@ func NewStack(path string) *Stack {
 	}
 }
 
-// NewStackWithConfig creates a new Stack component with the given path and config.
-func NewStackWithConfig(path string, cfg *config.StackConfig) *Stack {
-	return &Stack{
-		cfg:          cfg,
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
-	}
-}
-
 // Config returns the parsed Stack configuration for this stack.
 func (s *Stack) Config() *config.StackConfig {
 	return s.cfg
