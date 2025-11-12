@@ -38,7 +38,11 @@ verify_linux_binary() {
   grep -q "statically linked" <<<"$file_info"
   echo "Linux binary is statically linked"
 
-  ldd "$binary" 2>&1 | grep -q "not a dynamic executable"
+  # Verify with ldd - it should either say "not a dynamic executable" or "statically linked"
+  local ldd_output
+  ldd_output=$(ldd "$binary" 2>&1 || true)
+
+  grep -qE "not a dynamic executable|statically linked" <<<"$ldd_output"
   echo "Linux binary has no dynamic dependencies"
 }
 
