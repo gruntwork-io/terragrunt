@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	stateFile = "tofu.tfstate"
+	stateFile = "tofu.tfstate" //nolint:unused
 )
 
 // Check the statefile contains an encrypted_data key
