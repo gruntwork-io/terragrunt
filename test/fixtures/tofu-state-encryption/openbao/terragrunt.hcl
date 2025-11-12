@@ -1,4 +1,4 @@
-# Test GCP KMS encryption with local state
+# Test openbao encryption with local state
 remote_state {
   backend = "local"
 
