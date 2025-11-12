@@ -36,10 +36,9 @@ type WorktreeDiscovery struct {
 }
 
 // NewWorktreeDiscovery creates a new WorktreeDiscovery with the given configuration.
-func NewWorktreeDiscovery(gitExpressions filter.GitFilters, workTrees map[string]string) *WorktreeDiscovery {
+func NewWorktreeDiscovery(gitExpressions filter.GitFilters) *WorktreeDiscovery {
 	return &WorktreeDiscovery{
 		gitExpressions: gitExpressions,
-		workTrees:      workTrees,
 		numWorkers:     runtime.NumCPU(),
 	}
 }

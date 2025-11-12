@@ -633,37 +633,68 @@ func (d *Discovery) discoverConcurrently(
 	filenames []string,
 ) (component.Components, error) {
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(d.numWorkers + 1) // +1 for the file walker
+	g.SetLimit(d.numWorkers)
 
 	filePaths := make(chan string, d.numWorkers*channelBufferMultiplier)
-	results := make(chan component.Component, d.numWorkers*channelBufferMultiplier)
+
+	var (
+		errs []error
+		mu   sync.Mutex
+	)
 
 	g.Go(func() error {
 		defer close(filePaths)
-		return d.walkDirectoryConcurrently(ctx, l, opts, filePaths)
+
+		err := d.walkDirectoryConcurrently(ctx, l, opts, filePaths)
+		if err != nil {
+			mu.Lock()
+
+			errs = append(errs, err)
+
+			mu.Unlock()
+		}
+
+		return nil
 	})
 
-	for range d.numWorkers {
-		g.Go(func() error {
-			return d.configWorker(ctx, l, filePaths, results, hiddenDirMemo, filenames)
-		})
-	}
+	results := make(chan component.Component, d.numWorkers*channelBufferMultiplier)
 
-	// Close results channel when all workers are done
-	go func() {
+	g.Go(func() error {
 		defer close(results)
 
-		_ = g.Wait() // We handle errors in the main thread below
-	}()
+		for path := range filePaths {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 
-	components := make(component.Components, 0, len(results))
+			config := d.processFile(l, path, hiddenDirMemo, filenames)
 
-	for config := range results {
-		components = append(components, config)
+			if config != nil {
+				select {
+				case results <- config:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+		}
+
+		return nil
+	})
+
+	components := component.Components{}
+
+	for result := range results {
+		components = append(components, result)
 	}
 
 	if err := g.Wait(); err != nil {
-		return components, err
+		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return components, errors.Join(errs...)
 	}
 
 	return components, nil
@@ -751,36 +782,6 @@ func isInStackDirectory(cleanDir string) bool {
 	}
 
 	return false
-}
-
-// configWorker processes file paths and determines if they are Terragrunt configurations.
-func (d *Discovery) configWorker(
-	ctx context.Context,
-	l log.Logger,
-	filePaths <-chan string,
-	results chan<- component.Component,
-	hiddenDirMemo *hiddenDirMemo,
-	filenames []string,
-) error {
-	for path := range filePaths {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		config := d.processFile(l, path, hiddenDirMemo, filenames)
-
-		if config != nil {
-			select {
-			case results <- config:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	}
-
-	return nil
 }
 
 // processFile processes a single file to determine if it's a Terragrunt configuration.
@@ -1089,7 +1090,7 @@ func (d *Discovery) Discover(
 	errs := []error{}
 
 	if len(d.gitExpressions) > 0 {
-		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions, d.workTrees).
+		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions).
 			WithNumWorkers(d.numWorkers).
 			WithOriginalDiscovery(d)
 
