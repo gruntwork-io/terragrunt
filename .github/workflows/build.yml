@@ -75,14 +75,26 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
         run: |
           OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
           if [[ "${GOOS}" == "windows" ]]; then
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
+            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME}" \
             .
+
+      - name: Verify Static Linking
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
+          if [[ "${GOOS}" == "windows" ]]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v5
