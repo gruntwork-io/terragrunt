@@ -484,6 +484,7 @@ func Parse(
 	parseOpts.SkipOutput = true
 
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
+	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
 		config.TerraformSource,

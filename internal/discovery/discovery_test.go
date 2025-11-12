@@ -715,6 +715,48 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 	}
 }
 
+func TestDiscoveryOriginalTerragruntConfigPath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	unitDir := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+	// Create a config that uses get_original_terragrunt_dir() in the terraform source
+	// This function relies on OriginalTerragruntConfigPath being set correctly
+	configPath := filepath.Join(unitDir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+terraform {
+  source = "${get_original_terragrunt_dir()}/module"
+}
+`), 0644))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	// Start with a different config path to simulate the scenario where opts is cloned
+	opts.TerragruntConfigPath = tmpDir
+	opts.OriginalTerragruntConfigPath = tmpDir
+
+	l := logger.CreateLogger()
+
+	// Create a unit component with the directory
+	unit := component.NewUnit(unitDir)
+
+	err := discovery.Parse(unit, t.Context(), l, opts, false, nil)
+	require.NoError(t, err)
+
+	// Verify that the config was parsed correctly
+	require.NotNil(t, unit.Config())
+	require.NotNil(t, unit.Config().Terraform)
+	require.NotNil(t, unit.Config().Terraform.Source)
+
+	// The key test: verify that get_original_terragrunt_dir() returned the correct directory
+	expectedSource := filepath.Join(unitDir, "module")
+	require.Equal(t, expectedSource, *unit.Config().Terraform.Source,
+		"terraform source should use the correct unit directory from get_original_terragrunt_dir()")
+}
+
 func TestDependentDiscovery_NewDependentDiscovery(t *testing.T) {
 	t.Parallel()
 
