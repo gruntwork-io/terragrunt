@@ -22,7 +22,7 @@ const (
 	testFixtureRenderJSONWithEncryption  = "fixtures/render-json-with-encryption"
 	gcpKMSKeyID                          = "projects/terragrunt-test/locations/global/keyRings/terragrunt-test/cryptoKeys/terragrunt-test-key"
 	awsKMSKeyID                          = "7a8b0c4e-ff3c-49d0-93ba-15e3ca3488fb"
-	stateFile                            = "terraform.tfstate"
+	stateFile                            = "tofu.tfstate"
 	awsKMSKeyRegion                      = "us-east-1"
 )
 

@@ -16,7 +16,6 @@ import (
 
 const (
 	testFixtureTofuStateEncryptionOpenbao = "fixtures/tofu-state-encryption/openbao"
-	stateFile                             = "tofu.tfstate"
 )
 
 func setupOpenbao(t *testing.T) (baoC *testcontainers.DockerContainer, baoToken string, baoAddr string) {
