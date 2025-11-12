@@ -65,7 +65,7 @@ func TestTofuStateEncryptionOpenbao(t *testing.T) {
 		"__FILL_IN_OPENBAO_TOKEN__":    baoToken,
 	})
 
-	helpers.RunTerragrunt(t, "tofu apply -auto-approve --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+workDir)
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
