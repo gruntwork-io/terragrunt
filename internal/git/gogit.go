@@ -9,13 +9,14 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/cache"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/storage/filesystem"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // GoLsTreeRecursive uses the `go-git` library to recursively list the contents of a git tree.
 //
 // In testing, this is significantly slower than LsTreeRecursive, so we don't use it right now.
 // We'll keep it here and benchmark it again later if we can optimize it.
-func (g *GitRunner) GoLsTreeRecursive(ref, path string) ([]TreeEntry, error) {
+func (g *GitRunner) GoLsTreeRecursive(l log.Logger, ref, path string) ([]TreeEntry, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return nil, err
 	}
@@ -31,11 +32,17 @@ func (g *GitRunner) GoLsTreeRecursive(ref, path string) ([]TreeEntry, error) {
 	}
 
 	s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+
 	repo, err := git.Open(s, fs)
 	if err != nil {
 		return nil, err
 	}
-	defer s.Close()
+
+	defer func() {
+		if closeErr := s.Close(); closeErr != nil {
+			l.Errorf("failed to close git storage: %s", closeErr.Error())
+		}
+	}()
 
 	h, err := repo.ResolveRevision(plumbing.Revision(ref))
 	if err != nil {

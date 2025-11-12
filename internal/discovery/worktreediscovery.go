@@ -90,7 +90,9 @@ func (wd *WorktreeDiscovery) Discover(
 			gitRunner, err := git.NewGitRunner()
 			if err != nil {
 				mu.Lock()
+
 				errs = append(errs, err)
+
 				mu.Unlock()
 
 				return nil
@@ -101,7 +103,9 @@ func (wd *WorktreeDiscovery) Discover(
 			diffs, err := gitRunner.Diff(gitDiffCtx, gitExpression.FromRef, gitExpression.ToRef)
 			if err != nil {
 				mu.Lock()
+
 				errs = append(errs, err)
+
 				mu.Unlock()
 
 				return nil
@@ -138,7 +142,6 @@ func (wd *WorktreeDiscovery) Discover(
 		switch {
 		case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
 			!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
-
 			fromDiscoveryContext.Args = append(fromDiscoveryContext.Args, "-destroy")
 		case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
 			// This is the case when using a discovery command like find or list.

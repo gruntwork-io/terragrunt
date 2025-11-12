@@ -306,6 +306,7 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
 		}
 	}
+
 	for _, path := range diffs.Changed {
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:

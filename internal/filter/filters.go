@@ -289,8 +289,8 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 	// Phase 2: Apply negative filters to remove components
 	for _, filter := range negativeFilters {
 		var result component.Components
-		result, err = filter.Evaluate(l, combined)
 
+		result, err = filter.Evaluate(l, combined)
 		if err != nil {
 			return nil, err
 		}

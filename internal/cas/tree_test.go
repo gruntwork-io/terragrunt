@@ -88,9 +88,9 @@ func TestParseTree(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    []byte
 		path     string
 		wantPath string
+		input    []byte
 		wantLen  int
 		wantErr  bool
 	}{

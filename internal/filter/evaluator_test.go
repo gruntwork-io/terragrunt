@@ -894,37 +894,164 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 func TestEvaluate_GitFilter(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("Skipping Git filter tests for now. Moving most of the logic to the worktree discovery.")
-
-	components := []component.Component{
-		component.NewUnit("./apps/app1"),
-		component.NewUnit("./apps/app2"),
-		component.NewUnit("./libs/db"),
+	tests := []struct {
+		name      string
+		fromRef   string
+		toRef     string
+		setup     func() []component.Component
+		expected  []component.Component
+		wantError bool
+	}{
+		{
+			name:    "components without DiscoveryContext are filtered out",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				return []component.Component{
+					component.NewUnit("./apps/app1"),
+					component.NewUnit("./apps/app2"),
+					component.NewUnit("./libs/db"),
+				}
+			},
+			expected: []component.Component{},
+		},
+		{
+			name:    "components with empty Ref are filtered out",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+				return []component.Component{app1, app2}
+			},
+			expected: []component.Component{},
+		},
+		{
+			name:    "components with Ref matching FromRef are included",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+				return []component.Component{app1, app2, db}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./libs/db"),
+			},
+		},
+		{
+			name:    "components with Ref matching ToRef are included",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+				return []component.Component{app1, app2, db}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./libs/db"),
+			},
+		},
+		{
+			name:    "components with Ref matching either FromRef or ToRef are included",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+				api := component.NewUnit("./libs/api")
+				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+				return []component.Component{app1, app2, db, api}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app2"),
+				component.NewUnit("./libs/api"),
+			},
+		},
+		{
+			name:    "components with Ref not matching either are filtered out",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "develop"})
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "release"})
+				return []component.Component{app1, app2, db}
+			},
+			expected: []component.Component{},
+		},
+		{
+			name:    "mixed components with and without DiscoveryContext",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+				app2 := component.NewUnit("./apps/app2")
+				// No DiscoveryContext set
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+				api := component.NewUnit("./libs/api")
+				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+				return []component.Component{app1, app2, db, api}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./libs/db"),
+			},
+		},
 	}
 
-	t.Run("Git filter requires evaluation context", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		gitFilter := filter.NewGitFilter("main", "HEAD")
+			gitFilter := filter.NewGitFilter(tt.fromRef, tt.toRef)
+			components := tt.setup()
 
-		l := log.New()
-		result, err := filter.Evaluate(l, gitFilter, components)
-		require.NoError(t, err)
-		assert.ElementsMatch(t, components, result)
-	})
+			l := log.New()
+			result, err := filter.Evaluate(l, gitFilter, components)
 
-	t.Run("Git filter with context but no working directory", func(t *testing.T) {
-		t.Parallel()
+			if tt.wantError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
 
-		gitFilter := filter.NewGitFilter("main", "HEAD")
+				resultPaths := make([]string, len(result))
+				for i, c := range result {
+					resultPaths[i] = c.Path()
+				}
 
-		l := log.New()
-		result, err := filter.Evaluate(l, gitFilter, components)
+				expectedPaths := make([]string, len(tt.expected))
+				for i, c := range tt.expected {
+					expectedPaths[i] = c.Path()
+				}
 
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "working directory")
-	})
+				assert.ElementsMatch(t, expectedPaths, resultPaths)
+			}
+		})
+	}
 }
 
 func TestEvaluate_GitFilterString(t *testing.T) {

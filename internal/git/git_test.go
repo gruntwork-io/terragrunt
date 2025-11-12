@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -267,7 +268,7 @@ func TestGitRunner_GoLsTreeRecursive(t *testing.T) {
 	runner = runner.WithWorkDir(t.TempDir())
 	err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 	require.NoError(t, err)
-	tree, err := runner.GoLsTreeRecursive("HEAD", ".")
+	tree, err := runner.GoLsTreeRecursive(log.Default(), "HEAD", ".")
 	require.NoError(t, err)
 	require.NotEmpty(t, tree)
 	fmt.Println(tree)

@@ -4,11 +4,10 @@ import "strings"
 
 // Parser parses a filter query string into an AST.
 type Parser struct {
-	lexer      *Lexer
-	workingDir string
-	errors     []error
-	curToken   Token
-	peekToken  Token
+	lexer     *Lexer
+	errors    []error
+	curToken  Token
+	peekToken Token
 }
 
 // Operator precedence levels

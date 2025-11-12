@@ -85,7 +85,7 @@ func ParseTree(output []byte, path string) (*Tree, error) {
 	return &Tree{
 		entries: entries,
 		path:    path,
-		data:    []byte(output),
+		data:    output,
 	}, nil
 }
 

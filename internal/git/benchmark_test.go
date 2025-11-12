@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,6 +18,8 @@ func BenchmarkGitOperations(b *testing.B) {
 	g = g.WithWorkDir(repoDir)
 
 	ctx := b.Context()
+
+	l := log.Default()
 
 	err = g.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main")
 	require.NoError(b, err)
@@ -43,7 +46,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			_, err := g.GoLsTreeRecursive("HEAD", ".")
+			_, err := g.GoLsTreeRecursive(l, "HEAD", ".")
 			require.NoError(b, err)
 		}
 	})
