@@ -19,12 +19,12 @@ const (
 	stateFile                             = "terraform.tfstate"
 )
 
-func setupOpenbao(t *testing.T) (bao *testcontainers.DockerContainer, addr string, rootToken string) {
+func setupOpenbao(t *testing.T) (baoC *testcontainers.DockerContainer, baoToken string, baoAddr string) {
 	t.Helper()
 
-	baoToken := rand.Text()
+	baoToken = rand.Text()
 
-	baoC, baoAddress := helpers.RunContainer(t, "openbao/openbao:2.4.1", 8200,
+	baoC, baoAddr = helpers.RunContainer(t, "openbao/openbao:2.4.1", 8200,
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("core: vault is unsealed"),
 		),
@@ -39,7 +39,7 @@ func setupOpenbao(t *testing.T) (bao *testcontainers.DockerContainer, addr strin
 
 	helpers.ContExecNoOutput(t, baoC, "bao secrets enable transit", execOptions...)
 
-	return baoC, baoToken, baoAddress
+	return baoC, baoToken, baoAddr
 }
 
 func TestTofuStateEncryptionOpenbao(t *testing.T) {
