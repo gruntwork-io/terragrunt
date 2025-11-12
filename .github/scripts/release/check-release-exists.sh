@@ -10,9 +10,10 @@ set -e
 #   GITHUB_OUTPUT: Path to GitHub output file
 
 function main {
-  assert_env_var_not_empty "VERSION"
-  assert_env_var_not_empty "GH_TOKEN"
-  assert_env_var_not_empty "GITHUB_OUTPUT"
+  # Validate required environment variables
+  : "${VERSION:?ERROR: VERSION is a required environment variable}"
+  : "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
+  : "${GITHUB_OUTPUT:?ERROR: GITHUB_OUTPUT is a required environment variable}"
 
   printf 'Checking if release exists for tag: %s\n' "$VERSION"
 
@@ -45,16 +46,6 @@ function main {
   printf '  Release ID: %s\n' "$release_id"
   printf '  Draft: %s\n' "$is_draft"
   printf '  Upload URL: %s\n' "${upload_url%\{*}"
-}
-
-function assert_env_var_not_empty {
-  local -r var_name="$1"
-  local -r var_value="${!var_name}"
-
-  if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment variable $var_name not set."
-    exit 1
-  fi
 }
 
 main "$@"

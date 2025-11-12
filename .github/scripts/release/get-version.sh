@@ -10,35 +10,35 @@ set -e
 #   GITHUB_REF: Git reference (e.g., refs/tags/v0.93.4)
 #   GITHUB_OUTPUT: Path to GitHub output file
 
-function main {
-  local version=""
-
+function resolve_version {
+  # Handle workflow_dispatch event (manual trigger with INPUT_TAG)
   if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-    version="$INPUT_TAG"
-
-    # Validate workflow_dispatch input
-    if [[ -z "$version" ]]; then
+    if [[ -z "$INPUT_TAG" ]]; then
       echo "ERROR: INPUT_TAG is empty for workflow_dispatch event" >&2
       exit 1
     fi
-  else
-    # Validate GITHUB_REF exists
-    if [[ -z "$GITHUB_REF" ]]; then
-      echo "ERROR: GITHUB_REF is empty" >&2
-      exit 1
-    fi
-
-    # Check if GITHUB_REF is a tag reference
-    if [[ ! "$GITHUB_REF" =~ ^refs/tags/ ]]; then
-      echo "ERROR: GITHUB_REF does not start with 'refs/tags/': $GITHUB_REF" >&2
-      exit 1
-    fi
-
-    # Strip refs/tags/ prefix from GITHUB_REF
-    version="${GITHUB_REF#refs/tags/}"
+    echo "$INPUT_TAG"
+    return 0
   fi
 
-  # Validate extracted version is non-empty
+  # Handle push event (tag push with GITHUB_REF)
+  if [[ -z "$GITHUB_REF" ]]; then
+    echo "ERROR: GITHUB_REF is empty" >&2
+    exit 1
+  fi
+
+  if [[ ! "$GITHUB_REF" =~ ^refs/tags/ ]]; then
+    echo "ERROR: GITHUB_REF does not start with 'refs/tags/': $GITHUB_REF" >&2
+    exit 1
+  fi
+
+  # Strip refs/tags/ prefix and return
+  echo "${GITHUB_REF#refs/tags/}"
+}
+
+function validate_version {
+  local -r version="$1"
+
   if [[ -z "$version" ]]; then
     echo "ERROR: Extracted version is empty" >&2
     exit 1
@@ -49,6 +49,13 @@ function main {
     echo "ERROR: Invalid version format: '$version' (must start with alphanumeric character)" >&2
     exit 1
   fi
+}
+
+function main {
+  local version
+  version=$(resolve_version)
+
+  validate_version "$version"
 
   # Write to GitHub output
   printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"

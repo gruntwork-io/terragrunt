@@ -14,12 +14,12 @@ set -e
 function main {
   local -r bin_dir="${1:-bin}"
 
-  # Verify environment variables
-  assert_env_var_not_empty "AC_PASSWORD"
-  assert_env_var_not_empty "AC_PROVIDER"
-  assert_env_var_not_empty "AC_USERNAME"
-  assert_env_var_not_empty "MACOS_CERTIFICATE"
-  assert_env_var_not_empty "MACOS_CERTIFICATE_PASSWORD"
+  # Validate required environment variables
+  : "${AC_PASSWORD:?ERROR: AC_PASSWORD is a required environment variable}"
+  : "${AC_PROVIDER:?ERROR: AC_PROVIDER is a required environment variable}"
+  : "${AC_USERNAME:?ERROR: AC_USERNAME is a required environment variable}"
+  : "${MACOS_CERTIFICATE:?ERROR: MACOS_CERTIFICATE is a required environment variable}"
+  : "${MACOS_CERTIFICATE_PASSWORD:?ERROR: MACOS_CERTIFICATE_PASSWORD is a required environment variable}"
 
   if [[ ! -d "$bin_dir" ]]; then
     echo "ERROR: Directory $bin_dir does not exist"
@@ -38,57 +38,88 @@ function main {
 
   echo "Done signing the binaries"
 
-  # Unzip the signed binaries
-  echo "Extracting signed binaries..."
+  # Source configuration library
+  # shellcheck source=lib-release-config.sh
+  source "$(dirname "$0")/lib-release-config.sh"
 
-  if [[ -f terragrunt_darwin_amd64.zip ]]; then
-    unzip -o terragrunt_darwin_amd64.zip
-    mv terragrunt_darwin_amd64 "$bin_dir/"
-    echo "Moved signed amd64 binary to $bin_dir/"
-  else
-    echo "ERROR: terragrunt_darwin_amd64.zip not found"
-    exit 1
-  fi
+  verify_config_file
 
-  if [[ -f terragrunt_darwin_arm64.zip ]]; then
-    unzip -o terragrunt_darwin_arm64.zip
-    mv terragrunt_darwin_arm64 "$bin_dir/"
-    echo "Moved signed arm64 binary to $bin_dir/"
-  else
-    echo "ERROR: terragrunt_darwin_arm64.zip not found"
-    exit 1
-  fi
+  # Get list of macOS binaries from config (compatible with bash 3.2+)
+  local macos_binaries
+  macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' "$RELEASE_CONFIG_FILE")
 
-  # Verify signatures
-  echo "Verifying signatures..."
+  echo "Expected macOS binaries from config: $macos_binaries"
 
-  if [[ -f "$bin_dir/terragrunt_darwin_amd64" ]]; then
-    echo "Verifying amd64 signature..."
-    codesign -dv --verbose=4 "$bin_dir/terragrunt_darwin_amd64"
-  else
-    echo "ERROR: $bin_dir/terragrunt_darwin_amd64 not found"
-    exit 1
-  fi
+  # Remove old unsigned binaries from bin directory
+  echo "Removing unsigned binaries from $bin_dir..."
+  for binary in $macos_binaries; do
+    rm -f "$bin_dir/$binary"
+    echo "  Removed: $bin_dir/$binary"
+  done
 
-  if [[ -f "$bin_dir/terragrunt_darwin_arm64" ]]; then
-    echo "Verifying arm64 signature..."
-    codesign -dv --verbose=4 "$bin_dir/terragrunt_darwin_arm64"
-  else
-    echo "ERROR: $bin_dir/terragrunt_darwin_arm64 not found"
-    exit 1
-  fi
+  # Extract and verify signed binaries
+  echo ""
+  echo "Extracting and verifying signed binaries..."
 
+  for binary in $macos_binaries; do
+    local zip_file="${binary}.zip"
+
+    echo "Processing $binary..."
+
+    # Check ZIP file exists
+    [[ -f "$zip_file" ]] || {
+      echo "ERROR: ZIP file $zip_file not found for binary $binary"
+      exit 1
+    }
+
+    echo "  Found $zip_file, extracting..."
+    unzip -o "$zip_file"
+
+    # Check extraction succeeded
+    [[ -f "$binary" ]] || {
+      echo "  ERROR: Failed to extract binary $binary from $zip_file"
+      exit 1
+    }
+
+    echo "  Extracted binary exists, checking signature..."
+    codesign -dv --verbose=4 "$binary" 2>&1 || {
+      echo "  ERROR: Signature verification failed for binary $binary"
+      exit 1
+    }
+
+    echo "  Signature verified"
+    mv "$binary" "$bin_dir/"
+    echo "  Moved signed binary to $bin_dir/"
+
+    # Also move the ZIP file to bin directory
+    mv "$zip_file" "$bin_dir/"
+    echo "  Moved $zip_file to $bin_dir/"
+    echo ""
+  done
+
+  # Final verification of all binaries in bin directory
+  echo "Final verification of all binaries in $bin_dir..."
+  for binary in $macos_binaries; do
+    echo "Verifying $binary..."
+
+    [[ -f "$bin_dir/$binary" ]] || {
+      echo "ERROR: Binary $bin_dir/$binary not found after processing"
+      exit 1
+    }
+
+    codesign -dv --verbose=4 "$bin_dir/$binary" || {
+      echo "ERROR: Signature verification failed for binary $bin_dir/$binary"
+      exit 1
+    }
+  done
+
+  echo ""
   echo "All macOS binaries signed and verified successfully"
-}
 
-function assert_env_var_not_empty {
-  local -r var_name="$1"
-  local -r var_value="${!var_name}"
-
-  if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment variable $var_name not set."
-    exit 1
-  fi
+  # Show final contents of bin directory for debugging
+  echo ""
+  echo "Final contents of $bin_dir directory:"
+  ls -lah "$bin_dir/"
 }
 
 main "$@"

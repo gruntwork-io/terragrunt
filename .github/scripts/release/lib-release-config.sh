@@ -10,14 +10,19 @@ get_all_binaries() {
   jq -r '.platforms[].binary' "$RELEASE_CONFIG_FILE"
 }
 
-# Get total binary count
+# Get total binary count (computed from platforms array)
 get_binary_count() {
-  jq -r '.counts.binaries' "$RELEASE_CONFIG_FILE"
+  jq -r '.platforms | length' "$RELEASE_CONFIG_FILE"
 }
 
-# Get total expected file count
+# Get total expected file count (computed: binaries + archives + additional files)
 get_total_file_count() {
-  jq -r '.counts.total' "$RELEASE_CONFIG_FILE"
+  jq -r '
+    (.platforms | length) as $binaries |
+    (.archive_formats | length) as $formats |
+    (.additional_files | length) as $additional |
+    $binaries + ($binaries * $formats) + $additional
+  ' "$RELEASE_CONFIG_FILE"
 }
 
 # Get list of archive extensions

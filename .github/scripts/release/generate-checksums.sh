@@ -13,7 +13,8 @@ function main {
     exit 1
   fi
 
-  cd "$bin_dir"
+  # Use pushd/popd to avoid side effects on caller's working directory
+  pushd "$bin_dir" || return 1
 
   # Generate checksums for all files including individual ZIPs and TAR.GZ archives
   sha256sum terragrunt_* > SHA256SUMS
@@ -23,6 +24,9 @@ function main {
 
   echo ""
   echo "Total files with checksums: $(wc -l < SHA256SUMS)"
+
+  # Return to original directory
+  popd || return 1
 }
 
 main "$@"

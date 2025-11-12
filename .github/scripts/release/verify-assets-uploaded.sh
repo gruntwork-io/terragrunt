@@ -19,8 +19,9 @@ function main {
   local -r bin_dir="${1:-bin}"
   local -r clobber="${CLOBBER:-false}"
 
-  assert_env_var_not_empty "VERSION"
-  assert_env_var_not_empty "GH_TOKEN"
+  # Validate required environment variables
+  : "${VERSION:?ERROR: VERSION is a required environment variable}"
+  : "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
   verify_config_file
 
   # Build upload command with optional --clobber flag
@@ -36,7 +37,7 @@ function main {
   assets=$(gh release view "$VERSION" --json 'assets' --jq '.assets[].name')
 
   local asset_count
-  asset_count=$(echo "$assets" | wc -l)
+  asset_count=$(wc -l <<< "$assets")
 
   echo "Found $asset_count assets in release"
 
@@ -49,7 +50,7 @@ function main {
     echo "Checking $expected_file..."
 
     # Check if file exists in release
-    if ! echo "$assets" | grep -q "^${expected_file}$"; then
+    if ! grep -q "^${expected_file}$" <<< "$assets"; then
       echo "$expected_file not found in release, uploading..."
 
       # Upload the missing file
@@ -59,10 +60,10 @@ function main {
           if gh release upload "$VERSION" "$bin_dir/$expected_file" $clobber_flag; then
             echo "Uploaded $expected_file"
             break
-          else
-            echo "Upload attempt $((i+1))/$MAX_RETRIES failed"
-            sleep 5
           fi
+
+          echo "Upload attempt $((i+1))/$MAX_RETRIES failed"
+          sleep 5
         done
 
         if (( i == MAX_RETRIES )); then
@@ -102,16 +103,6 @@ function main {
 
   if [ "$asset_count" -lt "$expected_count" ]; then
     echo "Warning: Expected $expected_count files, found $asset_count"
-  fi
-}
-
-function assert_env_var_not_empty {
-  local -r var_name="$1"
-  local -r var_value="${!var_name}"
-
-  if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment variable $var_name not set."
-    exit 1
   fi
 }
 

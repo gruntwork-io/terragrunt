@@ -78,6 +78,18 @@ jobs:
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: .github/scripts/release/sign-macos-binaries.sh bin
 
+      - name: Verify codesign signatures
+        run: |
+          # Get list of expected macOS binaries from config
+          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
+
+          for binary in $macos_binaries; do
+            codesign -dv --verbose=4 "bin/$binary" 2>&1 || {
+              echo "ERROR: No valid signature found for bin/$binary"
+              exit 1
+            }
+          done
+
       - name: Upload Signed MacOS Binaries
         uses: actions/upload-artifact@v5
         with:

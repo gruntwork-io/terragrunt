@@ -45,7 +45,7 @@ All inline bash and PowerShell code from GitHub Actions workflows has been extra
 Release asset configuration is maintained in a single source of truth:
 
 ### `../assets/release-assets-config.json`
-JSON file defining all platforms, binaries, archive formats, and file counts.
+JSON file defining all platforms, binaries, archive formats, and additional files.
 
 **Schema:**
 ```json
@@ -69,14 +69,7 @@ JSON file defining all platforms, binaries, archive formats, and file counts.
       "name": "SHA256SUMS",
       "description": "File description"
     }
-  ],
-  "counts": {
-    "binaries": 7,
-    "archives_per_format": 7,
-    "archive_formats": 2,
-    "additional_files": 1,
-    "total": 22
-  }
+  ]
 }
 ```
 
@@ -328,9 +321,10 @@ export MACOS_CERTIFICATE_PASSWORD=<password>
 **Process:**
 1. Signs amd64 binary using `.gon_amd64.hcl`
 2. Signs arm64 binary using `.gon_arm64.hcl`
-3. Extracts signed binaries from ZIP archives
-4. Moves signed binaries to bin directory
-5. Verifies signatures using `codesign -dv --verbose=4`
+3. Removes unsigned binaries from bin directory
+4. Extracts signed binaries from ZIP archives
+5. Moves signed binaries to bin directory (replacing unsigned versions)
+6. Verifies signatures using `codesign -dv --verbose=4`
 
 ## Windows Scripts
 

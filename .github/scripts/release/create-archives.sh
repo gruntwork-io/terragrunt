@@ -13,7 +13,8 @@ function main {
     exit 1
   fi
 
-  cd "$bin_dir"
+  # Use pushd/popd to avoid side effects on caller's working directory
+  pushd "$bin_dir" || return 1
 
   echo "Creating individual archives for each binary..."
 
@@ -40,6 +41,9 @@ function main {
   echo ""
   echo "TAR.GZ archives:"
   ls -lh *.tar.gz
+
+  # Return to original directory
+  popd || return 1
 }
 
 main "$@"

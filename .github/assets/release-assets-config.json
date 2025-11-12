@@ -58,12 +58,5 @@
       "name": "SHA256SUMS",
       "description": "Checksums for all files"
     }
-  ],
-  "counts": {
-    "binaries": 7,
-    "archives_per_format": 7,
-    "archive_formats": 2,
-    "additional_files": 1,
-    "total": 22
-  }
+  ]
 }

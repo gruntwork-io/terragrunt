@@ -111,11 +111,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
       - name: Download macOS signed binaries
         uses: actions/download-artifact@v6
         with:
           name: macos-signed-files
           path: bin/
+
+      - name: Verify macOS binaries after download
+        run: |
+          # Get list of expected macOS binaries from config
+          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
+
+          echo "Expected macOS binaries from config:"
+          echo "$macos_binaries"
+          echo ""
+
+          echo "Listing expected files in bin/:"
+          for binary in $macos_binaries; do
+            if [[ -f "bin/$binary" ]]; then
+              ls -lh "bin/$binary"
+            fi
+            if [[ -f "bin/$binary.zip" ]]; then
+              ls -lh "bin/$binary.zip"
+            fi
+          done
+          echo ""
+
+          echo "Verifying macOS binaries:"
+          for binary in $macos_binaries; do
+            echo "Checking bin/$binary:"
+
+            [[ -f "bin/$binary" ]] || {
+              echo "  ERROR: Binary bin/$binary is missing from downloaded artifact"
+              exit 1
+            }
+
+            echo "  OK: bin/$binary"
+            file "bin/$binary"
+
+            # Check for ZIP file
+            if [[ -f "bin/$binary.zip" ]]; then
+              echo "  OK: bin/$binary.zip"
+              ls -lh "bin/$binary.zip"
+            else
+              echo "  NOTICE: bin/$binary.zip (not present, will be created in merge)"
+            fi
+            echo ""
+          done
 
       - name: Download Windows signed binaries
         uses: actions/download-artifact@v6
