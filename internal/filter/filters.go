@@ -72,7 +72,7 @@ func (f Filters) RequiresDiscovery() (Expression, bool) {
 // RequiresParse returns the first expression that requires parsing of Terragrunt HCL configurations if any do.
 func (f Filters) RequiresParse() (Expression, bool) {
 	for _, filter := range f {
-		if e, ok := filter.expr.RequiresParse(); ok {
+		if e, ok := filter.RequiresParse(); ok {
 			return e, true
 		}
 	}

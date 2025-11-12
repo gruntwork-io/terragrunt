@@ -139,7 +139,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	for gitExpression, diffs := range expressionToDiffs {
 		discoveryGroup.Go(func() error {
-			fromExpressions, toExpressions, err := gitExpression.Expand(diffs)
+			fromFilters, toFilters, err := gitExpression.Expand(diffs)
 			if err != nil {
 				return err
 			}
@@ -147,10 +147,10 @@ func (wd *WorktreeDiscovery) Discover(
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
-			// We only kick off from/to discovery if there any expressions expanded from the git expression.
+			// We only kick off from/to discovery if there any filters expanded from the git expression.
 			// This ensures that we don't discover anything when using a Git filter that doesn't match anything.
 
-			if len(fromExpressions) > 0 {
+			if len(fromFilters) > 0 {
 				fromToG.Go(func() error {
 					fromDiscovery := *wd.originalDiscovery
 
@@ -170,7 +170,7 @@ func (wd *WorktreeDiscovery) Discover(
 					}
 
 					components, err := fromDiscovery.
-						WithFilters(fromExpressions).
+						WithFilters(fromFilters).
 						WithDiscoveryContext(&fromDiscoveryContext).
 						Discover(fromToCtx, l, opts)
 					if err != nil {
@@ -185,7 +185,7 @@ func (wd *WorktreeDiscovery) Discover(
 				})
 			}
 
-			if len(toExpressions) > 0 {
+			if len(toFilters) > 0 {
 				fromToG.Go(func() error {
 					toDiscovery := *wd.originalDiscovery
 
@@ -204,7 +204,7 @@ func (wd *WorktreeDiscovery) Discover(
 					}
 
 					toComponents, err := toDiscovery.
-						WithFilters(toExpressions).
+						WithFilters(toFilters).
 						WithDiscoveryContext(&toDiscoveryContext).
 						Discover(fromToCtx, l, opts)
 					if err != nil {

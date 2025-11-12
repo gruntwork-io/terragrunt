@@ -45,6 +45,11 @@ func (f *Filter) Expression() Expression {
 	return f.expr
 }
 
+// RequiresParse returns true if the filter requires parsing of Terragrunt HCL configurations.
+func (f *Filter) RequiresParse() (Expression, bool) {
+	return f.expr.RequiresParse()
+}
+
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
 func Apply(l log.Logger, filterString string, components component.Components) (component.Components, error) {
