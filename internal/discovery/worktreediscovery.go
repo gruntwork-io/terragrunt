@@ -20,9 +20,6 @@ import (
 
 // WorktreeDiscovery is the configuration for discovery in Git worktrees.
 type WorktreeDiscovery struct {
-	// discoveryContext is the context in which discovery was originally triggered.
-	discoveryContext *component.DiscoveryContext
-
 	// originalDiscovery is the original discovery object that triggered the worktree discovery.
 	originalDiscovery *Discovery
 
@@ -47,12 +44,6 @@ func NewWorktreeDiscovery(gitExpressions filter.GitFilters) *WorktreeDiscovery {
 // WithNumWorkers sets the number of workers for worktree discovery.
 func (wd *WorktreeDiscovery) WithNumWorkers(numWorkers int) *WorktreeDiscovery {
 	wd.numWorkers = numWorkers
-	return wd
-}
-
-// WithDiscoveryContext sets the discovery context in which discovery was originally triggered.
-func (wd *WorktreeDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *WorktreeDiscovery {
-	wd.discoveryContext = discoveryContext
 	return wd
 }
 
@@ -109,7 +100,7 @@ func (wd *WorktreeDiscovery) Discover(
 				return nil
 			}
 
-			gitRunner = gitRunner.WithWorkDir(wd.discoveryContext.WorkingDir)
+			gitRunner = gitRunner.WithWorkDir(wd.originalDiscovery.discoveryContext.WorkingDir)
 
 			diffs, err := gitRunner.Diff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef)
 			if err != nil {
@@ -252,7 +243,7 @@ func (wd *WorktreeDiscovery) createGitWorktrees(ctx context.Context, l log.Logge
 		return errors.New(err)
 	}
 
-	gitRunner = gitRunner.WithWorkDir(wd.discoveryContext.WorkingDir)
+	gitRunner = gitRunner.WithWorkDir(wd.originalDiscovery.discoveryContext.WorkingDir)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(wd.numWorkers)

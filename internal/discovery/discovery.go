@@ -1099,10 +1099,6 @@ func (d *Discovery) Discover(
 			WithNumWorkers(d.numWorkers).
 			WithOriginalDiscovery(d)
 
-		if d.discoveryContext != nil {
-			worktreeDiscovery = worktreeDiscovery.WithDiscoveryContext(d.discoveryContext)
-		}
-
 		worktreeComponents, worktrees, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts)
 		if worktreeErr != nil {
 			return nil, worktreeErr
