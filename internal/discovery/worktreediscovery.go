@@ -31,9 +31,6 @@ type WorktreeDiscovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitFilters
 
-	// workingDir is the working directory initially used for discovery.
-	workingDir string
-
 	// numWorkers is the number of workers to use to discover in worktrees.
 	numWorkers int
 }
@@ -56,12 +53,6 @@ func (wd *WorktreeDiscovery) WithNumWorkers(numWorkers int) *WorktreeDiscovery {
 // WithDiscoveryContext sets the discovery context in which discovery was originally triggered.
 func (wd *WorktreeDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *WorktreeDiscovery {
 	wd.discoveryContext = discoveryContext
-	return wd
-}
-
-// WithWorkingDir sets the working directory initially used for discovery.
-func (wd *WorktreeDiscovery) WithWorkingDir(workingDir string) *WorktreeDiscovery {
-	wd.workingDir = workingDir
 	return wd
 }
 
@@ -105,7 +96,7 @@ func (wd *WorktreeDiscovery) Discover(
 				return nil
 			}
 
-			gitRunner = gitRunner.WithWorkDir(wd.workingDir)
+			gitRunner = gitRunner.WithWorkDir(wd.discoveryContext.WorkingDir)
 
 			diffs, err := gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
 			if err != nil {

@@ -30,7 +30,6 @@ type DependentDiscovery struct {
 	opts                *options.TerragruntOptions
 	mu                  *sync.RWMutex
 	components          *component.ThreadSafeComponents
-	workingDir          string
 	gitRoot             string
 	parserOptions       []hclparse.Option
 	filenames           []string
@@ -110,12 +109,6 @@ func (dd *DependentDiscovery) WithGitRoot(gitRoot string) *DependentDiscovery {
 // WithFilenames sets the config filenames for dependent discovery.
 func (dd *DependentDiscovery) WithFilenames(filenames []string) *DependentDiscovery {
 	dd.filenames = filenames
-	return dd
-}
-
-// WithWorkingDir sets the working directory for determining if dependencies are external.
-func (dd *DependentDiscovery) WithWorkingDir(workingDir string) *DependentDiscovery {
-	dd.workingDir = workingDir
 	return dd
 }
 
@@ -314,7 +307,7 @@ func (dd *DependentDiscovery) discoverDependents(
 					continue
 				}
 
-				isExternal := isExternal(dd.workingDir, c.Path())
+				isExternal := isExternal(dd.discoveryContext.WorkingDir, c.Path())
 
 				if isExternal {
 					c.SetExternal()
@@ -328,7 +321,7 @@ func (dd *DependentDiscovery) discoverDependents(
 			}
 
 			if dependsOnTarget {
-				isExternal := isExternal(dd.workingDir, candidate.Path())
+				isExternal := isExternal(dd.discoveryContext.WorkingDir, candidate.Path())
 
 				if !isExternal || dd.discoverExternal {
 					dd.ensureComponent(candidate)

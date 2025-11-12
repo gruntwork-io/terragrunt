@@ -20,7 +20,6 @@ type DependencyDiscovery struct {
 	externalDependencies *component.ThreadSafeComponents
 	mu                   *sync.RWMutex
 	seenComponents       map[string]struct{}
-	workingDir           string
 	parserOptions        []hclparse.Option
 	maxDepth             int
 	numWorkers           int
@@ -74,12 +73,6 @@ func (dd *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *Dep
 func (dd *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependencyDiscovery {
 	dd.discoveryContext = discoveryContext
 
-	return dd
-}
-
-// WithWorkingDir sets the working directory for determining if dependencies are external.
-func (dd *DependencyDiscovery) WithWorkingDir(workingDir string) *DependencyDiscovery {
-	dd.workingDir = workingDir
 	return dd
 }
 
@@ -258,7 +251,7 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		return c
 	}
 
-	isExternal := isExternal(dd.workingDir, depPath)
+	isExternal := isExternal(dd.discoveryContext.WorkingDir, depPath)
 
 	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
 	// set, ensure that we link it to the correct component, and mark it as seen.

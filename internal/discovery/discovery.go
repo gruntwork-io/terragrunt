@@ -1091,7 +1091,6 @@ func (d *Discovery) Discover(
 	if len(d.gitExpressions) > 0 {
 		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions, d.workTrees).
 			WithNumWorkers(d.numWorkers).
-			WithWorkingDir(d.discoveryContext.WorkingDir).
 			WithOriginalDiscovery(d)
 
 		if d.discoveryContext != nil {
@@ -1148,7 +1147,6 @@ func (d *Discovery) Discover(
 				}, func(ctx context.Context) error {
 					dependencyDiscovery := NewDependencyDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
-						WithWorkingDir(d.discoveryContext.WorkingDir).
 						WithNumWorkers(d.numWorkers)
 
 					if d.discoveryContext != nil {
@@ -1194,7 +1192,6 @@ func (d *Discovery) Discover(
 				}, func(ctx context.Context) error {
 					dependentDiscovery := NewDependentDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
-						WithWorkingDir(d.discoveryContext.WorkingDir).
 						WithNumWorkers(d.numWorkers)
 
 					if d.discoveryContext != nil {
