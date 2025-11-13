@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -44,8 +45,13 @@ func NewStackNode(filePath string) *StackNode {
 
 // GenerateStacks generates the stack files using topological ordering to prevent race conditions.
 // Stack files are generated level by level, ensuring parent stacks complete before their children.
-func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir)
+func GenerateStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+) error {
+	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -77,7 +83,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 			return err
 		}
 
-		if err := discoverAndAddNewNodes(ctx, l, opts, stackTrees, generatedFiles, level+1); err != nil {
+		if err := discoverAndAddNewNodes(ctx, l, opts, worktrees, stackTrees, generatedFiles, level+1); err != nil {
 			return err
 		}
 	}
@@ -114,8 +120,16 @@ func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 }
 
 // discoverAndAddNewNodes discovers new stack files and adds them to the dependency graph.
-func discoverAndAddNewNodes(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dependencyGraph map[string]*StackNode, generatedFiles map[string]bool, minLevel int) error {
-	newFiles, listErr := ListStackFiles(ctx, l, opts, opts.WorkingDir)
+func discoverAndAddNewNodes(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+	dependencyGraph map[string]*StackNode,
+	generatedFiles map[string]bool,
+	minLevel int,
+) error {
+	newFiles, listErr := ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
 	if listErr != nil {
 		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -256,6 +270,7 @@ func ListStackFiles(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	dir string,
+	worktrees *worktrees.Worktrees, // TODO: Update to actually have this used.
 ) ([]string, error) {
 	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
 		return listStackFiles(l, opts, dir)

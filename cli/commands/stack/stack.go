@@ -47,7 +47,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return generate.GenerateStacks(ctx, l, opts)
+		return generate.GenerateStacks(ctx, l, opts, nil) // TODO: Update
 	})
 }
 
@@ -79,7 +79,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := output.StackOutput(ctx, l, opts)
+		stackOutputs, err := output.StackOutput(ctx, l, opts, nil) // TODO: Update
 		outputs = stackOutputs
 
 		return err

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -49,10 +50,15 @@ import (
 //
 // Errors can occur during stack file listing, value reading, stack config parsing, output reading,
 // or when converting the final output structure to cty.Value format.
-func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (cty.Value, error) {
+func StackOutput(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
 
-	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir)
+	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
