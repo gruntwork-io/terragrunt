@@ -1196,7 +1196,7 @@ locals {
 				t.Context(),
 				logger.CreateLogger(),
 				tmpDir,
-				filter.GitFilters(filters.UniqueGitFilters()),
+				filters.UniqueGitFilters(),
 			)
 			require.NoError(t, err)
 
@@ -1272,7 +1272,7 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		tmpDir,
-		filter.GitFilters(filters.UniqueGitFilters()),
+		filters.UniqueGitFilters(),
 	)
 	require.NoError(t, err)
 
@@ -1328,7 +1328,7 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		tmpDir,
-		filter.GitFilters(filters.UniqueGitFilters()),
+		filters.UniqueGitFilters(),
 	)
 	require.NoError(t, err)
 

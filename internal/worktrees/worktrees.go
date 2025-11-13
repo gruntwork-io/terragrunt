@@ -71,7 +71,6 @@ func NewWorktrees(
 	if len(gitRefs) > 0 {
 		gitCmdGroup.Go(func() error {
 			var err error
-
 			if refsToPaths, err = createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs); err != nil {
 				mu.Lock()
 

@@ -111,9 +111,6 @@ type Discovery struct {
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
 
-	// workTrees is a map of references to the worktrees created for Git-based filters.
-	workTrees map[string]string
-
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
 

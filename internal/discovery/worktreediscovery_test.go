@@ -213,11 +213,11 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	l := logger.CreateLogger()
 
 	tests := []struct {
-		name             string
 		discoveryContext *component.DiscoveryContext
-		expectError      bool
+		name             string
 		expectedErrorMsg string
 		description      string
+		expectError      bool
 	}{
 		{
 			name: "plan_command_removed_unit_has_destroy_flag",
@@ -353,9 +353,11 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)
+
 				if tt.expectedErrorMsg != "" {
 					assert.Contains(t, err.Error(), tt.expectedErrorMsg, "Error message should contain expected text")
 				}
+
 				return
 			}
 

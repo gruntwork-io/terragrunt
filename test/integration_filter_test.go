@@ -801,10 +801,10 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	testCases := []struct {
 		name          string
 		filterQuery   string
+		description   string
 		expectedUnits []string
 		excludedUnits []string
 		expectError   bool
-		description   string
 	}{
 		{
 			name:          "git filter discovers modified, created, and removed units and excludes untouched",
