@@ -17,7 +17,7 @@ const (
 	testFixtureDependencyGenerate        = "fixtures/regressions/dependency-generate"
 	testFixtureDependencyEmptyConfigPath = "fixtures/regressions/dependency-empty-config-path"
 	testFixtureParsingDeprecated         = "fixtures/parsing/exposed-include-with-deprecated-inputs"
-	testFixtureSensitiveValuesSops       = "fixtures/regressions/sensitive-values-sops"
+	testFixtureSensitiveValues           = "fixtures/regressions/sensitive-values"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -331,21 +331,19 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	assert.Contains(t, combinedOutput, "Excluded")
 }
 
-// TestSensitiveValuesWithSopsDecrypt tests that sensitive values can be properly handled
+// TestSensitiveValues tests that sensitive values can be properly handled
 // when reading from YAML files and using the sensitive() function in locals.
 // This validates that:
 // 1. YAML files can be decoded and accessed in a map lookup based on environment
 // 2. The sensitive() wrapper properly marks values as sensitive
 // 3. Sensitive values can be passed as inputs to Terraform
 // 4. The password length can be validated in outputs
-//
-// This is a regression test for issue #4792 related to sensitive values handling.
-func TestSensitiveValuesWithSopsDecrypt(t *testing.T) {
+func TestSensitiveValues(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureSensitiveValuesSops)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSensitiveValuesSops)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSensitiveValuesSops)
+	helpers.CleanupTerraformFolder(t, testFixtureSensitiveValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSensitiveValues)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureSensitiveValues)
 
 	// Run terragrunt apply
 	helpers.RunTerragrunt(
@@ -364,6 +362,6 @@ func TestSensitiveValuesWithSopsDecrypt(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	// Verify the password length matches the dev password length (25 characters)
-	assert.Equal(t, float64(25), outputs["password_length"].Value,
+	assert.Equal(t, 25, outputs["password_length"].Value,
 		"Password length should match dev password")
 }

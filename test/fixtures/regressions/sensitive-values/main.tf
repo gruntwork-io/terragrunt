@@ -4,5 +4,6 @@ variable "password" {
 }
 
 output "password_length" {
-  value = length(var.password)
+  value     = length(var.password)
+  sensitive = true
 }
