@@ -1,6 +1,7 @@
 package discovery_test
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -1190,8 +1192,16 @@ locals {
 
 			require.NoError(t, err)
 
+			w, err := worktrees.NewWorktrees(
+				t.Context(),
+				logger.CreateLogger(),
+				tmpDir,
+				filter.GitFilters(filters.UniqueGitFilters()),
+			)
+			require.NoError(t, err)
+
 			// Create discovery with filters
-			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			if tt.errorExpected {
@@ -1203,7 +1213,7 @@ locals {
 
 			// Cleanup worktrees after discovery
 			t.Cleanup(func() {
-				cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+				cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
 				require.NoError(t, cleanupErr)
 			})
 
@@ -1211,11 +1221,8 @@ locals {
 			units := configs.Filter(component.UnitKind).Paths()
 			stacks := configs.Filter(component.StackKind).Paths()
 
-			// Extract worktrees from discovery
-			worktrees := discovery.WorkTrees()
-
 			// Get expected units
-			wantUnits := tt.wantUnits(worktrees["HEAD~1"], worktrees["HEAD"])
+			wantUnits := tt.wantUnits(w.RefsToPaths["HEAD~1"], w.RefsToPaths["HEAD"])
 
 			// Verify results
 			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -1261,30 +1268,27 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		tmpDir,
+		filter.GitFilters(filters.UniqueGitFilters()),
+	)
+	require.NoError(t, err)
+
+	// Cleanup worktrees - should succeed if worktrees exist
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
+
 	// Create discovery with filters
-	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
 
 	// Discover components - this should create worktrees
 	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 	require.NotEmpty(t, configs)
-
-	// Verify worktrees were created by checking that cleanup doesn't error
-	// (if worktrees weren't created, cleanup would still succeed but be a no-op)
-	// We can verify worktrees exist by checking that cleanup actually does something
-	// (indirectly, by ensuring discovery worked with Git filters)
-
-	// Cleanup worktrees - should succeed if worktrees exist
-	t.Cleanup(func() {
-		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-		require.NoError(t, cleanupErr)
-	})
-
-	// Verify cleanup is idempotent (can be called multiple times)
-	t.Cleanup(func() {
-		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-		require.NoError(t, cleanupErr)
-	})
 }
 
 func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
@@ -1320,8 +1324,16 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		tmpDir,
+		filter.GitFilters(filters.UniqueGitFilters()),
+	)
+	require.NoError(t, err)
+
 	// Create discovery with filters
-	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
 
 	// Discover components
 	components, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
@@ -1329,45 +1341,13 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 
 	// Cleanup worktrees
 	t.Cleanup(func() {
-		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
 		require.NoError(t, cleanupErr)
 	})
 
 	// Should return no components since nothing changed
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Empty(t, units, "No components should be returned when there are no changes")
-}
-
-func TestDiscoveryWithGitFilters_InvalidReference(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
-
-	// Initialize Git repository
-	helpers.CreateGitRepo(t, tmpDir)
-
-	opts := options.NewTerragruntOptions()
-	opts.WorkingDir = tmpDir
-	opts.RootWorkingDir = tmpDir
-
-	// Parse filter with invalid Git reference
-	filters, err := filter.ParseFilterQueries([]string{"[nonexistent-branch]"})
-	require.NoError(t, err) // Parsing should succeed
-
-	// Create discovery with filters
-	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
-
-	// Discover should fail when trying to create worktree for invalid reference
-	_, err = discovery.Discover(t.Context(), logger.CreateLogger(), opts)
-	require.Error(t, err, "Discovery should fail with invalid Git reference")
-
-	// Cleanup should still work (even if no worktrees were created)
-	t.Cleanup(func() {
-		cleanupErr := discovery.CleanupWorktrees(t.Context(), logger.CreateLogger())
-		require.NoError(t, cleanupErr)
-	})
 }
 
 // gitAdd adds files to Git staging area

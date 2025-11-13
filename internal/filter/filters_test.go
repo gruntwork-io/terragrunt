@@ -611,7 +611,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"./apps/*", "name=db"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		assert.Empty(t, refs)
 	})
 
@@ -621,7 +621,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main]"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
@@ -632,7 +632,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
@@ -643,7 +643,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[feature-branch]"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 3)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD", "feature-branch"})
 	})
@@ -654,7 +654,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "[HEAD...main]"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2) // main and HEAD, no duplicates
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
@@ -665,7 +665,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]", "./apps/*", "name=db"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
@@ -676,7 +676,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"![main...HEAD]"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
@@ -687,7 +687,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD] | ./apps/*"})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
@@ -698,7 +698,7 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]..."})
 		require.NoError(t, err)
 
-		refs := filters.UniqueGitExpressions().UniqueGitRefs()
+		refs := filters.UniqueGitFilters().UniqueGitRefs()
 		require.Len(t, refs, 2)
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})

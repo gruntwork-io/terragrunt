@@ -218,7 +218,6 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (*Tre
 
 	// Use recursive ls-tree to get all blobs in a single command
 	cmd := g.prepareCommand(ctx, "ls-tree", "-r", ref)
-	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
 
@@ -251,7 +250,7 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 	var stderr bytes.Buffer
 
 	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
-	cmd.Dir = g.WorkDir
+
 	cmd.Stdout = out
 	cmd.Stderr = &stderr
 
@@ -276,8 +275,7 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "worktree", "add", "--detach", dir, ref)
-	cmd.Dir = g.WorkDir
+	cmd := g.prepareCommand(ctx, "worktree", "add", "--detach", dir, ref)
 
 	var stdout, stderr bytes.Buffer
 
@@ -295,6 +293,30 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 	return nil
 }
 
+// RemoveWorktree removes a Git worktree for a given path
+func (g *GitRunner) RemoveWorktree(ctx context.Context, path string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "worktree", "remove", "--force", path)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_remove_worktree",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return nil
+}
+
 // Diff determines the diff between two Git references.
 func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, error) {
 	if err := g.RequiresWorkDir(); err != nil {
@@ -302,7 +324,6 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 	}
 
 	cmd := g.prepareCommand(ctx, "diff", "--name-status", "--no-renames", fromRef, toRef)
-	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
 
@@ -321,5 +342,11 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+
+	if g.WorkDir != "" {
+		cmd.Dir = g.WorkDir
+	}
+
+	return cmd
 }

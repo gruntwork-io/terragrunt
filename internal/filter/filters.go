@@ -102,8 +102,8 @@ func (f Filters) DependentGraphExpressions() []Expression {
 	return targets
 }
 
-// UniqueGitExpressions returns all unique Git expressions that require worktree discovery.
-func (f Filters) UniqueGitExpressions() GitFilters {
+// UniqueGitFilters returns all unique Git filters that require worktree discovery.
+func (f Filters) UniqueGitFilters() GitFilters {
 	var targets GitFilters
 
 	seen := make(map[string]struct{})

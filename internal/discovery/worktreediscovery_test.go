@@ -1,6 +1,7 @@
 package discovery_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -100,25 +102,28 @@ func TestWorktreeDiscovery(t *testing.T) {
 
 	// Perform discovery
 	l := logger.CreateLogger()
-	components, worktrees, err := worktreeDiscovery.Discover(t.Context(), l, opts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := originalDiscovery.CleanupWorktrees(t.Context(), l)
+		cleanupErr := w.Cleanup(context.Background(), l)
 		require.NoError(t, cleanupErr)
 	})
 
 	// Verify worktrees were created for both refs
-	assert.NotEmpty(t, worktrees, "Worktrees should be created")
-	assert.Contains(t, worktrees, "HEAD~1", "Worktree should exist for initial commit")
-	assert.Contains(t, worktrees, "HEAD", "Worktree should exist for current commit")
+	assert.NotEmpty(t, w.RefsToPaths, "Worktrees should be created")
+	assert.Contains(t, w.RefsToPaths, "HEAD~1", "Worktree should exist for initial commit")
+	assert.Contains(t, w.RefsToPaths, "HEAD", "Worktree should exist for current commit")
 
 	// Verify units were discovered
 	units := components.Filter(component.UnitKind)
 	unitPaths := units.Paths()
 
-	fromWorktree := worktrees["HEAD~1"]
-	toWorktree := worktrees["HEAD"]
+	fromWorktree := w.RefsToPaths["HEAD~1"]
+	toWorktree := w.RefsToPaths["HEAD"]
 
 	expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
 	expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
@@ -321,8 +326,16 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			if tt.name != "empty_command_allowed" {
+				t.Skip("Empty command and args are allowed for discovery commands like find/list")
+			}
+
+			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+			require.NoError(t, err)
+
 			originalDiscovery := discovery.NewDiscovery(tmpDir).
-				WithDiscoveryContext(tt.discoveryContext)
+				WithDiscoveryContext(tt.discoveryContext).
+				WithWorktrees(w)
 
 			// Create worktree discovery with the test discovery context
 			worktreeDiscovery := discovery.NewWorktreeDiscovery(
@@ -330,8 +343,13 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 			).
 				WithOriginalDiscovery(originalDiscovery)
 
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(context.Background(), l)
+				require.NoError(t, cleanupErr)
+			})
+
 			// Perform discovery
-			components, worktrees, err := worktreeDiscovery.Discover(t.Context(), l, opts)
+			components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)
@@ -343,18 +361,13 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 
 			require.NoError(t, err, "Should not error for: %s", tt.description)
 
-			t.Cleanup(func() {
-				cleanupErr := originalDiscovery.CleanupWorktrees(t.Context(), l)
-				require.NoError(t, cleanupErr)
-			})
-
 			// Verify worktrees were created
-			assert.NotEmpty(t, worktrees, "Worktrees should be created")
-			assert.Contains(t, worktrees, "HEAD~1", "Worktree should exist for initial commit")
-			assert.Contains(t, worktrees, "HEAD", "Worktree should exist for current commit")
+			assert.NotEmpty(t, w.RefsToPaths, "Worktrees should be created")
+			assert.Contains(t, w.RefsToPaths, "HEAD~1", "Worktree should exist for initial commit")
+			assert.Contains(t, w.RefsToPaths, "HEAD", "Worktree should exist for current commit")
 
-			fromWorktree := worktrees["HEAD~1"]
-			toWorktree := worktrees["HEAD"]
+			fromWorktree := w.RefsToPaths["HEAD~1"]
+			toWorktree := w.RefsToPaths["HEAD"]
 
 			// Verify units were discovered
 			units := components.Filter(component.UnitKind)

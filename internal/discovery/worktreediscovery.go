@@ -2,17 +2,12 @@ package discovery
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"slices"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -22,9 +17,6 @@ import (
 type WorktreeDiscovery struct {
 	// originalDiscovery is the original discovery object that triggered the worktree discovery.
 	originalDiscovery *Discovery
-
-	// workTrees is a map of references to the worktrees created for Git-based filters.
-	workTrees map[string]string
 
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitFilters
@@ -58,86 +50,15 @@ func (wd *WorktreeDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-) (component.Components, map[string]string, error) {
-	gitRefs := wd.gitExpressions.UniqueGitRefs()
-
-	var (
-		errs []error
-		mu   sync.Mutex
-	)
-
-	expressionToDiffs := make(map[*filter.GitFilter]*git.Diffs, len(wd.gitExpressions))
-
-	gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
-	gitCmdGroup.SetLimit(wd.numWorkers)
-
-	if len(gitRefs) > 0 {
-		gitCmdGroup.Go(func() error {
-			if worktreeErr := wd.createGitWorktrees(gitCmdCtx, l); worktreeErr != nil {
-				mu.Lock()
-
-				errs = append(errs, worktreeErr)
-
-				mu.Unlock()
-
-				return worktreeErr
-			}
-
-			return nil
-		})
-	}
-
-	for _, gitExpression := range wd.gitExpressions {
-		gitCmdGroup.Go(func() error {
-			gitRunner, err := git.NewGitRunner()
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, err)
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			gitRunner = gitRunner.WithWorkDir(wd.originalDiscovery.discoveryContext.WorkingDir)
-
-			diffs, err := gitRunner.Diff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, err)
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			mu.Lock()
-
-			expressionToDiffs[gitExpression] = diffs
-
-			mu.Unlock()
-
-			return nil
-		})
-	}
-
-	if err := gitCmdGroup.Wait(); err != nil {
-		return nil, wd.workTrees, err
-	}
-
-	if len(errs) > 0 {
-		return nil, wd.workTrees, errors.Join(errs...)
-	}
-
+	worktree *worktrees.Worktrees,
+) (component.Components, error) {
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
 	// Run from and to discovery concurrently for each expression
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(wd.numWorkers)
 
-	for gitExpression, diffs := range expressionToDiffs {
+	for gitExpression, diffs := range worktree.ExpressionsToDiffs {
 		discoveryGroup.Go(func() error {
 			fromFilters, toFilters, err := gitExpression.Expand(diffs)
 			if err != nil {
@@ -156,7 +77,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 					fromDiscoveryContext := *fromDiscovery.discoveryContext
 					fromDiscoveryContext.Ref = gitExpression.FromRef
-					fromDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.FromRef]
+					fromDiscoveryContext.WorkingDir = worktree.RefsToPaths[gitExpression.FromRef]
 
 					switch {
 					case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
@@ -191,7 +112,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 					toDiscoveryContext := *toDiscovery.discoveryContext
 					toDiscoveryContext.Ref = gitExpression.ToRef
-					toDiscoveryContext.WorkingDir = wd.workTrees[gitExpression.ToRef]
+					toDiscoveryContext.WorkingDir = worktree.RefsToPaths[gitExpression.ToRef]
 
 					switch {
 					case (toDiscoveryContext.Cmd == "plan" || toDiscoveryContext.Cmd == "apply") &&
@@ -224,92 +145,8 @@ func (wd *WorktreeDiscovery) Discover(
 	}
 
 	if err := discoveryGroup.Wait(); err != nil {
-		return nil, wd.workTrees, err
+		return nil, err
 	}
 
-	return discoveredComponents.ToComponents(), wd.workTrees, nil
-}
-
-// createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
-// The worktrees are created in temporary directories and tracked in d.gitWorktrees.
-func (wd *WorktreeDiscovery) createGitWorktrees(ctx context.Context, l log.Logger) error {
-	gitRefs := wd.gitExpressions.UniqueGitRefs()
-	if len(gitRefs) == 0 {
-		return nil
-	}
-
-	gitRunner, err := git.NewGitRunner()
-	if err != nil {
-		return errors.New(err)
-	}
-
-	gitRunner = gitRunner.WithWorkDir(wd.originalDiscovery.discoveryContext.WorkingDir)
-
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(wd.numWorkers)
-
-	var (
-		errs []error
-		mu   sync.Mutex
-	)
-
-	wd.workTrees = make(map[string]string, len(gitRefs))
-
-	for _, ref := range gitRefs {
-		g.Go(func() error {
-			tmpDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, fmt.Errorf("failed to create temporary directory for worktree: %w", err))
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			// macOS will create the temporary directory with symlinks, so we need to evaluate them.
-			tmpDir, err = filepath.EvalSymlinks(tmpDir)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			err = gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, fmt.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			mu.Lock()
-
-			wd.workTrees[ref] = tmpDir
-
-			mu.Unlock()
-
-			l.Debugf("Created Git worktree for reference %s at %s", ref, tmpDir)
-
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return err
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
+	return discoveredComponents.ToComponents(), nil
 }

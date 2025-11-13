@@ -3,6 +3,7 @@ package runnerpool
 import (
 	"context"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -32,14 +33,7 @@ func Build(
 	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
 	customConfigName := filepath.Base(terragruntOptions.TerragruntConfigPath)
 	// Only add custom config if it's different from defaults
-	isCustom := true
-
-	for _, defaultName := range discovery.DefaultConfigFilenames {
-		if customConfigName == defaultName {
-			isCustom = false
-			break
-		}
-	}
+	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
 
 	if isCustom && customConfigName != "" && customConfigName != "." {
 		configFilenames = append(configFilenames, customConfigName)

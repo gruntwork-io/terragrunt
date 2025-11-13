@@ -4,17 +4,16 @@ package discovery
 import (
 	"context"
 	stderrs "errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -88,6 +87,11 @@ type Discovery struct {
 	// This is passed into objects created during discovery, like Components, and might be adjusted if discovery is
 	// performed in a worktree.
 	discoveryContext *component.DiscoveryContext
+
+	// worktrees is the worktrees created for Git-based filters.
+	//
+	// This is set up by callers before calling Discover().
+	worktrees *worktrees.Worktrees
 
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
@@ -206,6 +210,13 @@ func (d *Discovery) WithDiscoverDependencies() *Discovery {
 	if d.maxDependencyDepth == 0 {
 		d.maxDependencyDepth = defaultMaxDependencyDepth
 	}
+
+	return d
+}
+
+// WithWorktrees sets the worktrees for the discovery.
+func (d *Discovery) WithWorktrees(worktrees *worktrees.Worktrees) *Discovery {
+	d.worktrees = worktrees
 
 	return d
 }
@@ -380,7 +391,7 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 
 	// Collect Git references from filters if any Git filters are present.
 	// The worktrees will be created during discovery before filtering.
-	d.gitExpressions = d.filters.UniqueGitExpressions()
+	d.gitExpressions = d.filters.UniqueGitFilters()
 
 	return d
 }
@@ -396,11 +407,6 @@ func (d *Discovery) WithFilterFlagEnabled() *Discovery {
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
 	return d
-}
-
-// WorkTrees returns the worktrees created for Git-based filters.
-func (d *Discovery) WorkTrees() map[string]string {
-	return d.workTrees
 }
 
 // compileIncludePatterns compiles the include directory patterns for faster matching.
@@ -1032,10 +1038,6 @@ func (d *Discovery) parseWorker(
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
-//
-// When Git-based filters are used, the worktrees are created and tracked in d.gitWorktrees.
-// As such, it's important to call CleanupWorktrees() after Discover() to clean up worktrees created if
-// they are no longer needed.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
@@ -1099,13 +1101,12 @@ func (d *Discovery) Discover(
 			WithNumWorkers(d.numWorkers).
 			WithOriginalDiscovery(d)
 
-		worktreeComponents, worktrees, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts)
+		worktreeComponents, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts, d.worktrees)
 		if worktreeErr != nil {
 			return nil, worktreeErr
 		}
 
 		components = append(components, worktreeComponents...)
-		d.workTrees = worktrees
 	}
 
 	// We do an initial parse loop if we know we need to parse configurations,
@@ -1313,41 +1314,6 @@ func (d *Discovery) Discover(
 	return components, nil
 }
 
-// CleanupWorktrees removes all created Git worktrees and their temporary directories.
-// This should be called after Discover() when Git-based filters were used and worktrees are no longer needed.
-func (d *Discovery) CleanupWorktrees(ctx context.Context, l log.Logger) error {
-	if len(d.workTrees) == 0 {
-		return nil
-	}
-
-	var errs []error
-
-	for ref, worktreePath := range d.workTrees {
-		cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", worktreePath)
-
-		cmd.Dir = d.discoveryContext.WorkingDir
-		if err := cmd.Run(); err != nil {
-			l.Debugf("Failed to remove Git worktree for reference %s: %v", ref, err)
-		}
-
-		if err := os.RemoveAll(worktreePath); err != nil {
-			errs = append(errs, fmt.Errorf("failed to remove worktree directory for reference %s: %w", ref, err))
-
-			continue
-		}
-
-		l.Debugf("Cleaned up Git worktree for reference %s", ref)
-	}
-
-	d.workTrees = map[string]string{}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
-}
-
 // determineDependencyStartingComponents determines the starting components for dependency discovery.
 // It uses filter expressions if provided, otherwise returns all components if dependency discovery is enabled.
 func (d *Discovery) determineDependencyStartingComponents(
@@ -1508,24 +1474,6 @@ func RemoveCycles(components component.Components) (component.Components, error)
 	}
 
 	return components, err
-}
-
-// sanitizeRef sanitizes a Git reference string for use in file paths.
-// It replaces invalid characters with underscores.
-func sanitizeRef(ref string) string {
-	result := strings.Builder{}
-
-	for _, r := range ref {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			result.WriteRune(r)
-
-			continue
-		}
-
-		result.WriteRune('_')
-	}
-
-	return result.String()
 }
 
 // hiddenDirMemo provides thread-safe memoization of hidden directories.
