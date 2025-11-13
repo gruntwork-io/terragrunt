@@ -208,9 +208,53 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 }
 
 func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+	opts.SkipOutput = true
+	opts.NonInteractive = true
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	// Create discovery with filter support if experiment enabled
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return errors.New(err)
+	}
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	// Run the validate inputs logic on each component
+	var errs []error
+	for _, c := range components {
+		if _, ok := c.(*component.Stack); ok {
+			continue // Skip stacks
+		}
+
+		componentOpts := opts.Clone()
+		componentOpts.WorkingDir = c.Path()
+
+		// Determine config path for this component
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+		componentOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+
+		// Run the validate inputs logic for this component
+		target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+		if err := run.RunWithTarget(ctx, l, componentOpts, report.NewReport(), target); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
