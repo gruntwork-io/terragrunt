@@ -1806,8 +1806,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 			return nil, err
 		}
 
-		terragruntConfig.Locals = localsParsed
-		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		// Only set Locals if there are actual values to avoid setting an empty map
+		if len(localsParsed) > 0 {
+			terragruntConfig.Locals = localsParsed
+			terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		}
 	}
 
 	return terragruntConfig, errs.ErrorOrNil()

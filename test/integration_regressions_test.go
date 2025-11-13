@@ -362,6 +362,6 @@ func TestSensitiveValues(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	// Verify the password length matches the dev password length (25 characters)
-	assert.Equal(t, 25, outputs["password_length"].Value,
+	assert.Equal(t, float64(25), outputs["password_length"].Value,
 		"Password length should match dev password")
 }
