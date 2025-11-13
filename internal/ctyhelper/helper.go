@@ -36,6 +36,7 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 
 	value = updatedValue
 
+	// Unmark the value (including nested values) before JSON serialization as JSON doesn't support marks.
 	unmarkedValue, _ := value.UnmarkDeep()
 
 	jsonBytes, err := ctyjson.Marshal(unmarkedValue, cty.DynamicPseudoType)

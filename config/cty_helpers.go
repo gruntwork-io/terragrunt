@@ -231,9 +231,11 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 // ConvertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
 func ConvertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 	if len(valMap) == 0 {
+		// Return an empty object instead of NilVal for empty maps.
 		return cty.EmptyObjectVal, nil
 	}
 
+	// Use cty.ObjectVal directly instead of gocty.ToCtyValue to preserve marks (like sensitive())
 	return cty.ObjectVal(valMap), nil
 }
 
