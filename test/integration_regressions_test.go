@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -361,7 +362,12 @@ func TestSensitiveValues(t *testing.T) {
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
+	// Verify the password length output exists and is a number
+	require.Contains(t, outputs, "password_length", "Should have password_length output")
+	assert.Equal(t, "number", outputs["password_length"].Type, "password_length should be of type number")
+
 	// Verify the password length matches the dev password length (25 characters)
-	assert.Equal(t, float64(25), outputs["password_length"].Value,
+	passwordLengthStr := fmt.Sprintf("%v", outputs["password_length"].Value)
+	assert.Equal(t, "25", passwordLengthStr,
 		"Password length should match dev password")
 }
