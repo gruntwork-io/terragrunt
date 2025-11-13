@@ -153,6 +153,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: "Setup Docker"
+        if: runner.os == 'Linux'
+        id: set-up-docker
+        uses: docker/setup-docker-action@v4
+
       - name: "Save space on node"
         if: runner.os != 'Windows'
         run: |
@@ -222,6 +227,10 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             # print command arguments
             set -x
+            if [[ "$HAS_DOCKER" == "true" ]]; then
+              TAGS="${TAGS:+$TAGS,docker}"
+              TAGS="${TAGS:=docker}"
+            fi
             go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
             # Generate XML report from test output
             go-junit-report < test_output.log > result.xml
@@ -238,6 +247,7 @@ jobs:
           SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
+          HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
         uses: actions/upload-artifact@v5
