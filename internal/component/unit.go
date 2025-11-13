@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
+// Note: options package import is kept for SetExecutionOptions() convenience method
+
 const (
 	UnitKind Kind = "unit"
 )
@@ -30,7 +32,12 @@ type Unit struct {
 	external         bool
 
 	// Runtime/Execution fields (populated by runner package)
-	terragruntOptions    *options.TerragruntOptions
+	// Note: Only fields needed by component methods are stored here.
+	// The runner maintains full TerragruntOptions separately for execution.
+	terraformCommand     string // For PlanFile() logic
+	outputFolder         string // For OutputFile()
+	jsonOutputFolder     string // For OutputJSONFile()
+	rootWorkingDir       string // For getPlanFilePath() logic
 	logger               log.Logger
 	assumeAlreadyApplied bool
 	flagExcluded         bool
@@ -205,20 +212,84 @@ func (u *Unit) Dependents() Components {
 	return u.dependents
 }
 
-// TerragruntOptions returns the Terragrunt options for this unit.
-func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
+// TerraformCommand returns the terraform command for this unit.
+func (u *Unit) TerraformCommand() string {
 	u.rLock()
 	defer u.rUnlock()
 
-	return u.terragruntOptions
+	return u.terraformCommand
 }
 
-// SetTerragruntOptions sets the Terragrunt options for this unit.
-func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
+// SetTerraformCommand sets the terraform command for this unit.
+func (u *Unit) SetTerraformCommand(cmd string) {
 	u.lock()
 	defer u.unlock()
 
-	u.terragruntOptions = opts
+	u.terraformCommand = cmd
+}
+
+// OutputFolder returns the output folder for this unit.
+func (u *Unit) OutputFolder() string {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.outputFolder
+}
+
+// SetOutputFolder sets the output folder for this unit.
+func (u *Unit) SetOutputFolder(folder string) {
+	u.lock()
+	defer u.unlock()
+
+	u.outputFolder = folder
+}
+
+// JSONOutputFolder returns the JSON output folder for this unit.
+func (u *Unit) JSONOutputFolder() string {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.jsonOutputFolder
+}
+
+// SetJSONOutputFolder sets the JSON output folder for this unit.
+func (u *Unit) SetJSONOutputFolder(folder string) {
+	u.lock()
+	defer u.unlock()
+
+	u.jsonOutputFolder = folder
+}
+
+// RootWorkingDir returns the root working directory for this unit.
+func (u *Unit) RootWorkingDir() string {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.rootWorkingDir
+}
+
+// SetRootWorkingDir sets the root working directory for this unit.
+func (u *Unit) SetRootWorkingDir(dir string) {
+	u.lock()
+	defer u.unlock()
+
+	u.rootWorkingDir = dir
+}
+
+// SetExecutionOptions sets all execution-related options from TerragruntOptions.
+// This is a convenience method for the runner to set multiple fields at once.
+func (u *Unit) SetExecutionOptions(opts *options.TerragruntOptions) {
+	if opts == nil {
+		return
+	}
+
+	u.lock()
+	defer u.unlock()
+
+	u.terraformCommand = opts.TerraformCommand
+	u.outputFolder = opts.OutputFolder
+	u.jsonOutputFolder = opts.JSONOutputFolder
+	u.rootWorkingDir = opts.RootWorkingDir
 }
 
 // Logger returns the logger for this unit.
@@ -321,58 +392,55 @@ func (u *Unit) FindUnitInPath(targetDirs []string) bool {
 // PlanFile returns plan file location, if output folder is set.
 func (u *Unit) PlanFile() string {
 	u.rLock()
-	opts := u.terragruntOptions
+	terraformCommand := u.terraformCommand
+	jsonOutputFolder := u.jsonOutputFolder
 	u.rUnlock()
 
-	if opts == nil {
-		return ""
-	}
-
-	var planFile string
-
 	// set plan file location if output folder is set
-	planFile = u.OutputFile()
+	planFile := u.GetOutputFile()
 
-	planCommand := opts.TerraformCommand == tf.CommandNamePlan || opts.TerraformCommand == tf.CommandNameShow
+	planCommand := terraformCommand == tf.CommandNamePlan || terraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified PlanFile, save plan in working dir
-	if planCommand && planFile == "" && opts.JSONOutputFolder != "" {
+	if planCommand && planFile == "" && jsonOutputFolder != "" {
 		planFile = tf.TerraformPlanFile
 	}
 
 	return planFile
 }
 
-// OutputFile returns plan file location, if output folder is set.
-func (u *Unit) OutputFile() string {
+// GetOutputFile returns plan file location, if output folder is set.
+func (u *Unit) GetOutputFile() string {
 	u.rLock()
-	opts := u.terragruntOptions
+	outputFolder := u.outputFolder
 	logger := u.logger
+	rootWorkingDir := u.rootWorkingDir
 	u.rUnlock()
 
-	if opts == nil {
+	if outputFolder == "" {
 		return ""
 	}
 
-	return u.getPlanFilePath(logger, opts, opts.OutputFolder, tf.TerraformPlanFile)
+	return u.getPlanFilePath(logger, rootWorkingDir, outputFolder, tf.TerraformPlanFile)
 }
 
-// OutputJSONFile returns plan JSON file location, if JSON output folder is set.
-func (u *Unit) OutputJSONFile() string {
+// GetOutputJSONFile returns plan JSON file location, if JSON output folder is set.
+func (u *Unit) GetOutputJSONFile() string {
 	u.rLock()
-	opts := u.terragruntOptions
+	jsonOutputFolder := u.jsonOutputFolder
 	logger := u.logger
+	rootWorkingDir := u.rootWorkingDir
 	u.rUnlock()
 
-	if opts == nil {
+	if jsonOutputFolder == "" {
 		return ""
 	}
 
-	return u.getPlanFilePath(logger, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+	return u.getPlanFilePath(logger, rootWorkingDir, jsonOutputFolder, tf.TerraformPlanJSONFile)
 }
 
 // getPlanFilePath returns plan file location, if output folder is set.
-func (u *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
+func (u *Unit) getPlanFilePath(l log.Logger, rootWorkingDir, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
@@ -381,7 +449,7 @@ func (u *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, ou
 	path := u.path
 	u.rUnlock()
 
-	relPath, err := filepath.Rel(opts.RootWorkingDir, path)
+	relPath, err := filepath.Rel(rootWorkingDir, path)
 	if err != nil {
 		if l != nil {
 			l.Warnf("Failed to get relative path for %s: %v", path, err)
@@ -394,7 +462,7 @@ func (u *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, ou
 	if !filepath.IsAbs(dir) {
 		// Resolve relative output folder against root working directory, not the unit working directory,
 		// so that artifacts for all units are stored under a single root-level out dir structure.
-		base := opts.RootWorkingDir
+		base := rootWorkingDir
 		if !filepath.IsAbs(base) {
 			// In case RootWorkingDir is somehow relative, resolve it first.
 			if absBase, err := filepath.Abs(base); err == nil {

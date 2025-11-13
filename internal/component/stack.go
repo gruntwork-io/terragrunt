@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -28,9 +27,9 @@ type Stack struct {
 	external         bool
 
 	// Runtime/Execution fields (populated by runner package)
-	terragruntOptions *options.TerragruntOptions
-	logger            log.Logger
-	flagExcluded      bool
+	// Note: Stack doesn't need execution options fields like Unit does
+	logger       log.Logger
+	flagExcluded bool
 
 	// Thread-safety
 	mu sync.RWMutex
@@ -193,22 +192,6 @@ func (s *Stack) Dependents() Components {
 	defer s.rUnlock()
 
 	return s.dependents
-}
-
-// TerragruntOptions returns the Terragrunt options for this stack.
-func (s *Stack) TerragruntOptions() *options.TerragruntOptions {
-	s.rLock()
-	defer s.rUnlock()
-
-	return s.terragruntOptions
-}
-
-// SetTerragruntOptions sets the Terragrunt options for this stack.
-func (s *Stack) SetTerragruntOptions(opts *options.TerragruntOptions) {
-	s.lock()
-	defer s.unlock()
-
-	s.terragruntOptions = opts
 }
 
 // Logger returns the logger for this stack.
