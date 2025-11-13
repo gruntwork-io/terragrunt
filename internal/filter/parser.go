@@ -104,7 +104,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			break
 		}
 
-		leftExpr = &AttributeFilter{Key: "name", Value: p.curToken.Literal}
+		leftExpr = &AttributeExpression{Key: "name", Value: p.curToken.Literal}
 		p.nextToken()
 	case ILLEGAL:
 		p.addError("illegal token: " + p.curToken.Literal)
@@ -252,7 +252,7 @@ func (p *Parser) parseAttributeFilter() Expression {
 	value := p.curToken.Literal
 	p.nextToken()
 
-	return &AttributeFilter{
+	return &AttributeExpression{
 		Key:   key,
 		Value: value,
 	}
@@ -309,7 +309,7 @@ func (p *Parser) parseGitFilter() Expression {
 		// Move past RBRACKET
 		p.nextToken()
 
-		return NewGitFilter(fromRef, toRef)
+		return NewGitExpression(fromRef, toRef)
 	}
 
 	// Single reference case
@@ -321,7 +321,7 @@ func (p *Parser) parseGitFilter() Expression {
 	// Move past RBRACKET
 	p.nextToken()
 
-	return NewGitFilter(fromRef, "HEAD")
+	return NewGitExpression(fromRef, "HEAD")
 }
 
 // expectPeek checks if the next token is of the expected type and advances if so.

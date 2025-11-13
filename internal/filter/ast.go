@@ -28,8 +28,8 @@ type Expression interface {
 // Expressions is a slice of expressions.
 type Expressions []Expression
 
-// PathFilter represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
-type PathFilter struct {
+// PathExpression represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
+type PathExpression struct {
 	compiledGlob glob.Glob
 	compileErr   error
 	Value        string
@@ -37,14 +37,14 @@ type PathFilter struct {
 }
 
 // NewPathFilter creates a new PathFilter with lazy glob compilation.
-func NewPathFilter(value string) *PathFilter {
-	return &PathFilter{Value: value}
+func NewPathFilter(value string) *PathExpression {
+	return &PathExpression{Value: value}
 }
 
 // CompileGlob returns the compiled glob pattern, compiling it on first call.
 // Subsequent calls return the cached compiled glob and any error.
 // Uses sync.Once for thread-safe lazy initialization.
-func (p *PathFilter) CompileGlob() (glob.Glob, error) {
+func (p *PathExpression) CompileGlob() (glob.Glob, error) {
 	p.compileOnce.Do(func() {
 		pattern := p.Value
 		pattern = filepath.Clean(filepath.ToSlash(pattern))
@@ -54,14 +54,14 @@ func (p *PathFilter) CompileGlob() (glob.Glob, error) {
 	return p.compiledGlob, p.compileErr
 }
 
-func (p *PathFilter) expressionNode()                       {}
-func (p *PathFilter) String() string                        { return p.Value }
-func (p *PathFilter) RequiresDiscovery() (Expression, bool) { return p, false }
-func (p *PathFilter) RequiresParse() (Expression, bool)     { return p, false }
-func (p *PathFilter) IsRestrictedToStacks() bool            { return false }
+func (p *PathExpression) expressionNode()                       {}
+func (p *PathExpression) String() string                        { return p.Value }
+func (p *PathExpression) RequiresDiscovery() (Expression, bool) { return p, false }
+func (p *PathExpression) RequiresParse() (Expression, bool)     { return p, false }
+func (p *PathExpression) IsRestrictedToStacks() bool            { return false }
 
-// AttributeFilter represents a key-value attribute filter (e.g., "name=my-app").
-type AttributeFilter struct {
+// AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
+type AttributeExpression struct {
 	compiledGlob glob.Glob
 	compileErr   error
 	Key          string
@@ -69,15 +69,15 @@ type AttributeFilter struct {
 	compileOnce  sync.Once
 }
 
-// NewAttributeFilter creates a new AttributeFilter with lazy glob compilation.
-func NewAttributeFilter(key string, value string) *AttributeFilter {
-	return &AttributeFilter{Key: key, Value: value}
+// NewAttributeExpression creates a new AttributeFilter with lazy glob compilation.
+func NewAttributeExpression(key string, value string) *AttributeExpression {
+	return &AttributeExpression{Key: key, Value: value}
 }
 
 // CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
 // Returns an error if called on unsupported attributes (e.g. type, external).
 // Uses sync.Once for thread-safe lazy initialization.
-func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
+func (a *AttributeExpression) CompileGlob() (glob.Glob, error) {
 	// Only compile for attributes that support glob matching
 	if !a.supportsGlob() {
 		return nil, NewEvaluationError("attribute '" + a.Key + "' does not support glob patterns")
@@ -97,14 +97,14 @@ func (a *AttributeFilter) CompileGlob() (glob.Glob, error) {
 }
 
 // supportsGlob returns true if the attribute filter supports glob patterns.
-func (a *AttributeFilter) supportsGlob() bool {
+func (a *AttributeExpression) supportsGlob() bool {
 	return a.Key == AttributeReading || a.Key == AttributeName || a.Key == AttributeSource
 }
 
-func (a *AttributeFilter) expressionNode()                       {}
-func (a *AttributeFilter) String() string                        { return a.Key + "=" + a.Value }
-func (a *AttributeFilter) RequiresDiscovery() (Expression, bool) { return a, true }
-func (a *AttributeFilter) RequiresParse() (Expression, bool) {
+func (a *AttributeExpression) expressionNode()                       {}
+func (a *AttributeExpression) String() string                        { return a.Key + "=" + a.Value }
+func (a *AttributeExpression) RequiresDiscovery() (Expression, bool) { return a, true }
+func (a *AttributeExpression) RequiresParse() (Expression, bool) {
 	switch a.Key {
 	// All of these attributes can be determined based on the component + configuration filepath.
 	case AttributeName, AttributeType, AttributeExternal:
@@ -118,7 +118,7 @@ func (a *AttributeFilter) RequiresParse() (Expression, bool) {
 		return nil, true
 	}
 }
-func (a *AttributeFilter) IsRestrictedToStacks() bool {
+func (a *AttributeExpression) IsRestrictedToStacks() bool {
 	return a.Key == "type" && a.Value == "stack"
 }
 
@@ -145,7 +145,7 @@ func (p *PrefixExpression) IsRestrictedToStacks() bool {
 	switch p.Operator {
 	case "!":
 		switch a := p.Right.(type) {
-		case *AttributeFilter:
+		case *AttributeExpression:
 			switch a.Key {
 			case "type":
 				return a.Value != "stack"
@@ -258,34 +258,34 @@ func (g *GraphExpression) RequiresParse() (Expression, bool) {
 }
 func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
 
-// GitFilter represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
+// GitExpression represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
 // It filters components based on changes between Git references.
-type GitFilter struct {
+type GitExpression struct {
 	FromRef string
 	ToRef   string
 }
 
-func NewGitFilter(fromRef, toRef string) *GitFilter {
-	return &GitFilter{FromRef: fromRef, ToRef: toRef}
+func NewGitExpression(fromRef, toRef string) *GitExpression {
+	return &GitExpression{FromRef: fromRef, ToRef: toRef}
 }
 
-func (g *GitFilter) expressionNode() {}
-func (g *GitFilter) String() string {
+func (g *GitExpression) expressionNode() {}
+func (g *GitExpression) String() string {
 	return "[" + g.FromRef + "..." + g.ToRef + "]"
 }
-func (g *GitFilter) RequiresDiscovery() (Expression, bool) {
+func (g *GitExpression) RequiresDiscovery() (Expression, bool) {
 	// Git filters require discovery to check which components changed between references
 	return g, true
 }
-func (g *GitFilter) RequiresParse() (Expression, bool) {
+func (g *GitExpression) RequiresParse() (Expression, bool) {
 	// Git filters don't require parsing - they compare file paths, not HCL content
 	return nil, false
 }
-func (g *GitFilter) IsRestrictedToStacks() bool { return false }
+func (g *GitExpression) IsRestrictedToStacks() bool { return false }
 
-// Expand expands a Git filter into the equivalent to and from filter expressions based on the provided
+// Expand expands a Git expression into the equivalent to and from filter expressions based on the provided
 // diffs for the Git reference pair.
-func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
+func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 	// Build simple expressions that can be determined simply from the diffs.
 	fromExpressions := make(Expressions, 0, len(diffs.Removed))
 	for _, path := range diffs.Removed {
@@ -296,7 +296,7 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 			fromExpressions = append(fromExpressions, NewInfixExpression(
 				NewPathFilter(filepath.Dir(path)),
 				"|",
-				NewAttributeFilter(AttributeType, AttributeTypeValueStack),
+				NewAttributeExpression(AttributeType, AttributeTypeValueStack),
 			))
 		}
 	}
@@ -310,7 +310,7 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 			toExpressions = append(toExpressions, NewInfixExpression(
 				NewPathFilter(filepath.Dir(path)),
 				"|",
-				NewAttributeFilter(AttributeType, AttributeTypeValueStack),
+				NewAttributeExpression(AttributeType, AttributeTypeValueStack),
 			))
 		}
 	}
@@ -323,10 +323,10 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 			toExpressions = append(toExpressions, NewInfixExpression(
 				NewPathFilter(filepath.Dir(path)),
 				"|",
-				NewAttributeFilter(AttributeType, AttributeTypeValueStack),
+				NewAttributeExpression(AttributeType, AttributeTypeValueStack),
 			))
 		default:
-			toExpressions = append(toExpressions, NewAttributeFilter(AttributeReading, path))
+			toExpressions = append(toExpressions, NewAttributeExpression(AttributeReading, path))
 		}
 	}
 
@@ -343,11 +343,11 @@ func (g *GitFilter) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 	return fromFilters, toFilters, nil
 }
 
-// GitFilters is a slice of Git filters.
-type GitFilters []*GitFilter
+// GitExpressions is a slice of Git expressions.
+type GitExpressions []*GitExpression
 
 // UniqueGitRefs returns all unique Git references in a slice of expressions.
-func (e GitFilters) UniqueGitRefs() []string {
+func (e GitExpressions) UniqueGitRefs() []string {
 	refSet := make(map[string]struct{}, len(e))
 
 	for _, expr := range e {

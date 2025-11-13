@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -31,4 +32,6 @@ type StackRunner interface {
 	SetParseOptions(parserOptions []hclparse.Option)
 	// SetReport Attach a report object to the stack for collecting run data and summaries.
 	SetReport(report *report.Report)
+	// WetWorktrees Set the worktrees for the stack.
+	SetWorktrees(worktrees *worktrees.Worktrees)
 }

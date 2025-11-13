@@ -8,12 +8,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Stack represents a stack of units that you can "spin up" or "spin down"
 type Stack struct {
 	Report                *report.Report
+	Worktrees             *worktrees.Worktrees
 	TerragruntOptions     *options.TerragruntOptions
 	ChildTerragruntConfig *config.TerragruntConfig
 	Units                 Units

@@ -85,8 +85,8 @@ func TestWorktreeDiscovery(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Create a Git filter expression
-	gitFilter := filter.NewGitFilter("HEAD~1", "HEAD")
-	gitExpressions := filter.GitFilters{gitFilter}
+	gitFilter := filter.NewGitExpression("HEAD~1", "HEAD")
+	gitExpressions := filter.GitExpressions{gitFilter}
 
 	// Create original discovery
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
@@ -207,8 +207,8 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Create a Git filter expression
-	gitFilter := filter.NewGitFilter("HEAD~1", "HEAD")
-	gitExpressions := filter.GitFilters{gitFilter}
+	gitFilter := filter.NewGitExpression("HEAD~1", "HEAD")
+	gitExpressions := filter.GitExpressions{gitFilter}
 
 	l := logger.CreateLogger()
 

@@ -272,7 +272,7 @@ func TestFilter_Expression(t *testing.T) {
 	assert.NotNil(t, expr)
 
 	// Verify it's the correct type
-	attrFilter, ok := expr.(*filter.AttributeFilter)
+	attrFilter, ok := expr.(*filter.AttributeExpression)
 	assert.True(t, ok)
 	assert.Equal(t, "name", attrFilter.Key)
 	assert.Equal(t, "foo", attrFilter.Value)

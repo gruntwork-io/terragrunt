@@ -124,7 +124,7 @@ type Discovery struct {
 	dependentTargetExpressions []filter.Expression
 
 	// gitExpressions contains Git filter expressions that require worktree discovery
-	gitExpressions filter.GitFilters
+	gitExpressions filter.GitExpressions
 
 	// numWorkers determines the number of concurrent workers for discovery operations.
 	numWorkers int

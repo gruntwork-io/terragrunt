@@ -19,14 +19,14 @@ type WorktreeDiscovery struct {
 	originalDiscovery *Discovery
 
 	// gitExpressions contains Git filter expressions that require worktree discovery
-	gitExpressions filter.GitFilters
+	gitExpressions filter.GitExpressions
 
 	// numWorkers is the number of workers to use to discover in worktrees.
 	numWorkers int
 }
 
 // NewWorktreeDiscovery creates a new WorktreeDiscovery with the given configuration.
-func NewWorktreeDiscovery(gitExpressions filter.GitFilters) *WorktreeDiscovery {
+func NewWorktreeDiscovery(gitExpressions filter.GitExpressions) *WorktreeDiscovery {
 	return &WorktreeDiscovery{
 		gitExpressions: gitExpressions,
 		numWorkers:     runtime.NumCPU(),
@@ -52,13 +52,19 @@ func (wd *WorktreeDiscovery) Discover(
 	opts *options.TerragruntOptions,
 	worktree *worktrees.Worktrees,
 ) (component.Components, error) {
+	if worktree == nil {
+		l.Debug("No worktrees provided, skipping worktree discovery")
+
+		return component.Components{}, nil
+	}
+
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
 	// Run from and to discovery concurrently for each expression
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(wd.numWorkers)
 
-	for gitExpression, diffs := range worktree.ExpressionsToDiffs {
+	for gitExpression, diffs := range worktree.GitExpressionsToDiffs {
 		discoveryGroup.Go(func() error {
 			fromFilters, toFilters, err := gitExpression.Expand(diffs)
 			if err != nil {

@@ -43,9 +43,9 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 	}
 
 	switch node := expr.(type) {
-	case *PathFilter:
+	case *PathExpression:
 		return evaluatePathFilter(node, components)
-	case *AttributeFilter:
+	case *AttributeExpression:
 		return evaluateAttributeFilter(node, components)
 	case *PrefixExpression:
 		return evaluatePrefixExpression(l, node, components)
@@ -53,7 +53,7 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 		return evaluateInfixExpression(l, node, components)
 	case *GraphExpression:
 		return evaluateGraphExpression(l, node, components)
-	case *GitFilter:
+	case *GitExpression:
 		return evaluateGitFilter(node, components)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
@@ -61,7 +61,7 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, components component.Components) (component.Components, error) {
+func evaluatePathFilter(filter *PathExpression, components component.Components) (component.Components, error) {
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
@@ -84,7 +84,7 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
@@ -275,7 +275,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 
 // evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
 // It returns components that were added, removed, or changed between FromRef and ToRef.
-func evaluateGitFilter(filter *GitFilter, components component.Components) (component.Components, error) {
+func evaluateGitFilter(filter *GitExpression, components component.Components) (component.Components, error) {
 	results := make(component.Components, 0, len(components))
 
 	for _, c := range components {

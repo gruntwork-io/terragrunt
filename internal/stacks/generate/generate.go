@@ -270,7 +270,7 @@ func ListStackFiles(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	dir string,
-	worktrees *worktrees.Worktrees, // TODO: Update to actually have this used.
+	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
 	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
 		return listStackFiles(l, opts, dir)
@@ -285,13 +285,23 @@ func ListStackFiles(
 		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
 	}
 
-	components, err := discovery.Discover(ctx, l, opts)
+	discoveredComponents, err := discovery.Discover(ctx, l, opts)
 	if err != nil {
 		return nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
-	foundFiles := make([]string, 0, len(components))
-	for _, c := range components {
+	worktreeComponents := discoverWorktreeStacks(worktrees)
+
+	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeComponents))
+	for _, c := range discoveredComponents {
+		if _, ok := c.(*component.Stack); !ok {
+			continue
+		}
+
+		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+	}
+
+	for _, c := range worktreeComponents {
 		if _, ok := c.(*component.Stack); !ok {
 			continue
 		}
@@ -350,4 +360,50 @@ func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) (
 	}
 
 	return stackFiles, nil
+}
+
+func discoverWorktreeStacks(
+	worktrees *worktrees.Worktrees,
+) component.Components {
+	worktreeStacks := component.Components{}
+
+	for expression, diffs := range worktrees.GitExpressionsToDiffs {
+		fromWorktree := worktrees.RefsToPaths[expression.FromRef]
+		toWorktree := worktrees.RefsToPaths[expression.ToRef]
+
+		for _, removed := range diffs.Removed {
+			if filepath.Base(removed) != config.DefaultStackFile {
+				continue
+			}
+
+			worktreeStacks = append(
+				worktreeStacks,
+				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))),
+			)
+		}
+
+		for _, added := range diffs.Added {
+			if filepath.Base(added) != config.DefaultStackFile {
+				continue
+			}
+
+			worktreeStacks = append(
+				worktreeStacks,
+				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))),
+			)
+		}
+
+		for _, changed := range diffs.Changed {
+			if filepath.Base(changed) != config.DefaultStackFile {
+				continue
+			}
+
+			worktreeStacks = append(
+				worktreeStacks,
+				component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))),
+			)
+		}
+	}
+
+	return worktreeStacks
 }

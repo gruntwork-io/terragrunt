@@ -32,12 +32,12 @@ func TestEvaluate_PathFilter(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.PathFilter
+		filter   *filter.PathExpression
 		expected []component.Component
 	}{
 		{
 			name:   "exact path match",
-			filter: &filter.PathFilter{Value: "./apps/app1"},
+			filter: &filter.PathExpression{Value: "./apps/app1"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -46,7 +46,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with single wildcard",
-			filter: &filter.PathFilter{Value: "./apps/*"},
+			filter: &filter.PathExpression{Value: "./apps/*"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -61,7 +61,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with single wildcard and partial match",
-			filter: &filter.PathFilter{Value: "./apps/app*"},
+			filter: &filter.PathExpression{Value: "./apps/app*"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -73,7 +73,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with recursive wildcard",
-			filter: &filter.PathFilter{Value: "./apps/**"},
+			filter: &filter.PathExpression{Value: "./apps/**"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -91,7 +91,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:     "no matches",
-			filter:   &filter.PathFilter{Value: "./nonexistent/*"},
+			filter:   &filter.PathExpression{Value: "./nonexistent/*"},
 			expected: []component.Component{},
 		},
 	}
@@ -122,19 +122,19 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
+		filter   *filter.AttributeExpression
 		expected []component.Component
 	}{
 		{
 			name:   "name filter single match",
-			filter: &filter.AttributeFilter{Key: "name", Value: "db"},
+			filter: &filter.AttributeExpression{Key: "name", Value: "db"},
 			expected: []component.Component{
 				component.NewUnit("./libs/db"),
 			},
 		},
 		{
 			name:   "name filter multiple matches",
-			filter: &filter.AttributeFilter{Key: "name", Value: "app"},
+			filter: &filter.AttributeExpression{Key: "name", Value: "app"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app"),
 				component.NewUnit("./libs/app"),
@@ -142,12 +142,12 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		},
 		{
 			name:     "name filter no matches",
-			filter:   &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+			filter:   &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
 			expected: []component.Component{},
 		},
 		{
 			name:   "type filter unit",
-			filter: &filter.AttributeFilter{Key: "type", Value: "unit"},
+			filter: &filter.AttributeExpression{Key: "type", Value: "unit"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app"),
 				component.NewUnit("./libs/app"),
@@ -157,7 +157,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		},
 		{
 			name:   "type filter stack",
-			filter: &filter.AttributeFilter{Key: "type", Value: "stack"},
+			filter: &filter.AttributeExpression{Key: "type", Value: "stack"},
 			expected: []component.Component{
 				component.NewStack("./libs/api"),
 			},
@@ -183,7 +183,7 @@ func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 		component.NewUnit("./apps/app"),
 	}
 
-	attrFilter := &filter.AttributeFilter{Key: "invalid", Value: "foo"}
+	attrFilter := &filter.AttributeExpression{Key: "invalid", Value: "foo"}
 	l := log.New()
 	result, err := filter.Evaluate(l, attrFilter, components)
 
@@ -206,19 +206,19 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
+		filter   *filter.AttributeExpression
 		expected []component.Component
 	}{
 		{
 			name:   "exact file path match - single match",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "database.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "database.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./libs/db").WithReading("database.hcl"),
 			},
 		},
 		{
 			name:   "exact file path match - multiple matches",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "shared.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "shared.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -227,12 +227,12 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:     "exact file path match - no matches",
-			filter:   &filter.AttributeFilter{Key: "reading", Value: "nonexistent.hcl"},
+			filter:   &filter.AttributeExpression{Key: "reading", Value: "nonexistent.hcl"},
 			expected: []component.Component{},
 		},
 		{
 			name:   "glob pattern with single wildcard - *.hcl",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "*.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "*.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -242,7 +242,7 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:   "glob pattern with prefix - shared*",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "shared*"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "shared*"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -251,19 +251,19 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:   "glob pattern with double wildcard - **/variables.hcl",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "**/variables.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "**/variables.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
 			},
 		},
 		{
 			name:     "empty Reading slice - no matches",
-			filter:   &filter.AttributeFilter{Key: "reading", Value: "*.hcl"},
+			filter:   &filter.AttributeExpression{Key: "reading", Value: "*.hcl"},
 			expected: []component.Component{},
 		},
 		{
 			name:   "glob pattern with question mark - config.???l",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "config.???l"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "config.???l"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app3").WithReading("config.yaml", "settings.json"),
 			},
@@ -313,26 +313,26 @@ func TestEvaluate_AttributeFilter_Source(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
+		filter   *filter.AttributeExpression
 		expected []component.Component
 	}{
 		{
 			name:   "glob pattern with single wildcard - github.com/acme/*",
-			filter: &filter.AttributeFilter{Key: "source", Value: "github.com/acme/*"},
+			filter: &filter.AttributeExpression{Key: "source", Value: "github.com/acme/*"},
 			expected: []component.Component{
 				components[0],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - git::git@github.com:acme/**",
-			filter: &filter.AttributeFilter{Key: "source", Value: "git::git@github.com:acme/**"},
+			filter: &filter.AttributeExpression{Key: "source", Value: "git::git@github.com:acme/**"},
 			expected: []component.Component{
 				components[1],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - **github.com**",
-			filter: &filter.AttributeFilter{Key: "source", Value: "**github.com**"},
+			filter: &filter.AttributeExpression{Key: "source", Value: "**github.com**"},
 			expected: []component.Component{
 				components[0],
 				components[1],
@@ -360,7 +360,7 @@ func TestEvaluate_AttributeFilter_Reading_ComponentAddedOnlyOnce(t *testing.T) {
 	}
 
 	// This glob should match multiple files in the Reading slice, but component should only be added once
-	attrFilter := &filter.AttributeFilter{Key: "reading", Value: "shared*"}
+	attrFilter := &filter.AttributeExpression{Key: "reading", Value: "shared*"}
 	l := log.New()
 	result, err := filter.Evaluate(l, attrFilter, components)
 	require.NoError(t, err)
@@ -395,7 +395,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by name",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "legacy"},
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -413,7 +413,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by path",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathFilter{Value: "./apps/legacy"},
+				Right:    &filter.PathExpression{Value: "./apps/legacy"},
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -431,7 +431,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by glob",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathFilter{Value: "./apps/*"},
+				Right:    &filter.PathExpression{Value: "./apps/*"},
 			},
 			expected: []component.Component{
 				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
@@ -443,7 +443,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude all (double negation effect)",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "type", Value: "unit"},
+				Right:    &filter.AttributeExpression{Key: "type", Value: "unit"},
 			},
 			expected: []component.Component{},
 		},
@@ -451,7 +451,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude nothing",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
 			},
 			expected: components,
 		},
@@ -494,9 +494,9 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection of path and name",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+				Left:     &filter.PathExpression{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -507,18 +507,18 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection with no overlap",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+				Left:     &filter.PathExpression{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "db"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "db"},
 			},
 			expected: []component.Component{},
 		},
 		{
 			name: "intersection of exact path and name",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/app1"},
+				Left:     &filter.PathExpression{Value: "./apps/app1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -529,9 +529,9 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection of empty results",
 			expr: &filter.InfixExpression{
-				Left:     &filter.AttributeFilter{Key: "name", Value: "nonexistent1"},
+				Left:     &filter.AttributeExpression{Key: "name", Value: "nonexistent1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{},
 		},
@@ -575,11 +575,11 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		{
 			name: "intersection with negation (refinement)",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+				Left:     &filter.PathExpression{Value: "./apps/*"},
 				Operator: "|",
 				Right: &filter.PrefixExpression{
 					Operator: "!",
-					Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
+					Right:    &filter.AttributeExpression{Key: "name", Value: "legacy"},
 				},
 			},
 			expected: []component.Component{
@@ -596,9 +596,9 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			expr: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.InfixExpression{
-					Left:     &filter.PathFilter{Value: "./apps/*"},
+					Left:     &filter.PathExpression{Value: "./apps/*"},
 					Operator: "|",
-					Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+					Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 				},
 			},
 			expected: []component.Component{
@@ -623,12 +623,12 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			name: "chained intersections (multiple refinements)",
 			expr: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
-					Left:     &filter.PathFilter{Value: "./apps/*"},
+					Left:     &filter.PathExpression{Value: "./apps/*"},
 					Operator: "|",
-					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
+					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeExpression{Key: "name", Value: "legacy"}},
 				},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -668,7 +668,7 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("empty components list", func(t *testing.T) {
 		t.Parallel()
 
-		expr := &filter.AttributeFilter{Key: "name", Value: "foo"}
+		expr := &filter.AttributeExpression{Key: "name", Value: "foo"}
 		l := log.New()
 		result, err := filter.Evaluate(l, expr, []component.Component{})
 
@@ -680,7 +680,7 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		components := []component.Component{component.NewUnit("./app")}
-		expr := &filter.PathFilter{Value: "[invalid-glob"}
+		expr := &filter.PathExpression{Value: "[invalid-glob"}
 		l := log.New()
 		result, err := filter.Evaluate(l, expr, components)
 
@@ -712,7 +712,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependency traversal - app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "app"},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       false,
@@ -722,7 +722,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependent traversal - ...vpc",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "vpc"},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
 				IncludeDependencies: false,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
@@ -732,7 +732,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "both directions - ...db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "db"},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "db"},
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
@@ -742,7 +742,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target - ^app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "app"},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       true,
@@ -752,7 +752,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target with dependents - ...^db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "db"},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "db"},
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       true,
@@ -794,7 +794,7 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "app"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -810,7 +810,7 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "vpc"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -835,7 +835,7 @@ func TestEvaluate_GraphExpression_EmptyResults(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
 			IncludeDependencies: true,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -861,7 +861,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "isolated"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -877,7 +877,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "isolated"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -907,7 +907,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "a"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -925,7 +925,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "a"},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -962,7 +962,7 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.PathFilter{Value: "./app"},
+			Target:              &filter.PathExpression{Value: "./app"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -1110,7 +1110,7 @@ func TestEvaluate_GitFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gitFilter := filter.NewGitFilter(tt.fromRef, tt.toRef)
+			gitFilter := filter.NewGitExpression(tt.fromRef, tt.toRef)
 			components := tt.setup()
 
 			l := log.New()
@@ -1143,17 +1143,17 @@ func TestEvaluate_GitFilterString(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.GitFilter
+		filter   *filter.GitExpression
 		expected string
 	}{
 		{
 			name:     "two references",
-			filter:   filter.NewGitFilter("main", "HEAD"),
+			filter:   filter.NewGitExpression("main", "HEAD"),
 			expected: "[main...HEAD]",
 		},
 		{
 			name:     "commit SHA references",
-			filter:   filter.NewGitFilter("abc123", "def456"),
+			filter:   filter.NewGitExpression("abc123", "def456"),
 			expected: "[abc123...def456]",
 		},
 	}
@@ -1170,7 +1170,7 @@ func TestEvaluate_GitFilterString(t *testing.T) {
 func TestGitFilter_RequiresDiscovery(t *testing.T) {
 	t.Parallel()
 
-	gitFilter := filter.NewGitFilter("main", "HEAD")
+	gitFilter := filter.NewGitExpression("main", "HEAD")
 
 	expr, requires := gitFilter.RequiresDiscovery()
 	assert.True(t, requires)
@@ -1180,7 +1180,7 @@ func TestGitFilter_RequiresDiscovery(t *testing.T) {
 func TestGitFilter_RequiresParse(t *testing.T) {
 	t.Parallel()
 
-	gitFilter := filter.NewGitFilter("main", "HEAD")
+	gitFilter := filter.NewGitExpression("main", "HEAD")
 
 	expr, requires := gitFilter.RequiresParse()
 	assert.False(t, requires)

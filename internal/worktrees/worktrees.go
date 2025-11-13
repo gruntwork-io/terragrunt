@@ -23,8 +23,8 @@ import (
 // It's a mapping of both Git references to worktree paths and Git filter expressions to diffs.
 // It's only constructed once, and is then re-used thereafter.
 type Worktrees struct {
-	RefsToPaths        map[string]string
-	ExpressionsToDiffs map[*filter.GitFilter]*git.Diffs
+	RefsToPaths           map[string]string
+	GitExpressionsToDiffs map[*filter.GitExpression]*git.Diffs
 
 	gitRunner *git.GitRunner
 }
@@ -45,8 +45,15 @@ func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
 	workingDir string,
-	gitExpressions filter.GitFilters,
+	gitExpressions filter.GitExpressions,
 ) (*Worktrees, error) {
+	if len(gitExpressions) == 0 {
+		return &Worktrees{
+			RefsToPaths:           make(map[string]string),
+			GitExpressionsToDiffs: make(map[*filter.GitExpression]*git.Diffs),
+		}, nil
+	}
+
 	gitRefs := gitExpressions.UniqueGitRefs()
 
 	var (
@@ -54,7 +61,7 @@ func NewWorktrees(
 		mu   sync.Mutex
 	)
 
-	expressionsToDiffs := make(map[*filter.GitFilter]*git.Diffs, len(gitExpressions))
+	expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
 
 	gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
 	gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
@@ -110,24 +117,24 @@ func NewWorktrees(
 
 	if err := gitCmdGroup.Wait(); err != nil {
 		return &Worktrees{
-			RefsToPaths:        refsToPaths,
-			ExpressionsToDiffs: expressionsToDiffs,
-			gitRunner:          gitRunner,
+			RefsToPaths:           refsToPaths,
+			GitExpressionsToDiffs: expressionsToDiffs,
+			gitRunner:             gitRunner,
 		}, err
 	}
 
 	if len(errs) > 0 {
 		return &Worktrees{
-			RefsToPaths:        refsToPaths,
-			ExpressionsToDiffs: expressionsToDiffs,
-			gitRunner:          gitRunner,
+			RefsToPaths:           refsToPaths,
+			GitExpressionsToDiffs: expressionsToDiffs,
+			gitRunner:             gitRunner,
 		}, errors.Join(errs...)
 	}
 
 	return &Worktrees{
-		RefsToPaths:        refsToPaths,
-		ExpressionsToDiffs: expressionsToDiffs,
-		gitRunner:          gitRunner,
+		RefsToPaths:           refsToPaths,
+		GitExpressionsToDiffs: expressionsToDiffs,
+		gitRunner:             gitRunner,
 	}, nil
 }
 

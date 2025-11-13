@@ -103,8 +103,8 @@ func (f Filters) DependentGraphExpressions() []Expression {
 }
 
 // UniqueGitFilters returns all unique Git filters that require worktree discovery.
-func (f Filters) UniqueGitFilters() GitFilters {
-	var targets GitFilters
+func (f Filters) UniqueGitFilters() GitExpressions {
+	var targets GitExpressions
 
 	seen := make(map[string]struct{})
 
@@ -204,10 +204,10 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 }
 
 // collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
-func collectWorktreeExpressions(expr Expression) []*GitFilter {
-	var targets []*GitFilter
+func collectWorktreeExpressions(expr Expression) []*GitExpression {
+	var targets []*GitExpression
 
-	if gitFilter, ok := expr.(*GitFilter); ok {
+	if gitFilter, ok := expr.(*GitExpression); ok {
 		targets = append(targets, gitFilter)
 	}
 
@@ -231,7 +231,7 @@ func collectWorktreeExpressions(expr Expression) []*GitFilter {
 func collectGitReferences(expr Expression) []string {
 	var refs []string
 
-	if gitFilter, ok := expr.(*GitFilter); ok {
+	if gitFilter, ok := expr.(*GitExpression); ok {
 		refs = append(refs, gitFilter.FromRef, gitFilter.ToRef)
 
 		return refs
