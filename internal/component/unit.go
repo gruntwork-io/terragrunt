@@ -1,10 +1,16 @@
 package component
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 const (
@@ -12,7 +18,9 @@ const (
 )
 
 // Unit represents a discovered Terragrunt unit configuration.
+// This type serves as a DTO for data exchange between discovery and runner packages.
 type Unit struct {
+	// Discovery fields (populated by discovery package)
 	cfg              *config.TerragruntConfig
 	path             string
 	reading          []string
@@ -20,7 +28,15 @@ type Unit struct {
 	dependencies     Components
 	dependents       Components
 	external         bool
-	mu               sync.RWMutex
+
+	// Runtime/Execution fields (populated by runner package)
+	terragruntOptions    *options.TerragruntOptions
+	logger               log.Logger
+	assumeAlreadyApplied bool
+	flagExcluded         bool
+
+	// Thread-safety
+	mu sync.RWMutex
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -187,4 +203,219 @@ func (u *Unit) Dependents() Components {
 	defer u.rUnlock()
 
 	return u.dependents
+}
+
+// TerragruntOptions returns the Terragrunt options for this unit.
+func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.terragruntOptions
+}
+
+// SetTerragruntOptions sets the Terragrunt options for this unit.
+func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
+	u.lock()
+	defer u.unlock()
+
+	u.terragruntOptions = opts
+}
+
+// Logger returns the logger for this unit.
+func (u *Unit) Logger() log.Logger {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.logger
+}
+
+// SetLogger sets the logger for this unit.
+func (u *Unit) SetLogger(logger log.Logger) {
+	u.lock()
+	defer u.unlock()
+
+	u.logger = logger
+}
+
+// AssumeAlreadyApplied returns whether this unit should be assumed as already applied.
+func (u *Unit) AssumeAlreadyApplied() bool {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.assumeAlreadyApplied
+}
+
+// SetAssumeAlreadyApplied sets whether this unit should be assumed as already applied.
+func (u *Unit) SetAssumeAlreadyApplied(assume bool) {
+	u.lock()
+	defer u.unlock()
+
+	u.assumeAlreadyApplied = assume
+}
+
+// FlagExcluded returns whether this unit was excluded by filters/flags.
+func (u *Unit) FlagExcluded() bool {
+	u.rLock()
+	defer u.rUnlock()
+
+	return u.flagExcluded
+}
+
+// SetFlagExcluded sets whether this unit was excluded by filters/flags.
+func (u *Unit) SetFlagExcluded(excluded bool) {
+	u.lock()
+	defer u.unlock()
+
+	u.flagExcluded = excluded
+}
+
+// String renders this unit as a human-readable string.
+func (u *Unit) String() string {
+	u.rLock()
+	defer u.rUnlock()
+
+	var dependencies = make([]string, 0, len(u.dependencies))
+	for _, dependency := range u.dependencies {
+		dependencies = append(dependencies, dependency.Path())
+	}
+
+	return fmt.Sprintf(
+		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
+		u.path, u.flagExcluded, u.assumeAlreadyApplied, strings.Join(dependencies, ", "),
+	)
+}
+
+// AbsolutePath returns the absolute path of the unit.
+// If path conversion fails, returns the original path and logs a warning.
+func (u *Unit) AbsolutePath() string {
+	u.rLock()
+	path := u.path
+	logger := u.logger
+	u.rUnlock()
+
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		if logger != nil {
+			logger.Warnf("Failed to get absolute path for %s: %v", path, err)
+		}
+
+		return path
+	}
+
+	return absPath
+}
+
+// FindUnitInPath returns true if a unit is located under one of the target directories.
+// Both unit.Path and targetDirs are expected to be in canonical form (absolute or relative to the same base).
+func (u *Unit) FindUnitInPath(targetDirs []string) bool {
+	u.rLock()
+	defer u.rUnlock()
+
+	return slices.Contains(targetDirs, u.path)
+}
+
+// PlanFile returns plan file location, if output folder is set.
+func (u *Unit) PlanFile() string {
+	u.rLock()
+	opts := u.terragruntOptions
+	u.rUnlock()
+
+	if opts == nil {
+		return ""
+	}
+
+	var planFile string
+
+	// set plan file location if output folder is set
+	planFile = u.OutputFile()
+
+	planCommand := opts.TerraformCommand == tf.CommandNamePlan || opts.TerraformCommand == tf.CommandNameShow
+
+	// in case if JSON output is enabled, and not specified PlanFile, save plan in working dir
+	if planCommand && planFile == "" && opts.JSONOutputFolder != "" {
+		planFile = tf.TerraformPlanFile
+	}
+
+	return planFile
+}
+
+// OutputFile returns plan file location, if output folder is set.
+func (u *Unit) OutputFile() string {
+	u.rLock()
+	opts := u.terragruntOptions
+	logger := u.logger
+	u.rUnlock()
+
+	if opts == nil {
+		return ""
+	}
+
+	return u.getPlanFilePath(logger, opts, opts.OutputFolder, tf.TerraformPlanFile)
+}
+
+// OutputJSONFile returns plan JSON file location, if JSON output folder is set.
+func (u *Unit) OutputJSONFile() string {
+	u.rLock()
+	opts := u.terragruntOptions
+	logger := u.logger
+	u.rUnlock()
+
+	if opts == nil {
+		return ""
+	}
+
+	return u.getPlanFilePath(logger, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+}
+
+// getPlanFilePath returns plan file location, if output folder is set.
+func (u *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
+	if outputFolder == "" {
+		return ""
+	}
+
+	u.rLock()
+	path := u.path
+	u.rUnlock()
+
+	relPath, err := filepath.Rel(opts.RootWorkingDir, path)
+	if err != nil {
+		if l != nil {
+			l.Warnf("Failed to get relative path for %s: %v", path, err)
+		}
+		relPath = path
+	}
+
+	dir := filepath.Join(outputFolder, relPath)
+
+	if !filepath.IsAbs(dir) {
+		// Resolve relative output folder against root working directory, not the unit working directory,
+		// so that artifacts for all units are stored under a single root-level out dir structure.
+		base := opts.RootWorkingDir
+		if !filepath.IsAbs(base) {
+			// In case RootWorkingDir is somehow relative, resolve it first.
+			if absBase, err := filepath.Abs(base); err == nil {
+				base = absBase
+			} else {
+				if l != nil {
+					l.Warnf("Failed to get absolute path for root working dir %s: %v", base, err)
+				}
+			}
+		}
+
+		dir = filepath.Join(base, dir)
+
+		if absDir, err := filepath.Abs(dir); err == nil {
+			dir = absDir
+		} else {
+			if l != nil {
+				l.Warnf("Failed to get absolute path for %s: %v", dir, err)
+			}
+		}
+	}
+
+	return filepath.Join(dir, fileName)
 }

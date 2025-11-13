@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -16,7 +17,7 @@ type Stack struct {
 	Report                *report.Report
 	TerragruntOptions     *options.TerragruntOptions
 	ChildTerragruntConfig *config.TerragruntConfig
-	Units                 Units
+	Units                 component.Components // Changed from Units to component.Components
 	ParserOptions         []hclparse.Option
 }
 
@@ -33,10 +34,10 @@ func (stack *Stack) String() string {
 }
 
 // FindUnitByPath finds a unit in the stack by its path
-func (stack *Stack) FindUnitByPath(path string) *Unit {
-	for _, unit := range stack.Units {
-		if unit.Path == path {
-			return unit
+func (stack *Stack) FindUnitByPath(path string) component.Component {
+	for _, comp := range stack.Units {
+		if comp.Path() == path {
+			return comp
 		}
 	}
 

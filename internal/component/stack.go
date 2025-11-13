@@ -1,10 +1,14 @@
 package component
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -12,7 +16,9 @@ const (
 )
 
 // Stack represents a discovered Terragrunt stack configuration.
+// This type serves as a DTO for data exchange between discovery and runner packages.
 type Stack struct {
+	// Discovery fields (populated by discovery package)
 	cfg              *config.StackConfig
 	path             string
 	reading          []string
@@ -20,7 +26,14 @@ type Stack struct {
 	dependencies     Components
 	dependents       Components
 	external         bool
-	mu               sync.RWMutex
+
+	// Runtime/Execution fields (populated by runner package)
+	terragruntOptions *options.TerragruntOptions
+	logger            log.Logger
+	flagExcluded      bool
+
+	// Thread-safety
+	mu sync.RWMutex
 }
 
 // NewStack creates a new Stack component with the given path.
@@ -180,4 +193,68 @@ func (s *Stack) Dependents() Components {
 	defer s.rUnlock()
 
 	return s.dependents
+}
+
+// TerragruntOptions returns the Terragrunt options for this stack.
+func (s *Stack) TerragruntOptions() *options.TerragruntOptions {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.terragruntOptions
+}
+
+// SetTerragruntOptions sets the Terragrunt options for this stack.
+func (s *Stack) SetTerragruntOptions(opts *options.TerragruntOptions) {
+	s.lock()
+	defer s.unlock()
+
+	s.terragruntOptions = opts
+}
+
+// Logger returns the logger for this stack.
+func (s *Stack) Logger() log.Logger {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.logger
+}
+
+// SetLogger sets the logger for this stack.
+func (s *Stack) SetLogger(logger log.Logger) {
+	s.lock()
+	defer s.unlock()
+
+	s.logger = logger
+}
+
+// FlagExcluded returns whether this stack was excluded by filters/flags.
+func (s *Stack) FlagExcluded() bool {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.flagExcluded
+}
+
+// SetFlagExcluded sets whether this stack was excluded by filters/flags.
+func (s *Stack) SetFlagExcluded(excluded bool) {
+	s.lock()
+	defer s.unlock()
+
+	s.flagExcluded = excluded
+}
+
+// String renders this stack as a human-readable string.
+func (s *Stack) String() string {
+	s.rLock()
+	defer s.rUnlock()
+
+	var dependencies = make([]string, 0, len(s.dependencies))
+	for _, dependency := range s.dependencies {
+		dependencies = append(dependencies, dependency.Path())
+	}
+
+	return fmt.Sprintf(
+		"Stack %s (excluded: %v, dependencies: [%s])",
+		s.path, s.flagExcluded, strings.Join(dependencies, ", "),
+	)
 }

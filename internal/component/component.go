@@ -35,6 +35,7 @@ type Component interface {
 	AddDependent(Component)
 	Dependencies() Components
 	Dependents() Components
+	String() string // Human-readable representation
 
 	lock()
 	unlock()
