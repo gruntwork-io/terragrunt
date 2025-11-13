@@ -16,8 +16,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
 )
@@ -35,6 +38,31 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	})
 	if err != nil {
 		return errors.New(err)
+	}
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		// We do worktree generation here instead of in the discovery constructor
+		// so that we can defer cleanup in the same context.
+		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		if err != nil {
+			return fmt.Errorf("failed to parse filters: %w", err)
+		}
+
+		gitFilters := filters.UniqueGitFilters()
+
+		worktrees, err := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if err != nil {
+			return errors.Errorf("failed to create worktrees: %w", err)
+		}
+
+		defer func() {
+			cleanupErr := worktrees.Cleanup(ctx, l)
+			if cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+
+		d = d.WithWorktrees(worktrees)
 	}
 
 	var (
