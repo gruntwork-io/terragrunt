@@ -194,8 +194,11 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
 		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
 		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*ctx.Locals)
-		terragruntConfig.Locals = localsParsed
-		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		// Only set Locals if there are actual values to avoid setting an empty map
+		if len(localsParsed) > 0 {
+			terragruntConfig.Locals = localsParsed
+			terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		}
 	}
 
 	return terragruntConfig, nil

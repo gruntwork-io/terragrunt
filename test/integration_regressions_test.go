@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ const (
 	testFixtureDependencyGenerate        = "fixtures/regressions/dependency-generate"
 	testFixtureDependencyEmptyConfigPath = "fixtures/regressions/dependency-empty-config-path"
 	testFixtureParsingDeprecated         = "fixtures/parsing/exposed-include-with-deprecated-inputs"
+	testFixtureSensitiveValues           = "fixtures/regressions/sensitive-values"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -328,4 +330,44 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	assert.NotContains(t, combinedOutput, "service1")
 	assert.Contains(t, combinedOutput, "null_resource.services_info")
 	assert.Contains(t, combinedOutput, "Excluded")
+}
+
+// TestSensitiveValues tests that sensitive values can be properly handled
+// when reading from YAML files and using the sensitive() function in locals.
+// This validates that:
+// 1. YAML files can be decoded and accessed in a map lookup based on environment
+// 2. The sensitive() wrapper properly marks values as sensitive
+// 3. Sensitive values can be passed as inputs to Terraform
+// 4. The password length can be validated in outputs
+func TestSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureSensitiveValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSensitiveValues)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureSensitiveValues)
+
+	// Run terragrunt apply
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
+
+	// Get the output to verify password length
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	// Verify the password length output exists and is a number
+	require.Contains(t, outputs, "password_length", "Should have password_length output")
+	assert.Equal(t, "number", outputs["password_length"].Type, "password_length should be of type number")
+
+	// Verify the password length matches the dev password length (25 characters)
+	passwordLengthStr := fmt.Sprintf("%v", outputs["password_length"].Value)
+	assert.Equal(t, "25", passwordLengthStr,
+		"Password length should match dev password")
 }

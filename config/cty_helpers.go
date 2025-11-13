@@ -7,7 +7,6 @@ import (
 	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
-	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"maps"
@@ -231,18 +230,13 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 
 // ConvertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
 func ConvertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
-	valMapAsCty := cty.NilVal
-
-	if len(valMap) > 0 {
-		var err error
-
-		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
-		if err != nil {
-			return valMapAsCty, errors.New(err)
-		}
+	if len(valMap) == 0 {
+		// Return an empty object instead of NilVal for empty maps.
+		return cty.EmptyObjectVal, nil
 	}
 
-	return valMapAsCty, nil
+	// Use cty.ObjectVal directly instead of gocty.ToCtyValue to preserve marks (like sensitive())
+	return cty.ObjectVal(valMap), nil
 }
 
 // generateTypeFromValuesMap takes a values map and returns an object type that has the same number of fields, but
