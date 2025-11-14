@@ -178,7 +178,10 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
 
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
 	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")

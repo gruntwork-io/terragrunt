@@ -753,7 +753,10 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
 
 	// Create three units initially
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
