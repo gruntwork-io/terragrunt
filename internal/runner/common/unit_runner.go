@@ -43,7 +43,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	logger := runner.Unit.Logger()
 	logger.Debugf("Running %s", runner.Unit.Path())
 
-	opts.Writer = NewUnitWriter(opts.Writer)
+	opts.Writer = component.NewUnitWriter(opts.Writer)
 
 	defer func() {
 		outputLocks.Lock(runner.Unit.Path())
