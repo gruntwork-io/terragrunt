@@ -341,6 +341,29 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 	return ParseDiff(stdout.Bytes())
 }
 
+// Init initializes a Git repository
+func (g *GitRunner) Init(ctx context.Context) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "init")
+
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_init",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return nil
+}
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 

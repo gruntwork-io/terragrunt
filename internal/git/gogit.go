@@ -21,6 +21,8 @@ func (g *GitRunner) GoLsTreeRecursive(l log.Logger, ref, path string) ([]TreeEnt
 		return nil, err
 	}
 
+	// TODO: Refactor so that we hold onto the repo and can close the storage later.
+
 	baseDir := g.WorkDir
 
 	fs := osfs.New(baseDir)
@@ -65,6 +67,94 @@ func (g *GitRunner) GoLsTreeRecursive(l log.Logger, ref, path string) ([]TreeEnt
 	}
 
 	return entries, nil
+}
+
+func (g *GitRunner) GoAdd(l log.Logger, paths ...string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	// TODO: Refactor so that we hold onto the repo and can close the storage later.
+
+	baseDir := g.WorkDir
+
+	fs := osfs.New(baseDir)
+	if _, err := fs.Stat(git.GitDirName); err == nil {
+		fs, err = fs.Chroot(git.GitDirName)
+		if err != nil {
+			return err
+		}
+	}
+
+	s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+
+	repo, err := git.Open(s, fs)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if closeErr := s.Close(); closeErr != nil {
+			l.Errorf("failed to close git storage: %s", closeErr.Error())
+		}
+	}()
+
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	for _, path := range paths {
+		_, err := w.Add(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (g *GitRunner) GoCommit(l log.Logger, message string, opts *git.CommitOptions) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	// TODO: Refactor so that we hold onto the repo and can close the storage later.
+
+	baseDir := g.WorkDir
+
+	fs := osfs.New(baseDir)
+	if _, err := fs.Stat(git.GitDirName); err == nil {
+		fs, err = fs.Chroot(git.GitDirName)
+		if err != nil {
+			return err
+		}
+	}
+
+	s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+
+	repo, err := git.Open(s, fs)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if closeErr := s.Close(); closeErr != nil {
+			l.Errorf("failed to close git storage: %s", closeErr.Error())
+		}
+	}()
+
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Commit(message, opts)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // goLsTreeOnTree uses the `go-git` library to recursively list the contents of a git tree.

@@ -864,6 +864,8 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	}
 }
 
+// TODO: Remove
+
 // gitAdd adds files to Git staging area
 func gitAdd(t *testing.T, dir string, paths ...string) {
 	t.Helper()
