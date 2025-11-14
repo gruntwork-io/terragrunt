@@ -44,16 +44,16 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
 		// We do worktree generation here instead of in the discovery constructor
 		// so that we can defer cleanup in the same context.
-		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
-		if err != nil {
-			return fmt.Errorf("failed to parse filters: %w", err)
+		filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse filters: %w", parseErr)
 		}
 
 		gitFilters := filters.UniqueGitFilters()
 
-		worktrees, err := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
-		if err != nil {
-			return errors.Errorf("failed to create worktrees: %w", err)
+		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if worktreeErr != nil {
+			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
 		}
 
 		defer func() {
@@ -172,11 +172,25 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, c.Path())
-		if err != nil {
-			errs = append(errs, errors.New(err))
+		var (
+			relPath string
+			err     error
+		)
 
-			continue
+		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
+			relPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, c.Path())
+			if err != nil {
+				errs = append(errs, errors.New(err))
+
+				continue
+			}
+		} else {
+			relPath, err = filepath.Rel(opts.WorkingDir, c.Path())
+			if err != nil {
+				errs = append(errs, errors.New(err))
+
+				continue
+			}
 		}
 
 		foundComponent := &FoundComponent{
@@ -223,11 +237,22 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
 			for i, dep := range c.Dependencies() {
-				relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path())
-				if err != nil {
-					errs = append(errs, errors.New(err))
+				var relDepPath string
 
-					continue
+				if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
+					relDepPath, err = filepath.Rel(dep.DiscoveryContext().WorkingDir, dep.Path())
+					if err != nil {
+						errs = append(errs, errors.New(err))
+
+						continue
+					}
+				} else {
+					relDepPath, err = filepath.Rel(opts.WorkingDir, dep.Path())
+					if err != nil {
+						errs = append(errs, errors.New(err))
+
+						continue
+					}
 				}
 
 				foundComponent.Dependencies[i] = relDepPath
