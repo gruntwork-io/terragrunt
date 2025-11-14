@@ -189,7 +189,13 @@ func TestGitRunner_GoCommit(t *testing.T) {
 
 		// Commit the changes
 		commitMessage := "test commit"
-		err = runner.GoCommit(commitMessage, nil)
+		err = runner.GoCommit(commitMessage, &gogit.CommitOptions{
+			Author: &object.Signature{
+				Name:  "Test Author",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
+		})
 		require.NoError(t, err)
 
 		// Verify commit was created
