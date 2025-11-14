@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -41,23 +42,37 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("src unit not found at %s", srcPath)
 	}
 
-	dstModule := stack.GetStack().FindUnitByPath(dstPath)
-	if dstModule == nil {
+	dstModuleComp := stack.GetStack().FindUnitByPath(dstPath)
+	if dstModuleComp == nil {
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.TerragruntOptions)
+	// Type assert to component.Unit to access TerragruntOptions
+	srcUnit, ok := srcModule.(*component.Unit)
+	if !ok {
+		return errors.Errorf("src module is not a component.Unit")
+	}
+
+	dstUnit, ok := dstModuleComp.(*component.Unit)
+	if !ok {
+		return errors.Errorf("dst module is not a component.Unit")
+	}
+
+	srcOpts := srcUnit.TerragruntOptions()
+	dstOpts := dstUnit.TerragruntOptions()
+
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcOpts)
 	if err != nil || srcRemoteState == nil {
 		return err
 	}
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.TerragruntOptions)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstOpts)
 	if err != nil || dstRemoteState == nil {
 		return err
 	}
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcModule.TerragruntOptions)
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcOpts)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -67,5 +82,5 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, l, srcModule.TerragruntOptions, dstModule.TerragruntOptions, dstRemoteState)
+	return srcRemoteState.Migrate(ctx, l, srcOpts, dstOpts, dstRemoteState)
 }

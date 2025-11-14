@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -117,7 +118,7 @@ type mockFilter struct {
 	ID string
 }
 
-func (m *mockFilter) Filter(ctx context.Context, units common.Units, opts *options.TerragruntOptions) error {
+func (m *mockFilter) Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error {
 	return nil
 }
 

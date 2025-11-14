@@ -21,9 +21,10 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options
 	dependentUnits := make(map[string][]string)
 
 	for _, unit := range units {
-		if len(unit.Dependencies) != 0 {
-			for _, dep := range unit.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
+		dependencies := unit.Dependencies()
+		if len(dependencies) != 0 {
+			for _, dep := range dependencies {
+				dependentUnits[dep.Path()] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path()], unit.Path()))
 			}
 		}
 	}
@@ -62,9 +63,9 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options
 
 	// Mark units as excluded unless they are in modulesToInclude
 	for _, module := range units {
-		module.FlagExcluded = true
-		if util.ListContainsElement(modulesToInclude, module.Path) {
-			module.FlagExcluded = false
+		module.SetFlagExcluded(true)
+		if util.ListContainsElement(modulesToInclude, module.Path()) {
+			module.SetFlagExcluded(false)
 		}
 	}
 

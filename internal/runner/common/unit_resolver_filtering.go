@@ -69,8 +69,8 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 
 		return func(unit *Unit) bool {
 			for globPath, globPattern := range globs {
-				if globPattern.Match(unit.Path) {
-					l.Debugf("Unit %s is %s by glob %s", unit.Path, action, globPath)
+				if globPattern.Match(unit.Path()) {
+					l.Debugf("Unit %s is %s by glob %s", unit.Path(), action, globPath)
 					return true
 				}
 			}
@@ -95,8 +95,8 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 
 	return func(unit *Unit) bool {
 		for _, dir := range dirs {
-			if util.HasPathPrefix(unit.Path, dir) {
-				l.Debugf("Unit %s is %s by exact path match %s", unit.Path, action, dir)
+			if util.HasPathPrefix(unit.Path(), dir) {
+				l.Debugf("Unit %s is %s by exact path match %s", unit.Path(), action, dir)
 				return true
 			}
 		}
@@ -133,18 +133,20 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 	includeFn := r.createPathMatcherFunc("include", opts, l)
 
 	for _, unit := range units {
-		unit.FlagExcluded = true
+		unit.SetFlagExcluded(true)
 		if includeFn(unit) {
-			unit.FlagExcluded = false
+			unit.SetFlagExcluded(false)
 		}
 	}
 
 	// Mark all affected dependencies as included before proceeding if not in strict include mode.
 	if !opts.StrictInclude {
 		for _, unit := range units {
-			if !unit.FlagExcluded {
-				for _, dependency := range unit.Dependencies {
-					dependency.FlagExcluded = false
+			if !unit.FlagExcluded() {
+				for _, dependency := range unit.Dependencies() {
+					if dep, ok := dependency.(*Unit); ok {
+						dep.SetFlagExcluded(false)
+					}
 				}
 			}
 		}
@@ -200,16 +202,16 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 	for _, normalizedPath := range normalizedPaths {
 		for _, unit := range units {
 			// Check unit.Reading (populated by discovery's FilesRead tracking)
-			if slices.Contains(unit.Reading, normalizedPath) {
-				unit.FlagExcluded = false
+			if slices.Contains(unit.Reading(), normalizedPath) {
+				unit.SetFlagExcluded(false)
 				continue
 			}
 
 			// Fallback: check Config.ProcessedIncludes (include blocks from config)
 			// This is needed because unit.Reading may not be populated in all cases
-			for _, includeConfig := range unit.Config.ProcessedIncludes {
+			for _, includeConfig := range unit.Config().ProcessedIncludes {
 				if includeConfig.Path == normalizedPath {
-					unit.FlagExcluded = false
+					unit.SetFlagExcluded(false)
 					break
 				}
 			}
@@ -251,22 +253,22 @@ func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOp
 	for _, unit := range units {
 		if excludeFn(unit) {
 			// Mark unit itself as excluded
-			unit.FlagExcluded = true
+			unit.SetFlagExcluded(true)
 
 			// Only update report if it's enabled
 			if reportInstance != nil {
-				r.reportUnitExclusion(l, unit.Path, report.ReasonExcludeDir)
+				r.reportUnitExclusion(l, unit.Path(), report.ReasonExcludeDir)
 			}
 		}
 
 		// Mark all affected dependencies as excluded
-		for _, dependency := range unit.Dependencies {
-			if excludeFn(dependency) {
-				dependency.FlagExcluded = true
+		for _, dependency := range unit.Dependencies() {
+			if dep, ok := dependency.(*Unit); ok && excludeFn(dep) {
+				dep.SetFlagExcluded(true)
 
 				// Only update report if it's enabled
 				if reportInstance != nil {
-					r.reportUnitExclusion(l, dependency.Path, report.ReasonExcludeDir)
+					r.reportUnitExclusion(l, dep.Path(), report.ReasonExcludeDir)
 				}
 			}
 		}
@@ -294,7 +296,7 @@ func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.L
 // applyExcludeModules sets FlagExcluded on units based on the exclude block in their terragrunt.hcl.
 func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
 	for _, unit := range units {
-		excludeConfig := unit.Config.Exclude
+		excludeConfig := unit.Config().Exclude
 
 		if excludeConfig == nil {
 			continue
@@ -307,28 +309,30 @@ func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.Terragrun
 		if excludeConfig.If {
 			// Check if unit was already excluded (e.g., by --queue-exclude-dir)
 			// If so, don't overwrite the existing exclusion reason
-			wasAlreadyExcluded := unit.FlagExcluded
-			unit.FlagExcluded = true
+			wasAlreadyExcluded := unit.FlagExcluded()
+			unit.SetFlagExcluded(true)
 
 			// Only update report if it's enabled AND the unit wasn't already excluded
 			// This ensures CLI flags like --queue-exclude-dir take precedence over exclude blocks
 			if reportInstance != nil && !wasAlreadyExcluded {
-				r.reportUnitExclusion(l, unit.Path, report.ReasonExcludeBlock)
+				r.reportUnitExclusion(l, unit.Path(), report.ReasonExcludeBlock)
 			}
 		}
 
 		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
-			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path)
+			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path())
 
-			for _, dependency := range unit.Dependencies {
-				// Check if dependency was already excluded
-				wasAlreadyExcluded := dependency.FlagExcluded
-				dependency.FlagExcluded = true
+			for _, dependency := range unit.Dependencies() {
+				if dep, ok := dependency.(*Unit); ok {
+					// Check if dependency was already excluded
+					wasAlreadyExcluded := dep.FlagExcluded()
+					dep.SetFlagExcluded(true)
 
-				// Only update report if it's enabled AND the dependency wasn't already excluded
-				// This ensures CLI exclusions take precedence over exclude blocks
-				if reportInstance != nil && !wasAlreadyExcluded {
-					r.reportUnitExclusion(l, dependency.Path, report.ReasonExcludeBlock)
+					// Only update report if it's enabled AND the dependency wasn't already excluded
+					// This ensures CLI exclusions take precedence over exclude blocks
+					if reportInstance != nil && !wasAlreadyExcluded {
+						r.reportUnitExclusion(l, dep.Path(), report.ReasonExcludeBlock)
+					}
 				}
 			}
 		}

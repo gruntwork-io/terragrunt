@@ -131,7 +131,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	}, func(_ context.Context) error {
 		var linkErr error
 
-		crossLinkedUnits, linkErr = unitsMap.ConvertDiscoveryToRunner(canonicalTerragruntConfigPaths)
+		crossLinkedUnits, linkErr = ConvertDiscoveryToRunner(unitsMap, canonicalTerragruntConfigPaths)
 
 		return linkErr
 	})
@@ -144,7 +144,7 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	// Convert Units list back to map for flagging
 	crossLinkedMap := make(UnitsMap)
 	for _, unit := range crossLinkedUnits {
-		crossLinkedMap[unit.Path] = unit
+		crossLinkedMap[unit.Path()] = unit
 	}
 
 	if err := r.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
@@ -268,7 +268,10 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 		// Exclusion check - create a temporary unit for matching
-		unitToExclude := &Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}
+		unitToExclude := component.NewUnit(unitPath)
+		unitToExclude.SetLogger(l)
+		unitToExclude.SetTerragruntOptions(opts)
+		unitToExclude.SetFlagExcluded(true)
 		excludeFn := r.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -310,14 +313,15 @@ func (r *UnitResolver) buildUnitsFromDiscovery(l log.Logger, discovered []compon
 		// Preserve the external flag from discovery component
 		isExternal := dUnit.External()
 
-		units[unitPath] = &Unit{
-			Path:              unitPath,
-			Logger:            l,
-			Config:            *terragruntConfig,
-			TerragruntOptions: opts,
-			Reading:           dUnit.Reading(),
-			IsExternal:        isExternal,
+		unit := component.NewUnit(unitPath)
+		unit.SetLogger(l)
+		unit.StoreConfig(terragruntConfig)
+		unit.SetTerragruntOptions(opts)
+		unit.SetReading(dUnit.Reading()...)
+		if isExternal {
+			unit.SetExternal()
 		}
+		units[unitPath] = unit
 	}
 
 	return units, nil
