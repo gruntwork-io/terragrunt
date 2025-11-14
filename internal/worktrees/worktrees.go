@@ -23,7 +23,7 @@ import (
 // Worktrees is a relatively expensive to construct object.
 //
 // It's a mapping of both Git references to worktree paths and Git filter expressions to diffs.
-// It's only constructed once, and is then re-used thereafter.
+// It's only constructed once, and is then reused thereafter.
 type Worktrees struct {
 	RefsToPaths           map[string]string
 	GitExpressionsToDiffs map[*filter.GitExpression]*git.Diffs
