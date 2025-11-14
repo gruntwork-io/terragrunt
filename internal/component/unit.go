@@ -347,7 +347,9 @@ func (u *Unit) FindUnitInPath(targetDirs []string) bool {
 }
 
 // FlushOutput flushes buffer data to the output writer.
-// This method is used by the runner when TerragruntOptions.Writer is a UnitWriter.
+// This method is used by the runner when TerragruntOptions.Writer is a buffering writer
+// that implements the Flush() method (such as runner/common.UnitWriter).
+// Uses an interface pattern to avoid circular dependency on runner/common package.
 func (u *Unit) FlushOutput() error {
 	u.rLock()
 	opts := u.terragruntOptions
@@ -357,7 +359,13 @@ func (u *Unit) FlushOutput() error {
 		return nil
 	}
 
-	if writer, ok := opts.Writer.(*UnitWriter); ok {
+	// Check if the writer implements Flush() method using interface pattern.
+	// This allows any flushing writer to work without importing concrete types.
+	type flusher interface {
+		Flush() error
+	}
+
+	if writer, ok := opts.Writer.(flusher); ok {
 		key := u.AbsolutePath()
 
 		mu := getUnitOutputLock(key)
