@@ -179,18 +179,14 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 
 		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
 			relPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, c.Path())
-			if err != nil {
-				errs = append(errs, errors.New(err))
-
-				continue
-			}
 		} else {
 			relPath, err = filepath.Rel(opts.WorkingDir, c.Path())
-			if err != nil {
-				errs = append(errs, errors.New(err))
+		}
 
-				continue
-			}
+		if err != nil {
+			errs = append(errs, errors.New(err))
+
+			continue
 		}
 
 		foundComponent := &FoundComponent{
@@ -250,18 +246,14 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 
 				if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
 					relDepPath, err = filepath.Rel(dep.DiscoveryContext().WorkingDir, dep.Path())
-					if err != nil {
-						errs = append(errs, errors.New(err))
-
-						continue
-					}
 				} else {
 					relDepPath, err = filepath.Rel(opts.WorkingDir, dep.Path())
-					if err != nil {
-						errs = append(errs, errors.New(err))
+				}
 
-						continue
-					}
+				if err != nil {
+					errs = append(errs, errors.New(err))
+
+					continue
 				}
 
 				foundComponent.Dependencies[i] = relDepPath
