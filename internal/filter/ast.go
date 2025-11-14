@@ -289,16 +289,14 @@ func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters) {
 	// Build simple expressions that can be determined simply from the diffs.
 	fromExpressions := make(Expressions, 0, len(diffs.Removed))
 	for _, path := range diffs.Removed {
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
+		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
 			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
 		}
 	}
 
 	toExpressions := make(Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 	for _, path := range diffs.Added {
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
+		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
 			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
 		}
 	}

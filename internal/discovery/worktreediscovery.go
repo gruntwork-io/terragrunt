@@ -197,7 +197,7 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 
 	for _, stack := range stackDiff.Added {
 		w.Go(func() error {
-			components, err := wd.walkAddedStack(ctx, l, opts, wd.originalDiscovery, stack)
+			components, err := wd.walkAddedRemovedStack(ctx, l, opts, wd.originalDiscovery, toWorktreeKind, stack)
 			if err != nil {
 				mu.Lock()
 
@@ -218,7 +218,7 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 
 	for _, stack := range stackDiff.Removed {
 		w.Go(func() error {
-			components, err := wd.walkRemovedStack(ctx, l, opts, wd.originalDiscovery, stack)
+			components, err := wd.walkAddedRemovedStack(ctx, l, opts, wd.originalDiscovery, fromWorktreeKind, stack)
 			if err != nil {
 				mu.Lock()
 
@@ -270,79 +270,34 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 	return discoveredComponents.ToComponents(), nil
 }
 
-// walkAddedStack walks an added stack and discovers components within it.
+// walkAddedRemovedStack walks an added or removed stack and discovers components within it.
 //
-// We don't really need to do any diffing for situations where a stack is being added, we can just include
-// all the components within that stack, with the assumption that all the units within it are new.
-func (wd *WorktreeDiscovery) walkAddedStack(
+// We don't really need to do any diffing for situations where a stack is being added or removed, we can just include
+// all the components within that stack, with the assumption that all the units within it are new or removed.
+func (wd *WorktreeDiscovery) walkAddedRemovedStack(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	originalDiscovery *Discovery,
+	worktreeKind worktreeKind,
 	stack *component.Stack,
 ) (component.Components, error) {
-	addedDiscovery := *originalDiscovery
+	newDiscovery := *originalDiscovery
 
-	addedDiscoveryContext := *addedDiscovery.discoveryContext
-	addedDiscoveryContext.WorkingDir = stack.Path()
-	addedDiscoveryContext.Ref = stack.DiscoveryContext().Ref
+	newDiscoveryContext := *newDiscovery.discoveryContext
+	newDiscoveryContext.WorkingDir = stack.Path()
+	newDiscoveryContext.Ref = stack.DiscoveryContext().Ref
 
-	addedDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
-		addedDiscoveryContext,
-		toWorktreeKind,
+	newDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
+		newDiscoveryContext,
+		worktreeKind,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	components, err := addedDiscovery.
-		WithDiscoveryContext(&addedDiscoveryContext).
-		WithFilters(
-			filter.Filters{},
-		).
-		Discover(ctx, l, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Reset the discovery context working directory to the original directory.
-	for _, component := range components {
-		discoveryContext := *component.DiscoveryContext()
-		discoveryContext.WorkingDir = stack.DiscoveryContext().WorkingDir
-		component.SetDiscoveryContext(&discoveryContext)
-	}
-
-	return components, nil
-}
-
-// walkRemovedStack walks a removed stack and discovers components within it.
-//
-// We don't really need to do any diffing for situations where a stack is being removed, we can just include
-// all the components within that stack, with the assumption that all the units within it are removed.
-func (wd *WorktreeDiscovery) walkRemovedStack(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	originalDiscovery *Discovery,
-	stack *component.Stack,
-) (component.Components, error) {
-	removedDiscovery := *originalDiscovery
-
-	removedDiscoveryContext := *removedDiscovery.discoveryContext
-
-	removedDiscoveryContext.WorkingDir = stack.Path()
-	removedDiscoveryContext.Ref = stack.DiscoveryContext().Ref
-
-	removedDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
-		removedDiscoveryContext,
-		fromWorktreeKind,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	components, err := removedDiscovery.
-		WithDiscoveryContext(&removedDiscoveryContext).
+	components, err := newDiscovery.
+		WithDiscoveryContext(&newDiscoveryContext).
 		WithFilters(
 			filter.Filters{},
 		).
@@ -411,7 +366,7 @@ func (wd *WorktreeDiscovery) walkChangedStack(
 	var fromComponents, toComponents component.Components
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	discoveryGroup.SetLimit(min(runtime.NumCPU(), 2))
+	discoveryGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
 
 	var (
 		mu   sync.Mutex
@@ -427,11 +382,13 @@ func (wd *WorktreeDiscovery) walkChangedStack(
 				filter.Filters{},
 			).
 			Discover(discoveryCtx, l, opts)
-
 		if fromDiscoveryErr != nil {
 			mu.Lock()
+
 			errs = append(errs, fromDiscoveryErr)
+
 			mu.Unlock()
+
 			return nil
 		}
 
@@ -454,11 +411,13 @@ func (wd *WorktreeDiscovery) walkChangedStack(
 				filter.Filters{},
 			).
 			Discover(discoveryCtx, l, opts)
-
 		if toDiscoveryErr != nil {
 			mu.Lock()
+
 			errs = append(errs, toDiscoveryErr)
+
 			mu.Unlock()
+
 			return nil
 		}
 
@@ -525,7 +484,7 @@ func (wd *WorktreeDiscovery) walkChangedStack(
 		var fromSHA, toSHA string
 
 		shaGroup, _ := errgroup.WithContext(ctx)
-		shaGroup.SetLimit(min(runtime.NumCPU(), 2))
+		shaGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
 
 		shaGroup.Go(func() error {
 			fromSHA, err = generateDirSHA256(componentPair.FromComponent.Path())
@@ -618,7 +577,6 @@ func generateDirSHA256(rootDir string) (string, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return "", fmt.Errorf("error walking directory: %w", err)
 	}
@@ -626,6 +584,7 @@ func generateDirSHA256(rootDir string) (string, error) {
 	sort.Strings(filePaths)
 
 	hash := sha256.New()
+
 	for _, path := range filePaths {
 		f, err := os.Open(path)
 		if err != nil {

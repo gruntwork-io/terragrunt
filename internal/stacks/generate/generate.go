@@ -378,15 +378,12 @@ func worktreeStacksToGenerate(
 	stackDiff := worktrees.Stacks()
 
 	editedStacks := append(
-		append(
-			stackDiff.Added,
-			stackDiff.Removed...,
-		),
+		stackDiff.Added,
+		stackDiff.Removed...,
 	)
 
 	for _, changed := range stackDiff.Changed {
-		editedStacks = append(editedStacks, changed.FromStack)
-		editedStacks = append(editedStacks, changed.ToStack)
+		editedStacks = append(editedStacks, changed.FromStack, changed.ToStack)
 	}
 
 	for _, stack := range editedStacks {
@@ -414,6 +411,7 @@ func worktreeStacksToGenerate(
 			if err != nil {
 				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", expression.FromRef, err)
 			}
+
 			fullDiscoveries[expression.FromRef] = discovery
 		}
 
@@ -426,6 +424,7 @@ func worktreeStacksToGenerate(
 			if err != nil {
 				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", expression.ToRef, err)
 			}
+
 			fullDiscoveries[expression.ToRef] = discovery
 		}
 	}
@@ -443,8 +442,11 @@ func worktreeStacksToGenerate(
 			components, err := discovery.Discover(ctx, l, opts)
 			if err != nil {
 				mu.Lock()
+
 				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", ref, err))
+
 				mu.Unlock()
+
 				return nil
 			}
 
