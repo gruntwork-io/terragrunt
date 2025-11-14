@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 func TestNewWorktrees(t *testing.T) {
@@ -37,11 +39,21 @@ func TestNewWorktrees(t *testing.T) {
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
 	err = runner.GoCommit("Second commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
@@ -88,6 +100,11 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 

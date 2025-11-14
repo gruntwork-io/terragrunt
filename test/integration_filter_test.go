@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 const (
@@ -789,7 +791,13 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{})
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Modify the unit to be modified
@@ -814,7 +822,13 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{})
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Clean up terraform folders before running

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/object"
@@ -283,7 +284,13 @@ func TestGitRunner_GoCommit(t *testing.T) {
 		defer runner.GoCloseStorage()
 
 		// Try to commit without options
-		err = runner.GoCommit("test commit", &gogit.CommitOptions{})
+		err = runner.GoCommit("test commit", &gogit.CommitOptions{
+			Author: &object.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
+		})
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "cannot create empty commit: clean working tree")
 	})

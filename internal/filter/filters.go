@@ -317,6 +317,7 @@ func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string
 				WorkingDir: workingDir,
 			})
 		}
+
 		comps = append(comps, unit)
 	}
 

@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -68,7 +70,13 @@ func TestWorktreeDiscovery(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{})
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Modify the unit to be modified
@@ -93,7 +101,13 @@ func TestWorktreeDiscovery(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{})
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Create options
@@ -212,7 +226,13 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{})
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Modify the unit to be modified
@@ -235,7 +255,13 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{})
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Create options
@@ -485,6 +511,11 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
@@ -496,7 +527,13 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 	err = runner.GoAdd(".")
 	require.NoError(t, err)
 
-	err = runner.GoCommit("Update README", &gogit.CommitOptions{})
+	err = runner.GoCommit("Update README", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
 	require.NoError(t, err)
 
 	// Create options
@@ -559,17 +596,24 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 	defer runner.GoCloseStorage()
 
 	// Create initial commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
 	// Create a second commit with no changes (empty commit)
 	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 

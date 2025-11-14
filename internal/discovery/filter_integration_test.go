@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 func TestDiscoveryWithFilters(t *testing.T) {
@@ -1179,7 +1181,11 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				AllowEmptyCommits: true,
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
 			})
 			require.NoError(t, err)
 
@@ -1209,7 +1215,11 @@ locals {
 			require.NoError(t, err)
 
 			err = runner.GoCommit("Changes: modified app, added new, removed cache", &gogit.CommitOptions{
-				AllowEmptyCommits: true,
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
 			})
 			require.NoError(t, err)
 
@@ -1299,7 +1309,11 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
@@ -1311,7 +1325,11 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	err = runner.GoCommit("Modified app", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
@@ -1380,13 +1398,22 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
 	// Commit again with no changes (empty commit)
 	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	require.NoError(t, err)
 
