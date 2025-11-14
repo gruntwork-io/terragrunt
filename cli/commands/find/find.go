@@ -224,9 +224,18 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			foundComponent.Reading = make([]string, len(c.Reading()))
 
 			for i, reading := range c.Reading() {
-				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
+				var relReadingPath string
+
+				if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
+					relReadingPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
+				} else {
+					relReadingPath, err = filepath.Rel(opts.WorkingDir, reading)
+				}
+
 				if err != nil {
 					errs = append(errs, errors.New(err))
+
+					continue
 				}
 
 				foundComponent.Reading[i] = relReadingPath

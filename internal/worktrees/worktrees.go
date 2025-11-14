@@ -20,10 +20,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Worktrees is a relatively expensive to construct object.
+// Worktrees is a collection of Git references to associated worktree paths and Git filter expressions to diffs.
 //
-// It's a mapping of both Git references to worktree paths and Git filter expressions to diffs.
-// It's only constructed once, and is then reused thereafter.
+// It needs to be passed into any functions that need to interact with Git worktrees, like the generate and discovery
+// packages.
 type Worktrees struct {
 	RefsToPaths           map[string]string
 	GitExpressionsToDiffs map[*filter.GitExpression]*git.Diffs
@@ -131,6 +131,8 @@ func (w *Worktrees) Stacks() StackDiff {
 }
 
 // NewWorktrees creates a new Worktrees for a given set of Git filters.
+//
+// Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
