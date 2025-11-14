@@ -285,19 +285,13 @@ func (g *GitExpression) IsRestrictedToStacks() bool { return false }
 
 // Expand expands a Git expression into the equivalent to and from filter expressions based on the provided
 // diffs for the Git reference pair.
-func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters, error) {
+func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters) {
 	// Build simple expressions that can be determined simply from the diffs.
 	fromExpressions := make(Expressions, 0, len(diffs.Removed))
 	for _, path := range diffs.Removed {
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
 			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
-		case config.DefaultStackFile:
-			fromExpressions = append(fromExpressions, NewInfixExpression(
-				NewPathFilter(filepath.Dir(path)),
-				"|",
-				NewAttributeExpression(AttributeType, AttributeTypeValueStack),
-			))
 		}
 	}
 
@@ -306,12 +300,6 @@ func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
 			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
-		case config.DefaultStackFile:
-			toExpressions = append(toExpressions, NewInfixExpression(
-				NewPathFilter(filepath.Dir(path)),
-				"|",
-				NewAttributeExpression(AttributeType, AttributeTypeValueStack),
-			))
 		}
 	}
 
@@ -320,11 +308,7 @@ func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 		case config.DefaultTerragruntConfigPath:
 			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
 		case config.DefaultStackFile:
-			toExpressions = append(toExpressions, NewInfixExpression(
-				NewPathFilter(filepath.Dir(path)),
-				"|",
-				NewAttributeExpression(AttributeType, AttributeTypeValueStack),
-			))
+			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
 		default:
 			toExpressions = append(toExpressions, NewAttributeExpression(AttributeReading, path))
 		}
@@ -340,7 +324,7 @@ func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters, error) {
 		toFilters = append(toFilters, &Filter{expr: expression, originalQuery: expression.String()})
 	}
 
-	return fromFilters, toFilters, nil
+	return fromFilters, toFilters
 }
 
 // GitExpressions is a slice of Git expressions.

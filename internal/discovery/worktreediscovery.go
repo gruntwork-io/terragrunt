@@ -2,10 +2,21 @@ package discovery
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
+	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -66,10 +77,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	for gitExpression, diffs := range worktree.GitExpressionsToDiffs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters, err := gitExpression.Expand(diffs)
-			if err != nil {
-				return err
-			}
+			fromFilters, toFilters := gitExpression.Expand(diffs)
 
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
@@ -85,15 +93,12 @@ func (wd *WorktreeDiscovery) Discover(
 					fromDiscoveryContext.Ref = gitExpression.FromRef
 					fromDiscoveryContext.WorkingDir = worktree.RefsToPaths[gitExpression.FromRef]
 
-					switch {
-					case (fromDiscoveryContext.Cmd == "plan" || fromDiscoveryContext.Cmd == "apply") &&
-						!slices.Contains(fromDiscoveryContext.Args, "-destroy"):
-						fromDiscoveryContext.Args = append(fromDiscoveryContext.Args, "-destroy")
-					case (fromDiscoveryContext.Cmd == "" && len(fromDiscoveryContext.Args) == 0):
-						// This is the case when using a discovery command like find or list.
-						// It's fine for these commands to not have any command or arguments.
-					default:
-						return NewGitFilterCommandError(fromDiscoveryContext.Cmd, fromDiscoveryContext.Args)
+					fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
+						fromDiscoveryContext,
+						fromWorktreeKind,
+					)
+					if err != nil {
+						return err
 					}
 
 					components, err := fromDiscovery.
@@ -120,14 +125,12 @@ func (wd *WorktreeDiscovery) Discover(
 					toDiscoveryContext.Ref = gitExpression.ToRef
 					toDiscoveryContext.WorkingDir = worktree.RefsToPaths[gitExpression.ToRef]
 
-					switch {
-					case (toDiscoveryContext.Cmd == "plan" || toDiscoveryContext.Cmd == "apply") &&
-						!slices.Contains(toDiscoveryContext.Args, "-destroy"):
-					case (toDiscoveryContext.Cmd == "" && len(toDiscoveryContext.Args) == 0):
-						// This is the case when using a discovery command like find or list.
-						// It's fine for these commands to not have any command or arguments.
-					default:
-						return NewGitFilterCommandError(toDiscoveryContext.Cmd, toDiscoveryContext.Args)
+					toDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
+						toDiscoveryContext,
+						toWorktreeKind,
+					)
+					if err != nil {
+						return err
 					}
 
 					toComponents, err := toDiscovery.
@@ -150,9 +153,499 @@ func (wd *WorktreeDiscovery) Discover(
 		})
 	}
 
+	discoveryGroup.Go(func() error {
+		components, err := wd.discoverChangesInWorktreeStacks(ctx, l, opts, worktree)
+		if err != nil {
+			return err
+		}
+
+		for _, component := range components {
+			discoveredComponents.EnsureComponent(component)
+		}
+
+		return nil
+	})
+
 	if err := discoveryGroup.Wait(); err != nil {
 		return nil, err
 	}
 
 	return discoveredComponents.ToComponents(), nil
+}
+
+// discoverChangesInWorktreeStacks discovers changes in worktree stacks.
+//
+// Stacks are only stored in Git as individual files, so we need to walk them on the filesystem to find any changes
+// to the units they contain.
+func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktree *worktrees.Worktrees,
+) (component.Components, error) {
+	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
+
+	stackDiff := worktree.Stacks()
+
+	w, ctx := errgroup.WithContext(ctx)
+	w.SetLimit(min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2))
+
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+
+	for _, stack := range stackDiff.Added {
+		w.Go(func() error {
+			components, err := wd.walkAddedStack(ctx, l, opts, wd.originalDiscovery, stack)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			for _, component := range components {
+				discoveredComponents.EnsureComponent(component)
+			}
+
+			return nil
+		})
+	}
+
+	for _, stack := range stackDiff.Removed {
+		w.Go(func() error {
+			components, err := wd.walkRemovedStack(ctx, l, opts, wd.originalDiscovery, stack)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			for _, component := range components {
+				discoveredComponents.EnsureComponent(component)
+			}
+
+			return nil
+		})
+	}
+
+	// We append two changed stacks whenever we change either, one for the from stack and one for the to stack.
+	for _, changed := range stackDiff.Changed {
+		w.Go(func() error {
+			components, err := wd.walkChangedStack(
+				ctx, l, opts, wd.originalDiscovery,
+				changed.FromStack,
+				changed.ToStack,
+			)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			for _, component := range components {
+				discoveredComponents.EnsureComponent(component)
+			}
+
+			return nil
+		})
+	}
+
+	if err := w.Wait(); err != nil {
+		return nil, err
+	}
+
+	return discoveredComponents.ToComponents(), nil
+}
+
+// walkAddedStack walks an added stack and discovers components within it.
+//
+// We don't really need to do any diffing for situations where a stack is being added, we can just include
+// all the components within that stack, with the assumption that all the units within it are new.
+func (wd *WorktreeDiscovery) walkAddedStack(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	originalDiscovery *Discovery,
+	stack *component.Stack,
+) (component.Components, error) {
+	addedDiscovery := *originalDiscovery
+
+	addedDiscoveryContext := *addedDiscovery.discoveryContext
+	addedDiscoveryContext.WorkingDir = stack.Path()
+	addedDiscoveryContext.Ref = stack.DiscoveryContext().Ref
+
+	addedDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
+		addedDiscoveryContext,
+		toWorktreeKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	components, err := addedDiscovery.
+		WithDiscoveryContext(&addedDiscoveryContext).
+		WithFilters(
+			filter.Filters{},
+		).
+		Discover(ctx, l, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Reset the discovery context working directory to the original directory.
+	for _, component := range components {
+		discoveryContext := *component.DiscoveryContext()
+		discoveryContext.WorkingDir = stack.DiscoveryContext().WorkingDir
+		component.SetDiscoveryContext(&discoveryContext)
+	}
+
+	return components, nil
+}
+
+// walkRemovedStack walks a removed stack and discovers components within it.
+//
+// We don't really need to do any diffing for situations where a stack is being removed, we can just include
+// all the components within that stack, with the assumption that all the units within it are removed.
+func (wd *WorktreeDiscovery) walkRemovedStack(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	originalDiscovery *Discovery,
+	stack *component.Stack,
+) (component.Components, error) {
+	removedDiscovery := *originalDiscovery
+
+	removedDiscoveryContext := *removedDiscovery.discoveryContext
+
+	removedDiscoveryContext.WorkingDir = stack.Path()
+	removedDiscoveryContext.Ref = stack.DiscoveryContext().Ref
+
+	removedDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
+		removedDiscoveryContext,
+		fromWorktreeKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	components, err := removedDiscovery.
+		WithDiscoveryContext(&removedDiscoveryContext).
+		WithFilters(
+			filter.Filters{},
+		).
+		Discover(ctx, l, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Reset the discovery context working directory to the original directory.
+	for _, component := range components {
+		discoveryContext := *component.DiscoveryContext()
+		discoveryContext.WorkingDir = stack.DiscoveryContext().WorkingDir
+		component.SetDiscoveryContext(&discoveryContext)
+	}
+
+	return components, nil
+}
+
+type componentPair struct {
+	FromComponent component.Component
+	ToComponent   component.Component
+}
+
+// walkChangedStack walks a changed stack and discovers components within it.
+//
+// We need to do some diffing for situations where a stack is being changed, we can just include
+// all the components within that stack, with the assumption that all the units within it are changed.
+func (wd *WorktreeDiscovery) walkChangedStack(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	originalDiscovery *Discovery,
+	fromStack *component.Stack,
+	toStack *component.Stack,
+) (component.Components, error) {
+	fromDiscovery := *originalDiscovery
+
+	fromDiscoveryContext := *fromDiscovery.discoveryContext
+
+	fromDiscoveryContext.WorkingDir = fromStack.Path()
+	fromDiscoveryContext.Ref = fromStack.DiscoveryContext().Ref
+
+	fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
+		fromDiscoveryContext,
+		fromWorktreeKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	toDiscovery := *originalDiscovery
+
+	toDiscoveryContext := *toDiscovery.discoveryContext
+
+	toDiscoveryContext.WorkingDir = toStack.Path()
+	toDiscoveryContext.Ref = toStack.DiscoveryContext().Ref
+
+	toDiscoveryContext, err = translateDiscoveryContextArgsForWorktree(
+		toDiscoveryContext,
+		toWorktreeKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var fromComponents, toComponents component.Components
+
+	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
+	discoveryGroup.SetLimit(min(runtime.NumCPU(), 2))
+
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+
+	discoveryGroup.Go(func() error {
+		var fromDiscoveryErr error
+
+		fromComponents, fromDiscoveryErr = fromDiscovery.
+			WithDiscoveryContext(&fromDiscoveryContext).
+			WithFilters(
+				filter.Filters{},
+			).
+			Discover(discoveryCtx, l, opts)
+
+		if fromDiscoveryErr != nil {
+			mu.Lock()
+			errs = append(errs, fromDiscoveryErr)
+			mu.Unlock()
+			return nil
+		}
+
+		// Reset the discovery context working directory to the original directory.
+		for _, component := range fromComponents {
+			discoveryContext := *component.DiscoveryContext()
+			discoveryContext.WorkingDir = fromStack.DiscoveryContext().WorkingDir
+			component.SetDiscoveryContext(&discoveryContext)
+		}
+
+		return nil
+	})
+
+	discoveryGroup.Go(func() error {
+		var toDiscoveryErr error
+
+		toComponents, toDiscoveryErr = toDiscovery.
+			WithDiscoveryContext(&toDiscoveryContext).
+			WithFilters(
+				filter.Filters{},
+			).
+			Discover(discoveryCtx, l, opts)
+
+		if toDiscoveryErr != nil {
+			mu.Lock()
+			errs = append(errs, toDiscoveryErr)
+			mu.Unlock()
+			return nil
+		}
+
+		// Reset the discovery context working directory to the original directory.
+		for _, component := range toComponents {
+			discoveryContext := *component.DiscoveryContext()
+			discoveryContext.WorkingDir = toStack.DiscoveryContext().WorkingDir
+			component.SetDiscoveryContext(&discoveryContext)
+		}
+
+		return nil
+	})
+
+	if err = discoveryGroup.Wait(); err != nil {
+		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	componentPairs := make([]componentPair, 0, max(len(fromComponents), len(toComponents)))
+
+	for _, fromComponent := range fromComponents {
+		fromComponentSuffix := strings.TrimPrefix(
+			fromComponent.Path(),
+			fromComponent.DiscoveryContext().WorkingDir,
+		)
+
+		for _, toComponent := range toComponents {
+			toComponentSuffix := strings.TrimPrefix(
+				toComponent.Path(),
+				toComponent.DiscoveryContext().WorkingDir,
+			)
+
+			if filepath.Clean(fromComponentSuffix) == filepath.Clean(toComponentSuffix) {
+				componentPairs = append(componentPairs, componentPair{
+					FromComponent: fromComponent,
+					ToComponent:   toComponent,
+				})
+			}
+		}
+	}
+
+	finalComponents := make(component.Components, 0, max(len(fromComponents), len(toComponents)))
+
+	for _, fromComponent := range fromComponents {
+		if !slices.ContainsFunc(componentPairs, func(componentPair componentPair) bool {
+			return componentPair.FromComponent == fromComponent
+		}) {
+			finalComponents = append(finalComponents, fromComponent)
+		}
+	}
+
+	for _, toComponent := range toComponents {
+		if !slices.ContainsFunc(componentPairs, func(componentPair componentPair) bool {
+			return componentPair.ToComponent == toComponent
+		}) {
+			finalComponents = append(finalComponents, toComponent)
+		}
+	}
+
+	for _, componentPair := range componentPairs {
+		var fromSHA, toSHA string
+
+		shaGroup, _ := errgroup.WithContext(ctx)
+		shaGroup.SetLimit(min(runtime.NumCPU(), 2))
+
+		shaGroup.Go(func() error {
+			fromSHA, err = generateDirSHA256(componentPair.FromComponent.Path())
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+		shaGroup.Go(func() error {
+			toSHA, err = generateDirSHA256(componentPair.ToComponent.Path())
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+		if err := shaGroup.Wait(); err != nil {
+			return nil, err
+		}
+
+		if fromSHA != toSHA {
+			finalComponents = append(finalComponents, componentPair.ToComponent)
+		}
+	}
+
+	return finalComponents, nil
+}
+
+type worktreeKind int
+
+const (
+	fromWorktreeKind worktreeKind = iota
+	toWorktreeKind
+)
+
+// translateDiscoveryContextArgsForWorktree translates the discovery context arguments for a worktree.
+func translateDiscoveryContextArgsForWorktree(
+	discoveryContext component.DiscoveryContext,
+	worktreeKind worktreeKind,
+) (component.DiscoveryContext, error) {
+	switch worktreeKind {
+	case fromWorktreeKind:
+		switch {
+		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
+			!slices.Contains(discoveryContext.Args, "-destroy"):
+			discoveryContext.Args = append(discoveryContext.Args, "-destroy")
+		case (discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0):
+			// This is the case when using a discovery command like find or list.
+			// It's fine for these commands to not have any command or arguments.
+		default:
+			return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+		}
+
+		return discoveryContext, nil
+	case toWorktreeKind:
+		// This branch is just for validation.
+		switch {
+		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
+			!slices.Contains(discoveryContext.Args, "-destroy"):
+			// We don't need to add the -destroy flag for to worktrees, as we're not destroying anything.
+		case (discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0):
+			// This is the case when using a discovery command like find or list.
+			// It's fine for these commands to not have any command or arguments.
+		default:
+			return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+		}
+
+		return discoveryContext, nil
+	default:
+		return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+	}
+}
+
+// generateDirSHA256 calculates a single SHA256 checksum for all files in a directory
+// and its subdirectories.
+func generateDirSHA256(rootDir string) (string, error) {
+	var filePaths []string
+
+	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() {
+			filePaths = append(filePaths, path)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("error walking directory: %w", err)
+	}
+
+	sort.Strings(filePaths)
+
+	hash := sha256.New()
+	for _, path := range filePaths {
+		f, err := os.Open(path)
+		if err != nil {
+			return "", fmt.Errorf("could not open file %s: %w", path, err)
+		}
+
+		_, err = io.Copy(hash, f)
+
+		closeErr := f.Close()
+
+		if err != nil {
+			return "", fmt.Errorf("could not copy file %s to hash: %w", path, err)
+		}
+
+		if closeErr != nil {
+			return "", fmt.Errorf("could not close file %s: %w", path, closeErr)
+		}
+	}
+
+	hashBytes := hash.Sum(nil)
+
+	return hex.EncodeToString(hashBytes), nil
 }

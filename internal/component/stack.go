@@ -32,6 +32,13 @@ func NewStack(path string) *Stack {
 	}
 }
 
+// WithDiscoveryContext sets the discovery context for this unit.
+func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
+	s.discoveryContext = ctx
+
+	return s
+}
+
 // Config returns the parsed Stack configuration for this stack.
 func (s *Stack) Config() *config.StackConfig {
 	return s.cfg

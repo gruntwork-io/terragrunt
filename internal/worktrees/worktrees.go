@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -38,6 +40,94 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 	}
 
 	return nil
+}
+
+type StackDiff struct {
+	Added   []*component.Stack
+	Removed []*component.Stack
+	Changed []StackDiffChangedPair
+}
+
+type StackDiffChangedPair struct {
+	FromStack *component.Stack
+	ToStack   *component.Stack
+}
+
+// Stacks returns a slice of stacks that can be found in the diffs found in worktrees.
+//
+// This can be useful, as stacks need to be discovered in worktrees, generated, then diffed on-disk
+// to find changed units.
+//
+// They are returned as added, removed, and changed stacks, respectively.
+func (w *Worktrees) Stacks() StackDiff {
+	stackDiff := StackDiff{
+		Added:   []*component.Stack{},
+		Removed: []*component.Stack{},
+		Changed: []StackDiffChangedPair{},
+	}
+
+	for expression, diffs := range w.GitExpressionsToDiffs {
+		fromWorktree := w.RefsToPaths[expression.FromRef]
+		toWorktree := w.RefsToPaths[expression.ToRef]
+
+		for _, added := range diffs.Added {
+			if filepath.Base(added) != config.DefaultStackFile {
+				continue
+			}
+
+			stackDiff.Added = append(
+				stackDiff.Added,
+				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))).WithDiscoveryContext(
+					&component.DiscoveryContext{
+						WorkingDir: toWorktree,
+						Ref:        expression.ToRef,
+					},
+				),
+			)
+		}
+
+		for _, removed := range diffs.Removed {
+			if filepath.Base(removed) != config.DefaultStackFile {
+				continue
+			}
+
+			stackDiff.Removed = append(
+				stackDiff.Removed,
+				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))).WithDiscoveryContext(
+					&component.DiscoveryContext{
+						WorkingDir: fromWorktree,
+						Ref:        expression.FromRef,
+					},
+				),
+			)
+		}
+
+		for _, changed := range diffs.Changed {
+			if filepath.Base(changed) != config.DefaultStackFile {
+				continue
+			}
+
+			stackDiff.Changed = append(
+				stackDiff.Changed,
+				StackDiffChangedPair{
+					FromStack: component.NewStack(filepath.Join(fromWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+						&component.DiscoveryContext{
+							WorkingDir: fromWorktree,
+							Ref:        expression.FromRef,
+						},
+					),
+					ToStack: component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+						&component.DiscoveryContext{
+							WorkingDir: toWorktree,
+							Ref:        expression.ToRef,
+						},
+					),
+				},
+			)
+		}
+	}
+
+	return stackDiff
 }
 
 // NewWorktrees creates a new Worktrees for a given set of Git filters.

@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -18,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -290,9 +293,12 @@ func ListStackFiles(
 		return nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
-	worktreeComponents := discoverWorktreeStacks(worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees, opts.Experiments)
+	if err != nil {
+		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+	}
 
-	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeComponents))
+	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
 	for _, c := range discoveredComponents {
 		if _, ok := c.(*component.Stack); !ok {
 			continue
@@ -301,11 +307,7 @@ func ListStackFiles(
 		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 	}
 
-	for _, c := range worktreeComponents {
-		if _, ok := c.(*component.Stack); !ok {
-			continue
-		}
-
+	for _, c := range worktreeStacks {
 		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 	}
 
@@ -362,48 +364,105 @@ func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) (
 	return stackFiles, nil
 }
 
-func discoverWorktreeStacks(
+// worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
+func worktreeStacksToGenerate(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
-) component.Components {
-	worktreeStacks := component.Components{}
+	experiments experiment.Experiments,
+) (component.Components, error) {
+	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
+
+	// If we edit a stack in a worktree, we need to generate it, at the minimum.
+	stackDiff := worktrees.Stacks()
+
+	editedStacks := append(
+		append(
+			stackDiff.Added,
+			stackDiff.Removed...,
+		),
+	)
+
+	for _, changed := range stackDiff.Changed {
+		editedStacks = append(editedStacks, changed.FromStack)
+		editedStacks = append(editedStacks, changed.ToStack)
+	}
+
+	for _, stack := range editedStacks {
+		stacksToGenerate.EnsureComponent(stack)
+	}
+
+	// When the expanded filter for a given Git expression requires parsing,
+	// we need to generate all the stacks in the given worktree, as units within the generated stack might be affected.
+	//
+	// Based on business logic, the from branch here should never be used, but we'll check it anyways for completeness.
+	// We only require parsing for reading filters, and those only trigger in expanded Git expressions when
+	// the file is modified (which would result in a toFilter being returned).
+
+	fullDiscoveries := map[string]*discovery.Discovery{}
 
 	for expression, diffs := range worktrees.GitExpressionsToDiffs {
-		fromWorktree := worktrees.RefsToPaths[expression.FromRef]
-		toWorktree := worktrees.RefsToPaths[expression.ToRef]
+		fromFilters, toFilters := expression.Expand(diffs)
 
-		for _, removed := range diffs.Removed {
-			if filepath.Base(removed) != config.DefaultStackFile {
-				continue
+		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
+			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+				WorkingDir:    worktrees.RefsToPaths[expression.FromRef],
+				FilterQueries: []string{"type=stack"},
+				Experiments:   experiments,
+			})
+			if err != nil {
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", expression.FromRef, err)
 			}
-
-			worktreeStacks = append(
-				worktreeStacks,
-				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))),
-			)
+			fullDiscoveries[expression.FromRef] = discovery
 		}
 
-		for _, added := range diffs.Added {
-			if filepath.Base(added) != config.DefaultStackFile {
-				continue
+		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
+			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+				WorkingDir:    worktrees.RefsToPaths[expression.ToRef],
+				FilterQueries: []string{"type=stack"},
+				Experiments:   experiments,
+			})
+			if err != nil {
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", expression.ToRef, err)
 			}
-
-			worktreeStacks = append(
-				worktreeStacks,
-				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))),
-			)
-		}
-
-		for _, changed := range diffs.Changed {
-			if filepath.Base(changed) != config.DefaultStackFile {
-				continue
-			}
-
-			worktreeStacks = append(
-				worktreeStacks,
-				component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))),
-			)
+			fullDiscoveries[expression.ToRef] = discovery
 		}
 	}
 
-	return worktreeStacks
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(min(runtime.NumCPU(), len(fullDiscoveries)))
+
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+
+	for ref, discovery := range fullDiscoveries {
+		g.Go(func() error {
+			components, err := discovery.Discover(ctx, l, opts)
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", ref, err))
+				mu.Unlock()
+				return nil
+			}
+
+			for _, c := range components {
+				stacksToGenerate.EnsureComponent(c)
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return stacksToGenerate.ToComponents(), errors.Join(errs...)
+	}
+
+	return stacksToGenerate.ToComponents(), nil
 }
