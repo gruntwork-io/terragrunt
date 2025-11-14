@@ -1,13 +1,11 @@
 package git_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -174,7 +172,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then try to ls-tree HEAD
-		tree, err := runner.LsTreeRecursive(ctx, "HEAD", ".")
+		tree, err := runner.LsTreeRecursive(ctx, "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, tree)
 	})
@@ -185,7 +183,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		_, err = runner.LsTreeRecursive(ctx, "HEAD", ".")
+		_, err = runner.LsTreeRecursive(ctx, "HEAD")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -206,7 +204,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to ls-tree an invalid reference
-		_, err = runner.LsTreeRecursive(ctx, "nonexistent", ".")
+		_, err = runner.LsTreeRecursive(ctx, "nonexistent")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -222,7 +220,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		runner = runner.WithWorkDir(t.TempDir())
 
 		// Try to ls-tree in an empty directory
-		_, err = runner.LsTreeRecursive(ctx, "HEAD", ".")
+		_, err = runner.LsTreeRecursive(ctx, "HEAD")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -256,20 +254,4 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 		require.ErrorAs(t, err, &wrappedErr)
 		assert.ErrorIs(t, wrappedErr.Err, git.ErrNoWorkDir)
 	})
-}
-
-func TestGitRunner_GoLsTreeRecursive(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	runner, err := git.NewGitRunner()
-	require.NoError(t, err)
-	runner = runner.WithWorkDir(t.TempDir())
-	err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
-	require.NoError(t, err)
-	tree, err := runner.GoLsTreeRecursive(log.Default(), "HEAD", ".")
-	require.NoError(t, err)
-	require.NotEmpty(t, tree)
-	fmt.Println(tree)
 }

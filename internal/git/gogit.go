@@ -9,72 +9,19 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/cache"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/storage/filesystem"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// GoLsTreeRecursive uses the `go-git` library to recursively list the contents of a git tree.
+// GoOpenGitDir opens a Git repository using the `go-git` library, but chroots to the `.git` directory if present.
 //
-// In testing, this is significantly slower than LsTreeRecursive, so we don't use it right now.
-// We'll keep it here and benchmark it again later if we can optimize it.
-func (g *GitRunner) GoLsTreeRecursive(l log.Logger, ref, path string) ([]TreeEntry, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return nil, err
-	}
-
-	// TODO: Refactor so that we hold onto the repo and can close the storage later.
-
-	baseDir := g.WorkDir
-
-	fs := osfs.New(baseDir)
-	if _, err := fs.Stat(git.GitDirName); err == nil {
-		fs, err = fs.Chroot(git.GitDirName)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
-
-	repo, err := git.Open(s, fs)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if closeErr := s.Close(); closeErr != nil {
-			l.Errorf("failed to close git storage: %s", closeErr.Error())
-		}
-	}()
-
-	h, err := repo.ResolveRevision(plumbing.Revision(ref))
-	if err != nil {
-		return nil, err
-	}
-
-	c, err := repo.CommitObject(*h)
-	if err != nil {
-		return nil, err
-	}
-
-	tree, err := c.Tree()
-	if err != nil {
-		return nil, err
-	}
-
-	entries, err := g.goLsTreeOnTree(tree, path)
-	if err != nil {
-		return nil, err
-	}
-
-	return entries, nil
-}
-
-func (g *GitRunner) GoAdd(l log.Logger, paths ...string) error {
+// Use this for operations that don't need access to the rest of the repository for read-only access, etc.
+//
+// Opening a Git repository leaves the storage open, so it's the responsibility of the caller to
+// close the storage with `GoCloseStorage` when it is no longer needed.
+func (g *GitRunner) GoOpenGitDir() error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
-
-	// TODO: Refactor so that we hold onto the repo and can close the storage later.
 
 	baseDir := g.WorkDir
 
@@ -93,13 +40,94 @@ func (g *GitRunner) GoAdd(l log.Logger, paths ...string) error {
 		return err
 	}
 
-	defer func() {
-		if closeErr := s.Close(); closeErr != nil {
-			l.Errorf("failed to close git storage: %s", closeErr.Error())
-		}
-	}()
+	g.goRepo = repo
+	g.goStorage = s
 
-	w, err := repo.Worktree()
+	return nil
+}
+
+// GoOpenRepo opens a Git repository using the `go-git` library.
+func (g *GitRunner) GoOpenRepo() error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	baseDir := g.WorkDir
+
+	wt := osfs.New(baseDir)
+
+	dotGitDir := osfs.New(baseDir)
+	if _, err := dotGitDir.Stat(git.GitDirName); err == nil {
+		dotGitDir, err = dotGitDir.Chroot(git.GitDirName)
+		if err != nil {
+			return err
+		}
+	}
+
+	s := filesystem.NewStorageWithOptions(dotGitDir, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+
+	repo, err := git.Open(s, wt)
+	if err != nil {
+		return err
+	}
+
+	g.goRepo = repo
+	g.goStorage = s
+
+	return nil
+}
+
+// GoCloseStorage closes the storage for a Git repository.
+func (g *GitRunner) GoCloseStorage() error {
+	if err := g.goStorage.Close(); err != nil {
+		return err
+	}
+
+	g.goRepo = nil
+	g.goStorage = nil
+
+	return nil
+}
+
+// GoLsTreeRecursive uses the `go-git` library to recursively list the contents of a git tree.
+//
+// In testing, this is significantly slower than LsTreeRecursive, so we don't use it right now.
+// We'll keep it here and benchmark it again later if we can optimize it.
+func (g *GitRunner) GoLsTreeRecursive(ref string) ([]TreeEntry, error) {
+	if err := g.RequiresGoRepo(); err != nil {
+		return nil, err
+	}
+
+	h, err := g.goRepo.ResolveRevision(plumbing.Revision(ref))
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := g.goRepo.CommitObject(*h)
+	if err != nil {
+		return nil, err
+	}
+
+	tree, err := c.Tree()
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := g.goLsTreeOnTree(tree, ".")
+	if err != nil {
+		return nil, err
+	}
+
+	return entries, nil
+}
+
+// GoAdd adds a file to the Git repository.
+func (g *GitRunner) GoAdd(paths ...string) error {
+	if err := g.RequiresGoRepo(); err != nil {
+		return err
+	}
+
+	w, err := g.goRepo.Worktree()
 	if err != nil {
 		return err
 	}
@@ -114,37 +142,31 @@ func (g *GitRunner) GoAdd(l log.Logger, paths ...string) error {
 	return nil
 }
 
-func (g *GitRunner) GoCommit(l log.Logger, message string, opts *git.CommitOptions) error {
-	if err := g.RequiresWorkDir(); err != nil {
-		return err
+// GoStatus gets the status of the Git repository.
+func (g *GitRunner) GoStatus() (git.Status, error) {
+	if err := g.RequiresGoRepo(); err != nil {
+		return nil, err
 	}
 
-	// TODO: Refactor so that we hold onto the repo and can close the storage later.
-
-	baseDir := g.WorkDir
-
-	fs := osfs.New(baseDir)
-	if _, err := fs.Stat(git.GitDirName); err == nil {
-		fs, err = fs.Chroot(git.GitDirName)
-		if err != nil {
-			return err
-		}
-	}
-
-	s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
-
-	repo, err := git.Open(s, fs)
+	w, err := g.goRepo.Worktree()
 	if err != nil {
+		return nil, err
+	}
+
+	return w.Status()
+}
+
+// GoCommit commits changes to the Git repository.
+func (g *GitRunner) GoCommit(message string, opts *git.CommitOptions) error {
+	if err := g.RequiresGoRepo(); err != nil {
 		return err
 	}
 
-	defer func() {
-		if closeErr := s.Close(); closeErr != nil {
-			l.Errorf("failed to close git storage: %s", closeErr.Error())
-		}
-	}()
+	if opts == nil {
+		return errors.New("commit options are required for go commits")
+	}
 
-	w, err := repo.Worktree()
+	w, err := g.goRepo.Worktree()
 	if err != nil {
 		return err
 	}
@@ -155,6 +177,24 @@ func (g *GitRunner) GoCommit(l log.Logger, message string, opts *git.CommitOptio
 	}
 
 	return nil
+}
+
+// GoOpenRepoHead gets the head of the Git repository.
+func (g *GitRunner) GoOpenRepoHead() (*plumbing.Reference, error) {
+	if err := g.RequiresGoRepo(); err != nil {
+		return nil, err
+	}
+
+	return g.goRepo.Head()
+}
+
+// GoOpenRepoCommitObject gets a commit object from the Git repository.
+func (g *GitRunner) GoOpenRepoCommitObject(hash plumbing.Hash) (*object.Commit, error) {
+	if err := g.RequiresGoRepo(); err != nil {
+		return nil, err
+	}
+
+	return g.goRepo.CommitObject(hash)
 }
 
 // goLsTreeOnTree uses the `go-git` library to recursively list the contents of a git tree.

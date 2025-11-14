@@ -24,6 +24,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/storage/filesystem"
 )
 
 const (
@@ -32,8 +35,10 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	GitPath string
-	WorkDir string
+	goRepo    *git.Repository
+	goStorage *filesystem.Storage
+	GitPath   string
+	WorkDir   string
 }
 
 // NewGitRunner creates a new GitRunner instance
@@ -66,6 +71,19 @@ func (g *GitRunner) RequiresWorkDir() error {
 			Op:      "git",
 			Context: "no working directory set",
 			Err:     ErrNoWorkDir,
+		}
+	}
+
+	return nil
+}
+
+// RequiresGoRepo returns an error if no go repository is set
+func (g *GitRunner) RequiresGoRepo() error {
+	if g.goRepo == nil {
+		return &WrappedError{
+			Op:      "git",
+			Context: "no go repository set",
+			Err:     ErrNoGoRepo,
 		}
 	}
 
@@ -211,7 +229,7 @@ func GetRepoName(repo string) string {
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
 // This eliminates the need for multiple separate ls-tree calls on subtrees
-func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (*Tree, error) {
+func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return nil, err
 	}
@@ -232,7 +250,7 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref, path string) (*Tre
 		}
 	}
 
-	tree, err := ParseTree(stdout.Bytes(), path)
+	tree, err := ParseTree(stdout.Bytes(), ".")
 	if err != nil {
 		return nil, err
 	}

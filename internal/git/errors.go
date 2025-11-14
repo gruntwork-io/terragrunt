@@ -58,4 +58,5 @@ var (
 	ErrNoMatchingReference = errors.New("no matching reference")
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")
+	ErrNoGoRepo            = errors.New("go repository not set")
 )

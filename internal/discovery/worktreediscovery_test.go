@@ -421,3 +421,117 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	helpers.CreateGitRepo(t, tmpDir)
+
+	// Create initial commit with no terragrunt.hcl files
+	gitAdd(t, tmpDir, ".")
+	gitCommit(t, tmpDir, "Initial commit", "--allow-empty")
+
+	// Create a second commit that only changes non-terragrunt.hcl files
+	readmePath := filepath.Join(tmpDir, "README.md")
+	err = os.WriteFile(readmePath, []byte("# Test"), 0644)
+	require.NoError(t, err)
+
+	gitAdd(t, tmpDir, ".")
+	gitCommit(t, tmpDir, "Update README")
+
+	// Create options
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Create a Git filter expression
+	gitFilter := filter.NewGitExpression("HEAD~1", "HEAD")
+	gitExpressions := filter.GitExpressions{gitFilter}
+
+	// Create original discovery
+	originalDiscovery := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+		})
+
+	// Create worktree discovery
+	worktreeDiscovery := discovery.NewWorktreeDiscovery(
+		gitExpressions,
+	).
+		WithOriginalDiscovery(originalDiscovery)
+
+	// Perform discovery
+	l := logger.CreateLogger()
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	// Verify that no components were discovered when filters are empty
+	// (because the diffs don't contain any terragrunt.hcl files)
+	assert.Empty(t, components, "No components should be discovered when Git filter expands to empty filters")
+}
+
+func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	helpers.CreateGitRepo(t, tmpDir)
+
+	// Create initial commit
+	gitAdd(t, tmpDir, ".")
+	gitCommit(t, tmpDir, "Initial commit", "--allow-empty")
+
+	// Create a second commit with no changes (empty commit)
+	gitCommit(t, tmpDir, "Empty commit", "--allow-empty")
+
+	// Create options
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Create a Git filter expression
+	gitFilter := filter.NewGitExpression("HEAD~1", "HEAD")
+	gitExpressions := filter.GitExpressions{gitFilter}
+
+	// Create original discovery
+	originalDiscovery := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+		})
+
+	// Create worktree discovery
+	worktreeDiscovery := discovery.NewWorktreeDiscovery(
+		gitExpressions,
+	).
+		WithOriginalDiscovery(originalDiscovery)
+
+	// Perform discovery
+	l := logger.CreateLogger()
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	// Verify that no components were discovered when there are no diffs
+	assert.Empty(t, components, "No components should be discovered when there are no diffs between references")
+}
