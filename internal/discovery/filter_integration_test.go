@@ -3,19 +3,21 @@ package discovery_test
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	gogit "github.com/go-git/go-git/v6"
 )
 
 func TestDiscoveryWithFilters(t *testing.T) {
@@ -1125,7 +1127,18 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			// Initialize Git repository
-			helpers.CreateGitRepo(t, tmpDir)
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			err = runner.GoOpenRepo()
+			require.NoError(t, err)
+
+			defer runner.GoCloseStorage()
 
 			// Create initial components
 			appDir := filepath.Join(tmpDir, "app")
@@ -1151,8 +1164,13 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 			}
 
 			// Commit initial state
-			gitAdd(t, tmpDir, ".")
-			gitCommit(t, tmpDir, "Initial commit")
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+				AllowEmptyCommits: true,
+			})
+			require.NoError(t, err)
 
 			// Create new components and modify existing ones
 			newDir := filepath.Join(tmpDir, "new")
@@ -1176,8 +1194,13 @@ locals {
 			require.NoError(t, err)
 
 			// Commit changes
-			gitAdd(t, tmpDir, ".")
-			gitCommit(t, tmpDir, "Changes: modified app, added new, removed cache")
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Changes: modified app, added new, removed cache", &gogit.CommitOptions{
+				AllowEmptyCommits: true,
+			})
+			require.NoError(t, err)
 
 			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = tmpDir
@@ -1239,7 +1262,18 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize Git repository
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	// Create a component
 	appDir := filepath.Join(tmpDir, "app")
@@ -1250,15 +1284,25 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Commit initial state
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Initial commit")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	// Make a change
 	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`modified`), 0644)
 	require.NoError(t, err)
 
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Modified app")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modified app", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -1299,7 +1343,18 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize Git repository
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	// Create a component
 	appDir := filepath.Join(tmpDir, "app")
@@ -1310,11 +1365,19 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	// Commit initial state
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Initial commit")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	// Commit again with no changes (empty commit)
-	gitCommit(t, tmpDir, "Empty commit", "--allow-empty")
+	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -1348,27 +1411,4 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	// Should return no components since nothing changed
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Empty(t, units, "No components should be returned when there are no changes")
-}
-
-// gitAdd adds files to Git staging area
-func gitAdd(t *testing.T, dir string, paths ...string) {
-	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", append([]string{"add"}, paths...)...)
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error adding files to git: %v\n%s", err, string(output))
-}
-
-// gitCommit creates a Git commit
-func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
-	t.Helper()
-
-	args := []string{"commit", "--no-gpg-sign", "-m", message}
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(t.Context(), "git", args...)
-	cmd.Dir = dir
-	// Set git config for test environment
-	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
 }

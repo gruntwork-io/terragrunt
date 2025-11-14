@@ -186,7 +186,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			_, err := g.LsTreeRecursive(ctx, "HEAD", ".")
+			_, err := g.LsTreeRecursive(ctx, "HEAD")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -195,7 +195,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	b.Run("cat-file", func(b *testing.B) {
 		// First get a valid hash
-		tree, err := g.LsTreeRecursive(ctx, "HEAD", ".")
+		tree, err := g.LsTreeRecursive(ctx, "HEAD")
 		if err != nil {
 			b.Fatal(err)
 		}

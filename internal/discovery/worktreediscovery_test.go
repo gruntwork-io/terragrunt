@@ -6,12 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	gogit "github.com/go-git/go-git/v6"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,18 @@ func TestWorktreeDiscovery(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	// Create three units
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
@@ -53,9 +65,11 @@ func TestWorktreeDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initial commit
-	gitAdd(t, tmpDir, ".")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
 
-	gitCommit(t, tmpDir, "Initial commit")
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Modify the unit to be modified
 	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
@@ -76,8 +90,11 @@ func TestWorktreeDiscovery(t *testing.T) {
 	// Do nothing to the unit to be untouched
 
 	// Commit the modification and removal in a single commit
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Create, modify, and remove units")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Create options
 	opts := options.NewTerragruntOptions()
@@ -150,7 +167,18 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
 	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
@@ -178,8 +206,11 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initial commit
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Initial commit")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Modify the unit to be modified
 	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
@@ -198,8 +229,11 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Commit the modification and removal in a single commit
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Create, modify, and remove units")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Create options
 	opts := options.NewTerragruntOptions()
@@ -429,19 +463,38 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	// Create initial commit with no terragrunt.hcl files
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Initial commit", "--allow-empty")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	// Create a second commit that only changes non-terragrunt.hcl files
 	readmePath := filepath.Join(tmpDir, "README.md")
 	err = os.WriteFile(readmePath, []byte("# Test"), 0644)
 	require.NoError(t, err)
 
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Update README")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Update README", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Create options
 	opts := options.NewTerragruntOptions()
@@ -489,14 +542,33 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	// Create initial commit
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Initial commit", "--allow-empty")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	// Create a second commit with no changes (empty commit)
-	gitCommit(t, tmpDir, "Empty commit", "--allow-empty")
+	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	// Create options
 	opts := options.NewTerragruntOptions()
