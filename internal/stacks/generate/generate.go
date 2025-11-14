@@ -372,6 +372,11 @@ func worktreeStacksToGenerate(
 	worktrees *worktrees.Worktrees,
 	experiments experiment.Experiments,
 ) (component.Components, error) {
+	// If worktrees is nil, there are no worktrees to process, return empty components.
+	if worktrees == nil {
+		return component.Components{}, nil
+	}
+
 	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
 
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
