@@ -11,8 +11,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -164,6 +167,30 @@ type Discovery struct {
 
 	// breakCycles determines whether to break cycles in the dependency graph if any exist.
 	breakCycles bool
+
+	// terragruntOptions contains the base options to clone for each unit
+	terragruntOptions *options.TerragruntOptions
+
+	// report is the report file for tracking exclusions
+	report *report.Report
+
+	// unitFilters contains custom unit filters to apply
+	unitFilters []UnitFilter
+
+	// ctx is the context for telemetry collection
+	ctx context.Context
+
+	// includeGlobs are compiled glob patterns for include directories
+	includeGlobs map[string]glob.Glob
+
+	// excludeGlobs are compiled glob patterns for exclude directories
+	excludeGlobs map[string]glob.Glob
+
+	// doubleStarEnabled determines whether to use glob matching or exact path matching
+	doubleStarEnabled bool
+
+	// skipValidation determines whether to skip validation of units (e.g., checking for Terraform files)
+	skipValidation bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -387,6 +414,43 @@ func (d *Discovery) WithFilterFlagEnabled() *Discovery {
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
 	return d
+}
+
+// WithTerragruntOptions sets the base TerragruntOptions to clone for each unit.
+func (d *Discovery) WithTerragruntOptions(opts *options.TerragruntOptions) *Discovery {
+	d.terragruntOptions = opts
+	return d
+}
+
+// WithReport sets the report file for tracking exclusions.
+func (d *Discovery) WithReport(r *report.Report) *Discovery {
+	d.report = r
+	return d
+}
+
+// WithUnitFilters adds custom unit filters to apply after standard resolution.
+func (d *Discovery) WithUnitFilters(filters ...UnitFilter) *Discovery {
+	d.unitFilters = append(d.unitFilters, filters...)
+	return d
+}
+
+// WithContext sets the context for telemetry collection.
+func (d *Discovery) WithContext(ctx context.Context) *Discovery {
+	d.ctx = ctx
+	return d
+}
+
+// WithSkipValidation sets the skipValidation flag to true.
+// When enabled, discovery will not validate that units have Terraform files.
+// This is useful for tests that don't create actual .tf files.
+func (d *Discovery) WithSkipValidation() *Discovery {
+	d.skipValidation = true
+	return d
+}
+
+// UnitFilter is an interface for filtering units.
+type UnitFilter interface {
+	Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error
 }
 
 // compileIncludePatterns compiles the include directory patterns for faster matching.
@@ -1009,12 +1073,177 @@ func (d *Discovery) parseWorker(
 	return nil
 }
 
+// initializeResolverFields sets up glob patterns and double-star control for unit resolution.
+func (d *Discovery) initializeResolverFields(ctx context.Context, opts *options.TerragruntOptions) error {
+	// Check if double-star strict control is enabled
+	if opts.StrictControls.FilterByNames(controls.DoubleStar).SuppressWarning().Evaluate(ctx) != nil {
+		d.doubleStarEnabled = true
+
+		// Compile globs only when double-star is enabled
+		var err error
+
+		d.includeGlobs, err = util.CompileGlobs(opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return errors.Errorf("invalid include dirs: %w", err)
+		}
+
+		d.excludeGlobs, err = util.CompileGlobs(opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return errors.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// applyUnitResolutionPipeline applies the full unit resolution pipeline including:
+// - Setup units with cloned options and download directories
+// - Cross-linking dependencies (convert Component interfaces to concrete *Unit pointers)
+// - Flag external dependencies and prompt user
+// - Apply include/exclude directory filters
+// - Apply units-that-read filters
+// - Apply exclude blocks from config
+// - Apply custom unit filters
+//
+// Note: Stacks are preserved through this pipeline but not processed - they pass through unchanged.
+func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logger, discovered component.Components) (component.Components, error) {
+	// Separate stacks from units - stacks pass through unchanged
+	var stacks component.Components
+	for _, c := range discovered {
+		if c.Kind() == component.StackKind {
+			stacks = append(stacks, c)
+		}
+	}
+
+	// Step 1: Setup units (clone options, set paths, validate)
+	unitsMap, err := d.telemetrySetupUnits(l, discovered)
+	if err != nil {
+		return discovered, err
+	}
+
+	// Build the canonical config paths list for cross-linking
+	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered))
+	for _, c := range discovered {
+		if c.Kind() == component.StackKind {
+			continue
+		}
+
+		fname := d.determineTerragruntConfigFilename()
+		configPath := filepath.Join(c.Path(), fname)
+
+		canonicalPath, err := util.CanonicalPath(configPath, ".")
+		if err != nil {
+			return discovered, errors.Errorf("canonicalizing terragrunt config path %q for unit %s: %w", configPath, c.Path(), err)
+		}
+
+		canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
+	}
+
+	// Step 2: Cross-link dependencies (convert discovery domain to runner domain)
+	var crossLinkedUnits component.Units
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "convert_discovery_to_runner", map[string]any{
+		"working_dir": d.workingDir,
+	}, func(_ context.Context) error {
+		var linkErr error
+
+		crossLinkedUnits, linkErr = convertDiscoveryToRunner(unitsMap, canonicalTerragruntConfigPaths)
+
+		return linkErr
+	})
+	if err != nil {
+		return discovered, err
+	}
+
+	// Step 3: Flag external dependencies and prompt user for confirmation
+	// This must happen AFTER cross-linking so Dependencies field is populated
+	crossLinkedMap := make(component.UnitsMap)
+	for _, unit := range crossLinkedUnits {
+		crossLinkedMap[unit.Path()] = unit
+	}
+
+	if err := d.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
+		return discovered, err
+	}
+
+	// Step 4: Apply include directory filters
+	withUnitsIncluded := d.telemetryApplyIncludeDirs(l, crossLinkedUnits)
+
+	// Step 5: Process units-that-read filters
+	// This happens BEFORE exclude dirs/blocks so that explicit CLI excludes can take precedence
+	withUnitsRead := d.telemetryFlagUnitsThatRead(withUnitsIncluded)
+
+	// Step 6: Process exclude directory filters
+	// This happens BEFORE exclude blocks so that CLI flags take precedence
+	withUnitsExcludedByDirs := d.telemetryApplyExcludeDirs(l, withUnitsRead)
+
+	// Step 7: Apply exclude blocks from config
+	withExcludedUnits := d.telemetryApplyExcludeModules(l, withUnitsExcludedByDirs)
+
+	// Step 8: Apply custom filters after standard resolution logic
+	filteredUnits, err := d.telemetryApplyUnitFilters(ctx, withExcludedUnits)
+	if err != nil {
+		return discovered, err
+	}
+
+	// Convert Units back to Components and merge with preserved stacks
+	components := make(component.Components, 0, len(filteredUnits)+len(stacks))
+	for _, unit := range filteredUnits {
+		components = append(components, unit)
+	}
+	components = append(components, stacks...)
+
+	return components, nil
+}
+
+// telemetryApplyUnitFilters applies all configured unit filters to the resolved units
+func (d *Discovery) telemetryApplyUnitFilters(ctx context.Context, units component.Units) (component.Units, error) {
+	if len(d.unitFilters) == 0 {
+		return units, nil
+	}
+
+	var filteredUnits component.Units
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_unit_filters", map[string]any{
+		"working_dir":  d.workingDir,
+		"filter_count": len(d.unitFilters),
+	}, func(_ context.Context) error {
+		// Apply all filters in sequence
+		for _, filter := range d.unitFilters {
+			if err := filter.Filter(ctx, units, d.terragruntOptions); err != nil {
+				return err
+			}
+		}
+
+		filteredUnits = units
+
+		return nil
+	})
+
+	return filteredUnits, err
+}
+
 // Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
+	// Store context for telemetry
+	if d.ctx == nil {
+		d.ctx = ctx
+	}
+
+	// Store terragruntOptions if not already set
+	if d.terragruntOptions == nil {
+		d.terragruntOptions = opts
+	}
+
+	// Initialize glob patterns and double-star flag for unit resolution
+	if err := d.initializeResolverFields(ctx, opts); err != nil {
+		return nil, err
+	}
+
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
@@ -1265,6 +1494,15 @@ func (d *Discovery) Discover(
 
 				l.Debugf("Errors: %w", err)
 			}
+		}
+	}
+
+	// Apply unit resolution pipeline (setup, filtering, dependency prompting)
+	// This is only done when terragruntOptions is set (indicating we want full resolution)
+	if d.terragruntOptions != nil {
+		components, err = d.applyUnitResolutionPipeline(ctx, l, components)
+		if err != nil {
+			errs = append(errs, errors.New(err))
 		}
 	}
 

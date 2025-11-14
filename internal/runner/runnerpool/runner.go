@@ -79,7 +79,8 @@ func NewRunnerPoolStack(
 		return runner.WithOptions(opts...), nil
 	}
 
-	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
+	// Initialize stack with options
+	// Discovery has already resolved units, applied filters, and set FlagExcluded
 	stack := component.NewStack("")
 	stack.SetTerragruntOptions(terragruntOptions)
 	stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
@@ -88,41 +89,20 @@ func NewRunnerPoolStack(
 		Stack: stack,
 	}
 
-	// Apply options (including report) BEFORE resolving units so that
-	// the report is available during unit resolution for tracking exclusions
+	// Apply options (including report)
 	runner = runner.WithOptions(opts...)
 
-	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
-	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
-	if err != nil {
-		return nil, err
+	// Discovery already resolved units and applied all filters
+	// Just convert Components to Units for further processing
+	units := make(component.Units, 0, len(nonStackComponents))
+	for _, c := range nonStackComponents {
+		if u, ok := c.(*component.Unit); ok {
+			units = append(units, u)
+		}
 	}
 
-	// Add unit filters to the resolver
-	if len(runner.unitFilters) > 0 {
-		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
-	}
-
-	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
-	// Use nonStackComponents which has Stack components filtered out
-	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, nonStackComponents)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert UnitsMap to slice
-	// Note: common.Units is now an alias for component.Units
-	units := make(component.Units, 0, len(unitsMap))
-	for _, u := range unitsMap {
-		units = append(units, u)
-	}
-
-	// Convert to Components for Stack.Units
-	stackUnits := make(component.Components, 0, len(units))
-	for _, u := range units {
-		stackUnits = append(stackUnits, u)
-	}
-	runner.Stack.SetUnits(stackUnits)
+	// Set units on stack
+	runner.Stack.SetUnits(nonStackComponents)
 
 	if isDestroyCommand(terragruntOptions) {
 		applyPreventDestroyExclusions(l, units)

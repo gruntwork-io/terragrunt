@@ -8,11 +8,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
+
+// discoveryUnitFilterAdapter adapts common.UnitFilter to discovery.UnitFilter interface
+type discoveryUnitFilterAdapter struct {
+	filter common.UnitFilter
+}
+
+func (a *discoveryUnitFilterAdapter) Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error {
+	// common.UnitFilter and discovery.UnitFilter have the same signature
+	return a.filter.Filter(ctx, units, opts)
+}
 
 // Build stack runner using discovery and queueing mechanisms.
 func Build(
@@ -45,9 +56,35 @@ func Build(
 		configFilenames = append(configFilenames, customConfigName)
 	}
 
+	// Create discovery with options and report for integrated unit resolution
+	// NOTE: Need to extract report from opts first
+	var reportForDiscovery *report.Report
+	var unitFilters []discovery.UnitFilter
+
+	// Apply options to extract report and filters
+	for _, opt := range opts {
+		// Apply to a temporary runner to extract fields
+		tempStack := component.NewStack("")
+		tempRunner := &Runner{Stack: tempStack}
+		tempRunner = tempRunner.WithOptions(opt)
+		if tempRunner.Stack.Report() != nil {
+			reportForDiscovery = tempRunner.Stack.Report()
+		}
+		// Extract unit filters if any
+		if len(tempRunner.unitFilters) > 0 {
+			// Convert common.UnitFilter to discovery.UnitFilter
+			for _, f := range tempRunner.unitFilters {
+				// Wrap the filter to match discovery's UnitFilter interface
+				unitFilters = append(unitFilters, &discoveryUnitFilterAdapter{filter: f})
+			}
+		}
+	}
+
 	d := discovery.
 		NewDiscovery(workingDir).
-		WithOptions(opts...).
+		WithContext(ctx).
+		WithTerragruntOptions(terragruntOptions).
+		WithReport(reportForDiscovery).
 		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
@@ -59,30 +96,27 @@ func Build(
 			Args: terragruntOptions.TerraformCliArgs.Tail(),
 		})
 
+	// Pass unit filters to discovery
+	if len(unitFilters) > 0 {
+		d = d.WithUnitFilters(unitFilters...)
+	}
+
 	// Pass include directory filters to discovery
-	// Discovery will use glob matching to filter units appropriately
+	// Discovery will now handle filtering and reporting
 	if len(terragruntOptions.IncludeDirs) > 0 {
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
 
-	// NOTE: We do NOT pass ExcludeDirs to discovery because excluded units need to be
-	// discovered and reported (for --report-file functionality). The unit resolver will
-	// handle exclusions after discovery, ensuring excluded units appear in reports.
-	//
-	// For now... We can probably use the following once runnerpool has been updated to not expect external
-	// dependencies in the discovery results.
-	//
-	// if !terragruntOptions.IgnoreExternalDependencies {
-	// 	d = d.WithDiscoverExternalDependencies()
-	// }
+	// Pass exclude directory filters to discovery
+	// Discovery will handle exclusions and ensure excluded units appear in reports
+	if len(terragruntOptions.ExcludeDirs) > 0 {
+		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
+	}
 
 	// Pass include behavior flags
 	if terragruntOptions.StrictInclude {
 		d = d.WithStrictInclude()
 	}
-
-	// Note: Discovery will use glob-based filtering for include patterns.
-	// Exclude patterns are handled by the unit resolver to ensure proper reporting.
 
 	// Apply filter queries if the filter-flag experiment is enabled
 	if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {

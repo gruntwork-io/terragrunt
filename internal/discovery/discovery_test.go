@@ -47,6 +47,11 @@ func TestDiscovery(t *testing.T) {
 		filepath.Join(stack1Dir, "terragrunt.stack.hcl"): "",
 		filepath.Join(hiddenUnitDir, "terragrunt.hcl"):   "",
 		filepath.Join(nestedUnit4Dir, "terragrunt.hcl"):  "",
+		// Add .tf files so validation passes
+		filepath.Join(unit1Dir, "main.tf"):       "",
+		filepath.Join(unit2Dir, "main.tf"):       "",
+		filepath.Join(hiddenUnitDir, "main.tf"):  "",
+		filepath.Join(nestedUnit4Dir, "main.tf"): "",
 	}
 
 	for path, content := range testFiles {
@@ -140,6 +145,11 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		`,
 		filepath.Join(vpcDir, "terragrunt.hcl"):         ``,
 		filepath.Join(externalAppDir, "terragrunt.hcl"): ``,
+		// Add .tf files so validation passes
+		filepath.Join(appDir, "main.tf"):         ``,
+		filepath.Join(dbDir, "main.tf"):          ``,
+		filepath.Join(vpcDir, "main.tf"):         ``,
+		filepath.Join(externalAppDir, "main.tf"): ``,
 	}
 
 	for path, content := range testFiles {
@@ -290,6 +300,10 @@ exclude {
   actions = ["apply"]
 }`,
 		"unit3/terragrunt.hcl": "",
+		// Add .tf files so validation passes
+		"unit1/main.tf": "",
+		"unit2/main.tf": "",
+		"unit3/main.tf": "",
 	}
 
 	for path, content := range testFiles {
@@ -416,6 +430,7 @@ inputs = {
 	testFiles := map[string]string{
 		filepath.Join(stackDir, "terragrunt.stack.hcl"): stackContent,
 		filepath.Join(unitDir, "terragrunt.hcl"):        unitContent,
+		filepath.Join(unitDir, "main.tf"):               "", // Add .tf file so validation passes
 	}
 
 	for path, content := range testFiles {
@@ -520,7 +535,13 @@ func TestDiscoveryStackHiddenAllowed(t *testing.T) {
 	tmpDir := t.TempDir()
 	stackHiddenDir := filepath.Join(tmpDir, ".terragrunt-stack", "u")
 	require.NoError(t, os.MkdirAll(stackHiddenDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(""), 0644))
+	// Add minimal terragrunt config so parsing doesn't fail
+	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(`
+terraform {
+  source = "."
+}
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "main.tf"), []byte(""), 0644)) // Add .tf file
 
 	l := logger.CreateLogger()
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
@@ -556,6 +577,12 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	`), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(""), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl"), []byte(""), 0644))
+
+	// Add .tf files so validation passes
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "main.tf"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "main.tf"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(extApp, "main.tf"), []byte(""), 0644))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = internalDir
@@ -615,6 +642,9 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 			tfvars = read_tfvars_file("../shared.tfvars")
 		}
 	`), 0644))
+
+	// Add .tf file so validation passes
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0644))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -858,6 +888,11 @@ dependency "vpc" {
 `,
 		filepath.Join(vpcDir, "terragrunt.hcl"):       ``,
 		filepath.Join(unrelatedDir, "terragrunt.hcl"): ``,
+		// Add .tf files so validation passes
+		filepath.Join(appDir, "main.tf"):       ``,
+		filepath.Join(dbDir, "main.tf"):        ``,
+		filepath.Join(vpcDir, "main.tf"):       ``,
+		filepath.Join(unrelatedDir, "main.tf"): ``,
 	}
 
 	for path, content := range testFiles {

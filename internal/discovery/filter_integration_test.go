@@ -642,6 +642,9 @@ locals {
 }
 `), 0644))
 
+	// Add .tf file so validation passes
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0644))
+
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
@@ -758,6 +761,10 @@ dependency "vpc" {
 }
 `,
 		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+		// Add .tf files so validation passes
+		filepath.Join(appDir, "main.tf"): ``,
+		filepath.Join(dbDir, "main.tf"):  ``,
+		filepath.Join(vpcDir, "main.tf"): ``,
 	}
 
 	for path, content := range testFiles {
@@ -863,6 +870,11 @@ dependency "vpc" {
 }
 `,
 		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+		// Add .tf files so validation passes
+		filepath.Join(appDir, "main.tf"):   ``,
+		filepath.Join(dbDir, "main.tf"):    ``,
+		filepath.Join(cacheDir, "main.tf"): ``,
+		filepath.Join(vpcDir, "main.tf"):   ``,
 	}
 
 	for path, content := range testFiles {
@@ -929,6 +941,10 @@ dependency "db" {
 `,
 		filepath.Join(dbDir, "terragrunt.hcl"):        ``,
 		filepath.Join(unrelatedDir, "terragrunt.hcl"): ``,
+		// Add .tf files so validation passes
+		filepath.Join(appDir, "main.tf"):       ``,
+		filepath.Join(dbDir, "main.tf"):        ``,
+		filepath.Join(unrelatedDir, "main.tf"): ``,
 	}
 
 	for path, content := range testFiles {
@@ -988,6 +1004,10 @@ dependency "vpc" {
 }
 `,
 		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+		// Add .tf files so validation passes
+		filepath.Join(appDir, "main.tf"): ``,
+		filepath.Join(dbDir, "main.tf"):  ``,
+		filepath.Join(vpcDir, "main.tf"): ``,
 	}
 
 	for path, content := range testFiles {
