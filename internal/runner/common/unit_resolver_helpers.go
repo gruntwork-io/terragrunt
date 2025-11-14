@@ -18,12 +18,12 @@ func (r *UnitResolver) resolveUnitPath(terragruntConfigPath string) (string, err
 // setupDownloadDir sets the unit's download directory.
 // If the stack uses the default dir, compute a per-unit dir; otherwise use the stack's setting.
 func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *options.TerragruntOptions, l log.Logger) error {
-	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(r.Stack.TerragruntOptions.TerragruntConfigPath)
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(r.Stack.TerragruntOptions().TerragruntConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if r.Stack.TerragruntOptions.DownloadDir == defaultDownloadDir {
+	if r.Stack.TerragruntOptions().DownloadDir == defaultDownloadDir {
 		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 		if err != nil {
 			return err
@@ -40,8 +40,8 @@ func (r *UnitResolver) setupDownloadDir(terragruntConfigPath string, opts *optio
 // If a file path is explicitly set, it uses its basename; otherwise, "terragrunt.hcl".
 func (r *UnitResolver) determineTerragruntConfigFilename() string {
 	fname := config.DefaultTerragruntConfigPath
-	if r.Stack.TerragruntOptions.TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions.TerragruntConfigPath) {
-		fname = filepath.Base(r.Stack.TerragruntOptions.TerragruntConfigPath)
+	if r.Stack.TerragruntOptions().TerragruntConfigPath != "" && !util.IsDir(r.Stack.TerragruntOptions().TerragruntConfigPath) {
+		fname = filepath.Base(r.Stack.TerragruntOptions().TerragruntConfigPath)
 	}
 
 	return fname

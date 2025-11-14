@@ -13,8 +13,8 @@ import (
 // Component interface dependencies into concrete *Unit pointer dependencies.
 // Discovery found all dependencies and stored them as Component interfaces, but runner needs
 // concrete *Unit pointers for efficient execution. This function translates between domains.
-func ConvertDiscoveryToRunner(unitsMap UnitsMap, canonicalTerragruntConfigPaths []string) (Units, error) {
-	units := Units{}
+func ConvertDiscoveryToRunner(unitsMap component.UnitsMap, canonicalTerragruntConfigPaths []string) (component.Units, error) {
+	units := component.Units{}
 
 	keys := unitsMap.SortedKeys()
 
@@ -41,8 +41,8 @@ func ConvertDiscoveryToRunner(unitsMap UnitsMap, canonicalTerragruntConfigPaths 
 }
 
 // getDependenciesForUnit gets the list of units this unit depends on.
-func getDependenciesForUnit(unit *component.Unit, unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
-	dependencies := Units{}
+func getDependenciesForUnit(unit *component.Unit, unitsMap component.UnitsMap, terragruntConfigPaths []string) (component.Units, error) {
+	dependencies := component.Units{}
 
 	cfg := unit.Config()
 	if cfg == nil || cfg.Dependencies == nil || len(cfg.Dependencies.Paths) == 0 {

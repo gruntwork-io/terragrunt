@@ -33,7 +33,8 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(tgPath)
 	require.NoError(t, err)
 
-	stack := &common.Stack{TerragruntOptions: opts}
+	stack := component.NewStack("")
+	stack.SetTerragruntOptions(opts)
 	resolver, err := common.NewUnitResolver(context.Background(), stack)
 	require.NoError(t, err)
 

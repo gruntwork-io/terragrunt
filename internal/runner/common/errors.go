@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/pkg/errors"
 )
@@ -35,7 +36,7 @@ func (err ProcessingUnitError) Unwrap() error {
 }
 
 type InfiniteRecursionError struct {
-	Units          map[string]*Unit
+	Units          map[string]*component.Unit
 	RecursionLevel int
 }
 
@@ -50,8 +51,8 @@ func (err DependencyCycleError) Error() string {
 }
 
 type ProcessingUnitDependencyError struct {
-	Unit       *Unit
-	Dependency *Unit
+	Unit       *component.Unit
+	Dependency *component.Unit
 	Err        error
 }
 
@@ -72,8 +73,8 @@ func (err ProcessingUnitDependencyError) Unwrap() error {
 }
 
 type DependencyNotFoundWhileCrossLinkingError struct {
-	Unit       *Unit
-	Dependency *Unit
+	Unit       *component.Unit
+	Dependency *component.Unit
 }
 
 func (err DependencyNotFoundWhileCrossLinkingError) Error() string {

@@ -3,10 +3,14 @@ package component
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -27,9 +31,13 @@ type Stack struct {
 	external         bool
 
 	// Runtime/Execution fields (populated by runner package)
-	// Note: Stack doesn't need execution options fields like Unit does
-	logger       log.Logger
-	flagExcluded bool
+	logger                log.Logger
+	flagExcluded          bool
+	report                *report.Report
+	terragruntOptions     *options.TerragruntOptions
+	childTerragruntConfig *config.TerragruntConfig
+	units                 Components
+	parserOptions         []hclparse.Option
 
 	// Thread-safety
 	mu sync.RWMutex
@@ -226,11 +234,123 @@ func (s *Stack) SetFlagExcluded(excluded bool) {
 	s.flagExcluded = excluded
 }
 
+// Report returns the execution report for this stack.
+func (s *Stack) Report() *report.Report {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.report
+}
+
+// SetReport sets the execution report for this stack.
+func (s *Stack) SetReport(r *report.Report) {
+	s.lock()
+	defer s.unlock()
+
+	s.report = r
+}
+
+// TerragruntOptions returns the Terragrunt options for this stack.
+func (s *Stack) TerragruntOptions() *options.TerragruntOptions {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.terragruntOptions
+}
+
+// SetTerragruntOptions sets the Terragrunt options for this stack.
+func (s *Stack) SetTerragruntOptions(opts *options.TerragruntOptions) {
+	s.lock()
+	defer s.unlock()
+
+	s.terragruntOptions = opts
+}
+
+// ChildTerragruntConfig returns the child Terragrunt config for this stack.
+func (s *Stack) ChildTerragruntConfig() *config.TerragruntConfig {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.childTerragruntConfig
+}
+
+// SetChildTerragruntConfig sets the child Terragrunt config for this stack.
+func (s *Stack) SetChildTerragruntConfig(cfg *config.TerragruntConfig) {
+	s.lock()
+	defer s.unlock()
+
+	s.childTerragruntConfig = cfg
+}
+
+// Units returns the units collection for this stack.
+func (s *Stack) Units() Components {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.units
+}
+
+// SetUnits sets the units collection for this stack.
+func (s *Stack) SetUnits(units Components) {
+	s.lock()
+	defer s.unlock()
+
+	s.units = units
+}
+
+// ParserOptions returns the parser options for this stack.
+func (s *Stack) ParserOptions() []hclparse.Option {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.parserOptions
+}
+
+// SetParserOptions sets the parser options for this stack.
+func (s *Stack) SetParserOptions(opts []hclparse.Option) {
+	s.lock()
+	defer s.unlock()
+
+	s.parserOptions = opts
+}
+
+// FindUnitByPath finds a unit in the stack by its path.
+func (s *Stack) FindUnitByPath(path string) Component {
+	s.rLock()
+	defer s.rUnlock()
+
+	for _, comp := range s.units {
+		if comp.Path() == path {
+			return comp
+		}
+	}
+
+	return nil
+}
+
 // String renders this stack as a human-readable string.
 func (s *Stack) String() string {
 	s.rLock()
 	defer s.rUnlock()
 
+	// If units are set (execution context), show units
+	if len(s.units) > 0 {
+		unitPaths := make([]string, 0, len(s.units))
+		for _, unit := range s.units {
+			unitPaths = append(unitPaths, "  => "+unit.String())
+		}
+
+		sort.Strings(unitPaths)
+
+		workingDir := ""
+		if s.terragruntOptions != nil {
+			workingDir = s.terragruntOptions.WorkingDir
+		}
+
+		return fmt.Sprintf("Stack at %s:\n%s", workingDir, strings.Join(unitPaths, "\n"))
+	}
+
+	// Otherwise show dependencies (discovery context)
 	var dependencies = make([]string, 0, len(s.dependencies))
 	for _, dependency := range s.dependencies {
 		dependencies = append(dependencies, dependency.Path())

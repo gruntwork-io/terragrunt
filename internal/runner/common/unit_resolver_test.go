@@ -41,7 +41,8 @@ func TestResolveFromDiscovery_UsesDiscoveryConfig(t *testing.T) {
 	// Quiet test logging with non-nil formatter
 	l := thlogger.CreateLogger()
 
-	stack := &common.Stack{TerragruntOptions: opts}
+	stack := component.NewStack("")
+	stack.SetTerragruntOptions(opts)
 	resolver, err := common.NewUnitResolver(context.Background(), stack)
 	require.NoError(t, err)
 

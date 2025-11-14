@@ -17,7 +17,7 @@ func TestSetUnitFilters_Deduplication(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	// Create a filter instance
@@ -36,7 +36,7 @@ func TestSetUnitFilters_DifferentFilters(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	// Create different filter instances
@@ -55,7 +55,7 @@ func TestSetUnitFilters_MultipleCallsWithMixedFilters(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
@@ -81,7 +81,7 @@ func TestSetUnitFilters_SameValuesDifferentInstances(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	// Create two separate instances with the same values
@@ -100,7 +100,7 @@ func TestSetUnitFilters_EmptyCall(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
@@ -127,7 +127,7 @@ func TestSetUnitFilters_CustomFilterType(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	filter1 := &mockFilter{ID: "test1"}
@@ -147,7 +147,7 @@ func TestSetUnitFilters_MixedFilterTypes(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	graphFilter := &common.UnitFilterGraph{TargetDir: "/project/a"}
@@ -173,7 +173,7 @@ func TestSetUnitFilters_OrderPreserved(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: component.NewStack(""),
 	}
 
 	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}

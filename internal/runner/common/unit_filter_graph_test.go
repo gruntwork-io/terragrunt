@@ -22,7 +22,7 @@ func TestGraphDependencyFilter_SimpleChain(t *testing.T) {
 	unitC.AddDependency(unitB)
 	unitB.AddDependency(unitA)
 
-	units := common.Units{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
 	// Filter for C - should include C, B, and A (all dependents and C itself)
 	filter := &common.UnitFilterGraph{
@@ -56,7 +56,7 @@ func TestGraphDependencyFilter_WithDependents(t *testing.T) {
 	unitB.AddDependency(unitA)
 	unitC.AddDependency(unitB)
 
-	units := common.Units{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
 	// Filter for B - should include B and C (C depends on B)
 	filter := &common.UnitFilterGraph{
@@ -97,7 +97,7 @@ func TestGraphDependencyFilter_ComplexGraph(t *testing.T) {
 	unitD.AddDependency(unitC)
 	unitE.AddDependency(unitD)
 
-	units := common.Units{unitA, unitB, unitC, unitD, unitE}
+	units := component.Units{unitA, unitB, unitC, unitD, unitE}
 
 	// Filter for D - should include D and E (E depends on D)
 	filter := &common.UnitFilterGraph{
@@ -132,7 +132,7 @@ func TestGraphDependencyFilter_TransitiveDependents(t *testing.T) {
 	unitC.AddDependency(unitB)
 	unitD.AddDependency(unitC)
 
-	units := common.Units{unitA, unitB, unitC, unitD}
+	units := component.Units{unitA, unitB, unitC, unitD}
 
 	// Filter for A - should include all units (they all transitively depend on A)
 	filter := &common.UnitFilterGraph{
@@ -160,7 +160,7 @@ func TestGraphDependencyFilter_NoDependents(t *testing.T) {
 	unitB.AddDependency(unitA)
 	unitC.AddDependency(unitB)
 
-	units := common.Units{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
 	// Filter for C - should only include C (no dependents)
 	filter := &common.UnitFilterGraph{
@@ -198,7 +198,7 @@ func TestGraphDependencyFilter_MultiplePathsToTarget(t *testing.T) {
 	unitD.AddDependency(unitC)
 	unitE.AddDependency(unitD)
 
-	units := common.Units{unitA, unitB, unitC, unitD, unitE}
+	units := component.Units{unitA, unitB, unitC, unitD, unitE}
 
 	// Filter for E - should only include E (no dependents)
 	filter := &common.UnitFilterGraph{
@@ -223,7 +223,7 @@ func TestGraphDependencyFilter_IsolatedUnits(t *testing.T) {
 	unitB := component.NewUnit("/project/b")
 	unitC := component.NewUnit("/project/c")
 
-	units := common.Units{unitA, unitB, unitC}
+	units := component.Units{unitA, unitB, unitC}
 
 	// Filter for B - should only include B
 	filter := &common.UnitFilterGraph{
@@ -241,7 +241,7 @@ func TestGraphDependencyFilter_IsolatedUnits(t *testing.T) {
 func TestGraphDependencyFilter_EmptyUnits(t *testing.T) {
 	t.Parallel()
 
-	units := common.Units{}
+	units := component.Units{}
 
 	filter := &common.UnitFilterGraph{
 		TargetDir: "/project/a",
@@ -261,7 +261,7 @@ func TestGraphDependencyFilter_NonExistentTarget(t *testing.T) {
 
 	unitB.AddDependency(unitA)
 
-	units := common.Units{unitA, unitB}
+	units := component.Units{unitA, unitB}
 
 	// Filter for non-existent target - all should be excluded
 	filter := &common.UnitFilterGraph{

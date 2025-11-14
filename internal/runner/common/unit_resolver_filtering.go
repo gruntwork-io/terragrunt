@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -16,7 +17,7 @@ import (
 // reportUnitExclusion records a unit exclusion in the report with proper error handling.
 // Handles path normalization, duplicate prevention, and error logging.
 func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason report.Reason) {
-	if r.Stack.Report == nil {
+	if r.Stack.Report() == nil {
 		return
 	}
 
@@ -29,13 +30,13 @@ func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason
 
 	absPath = util.CleanPath(absPath)
 
-	run, err := r.Stack.Report.EnsureRun(absPath)
+	run, err := r.Stack.Report().EnsureRun(absPath)
 	if err != nil {
 		l.Errorf("Error ensuring run for unit %s: %v", absPath, err)
 		return
 	}
 
-	if err := r.Stack.Report.EndRun(
+	if err := r.Stack.Report().EndRun(
 		run.Path,
 		report.WithResult(report.ResultExcluded),
 		report.WithReason(reason),
@@ -50,8 +51,8 @@ func (r *UnitResolver) reportUnitExclusion(l log.Logger, unitPath string, reason
 // Matching: glob when doubleStarEnabled; otherwise exact path prefix.
 // Mode: "include" uses include globs/dirs; "exclude" uses exclude globs/dirs.
 // Examples: "**/staging/**", "modules/*/test", "envs/prod".
-// Returns: func(*Unit) bool that is true when the unit matches.
-func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.TerragruntOptions, l log.Logger) func(*Unit) bool {
+// Returns: func(*component.Unit) bool that is true when the unit matches.
+func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.TerragruntOptions, l log.Logger) func(*component.Unit) bool {
 	// Use glob matching when double-star is enabled, otherwise use exact path matching
 	if r.doubleStarEnabled {
 		var (
@@ -67,7 +68,7 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 			action = "excluded"
 		}
 
-		return func(unit *Unit) bool {
+		return func(unit *component.Unit) bool {
 			for globPath, globPattern := range globs {
 				if globPattern.Match(unit.Path()) {
 					l.Debugf("Unit %s is %s by glob %s", unit.Path(), action, globPath)
@@ -93,7 +94,7 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 		action = "excluded"
 	}
 
-	return func(unit *Unit) bool {
+	return func(unit *component.Unit) bool {
 		for _, dir := range dirs {
 			if util.HasPathPrefix(unit.Path(), dir) {
 				l.Debugf("Unit %s is %s by exact path match %s", unit.Path(), action, dir)
@@ -106,13 +107,13 @@ func (r *UnitResolver) createPathMatcherFunc(mode string, opts *options.Terragru
 }
 
 // telemetryApplyIncludeDirs applies include directory filters and sets FlagExcluded accordingly
-func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logger, crossLinkedUnits Units) (Units, error) {
-	var withUnitsIncluded Units
+func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logger, crossLinkedUnits component.Units) (component.Units, error) {
+	var withUnitsIncluded component.Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_include_dirs", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+		"working_dir": r.Stack.TerragruntOptions().WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsIncluded = r.applyIncludeDirs(r.Stack.TerragruntOptions, l, crossLinkedUnits)
+		withUnitsIncluded = r.applyIncludeDirs(r.Stack.TerragruntOptions(), l, crossLinkedUnits)
 		return nil
 	})
 
@@ -125,7 +126,7 @@ func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logg
 // Behavior: no-op when ExcludeByDefault is false.
 // When ExcludeByDefault is true but no include dirs are specified, excludes all units (used by --units-that-include).
 // Examples: "**/prod/**", "apps/*/service-a", "envs/us-west-2".
-func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logger, units Units) Units {
+func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logger, units component.Units) component.Units {
 	if !opts.ExcludeByDefault {
 		return units
 	}
@@ -144,7 +145,7 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 		for _, unit := range units {
 			if !unit.FlagExcluded() {
 				for _, dependency := range unit.Dependencies() {
-					if dep, ok := dependency.(*Unit); ok {
+					if dep, ok := dependency.(*component.Unit); ok {
 						dep.SetFlagExcluded(false)
 					}
 				}
@@ -156,13 +157,13 @@ func (r *UnitResolver) applyIncludeDirs(opts *options.TerragruntOptions, l log.L
 }
 
 // telemetryFlagUnitsThatRead flags units that read files in the Terragrunt configuration
-func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExcludedUnits Units) (Units, error) {
-	var withUnitsRead Units
+func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExcludedUnits component.Units) (component.Units, error) {
+	var withUnitsRead component.Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_read", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+		"working_dir": r.Stack.TerragruntOptions().WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsRead = r.flagUnitsThatRead(r.Stack.TerragruntOptions, withExcludedUnits)
+		withUnitsRead = r.flagUnitsThatRead(r.Stack.TerragruntOptions(), withExcludedUnits)
 		return nil
 	})
 
@@ -172,7 +173,7 @@ func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, withExclu
 // flagUnitsThatRead iterates over a unit slice and flags all units that read at least one file in the specified
 // file list. This handles both --units-that-include (UnitsReading) and legacy ModulesThatInclude flags.
 // Checks both unit.Reading (populated by discovery's FilesRead tracking) and Config.ProcessedIncludes (include blocks).
-func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units Units) Units {
+func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units component.Units) component.Units {
 	// Combine both UnitsReading (new) and ModulesThatInclude (legacy) for backwards compatibility
 	filesToCheck := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
@@ -222,13 +223,13 @@ func (r *UnitResolver) flagUnitsThatRead(opts *options.TerragruntOptions, units 
 }
 
 // telemetryApplyExcludeDirs applies exclude directory filters and sets FlagExcluded accordingly
-func (r *UnitResolver) telemetryApplyExcludeDirs(ctx context.Context, l log.Logger, withUnitsRead Units) (Units, error) {
-	var withUnitsExcluded Units
+func (r *UnitResolver) telemetryApplyExcludeDirs(ctx context.Context, l log.Logger, withUnitsRead component.Units) (component.Units, error) {
+	var withUnitsExcluded component.Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_exclude_dirs", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+		"working_dir": r.Stack.TerragruntOptions().WorkingDir,
 	}, func(_ context.Context) error {
-		withUnitsExcluded = r.applyExcludeDirs(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsRead)
+		withUnitsExcluded = r.applyExcludeDirs(l, r.Stack.TerragruntOptions(), r.Stack.Report(), withUnitsRead)
 		return nil
 	})
 
@@ -242,7 +243,7 @@ func (r *UnitResolver) telemetryApplyExcludeDirs(ctx context.Context, l log.Logg
 //   - "**/staging/**"
 //   - "modules/*/test"
 //   - "envs/prod"
-func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
+func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units component.Units) component.Units {
 	// If we don't have any excludes, we don't need to do anything.
 	if (len(r.excludeGlobs) == 0 && r.doubleStarEnabled) || len(opts.ExcludeDirs) == 0 {
 		return units
@@ -263,7 +264,7 @@ func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOp
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range unit.Dependencies() {
-			if dep, ok := dependency.(*Unit); ok && excludeFn(dep) {
+			if dep, ok := dependency.(*component.Unit); ok && excludeFn(dep) {
 				dep.SetFlagExcluded(true)
 
 				// Only update report if it's enabled
@@ -278,13 +279,13 @@ func (r *UnitResolver) applyExcludeDirs(l log.Logger, opts *options.TerragruntOp
 }
 
 // telemetryApplyExcludeModules applies exclude-modules filter and sets FlagExcluded accordingly
-func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers Units) (Units, error) {
-	var withExcludedUnits Units
+func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers component.Units) (component.Units, error) {
+	var withExcludedUnits component.Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_exclude_modules", map[string]any{
-		"working_dir": r.Stack.TerragruntOptions.WorkingDir,
+		"working_dir": r.Stack.TerragruntOptions().WorkingDir,
 	}, func(_ context.Context) error {
-		result := r.applyExcludeModules(l, r.Stack.TerragruntOptions, r.Stack.Report, withUnitsThatAreIncludedByOthers)
+		result := r.applyExcludeModules(l, r.Stack.TerragruntOptions(), r.Stack.Report(), withUnitsThatAreIncludedByOthers)
 		withExcludedUnits = result
 
 		return nil
@@ -294,7 +295,7 @@ func (r *UnitResolver) telemetryApplyExcludeModules(ctx context.Context, l log.L
 }
 
 // applyExcludeModules sets FlagExcluded on units based on the exclude block in their terragrunt.hcl.
-func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units Units) Units {
+func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units component.Units) component.Units {
 	for _, unit := range units {
 		excludeConfig := unit.Config().Exclude
 
@@ -323,7 +324,7 @@ func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.Terragrun
 			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path())
 
 			for _, dependency := range unit.Dependencies() {
-				if dep, ok := dependency.(*Unit); ok {
+				if dep, ok := dependency.(*component.Unit); ok {
 					// Check if dependency was already excluded
 					wasAlreadyExcluded := dep.FlagExcluded()
 					dep.SetFlagExcluded(true)
@@ -342,20 +343,20 @@ func (r *UnitResolver) applyExcludeModules(l log.Logger, opts *options.Terragrun
 }
 
 // telemetryApplyFilters applies all configured unit filters to the resolved units
-func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, units Units) (Units, error) {
+func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, units component.Units) (component.Units, error) {
 	if len(r.filters) == 0 {
 		return units, nil
 	}
 
-	var filteredUnits Units
+	var filteredUnits component.Units
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_unit_filters", map[string]any{
-		"working_dir":  r.Stack.TerragruntOptions.WorkingDir,
+		"working_dir":  r.Stack.TerragruntOptions().WorkingDir,
 		"filter_count": len(r.filters),
 	}, func(ctx context.Context) error {
 		// Apply all filters in sequence
 		for _, filter := range r.filters {
-			if err := filter.Filter(ctx, units, r.Stack.TerragruntOptions); err != nil {
+			if err := filter.Filter(ctx, units, r.Stack.TerragruntOptions()); err != nil {
 				return err
 			}
 		}

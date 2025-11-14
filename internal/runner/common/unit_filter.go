@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -12,7 +13,7 @@ import (
 type UnitFilter interface {
 	// Filter applies the filtering logic to the given units.
 	// Returns an error if the filtering operation fails.
-	Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error
+	Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error
 }
 
 // CompositeFilter combines multiple filters into a single filter.
@@ -22,7 +23,7 @@ type CompositeFilter struct {
 }
 
 // Filter implements UnitFilter by applying all filters in sequence.
-func (f *CompositeFilter) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
+func (f *CompositeFilter) Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error {
 	for _, filter := range f.Filters {
 		if err := filter.Filter(ctx, units, opts); err != nil {
 			return err

@@ -35,7 +35,7 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack       *common.Stack
+	Stack       *component.Stack
 	queue       *queue.Queue
 	unitFilters []common.UnitFilter
 }
@@ -60,13 +60,12 @@ func NewRunnerPoolStack(
 	if len(nonStackComponents) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
-		stack := common.Stack{
-			TerragruntOptions: terragruntOptions,
-			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-		}
+		stack := component.NewStack("")
+		stack.SetTerragruntOptions(terragruntOptions)
+		stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
 
 		runner := &Runner{
-			Stack: &stack,
+			Stack: stack,
 		}
 
 		// Create an empty queue
@@ -81,13 +80,12 @@ func NewRunnerPoolStack(
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
-	stack := common.Stack{
-		TerragruntOptions: terragruntOptions,
-		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-	}
+	stack := component.NewStack("")
+	stack.SetTerragruntOptions(terragruntOptions)
+	stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
 
 	runner := &Runner{
-		Stack: &stack,
+		Stack: stack,
 	}
 
 	// Apply options (including report) BEFORE resolving units so that
@@ -124,7 +122,7 @@ func NewRunnerPoolStack(
 	for _, u := range units {
 		stackUnits = append(stackUnits, u)
 	}
-	runner.Stack.Units = stackUnits
+	runner.Stack.SetUnits(stackUnits)
 
 	if isDestroyCommand(terragruntOptions) {
 		applyPreventDestroyExclusions(l, units)
@@ -198,7 +196,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	terraformCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
-		for _, comp := range r.Stack.Units {
+		for _, comp := range r.Stack.Units() {
 			u, ok := comp.(*component.Unit)
 			if !ok {
 				continue
@@ -234,8 +232,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// Emit report entries for excluded units that haven't been reported yet.
 	// Units excluded by CLI flags or exclude blocks are already reported during unit resolution,
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
-	if r.Stack.Report != nil {
-		for _, comp := range r.Stack.Units {
+	if r.Stack.Report() != nil {
+		for _, comp := range r.Stack.Units() {
 			u, ok := comp.(*component.Unit)
 			if !ok {
 				continue
@@ -248,7 +246,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				run, err := r.Stack.Report.EnsureRun(unitPath)
+				run, err := r.Stack.Report().EnsureRun(unitPath)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -265,7 +263,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 						reason = report.ReasonExcludeExternal
 					}
 
-					if err := r.Stack.Report.EndRun(
+					if err := r.Stack.Report().EndRun(
 						run.Path,
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
@@ -285,7 +283,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"terragrunt_config_path": u.TerragruntOptions().TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			unitRunner := common.NewUnitRunner(u)
-			return unitRunner.Run(childCtx, u.TerragruntOptions(), r.Stack.Report)
+			return unitRunner.Run(childCtx, u.TerragruntOptions(), r.Stack.Report())
 		})
 	}
 
@@ -294,8 +292,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// Allow continuing the queue when dependencies fail if requested via CLI
 	r.queue.IgnoreDependencyErrors = opts.IgnoreDependencyErrors
 	// Convert Stack.Units (component.Components) to []*component.Unit for the controller
-	units := make([]*component.Unit, 0, len(r.Stack.Units))
-	for _, comp := range r.Stack.Units {
+	units := make([]*component.Unit, 0, len(r.Stack.Units()))
+	for _, comp := range r.Stack.Units() {
 		if u, ok := comp.(*component.Unit); ok {
 			units = append(units, u)
 		}
@@ -311,7 +309,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	err := controller.Run(ctx, l)
 
 	// Emit report entries for early exit units after controller completes
-	if r.Stack.Report != nil {
+	if r.Stack.Report() != nil {
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
 		for _, qe := range r.queue.Entries {
@@ -338,7 +336,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				run, reportErr := r.Stack.Report.EnsureRun(unitPath)
+				run, reportErr := r.Stack.Report().EnsureRun(unitPath)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue
@@ -369,7 +367,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 				}
 
-				if endErr := r.Stack.Report.EndRun(run.Path, endOpts...); endErr != nil {
+				if endErr := r.Stack.Report().EndRun(run.Path, endOpts...); endErr != nil {
 					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 				}
 			}
@@ -404,9 +402,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 // handlePlan handles logic for plan command, including error buffer setup and summary.
 // Returns error buffers for each unit to capture stderr output for later analysis.
 func (r *Runner) handlePlan() []bytes.Buffer {
-	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units))
+	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units()))
 	i := 0
-	for _, comp := range r.Stack.Units {
+	for _, comp := range r.Stack.Units() {
 		u, ok := comp.(*component.Unit)
 		if !ok {
 			continue
@@ -425,7 +423,7 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf(
 		"The runner-pool runner at %s will be processed in the following order for command %s:\n",
-		r.Stack.TerragruntOptions.WorkingDir,
+		r.Stack.TerragruntOptions().WorkingDir,
 		terraformCommand,
 	)
 
@@ -491,7 +489,7 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
-	for _, comp := range r.Stack.Units {
+	for _, comp := range r.Stack.Units() {
 		unit, ok := comp.(*component.Unit)
 		if !ok {
 			continue
@@ -520,7 +518,7 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
 func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	unitIndex := 0
-	for _, comp := range r.Stack.Units {
+	for _, comp := range r.Stack.Units() {
 		unit, ok := comp.(*component.Unit)
 		if !ok || unitIndex >= len(errorStreams) {
 			continue
@@ -689,23 +687,23 @@ func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 }
 
 // GetStack returns the stack associated with the runner.
-func (r *Runner) GetStack() *common.Stack {
+func (r *Runner) GetStack() *component.Stack {
 	return r.Stack
 }
 
 // SetTerragruntConfig sets the config for the stack.
 func (r *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
-	r.Stack.ChildTerragruntConfig = config
+	r.Stack.SetChildTerragruntConfig(config)
 }
 
 // SetParseOptions sets the ParseOptions for the stack.
 func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
-	r.Stack.ParserOptions = parserOptions
+	r.Stack.SetParserOptions(parserOptions)
 }
 
 // SetReport sets the report for the stack.
 func (r *Runner) SetReport(report *report.Report) {
-	r.Stack.Report = report
+	r.Stack.SetReport(report)
 }
 
 // SetUnitFilters sets the unit filters for the runner.
