@@ -304,14 +304,20 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 // EvaluateOnFiles evaluates the filters on a list of files and returns the filtered result.
 // This is useful for the hcl format command, where we want to evaluate filters on files
 // rather than directories, like we do with components.
-func (f Filters) EvaluateOnFiles(l log.Logger, files []string) (component.Components, error) {
+func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string) (component.Components, error) {
 	if e, ok := f.RequiresDiscovery(); ok {
 		return nil, FilterQueryRequiresDiscoveryError{Query: e.String()}
 	}
 
 	comps := make(component.Components, 0, len(files))
 	for _, file := range files {
-		comps = append(comps, component.NewUnit(file))
+		unit := component.NewUnit(file)
+		if workingDir != "" {
+			unit = unit.WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: workingDir,
+			})
+		}
+		comps = append(comps, unit)
 	}
 
 	if len(f) == 0 {
