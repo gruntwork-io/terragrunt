@@ -2,17 +2,17 @@ package worktrees_test
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
+
+	gogit "github.com/go-git/go-git/v6"
 )
 
 func TestNewWorktrees(t *testing.T) {
@@ -22,11 +22,28 @@ func TestNewWorktrees(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
 
-	gitCommit(t, tmpDir, "Initial commit", "--allow-empty")
+	runner = runner.WithWorkDir(tmpDir)
 
-	gitCommit(t, tmpDir, "Second commit", "--allow-empty")
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Second commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
@@ -56,9 +73,23 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize Git repository
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
 
-	gitCommit(t, tmpDir, "Initial commit", "--allow-empty")
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -75,20 +106,4 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 		filters.UniqueGitFilters(),
 	)
 	require.Error(t, err)
-}
-
-// TODO: Move this out to the `internal/git` package
-
-// gitCommit creates a Git commit
-func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
-	t.Helper()
-
-	args := []string{"commit", "--no-gpg-sign", "-m", message}
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(t.Context(), "git", args...)
-	cmd.Dir = dir
-	// Set git config for test environment
-	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
 }

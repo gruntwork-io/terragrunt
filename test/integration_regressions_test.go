@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -204,7 +205,14 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyEmptyConfigPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
-	helpers.CreateGitRepo(t, gitPath)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(gitPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Run directly against the consumer unit to force evaluation of dependency outputs
 	consumerPath := util.JoinPath(gitPath, "_source", "units", "consumer")

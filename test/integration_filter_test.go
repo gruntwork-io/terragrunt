@@ -2,14 +2,16 @@ package test_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	gogit "github.com/go-git/go-git/v6"
 )
 
 const (
@@ -740,7 +742,18 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
 
 	// Create three units initially
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
@@ -770,8 +783,11 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initial commit
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Initial commit")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Modify the unit to be modified
 	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
@@ -792,8 +808,11 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	// Do nothing to the unit to be untouched
 
 	// Commit the modification and removal in a single commit
-	gitAdd(t, tmpDir, ".")
-	gitCommit(t, tmpDir, "Create, modify, and remove units")
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{})
+	require.NoError(t, err)
 
 	// Clean up terraform folders before running
 	helpers.CleanupTerraformFolder(t, tmpDir)
@@ -862,29 +881,4 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TODO: Remove
-
-// gitAdd adds files to Git staging area
-func gitAdd(t *testing.T, dir string, paths ...string) {
-	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", append([]string{"add"}, paths...)...)
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error adding files to git: %v\n%s", err, string(output))
-}
-
-// gitCommit creates a Git commit
-func gitCommit(t *testing.T, dir, message string, extraArgs ...string) {
-	t.Helper()
-
-	args := []string{"commit", "--no-gpg-sign", "-m", message}
-	args = append(args, extraArgs...)
-	cmd := exec.CommandContext(t.Context(), "git", args...)
-	cmd.Dir = dir
-	// Set git config for test environment
-	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
-	output, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "Error creating git commit: %v\n%s", err, string(output))
 }

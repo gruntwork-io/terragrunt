@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -750,7 +749,13 @@ func TestDiscoveryWithGraphExpressionFilters(t *testing.T) {
 
 	// To speed up this test, we'll make the temporary directory a git repository.
 	// This creates a lower upper bound for dependent discovery.
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Create dependency graph: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -845,7 +850,13 @@ func TestDiscoveryWithGraphExpressionFilters_ComplexGraph(t *testing.T) {
 	require.NoError(t, err)
 
 	// To speed up this test, we'll make the temporary directory a git repository.
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Create complex graph: vpc -> [db, cache] -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
