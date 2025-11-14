@@ -84,7 +84,7 @@ There are several different types of filter expressions, and particular ways in 
 | Graph-Based | Filter units based on their dependency relationships using graph traversal operators. |
 | Git-Based | Filter units and stacks based on Git diffs using Git expressions. |
 
-### Name-Based Filtering
+### Name-Based Expressions
 
 Match units and stacks by their name. This is the simplest form of filtering.
 
@@ -110,7 +110,7 @@ terragrunt find --filter 'app*'
 Note that `app1` and `app2` were selected _within_ the `apps` directory. Filtering on names will match _any_ unit/stack that has a name that matches the filter.
 </Aside>
 
-### Path-Based Filtering
+### Path-Based Expressions
 
 Match units and stacks by their file system path.
 
@@ -154,7 +154,7 @@ Note that globs used in path-based filtering will not recursively match nested d
 (That's why `./envs/stage/**` is used above)
 </Aside>
 
-### Attribute-Based Filtering
+### Attribute-Based Expressions
 
 Match units and stacks by their configuration attributes.
 
@@ -183,7 +183,17 @@ terragrunt find --filter 'name=stack*'
         - terragrunt.hcl
 </FileTree>
 
-### Source-Based Filtering
+The following are the attributes supported for attribute-based filtering:
+
+| Attribute | Description |
+|-----------|-------------|
+| name | Match units and stacks by their name. |
+| type | Match units and stacks by their type. |
+| external | Match units and stacks by their external dependency status. |
+| reading | Match units and stacks by the files they read. |
+| source | Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files. |
+
+### Source-Based Expressions
 
 Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files.
 
