@@ -441,7 +441,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	flags = flags.Add(shared.NewFeatureFlags(opts, prefix)...)
 	flags = flags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...)
 	flags = flags.Add(shared.NewQueueFlags(opts, prefix)...)
-	flags = flags.Add(shared.NewFilterFlag(opts))
+	flags = flags.Add(shared.NewFilterFlags(l, opts)...)
 	flags = flags.Add(shared.NewParallelismFlag(opts))
 
 	return flags.Sort()
