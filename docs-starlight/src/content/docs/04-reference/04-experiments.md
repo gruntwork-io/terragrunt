@@ -166,13 +166,13 @@ To transition the `filter-flag` feature to a stable release, the following must 
 - [x] Integrate with the `find` command
 - [x] Integrate with the `list` command
 - [x] Integrate with the `run` command
-- [ ] Add support for git-based filtering ([ref...ref] syntax)
-- [ ] Add support for dependency/dependent traversal (... syntax)
-- [ ] Add support for `--filters-file` flag
+- [x] Add support for git-based filtering ([ref...ref] syntax)
+- [x] Add support for dependency/dependent traversal (... syntax)
+- [x] Add support for `--filters-file` flag
 - [ ] Add support for `--filter-allow-destroy` flag
-- [ ] Add support for `--filter-affected` shorthand
+- [x] Add support for `--filter-affected` shorthand
 - [ ] Comprehensive integration testing across all commands
-- [ ] Deprecate legacy queue control flags (queue-exclude-dir, queue-include-dir, etc.)
+- [ ] Backport legacy queue control flags (queue-exclude-dir, queue-include-dir, etc.) into equivalent filter patterns as aliases.
 
 **Future Deprecations:**
 
