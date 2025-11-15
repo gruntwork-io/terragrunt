@@ -5,8 +5,6 @@ import (
 	"sync"
 
 	"github.com/gobwas/glob"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 )
 
 // Expression is the interface that all AST nodes must implement.
@@ -282,48 +280,6 @@ func (g *GitExpression) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 func (g *GitExpression) IsRestrictedToStacks() bool { return false }
-
-// Expand expands a Git expression into the equivalent to and from filter expressions based on the provided
-// diffs for the Git reference pair.
-func (g *GitExpression) Expand(diffs *git.Diffs) (Filters, Filters) {
-	// Build simple expressions that can be determined simply from the diffs.
-	fromExpressions := make(Expressions, 0, len(diffs.Removed))
-	for _, path := range diffs.Removed {
-		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
-			fromExpressions = append(fromExpressions, NewPathFilter(filepath.Dir(path)))
-		}
-	}
-
-	toExpressions := make(Expressions, 0, len(diffs.Added)+len(diffs.Changed))
-	for _, path := range diffs.Added {
-		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
-			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
-		}
-	}
-
-	for _, path := range diffs.Changed {
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, NewPathFilter(filepath.Dir(path)))
-		case config.DefaultStackFile:
-			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
-		default:
-			toExpressions = append(toExpressions, NewAttributeExpression(AttributeReading, path))
-		}
-	}
-
-	fromFilters := make(Filters, 0, len(fromExpressions))
-	for _, expression := range fromExpressions {
-		fromFilters = append(fromFilters, &Filter{expr: expression, originalQuery: expression.String()})
-	}
-
-	toFilters := make(Filters, 0, len(toExpressions))
-	for _, expression := range toExpressions {
-		toFilters = append(toFilters, &Filter{expr: expression, originalQuery: expression.String()})
-	}
-
-	return fromFilters, toFilters
-}
 
 // GitExpressions is a slice of Git expressions.
 type GitExpressions []*GitExpression

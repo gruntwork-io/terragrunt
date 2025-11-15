@@ -130,6 +130,54 @@ func (w *Worktrees) Stacks() StackDiff {
 	return stackDiff
 }
 
+// Expand expands a Git expression into the equivalent to and from filter expressions based on the provided
+// diffs for the Git reference pair.
+func (w *Worktrees) Expand(diffs *git.Diffs) (filter.Filters, filter.Filters) {
+	// Build simple expressions that can be determined simply from the diffs.
+	fromExpressions := make(filter.Expressions, 0, len(diffs.Removed))
+	for _, path := range diffs.Removed {
+		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
+			fromExpressions = append(fromExpressions, filter.NewPathFilter(filepath.Dir(path)))
+		}
+	}
+
+	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
+	for _, path := range diffs.Added {
+		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
+			toExpressions = append(toExpressions, filter.NewPathFilter(filepath.Dir(path)))
+		}
+	}
+
+	for _, path := range diffs.Changed {
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			toExpressions = append(toExpressions, filter.NewPathFilter(filepath.Dir(path)))
+		case config.DefaultStackFile:
+			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
+		default:
+			toExpressions = append(toExpressions, filter.NewAttributeExpression(filter.AttributeReading, path))
+		}
+	}
+
+	fromFilters := make(filter.Filters, 0, len(fromExpressions))
+	for _, expression := range fromExpressions {
+		fromFilters = append(
+			fromFilters,
+			filter.NewFilter(expression, expression.String()),
+		)
+	}
+
+	toFilters := make(filter.Filters, 0, len(toExpressions))
+	for _, expression := range toExpressions {
+		toFilters = append(
+			toFilters,
+			filter.NewFilter(expression, expression.String()),
+		)
+	}
+
+	return fromFilters, toFilters
+}
+
 // NewWorktrees creates a new Worktrees for a given set of Git filters.
 //
 // Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.

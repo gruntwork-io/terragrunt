@@ -369,18 +369,18 @@ func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
+	w *worktrees.Worktrees,
 	experiments experiment.Experiments,
 ) (component.Components, error) {
 	// If worktrees is nil, there are no worktrees to process, return empty components.
-	if worktrees == nil {
+	if w == nil {
 		return component.Components{}, nil
 	}
 
 	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
 
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
-	stackDiff := worktrees.Stacks()
+	stackDiff := w.Stacks()
 
 	editedStacks := append(
 		stackDiff.Added,
@@ -404,12 +404,12 @@ func worktreeStacksToGenerate(
 
 	fullDiscoveries := map[string]*discovery.Discovery{}
 
-	for expression, diffs := range worktrees.GitExpressionsToDiffs {
-		fromFilters, toFilters := expression.Expand(diffs)
+	for expression, diffs := range w.GitExpressionsToDiffs {
+		fromFilters, toFilters := w.Expand(diffs)
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
 			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
-				WorkingDir:    worktrees.RefsToPaths[expression.FromRef],
+				WorkingDir:    w.RefsToPaths[expression.FromRef],
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
 			})
@@ -422,7 +422,7 @@ func worktreeStacksToGenerate(
 
 		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
 			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
-				WorkingDir:    worktrees.RefsToPaths[expression.ToRef],
+				WorkingDir:    w.RefsToPaths[expression.ToRef],
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
 			})

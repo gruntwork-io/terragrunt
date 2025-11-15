@@ -11,11 +11,6 @@ type Filter struct {
 	originalQuery string
 }
 
-// String returns a string representation of the filter.
-func (f *Filter) String() string {
-	return f.originalQuery
-}
-
 // Parse parses a filter query string and returns a Filter object.
 // Returns an error if the query cannot be parsed.
 func Parse(filterString string) (*Filter, error) {
@@ -31,6 +26,16 @@ func Parse(filterString string) (*Filter, error) {
 		expr:          expr,
 		originalQuery: filterString,
 	}, nil
+}
+
+// NewFilter creates a new Filter object.
+func NewFilter(expr Expression, originalQuery string) *Filter {
+	return &Filter{expr: expr, originalQuery: originalQuery}
+}
+
+// String returns a string representation of the filter.
+func (f *Filter) String() string {
+	return f.originalQuery
 }
 
 // Evaluate applies the filter to a list of components and returns the filtered result.

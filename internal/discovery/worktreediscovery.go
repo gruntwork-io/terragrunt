@@ -77,7 +77,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	for gitExpression, diffs := range w.GitExpressionsToDiffs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := gitExpression.Expand(diffs)
+			fromFilters, toFilters := w.Expand(diffs)
 
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
