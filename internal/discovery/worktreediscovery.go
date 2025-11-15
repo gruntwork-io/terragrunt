@@ -571,9 +571,21 @@ func generateDirSHA256(rootDir string) (string, error) {
 			return err
 		}
 
-		if !d.IsDir() {
-			filePaths = append(filePaths, path)
+		if d.IsDir() {
+			return nil
 		}
+
+		// We ignore the `.terragrunt-stack-manifest` file here, as it encodes the manifest
+		// using absolute paths of the contents of the stack, which will always result in a different SHA.
+		//
+		// We might want to change the way we generate the `.terragrunt-stack-manifest` file to use relative paths,
+		// but that's a bigger change than needed for this to work. We might also want to just use this file
+		// to evaluate whether there is a diff, but that's obviously not going to work here for the same reason.
+		if filepath.Base(path) == ".terragrunt-stack-manifest" {
+			return nil
+		}
+
+		filePaths = append(filePaths, path)
 
 		return nil
 	})

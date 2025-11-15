@@ -866,7 +866,7 @@ unit "unit_to_be_untouched" {
 
 	// Verify that the stacks were discovered
 	assert.NotEmpty(t, components)
-	assert.Len(t, components, 13)
+	assert.Len(t, components, 12)
 
 	// Get relative paths from tmpDir
 	stackToBeAddedRel, err := filepath.Rel(tmpDir, stackToBeAddedDir)
@@ -926,15 +926,6 @@ unit "unit_to_be_untouched" {
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
 		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
-			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
-				Ref:        "HEAD",
-			},
-		),
-		// unit_to_be_untouched: in both, but generated files may differ, so discovered
-		//
-		// This is not expected. Investigating...
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
