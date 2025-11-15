@@ -32,7 +32,7 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	flags := cli.Flags{
@@ -101,16 +101,14 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 		}),
 	}
 
-	flags = flags.Add(shared.NewFilterFlags(opts.TerragruntOptions)...)
-
-	return flags
+	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
 
 	// Base flags for find plus backend/feature flags
-	flags := NewFlags(cmdOpts, nil)
+	flags := NewFlags(l, cmdOpts, nil)
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
 

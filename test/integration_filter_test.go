@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
@@ -747,6 +748,180 @@ func TestFilterFlagWithSource(t *testing.T) {
 				actualLines := strings.Fields(stdout)
 				assert.ElementsMatch(t, expectedLines, actualLines, "Output mismatch for filter query: %s", tc.filterQuery)
 			}
+		})
+	}
+}
+
+func TestFilterFlagWithFindGitFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
+
+	// Create three units initially
+	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
+	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
+	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
+
+	err = os.MkdirAll(unitToBeModifiedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(unitToBeRemovedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(unitToBeUntouchedDir, 0755)
+	require.NoError(t, err)
+
+	// Create minimal terragrunt.hcl files for each unit
+	unitToBeModifiedHCLPath := filepath.Join(unitToBeModifiedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit to be modified`), 0644)
+	require.NoError(t, err)
+
+	unitToBeRemovedHCLPath := filepath.Join(unitToBeRemovedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeRemovedHCLPath, []byte(`# Unit to be removed`), 0644)
+	require.NoError(t, err)
+
+	unitToBeUntouchedHCLPath := filepath.Join(unitToBeUntouchedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeUntouchedHCLPath, []byte(`# Unit to be untouched`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	head, err := runner.GoOpenRepoHead()
+	require.NoError(t, err)
+
+	// If users don't have a default branch set, we'll make sure that the `main` branch exists
+	b, err := runner.Config(t.Context(), "init.defaultBranch")
+	if err != nil || b != "main" {
+		err = runner.GoCheckout(&gogit.CheckoutOptions{
+			Branch: plumbing.ReferenceName("refs/heads/main"),
+			Create: true,
+			Hash:   head.Hash(),
+		})
+		require.NoError(t, err)
+	}
+
+	// We'll checkout a new branch so that we can compare against main in the filter-affected flag test
+	err = runner.GoCheckout(&gogit.CheckoutOptions{
+		Branch: plumbing.ReferenceName("refs/heads/filter-affected-test"),
+		Create: true,
+		Hash:   head.Hash(),
+	})
+	require.NoError(t, err)
+
+	// Modify the unit to be modified
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
+	require.NoError(t, err)
+
+	// Remove the unit to be removed (delete the directory)
+	err = os.RemoveAll(unitToBeRemovedDir)
+	require.NoError(t, err)
+
+	// Add a unit to be created
+	unitToBeCreatedDir := filepath.Join(tmpDir, "unit-to-be-created")
+	err = os.MkdirAll(unitToBeCreatedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"), []byte(`# Unit created`), 0644)
+	require.NoError(t, err)
+
+	// Do nothing to the unit to be untouched
+
+	// Commit the modification and removal in a single commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Clean up terraform folders before running
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	testCases := []struct {
+		name                  string
+		filterQuery           string
+		expectedUnits         []string
+		useFilterAffectedFlag bool
+		expectError           bool
+	}{
+		{
+			name:          "standard git filter",
+			filterQuery:   "[HEAD~1...HEAD]",
+			expectedUnits: []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
+			expectError:   false,
+		},
+		{
+			name:                  "filter-affected flag",
+			expectedUnits:         []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
+			useFilterAffectedFlag: true,
+			expectError:           false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			cmd := "terragrunt find --no-color --working-dir " + tmpDir
+			if tc.useFilterAffectedFlag {
+				cmd += " --filter-affected"
+			}
+
+			if tc.filterQuery != "" {
+				cmd += " --filter '" + tc.filterQuery + "'"
+			}
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
+				assert.NotEmpty(t, stderr, "Expected error message in stderr")
+
+				return
+			}
+
+			results := strings.Split(strings.TrimSpace(stdout), "\n")
+			assert.ElementsMatch(t, tc.expectedUnits, results)
 		})
 	}
 }
