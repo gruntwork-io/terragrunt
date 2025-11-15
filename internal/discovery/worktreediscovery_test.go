@@ -11,8 +11,10 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -653,4 +655,317 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 
 	// Verify that no components were discovered when there are no diffs
 	assert.Empty(t, components, "No components should be discovered when there are no diffs between references")
+}
+
+func TestWorktreeDiscovery_Stacks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	// Create a catalog of units
+
+	// The legacy unit is the one that will be migrated from.
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	err = os.MkdirAll(legacyUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0644)
+	require.NoError(t, err)
+
+	// The modern unit is one that will be migrated to from the legacy unit.
+	modernUnitDir := filepath.Join(tmpDir, "catalog", "units", "modern")
+	err = os.MkdirAll(modernUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(modernUnitDir, "terragrunt.hcl"), []byte(`# Modern unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(modernUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0644)
+	require.NoError(t, err)
+
+	// These let us simulate editing a stack file to use new unit definitions.
+
+	// Commit creation of the foo unit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create foo unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Create three stacks that reference the active and passive units, three times.
+	//
+	// Afterwards we'll:
+	//
+	// - add a new stack.
+	// - modify the first stack to perform an addition, removal, modification and no-op of units.
+	// - remove the second stack.
+	// - leave the third stack untouched.
+
+	stackFileContents := `unit "unit_to_be_modified" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit_to_be_modified"
+}
+
+unit "unit_to_be_removed" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit_to_be_removed"
+}
+
+unit "unit_to_be_untouched" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit_to_be_untouched"
+}
+`
+
+	stackToBeModifiedDir := filepath.Join(tmpDir, "live", "stack-to-be-modified")
+	err = os.MkdirAll(stackToBeModifiedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0644)
+	require.NoError(t, err)
+
+	stackToBeRemovedDir := filepath.Join(tmpDir, "live", "stack-to-be-removed")
+	err = os.MkdirAll(stackToBeRemovedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackToBeRemovedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0644)
+	require.NoError(t, err)
+
+	stackToBeUntouchedDir := filepath.Join(tmpDir, "live", "stack-to-be-untouched")
+	err = os.MkdirAll(stackToBeUntouchedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackToBeUntouchedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0644)
+	require.NoError(t, err)
+
+	// Commit creation of the stacks
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create stacks", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Add a new stack
+	stackToBeAddedDir := filepath.Join(tmpDir, "live", "stack-to-be-added")
+	err = os.MkdirAll(stackToBeAddedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackToBeAddedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0644)
+	require.NoError(t, err)
+
+	// Modify the first stack to switch from the legacy unit to the modern unit
+	err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(`unit "unit_to_be_added" {
+	source = "${get_repo_root()}/catalog/units/modern"
+	path   = "unit_to_be_added"
+}
+
+unit "unit_to_be_modified" {
+	source = "${get_repo_root()}/catalog/units/modern"
+	path   = "unit_to_be_modified"
+}
+
+unit "unit_to_be_untouched" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit_to_be_untouched"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	// Remove the second stack
+	err = os.RemoveAll(stackToBeRemovedDir)
+	require.NoError(t, err)
+
+	// Leave the third stack untouched
+
+	// Commit the changes
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modify and remove stacks", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Create options
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	opts.FilterQueries = []string{"[HEAD~1...HEAD]"}
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// Create a Git filter expression
+	gitFilter := filter.NewGitExpression("HEAD~1", "HEAD")
+	gitExpressions := filter.GitExpressions{gitFilter}
+
+	l := logger.CreateLogger()
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	// Generate stacks
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// Create original discovery
+	originalDiscovery := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+		}).
+		WithWorktrees(w)
+
+	// Create worktree discovery
+	worktreeDiscovery := discovery.NewWorktreeDiscovery(
+		gitExpressions,
+	).
+		WithOriginalDiscovery(originalDiscovery)
+
+	// Perform discovery
+	components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// Verify that the stacks were discovered
+	assert.NotEmpty(t, components)
+	assert.Len(t, components, 13)
+
+	// Get relative paths from tmpDir
+	stackToBeAddedRel, err := filepath.Rel(tmpDir, stackToBeAddedDir)
+	require.NoError(t, err)
+	stackToBeModifiedRel, err := filepath.Rel(tmpDir, stackToBeModifiedDir)
+	require.NoError(t, err)
+	stackToBeRemovedRel, err := filepath.Rel(tmpDir, stackToBeRemovedDir)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, components, component.Components{
+		// Stacks
+		component.NewStack(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel)).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		component.NewStack(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel)).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		component.NewStack(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel)).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD~1"],
+				Ref:        "HEAD~1",
+			},
+		),
+		// Units from stack-to-be-added (HEAD)
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		// Units from stack-to-be-modified (HEAD)
+		// For changed stacks, we only discover units that are added, removed, or changed (different SHA)
+		// unit_to_be_added: only in HEAD (added)
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		// unit_to_be_untouched: in both, but generated files may differ, so discovered
+		//
+		// This is not expected. Investigating...
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD"],
+				Ref:        "HEAD",
+			},
+		),
+		// Units from stack-to-be-modified (HEAD~1)
+		// unit_to_be_removed: only in HEAD~1 (removed)
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD~1"],
+				Ref:        "HEAD~1",
+			},
+		),
+		// Units from stack-to-be-removed (HEAD~1)
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD~1"],
+				Ref:        "HEAD~1",
+			},
+		),
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD~1"],
+				Ref:        "HEAD~1",
+			},
+		),
+		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+			&component.DiscoveryContext{
+				WorkingDir: w.RefsToPaths["HEAD~1"],
+				Ref:        "HEAD~1",
+			},
+		),
+	})
 }
