@@ -101,6 +101,7 @@ flags:
   - list-dag
   - queue-construct-as
   - filter
+  - filter-affected
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -307,6 +308,17 @@ terragrunt list --experiment filter-flag --filter 'foo'
 </Aside>
 
 The `list` command supports the `--filter` flag to target specific configurations using a flexible query language. This is particularly useful for listing configurations that match specific criteria before running operations on them.
+
+### Listing Affected Components
+
+For the common use case of listing components affected by changes between the default branch and `HEAD`, you can use the `--filter-affected` flag:
+
+```bash
+# List all components affected by changes between main and HEAD
+terragrunt list --filter-affected
+```
+
+This is equivalent to `terragrunt list --filter '[main...HEAD]'` and automatically detects your repository's default branch.
 
 ### Basic Filtering Examples
 

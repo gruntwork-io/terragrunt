@@ -492,6 +492,24 @@ Graph expressions require dependency/dependent discovery to work correctly. When
 
 Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
 
+#### Shorthand: `--filter-affected`
+
+For the common use case of comparing the default branch (typically `main`) with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:
+
+```bash
+# Find components affected by changes between main and HEAD
+terragrunt find --filter-affected
+
+# Equivalent to:
+terragrunt find --filter '[main...HEAD]'
+```
+
+The `--filter-affected` flag automatically detects your repository's default branch and compares it with `HEAD`.
+
+#### Git Filter Expressions
+
+For more control, you can use Git-based filter expressions directly:
+
 ```bash
 # Compare between two references
 terragrunt find --filter '[main...HEAD]'
