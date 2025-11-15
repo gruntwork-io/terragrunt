@@ -851,6 +851,7 @@ unit "unit_to_be_untouched" {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
+			Cmd:        "plan",
 		}).
 		WithWorktrees(w)
 
@@ -882,18 +883,22 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		component.NewStack(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		component.NewStack(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD~1"],
 				Ref:        "HEAD~1",
+				Cmd:        "plan",
+				Args:       []string{"-destroy"},
 			},
 		),
 		// Units from stack-to-be-added (HEAD)
@@ -901,18 +906,21 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		// Units from stack-to-be-modified (HEAD)
@@ -922,6 +930,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
@@ -929,6 +938,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD"],
 				Ref:        "HEAD",
+				Cmd:        "plan",
 			},
 		),
 		// Units from stack-to-be-modified (HEAD~1)
@@ -937,6 +947,8 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD~1"],
 				Ref:        "HEAD~1",
+				Cmd:        "plan",
+				Args:       []string{"-destroy"},
 			},
 		),
 		// Units from stack-to-be-removed (HEAD~1)
@@ -944,18 +956,24 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD~1"],
 				Ref:        "HEAD~1",
+				Cmd:        "plan",
+				Args:       []string{"-destroy"},
 			},
 		),
 		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD~1"],
 				Ref:        "HEAD~1",
+				Cmd:        "plan",
+				Args:       []string{"-destroy"},
 			},
 		),
 		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: w.RefsToPaths["HEAD~1"],
 				Ref:        "HEAD~1",
+				Cmd:        "plan",
+				Args:       []string{"-destroy"},
 			},
 		),
 	})
