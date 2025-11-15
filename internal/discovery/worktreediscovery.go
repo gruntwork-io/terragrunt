@@ -61,9 +61,9 @@ func (wd *WorktreeDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	worktree *worktrees.Worktrees,
+	w *worktrees.Worktrees,
 ) (component.Components, error) {
-	if worktree == nil {
+	if w == nil {
 		l.Debug("No worktrees provided, skipping worktree discovery")
 
 		return component.Components{}, nil
@@ -75,7 +75,7 @@ func (wd *WorktreeDiscovery) Discover(
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(wd.numWorkers)
 
-	for gitExpression, diffs := range worktree.GitExpressionsToDiffs {
+	for gitExpression, diffs := range w.GitExpressionsToDiffs {
 		discoveryGroup.Go(func() error {
 			fromFilters, toFilters := gitExpression.Expand(diffs)
 
@@ -91,7 +91,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 					fromDiscoveryContext := *fromDiscovery.discoveryContext
 					fromDiscoveryContext.Ref = gitExpression.FromRef
-					fromDiscoveryContext.WorkingDir = worktree.RefsToPaths[gitExpression.FromRef]
+					fromDiscoveryContext.WorkingDir = w.RefsToPaths[gitExpression.FromRef]
 
 					fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						fromDiscoveryContext,
@@ -123,7 +123,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 					toDiscoveryContext := *toDiscovery.discoveryContext
 					toDiscoveryContext.Ref = gitExpression.ToRef
-					toDiscoveryContext.WorkingDir = worktree.RefsToPaths[gitExpression.ToRef]
+					toDiscoveryContext.WorkingDir = w.RefsToPaths[gitExpression.ToRef]
 
 					toDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						toDiscoveryContext,
@@ -154,7 +154,7 @@ func (wd *WorktreeDiscovery) Discover(
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := wd.discoverChangesInWorktreeStacks(ctx, l, opts, worktree)
+		components, err := wd.discoverChangesInWorktreeStacks(ctx, l, opts, w)
 		if err != nil {
 			return err
 		}
