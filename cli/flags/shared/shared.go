@@ -32,6 +32,8 @@ const (
 	// Filter related flags.
 	FilterFlagName         = "filter"
 	FilterAffectedFlagName = "filter-affected"
+	FilterFileFlagName     = "filters-file"
+	NoFilterFileFlagName   = "no-filters-file"
 
 	// Scaffolding related flags.
 	RootFileNameFlagName  = "root-file-name"
@@ -252,6 +254,40 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 
 					opts.FilterQueries = append(opts.FilterQueries, fmt.Sprintf("[%s...HEAD]", defaultBranch))
 
+					return nil
+				},
+			},
+		),
+		flags.NewFlag(
+			&cli.GenericFlag[string]{
+				Name:        FilterFileFlagName,
+				EnvVars:     tgPrefix.EnvVars(FilterFileFlagName),
+				Destination: &opts.FiltersFile,
+				Usage:       "Path to a file containing filter queries, one per line. Default is .terragrunt-filters. Requires the 'filter-flag' experiment.",
+				Action: func(_ *cli.Context, val string) error {
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filters-file flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+					return nil
+				},
+			},
+		),
+		flags.NewFlag(
+			&cli.BoolFlag{
+				Name:        NoFilterFileFlagName,
+				EnvVars:     tgPrefix.EnvVars(NoFilterFileFlagName),
+				Destination: &opts.NoFiltersFile,
+				Usage:       "Disable automatic reading of .terragrunt-filters file. Requires the 'filter-flag' experiment.",
+				Action: func(_ *cli.Context, val bool) error {
+					if !val {
+						return nil
+					}
+
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --no-filters-file flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
 					return nil
 				},
 			},
