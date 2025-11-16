@@ -158,9 +158,11 @@ func (w *Worktrees) Stacks() StackDiff {
 	return stackDiff
 }
 
-// Expand expands a Git expression into the equivalent to and from filter expressions based on the provided
-// diffs for the Git reference pair.
-func (w *Worktrees) Expand(diffs *git.Diffs) (filter.Filters, filter.Filters) {
+// Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
+// expressions based on the provided diffs for the worktree pair.
+func (w *Worktrees) Expand(worktreePair WorktreePair) (filter.Filters, filter.Filters) {
+	diffs := worktreePair.Diffs
+
 	// Build simple expressions that can be determined simply from the diffs.
 	fromExpressions := make(filter.Expressions, 0, len(diffs.Removed))
 	for _, path := range diffs.Removed {

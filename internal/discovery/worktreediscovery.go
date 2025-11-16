@@ -77,7 +77,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := w.Expand(pair.Diffs)
+			fromFilters, toFilters := w.Expand(pair)
 
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)

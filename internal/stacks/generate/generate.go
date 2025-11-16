@@ -405,7 +405,7 @@ func worktreeStacksToGenerate(
 	fullDiscoveries := map[string]*discovery.Discovery{}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters := w.Expand(pair.Diffs)
+		fromFilters, toFilters := w.Expand(pair)
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
 			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{

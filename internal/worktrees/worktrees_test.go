@@ -267,7 +267,9 @@ func TestExpressionExpansion(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			fromFilters, toFilters := w.Expand(tt.diffs)
+			fromFilters, toFilters := w.Expand(worktrees.WorktreePair{
+				Diffs: tt.diffs,
+			})
 
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
@@ -418,7 +420,9 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			_, toFilters := w.Expand(tt.diffs)
+			_, toFilters := w.Expand(worktrees.WorktreePair{
+				Diffs: tt.diffs,
+			})
 
 			// Extract reading filters
 			readings := []string{}
