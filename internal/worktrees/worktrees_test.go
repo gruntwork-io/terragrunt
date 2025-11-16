@@ -2,6 +2,7 @@ package worktrees_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -457,6 +458,228 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 				assert.True(t, found, "Expected reading filter for %s should be present", expectedReading)
 			}
+		})
+	}
+}
+
+func TestExpandWithUnitDirectoryDetection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		setupFilesystem    func(tmpDir string) error
+		diffs              *git.Diffs
+		expectedToPaths    []string
+		expectedToReadings []string
+		expectedFrom       int
+	}{
+		{
+			name: "removed file in unit directory creates path filter",
+			setupFilesystem: func(tmpDir string) error {
+				// Create unit directory with terragrunt.hcl
+				unitDir := filepath.Join(tmpDir, "unit1")
+				if err := os.MkdirAll(unitDir, 0755); err != nil {
+					return err
+				}
+				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
+				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
+			},
+			diffs: &git.Diffs{
+				Removed: []string{
+					"unit1/main.tf",
+				},
+			},
+			expectedToPaths:    []string{"unit1"},
+			expectedToReadings: []string{},
+			expectedFrom:       0,
+		},
+		{
+			name: "removed file in non-unit directory creates no filter",
+			setupFilesystem: func(tmpDir string) error {
+				// Create non-unit directory (no terragrunt.hcl)
+				nonUnitDir := filepath.Join(tmpDir, "non-unit")
+				return os.MkdirAll(nonUnitDir, 0755)
+			},
+			diffs: &git.Diffs{
+				Removed: []string{
+					"non-unit/some-file.tf",
+				},
+			},
+			expectedToPaths:    []string{},
+			expectedToReadings: []string{},
+			expectedFrom:       0,
+		},
+		{
+			name: "added file in unit directory creates path filter",
+			setupFilesystem: func(tmpDir string) error {
+				// Create unit directory with terragrunt.hcl
+				unitDir := filepath.Join(tmpDir, "unit1")
+				if err := os.MkdirAll(unitDir, 0755); err != nil {
+					return err
+				}
+				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
+				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
+			},
+			diffs: &git.Diffs{
+				Added: []string{
+					"unit1/variables.tf",
+				},
+			},
+			expectedToPaths:    []string{"unit1"},
+			expectedToReadings: []string{},
+			expectedFrom:       0,
+		},
+		{
+			name: "added file in non-unit directory creates no filter",
+			setupFilesystem: func(tmpDir string) error {
+				// Create non-unit directory (no terragrunt.hcl)
+				nonUnitDir := filepath.Join(tmpDir, "non-unit")
+				return os.MkdirAll(nonUnitDir, 0755)
+			},
+			diffs: &git.Diffs{
+				Added: []string{
+					"non-unit/new-file.tf",
+				},
+			},
+			expectedToPaths:    []string{},
+			expectedToReadings: []string{},
+			expectedFrom:       0,
+		},
+		{
+			name: "changed file in unit directory creates path filter",
+			setupFilesystem: func(tmpDir string) error {
+				// Create unit directory with terragrunt.hcl
+				unitDir := filepath.Join(tmpDir, "unit1")
+				if err := os.MkdirAll(unitDir, 0755); err != nil {
+					return err
+				}
+				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
+				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
+			},
+			diffs: &git.Diffs{
+				Changed: []string{
+					"unit1/main.tf",
+				},
+			},
+			expectedToPaths:    []string{"unit1"},
+			expectedToReadings: []string{},
+			expectedFrom:       0,
+		},
+		{
+			name: "changed file in non-unit directory creates reading filter",
+			setupFilesystem: func(tmpDir string) error {
+				// Create non-unit directory (no terragrunt.hcl)
+				nonUnitDir := filepath.Join(tmpDir, "non-unit")
+				return os.MkdirAll(nonUnitDir, 0755)
+			},
+			diffs: &git.Diffs{
+				Changed: []string{
+					"non-unit/some-file.tf",
+				},
+			},
+			expectedToPaths:    []string{},
+			expectedToReadings: []string{"non-unit/some-file.tf"},
+			expectedFrom:       0,
+		},
+		{
+			name: "mixed scenarios with multiple units and non-units",
+			setupFilesystem: func(tmpDir string) error {
+				// Create unit1 directory
+				unit1Dir := filepath.Join(tmpDir, "unit1")
+				if err := os.MkdirAll(unit1Dir, 0755); err != nil {
+					return err
+				}
+				terragruntFile1 := filepath.Join(unit1Dir, "terragrunt.hcl")
+				if err := os.WriteFile(terragruntFile1, []byte("# terragrunt config"), 0644); err != nil {
+					return err
+				}
+
+				// Create unit2 directory
+				unit2Dir := filepath.Join(tmpDir, "unit2")
+				if err := os.MkdirAll(unit2Dir, 0755); err != nil {
+					return err
+				}
+				terragruntFile2 := filepath.Join(unit2Dir, "terragrunt.hcl")
+				if err := os.WriteFile(terragruntFile2, []byte("# terragrunt config"), 0644); err != nil {
+					return err
+				}
+
+				// Create non-unit directory
+				nonUnitDir := filepath.Join(tmpDir, "non-unit")
+				return os.MkdirAll(nonUnitDir, 0755)
+			},
+			diffs: &git.Diffs{
+				Removed: []string{
+					"unit1/old-file.tf",
+				},
+				Added: []string{
+					"unit2/new-file.tf",
+				},
+				Changed: []string{
+					"unit1/modified.tf",
+					"non-unit/shared.tf",
+				},
+			},
+			expectedToPaths:    []string{"unit1", "unit2"},
+			expectedToReadings: []string{"non-unit/shared.tf"},
+			expectedFrom:       0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			tmpDir, err := filepath.EvalSymlinks(tmpDir)
+			require.NoError(t, err)
+
+			// Setup filesystem structure
+			err = tt.setupFilesystem(tmpDir)
+			require.NoError(t, err)
+
+			// Create a minimal Worktrees instance
+			w := &worktrees.Worktrees{}
+
+			// Create WorktreePair with ToWorktree.Path pointing to our test directory
+			worktreePair := worktrees.WorktreePair{
+				Diffs: tt.diffs,
+				ToWorktree: worktrees.Worktree{
+					Path: tmpDir,
+				},
+			}
+
+			fromFilters, toFilters := w.Expand(worktreePair)
+
+			// Verify from filters count
+			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
+
+			// Extract path and reading filters from toFilters
+			toPathsMap := make(map[string]bool)
+			toReadings := []string{}
+
+			for _, f := range toFilters {
+				switch expr := f.Expression().(type) {
+				case *filter.PathExpression:
+					toPathsMap[expr.Value] = true
+				case *filter.AttributeExpression:
+					if expr.Key == "reading" {
+						toReadings = append(toReadings, expr.Value)
+					}
+				}
+			}
+
+			// Convert map to slice for comparison (deduplicates)
+			toPaths := make([]string, 0, len(toPathsMap))
+			for path := range toPathsMap {
+				toPaths = append(toPaths, path)
+			}
+
+			// Verify path filters
+			assert.ElementsMatch(t, tt.expectedToPaths, toPaths, "To path filters should match")
+
+			// Verify reading filters
+			assert.ElementsMatch(t, tt.expectedToReadings, toReadings, "To reading filters should match")
 		})
 	}
 }
