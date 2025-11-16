@@ -163,28 +163,65 @@ func (w *Worktrees) Stacks() StackDiff {
 func (w *Worktrees) Expand(worktreePair WorktreePair) (filter.Filters, filter.Filters) {
 	diffs := worktreePair.Diffs
 
-	// Build simple expressions that can be determined simply from the diffs.
+	toPath := worktreePair.ToWorktree.Path
+
 	fromExpressions := make(filter.Expressions, 0, len(diffs.Removed))
+	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
+
+	// Build simple expressions that can be determined simply from the diffs.
 	for _, path := range diffs.Removed {
-		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
-			fromExpressions = append(fromExpressions, filter.NewPathFilter(filepath.Dir(path)))
+		dir := filepath.Dir(path)
+
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			fromExpressions = append(fromExpressions, filter.NewPathFilter(dir))
+		case config.DefaultStackFile:
+			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
+		default:
+			// Check to see if the removed file is in the same directory as a unit in the to worktree.
+			// If so, we'll consider the unit modified.
+			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
+				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+			}
 		}
 	}
 
-	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 	for _, path := range diffs.Added {
-		if filepath.Base(path) == config.DefaultTerragruntConfigPath {
-			toExpressions = append(toExpressions, filter.NewPathFilter(filepath.Dir(path)))
+		dir := filepath.Dir(path)
+
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+		case config.DefaultStackFile:
+			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
+		default:
+			// Check to see if the added file is in the same directory as a unit in the to worktree.
+			// If so, we'll consider the unit modified.
+			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
+				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+			}
 		}
 	}
 
 	for _, path := range diffs.Changed {
+		dir := filepath.Dir(path)
+
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, filter.NewPathFilter(filepath.Dir(path)))
+			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
 		case config.DefaultStackFile:
 			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
 		default:
+			// Check to see if the changed file is in the same directory as a unit in the to worktree.
+			// If so, we'll consider the unit modified.
+			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
+				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+
+				continue
+			}
+
+			// Otherwise, we'll consider it a file that could potentially be read by other units, and needs to be
+			// tracked using a reading filter.
 			toExpressions = append(toExpressions, filter.NewAttributeExpression(filter.AttributeReading, path))
 		}
 	}
