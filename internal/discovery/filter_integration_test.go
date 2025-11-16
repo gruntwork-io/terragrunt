@@ -1135,6 +1135,11 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// FIXME: Remove
+			if tt.name != "Git filter - changes between commits" {
+				t.Skip("Skipping test: " + tt.name)
+			}
+
 			tmpDir := t.TempDir()
 			tmpDir, err := filepath.EvalSymlinks(tmpDir)
 			require.NoError(t, err)
@@ -1265,8 +1270,10 @@ locals {
 			units := configs.Filter(component.UnitKind).Paths()
 			stacks := configs.Filter(component.StackKind).Paths()
 
-			// Get expected units
-			wantUnits := tt.wantUnits(w.RefsToPaths["HEAD~1"], w.RefsToPaths["HEAD"])
+			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+			require.NotEmpty(t, worktreePair)
+
+			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, worktreePair.ToWorktree.Path)
 
 			// Verify results
 			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)

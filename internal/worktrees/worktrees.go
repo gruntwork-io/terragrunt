@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,22 +21,49 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Worktrees is a collection of Git references to associated worktree paths and Git filter expressions to diffs.
-//
-// It needs to be passed into any functions that need to interact with Git worktrees, like the generate and discovery
-// packages.
+// Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
+// The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
-	RefsToPaths           map[string]string
-	GitExpressionsToDiffs map[*filter.GitExpression]*git.Diffs
+	WorktreePairs map[string]WorktreePair
 
 	gitRunner *git.GitRunner
 }
 
+// WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
+// the GitExpression that generated the diffs and the diff for that expression.
+type WorktreePair struct {
+	GitExpression *filter.GitExpression
+	Diffs         *git.Diffs
+	FromWorktree  Worktree
+	ToWorktree    Worktree
+}
+
+// Worktree is collects a Git reference and the path to the associated worktree.
+type Worktree struct {
+	Ref  string
+	Path string
+}
+
 // Cleanup removes all created Git worktrees and their temporary directories.
 func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
-	for _, path := range w.RefsToPaths {
-		if err := w.gitRunner.RemoveWorktree(ctx, path); err != nil {
-			return fmt.Errorf("failed to remove Git worktree for reference %s: %w", path, err)
+	seen := make(map[string]struct{})
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if _, ok := seen[worktree.Path]; ok {
+				continue
+			}
+
+			seen[worktree.Path] = struct{}{}
+
+			if err := w.gitRunner.RemoveWorktree(ctx, worktree.Path); err != nil {
+				return fmt.Errorf(
+					"failed to remove Git worktree for reference %s (%s): %w",
+					worktree.Ref,
+					worktree.Path,
+					err,
+				)
+			}
 		}
 	}
 
@@ -66,11 +94,11 @@ func (w *Worktrees) Stacks() StackDiff {
 		Changed: []StackDiffChangedPair{},
 	}
 
-	for expression, diffs := range w.GitExpressionsToDiffs {
-		fromWorktree := w.RefsToPaths[expression.FromRef]
-		toWorktree := w.RefsToPaths[expression.ToRef]
+	for _, pair := range w.WorktreePairs {
+		fromWorktree := pair.FromWorktree.Path
+		toWorktree := pair.ToWorktree.Path
 
-		for _, added := range diffs.Added {
+		for _, added := range pair.Diffs.Added {
 			if filepath.Base(added) != config.DefaultStackFile {
 				continue
 			}
@@ -80,13 +108,13 @@ func (w *Worktrees) Stacks() StackDiff {
 				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: toWorktree,
-						Ref:        expression.ToRef,
+						Ref:        pair.ToWorktree.Ref,
 					},
 				),
 			)
 		}
 
-		for _, removed := range diffs.Removed {
+		for _, removed := range pair.Diffs.Removed {
 			if filepath.Base(removed) != config.DefaultStackFile {
 				continue
 			}
@@ -96,13 +124,13 @@ func (w *Worktrees) Stacks() StackDiff {
 				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: fromWorktree,
-						Ref:        expression.FromRef,
+						Ref:        pair.FromWorktree.Ref,
 					},
 				),
 			)
 		}
 
-		for _, changed := range diffs.Changed {
+		for _, changed := range pair.Diffs.Changed {
 			if filepath.Base(changed) != config.DefaultStackFile {
 				continue
 			}
@@ -113,13 +141,13 @@ func (w *Worktrees) Stacks() StackDiff {
 					FromStack: component.NewStack(filepath.Join(fromWorktree, filepath.Dir(changed))).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: fromWorktree,
-							Ref:        expression.FromRef,
+							Ref:        pair.FromWorktree.Ref,
 						},
 					),
 					ToStack: component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: toWorktree,
-							Ref:        expression.ToRef,
+							Ref:        pair.ToWorktree.Ref,
 						},
 					),
 				},
@@ -189,8 +217,7 @@ func NewWorktrees(
 ) (*Worktrees, error) {
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
-			RefsToPaths:           make(map[string]string),
-			GitExpressionsToDiffs: make(map[*filter.GitExpression]*git.Diffs),
+			WorktreePairs: make(map[string]WorktreePair),
 		}, nil
 	}
 
@@ -206,7 +233,7 @@ func NewWorktrees(
 	gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
 	gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
 
-	var refsToPaths map[string]string
+	refsToPaths := make(map[string]string, len(gitRefs))
 
 	gitRunner, err := git.NewGitRunner()
 	if err != nil {
@@ -217,8 +244,8 @@ func NewWorktrees(
 
 	if len(gitRefs) > 0 {
 		gitCmdGroup.Go(func() error {
-			var err error
-			if refsToPaths, err = createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs); err != nil {
+			paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs)
+			if err != nil {
 				mu.Lock()
 
 				errs = append(errs, err)
@@ -227,6 +254,12 @@ func NewWorktrees(
 
 				return err
 			}
+
+			mu.Lock()
+
+			maps.Copy(refsToPaths, paths)
+
+			mu.Unlock()
 
 			return nil
 		})
@@ -257,25 +290,31 @@ func NewWorktrees(
 
 	if err := gitCmdGroup.Wait(); err != nil {
 		return &Worktrees{
-			RefsToPaths:           refsToPaths,
-			GitExpressionsToDiffs: expressionsToDiffs,
-			gitRunner:             gitRunner,
+			WorktreePairs: make(map[string]WorktreePair),
+			gitRunner:     gitRunner,
 		}, err
 	}
 
-	if len(errs) > 0 {
-		return &Worktrees{
-			RefsToPaths:           refsToPaths,
-			GitExpressionsToDiffs: expressionsToDiffs,
-			gitRunner:             gitRunner,
-		}, errors.Join(errs...)
+	worktreePairs := make(map[string]WorktreePair, len(gitExpressions))
+	for _, gitExpression := range gitExpressions {
+		worktreePairs[gitExpression.String()] = WorktreePair{
+			GitExpression: gitExpression,
+			Diffs:         expressionsToDiffs[gitExpression],
+			FromWorktree:  Worktree{Ref: gitExpression.FromRef, Path: refsToPaths[gitExpression.FromRef]},
+			ToWorktree:    Worktree{Ref: gitExpression.ToRef, Path: refsToPaths[gitExpression.ToRef]},
+		}
 	}
 
-	return &Worktrees{
-		RefsToPaths:           refsToPaths,
-		GitExpressionsToDiffs: expressionsToDiffs,
-		gitRunner:             gitRunner,
-	}, nil
+	worktrees := &Worktrees{
+		WorktreePairs: worktreePairs,
+		gitRunner:     gitRunner,
+	}
+
+	if len(errs) > 0 {
+		return worktrees, errors.Join(errs...)
+	}
+
+	return worktrees, nil
 }
 
 // createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.

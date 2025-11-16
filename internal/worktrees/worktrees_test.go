@@ -74,8 +74,7 @@ func TestNewWorktrees(t *testing.T) {
 		require.NoError(t, cleanupErr)
 	})
 
-	require.NotEmpty(t, w.RefsToPaths)
-	require.NotEmpty(t, w.GitExpressionsToDiffs)
+	require.NotEmpty(t, w.WorktreePairs)
 }
 
 func TestNewWorktreesWithInvalidReference(t *testing.T) {

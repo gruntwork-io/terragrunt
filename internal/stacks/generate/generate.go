@@ -404,33 +404,33 @@ func worktreeStacksToGenerate(
 
 	fullDiscoveries := map[string]*discovery.Discovery{}
 
-	for expression, diffs := range w.GitExpressionsToDiffs {
-		fromFilters, toFilters := w.Expand(diffs)
+	for _, pair := range w.WorktreePairs {
+		fromFilters, toFilters := w.Expand(pair.Diffs)
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
 			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
-				WorkingDir:    w.RefsToPaths[expression.FromRef],
+				WorkingDir:    pair.FromWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
 			})
 			if err != nil {
-				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", expression.FromRef, err)
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.FromWorktree.Ref, err)
 			}
 
-			fullDiscoveries[expression.FromRef] = discovery
+			fullDiscoveries[pair.FromWorktree.Ref] = discovery
 		}
 
 		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
 			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
-				WorkingDir:    w.RefsToPaths[expression.ToRef],
+				WorkingDir:    pair.ToWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
 			})
 			if err != nil {
-				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", expression.ToRef, err)
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.ToWorktree.Ref, err)
 			}
 
-			fullDiscoveries[expression.ToRef] = discovery
+			fullDiscoveries[pair.ToWorktree.Ref] = discovery
 		}
 	}
 

@@ -147,16 +147,18 @@ func TestWorktreeDiscovery(t *testing.T) {
 	})
 
 	// Verify worktrees were created for both refs
-	assert.NotEmpty(t, w.RefsToPaths, "Worktrees should be created")
-	assert.Contains(t, w.RefsToPaths, "HEAD~1", "Worktree should exist for initial commit")
-	assert.Contains(t, w.RefsToPaths, "HEAD", "Worktree should exist for current commit")
+	assert.NotEmpty(t, w.WorktreePairs, "Worktrees should be created")
+	assert.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]", "Worktree should exist for initial commit")
 
 	// Verify units were discovered
 	units := components.Filter(component.UnitKind)
 	unitPaths := units.Paths()
 
-	fromWorktree := w.RefsToPaths["HEAD~1"]
-	toWorktree := w.RefsToPaths["HEAD"]
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	fromWorktree := worktreePair.FromWorktree.Path
+	toWorktree := worktreePair.ToWorktree.Path
 
 	expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
 	expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
@@ -429,12 +431,14 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 			require.NoError(t, err, "Should not error for: %s", tt.description)
 
 			// Verify worktrees were created
-			assert.NotEmpty(t, w.RefsToPaths, "Worktrees should be created")
-			assert.Contains(t, w.RefsToPaths, "HEAD~1", "Worktree should exist for initial commit")
-			assert.Contains(t, w.RefsToPaths, "HEAD", "Worktree should exist for current commit")
+			assert.NotEmpty(t, w.WorktreePairs, "Worktrees should be created")
+			assert.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]", "Worktree should exist for initial commit")
 
-			fromWorktree := w.RefsToPaths["HEAD~1"]
-			toWorktree := w.RefsToPaths["HEAD"]
+			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+			require.NotEmpty(t, worktreePair)
+
+			fromWorktree := worktreePair.FromWorktree.Path
+			toWorktree := worktreePair.ToWorktree.Path
 
 			// Verify units were discovered
 			units := components.Filter(component.UnitKind)
@@ -877,48 +881,54 @@ unit "unit_to_be_untouched" {
 	stackToBeRemovedRel, err := filepath.Rel(tmpDir, stackToBeRemovedDir)
 	require.NoError(t, err)
 
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	fromWorktree := worktreePair.FromWorktree.Path
+	toWorktree := worktreePair.ToWorktree.Path
+
 	assert.ElementsMatch(t, components, component.Components{
 		// Stacks
-		component.NewStack(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(toWorktree, stackToBeAddedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewStack(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(toWorktree, stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewStack(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(fromWorktree, stackToBeRemovedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD~1"],
+				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
 				Cmd:        "plan",
 				Args:       []string{"-destroy"},
 			},
 		),
 		// Units from stack-to-be-added (HEAD)
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
@@ -926,51 +936,51 @@ unit "unit_to_be_untouched" {
 		// Units from stack-to-be-modified (HEAD)
 		// For changed stacks, we only discover units that are added, removed, or changed (different SHA)
 		// unit_to_be_added: only in HEAD (added)
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD"],
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
 		// Units from stack-to-be-modified (HEAD~1)
 		// unit_to_be_removed: only in HEAD~1 (removed)
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(fromWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD~1"],
+				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
 				Cmd:        "plan",
 				Args:       []string{"-destroy"},
 			},
 		),
 		// Units from stack-to-be-removed (HEAD~1)
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD~1"],
+				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
 				Cmd:        "plan",
 				Args:       []string{"-destroy"},
 			},
 		),
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD~1"],
+				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
 				Cmd:        "plan",
 				Args:       []string{"-destroy"},
 			},
 		),
-		component.NewUnit(filepath.Join(w.RefsToPaths["HEAD~1"], stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: w.RefsToPaths["HEAD~1"],
+				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
 				Cmd:        "plan",
 				Args:       []string{"-destroy"},

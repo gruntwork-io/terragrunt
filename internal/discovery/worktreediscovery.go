@@ -75,9 +75,9 @@ func (wd *WorktreeDiscovery) Discover(
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(wd.numWorkers)
 
-	for gitExpression, diffs := range w.GitExpressionsToDiffs {
+	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := w.Expand(diffs)
+			fromFilters, toFilters := w.Expand(pair.Diffs)
 
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
@@ -90,8 +90,8 @@ func (wd *WorktreeDiscovery) Discover(
 					fromDiscovery := *wd.originalDiscovery
 
 					fromDiscoveryContext := *fromDiscovery.discoveryContext
-					fromDiscoveryContext.Ref = gitExpression.FromRef
-					fromDiscoveryContext.WorkingDir = w.RefsToPaths[gitExpression.FromRef]
+					fromDiscoveryContext.Ref = pair.FromWorktree.Ref
+					fromDiscoveryContext.WorkingDir = pair.FromWorktree.Path
 
 					fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						fromDiscoveryContext,
@@ -122,8 +122,8 @@ func (wd *WorktreeDiscovery) Discover(
 					toDiscovery := *wd.originalDiscovery
 
 					toDiscoveryContext := *toDiscovery.discoveryContext
-					toDiscoveryContext.Ref = gitExpression.ToRef
-					toDiscoveryContext.WorkingDir = w.RefsToPaths[gitExpression.ToRef]
+					toDiscoveryContext.Ref = pair.ToWorktree.Ref
+					toDiscoveryContext.WorkingDir = pair.ToWorktree.Path
 
 					toDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						toDiscoveryContext,
