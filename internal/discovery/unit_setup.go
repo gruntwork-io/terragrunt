@@ -128,22 +128,13 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		// Preserve the external flag from discovery component
 		isExternal := dUnit.External()
 
-		// Check for TF files in the directory or any of its subdirectories
-		// Skip this validation if skipValidation is true (e.g., for tests)
-		// Also skip validation for external dependencies since they might not have .tf files locally
-		if !d.skipValidation && !isExternal {
-			dir := filepath.Dir(terragruntConfigPath)
-
-			hasFiles, err := util.DirContainsTFFiles(dir)
-			if err != nil {
-				return nil, err
-			}
-
-			if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && !hasFiles {
-				l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
-				continue
-			}
-		}
+		// NOTE: We used to skip units without terraform configurations here, but this breaks
+		// discovery commands (find, list) that need to show ALL units regardless of whether
+		// they have terraform configs. The runner is responsible for filtering units that
+		// can't be executed, not discovery.
+		//
+		// The validation is intentionally removed to restore the original behavior where
+		// discovery discovers everything, and filtering happens later in the pipeline.
 
 		unit := component.NewUnit(unitPath)
 		unit.SetLogger(l)

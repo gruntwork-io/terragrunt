@@ -2,6 +2,7 @@ package component
 
 import (
 	"fmt"
+	"io"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -27,6 +28,18 @@ type Units []*Unit
 // UnitsMap is a map of paths to Unit pointers.
 type UnitsMap map[string]*Unit
 
+// ExecutionOptions contains the minimal set of options needed by component.Unit
+// for execution-related operations (plan file paths, output handling).
+// This is a lightweight alternative to storing the full options.TerragruntOptions.
+type ExecutionOptions struct {
+	Writer           io.Writer
+	ErrWriter        io.Writer
+	TerraformCommand string
+	OutputFolder     string
+	JSONOutputFolder string
+	RootWorkingDir   string
+}
+
 // per-path output locks to serialize flushes for the same unit
 var (
 	unitOutputLocks = xsync.NewMapOf[string, *sync.Mutex]()
@@ -51,7 +64,7 @@ type Unit struct {
 	logger               log.Logger
 	cfg                  *config.TerragruntConfig
 	discoveryContext     *DiscoveryContext
-	terragruntOptions    *options.TerragruntOptions
+	executionOptions     *ExecutionOptions // Minimal execution options (not full TerragruntOptions)
 	path                 string
 	reading              []string
 	dependencies         Components
@@ -228,20 +241,69 @@ func (u *Unit) Dependents() Components {
 	return u.dependents
 }
 
-// TerragruntOptions returns the TerragruntOptions for this unit.
-func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
+// ExecutionOptions returns the ExecutionOptions for this unit.
+func (u *Unit) ExecutionOptions() *ExecutionOptions {
 	u.rLock()
 	defer u.rUnlock()
 
-	return u.terragruntOptions
+	return u.executionOptions
 }
 
-// SetTerragruntOptions sets the TerragruntOptions for this unit.
-func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
+// SetExecutionOptions sets the ExecutionOptions for this unit.
+func (u *Unit) SetExecutionOptions(opts *ExecutionOptions) {
 	u.lock()
 	defer u.unlock()
 
-	u.terragruntOptions = opts
+	u.executionOptions = opts
+}
+
+// SetExecutionOptionsFromTerragruntOptions sets the ExecutionOptions from TerragruntOptions.
+// This is a convenience method that extracts only the needed fields.
+func (u *Unit) SetExecutionOptionsFromTerragruntOptions(opts *options.TerragruntOptions) {
+	if opts == nil {
+		u.SetExecutionOptions(nil)
+		return
+	}
+
+	execOpts := &ExecutionOptions{
+		TerraformCommand: opts.TerraformCommand,
+		OutputFolder:     opts.OutputFolder,
+		JSONOutputFolder: opts.JSONOutputFolder,
+		RootWorkingDir:   opts.RootWorkingDir,
+		Writer:           opts.Writer,
+		ErrWriter:        opts.ErrWriter,
+	}
+
+	u.SetExecutionOptions(execOpts)
+}
+
+// TerragruntOptions returns a minimal TerragruntOptions for backward compatibility.
+// NOTE: This only contains execution-related fields. The runner should maintain
+// the full TerragruntOptions separately for actual terraform execution.
+func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
+	u.rLock()
+	opts := u.executionOptions
+	u.rUnlock()
+
+	if opts == nil {
+		return nil
+	}
+
+	// Return a minimal TerragruntOptions with only the fields we store
+	return &options.TerragruntOptions{
+		TerraformCommand: opts.TerraformCommand,
+		OutputFolder:     opts.OutputFolder,
+		JSONOutputFolder: opts.JSONOutputFolder,
+		RootWorkingDir:   opts.RootWorkingDir,
+		Writer:           opts.Writer,
+		ErrWriter:        opts.ErrWriter,
+	}
+}
+
+// SetTerragruntOptions sets the execution options from TerragruntOptions.
+// This is a convenience method for backward compatibility.
+func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
+	u.SetExecutionOptionsFromTerragruntOptions(opts)
 }
 
 // Logger returns the logger for this unit.
@@ -342,10 +404,10 @@ func (u *Unit) FindUnitInPath(targetDirs []string) bool {
 }
 
 // FlushOutput flushes buffer data to the output writer.
-// This method is used by the runner when TerragruntOptions.Writer is a UnitWriter.
+// This method is used by the runner when ExecutionOptions.Writer is a UnitWriter.
 func (u *Unit) FlushOutput() error {
 	u.rLock()
-	opts := u.terragruntOptions
+	opts := u.executionOptions
 	u.rUnlock()
 
 	if opts == nil || opts.Writer == nil {
@@ -367,10 +429,10 @@ func (u *Unit) FlushOutput() error {
 }
 
 // PlanFile returns plan file location, if output folder is set.
-// This version uses the unit's stored TerragruntOptions.
+// This version uses the unit's stored ExecutionOptions.
 func (u *Unit) PlanFile() string {
 	u.rLock()
-	opts := u.terragruntOptions
+	opts := u.executionOptions
 	logger := u.logger
 	u.rUnlock()
 
@@ -378,18 +440,17 @@ func (u *Unit) PlanFile() string {
 		return ""
 	}
 
-	return u.PlanFileWithOptions(logger, opts)
+	return u.planFileWithExecutionOptions(logger, opts)
 }
 
-// PlanFileWithOptions returns plan file location with explicit logger and options parameters.
-// This signature matches runner/common.Unit.PlanFile for compatibility.
-func (u *Unit) PlanFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
+// planFileWithExecutionOptions returns plan file location with execution options.
+func (u *Unit) planFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
 	if opts == nil {
 		return ""
 	}
 
 	// set plan file location if output folder is set
-	planFile := u.OutputFileWithOptions(l, opts)
+	planFile := u.outputFileWithExecutionOptions(l, opts)
 
 	planCommand := opts.TerraformCommand == tf.CommandNamePlan || opts.TerraformCommand == tf.CommandNameShow
 
@@ -402,10 +463,10 @@ func (u *Unit) PlanFileWithOptions(l log.Logger, opts *options.TerragruntOptions
 }
 
 // GetOutputFile returns plan file location, if output folder is set.
-// This version uses the unit's stored TerragruntOptions.
+// This version uses the unit's stored ExecutionOptions.
 func (u *Unit) GetOutputFile() string {
 	u.rLock()
-	opts := u.terragruntOptions
+	opts := u.executionOptions
 	logger := u.logger
 	u.rUnlock()
 
@@ -413,20 +474,19 @@ func (u *Unit) GetOutputFile() string {
 		return ""
 	}
 
-	return u.OutputFileWithOptions(logger, opts)
+	return u.outputFileWithExecutionOptions(logger, opts)
 }
 
-// OutputFileWithOptions returns plan file location with explicit logger and options parameters.
-// This signature matches runner/common.Unit.OutputFile for compatibility.
-func (u *Unit) OutputFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
-	return u.getPlanFilePathWithOptions(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
+// outputFileWithExecutionOptions returns plan file location with execution options.
+func (u *Unit) outputFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
+	return u.getPlanFilePath(l, opts.RootWorkingDir, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // GetOutputJSONFile returns plan JSON file location, if JSON output folder is set.
-// This version uses the unit's stored TerragruntOptions.
+// This version uses the unit's stored ExecutionOptions.
 func (u *Unit) GetOutputJSONFile() string {
 	u.rLock()
-	opts := u.terragruntOptions
+	opts := u.executionOptions
 	logger := u.logger
 	u.rUnlock()
 
@@ -434,18 +494,73 @@ func (u *Unit) GetOutputJSONFile() string {
 		return ""
 	}
 
-	return u.OutputJSONFileWithOptions(logger, opts)
+	return u.outputJSONFileWithExecutionOptions(logger, opts)
 }
 
-// OutputJSONFileWithOptions returns plan JSON file location with explicit logger and options parameters.
-// This signature matches runner/common.Unit.OutputJSONFile for compatibility.
+// outputJSONFileWithExecutionOptions returns plan JSON file location with execution options.
+func (u *Unit) outputJSONFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
+	return u.getPlanFilePath(l, opts.RootWorkingDir, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+}
+
+// PlanFileWithOptions returns plan file location with explicit logger and TerragruntOptions parameters.
+// This is a compatibility wrapper for runner code that passes full TerragruntOptions.
+func (u *Unit) PlanFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
+	if opts == nil {
+		return ""
+	}
+
+	execOpts := &ExecutionOptions{
+		TerraformCommand: opts.TerraformCommand,
+		OutputFolder:     opts.OutputFolder,
+		JSONOutputFolder: opts.JSONOutputFolder,
+		RootWorkingDir:   opts.RootWorkingDir,
+		Writer:           opts.Writer,
+		ErrWriter:        opts.ErrWriter,
+	}
+
+	return u.planFileWithExecutionOptions(l, execOpts)
+}
+
+// OutputFileWithOptions returns plan file location with explicit logger and TerragruntOptions parameters.
+// This is a compatibility wrapper for runner code that passes full TerragruntOptions.
+func (u *Unit) OutputFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
+	if opts == nil {
+		return ""
+	}
+
+	execOpts := &ExecutionOptions{
+		TerraformCommand: opts.TerraformCommand,
+		OutputFolder:     opts.OutputFolder,
+		JSONOutputFolder: opts.JSONOutputFolder,
+		RootWorkingDir:   opts.RootWorkingDir,
+		Writer:           opts.Writer,
+		ErrWriter:        opts.ErrWriter,
+	}
+
+	return u.outputFileWithExecutionOptions(l, execOpts)
+}
+
+// OutputJSONFileWithOptions returns plan JSON file location with explicit logger and TerragruntOptions parameters.
+// This is a compatibility wrapper for runner code that passes full TerragruntOptions.
 func (u *Unit) OutputJSONFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
-	return u.getPlanFilePathWithOptions(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+	if opts == nil {
+		return ""
+	}
+
+	execOpts := &ExecutionOptions{
+		TerraformCommand: opts.TerraformCommand,
+		OutputFolder:     opts.OutputFolder,
+		JSONOutputFolder: opts.JSONOutputFolder,
+		RootWorkingDir:   opts.RootWorkingDir,
+		Writer:           opts.Writer,
+		ErrWriter:        opts.ErrWriter,
+	}
+
+	return u.outputJSONFileWithExecutionOptions(l, execOpts)
 }
 
-// getPlanFilePathWithOptions returns plan file location with explicit logger and options parameters.
-// This signature matches runner/common.Unit.getPlanFilePath for compatibility.
-func (u *Unit) getPlanFilePathWithOptions(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
+// getPlanFilePath returns plan file location with explicit parameters.
+func (u *Unit) getPlanFilePath(l log.Logger, rootWorkingDir, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
@@ -454,7 +569,7 @@ func (u *Unit) getPlanFilePathWithOptions(l log.Logger, opts *options.Terragrunt
 	path := u.path
 	u.rUnlock()
 
-	relPath, err := filepath.Rel(opts.RootWorkingDir, path)
+	relPath, err := filepath.Rel(rootWorkingDir, path)
 	if err != nil {
 		if l != nil {
 			l.Warnf("Failed to get relative path for %s: %v", path, err)
@@ -468,7 +583,7 @@ func (u *Unit) getPlanFilePathWithOptions(l log.Logger, opts *options.Terragrunt
 	if !filepath.IsAbs(dir) {
 		// Resolve relative output folder against root working directory, not the unit working directory,
 		// so that artifacts for all units are stored under a single root-level out dir structure.
-		base := opts.RootWorkingDir
+		base := rootWorkingDir
 		if !filepath.IsAbs(base) {
 			// In case RootWorkingDir is somehow relative, resolve it first.
 			if absBase, err := filepath.Abs(base); err == nil {
