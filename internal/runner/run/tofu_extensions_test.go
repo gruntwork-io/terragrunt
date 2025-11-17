@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	runnertypes "github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -322,7 +323,7 @@ resource "aws_vpc" "main" {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(opts)
+			err = run.CheckFolderContainsTerraformCode(runnertypes.FromTerragruntOptions(opts))
 
 			if tc.expectValid {
 				assert.NoError(t, err, "Expected no error for valid directory: %s", tc.description)

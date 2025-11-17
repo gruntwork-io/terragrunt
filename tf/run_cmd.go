@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	runnertypes "github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -207,6 +208,143 @@ func buildErrWriter(opts *options.TerragruntOptions, logger log.Logger, errWrite
 	logLevel := log.StderrLevel
 
 	if opts.Headless {
+		logLevel = log.ErrorLevel
+	}
+
+	options := []writer.Option{
+		writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+		writer.WithDefaultLevel(logLevel),
+	}
+	options = append(options, writerOptions...)
+
+	return writer.New(options...)
+}
+
+// RunCommandWithRunner runs the given Terraform command using RunnerOptions.
+// This is the RunnerOptions-based variant of RunCommand.
+func RunCommandWithRunner(ctx context.Context, l log.Logger, runnerOpts *runnertypes.RunnerOptions, args ...string) error {
+	_, err := RunCommandWithOutputAndRunner(ctx, l, runnerOpts, args...)
+	return err
+}
+
+// RunCommandWithOutputAndRunner runs the given Terraform command using RunnerOptions,
+// writing its stdout/stderr to the terminal AND returning stdout/stderr to this method's caller.
+// This is the RunnerOptions-based variant of RunCommandWithOutput.
+func RunCommandWithOutputAndRunner(ctx context.Context, l log.Logger, runnerOpts *runnertypes.RunnerOptions, args ...string) (*util.CmdOutput, error) {
+	args = cli.Args(args).Normalize(cli.SingleDashFlag)
+
+	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
+		// Hook still expects TerragruntOptions, create minimal opts
+		opts := &options.TerragruntOptions{
+			TFPath:                  runnerOpts.TFPath,
+			WorkingDir:              runnerOpts.WorkingDir,
+			Writer:                  runnerOpts.Writer,
+			ErrWriter:               runnerOpts.ErrWriter,
+			Env:                     runnerOpts.Env,
+			ForwardTFStdout:         runnerOpts.ForwardTFStdout,
+			JSONLogFormat:           runnerOpts.JSONLogFormat,
+			Headless:                runnerOpts.Headless,
+			TerraformImplementation: runnerOpts.TerraformImplementation,
+		}
+		return fn(ctx, l, opts, args)
+	}
+
+	needsPTY, err := isCommandThatNeedsPty(args)
+	if err != nil {
+		return nil, err
+	}
+
+	if !runnerOpts.ForwardTFStdout {
+		// Clone runnerOpts to avoid mutating the original
+		runnerOpts = runnerOpts.Clone()
+		runnerOpts.Writer, runnerOpts.ErrWriter = logTFOutputWithRunner(l, runnerOpts, args)
+	}
+
+	output, err := shell.RunCommandWithOutputAndRunner(ctx, l, runnerOpts, "", false, needsPTY, runnerOpts.TFPath, args...)
+
+	if err != nil && util.ListContainsElement(args, FlagNameDetailedExitCode) {
+		code, _ := util.GetExitCode(err)
+		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
+			exitCode.Set(code)
+		}
+
+		if code != 1 {
+			return output, nil
+		}
+	}
+
+	return output, err
+}
+
+// logTFOutputWithRunner configures log writers for TF output using RunnerOptions.
+func logTFOutputWithRunner(l log.Logger, runnerOpts *runnertypes.RunnerOptions, args cli.Args) (io.Writer, io.Writer) {
+	var (
+		outWriter = runnerOpts.Writer
+		errWriter = runnerOpts.ErrWriter
+	)
+
+	logger := l.
+		WithField(placeholders.TFPathKeyName, filepath.Base(runnerOpts.TFPath)).
+		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
+		WithField(placeholders.TFCmdKeyName, args.CommandName())
+
+	if runnerOpts.JSONLogFormat && !args.Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
+		outWriter = buildOutWriterWithRunner(
+			runnerOpts,
+			logger,
+			outWriter,
+			errWriter,
+		)
+
+		errWriter = buildErrWriterWithRunner(
+			runnerOpts,
+			logger,
+			errWriter,
+		)
+	} else if !shouldForceForwardTFStdout(args) {
+		outWriter = buildOutWriterWithRunner(
+			runnerOpts,
+			logger,
+			outWriter,
+			errWriter,
+			writer.WithMsgSeparator(logMsgSeparator),
+		)
+
+		errWriter = buildErrWriterWithRunner(
+			runnerOpts,
+			logger,
+			errWriter,
+			writer.WithMsgSeparator(logMsgSeparator),
+			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
+		)
+	}
+
+	return outWriter, errWriter
+}
+
+// buildOutWriterWithRunner returns the writer for the command's stdout using RunnerOptions.
+func buildOutWriterWithRunner(runnerOpts *runnertypes.RunnerOptions, logger log.Logger, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+	logLevel := log.StdoutLevel
+
+	if runnerOpts.Headless {
+		logLevel = log.InfoLevel
+		outWriter = errWriter
+	}
+
+	options := []writer.Option{
+		writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
+		writer.WithDefaultLevel(logLevel),
+	}
+	options = append(options, writerOptions...)
+
+	return writer.New(options...)
+}
+
+// buildErrWriterWithRunner returns the writer for the command's stderr using RunnerOptions.
+func buildErrWriterWithRunner(runnerOpts *runnertypes.RunnerOptions, logger log.Logger, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+	logLevel := log.StderrLevel
+
+	if runnerOpts.Headless {
 		logLevel = log.ErrorLevel
 	}
 

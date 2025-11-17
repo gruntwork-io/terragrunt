@@ -2,7 +2,6 @@ package component
 
 import (
 	"fmt"
-	"io"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -11,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	runnertypes "github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -27,23 +27,6 @@ type Units []*Unit
 
 // UnitsMap is a map of paths to Unit pointers.
 type UnitsMap map[string]*Unit
-
-// ExecutionOptions contains the minimal set of options needed by component.Unit
-// for execution-related operations (plan file paths, output handling).
-// This is a lightweight alternative to storing the full options.TerragruntOptions.
-type ExecutionOptions struct {
-	Writer                      io.Writer
-	ErrWriter                   io.Writer
-	TerraformCommand            string
-	OutputFolder                string
-	JSONOutputFolder            string
-	RootWorkingDir              string
-	WorkingDir                  string
-	TerragruntConfigPath        string
-	TerraformCliArgs            []string
-	IncludeExternalDependencies bool
-	NonInteractive              bool
-}
 
 // per-path output locks to serialize flushes for the same unit
 var (
@@ -69,7 +52,7 @@ type Unit struct {
 	logger               log.Logger
 	cfg                  *config.TerragruntConfig
 	discoveryContext     *DiscoveryContext
-	executionOptions     *ExecutionOptions
+	executionOptions     *runnertypes.RunnerOptions
 	path                 string
 	reading              []string
 	dependencies         Components
@@ -247,7 +230,7 @@ func (u *Unit) Dependents() Components {
 }
 
 // ExecutionOptions returns the execution options for this unit.
-func (u *Unit) ExecutionOptions() *ExecutionOptions {
+func (u *Unit) ExecutionOptions() *runnertypes.RunnerOptions {
 	u.rLock()
 	defer u.rUnlock()
 
@@ -255,7 +238,7 @@ func (u *Unit) ExecutionOptions() *ExecutionOptions {
 }
 
 // SetExecutionOptions sets the execution options for this unit.
-func (u *Unit) SetExecutionOptions(opts *ExecutionOptions) {
+func (u *Unit) SetExecutionOptions(opts *runnertypes.RunnerOptions) {
 	u.lock()
 	defer u.unlock()
 
@@ -270,7 +253,7 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 		return
 	}
 
-	executionOptions := &ExecutionOptions{
+	executionOptions := &runnertypes.RunnerOptions{
 		Writer:                      opts.Writer,
 		ErrWriter:                   opts.ErrWriter,
 		TerraformCommand:            opts.TerraformCommand,
@@ -452,7 +435,7 @@ func (u *Unit) PlanFile() string {
 }
 
 // planFileWithExecutionOptions returns plan file location with execution options.
-func (u *Unit) planFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
+func (u *Unit) planFileWithExecutionOptions(l log.Logger, opts *runnertypes.RunnerOptions) string {
 	if opts == nil {
 		return ""
 	}
@@ -486,7 +469,7 @@ func (u *Unit) GetOutputFile() string {
 }
 
 // outputFileWithExecutionOptions returns plan file location with execution options.
-func (u *Unit) outputFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
+func (u *Unit) outputFileWithExecutionOptions(l log.Logger, opts *runnertypes.RunnerOptions) string {
 	return u.getPlanFilePath(l, opts.RootWorkingDir, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
@@ -506,7 +489,7 @@ func (u *Unit) GetOutputJSONFile() string {
 }
 
 // outputJSONFileWithExecutionOptions returns plan JSON file location with execution options.
-func (u *Unit) outputJSONFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
+func (u *Unit) outputJSONFileWithExecutionOptions(l log.Logger, opts *runnertypes.RunnerOptions) string {
 	return u.getPlanFilePath(l, opts.RootWorkingDir, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 

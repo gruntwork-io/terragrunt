@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	runnertypes "github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -146,6 +147,142 @@ func RunCommandWithOutput(
 				Output:         output,
 				WorkingDir:     cmd.Dir,
 				DisableSummary: opts.LogDisableErrorSummary,
+			}
+
+			return errors.New(err)
+		}
+
+		return nil
+	})
+
+	return &output, err
+}
+
+// RunCommandWithOutputAndRunner runs the specified shell command with the specified arguments using RunnerOptions.
+// This is the RunnerOptions-based variant of RunCommandWithOutput.
+//
+// Connect the command's stdin, stdout, and stderr to
+// the currently running app. The command can be executed in a custom working directory by using the parameter
+// `workingDir`. Terragrunt working directory will be assumed if empty string.
+func RunCommandWithOutputAndRunner(
+	ctx context.Context,
+	l log.Logger,
+	runnerOpts *runnertypes.RunnerOptions,
+	workingDir string,
+	suppressStdout bool,
+	needsPTY bool,
+	command string,
+	args ...string,
+) (*util.CmdOutput, error) {
+	var (
+		output     = util.CmdOutput{}
+		commandDir = workingDir
+	)
+
+	if workingDir == "" {
+		commandDir = runnerOpts.WorkingDir
+	}
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
+		"command": command,
+		"args":    fmt.Sprintf("%v", args),
+		"dir":     commandDir,
+	}, func(ctx context.Context) error {
+		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+
+		var (
+			cmdStderr = io.MultiWriter(runnerOpts.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(runnerOpts.Writer, &output.Stdout)
+		)
+
+		// Pass the traceparent to the child process if it is available in the context.
+		traceParent := telemetry.TraceParentFromContext(ctx, runnerOpts.Telemetry)
+
+		if traceParent != "" {
+			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
+			runnerOpts.Env[telemetry.TraceParentEnv] = traceParent
+		}
+
+		if suppressStdout {
+			l.Debugf("Command output will be suppressed.")
+
+			cmdStdout = io.MultiWriter(&output.Stdout)
+		}
+
+		if command == runnerOpts.TFPath {
+			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
+			if runnerOpts.Engine != nil && runnerOpts.EngineEnabled {
+				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+
+				// Engine still expects TerragruntOptions, create minimal opts
+				// TODO: Eventually engine package should accept RunnerOptions
+				opts := &options.TerragruntOptions{
+					TFPath:                  runnerOpts.TFPath,
+					WorkingDir:              runnerOpts.WorkingDir,
+					Writer:                  runnerOpts.Writer,
+					ErrWriter:               runnerOpts.ErrWriter,
+					Env:                     runnerOpts.Env,
+					Engine:                  runnerOpts.Engine,
+					EngineEnabled:           runnerOpts.EngineEnabled,
+					TerraformImplementation: runnerOpts.TerraformImplementation,
+				}
+
+				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
+					TerragruntOptions: opts,
+					CmdStdout:         cmdStdout,
+					CmdStderr:         cmdStderr,
+					WorkingDir:        commandDir,
+					SuppressStdout:    suppressStdout,
+					AllocatePseudoTty: needsPTY,
+					Command:           command,
+					Args:              args,
+				})
+				if err != nil {
+					return errors.New(err)
+				}
+
+				output = *cmdOutput
+
+				return err
+			}
+
+			l.Debugf("Engine is not enabled, running command directly in %s", commandDir)
+		}
+
+		cmd := exec.Command(ctx, command, args...)
+		cmd.Dir = commandDir
+		cmd.Stdout = cmdStdout
+		cmd.Stderr = cmdStderr
+		cmd.Configure(
+			exec.WithLogger(l),
+			exec.WithUsePTY(needsPTY),
+			exec.WithEnv(runnerOpts.Env),
+			exec.WithForwardSignalDelay(SignalForwardingDelay),
+		)
+
+		if err := cmd.Start(); err != nil { //nolint:contextcheck
+			err = util.ProcessExecutionError{
+				Err:            err,
+				Args:           args,
+				Command:        command,
+				WorkingDir:     cmd.Dir,
+				DisableSummary: runnerOpts.LogDisableErrorSummary,
+			}
+
+			return errors.New(err)
+		}
+
+		cancelShutdown := cmd.RegisterGracefullyShutdown(ctx)
+		defer cancelShutdown()
+
+		if err := cmd.Wait(); err != nil {
+			err = util.ProcessExecutionError{
+				Err:            err,
+				Args:           args,
+				Command:        command,
+				Output:         output,
+				WorkingDir:     cmd.Dir,
+				DisableSummary: runnerOpts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
