@@ -84,113 +84,42 @@ type Sort string
 
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
-	// discoveryContext is the context in which the discovery is happening.
-	discoveryContext *component.DiscoveryContext
-
-	// workingDir is the directory to search for Terragrunt configurations.
-	workingDir string
-
-	// sort determines the sort order of the discovered configurations.
-	sort Sort
-
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
-
-	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
-	compiledExcludePatterns []CompiledPattern
-
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
-
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
-
-	// excludeDirs is a list of directory patterns to exclude from discovery.
-	excludeDirs []string
-
-	// parserOptions are custom HCL parser options to use when parsing during discovery
-	parserOptions []hclparse.Option
-
-	// filters contains filter queries for component selection
-	filters filter.Filters
-
-	// dependencyTargetExpressions contains target expressions from graph filters that require dependency discovery
-	dependencyTargetExpressions []filter.Expression
-
-	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
-	dependentTargetExpressions []filter.Expression
-
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo hiddenDirMemo
-
-	// numWorkers determines the number of concurrent workers for discovery operations.
-	numWorkers int
-
-	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
-	maxDependencyDepth int
-
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
-
-	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
-	excludeByDefault bool
-
-	// noHidden determines whether to detect configurations in noHidden directories.
-	noHidden bool
-
-	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
-	requiresParse bool
-
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
-
-	// parseExclude determines whether to parse exclude configurations.
-	parseExclude bool
-
-	// parseInclude determines whether to parse include configurations.
-	parseInclude bool
-
-	// readFiles determines whether to parse for reading files.
-	readFiles bool
-
-	// discoverExternalDependencies determines whether to discover external dependencies.
+	ctx                          context.Context
+	excludeGlobs                 map[string]glob.Glob
+	report                       *report.Report
+	discoveryContext             *component.DiscoveryContext
+	terragruntOptions            *options.TerragruntOptions
+	includeGlobs                 map[string]glob.Glob
+	workingDir                   string
+	sort                         Sort
+	configFilenames              []string
+	filters                      filter.Filters
+	dependencyTargetExpressions  []filter.Expression
+	dependentTargetExpressions   []filter.Expression
+	parserOptions                []hclparse.Option
+	excludeDirs                  []string
+	includeDirs                  []string
+	compiledExcludePatterns      []CompiledPattern
+	unitFilters                  []UnitFilter
+	compiledIncludePatterns      []CompiledPattern
+	hiddenDirMemo                hiddenDirMemo
+	numWorkers                   int
+	maxDependencyDepth           int
+	requiresParse                bool
+	readFiles                    bool
 	discoverExternalDependencies bool
-
-	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
-	suppressParseErrors bool
-
-	// useDefaultExcludes determines whether to use default exclude patterns.
-	useDefaultExcludes bool
-
-	// filterFlagEnabled determines whether the filter flag experiment is active
-	filterFlagEnabled bool
-
-	// breakCycles determines whether to break cycles in the dependency graph if any exist.
-	breakCycles bool
-
-	// terragruntOptions contains the base options to clone for each unit
-	terragruntOptions *options.TerragruntOptions
-
-	// report is the report file for tracking exclusions
-	report *report.Report
-
-	// unitFilters contains custom unit filters to apply
-	unitFilters []UnitFilter
-
-	// ctx is the context for telemetry collection
-	ctx context.Context
-
-	// includeGlobs are compiled glob patterns for include directories
-	includeGlobs map[string]glob.Glob
-
-	// excludeGlobs are compiled glob patterns for exclude directories
-	excludeGlobs map[string]glob.Glob
-
-	// doubleStarEnabled determines whether to use glob matching or exact path matching
-	doubleStarEnabled bool
-
-	// skipValidation determines whether to skip validation of units (e.g., checking for Terraform files)
-	skipValidation bool
+	suppressParseErrors          bool
+	useDefaultExcludes           bool
+	filterFlagEnabled            bool
+	breakCycles                  bool
+	parseInclude                 bool
+	parseExclude                 bool
+	strictInclude                bool
+	noHidden                     bool
+	excludeByDefault             bool
+	discoverDependencies         bool
+	doubleStarEnabled            bool
+	skipValidation               bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -513,6 +442,7 @@ func Parse(
 	opts *options.TerragruntOptions,
 	suppressParseErrors bool,
 	parserOptions []hclparse.Option,
+	configFilenames ...string,
 ) error {
 	parseOpts := opts.Clone()
 
@@ -533,6 +463,16 @@ func Parse(
 		// Allow user-specified config filename when provided as a file path
 		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
 			configFilename = filepath.Base(p)
+		}
+		// Check custom config filenames if provided
+		if len(configFilenames) > 0 {
+			for _, fname := range configFilenames {
+				candidatePath := filepath.Join(workingDir, fname)
+				if util.FileExists(candidatePath) {
+					configFilename = fname
+					break
+				}
+			}
 		}
 		// Stacks always use the default stack filename
 		if c.Kind() == component.StackKind {
@@ -635,7 +575,8 @@ func Parse(
 
 	// Store the parsed configuration
 	// Only Units are parsed during discovery; Stacks are not
-	if unit, ok := c.(*component.Unit); ok {
+	if c.Kind() == component.UnitKind {
+		unit := c.(*component.Unit)
 		unit.StoreConfig(cfg)
 	}
 
@@ -979,7 +920,7 @@ func (d *Discovery) parseConcurrently(
 	for _, c := range components {
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
-		if _, ok := c.(*component.Stack); ok {
+		if c.Kind() == component.StackKind {
 			continue
 		}
 
@@ -1060,7 +1001,7 @@ func (d *Discovery) parseWorker(
 		default:
 		}
 
-		err := Parse(c, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
+		err := Parse(c, ctx, l, opts, d.suppressParseErrors, d.parserOptions, d.configFilenames...)
 
 		// Send error or handle context cancellation
 		select {
@@ -1121,24 +1062,6 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 		return discovered, err
 	}
 
-	// Build the canonical config paths list for cross-linking
-	canonicalTerragruntConfigPaths := make([]string, 0, len(discovered))
-	for _, c := range discovered {
-		if c.Kind() == component.StackKind {
-			continue
-		}
-
-		fname := d.determineTerragruntConfigFilename()
-		configPath := filepath.Join(c.Path(), fname)
-
-		canonicalPath, err := util.CanonicalPath(configPath, ".")
-		if err != nil {
-			return discovered, errors.Errorf("canonicalizing terragrunt config path %q for unit %s: %w", configPath, c.Path(), err)
-		}
-
-		canonicalTerragruntConfigPaths = append(canonicalTerragruntConfigPaths, canonicalPath)
-	}
-
 	// Step 2: Cross-link dependencies (convert discovery domain to runner domain)
 	var crossLinkedUnits component.Units
 
@@ -1147,7 +1070,7 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 	}, func(_ context.Context) error {
 		var linkErr error
 
-		crossLinkedUnits, linkErr = convertDiscoveryToRunner(unitsMap, canonicalTerragruntConfigPaths)
+		crossLinkedUnits, linkErr = convertDiscoveryToRunner(unitsMap)
 
 		return linkErr
 	})
@@ -1187,10 +1110,18 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 	}
 
 	// Convert Units back to Components and merge with preserved stacks
+	// Filter out external dependencies if WithDiscoverExternalDependencies was not set
 	components := make(component.Components, 0, len(filteredUnits)+len(stacks))
 	for _, unit := range filteredUnits {
+		// Skip external dependencies from the components list if not explicitly requested
+		// They remain linked as dependencies but won't be included in the output
+		if unit.External() && !d.discoverExternalDependencies {
+			continue
+		}
+
 		components = append(components, unit)
 	}
+
 	components = append(components, stacks...)
 
 	return components, nil
@@ -1237,6 +1168,13 @@ func (d *Discovery) Discover(
 	// Store terragruntOptions if not already set
 	if d.terragruntOptions == nil {
 		d.terragruntOptions = opts
+	}
+
+	// When terragruntOptions are provided, we need to parse configs so that
+	// the unit resolution pipeline can validate units (e.g., check for .tf files)
+	// and apply filters properly
+	if opts != nil && !d.requiresParse {
+		d.requiresParse = true
 	}
 
 	// Initialize glob patterns and double-star flag for unit resolution

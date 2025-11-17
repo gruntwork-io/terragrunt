@@ -42,11 +42,11 @@ func TestDiscovery(t *testing.T) {
 
 	// Create test files
 	testFiles := map[string]string{
-		filepath.Join(unit1Dir, "terragrunt.hcl"):        "",
-		filepath.Join(unit2Dir, "terragrunt.hcl"):        "",
+		filepath.Join(unit1Dir, "terragrunt.hcl"):        `terraform { source = "." }`,
+		filepath.Join(unit2Dir, "terragrunt.hcl"):        `terraform { source = "." }`,
 		filepath.Join(stack1Dir, "terragrunt.stack.hcl"): "",
-		filepath.Join(hiddenUnitDir, "terragrunt.hcl"):   "",
-		filepath.Join(nestedUnit4Dir, "terragrunt.hcl"):  "",
+		filepath.Join(hiddenUnitDir, "terragrunt.hcl"):   `terraform { source = "." }`,
+		filepath.Join(nestedUnit4Dir, "terragrunt.hcl"):  `terraform { source = "." }`,
 		// Add .tf files so validation passes
 		filepath.Join(unit1Dir, "main.tf"):       "",
 		filepath.Join(unit2Dir, "main.tf"):       "",
@@ -130,6 +130,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	// Create test files with dependencies
 	testFiles := map[string]string{
 		filepath.Join(appDir, "terragrunt.hcl"): `
+		terraform { source = "." }
 		dependency "db" {
 			config_path = "../db"
 		}
@@ -139,12 +140,13 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		}
 		`,
 		filepath.Join(dbDir, "terragrunt.hcl"): `
+		terraform { source = "." }
 		dependency "vpc" {
 			config_path = "../vpc"
 		}
 		`,
-		filepath.Join(vpcDir, "terragrunt.hcl"):         ``,
-		filepath.Join(externalAppDir, "terragrunt.hcl"): ``,
+		filepath.Join(vpcDir, "terragrunt.hcl"):         `terraform { source = "." }`,
+		filepath.Join(externalAppDir, "terragrunt.hcl"): `terraform { source = "." }`,
 		// Add .tf files so validation passes
 		filepath.Join(appDir, "main.tf"):         ``,
 		filepath.Join(dbDir, "main.tf"):          ``,
@@ -161,6 +163,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = internalDir
 	opts.RootWorkingDir = internalDir
+	opts.NonInteractive = true
 
 	tests := []struct {
 		discovery     *discovery.Discovery
@@ -227,7 +230,8 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 			// nil out the parsed configurations, as it doesn't matter for this test
 			for _, c := range components {
-				if unit, ok := c.(*component.Unit); ok {
+				if c.Kind() == component.UnitKind {
+					unit := c.(*component.Unit)
 					unit.StoreConfig(nil)
 				}
 			}
@@ -299,7 +303,7 @@ exclude {
   if      = true
   actions = ["apply"]
 }`,
-		"unit3/terragrunt.hcl": "",
+		"unit3/terragrunt.hcl": `terraform { source = "." }`,
 		// Add .tf files so validation passes
 		"unit1/main.tf": "",
 		"unit2/main.tf": "",
@@ -331,8 +335,8 @@ exclude {
 	findUnit := func(path string) *component.Unit {
 		for _, c := range components {
 			if filepath.Base(c.Path()) == path {
-				if unit, ok := c.(*component.Unit); ok {
-					return unit
+				if c.Kind() == component.UnitKind {
+					return c.(*component.Unit)
 				}
 			}
 		}
@@ -368,8 +372,9 @@ func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
 	unit1Dir := filepath.Join(tmpDir, "unit1")
 	err := os.MkdirAll(unit1Dir, 0755)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(unit1Dir, "custom1.hcl"), []byte(""), 0644)
+	err = os.WriteFile(filepath.Join(unit1Dir, "custom1.hcl"), []byte(`terraform { source = "." }`), 0644)
 	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "main.tf"), []byte(""), 0o600))
 
 	d := discovery.NewDiscovery(tmpDir).WithConfigFilenames([]string{"custom1.hcl"})
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
@@ -456,14 +461,14 @@ inputs = {
 
 	// Verify that stack configuration is not parsed (Config should be nil)
 	stackComp := stacks[0]
-	stack, ok := stackComp.(*component.Stack)
-	require.True(t, ok, "should be a Stack")
+	require.Equal(t, component.StackKind, stackComp.Kind(), "should be a Stack")
+	stack := stackComp.(*component.Stack)
 	assert.Nil(t, stack.Config(), "Stack configuration should not be parsed")
 
 	// Verify that unit configuration is parsed (Config should not be nil)
 	unitComp := units[0]
-	unit, ok := unitComp.(*component.Unit)
-	require.True(t, ok, "should be a Unit")
+	require.Equal(t, component.UnitKind, unitComp.Kind(), "should be a Unit")
+	unit := unitComp.(*component.Unit)
 	assert.NotNil(t, unit.Config(), "Unit configuration should be parsed")
 }
 
@@ -485,8 +490,13 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 		filepath.Join(unit2Dir, "terragrunt.hcl"),
 		filepath.Join(unit3Dir, "terragrunt.hcl"),
 	} {
-		require.NoError(t, os.WriteFile(f, []byte(""), 0644))
+		require.NoError(t, os.WriteFile(f, []byte(`terraform { source = "." }`), 0644))
 	}
+
+	// Add .tf files so validation passes
+	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(unit3Dir, "main.tf"), []byte(""), 0o600))
 
 	l := logger.CreateLogger()
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
@@ -517,7 +527,8 @@ func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
 	tmpDir := t.TempDir()
 	hiddenUnitDir := filepath.Join(tmpDir, ".hidden", "hunit")
 	require.NoError(t, os.MkdirAll(hiddenUnitDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "main.tf"), []byte(""), 0o600))
 
 	l := logger.CreateLogger()
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
@@ -541,7 +552,7 @@ terraform {
   source = "."
 }
 `), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "main.tf"), []byte(""), 0644)) // Add .tf file
+	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "main.tf"), []byte(""), 0o600)) // Add .tf file
 
 	l := logger.CreateLogger()
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
@@ -575,18 +586,19 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
 	dependency "vpc" { config_path = "../vpc" }
 	`), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
 
 	// Add .tf files so validation passes
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "main.tf"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "main.tf"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(extApp, "main.tf"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extApp, "main.tf"), []byte(""), 0o600))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = internalDir
 	opts.RootWorkingDir = internalDir
+	opts.NonInteractive = true
 
 	l := logger.CreateLogger()
 
@@ -599,8 +611,8 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 
 	for _, c := range components {
 		if c.Path() == appDir {
-			if unit, ok := c.(*component.Unit); ok {
-				appCfg = unit
+			if c.Kind() == component.UnitKind {
+				appCfg = c.(*component.Unit)
 			}
 
 			break
@@ -644,7 +656,7 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 	`), 0644))
 
 	// Add .tf file so validation passes
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0o600))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -662,8 +674,8 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 
 	for _, c := range components {
 		if c.Path() == appDir {
-			if unit, ok := c.(*component.Unit); ok {
-				appComponent = unit
+			if c.Kind() == component.UnitKind {
+				appComponent = c.(*component.Unit)
 			}
 
 			break
@@ -688,15 +700,18 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 
 	unit1Dir := filepath.Join(tmpDir, "unit1")
 	require.NoError(t, os.MkdirAll(unit1Dir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit1Dir, "main.tf"), []byte(""), 0o600))
 
 	unit2Dir := filepath.Join(tmpDir, "unit2")
 	require.NoError(t, os.MkdirAll(unit2Dir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "main.tf"), []byte(""), 0o600))
 
 	unit3Dir := filepath.Join(tmpDir, "unit3")
 	require.NoError(t, os.MkdirAll(unit3Dir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(unit3Dir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit3Dir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit3Dir, "main.tf"), []byte(""), 0o600))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -832,7 +847,7 @@ func TestDependencyDiscovery_DiscoverAllDependencies(t *testing.T) {
 		err := os.MkdirAll(dir, 0755)
 		require.NoError(t, err)
 		// Create empty terragrunt.hcl files
-		err = os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(""), 0644)
+		err = os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644)
 		require.NoError(t, err)
 	}
 

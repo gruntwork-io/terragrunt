@@ -58,14 +58,18 @@ func Build(
 
 	// Create discovery with options and report for integrated unit resolution
 	// NOTE: Need to extract report from opts first
-	var reportForDiscovery *report.Report
-	var unitFilters []discovery.UnitFilter
+	var (
+		reportForDiscovery *report.Report
+		unitFilters        []discovery.UnitFilter
+	)
 
 	// Apply options to extract report and filters
+
 	for _, opt := range opts {
 		// Apply to a temporary runner to extract fields
 		tempStack := component.NewStack("")
 		tempRunner := &Runner{Stack: tempStack}
+
 		tempRunner = tempRunner.WithOptions(opt)
 		if tempRunner.Stack.Report() != nil {
 			reportForDiscovery = tempRunner.Stack.Report()

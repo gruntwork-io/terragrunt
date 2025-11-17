@@ -277,7 +277,7 @@ func ListStackFilesMaybeWithDiscovery(
 
 	foundFiles := make([]string, 0, len(components))
 	for _, c := range components {
-		if _, ok := c.(*component.Stack); !ok {
+		if c.Kind() != component.StackKind {
 			continue
 		}
 

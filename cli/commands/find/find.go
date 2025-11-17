@@ -134,7 +134,8 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		if opts.QueueConstructAs != "" {
-			if unit, ok := c.(*component.Unit); ok {
+			if c.Kind() == component.UnitKind {
+				unit := c.(*component.Unit)
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
 					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
 						continue
@@ -156,7 +157,8 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		if opts.Exclude {
-			if unit, ok := c.(*component.Unit); ok {
+			if c.Kind() == component.UnitKind {
+				unit := c.(*component.Unit)
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
 					foundComponent.Exclude = cfg.Exclude.Clone()
 				}
@@ -164,7 +166,8 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		if opts.Include {
-			if unit, ok := c.(*component.Unit); ok {
+			if c.Kind() == component.UnitKind {
+				unit := c.(*component.Unit)
 				if cfg := unit.Config(); cfg != nil && cfg.ProcessedIncludes != nil {
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {

@@ -21,26 +21,21 @@ const (
 // Stack represents a discovered Terragrunt stack configuration.
 // This type serves as a DTO for data exchange between discovery and runner packages.
 type Stack struct {
-	// Discovery fields (populated by discovery package)
-	cfg              *config.StackConfig
-	path             string
-	reading          []string
-	discoveryContext *DiscoveryContext
-	dependencies     Components
-	dependents       Components
-	external         bool
-
-	// Runtime/Execution fields (populated by runner package)
 	logger                log.Logger
-	flagExcluded          bool
 	report                *report.Report
-	terragruntOptions     *options.TerragruntOptions
+	discoveryContext      *DiscoveryContext
 	childTerragruntConfig *config.TerragruntConfig
+	terragruntOptions     *options.TerragruntOptions
+	cfg                   *config.StackConfig
+	path                  string
+	dependents            Components
+	reading               []string
+	dependencies          Components
 	units                 Components
 	parserOptions         []hclparse.Option
-
-	// Thread-safety
-	mu sync.RWMutex
+	mu                    sync.RWMutex
+	flagExcluded          bool
+	external              bool
 }
 
 // NewStack creates a new Stack component with the given path.

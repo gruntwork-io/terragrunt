@@ -120,14 +120,15 @@ func (rd *RelationshipDiscovery) DiscoverRelationships(
 		return errors.New("max depth reached while discovering relationships")
 	}
 
-	if _, ok := c.(*component.Stack); ok {
+	if c.Kind() == component.StackKind {
 		return nil
 	}
 
-	unit, ok := c.(*component.Unit)
-	if !ok {
+	if c.Kind() != component.UnitKind {
 		return errors.New("expected Unit component but got different type")
 	}
+
+	unit := c.(*component.Unit)
 
 	cfg := unit.Config()
 	if cfg == nil {

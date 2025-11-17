@@ -92,6 +92,14 @@ dependency "db" {
 		require.NoError(t, err)
 	}
 
+	// Add .tf files so validation passes
+	require.NoError(t, os.WriteFile(filepath.Join(frontendDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(backendDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(externalAppDir, "main.tf"), []byte(""), 0o600))
+
 	// Create base options
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -331,8 +339,9 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 	err := os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644)
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644)
 	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(""), 0o600))
 
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
@@ -499,6 +508,13 @@ locals {
 		require.NoError(t, err)
 	}
 
+	// Add .tf files so validation passes
+	require.NoError(t, os.WriteFile(filepath.Join(frontendDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(backendDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "main.tf"), []byte(""), 0o600))
+
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
@@ -643,7 +659,7 @@ locals {
 `), 0644))
 
 	// Add .tf file so validation passes
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "main.tf"), []byte(`terraform { source = "." }`), 0644))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -673,7 +689,7 @@ func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 
 	appDir := filepath.Join(tmpDir, "app")
 	require.NoError(t, os.MkdirAll(appDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`terraform { source = "." }`), 0644))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -760,7 +776,7 @@ dependency "vpc" {
 	config_path = "../vpc"
 }
 `,
-		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+		filepath.Join(vpcDir, "terragrunt.hcl"): `terraform { source = "." }`,
 		// Add .tf files so validation passes
 		filepath.Join(appDir, "main.tf"): ``,
 		filepath.Join(dbDir, "main.tf"):  ``,
@@ -869,7 +885,7 @@ dependency "vpc" {
 	config_path = "../vpc"
 }
 `,
-		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+		filepath.Join(vpcDir, "terragrunt.hcl"): `terraform { source = "." }`,
 		// Add .tf files so validation passes
 		filepath.Join(appDir, "main.tf"):   ``,
 		filepath.Join(dbDir, "main.tf"):    ``,
@@ -1003,7 +1019,7 @@ dependency "vpc" {
 	config_path = "../vpc"
 }
 `,
-		filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+		filepath.Join(vpcDir, "terragrunt.hcl"): `terraform { source = "." }`,
 		// Add .tf files so validation passes
 		filepath.Join(appDir, "main.tf"): ``,
 		filepath.Join(dbDir, "main.tf"):  ``,

@@ -25,6 +25,7 @@ func newMockUnit() *component.Unit {
 	unit := component.NewUnit("mock/path")
 	unit.SetLogger(logger.CreateLogger())
 	unit.SetTerragruntOptions(&options.TerragruntOptions{})
+
 	return unit
 }
 
@@ -79,6 +80,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 			return nil
 		},
 	})
+
 	path := t.TempDir()
 	unit.SetPath(path)
 	runner := common.NewUnitRunner(unit)

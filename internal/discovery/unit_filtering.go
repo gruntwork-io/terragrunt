@@ -135,6 +135,7 @@ func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logg
 
 	for _, unit := range units {
 		unit.SetFlagExcluded(true)
+
 		if includeFn(unit) {
 			unit.SetFlagExcluded(false)
 		}
@@ -145,7 +146,8 @@ func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logg
 		for _, unit := range units {
 			if !unit.FlagExcluded() {
 				for _, dependency := range unit.Dependencies() {
-					if dep, ok := dependency.(*component.Unit); ok {
+					if dependency.Kind() == component.UnitKind {
+						dep := dependency.(*component.Unit)
 						dep.SetFlagExcluded(false)
 					}
 				}
@@ -264,12 +266,15 @@ func (d *Discovery) applyExcludeDirs(l log.Logger, opts *options.TerragruntOptio
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range unit.Dependencies() {
-			if dep, ok := dependency.(*component.Unit); ok && excludeFn(dep) {
-				dep.SetFlagExcluded(true)
+			if dependency.Kind() == component.UnitKind {
+				dep := dependency.(*component.Unit)
+				if excludeFn(dep) {
+					dep.SetFlagExcluded(true)
 
-				// Only update report if it's enabled
-				if reportInstance != nil {
-					d.reportUnitExclusion(l, dep.Path(), report.ReasonExcludeDir)
+					// Only update report if it's enabled
+					if reportInstance != nil {
+						d.reportUnitExclusion(l, dep.Path(), report.ReasonExcludeDir)
+					}
 				}
 			}
 		}
@@ -324,7 +329,8 @@ func (d *Discovery) applyExcludeModules(l log.Logger, opts *options.TerragruntOp
 			l.Debugf("Excluding dependencies for unit %s by exclude block", unit.Path())
 
 			for _, dependency := range unit.Dependencies() {
-				if dep, ok := dependency.(*component.Unit); ok {
+				if dependency.Kind() == component.UnitKind {
+					dep := dependency.(*component.Unit)
 					// Check if dependency was already excluded
 					wasAlreadyExcluded := dep.FlagExcluded()
 					dep.SetFlagExcluded(true)

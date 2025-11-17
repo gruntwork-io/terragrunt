@@ -60,10 +60,11 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 			continue
 		}
 
-		dUnit, ok := c.(*component.Unit)
-		if !ok {
+		if c.Kind() != component.UnitKind {
 			continue
 		}
+
+		dUnit := c.(*component.Unit)
 
 		// Get the config that discovery already parsed
 		terragruntConfig := dUnit.Config()
@@ -76,7 +77,7 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		// Determine the actual config file path
 		terragruntConfigPath := dUnit.Path()
 		if util.IsDir(terragruntConfigPath) {
-			fname := d.determineTerragruntConfigFilename()
+			fname := d.determineConfigFilenameForUnit(dUnit.Path())
 			terragruntConfigPath = filepath.Join(dUnit.Path(), fname)
 		}
 
@@ -98,6 +99,7 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		unitToExclude.SetLogger(l)
 		unitToExclude.SetTerragruntOptions(opts)
 		unitToExclude.SetFlagExcluded(true)
+
 		excludeFn := d.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
@@ -123,9 +125,13 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 			return nil, err
 		}
 
+		// Preserve the external flag from discovery component
+		isExternal := dUnit.External()
+
 		// Check for TF files in the directory or any of its subdirectories
 		// Skip this validation if skipValidation is true (e.g., for tests)
-		if !d.skipValidation {
+		// Also skip validation for external dependencies since they might not have .tf files locally
+		if !d.skipValidation && !isExternal {
 			dir := filepath.Dir(terragruntConfigPath)
 
 			hasFiles, err := util.DirContainsTFFiles(dir)
@@ -139,17 +145,16 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 			}
 		}
 
-		// Preserve the external flag from discovery component
-		isExternal := dUnit.External()
-
 		unit := component.NewUnit(unitPath)
 		unit.SetLogger(l)
 		unit.StoreConfig(terragruntConfig)
 		unit.SetTerragruntOptions(opts)
 		unit.SetReading(dUnit.Reading()...)
+
 		if isExternal {
 			unit.SetExternal()
 		}
+
 		units[unitPath] = unit
 	}
 
@@ -192,4 +197,26 @@ func (d *Discovery) determineTerragruntConfigFilename() string {
 	}
 
 	return fname
+}
+
+// determineConfigFilenameForUnit determines which config file exists in the given unit directory.
+// It checks for custom config filenames first, then falls back to the default.
+func (d *Discovery) determineConfigFilenameForUnit(unitDir string) string {
+	// Get the list of config filenames to check (custom or default)
+	filenames := d.configFilenames
+	if len(filenames) == 0 {
+		// Fall back to checking TerragruntConfigPath for custom filename
+		return d.determineTerragruntConfigFilename()
+	}
+
+	// Check each custom config filename to see which one exists in this directory
+	for _, fname := range filenames {
+		configPath := filepath.Join(unitDir, fname)
+		if util.FileExists(configPath) {
+			return fname
+		}
+	}
+
+	// If none of the custom filenames exist, return the first one as default
+	return filenames[0]
 }

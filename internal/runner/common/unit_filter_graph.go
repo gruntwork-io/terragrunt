@@ -65,6 +65,7 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units component.Units, opt
 	// Mark units as excluded unless they are in modulesToInclude
 	for _, module := range units {
 		module.SetFlagExcluded(true)
+
 		if util.ListContainsElement(modulesToInclude, module.Path()) {
 			module.SetFlagExcluded(false)
 		}

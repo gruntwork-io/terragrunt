@@ -47,16 +47,17 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	// Type assert to component.Unit to access TerragruntOptions
-	srcUnit, ok := srcModule.(*component.Unit)
-	if !ok {
-		return errors.Errorf("src module is not a component.Unit")
+	// Check that components are Units using Kind() method
+	if srcModule.Kind() != component.UnitKind {
+		return errors.Errorf("src module is not a unit")
 	}
 
-	dstUnit, ok := dstModuleComp.(*component.Unit)
-	if !ok {
-		return errors.Errorf("dst module is not a component.Unit")
+	if dstModuleComp.Kind() != component.UnitKind {
+		return errors.Errorf("dst module is not a unit")
 	}
+
+	srcUnit := srcModule.(*component.Unit)
+	dstUnit := dstModuleComp.(*component.Unit)
 
 	srcOpts := srcUnit.TerragruntOptions()
 	dstOpts := dstUnit.TerragruntOptions()

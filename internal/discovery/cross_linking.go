@@ -13,7 +13,7 @@ import (
 // Component interface dependencies into concrete *Unit pointer dependencies.
 // Discovery found all dependencies and stored them as Component interfaces, but runner needs
 // concrete *Unit pointers for efficient execution. This function translates between domains.
-func convertDiscoveryToRunner(unitsMap component.UnitsMap, canonicalTerragruntConfigPaths []string) (component.Units, error) {
+func convertDiscoveryToRunner(unitsMap component.UnitsMap) (component.Units, error) {
 	units := component.Units{}
 
 	keys := unitsMap.SortedKeys()
@@ -21,7 +21,7 @@ func convertDiscoveryToRunner(unitsMap component.UnitsMap, canonicalTerragruntCo
 	for _, key := range keys {
 		unit := unitsMap[key]
 
-		dependencies, err := getDependenciesForUnit(unit, unitsMap, canonicalTerragruntConfigPaths)
+		dependencies, err := getDependenciesForUnit(unit, unitsMap)
 		if err != nil {
 			return units, err
 		}
@@ -41,7 +41,7 @@ func convertDiscoveryToRunner(unitsMap component.UnitsMap, canonicalTerragruntCo
 }
 
 // getDependenciesForUnit gets the list of units this unit depends on.
-func getDependenciesForUnit(unit *component.Unit, unitsMap component.UnitsMap, terragruntConfigPaths []string) (component.Units, error) {
+func getDependenciesForUnit(unit *component.Unit, unitsMap component.UnitsMap) (component.Units, error) {
 	dependencies := component.Units{}
 
 	cfg := unit.Config()
@@ -61,13 +61,11 @@ func getDependenciesForUnit(unit *component.Unit, unitsMap component.UnitsMap, t
 
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
-			dependencyErr := UnrecognizedDependencyError{
-				UnitPath:              unit.Path(),
-				DependencyPath:        dependencyPath,
-				TerragruntConfigPaths: terragruntConfigPaths,
-			}
-
-			return dependencies, dependencyErr
+			// Skip dependencies that aren't found in the units map.
+			// This can happen for external dependencies or dependencies that weren't discovered.
+			// If dependency discovery was explicitly requested, those dependencies would have been
+			// discovered and included in the unitsMap. If they're not there, we skip them gracefully.
+			continue
 		}
 
 		dependencies = append(dependencies, dependencyUnit)

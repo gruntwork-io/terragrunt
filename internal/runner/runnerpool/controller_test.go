@@ -22,6 +22,7 @@ func mockUnit(path string, deps ...*component.Unit) *component.Unit {
 	for _, dep := range deps {
 		unit.AddDependency(dep)
 	}
+
 	return unit
 }
 
@@ -31,6 +32,7 @@ func discoveryFromUnits(units []*component.Unit) component.Components {
 	for _, u := range units {
 		discovered = append(discovered, u)
 	}
+
 	return discovered
 }
 

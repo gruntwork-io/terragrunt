@@ -96,7 +96,8 @@ func NewRunnerPoolStack(
 	// Just convert Components to Units for further processing
 	units := make(component.Units, 0, len(nonStackComponents))
 	for _, c := range nonStackComponents {
-		if u, ok := c.(*component.Unit); ok {
+		if c.Kind() == component.UnitKind {
+			u := c.(*component.Unit)
 			units = append(units, u)
 		}
 	}
@@ -177,10 +178,12 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	if opts.OutputFolder != "" {
 		for _, comp := range r.Stack.Units() {
-			u, ok := comp.(*component.Unit)
-			if !ok {
+			if comp.Kind() != component.UnitKind {
 				continue
 			}
+
+			u := comp.(*component.Unit)
+
 			planFile := u.OutputFileWithOptions(l, opts)
 			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
@@ -214,10 +217,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
 	if r.Stack.Report() != nil {
 		for _, comp := range r.Stack.Units() {
-			u, ok := comp.(*component.Unit)
-			if !ok {
+			if comp.Kind() != component.UnitKind {
 				continue
 			}
+
+			u := comp.(*component.Unit)
 			if u.FlagExcluded() {
 				// Ensure path is absolute for reporting
 				unitPath, err := common.EnsureAbsolutePath(u.Path())
@@ -274,7 +278,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// Convert Stack.Units (component.Components) to []*component.Unit for the controller
 	units := make([]*component.Unit, 0, len(r.Stack.Units()))
 	for _, comp := range r.Stack.Units() {
-		if u, ok := comp.(*component.Unit); ok {
+		if comp.Kind() == component.UnitKind {
+			u := comp.(*component.Unit)
 			units = append(units, u)
 		}
 	}
@@ -304,10 +309,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				unit, ok := unitComp.(*component.Unit)
-				if !ok {
+				if unitComp.Kind() != component.UnitKind {
 					continue
 				}
+
+				unit := unitComp.(*component.Unit)
 
 				// Ensure path is absolute for reporting
 				unitPath, absErr := common.EnsureAbsolutePath(unit.Path())
@@ -384,15 +390,19 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 func (r *Runner) handlePlan() []bytes.Buffer {
 	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units()))
 	i := 0
+
 	for _, comp := range r.Stack.Units() {
-		u, ok := comp.(*component.Unit)
-		if !ok {
+		if comp.Kind() != component.UnitKind {
 			continue
 		}
+
+		u := comp.(*component.Unit)
+
 		opts := u.TerragruntOptions()
 		if opts != nil {
 			opts.ErrWriter = io.MultiWriter(&planErrorBuffers[i], opts.ErrWriter)
 		}
+
 		i++
 	}
 
@@ -470,14 +480,17 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, comp := range r.Stack.Units() {
-		unit, ok := comp.(*component.Unit)
-		if !ok {
+		if comp.Kind() != component.UnitKind {
 			continue
 		}
+
+		unit := comp.(*component.Unit)
+
 		unitOpts := unit.TerragruntOptions()
 		if unitOpts == nil {
 			continue
 		}
+
 		unitOpts.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
 
 		planFile := unit.PlanFileWithOptions(l, opts)
@@ -498,12 +511,13 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
 func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	unitIndex := 0
+
 	for _, comp := range r.Stack.Units() {
-		unit, ok := comp.(*component.Unit)
-		if !ok || unitIndex >= len(errorStreams) {
+		if comp.Kind() != component.UnitKind || unitIndex >= len(errorStreams) {
 			continue
 		}
 
+		unit := comp.(*component.Unit)
 		errorStream := errorStreams[unitIndex]
 		unitIndex++
 
@@ -563,11 +577,11 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 	present := make(map[string]*component.Unit, len(discovered))
 
 	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
+		if c.Kind() != component.UnitKind {
 			continue
 		}
 
+		unit := c.(*component.Unit)
 		if _, ok := allowed[unit.Path()]; !ok {
 			// Drop configs that map to excluded/missing units
 			continue
@@ -629,8 +643,12 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 
 		// Add any missing allowed dependencies from the resolved unit graph
 		for _, depComp := range u.Dependencies() {
-			depUnit, ok := depComp.(*component.Unit)
-			if !ok || depUnit == nil {
+			if depComp.Kind() != component.UnitKind {
+				continue
+			}
+
+			depUnit := depComp.(*component.Unit)
+			if depUnit == nil {
 				continue
 			}
 
@@ -774,10 +792,11 @@ func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, dep
 	}
 
 	for _, dep := range unit.Dependencies() {
-		depUnit, ok := dep.(*component.Unit)
-		if !ok {
+		if dep.Kind() != component.UnitKind {
 			continue
 		}
+
+		depUnit := dep.(*component.Unit)
 		if !paths[depUnit.Path()] {
 			paths[depUnit.Path()] = true
 			collectDependenciesBounded(depUnit, paths, depth+1)

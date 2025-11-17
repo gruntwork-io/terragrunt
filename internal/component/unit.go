@@ -48,23 +48,18 @@ func getUnitOutputLock(path string) *sync.Mutex {
 // This type is used by both discovery and runner packages.
 // It contains all fields needed throughout the unit's lifecycle.
 type Unit struct {
-	// Discovery fields (populated by discovery package)
-	cfg              *config.TerragruntConfig
-	path             string
-	reading          []string
-	discoveryContext *DiscoveryContext
-	dependencies     Components
-	dependents       Components
-	external         bool // IsExternal - true if unit is outside the working directory
-
-	// Runtime/Execution fields (populated by runner package)
-	terragruntOptions    *options.TerragruntOptions
 	logger               log.Logger
-	assumeAlreadyApplied bool // AssumeAlreadyApplied
-	flagExcluded         bool // FlagExcluded
-
-	// Thread-safety
-	mu sync.RWMutex
+	cfg                  *config.TerragruntConfig
+	discoveryContext     *DiscoveryContext
+	terragruntOptions    *options.TerragruntOptions
+	path                 string
+	reading              []string
+	dependencies         Components
+	dependents           Components
+	mu                   sync.RWMutex
+	external             bool
+	assumeAlreadyApplied bool
+	flagExcluded         bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -464,6 +459,7 @@ func (u *Unit) getPlanFilePathWithOptions(l log.Logger, opts *options.Terragrunt
 		if l != nil {
 			l.Warnf("Failed to get relative path for %s: %v", path, err)
 		}
+
 		relPath = path
 	}
 
@@ -477,10 +473,8 @@ func (u *Unit) getPlanFilePathWithOptions(l log.Logger, opts *options.Terragrunt
 			// In case RootWorkingDir is somehow relative, resolve it first.
 			if absBase, err := filepath.Abs(base); err == nil {
 				base = absBase
-			} else {
-				if l != nil {
-					l.Warnf("Failed to get absolute path for root working dir %s: %v", base, err)
-				}
+			} else if l != nil {
+				l.Warnf("Failed to get absolute path for root working dir %s: %v", base, err)
 			}
 		}
 
@@ -488,10 +482,8 @@ func (u *Unit) getPlanFilePathWithOptions(l log.Logger, opts *options.Terragrunt
 
 		if absDir, err := filepath.Abs(dir); err == nil {
 			dir = absDir
-		} else {
-			if l != nil {
-				l.Warnf("Failed to get absolute path for %s: %v", dir, err)
-			}
+		} else if l != nil {
+			l.Warnf("Failed to get absolute path for %s: %v", dir, err)
 		}
 	}
 

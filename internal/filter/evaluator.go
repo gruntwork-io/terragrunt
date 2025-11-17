@@ -99,13 +99,13 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 		switch filter.Value {
 		case AttributeTypeValueUnit:
 			for _, c := range components {
-				if _, ok := c.(*component.Unit); ok {
+				if c.Kind() == component.UnitKind {
 					result = append(result, c)
 				}
 			}
 		case AttributeTypeValueStack:
 			for _, c := range components {
-				if _, ok := c.(*component.Stack); ok {
+				if c.Kind() == component.StackKind {
 					result = append(result, c)
 				}
 			}
