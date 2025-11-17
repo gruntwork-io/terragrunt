@@ -195,48 +195,6 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 		errs []error
 	)
 
-	for _, stack := range stackDiff.Added {
-		w.Go(func() error {
-			components, err := wd.walkAddedRemovedStack(ctx, l, opts, wd.originalDiscovery, toWorktreeKind, stack)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, err)
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			for _, component := range components {
-				discoveredComponents.EnsureComponent(component)
-			}
-
-			return nil
-		})
-	}
-
-	for _, stack := range stackDiff.Removed {
-		w.Go(func() error {
-			components, err := wd.walkAddedRemovedStack(ctx, l, opts, wd.originalDiscovery, fromWorktreeKind, stack)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, err)
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			for _, component := range components {
-				discoveredComponents.EnsureComponent(component)
-			}
-
-			return nil
-		})
-	}
-
 	// We append two changed stacks whenever we change either, one for the from stack and one for the to stack.
 	for _, changed := range stackDiff.Changed {
 		w.Go(func() error {
@@ -268,52 +226,6 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 	}
 
 	return discoveredComponents.ToComponents(), nil
-}
-
-// walkAddedRemovedStack walks an added or removed stack and discovers components within it.
-//
-// We don't really need to do any diffing for situations where a stack is being added or removed, we can just include
-// all the components within that stack, with the assumption that all the units within it are new or removed.
-func (wd *WorktreeDiscovery) walkAddedRemovedStack(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	originalDiscovery *Discovery,
-	worktreeKind worktreeKind,
-	stack *component.Stack,
-) (component.Components, error) {
-	newDiscovery := *originalDiscovery
-
-	newDiscoveryContext := *newDiscovery.discoveryContext
-	newDiscoveryContext.WorkingDir = stack.Path()
-	newDiscoveryContext.Ref = stack.DiscoveryContext().Ref
-
-	newDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
-		newDiscoveryContext,
-		worktreeKind,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	components, err := newDiscovery.
-		WithDiscoveryContext(&newDiscoveryContext).
-		WithFilters(
-			filter.Filters{},
-		).
-		Discover(ctx, l, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Reset the discovery context working directory to the original directory.
-	for _, component := range components {
-		discoveryContext := *component.DiscoveryContext()
-		discoveryContext.WorkingDir = stack.DiscoveryContext().WorkingDir
-		component.SetDiscoveryContext(&discoveryContext)
-	}
-
-	return components, nil
 }
 
 type componentPair struct {

@@ -176,7 +176,11 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 		case config.DefaultTerragruntConfigPath:
 			fromExpressions = append(fromExpressions, filter.NewPathFilter(dir))
 		case config.DefaultStackFile:
-			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
+			fromExpressions = append(
+				fromExpressions,
+				filter.NewPathFilter(dir),
+				filter.NewPathFilter(filepath.Join(dir, "**")),
+			)
 		default:
 			// Check to see if the removed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
@@ -193,7 +197,11 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 		case config.DefaultTerragruntConfigPath:
 			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
 		case config.DefaultStackFile:
-			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
+			toExpressions = append(
+				toExpressions,
+				filter.NewPathFilter(dir),
+				filter.NewPathFilter(filepath.Join(dir, "**")),
+			)
 		default:
 			// Check to see if the added file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
