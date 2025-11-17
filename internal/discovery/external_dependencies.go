@@ -56,7 +56,8 @@ func (d *Discovery) flagExternalDependencies(ctx context.Context, l log.Logger, 
 			if dependentUnit != nil {
 				var err error
 
-				shouldApply, err = d.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, unit.TerragruntOptions())
+				// Pass discovery's original terragruntOptions instead of unit's minimal ExecutionOptions
+				shouldApply, err = d.confirmShouldApplyExternalDependency(ctx, dependentUnit, l, unit, d.terragruntOptions)
 				if err != nil {
 					return err
 				}

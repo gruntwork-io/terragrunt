@@ -151,7 +151,8 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		}
 
 		// save the json output to the file plan file
-		outputFile := runner.Unit.OutputJSONFileWithOptions(l, opts)
+		// Note: Unit should already have ExecutionOptions set from Run() method
+		outputFile := runner.Unit.GetOutputJSONFile()
 		jsonDir := filepath.Dir(outputFile)
 
 		if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {

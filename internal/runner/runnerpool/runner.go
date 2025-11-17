@@ -184,7 +184,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 			u := comp.(*component.Unit)
 
-			planFile := u.OutputFileWithOptions(l, opts)
+			// Ensure execution options are set on the unit
+			// Note: Units should already have ExecutionOptions set during discovery/setup
+			planFile := u.GetOutputFile()
 			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
 			}
@@ -260,14 +262,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	task := func(ctx context.Context, u *component.Unit) error {
+		execOpts := u.ExecutionOptions()
+
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
-			"terraform_command":      u.TerragruntOptions().TerraformCommand,
-			"terraform_cli_args":     u.TerragruntOptions().TerraformCliArgs,
-			"working_dir":            u.TerragruntOptions().WorkingDir,
-			"terragrunt_config_path": u.TerragruntOptions().TerragruntConfigPath,
+			"terraform_command":      execOpts.TerraformCommand,
+			"terraform_cli_args":     execOpts.TerraformCliArgs,
+			"working_dir":            execOpts.WorkingDir,
+			"terragrunt_config_path": execOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			unitRunner := common.NewUnitRunner(u)
-			return unitRunner.Run(childCtx, u.TerragruntOptions(), r.Stack.Report())
+			// Pass the full opts (terragruntOptions) which is available in the Run method scope
+			return unitRunner.Run(childCtx, opts, r.Stack.Report())
 		})
 	}
 
@@ -398,9 +403,10 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 
 		u := comp.(*component.Unit)
 
-		opts := u.TerragruntOptions()
-		if opts != nil {
-			opts.ErrWriter = io.MultiWriter(&planErrorBuffers[i], opts.ErrWriter)
+		execOpts := u.ExecutionOptions()
+		if execOpts != nil {
+			execOpts.ErrWriter = io.MultiWriter(&planErrorBuffers[i], execOpts.ErrWriter)
+			u.SetExecutionOptions(execOpts)
 		}
 
 		i++
@@ -486,24 +492,28 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 
 		unit := comp.(*component.Unit)
 
-		unitOpts := unit.TerragruntOptions()
-		if unitOpts == nil {
+		execOpts := unit.ExecutionOptions()
+		if execOpts == nil {
 			continue
 		}
 
-		unitOpts.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		execOpts.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		unit.SetExecutionOptions(execOpts)
 
-		planFile := unit.PlanFileWithOptions(l, opts)
+		planFile := unit.PlanFile()
 		if planFile != "" {
-			l.Debugf("Using output file %s for unit %s", planFile, unitOpts.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, execOpts.TerragruntConfigPath)
 
-			if unitOpts.TerraformCommand == tf.CommandNamePlan {
+			if execOpts.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				unitOpts.TerraformCliArgs = append(unitOpts.TerraformCliArgs, "-out="+planFile)
+				execOpts.TerraformCliArgs = append(execOpts.TerraformCliArgs, "-out="+planFile)
+				unit.SetExecutionOptions(execOpts)
+
 				continue
 			}
 
-			unitOpts.TerraformCliArgs = append(unitOpts.TerraformCliArgs, planFile)
+			execOpts.TerraformCliArgs = append(execOpts.TerraformCliArgs, planFile)
+			unit.SetExecutionOptions(execOpts)
 		}
 	}
 }

@@ -32,12 +32,17 @@ type UnitsMap map[string]*Unit
 // for execution-related operations (plan file paths, output handling).
 // This is a lightweight alternative to storing the full options.TerragruntOptions.
 type ExecutionOptions struct {
-	Writer           io.Writer
-	ErrWriter        io.Writer
-	TerraformCommand string
-	OutputFolder     string
-	JSONOutputFolder string
-	RootWorkingDir   string
+	Writer                      io.Writer
+	ErrWriter                   io.Writer
+	TerraformCommand            string
+	OutputFolder                string
+	JSONOutputFolder            string
+	RootWorkingDir              string
+	WorkingDir                  string
+	TerragruntConfigPath        string
+	TerraformCliArgs            []string
+	IncludeExternalDependencies bool
+	NonInteractive              bool
 }
 
 // per-path output locks to serialize flushes for the same unit
@@ -258,7 +263,7 @@ func (u *Unit) SetExecutionOptions(opts *ExecutionOptions) {
 }
 
 // SetTerragruntOptions sets the execution options from TerragruntOptions.
-// This extracts only the 6 fields needed by component.Unit from the full TerragruntOptions.
+// This extracts only the 11 fields needed by component.Unit from the full TerragruntOptions.
 func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 	if opts == nil {
 		u.SetExecutionOptions(nil)
@@ -266,12 +271,17 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 	}
 
 	executionOptions := &ExecutionOptions{
-		TerraformCommand: opts.TerraformCommand,
-		OutputFolder:     opts.OutputFolder,
-		JSONOutputFolder: opts.JSONOutputFolder,
-		RootWorkingDir:   opts.RootWorkingDir,
-		Writer:           opts.Writer,
-		ErrWriter:        opts.ErrWriter,
+		Writer:                      opts.Writer,
+		ErrWriter:                   opts.ErrWriter,
+		TerraformCommand:            opts.TerraformCommand,
+		OutputFolder:                opts.OutputFolder,
+		JSONOutputFolder:            opts.JSONOutputFolder,
+		RootWorkingDir:              opts.RootWorkingDir,
+		TerraformCliArgs:            opts.TerraformCliArgs,
+		WorkingDir:                  opts.WorkingDir,
+		TerragruntConfigPath:        opts.TerragruntConfigPath,
+		IncludeExternalDependencies: opts.IncludeExternalDependencies,
+		NonInteractive:              opts.NonInteractive,
 	}
 
 	u.SetExecutionOptions(executionOptions)
@@ -279,6 +289,7 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 
 // TerragruntOptions returns a minimal TerragruntOptions for backward compatibility.
 // This is used by legacy code that expects TerragruntOptions.
+// DEPRECATED: Use ExecutionOptions() instead to access individual fields directly.
 func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 	u.rLock()
 	opts := u.executionOptions
@@ -289,12 +300,17 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 	}
 
 	return &options.TerragruntOptions{
-		TerraformCommand: opts.TerraformCommand,
-		OutputFolder:     opts.OutputFolder,
-		JSONOutputFolder: opts.JSONOutputFolder,
-		RootWorkingDir:   opts.RootWorkingDir,
-		Writer:           opts.Writer,
-		ErrWriter:        opts.ErrWriter,
+		Writer:                      opts.Writer,
+		ErrWriter:                   opts.ErrWriter,
+		TerraformCommand:            opts.TerraformCommand,
+		OutputFolder:                opts.OutputFolder,
+		JSONOutputFolder:            opts.JSONOutputFolder,
+		RootWorkingDir:              opts.RootWorkingDir,
+		TerraformCliArgs:            opts.TerraformCliArgs,
+		WorkingDir:                  opts.WorkingDir,
+		TerragruntConfigPath:        opts.TerragruntConfigPath,
+		IncludeExternalDependencies: opts.IncludeExternalDependencies,
+		NonInteractive:              opts.NonInteractive,
 	}
 }
 
@@ -492,66 +508,6 @@ func (u *Unit) GetOutputJSONFile() string {
 // outputJSONFileWithExecutionOptions returns plan JSON file location with execution options.
 func (u *Unit) outputJSONFileWithExecutionOptions(l log.Logger, opts *ExecutionOptions) string {
 	return u.getPlanFilePath(l, opts.RootWorkingDir, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
-}
-
-// PlanFileWithOptions returns plan file location with explicit logger and TerragruntOptions parameters.
-// This is a compatibility wrapper for runner code that passes full TerragruntOptions.
-// DEPRECATED: Use PlanFile() with SetExecutionOptions() instead.
-func (u *Unit) PlanFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
-	if opts == nil {
-		return ""
-	}
-
-	executionOptions := &ExecutionOptions{
-		TerraformCommand: opts.TerraformCommand,
-		OutputFolder:     opts.OutputFolder,
-		JSONOutputFolder: opts.JSONOutputFolder,
-		RootWorkingDir:   opts.RootWorkingDir,
-		Writer:           opts.Writer,
-		ErrWriter:        opts.ErrWriter,
-	}
-
-	return u.planFileWithExecutionOptions(l, executionOptions)
-}
-
-// OutputFileWithOptions returns plan file location with explicit logger and TerragruntOptions parameters.
-// This is a compatibility wrapper for runner code that passes full TerragruntOptions.
-// DEPRECATED: Use GetOutputFile() with SetExecutionOptions() instead.
-func (u *Unit) OutputFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
-	if opts == nil {
-		return ""
-	}
-
-	executionOptions := &ExecutionOptions{
-		TerraformCommand: opts.TerraformCommand,
-		OutputFolder:     opts.OutputFolder,
-		JSONOutputFolder: opts.JSONOutputFolder,
-		RootWorkingDir:   opts.RootWorkingDir,
-		Writer:           opts.Writer,
-		ErrWriter:        opts.ErrWriter,
-	}
-
-	return u.outputFileWithExecutionOptions(l, executionOptions)
-}
-
-// OutputJSONFileWithOptions returns plan JSON file location with explicit logger and TerragruntOptions parameters.
-// This is a compatibility wrapper for runner code that passes full TerragruntOptions.
-// DEPRECATED: Use GetOutputJSONFile() with SetExecutionOptions() instead.
-func (u *Unit) OutputJSONFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
-	if opts == nil {
-		return ""
-	}
-
-	executionOptions := &ExecutionOptions{
-		TerraformCommand: opts.TerraformCommand,
-		OutputFolder:     opts.OutputFolder,
-		JSONOutputFolder: opts.JSONOutputFolder,
-		RootWorkingDir:   opts.RootWorkingDir,
-		Writer:           opts.Writer,
-		ErrWriter:        opts.ErrWriter,
-	}
-
-	return u.outputJSONFileWithExecutionOptions(l, executionOptions)
 }
 
 // getPlanFilePath returns plan file location with explicit parameters.
