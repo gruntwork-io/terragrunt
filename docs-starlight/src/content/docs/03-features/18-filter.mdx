@@ -69,11 +69,22 @@ For the following file tree:
       - terragrunt.hcl
 </FileTree>
 
-## Filter Types
+## Filter Expressions
 
-There are several different types of filters, and particular ways in which they can be combined to achieve different results. You can learn more about that below.
+There are several different types of filter expressions, and particular ways in which they can be combined to achieve different results. You can learn more about that below.
 
-### Name-Based Filtering
+| Filter Type | Description |
+|-------------|-------------|
+| Name-Based | Match units and stacks by their name. |
+| Path-Based | Match units and stacks by their file system path. |
+| Attribute-Based | Match units and stacks by their configuration attributes. |
+| Negation | Exclude units and stacks using the `!` prefix. |
+| Intersection | Use the `|` operator to refine results. |
+| Union | Combine filter results using multiple `--filter` flags. |
+| Graph-Based | Filter units based on their dependency relationships using graph traversal operators. |
+| Git-Based | Filter units and stacks based on Git diffs using Git expressions. |
+
+### Name-Based Expressions
 
 Match units and stacks by their name. This is the simplest form of filtering.
 
@@ -99,7 +110,7 @@ terragrunt find --filter 'app*'
 Note that `app1` and `app2` were selected _within_ the `apps` directory. Filtering on names will match _any_ unit/stack that has a name that matches the filter.
 </Aside>
 
-### Path-Based Filtering
+### Path-Based Expressions
 
 Match units and stacks by their file system path.
 
@@ -143,7 +154,7 @@ Note that globs used in path-based filtering will not recursively match nested d
 (That's why `./envs/stage/**` is used above)
 </Aside>
 
-### Attribute-Based Filtering
+### Attribute-Based Expressions
 
 Match units and stacks by their configuration attributes.
 
@@ -172,7 +183,17 @@ terragrunt find --filter 'name=stack*'
         - terragrunt.hcl
 </FileTree>
 
-### Source-Based Filtering
+The following are the attributes supported for attribute-based filtering:
+
+| Attribute | Description |
+|-----------|-------------|
+| name | Match units and stacks by their name. |
+| type | Match units and stacks by their type. |
+| external | Match units and stacks by their external dependency status. |
+| reading | Match units and stacks by the files they read. |
+| source | Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files. |
+
+### Source-Based Expressions
 
 Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files.
 
@@ -286,6 +307,67 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
     - stack2
       - terragrunt.stack.hcl
 </FileTree>
+
+### Union (Multiple Filters)
+
+Specify multiple `--filter` flags to combine results using OR logic.
+
+```bash
+# Find components named 'unit1' OR 'stack1'
+terragrunt find --filter unit1 --filter stack1
+
+# Find components in ./envs/prod/* OR ./envs/stage/*
+terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
+
+# Find components named 'stack2' _except_ those in ./envs/prod/* and ./envs/stage/*
+terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/stage/**'
+```
+
+<FileTree>
+- envs
+  - prod
+    - **unit1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by the second filter
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the second filter
+      - terragrunt.stack.hcl
+  - stage
+    - **unit1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by the second filter
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the second filter
+      - terragrunt.stack.hcl
+  - dev
+    - **unit1** \<-- Matched by the first filter
+      - terragrunt.hcl
+    - unit2
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the third filter
+      - terragrunt.stack.hcl
+</FileTree>
+
+<Aside type="caution" title="Unions of negated filters">
+
+When a filter query starts with a negation (`!`), the result is applied after _all_ positive filters have been applied.
+
+This means that if you have a filter query like this:
+```bash
+terragrunt find --filter '!type=unit' --filter 'name=unit1'
+```
+
+The result will be the components that are not units _and_ are named `unit1`.
+
+As a result, you should be able to expect any negative filter to take effect, regardless of how other positive filters may result in the addition of results.
+
+</Aside>
 
 ### Graph-Based Filtering
 
@@ -406,93 +488,102 @@ terragrunt find --filter './prod/** | ...vpc'
 Graph expressions require dependency/dependent discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components to enable graph traversal. This may add some overhead compared to simple name or path filters.
 </Aside>
 
-### Union (Multiple Filters)
+### Git-Based Filtering
 
-Specify multiple `--filter` flags to combine results using OR logic.
+Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
 
 ```bash
-# Find components named 'unit1' OR 'stack1'
-terragrunt find --filter unit1 --filter stack1
+# Compare between two references
+terragrunt find --filter '[main...HEAD]'
 
-# Find components in ./envs/prod/* OR ./envs/stage/*
-terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
+# Shorthand: compare reference to HEAD
+terragrunt find --filter '[main]'
 
-# Find components named 'stack2' _except_ those in ./envs/prod/* and ./envs/stage/*
-terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/stage/**'
+# Compare between specific commits
+terragrunt find --filter '[abc123...def456]'
+
+# Compare between tags
+terragrunt find --filter '[v1.0.0...v2.0.0]'
+
+# Compare using relative references
+terragrunt find --filter '[HEAD~1...HEAD]'
+
+# Compare between branches
+terragrunt find --filter '[feature-branch...main]'
 ```
 
 <FileTree>
-- envs
-  - prod
-    - **unit1** \<-- Matched by the first filter _and_ the second filter
-      - terragrunt.hcl
-    - **unit2** \<-- Matched by the second filter
-      - terragrunt.hcl
-    - **stack1** \<-- Matched by the first filter _and_ the second filter
-      - terragrunt.stack.hcl
-    - **stack2** \<-- Matched by the second filter
-      - terragrunt.stack.hcl
-  - stage
-    - **unit1** \<-- Matched by the first filter _and_ the second filter
-      - terragrunt.hcl
-    - **unit2** \<-- Matched by the second filter
-      - terragrunt.hcl
-    - **stack1** \<-- Matched by the first filter _and_ the second filter
-      - terragrunt.stack.hcl
-    - **stack2** \<-- Matched by the second filter
-      - terragrunt.stack.hcl
-  - dev
-    - **unit1** \<-- Matched by the first filter
-      - terragrunt.hcl
-    - unit2
-      - terragrunt.hcl
-    - **stack1** \<-- Matched by the first filter
-      - terragrunt.stack.hcl
-    - **stack2** \<-- Matched by the third filter
-      - terragrunt.stack.hcl
+- .
+  - **modified-unit** \<-- Matched by [main...HEAD] (terragrunt.hcl was modified)
+    - terragrunt.hcl (modified)
+  - **new-unit** \<-- Matched by [main...HEAD] (terragrunt.hcl was added)
+    - terragrunt.hcl (added)
+  - **removed-unit** \<-- Matched by [main...HEAD] (terragrunt.hcl was removed)
+    - (directory removed)
+  - unchanged-unit
+    - terragrunt.hcl (unchanged)
 </FileTree>
 
-<Aside type="caution" title="Unions of negated filters">
+<Aside type="note">
+When using Git-based filtering and the `run` command, you are required to use one of the `plan` or `apply` commands, and not the `-destroy` flag.
 
-When a filter query starts with a negation (`!`), the result is applied after _all_ positive filters have been applied.
+This is because whether or not a unit will be destroyed is determined by logic relevant to inspecting changes in Git.
 
-This means that if you have a filter query like this:
+When units are added or modified between two Git references, they will be be planned or applied. When the units are removed between two Git references, they will be planned for destruction (with `plan -destroy) or destroyed (with `apply -destroy`).
+
+In the scenario above, running the following:
+
 ```bash
-terragrunt find --filter '!type=unit' --filter 'name=unit1'
+terragrunt run --filter '[main...HEAD]' plan
 ```
 
-The result will be the components that are not units _and_ are named `unit1`.
+Will result in the following:
 
-As a result, you should be able to expect any negative filter to take effect, regardless of how other positive filters may result in the addition of results.
+- `modified-unit` will be planned (`tofu plan`)
+- `new-unit` will be planned (`tofu plan`)
+- `removed-unit` will be planned for destruction (`tofu plan -destroy`)
+- `unchanged-unit` will be ignored
+
+Note that you will also receive a warning when doing this that you must provide the `--filter-allow-destroy` flag to allow destruction to occur on `apply`. This is a safeguard to prevent accidental destruction of infrastructure.
+</Aside>
+
+<Aside type="tip" title="How it works">
+
+When evaluating a Git-based filter, Terragrunt will first generate a worktree for every reference that needs to be evaluated, and assess the diffs between Git references.
+
+e.g. For a filter like `[main...HEAD]`, Terragrunt will generate a worktree for `main` and one for `HEAD` in temporary directories, and use `git diff` to assess the diffs between the two references.
+
+Then, for any unit that is discovered within those worktrees, Terragrunt will enqueue that unit for a run in the run queue _in the worktree where it was discovered_.
+
+In the example above, the `modified-unit` will be discovered in a "to" temporary directory (e.g. `/tmp/.../terragrunt-worktree-HEAD.../modified-unit`), whereas the `removed-unit` would be discovered in the "from" temporary directory (e.g. `/tmp/.../terragrunt-worktree-main.../removed-unit`).
+
+This is important to recognize, as it's how destroys will be possible despite the fact that the unit is no longer present in the current working directory. As a consequence, however, you may find that usage of absolute paths don't work how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
 
 </Aside>
 
 ## Usage with Commands
 
-The following commands all support the `--filter` flag, and use it to filter results in the same way:
+The following commands all support the `--filter` flag using the same filtering syntax (note the section below on [special interactions](#special-interactions)):
 
-- [x] [find](/docs/reference/cli/commands/find)
-- [x] [list](/docs/reference/cli/commands/list)
-- [x] [run](/docs/reference/cli/commands/run)
-- [x] [hcl fmt](/docs/reference/cli/commands/hcl/fmt)
-- [x] [hcl validate](/docs/reference/cli/commands/hcl/validate)
+- [find](/docs/reference/cli/commands/find)
+- [list](/docs/reference/cli/commands/list)
+- [run](/docs/reference/cli/commands/run)
+- [hcl fmt](/docs/reference/cli/commands/hcl/fmt)
+- [hcl validate](/docs/reference/cli/commands/hcl/validate)
 
 This flag is intended to be a flexible way to target specific infrastructure that allows you to dry-run infrastructure targeting using discovery commands (like `find` and `list`) before running a command that actually affects infrastructure (like `run`).
 
-<Aside type="note">
-Note that these commands _may_ have different logic for _discovery_, which is the process of surfacing the initial set of components to filter, but the filtering logic itself should be the same.
-</Aside>
-
 ## Comparison with Queue Control Flags
 
-The `--filter` flag provides a unified alternative to multiple queue control flags:
+The `--filter` flag provides a unified alternative to multiple queue control flags. These flags will be aliased to their equivalent filter expressions once the `filter-flag` experiment is stabilized:
 
 | Legacy Flag | Filter Equivalent |
 |-------------|-------------------|
-| `--queue-include-dir` | `--filter './path/*'` |
-| `--queue-exclude-dir` | `--filter '!./path/*'` |
-| `--queue-exclude-external` | `--filter '!external=true'` |
-| `--queue-include-external` | `--filter 'external=true'` |
+| `--queue-include-dir=./path` | `--filter='./path'` |
+| `--queue-exclude-dir=./path` | `--filter='!./path'` |
+| `--queue-exclude-external` | `--filter='!external=true'` |
+| `--queue-include-external` | `--filter='external=true'` |
+| `--queue-include-units-reading=shared.hcl` | `--filter='reading=shared.hcl'` |
 
 ## Special Interactions
 
