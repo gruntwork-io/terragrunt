@@ -113,11 +113,10 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	return runErr
 }
 
-// Run a unit right now by executing the runTerragrunt command of its TerragruntOptions field.
+// Run a unit right now by executing the runTerragrunt command with the provided options.
 func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
-	unitOpts := runner.Unit.TerragruntOptions()
 	logger := runner.Unit.Logger()
 
 	if runner.Unit.AssumeAlreadyApplied() {
@@ -125,13 +124,13 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, unitOpts, r); err != nil {
+	if err := runner.runTerragrunt(ctx, opts, r); err != nil {
 		return err
 	}
 
 	// convert terragrunt output to json
 	if runner.Unit.GetOutputJSONFile() != "" {
-		l, jsonOptions, err := unitOpts.CloneWithConfigPath(logger, unitOpts.TerragruntConfigPath)
+		l, jsonOptions, err := opts.CloneWithConfigPath(logger, opts.TerragruntConfigPath)
 		if err != nil {
 			return err
 		}

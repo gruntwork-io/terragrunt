@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,7 +24,7 @@ type Stack struct {
 	report                *report.Report
 	discoveryContext      *DiscoveryContext
 	childTerragruntConfig *config.TerragruntConfig
-	terragruntOptions     *options.TerragruntOptions
+	workingDir            string // Working directory for this stack (only field needed from TerragruntOptions)
 	cfg                   *config.StackConfig
 	path                  string
 	dependents            Components
@@ -245,20 +244,20 @@ func (s *Stack) SetReport(r *report.Report) {
 	s.report = r
 }
 
-// TerragruntOptions returns the Terragrunt options for this stack.
-func (s *Stack) TerragruntOptions() *options.TerragruntOptions {
+// WorkingDir returns the working directory for this stack.
+func (s *Stack) WorkingDir() string {
 	s.rLock()
 	defer s.rUnlock()
 
-	return s.terragruntOptions
+	return s.workingDir
 }
 
-// SetTerragruntOptions sets the Terragrunt options for this stack.
-func (s *Stack) SetTerragruntOptions(opts *options.TerragruntOptions) {
+// SetWorkingDir sets the working directory for this stack.
+func (s *Stack) SetWorkingDir(dir string) {
 	s.lock()
 	defer s.unlock()
 
-	s.terragruntOptions = opts
+	s.workingDir = dir
 }
 
 // ChildTerragruntConfig returns the child Terragrunt config for this stack.
@@ -337,12 +336,7 @@ func (s *Stack) String() string {
 
 		sort.Strings(unitPaths)
 
-		workingDir := ""
-		if s.terragruntOptions != nil {
-			workingDir = s.terragruntOptions.WorkingDir
-		}
-
-		return fmt.Sprintf("Stack at %s:\n%s", workingDir, strings.Join(unitPaths, "\n"))
+		return fmt.Sprintf("Stack at %s:\n%s", s.workingDir, strings.Join(unitPaths, "\n"))
 	}
 
 	// Otherwise show dependencies (discovery context)

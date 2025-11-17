@@ -61,7 +61,7 @@ func NewRunnerPoolStack(
 		l.Warnf("No units discovered. Creating an empty runner.")
 
 		stack := component.NewStack("")
-		stack.SetTerragruntOptions(terragruntOptions)
+		stack.SetWorkingDir(terragruntOptions.WorkingDir)
 		stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
 
 		runner := &Runner{
@@ -82,7 +82,7 @@ func NewRunnerPoolStack(
 	// Initialize stack with options
 	// Discovery has already resolved units, applied filters, and set FlagExcluded
 	stack := component.NewStack("")
-	stack.SetTerragruntOptions(terragruntOptions)
+	stack.SetWorkingDir(terragruntOptions.WorkingDir)
 	stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
 
 	runner := &Runner{
@@ -413,7 +413,7 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf(
 		"The runner-pool runner at %s will be processed in the following order for command %s:\n",
-		r.Stack.TerragruntOptions().WorkingDir,
+		r.Stack.WorkingDir(),
 		terraformCommand,
 	)
 

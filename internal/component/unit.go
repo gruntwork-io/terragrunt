@@ -64,7 +64,7 @@ type Unit struct {
 	logger               log.Logger
 	cfg                  *config.TerragruntConfig
 	discoveryContext     *DiscoveryContext
-	executionOptions     *ExecutionOptions // Minimal execution options (not full TerragruntOptions)
+	executionOptions     *ExecutionOptions
 	path                 string
 	reading              []string
 	dependencies         Components
@@ -241,7 +241,7 @@ func (u *Unit) Dependents() Components {
 	return u.dependents
 }
 
-// ExecutionOptions returns the ExecutionOptions for this unit.
+// ExecutionOptions returns the execution options for this unit.
 func (u *Unit) ExecutionOptions() *ExecutionOptions {
 	u.rLock()
 	defer u.rUnlock()
@@ -249,7 +249,7 @@ func (u *Unit) ExecutionOptions() *ExecutionOptions {
 	return u.executionOptions
 }
 
-// SetExecutionOptions sets the ExecutionOptions for this unit.
+// SetExecutionOptions sets the execution options for this unit.
 func (u *Unit) SetExecutionOptions(opts *ExecutionOptions) {
 	u.lock()
 	defer u.unlock()
@@ -257,15 +257,15 @@ func (u *Unit) SetExecutionOptions(opts *ExecutionOptions) {
 	u.executionOptions = opts
 }
 
-// SetExecutionOptionsFromTerragruntOptions sets the ExecutionOptions from TerragruntOptions.
-// This is a convenience method that extracts only the needed fields.
-func (u *Unit) SetExecutionOptionsFromTerragruntOptions(opts *options.TerragruntOptions) {
+// SetTerragruntOptions sets the execution options from TerragruntOptions.
+// This extracts only the 6 fields needed by component.Unit from the full TerragruntOptions.
+func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 	if opts == nil {
 		u.SetExecutionOptions(nil)
 		return
 	}
 
-	execOpts := &ExecutionOptions{
+	executionOptions := &ExecutionOptions{
 		TerraformCommand: opts.TerraformCommand,
 		OutputFolder:     opts.OutputFolder,
 		JSONOutputFolder: opts.JSONOutputFolder,
@@ -274,12 +274,11 @@ func (u *Unit) SetExecutionOptionsFromTerragruntOptions(opts *options.Terragrunt
 		ErrWriter:        opts.ErrWriter,
 	}
 
-	u.SetExecutionOptions(execOpts)
+	u.SetExecutionOptions(executionOptions)
 }
 
 // TerragruntOptions returns a minimal TerragruntOptions for backward compatibility.
-// NOTE: This only contains execution-related fields. The runner should maintain
-// the full TerragruntOptions separately for actual terraform execution.
+// This is used by legacy code that expects TerragruntOptions.
 func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 	u.rLock()
 	opts := u.executionOptions
@@ -289,7 +288,6 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 		return nil
 	}
 
-	// Return a minimal TerragruntOptions with only the fields we store
 	return &options.TerragruntOptions{
 		TerraformCommand: opts.TerraformCommand,
 		OutputFolder:     opts.OutputFolder,
@@ -298,12 +296,6 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 		Writer:           opts.Writer,
 		ErrWriter:        opts.ErrWriter,
 	}
-}
-
-// SetTerragruntOptions sets the execution options from TerragruntOptions.
-// This is a convenience method for backward compatibility.
-func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
-	u.SetExecutionOptionsFromTerragruntOptions(opts)
 }
 
 // Logger returns the logger for this unit.
@@ -504,12 +496,13 @@ func (u *Unit) outputJSONFileWithExecutionOptions(l log.Logger, opts *ExecutionO
 
 // PlanFileWithOptions returns plan file location with explicit logger and TerragruntOptions parameters.
 // This is a compatibility wrapper for runner code that passes full TerragruntOptions.
+// DEPRECATED: Use PlanFile() with SetExecutionOptions() instead.
 func (u *Unit) PlanFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
 	if opts == nil {
 		return ""
 	}
 
-	execOpts := &ExecutionOptions{
+	executionOptions := &ExecutionOptions{
 		TerraformCommand: opts.TerraformCommand,
 		OutputFolder:     opts.OutputFolder,
 		JSONOutputFolder: opts.JSONOutputFolder,
@@ -518,17 +511,18 @@ func (u *Unit) PlanFileWithOptions(l log.Logger, opts *options.TerragruntOptions
 		ErrWriter:        opts.ErrWriter,
 	}
 
-	return u.planFileWithExecutionOptions(l, execOpts)
+	return u.planFileWithExecutionOptions(l, executionOptions)
 }
 
 // OutputFileWithOptions returns plan file location with explicit logger and TerragruntOptions parameters.
 // This is a compatibility wrapper for runner code that passes full TerragruntOptions.
+// DEPRECATED: Use GetOutputFile() with SetExecutionOptions() instead.
 func (u *Unit) OutputFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
 	if opts == nil {
 		return ""
 	}
 
-	execOpts := &ExecutionOptions{
+	executionOptions := &ExecutionOptions{
 		TerraformCommand: opts.TerraformCommand,
 		OutputFolder:     opts.OutputFolder,
 		JSONOutputFolder: opts.JSONOutputFolder,
@@ -537,17 +531,18 @@ func (u *Unit) OutputFileWithOptions(l log.Logger, opts *options.TerragruntOptio
 		ErrWriter:        opts.ErrWriter,
 	}
 
-	return u.outputFileWithExecutionOptions(l, execOpts)
+	return u.outputFileWithExecutionOptions(l, executionOptions)
 }
 
 // OutputJSONFileWithOptions returns plan JSON file location with explicit logger and TerragruntOptions parameters.
 // This is a compatibility wrapper for runner code that passes full TerragruntOptions.
+// DEPRECATED: Use GetOutputJSONFile() with SetExecutionOptions() instead.
 func (u *Unit) OutputJSONFileWithOptions(l log.Logger, opts *options.TerragruntOptions) string {
 	if opts == nil {
 		return ""
 	}
 
-	execOpts := &ExecutionOptions{
+	executionOptions := &ExecutionOptions{
 		TerraformCommand: opts.TerraformCommand,
 		OutputFolder:     opts.OutputFolder,
 		JSONOutputFolder: opts.JSONOutputFolder,
@@ -556,7 +551,7 @@ func (u *Unit) OutputJSONFileWithOptions(l log.Logger, opts *options.TerragruntO
 		ErrWriter:        opts.ErrWriter,
 	}
 
-	return u.outputJSONFileWithExecutionOptions(l, execOpts)
+	return u.outputJSONFileWithExecutionOptions(l, executionOptions)
 }
 
 // getPlanFilePath returns plan file location with explicit parameters.

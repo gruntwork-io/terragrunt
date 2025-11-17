@@ -54,17 +54,16 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.SetTerragruntOptions(&options.TerragruntOptions{
+	runner := common.NewUnitRunner(unit)
+	path := t.TempDir()
+	unit.SetPath(path)
+	rep := report.NewReport().WithWorkingDir(path)
+	err := runner.Run(t.Context(), &options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return errors.New("fail")
 		},
-	})
-	runner := common.NewUnitRunner(unit)
-	path := t.TempDir()
-	unit.SetPath(path)
-	report := report.NewReport().WithWorkingDir(path)
-	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
+	}, rep)
 	require.Error(t, err)
 	assert.Equal(t, common.Running, runner.Status)
 	assert.Contains(t, err.Error(), "fail")
@@ -74,18 +73,16 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	t.Parallel()
 
 	unit := newMockUnit()
-	unit.SetTerragruntOptions(&options.TerragruntOptions{
+	path := t.TempDir()
+	unit.SetPath(path)
+	runner := common.NewUnitRunner(unit)
+	rep := report.NewReport().WithWorkingDir(path)
+	err := runner.Run(t.Context(), &options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return nil
 		},
-	})
-
-	path := t.TempDir()
-	unit.SetPath(path)
-	runner := common.NewUnitRunner(unit)
-	report := report.NewReport().WithWorkingDir(path)
-	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
+	}, rep)
 	require.NoError(t, err)
 	assert.Equal(t, common.Running, runner.Status)
 }
