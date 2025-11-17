@@ -80,6 +80,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 	return output, err
 }
 
+//nolint:dupl // Intentional duplication for backward compatibility during migration
 func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.Writer) {
 	var (
 		outWriter = opts.Writer
@@ -246,6 +247,7 @@ func RunCommandWithOutputAndRunner(ctx context.Context, l log.Logger, runnerOpts
 			Headless:                runnerOpts.Headless,
 			TerraformImplementation: runnerOpts.TerraformImplementation,
 		}
+
 		return fn(ctx, l, opts, args)
 	}
 
@@ -277,6 +279,8 @@ func RunCommandWithOutputAndRunner(ctx context.Context, l log.Logger, runnerOpts
 }
 
 // logTFOutputWithRunner configures log writers for TF output using RunnerOptions.
+//
+//nolint:dupl // Intentional duplication for backward compatibility during migration
 func logTFOutputWithRunner(l log.Logger, runnerOpts *runnertypes.RunnerOptions, args cli.Args) (io.Writer, io.Writer) {
 	var (
 		outWriter = runnerOpts.Writer

@@ -52,7 +52,7 @@ type Unit struct {
 	logger               log.Logger
 	cfg                  *config.TerragruntConfig
 	discoveryContext     *DiscoveryContext
-	executionOptions     *runnertypes.RunnerOptions
+	runnerOptions        *runnertypes.RunnerOptions
 	path                 string
 	reading              []string
 	dependencies         Components
@@ -234,7 +234,7 @@ func (u *Unit) ExecutionOptions() *runnertypes.RunnerOptions {
 	u.rLock()
 	defer u.rUnlock()
 
-	return u.executionOptions
+	return u.runnerOptions
 }
 
 // SetExecutionOptions sets the execution options for this unit.
@@ -242,7 +242,7 @@ func (u *Unit) SetExecutionOptions(opts *runnertypes.RunnerOptions) {
 	u.lock()
 	defer u.unlock()
 
-	u.executionOptions = opts
+	u.runnerOptions = opts
 }
 
 // SetTerragruntOptions sets the execution options from TerragruntOptions.
@@ -253,7 +253,7 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 		return
 	}
 
-	executionOptions := &runnertypes.RunnerOptions{
+	runnerOptions := &runnertypes.RunnerOptions{
 		Writer:                      opts.Writer,
 		ErrWriter:                   opts.ErrWriter,
 		TerraformCommand:            opts.TerraformCommand,
@@ -267,15 +267,16 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 		NonInteractive:              opts.NonInteractive,
 	}
 
-	u.SetExecutionOptions(executionOptions)
+	u.SetExecutionOptions(runnerOptions)
 }
 
 // TerragruntOptions returns a minimal TerragruntOptions for backward compatibility.
 // This is used by legacy code that expects TerragruntOptions.
-// DEPRECATED: Use ExecutionOptions() instead to access individual fields directly.
+//
+// Deprecated: Use ExecutionOptions() instead to access individual fields directly.
 func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 	u.rLock()
-	opts := u.executionOptions
+	opts := u.runnerOptions
 	u.rUnlock()
 
 	if opts == nil {
@@ -398,7 +399,7 @@ func (u *Unit) FindUnitInPath(targetDirs []string) bool {
 // This method is used by the runner when ExecutionOptions.Writer is a UnitWriter.
 func (u *Unit) FlushOutput() error {
 	u.rLock()
-	opts := u.executionOptions
+	opts := u.runnerOptions
 	u.rUnlock()
 
 	if opts == nil || opts.Writer == nil {
@@ -423,7 +424,7 @@ func (u *Unit) FlushOutput() error {
 // This version uses the unit's stored ExecutionOptions.
 func (u *Unit) PlanFile() string {
 	u.rLock()
-	opts := u.executionOptions
+	opts := u.runnerOptions
 	logger := u.logger
 	u.rUnlock()
 
@@ -457,7 +458,7 @@ func (u *Unit) planFileWithExecutionOptions(l log.Logger, opts *runnertypes.Runn
 // This version uses the unit's stored ExecutionOptions.
 func (u *Unit) GetOutputFile() string {
 	u.rLock()
-	opts := u.executionOptions
+	opts := u.runnerOptions
 	logger := u.logger
 	u.rUnlock()
 
@@ -477,7 +478,7 @@ func (u *Unit) outputFileWithExecutionOptions(l log.Logger, opts *runnertypes.Ru
 // This version uses the unit's stored ExecutionOptions.
 func (u *Unit) GetOutputJSONFile() string {
 	u.rLock()
-	opts := u.executionOptions
+	opts := u.runnerOptions
 	logger := u.logger
 	u.rUnlock()
 

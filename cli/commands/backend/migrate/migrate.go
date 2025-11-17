@@ -59,7 +59,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	srcUnit := srcModule.(*component.Unit)
 	dstUnit := dstModuleComp.(*component.Unit)
 
+	//nolint:staticcheck // TerragruntOptions() is deprecated but required for config.ParseRemoteState and remotestate.Migrate which haven't been migrated to RunnerOptions yet
 	srcOpts := srcUnit.TerragruntOptions()
+	//nolint:staticcheck // TerragruntOptions() is deprecated but required for config.ParseRemoteState and remotestate.Migrate which haven't been migrated to RunnerOptions yet
 	dstOpts := dstUnit.TerragruntOptions()
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcOpts)

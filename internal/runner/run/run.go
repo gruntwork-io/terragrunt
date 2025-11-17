@@ -92,6 +92,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	// Convert to RunnerOptions for internal use
 	runnerOpts := runnertypes.FromTerragruntOptions(opts)
+
 	return run(ctx, l, opts, runnerOpts, r, new(Target))
 }
 

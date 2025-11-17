@@ -13,6 +13,8 @@ import (
 )
 
 // PromptUserForInput prompts the user for text in the CLI. Returns the text entered by the user.
+//
+//nolint:dupl // Intentional duplication for backward compatibility during migration
 func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, opts *options.TerragruntOptions) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
@@ -79,6 +81,8 @@ func PromptUserForYesNo(ctx context.Context, l log.Logger, prompt string, opts *
 
 // PromptUserForInputWithRunner prompts the user for text in the CLI using RunnerOptions.
 // This is the RunnerOptions-based variant of PromptUserForInput.
+//
+//nolint:dupl // Intentional duplication for backward compatibility during migration
 func PromptUserForInputWithRunner(ctx context.Context, l log.Logger, prompt string, runnerOpts *runnertypes.RunnerOptions) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and

@@ -1,3 +1,7 @@
+// Package types provides runner-specific option structures and utilities.
+// This package defines RunnerOptions, a focused alternative to the global
+// TerragruntOptions, containing only the fields needed by the runner package
+// for executing Terraform/OpenTofu commands.
 package types
 
 import (
@@ -25,71 +29,51 @@ import (
 // This is a runner-specific alternative to the global options.TerragruntOptions,
 // containing only the fields needed by the runner for executing Terraform/OpenTofu.
 type RunnerOptions struct {
-	// I/O
-	Writer    io.Writer
-	ErrWriter io.Writer
-
-	// Terraform/OpenTofu execution
-	TerraformCommand        string
-	TerraformCliArgs        cli.Args
-	TerraformImplementation options.TerraformImplementationType
-	TerraformVersion        *version.Version
-	TFPath                  string
-	TFPathExplicitlySet     bool
-
-	// Paths
-	WorkingDir           string
-	TerragruntConfigPath string
-	RootWorkingDir       string
-	DownloadDir          string
-
-	// Output configuration
-	OutputFolder     string
-	JSONOutputFolder string
-
-	// Feature flags and configuration
-	FeatureFlags           *xsync.MapOf[string, string]
-	Experiments            experiment.Experiments
-	Engine                 *options.EngineOptions
-	EngineEnabled          bool
-	Errors                 *options.ErrorsConfig
-	Telemetry              *telemetry.Options
-	LogDisableErrorSummary bool
-
-	// IAM and environment
-	IAMRoleOptions         options.IAMRoleOptions
-	OriginalIAMRoleOptions options.IAMRoleOptions
-	Env                    map[string]string
-
-	// Behavior flags
-	AutoInit                    bool
-	AutoRetry                   bool
-	BackendBootstrap            bool
-	CheckDependentModules       bool
-	Debug                       bool
-	Headless                    bool
-	IgnoreDependencyErrors      bool
-	IncludeExternalDependencies bool
-	NonInteractive              bool
-	SourceUpdate                bool
-	RunAllAutoApprove           bool
-	FailFast                    bool
-	IgnoreDependencyOrder       bool
-	ForwardTFStdout             bool
-	JSONLogFormat               bool
-
-	// Execution configuration
-	Parallelism                  int
+	Writer                       io.Writer
+	ErrWriter                    io.Writer
+	Env                          map[string]string
+	RunTerragrunt                func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error
+	Telemetry                    *telemetry.Options
+	TerraformVersion             *version.Version
+	Errors                       *options.ErrorsConfig
+	TerragruntVersion            *version.Version
+	Engine                       *options.EngineOptions
+	FeatureFlags                 *xsync.MapOf[string, string]
+	RootWorkingDir               string
+	DownloadDir                  string
+	OutputFolder                 string
+	JSONOutputFolder             string
+	TerragruntConfigPath         string
+	Source                       string
+	WorkingDir                   string
 	OriginalTerragruntConfigPath string
-
-	// Source configuration
-	Source                 string
-	VersionManagerFileName []string
-	TerragruntVersion      *version.Version
-
-	// RunTerragrunt is the function to execute Terragrunt with the given options.
-	// This allows the runner to call back into the main execution flow.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error
+	TFPath                       string
+	TerraformImplementation      options.TerraformImplementationType
+	TerraformCommand             string
+	OriginalIAMRoleOptions       options.IAMRoleOptions
+	IAMRoleOptions               options.IAMRoleOptions
+	TerraformCliArgs             cli.Args
+	VersionManagerFileName       []string
+	Experiments                  experiment.Experiments
+	Parallelism                  int
+	NonInteractive               bool
+	IgnoreDependencyOrder        bool
+	Headless                     bool
+	IgnoreDependencyErrors       bool
+	IncludeExternalDependencies  bool
+	CheckDependentModules        bool
+	SourceUpdate                 bool
+	RunAllAutoApprove            bool
+	FailFast                     bool
+	Debug                        bool
+	ForwardTFStdout              bool
+	JSONLogFormat                bool
+	BackendBootstrap             bool
+	EngineEnabled                bool
+	AutoRetry                    bool
+	AutoInit                     bool
+	TFPathExplicitlySet          bool
+	LogDisableErrorSummary       bool
 }
 
 // FromTerragruntOptions extracts RunnerOptions from TerragruntOptions.
@@ -214,6 +198,7 @@ func (opts *RunnerOptions) CloneWithConfigPath(configPath string) (*RunnerOption
 		if err != nil {
 			return nil, err
 		}
+
 		configPath = util.CleanPath(absConfigPath)
 	}
 
@@ -230,14 +215,20 @@ func (opts *RunnerOptions) CloneWithConfigPath(configPath string) (*RunnerOption
 func (opts *RunnerOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
-	commandLength := 1
+	const (
+		singleCommandLength = 1
+		subCommandLength    = 2
+	)
+
+	commandLength := singleCommandLength
 	if len(opts.TerraformCliArgs) > 0 && util.ListContainsElement(options.TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
 		// Terraform commands with subcommands (e.g., "state list")
-		commandLength = util.Min(2, len(opts.TerraformCliArgs))
+		commandLength = util.Min(subCommandLength, len(opts.TerraformCliArgs))
 	}
 
 	// Options must be inserted after command but before other args
 	var args []string
+
 	args = append(args, opts.TerraformCliArgs[:commandLength]...)
 	args = append(args, restArgs...)
 	args = append(args, opts.TerraformCliArgs[commandLength:]...)
@@ -260,6 +251,7 @@ func (opts *RunnerOptions) TerraformDataDir() string {
 	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
+
 	return options.DefaultTFDataDir
 }
 
@@ -270,6 +262,7 @@ func (opts *RunnerOptions) DataDir() string {
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}
+
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
@@ -283,6 +276,7 @@ func checkIfPlanFile(arg string) bool {
 // extractPlanFile extracts the plan file from the arguments list if present.
 func extractPlanFile(argsToInsert []string) (*string, []string) {
 	planFile := ""
+
 	var filteredArgs []string
 
 	for _, arg := range argsToInsert {
@@ -296,6 +290,7 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 	if planFile != "" {
 		return &planFile, filteredArgs
 	}
+
 	return nil, filteredArgs
 }
 
