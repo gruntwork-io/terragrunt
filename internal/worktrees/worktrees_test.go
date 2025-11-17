@@ -258,19 +258,11 @@ func TestExpressionExpansion(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			w, err := worktrees.NewWorktrees(
-				t.Context(),
-				logger.CreateLogger(),
-				tmpDir,
-				filter.GitExpressions{
-					filter.NewGitExpression("main", "HEAD"),
-				},
-			)
-			require.NoError(t, err)
-
-			fromFilters, toFilters := w.Expand(worktrees.WorktreePair{
+			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
-			})
+			}
+
+			fromFilters, toFilters := wp.Expand()
 
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
@@ -411,19 +403,11 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			w, err := worktrees.NewWorktrees(
-				t.Context(),
-				logger.CreateLogger(),
-				tmpDir,
-				filter.GitExpressions{
-					filter.NewGitExpression("main", "HEAD"),
-				},
-			)
-			require.NoError(t, err)
-
-			_, toFilters := w.Expand(worktrees.WorktreePair{
+			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
-			})
+			}
+
+			_, toFilters := wp.Expand()
 
 			// Extract reading filters
 			readings := []string{}
@@ -638,18 +622,14 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			err = tt.setupFilesystem(tmpDir)
 			require.NoError(t, err)
 
-			// Create a minimal Worktrees instance
-			w := &worktrees.Worktrees{}
-
-			// Create WorktreePair with ToWorktree.Path pointing to our test directory
-			worktreePair := worktrees.WorktreePair{
+			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
 				ToWorktree: worktrees.Worktree{
 					Path: tmpDir,
 				},
 			}
 
-			fromFilters, toFilters := w.Expand(worktreePair)
+			fromFilters, toFilters := wp.Expand()
 
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
