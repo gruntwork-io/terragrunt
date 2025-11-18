@@ -1,0 +1,172 @@
+---
+title: Content Addressable Store (CAS)
+description: Learn how Terragrunt supports deduplication of content using a Content Addressable Store (CAS).
+slug: docs/features/cas
+sidebar:
+  order: 15
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations. This feature is still experimental and not recommended for general production usage.
+
+The CAS is used to speed up both catalog cloning and OpenTofu/Terraform source cloning by avoiding redundant downloads of Git repositories.
+
+To use the CAS, you will need to enable the [cas](/docs/reference/experiments/#cas) experiment.
+
+## Usage
+
+When you enable the `cas` experiment, Terragrunt will automatically use the CAS when cloning any compatible source (Git repositories).
+
+### Catalog Usage
+
+```hcl
+# root.hcl
+
+catalog {
+  urls = [
+    "git@github.com:acme/modules.git"
+  ]
+}
+```
+
+### OpenTofu/Terraform Source Usage
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "git@github.com:acme/infrastructure-modules.git//vpc?ref=v1.0.0"
+}
+```
+
+When Terragrunt clones a repository while using the CAS, if the repository is not found in the CAS, Terragrunt will clone the repository from the original URL and store it in the CAS for future use.
+
+When generating a repository from the CAS, Terragrunt will hard link entries from the CAS to the new repository. This allows Terragrunt to deduplicate content across multiple repositories.
+
+In the event that hard linking fails due to some operating system / host incompatibility with hard links, Terragrunt will fall back to performing copies of the content from the CAS.
+
+## Storage
+
+The CAS is stored in the `~/.cache/terragrunt/cas` directory. This directory can be safely deleted at any time, as Terragrunt will automatically regenerate the CAS as needed.
+
+Avoid partial deletions of the CAS directory without care, as that might result in partially cloned repositories and unexpected behavior.
+
+## How it works
+
+Terragrunt's CAS uses a content-addressable storage model to deduplicate repository content from Git clones to save disk space and improve performance. Each Git object is identified by its SHA1 hash, allowing identical content to be shared across multiple cloned repositories and repeated clones.
+
+### Content Addressing
+
+CAS uses Git's native content addressing scheme where each object is uniquely identified by its SHA1 hash. This means:
+
+- **Identical content** across different repositories shares the same hash
+- **Same commit hash** always represents the same content
+- **Storage is partitioned** by the first two characters of the hash (e.g., `ab/abc123...`)
+
+### Storage Structure
+
+The CAS store is organized in a partitioned structure to optimize file system performance:
+
+<FileTree>
+
+- ~/.cache/terragrunt/cas/store/
+  - ab/
+    - abc123...xyz (blob)
+    - abc123...xyz.lock (lock file)
+    - abd456...xyz (tree)
+  - cd/
+    - cd7890...xyz (blob)
+    - cd7890...xyz.lock (lock file)
+  - ...
+
+</FileTree>
+
+Each content object is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory. This prevents having thousands of files in a single directory, which can degrade file system performance.
+
+### Clone Flow
+
+When Terragrunt needs to clone a repository using the CAS it does the following, depending on whether the content is already in the CAS or not:
+
+#### Cold Clones
+
+For cold clones, where the content is not already in the CAS:
+
+1. Terragrunt resolves the Git reference (branch/tag) to a commit hash
+2. The tree related to the commit hash is not found in the CAS
+3. Terragrunt clones the repository to a temporary directory
+4. All blobs and trees required to reproduce the repository are extracted
+5. Content is stored in the CAS, partitioned by hash prefix
+6. The tree structure is read from the CAS and hard links are created to the target directory
+
+#### Warm Clones
+
+For warm clones, where the content is already in the CAS:
+
+1. Terragrunt resolves the Git reference to a commit hash
+2. CAS checks if the content exists
+3. The tree structure is read directly from the CAS
+4. Hard links are created from CAS to the target directory
+
+#### Flow Diagram
+
+```d2
+direction: down
+
+# Source
+git_repo: "Git Repository\n\ngit@github.com:acme/modules.git?ref=v1.0.0" {
+  shape: cylinder
+}
+
+# Decision Point
+check_cas: "In CAS?\n\nhash = 123abc..." {
+  shape: diamond
+}
+
+# First Clone Path (Content Not in CAS)
+clone_store: "Clone & Store\n(git clone → extract → store)" {
+  shape: rectangle
+}
+
+# Subsequent Clone Path (Content Already in CAS)
+read_cas: "Read from CAS\n\n123abc..." {
+  shape: rectangle
+}
+
+# Link Step
+link_step: "Link to Targets\n\nblob abc123... main.tf\nblob cd7890... variables.tf" {
+  shape: rectangle
+}
+
+# Linked Targets
+linked_target1: "Linked Target\n\n.terragrunt-cache/.../main.tf -->\n~/.cache/terragrunt/cas/store/ab/abc123..." {
+  shape: rectangle
+}
+
+linked_target2: "Linked Target\n\n.terragrunt-cache/.../variables.tf -->\n~/.cache/terragrunt/cas/store/cd/cd7890..." {
+  shape: rectangle
+}
+
+# Flow
+git_repo -> check_cas
+check_cas -> clone_store
+check_cas -> read_cas
+clone_store -> read_cas
+read_cas -> link_step
+link_step -> linked_target1
+link_step -> linked_target2
+```
+
+### Deduplication Mechanism
+
+CAS achieves deduplication through hard links, which allows multiple files to use the same physical space on disk, avoiding duplicated content in repositories cloned by Terragrunt.
+
+- **Hard Links**: When the same content is requested multiple times, CAS creates hard links from the read-only store to each target directory
+- **Automatic Fallback**: If hard linking fails (e.g., cross-filesystem boundaries, operating system limitations), CAS automatically falls back to copying the content instead
+
+### Performance Benefits
+
+CAS provides significant performance improvements:
+
+- **Faster Subsequent Clones**: Once content is in CAS, subsequent clones skip the network download and Git clone operations entirely
+- **Reduced Disk Usage**: Hard links share the same inode, so duplicate content only consumes disk space once, regardless of how many times the file is used in clones by Terragrunt
