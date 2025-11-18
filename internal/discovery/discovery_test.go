@@ -926,3 +926,115 @@ dependency "vpc" {
 	dbDependencyPaths := dbDependencies.Paths()
 	assert.Contains(t, dbDependencyPaths, vpcDir, "Db should have vpc as a dependency")
 }
+
+func TestDiscoveryDetectsCycle(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	fooDir := filepath.Join(tmpDir, "foo")
+	barDir := filepath.Join(tmpDir, "bar")
+
+	testDirs := []string{fooDir, barDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create terragrunt.hcl files with mutual dependencies
+	testFiles := map[string]string{
+		filepath.Join(fooDir, "terragrunt.hcl"): `
+dependency "bar" {
+	config_path = "../bar"
+}
+`,
+		filepath.Join(barDir, "terragrunt.hcl"): `
+dependency "foo" {
+	config_path = "../foo"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	l := logger.CreateLogger()
+
+	// Discover components with dependency discovery enabled
+	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err, "Discovery should complete even with cycles")
+
+	// Verify that a cycle is detected
+	cycleComponent, cycleErr := components.CycleCheck()
+	require.Error(t, cycleErr, "Cycle check should detect a cycle between foo and bar")
+	assert.Contains(t, cycleErr.Error(), "cycle detected", "Error message should mention cycle")
+	assert.NotNil(t, cycleComponent, "Cycle check should return the component that is part of the cycle")
+
+	// Verify both foo and bar are in the discovered components
+	componentPaths := components.Paths()
+	assert.Contains(t, componentPaths, fooDir, "Foo should be discovered")
+	assert.Contains(t, componentPaths, barDir, "Bar should be discovered")
+}
+
+func TestDiscoveryDoesntDetectCycleWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	fooDir := filepath.Join(tmpDir, "foo")
+	barDir := filepath.Join(tmpDir, "bar")
+
+	testDirs := []string{fooDir, barDir}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create terragrunt.hcl files with mutual dependencies
+	testFiles := map[string]string{
+		filepath.Join(fooDir, "terragrunt.hcl"): `
+dependency "bar" {
+	config_path = "../bar"
+
+	enabled = false
+}
+`,
+		filepath.Join(barDir, "terragrunt.hcl"): `
+dependency "foo" {
+	config_path = "../foo"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	l := logger.CreateLogger()
+
+	// Discover components with dependency discovery enabled
+	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err, "Discovery should complete even with cycles")
+
+	// Verify that a cycle is detected
+	_, cycleErr := components.CycleCheck()
+	require.NoError(t, cycleErr, "Cycle check should not detect a cycle between foo and bar")
+
+	// Verify both foo and bar are in the discovered components
+	componentPaths := components.Paths()
+	assert.Contains(t, componentPaths, fooDir, "Foo should be discovered")
+	assert.Contains(t, componentPaths, barDir, "Bar should be discovered")
+}
