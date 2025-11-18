@@ -143,6 +143,12 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		unit.SetReading(dUnit.Reading()...)
 		unit.SetDiscoveryContext(dUnit.DiscoveryContext())
 
+		// Preserve dependencies from discovery phase
+		// Dependencies were already discovered and added to dUnit during dependency discovery
+		for _, dep := range dUnit.Dependencies() {
+			unit.AddDependency(dep)
+		}
+
 		if isExternal {
 			unit.SetExternal()
 		}

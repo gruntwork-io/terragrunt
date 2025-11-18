@@ -1082,53 +1082,38 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 	}
 
 	// Step 1: Setup units (clone options, set paths, validate)
+	// Dependencies are now preserved from discovery phase during setupUnits
 	unitsMap, err := d.telemetrySetupUnits(l, discovered)
 	if err != nil {
 		return discovered, err
 	}
 
-	// Step 2: Cross-link dependencies (convert discovery domain to runner domain)
-	var crossLinkedUnits component.Units
-
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "convert_discovery_to_runner", map[string]any{
-		"working_dir": d.workingDir,
-	}, func(_ context.Context) error {
-		var linkErr error
-
-		crossLinkedUnits, linkErr = convertDiscoveryToRunner(unitsMap, d.discoverDependencies)
-
-		return linkErr
-	})
-	if err != nil {
+	// Step 2: Flag external dependencies and prompt user for confirmation
+	if err := d.telemetryFlagExternalDependencies(ctx, l, unitsMap); err != nil {
 		return discovered, err
 	}
 
-	// Step 3: Flag external dependencies and prompt user for confirmation
-	// This must happen AFTER cross-linking so Dependencies field is populated
-	crossLinkedMap := make(component.UnitsMap)
-	for _, unit := range crossLinkedUnits {
-		crossLinkedMap[unit.Path()] = unit
+	// Convert unitsMap to Units slice for filtering pipeline
+	units := make(component.Units, 0, len(unitsMap))
+	for _, key := range unitsMap.SortedKeys() {
+		units = append(units, unitsMap[key])
 	}
 
-	if err := d.telemetryFlagExternalDependencies(ctx, l, crossLinkedMap); err != nil {
-		return discovered, err
-	}
+	// Step 3: Apply include directory filters
+	withUnitsIncluded := d.telemetryApplyIncludeDirs(l, units)
 
-	// Step 4: Apply include directory filters
-	withUnitsIncluded := d.telemetryApplyIncludeDirs(l, crossLinkedUnits)
-
-	// Step 5: Process units-that-read filters
+	// Step 4: Process units-that-read filters
 	// This happens BEFORE exclude dirs/blocks so that explicit CLI excludes can take precedence
 	withUnitsRead := d.telemetryFlagUnitsThatRead(withUnitsIncluded)
 
-	// Step 6: Process exclude directory filters
+	// Step 5: Process exclude directory filters
 	// This happens BEFORE exclude blocks so that CLI flags take precedence
 	withUnitsExcludedByDirs := d.telemetryApplyExcludeDirs(l, withUnitsRead)
 
-	// Step 7: Apply exclude blocks from config
+	// Step 6: Apply exclude blocks from config
 	withExcludedUnits := d.telemetryApplyExcludeModules(l, withUnitsExcludedByDirs)
 
-	// Step 8: Apply custom filters after standard resolution logic
+	// Step 7: Apply custom filters after standard resolution logic
 	filteredUnits, err := d.telemetryApplyUnitFilters(ctx, withExcludedUnits)
 	if err != nil {
 		return discovered, err
