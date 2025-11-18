@@ -279,6 +279,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				return err
 			}
 
+			// Update the unit's execution options with the cloned options.
+			// This ensures methods like GetOutputFile() and PlanFile() use the correct paths.
+			u.SetTerragruntOptions(unitOpts)
+
 			return unitRunner.Run(childCtx, unitOpts, r.Stack.Report())
 		})
 	}

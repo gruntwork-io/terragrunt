@@ -27,6 +27,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		if err != nil {
 			return errors.Errorf("failed to get absolute path for working directory %s: %w", opts.WorkingDir, err)
 		}
+
 		opts.WorkingDir = util.CleanPath(absWorkingDir)
 		// Also update the underlying TerragruntOptions
 		opts.TerragruntOptions.WorkingDir = opts.WorkingDir

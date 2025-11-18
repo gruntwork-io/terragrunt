@@ -535,6 +535,17 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
 
+	// Update DownloadDir if the original was using the default for its config path.
+	// This ensures each unit uses its own .terragrunt-cache directory rather than
+	// inheriting the parent's download directory.
+	_, originalDefaultDownloadDir, err := DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if err == nil && opts.DownloadDir == originalDefaultDownloadDir {
+		_, newDefaultDownloadDir, err := DefaultWorkingAndDownloadDirs(configPath)
+		if err == nil {
+			newOpts.DownloadDir = newDefaultDownloadDir
+		}
+	}
+
 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
 	return l, newOpts, nil
