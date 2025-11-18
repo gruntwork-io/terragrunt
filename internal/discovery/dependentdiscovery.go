@@ -287,15 +287,10 @@ func (dd *DependentDiscovery) DiscoverDependents(
 			dd.markChecked(candidate)
 
 			// Skip stacks for dependent discovery for now.
-			if candidate.Kind() == component.StackKind {
+			unit, ok := candidate.(*component.Unit)
+			if !ok {
 				continue
 			}
-
-			if candidate.Kind() != component.UnitKind {
-				continue
-			}
-
-			unit := candidate.(*component.Unit)
 
 			cfg := unit.Config()
 			if cfg == nil {

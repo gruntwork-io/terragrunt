@@ -494,7 +494,7 @@ func Parse(
 			}
 		}
 		// Stacks always use the default stack filename
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			configFilename = config.DefaultStackFile
 		}
 	}
@@ -594,8 +594,7 @@ func Parse(
 
 	// Store the parsed configuration
 	// Only Units are parsed during discovery; Stacks are not
-	if c.Kind() == component.UnitKind {
-		unit := c.(*component.Unit)
+	if unit, ok := c.(*component.Unit); ok {
 		unit.StoreConfig(cfg)
 	}
 
@@ -945,7 +944,7 @@ func (d *Discovery) parseConcurrently(
 	for _, c := range components {
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			continue
 		}
 
@@ -1076,7 +1075,7 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 	// Separate stacks from units - stacks pass through unchanged
 	var stacks component.Components
 	for _, c := range discovered {
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			stacks = append(stacks, c)
 		}
 	}

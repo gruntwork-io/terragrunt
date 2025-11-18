@@ -56,15 +56,10 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 
 	for _, c := range discovered {
 		// Only handle terraform units; skip stacks and anything else
-		if c.Kind() == component.StackKind {
+		dUnit, ok := c.(*component.Unit)
+		if !ok {
 			continue
 		}
-
-		if c.Kind() != component.UnitKind {
-			continue
-		}
-
-		dUnit := c.(*component.Unit)
 
 		// Get the config that discovery already parsed
 		terragruntConfig := dUnit.Config()

@@ -185,8 +185,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		excluded := false
 
 		if opts.QueueConstructAs != "" {
-			if c.Kind() == component.UnitKind {
-				unit := c.(*component.Unit)
+			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
 					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
 						if opts.Format != FormatDot {

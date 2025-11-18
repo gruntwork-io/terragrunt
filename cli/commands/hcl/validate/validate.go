@@ -108,7 +108,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		parseOpts := opts.Clone()
 		parseOpts.WorkingDir = c.Path()
 
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 

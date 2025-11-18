@@ -52,7 +52,7 @@ func NewRunnerPoolStack(
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
 	nonStackComponents := make(component.Components, 0, len(discovered))
 	for _, c := range discovered {
-		if c.Kind() != component.StackKind {
+		if _, ok := c.(*component.Stack); !ok {
 			nonStackComponents = append(nonStackComponents, c)
 		}
 	}
@@ -96,8 +96,7 @@ func NewRunnerPoolStack(
 	// Just convert Components to Units for further processing
 	units := make(component.Units, 0, len(nonStackComponents))
 	for _, c := range nonStackComponents {
-		if c.Kind() == component.UnitKind {
-			u := c.(*component.Unit)
+		if u, ok := c.(*component.Unit); ok {
 			units = append(units, u)
 		}
 	}
@@ -178,11 +177,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	if opts.OutputFolder != "" {
 		for _, comp := range r.Stack.Units() {
-			if comp.Kind() != component.UnitKind {
+			u, ok := comp.(*component.Unit)
+			if !ok {
 				continue
 			}
-
-			u := comp.(*component.Unit)
 
 			// Ensure execution options are set on the unit
 			// Note: Units should already have ExecutionOptions set during discovery/setup
@@ -219,11 +217,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
 	if r.Stack.Report() != nil {
 		for _, comp := range r.Stack.Units() {
-			if comp.Kind() != component.UnitKind {
+			u, ok := comp.(*component.Unit)
+			if !ok {
 				continue
 			}
 
-			u := comp.(*component.Unit)
 			if u.FlagExcluded() {
 				// Ensure path is absolute for reporting
 				unitPath, err := common.EnsureAbsolutePath(u.Path())
@@ -304,8 +302,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// Convert Stack.Units (component.Components) to []*component.Unit for the controller
 	units := make([]*component.Unit, 0, len(r.Stack.Units()))
 	for _, comp := range r.Stack.Units() {
-		if comp.Kind() == component.UnitKind {
-			u := comp.(*component.Unit)
+		if u, ok := comp.(*component.Unit); ok {
 			units = append(units, u)
 		}
 	}
@@ -335,11 +332,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				if unitComp.Kind() != component.UnitKind {
+				unit, ok := unitComp.(*component.Unit)
+				if !ok {
 					continue
 				}
-
-				unit := unitComp.(*component.Unit)
 
 				// Ensure path is absolute for reporting
 				unitPath, absErr := common.EnsureAbsolutePath(unit.Path())
@@ -418,11 +414,10 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 	i := 0
 
 	for _, comp := range r.Stack.Units() {
-		if comp.Kind() != component.UnitKind {
+		u, ok := comp.(*component.Unit)
+		if !ok {
 			continue
 		}
-
-		u := comp.(*component.Unit)
 
 		execOpts := u.ExecutionOptions()
 		if execOpts != nil {
@@ -507,11 +502,10 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, comp := range r.Stack.Units() {
-		if comp.Kind() != component.UnitKind {
+		unit, ok := comp.(*component.Unit)
+		if !ok {
 			continue
 		}
-
-		unit := comp.(*component.Unit)
 
 		execOpts := unit.ExecutionOptions()
 		if execOpts == nil {
@@ -544,11 +538,11 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 	unitIndex := 0
 
 	for _, comp := range r.Stack.Units() {
-		if comp.Kind() != component.UnitKind || unitIndex >= len(errorStreams) {
+		unit, ok := comp.(*component.Unit)
+		if !ok || unitIndex >= len(errorStreams) {
 			continue
 		}
 
-		unit := comp.(*component.Unit)
 		errorStream := errorStreams[unitIndex]
 		unitIndex++
 
@@ -606,7 +600,7 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 	// Capture the DiscoveryContext from the first discovered unit (all should have the same context)
 	var discoveryContext *component.DiscoveryContext
 	for _, c := range discovered {
-		if c.Kind() == component.UnitKind {
+		if _, ok := c.(*component.Unit); ok {
 			discoveryContext = c.DiscoveryContext()
 			break
 		}
@@ -617,11 +611,11 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 	present := make(map[string]*component.Unit, len(discovered))
 
 	for _, c := range discovered {
-		if c.Kind() != component.UnitKind {
+		unit, ok := c.(*component.Unit)
+		if !ok {
 			continue
 		}
 
-		unit := c.(*component.Unit)
 		if _, ok := allowed[unit.Path()]; !ok {
 			// Drop configs that map to excluded/missing units
 			continue
@@ -686,12 +680,8 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 
 		// Add any missing allowed dependencies from the resolved unit graph
 		for _, depComp := range u.Dependencies() {
-			if depComp.Kind() != component.UnitKind {
-				continue
-			}
-
-			depUnit := depComp.(*component.Unit)
-			if depUnit == nil {
+			depUnit, ok := depComp.(*component.Unit)
+			if !ok {
 				continue
 			}
 
@@ -839,11 +829,11 @@ func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, dep
 	}
 
 	for _, dep := range unit.Dependencies() {
-		if dep.Kind() != component.UnitKind {
+		depUnit, ok := dep.(*component.Unit)
+		if !ok {
 			continue
 		}
 
-		depUnit := dep.(*component.Unit)
 		if !paths[depUnit.Path()] {
 			paths[depUnit.Path()] = true
 			collectDependenciesBounded(depUnit, paths, depth+1)

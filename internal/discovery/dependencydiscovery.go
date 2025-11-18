@@ -100,7 +100,7 @@ func (dd *DependencyDiscovery) DiscoverAllDependencies(
 	for _, c := range startingComponents {
 		dd.markSeen(c.Path())
 
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			continue
 		}
 
@@ -142,15 +142,10 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.
-	if dComponent.Kind() == component.StackKind {
+	unit, ok := dComponent.(*component.Unit)
+	if !ok {
 		return nil
 	}
-
-	if dComponent.Kind() != component.UnitKind {
-		return errors.New("expected Unit component but got different type")
-	}
-
-	unit := dComponent.(*component.Unit)
 
 	cfg := unit.Config()
 	if cfg == nil {
