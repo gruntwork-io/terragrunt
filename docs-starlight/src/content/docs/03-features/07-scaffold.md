@@ -19,7 +19,7 @@ Description:
 - `MODULE_URL` - This parameter specifies the URL to an OpenTofu/Terraform module. It can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
 - `TEMPLATE_URL` - This optional parameter specifies the URL to a custom boilerplate template to generate HCL files. It can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
   - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
-  - Failing to find that, Terragrunt will use a default boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying an OpenTofu/Terraform unit.
+  - Failing to find that, Terragrunt will use a default boilerplate template that is built-in, which creates a simple Terragrunt unit for deploying that OpenTofu/Terraform module.
 
 For example, here's how you can generate a `terragrunt.hcl` file to instantiate an [example MySQL OpenTofu/Terraform module](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example/tree/master/mysql) for deployment:
 
