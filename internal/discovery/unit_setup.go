@@ -141,6 +141,7 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		unit.StoreConfig(terragruntConfig)
 		unit.SetTerragruntOptions(opts)
 		unit.SetReading(dUnit.Reading()...)
+		unit.SetDiscoveryContext(dUnit.DiscoveryContext())
 
 		if isExternal {
 			unit.SetExternal()

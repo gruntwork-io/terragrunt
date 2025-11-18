@@ -120,6 +120,8 @@ type Discovery struct {
 	discoverDependencies         bool
 	doubleStarEnabled            bool
 	skipValidation               bool
+	skipExternalDependencyPrompt bool
+	skipUnitResolution           bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -137,6 +139,23 @@ var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config
 // WithNoHidden sets the Hidden flag to true.
 func (d *Discovery) WithNoHidden() *Discovery {
 	d.noHidden = true
+
+	return d
+}
+
+// WithSkipExternalDependencyPrompt sets the flag to skip external dependency prompts.
+// This is useful for discovery-only commands like find/list that don't need user interaction.
+func (d *Discovery) WithSkipExternalDependencyPrompt() *Discovery {
+	d.skipExternalDependencyPrompt = true
+
+	return d
+}
+
+// WithSkipUnitResolution sets the flag to skip the unit resolution pipeline.
+// This is useful for commands like hcl validate that only need to find and parse configs
+// without full unit setup (which would skip configs with parse errors).
+func (d *Discovery) WithSkipUnitResolution() *Discovery {
+	d.skipUnitResolution = true
 
 	return d
 }
@@ -1172,8 +1191,9 @@ func (d *Discovery) Discover(
 
 	// When terragruntOptions are provided, we need to parse configs so that
 	// the unit resolution pipeline can validate units (e.g., check for .tf files)
-	// and apply filters properly
-	if opts != nil && !d.requiresParse {
+	// and apply filters properly.
+	// Skip this when unit resolution is skipped (e.g., HCL validate that handles its own parsing)
+	if opts != nil && !d.requiresParse && !d.skipUnitResolution {
 		d.requiresParse = true
 	}
 
@@ -1437,7 +1457,8 @@ func (d *Discovery) Discover(
 
 	// Apply unit resolution pipeline (setup, filtering, dependency prompting)
 	// This is only done when terragruntOptions is set (indicating we want full resolution)
-	if d.terragruntOptions != nil {
+	// and when not explicitly skipped (e.g., for HCL validate that only needs to parse configs)
+	if d.terragruntOptions != nil && !d.skipUnitResolution {
 		components, err = d.applyUnitResolutionPipeline(ctx, l, components)
 		if err != nil {
 			errs = append(errs, errors.New(err))

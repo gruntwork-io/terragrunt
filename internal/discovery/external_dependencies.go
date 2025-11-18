@@ -13,6 +13,11 @@ import (
 // telemetryFlagExternalDependencies flags external dependencies and prompts user for confirmation.
 // Discovery has already found and parsed external dependencies, so this only handles user prompts.
 func (d *Discovery) telemetryFlagExternalDependencies(ctx context.Context, l log.Logger, unitsMap component.UnitsMap) error {
+	// Skip prompting for discovery-only commands like find/list
+	if d.skipExternalDependencyPrompt {
+		return nil
+	}
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_external_dependencies", map[string]any{
 		"working_dir": d.workingDir,
 	}, func(_ context.Context) error {

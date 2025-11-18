@@ -43,7 +43,8 @@ type StackGenerateOptions struct {
 func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
-		WithBreakCycles()
+		WithBreakCycles().
+		WithSkipExternalDependencyPrompt()
 
 	if opts.NoHidden {
 		d = d.WithNoHidden()
@@ -111,7 +112,8 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
 func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
-	d := NewDiscovery(opts.WorkingDir)
+	d := NewDiscovery(opts.WorkingDir).
+		WithSkipUnitResolution() // HCL commands only need to parse configs, not resolve units
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
 		d = d.WithFilterFlagEnabled()

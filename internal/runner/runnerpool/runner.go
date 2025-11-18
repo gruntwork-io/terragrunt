@@ -279,6 +279,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				return err
 			}
 
+			// Preserve the unit's TerraformCliArgs which may include plan file paths
+			// set by syncTerraformCliArgs. The cloned opts don't have these unit-specific args.
+			unitOpts.TerraformCliArgs = execOpts.TerraformCliArgs
+
 			// Update the unit's execution options with the cloned options.
 			// This ensures methods like GetOutputFile() and PlanFile() use the correct paths.
 			u.SetTerragruntOptions(unitOpts)
@@ -593,6 +597,15 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 		}
 	}
 
+	// Capture the DiscoveryContext from the first discovered unit (all should have the same context)
+	var discoveryContext *component.DiscoveryContext
+	for _, c := range discovered {
+		if c.Kind() == component.UnitKind {
+			discoveryContext = c.DiscoveryContext()
+			break
+		}
+	}
+
 	// First pass: keep only allowed configs and prune their dependencies to allowed ones
 	filtered := make(component.Components, 0, len(discovered))
 	present := make(map[string]*component.Unit, len(discovered))
@@ -640,6 +653,9 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 
 		// Create a minimal discovered config for the missing unit
 		copyCfg := component.NewUnit(u.Path())
+		if discoveryContext != nil {
+			copyCfg.SetDiscoveryContext(discoveryContext)
+		}
 
 		filtered = append(filtered, copyCfg)
 		present[u.Path()] = copyCfg
@@ -685,6 +701,10 @@ func FilterDiscoveredUnits(discovered component.Components, units component.Unit
 			depCfg, ok := present[depUnit.Path()]
 			if !ok {
 				depCfg = component.NewUnit(depUnit.Path())
+				if discoveryContext != nil {
+					depCfg.SetDiscoveryContext(discoveryContext)
+				}
+
 				filtered = append(filtered, depCfg)
 				present[depUnit.Path()] = depCfg
 			}
