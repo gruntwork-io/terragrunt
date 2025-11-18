@@ -745,6 +745,12 @@ func (d *Discovery) skipDirIfIgnorable(l log.Logger, path string) error {
 		for _, pattern := range d.compiledExcludePatterns {
 			if pattern.Compiled.Match(canonicalDir) {
 				l.Debugf("Directory %s excluded by glob %s", canonicalDir, pattern.Original)
+
+				// Report the exclusion if we have a report instance
+				if d.report != nil {
+					d.reportUnitExclusion(l, canonicalDir, report.ReasonExcludeDir)
+				}
+
 				return filepath.SkipDir
 			}
 		}

@@ -166,6 +166,17 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 	listedComponents := make(ListedComponents, 0, len(components))
 	errs := []error{}
 
+	// Ensure working directory is absolute for reliable path relativity calculations
+	absWorkingDir := opts.WorkingDir
+	if !filepath.IsAbs(absWorkingDir) {
+		var err error
+
+		absWorkingDir, err = filepath.Abs(absWorkingDir)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+	}
+
 	for _, c := range components {
 		if c.External() && !opts.External {
 			continue
@@ -188,7 +199,19 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, c.Path())
+		// Ensure component path is absolute for reliable relativity calculation
+		componentPath := c.Path()
+		if !filepath.IsAbs(componentPath) {
+			var err error
+
+			componentPath, err = filepath.Abs(componentPath)
+			if err != nil {
+				errs = append(errs, errors.New(err))
+				continue
+			}
+		}
+
+		relPath, err := filepath.Rel(absWorkingDir, componentPath)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -210,7 +233,19 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		listedCfg.Dependencies = make([]*ListedComponent, len(c.Dependencies()))
 
 		for i, dep := range c.Dependencies() {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path())
+			// Ensure dependency path is absolute for reliable relativity calculation
+			depPath := dep.Path()
+			if !filepath.IsAbs(depPath) {
+				var err error
+
+				depPath, err = filepath.Abs(depPath)
+				if err != nil {
+					errs = append(errs, errors.New(err))
+					continue
+				}
+			}
+
+			relDepPath, err := filepath.Rel(absWorkingDir, depPath)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 
