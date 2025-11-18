@@ -21,6 +21,18 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
+	// Ensure WorkingDir is absolute to avoid filepath.Rel errors when comparing with absolute unit paths
+	if !filepath.IsAbs(opts.WorkingDir) {
+		absWorkingDir, err := filepath.Abs(opts.WorkingDir)
+		if err != nil {
+			return errors.Errorf("failed to get absolute path for working directory %s: %w", opts.WorkingDir, err)
+		}
+		opts.WorkingDir = util.CleanPath(absWorkingDir)
+		// Also update the underlying TerragruntOptions
+		opts.TerragruntOptions.WorkingDir = opts.WorkingDir
+		opts.TerragruntOptions.RootWorkingDir = opts.WorkingDir
+	}
+
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
 		WorkingDir:       opts.WorkingDir,
 		QueueConstructAs: opts.QueueConstructAs,
