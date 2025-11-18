@@ -283,6 +283,12 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			// set by syncTerraformCliArgs. The cloned opts don't have these unit-specific args.
 			unitOpts.TerraformCliArgs = execOpts.TerraformCliArgs
 
+			// Update OriginalTerragruntConfigPath to point to this unit's config.
+			// This ensures get_original_terragrunt_dir() returns the correct path for each unit
+			// during run --all operations. Each unit should treat its own config as the "original"
+			// when running in the runner pool context.
+			unitOpts.OriginalTerragruntConfigPath = execOpts.TerragruntConfigPath
+
 			// Update the unit's execution options with the cloned options.
 			// This ensures methods like GetOutputFile() and PlanFile() use the correct paths.
 			u.SetTerragruntOptions(unitOpts)
