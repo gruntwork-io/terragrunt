@@ -13,8 +13,8 @@ import (
 )
 
 // telemetrySetupUnits wraps setupUnits in telemetry collection.
-func (d *Discovery) telemetrySetupUnits(l log.Logger, discovered []component.Component) (component.UnitsMap, error) {
-	var unitsMap component.UnitsMap
+func (d *Discovery) telemetrySetupUnits(l log.Logger, discovered []component.Component) (component.Units, error) {
+	var units component.Units
 
 	err := telemetry.TelemeterFromContext(d.ctx).Collect(d.ctx, "setup_units", map[string]any{
 		"working_dir": d.workingDir,
@@ -25,15 +25,15 @@ func (d *Discovery) telemetrySetupUnits(l log.Logger, discovered []component.Com
 			return err
 		}
 
-		unitsMap = result
+		units = result
 
 		return nil
 	})
 
-	return unitsMap, err
+	return units, err
 }
 
-// setupUnits constructs UnitsMap from discovery-parsed components without re-parsing,
+// setupUnits constructs Units from discovery-parsed components without re-parsing,
 // performing only the minimal parsing necessary to obtain missing fields (e.g., Terraform.source).
 //
 // This is the first stage of the unit resolution pipeline. It converts discovery components into
@@ -50,9 +50,9 @@ func (d *Discovery) telemetrySetupUnits(l log.Logger, discovered []component.Com
 //  8. Skips units without Terraform source or TF files
 //
 // Units excluded at this stage have FlagExcluded=true and minimal configuration.
-// They are still included in the UnitsMap for dependency resolution but won't be executed.
-func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (component.UnitsMap, error) {
-	units := make(component.UnitsMap)
+// They are still included in the Units slice for dependency resolution but won't be executed.
+func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (component.Units, error) {
+	units := make(component.Units, 0, len(discovered))
 
 	for _, c := range discovered {
 		// Only handle terraform units; skip stacks and anything else
@@ -98,7 +98,7 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		excludeFn := d.createPathMatcherFunc("exclude", opts, l)
 
 		if excludeFn(unitToExclude) {
-			units[unitPath] = unitToExclude
+			units = append(units, unitToExclude)
 
 			continue
 		}
@@ -148,7 +148,7 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 			unit.SetExternal()
 		}
 
-		units[unitPath] = unit
+		units = append(units, unit)
 	}
 
 	return units, nil

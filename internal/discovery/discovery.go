@@ -1082,20 +1082,17 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 
 	// Step 1: Setup units (clone options, set paths, validate)
 	// Dependencies are now preserved from discovery phase during setupUnits
-	unitsMap, err := d.telemetrySetupUnits(l, discovered)
+	units, err := d.telemetrySetupUnits(l, discovered)
 	if err != nil {
 		return discovered, err
 	}
 
-	// Step 2: Flag external dependencies and prompt user for confirmation
-	if err := d.telemetryFlagExternalDependencies(ctx, l, unitsMap); err != nil {
-		return discovered, err
-	}
+	// Sort units by path for consistent ordering
+	units.Sort()
 
-	// Convert unitsMap to Units slice for filtering pipeline
-	units := make(component.Units, 0, len(unitsMap))
-	for _, key := range unitsMap.SortedKeys() {
-		units = append(units, unitsMap[key])
+	// Step 2: Flag external dependencies and prompt user for confirmation
+	if err := d.telemetryFlagExternalDependencies(ctx, l, units); err != nil {
+		return discovered, err
 	}
 
 	// Step 3: Apply include directory filters

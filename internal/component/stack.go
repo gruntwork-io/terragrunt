@@ -1,10 +1,7 @@
 package component
 
 import (
-	"fmt"
 	"slices"
-	"sort"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -320,33 +317,4 @@ func (s *Stack) FindUnitByPath(path string) Component {
 	}
 
 	return nil
-}
-
-// String renders this stack as a human-readable string.
-func (s *Stack) String() string {
-	s.rLock()
-	defer s.rUnlock()
-
-	// If units are set (execution context), show units
-	if len(s.units) > 0 {
-		unitPaths := make([]string, 0, len(s.units))
-		for _, unit := range s.units {
-			unitPaths = append(unitPaths, "  => "+unit.String())
-		}
-
-		sort.Strings(unitPaths)
-
-		return fmt.Sprintf("Stack at %s:\n%s", s.workingDir, strings.Join(unitPaths, "\n"))
-	}
-
-	// Otherwise show dependencies (discovery context)
-	var dependencies = make([]string, 0, len(s.dependencies))
-	for _, dependency := range s.dependencies {
-		dependencies = append(dependencies, dependency.Path())
-	}
-
-	return fmt.Sprintf(
-		"Stack %s (excluded: %v, dependencies: [%s])",
-		s.path, s.flagExcluded, strings.Join(dependencies, ", "),
-	)
 }

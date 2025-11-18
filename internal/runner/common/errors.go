@@ -57,7 +57,7 @@ type ProcessingUnitDependencyError struct {
 }
 
 func (err ProcessingUnitDependencyError) Error() string {
-	return errors.Errorf("Cannot process unit %s because one of its dependencies, %s, finished with an error: %s", err.Unit, err.Dependency, err.Err).Error()
+	return errors.Errorf("Cannot process unit %s because one of its dependencies, %s, finished with an error: %s", err.Unit.Path(), err.Dependency.Path(), err.Err).Error()
 }
 
 func (err ProcessingUnitDependencyError) ExitStatus() (int, error) {

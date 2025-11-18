@@ -1,12 +1,9 @@
 package component
 
 import (
-	"fmt"
-	"maps"
 	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -24,9 +21,6 @@ const (
 
 // Units is a collection of Unit pointers.
 type Units []*Unit
-
-// UnitsMap is a map of paths to Unit pointers.
-type UnitsMap map[string]*Unit
 
 // per-path output locks to serialize flushes for the same unit
 var (
@@ -346,22 +340,6 @@ func (u *Unit) SetFlagExcluded(excluded bool) {
 	u.flagExcluded = excluded
 }
 
-// String renders this unit as a human-readable string.
-func (u *Unit) String() string {
-	u.rLock()
-	defer u.rUnlock()
-
-	var dependencies = make([]string, 0, len(u.dependencies))
-	for _, dependency := range u.dependencies {
-		dependencies = append(dependencies, dependency.Path())
-	}
-
-	return fmt.Sprintf(
-		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		u.path, u.flagExcluded, u.assumeAlreadyApplied, strings.Join(dependencies, ", "),
-	)
-}
-
 // AbsolutePath returns the absolute path of the unit.
 // If path conversion fails, returns the original path and logs a warning.
 func (u *Unit) AbsolutePath() string {
@@ -540,35 +518,20 @@ func (u *Unit) getPlanFilePath(l log.Logger, rootWorkingDir, outputFolder, fileN
 	return filepath.Join(dir, fileName)
 }
 
-// SortedKeys returns the keys for the given map in sorted order.
-// This is used to ensure we always iterate over maps of units in a consistent order.
-func (unitsMap UnitsMap) SortedKeys() []string {
-	keys := make([]string, 0, len(unitsMap))
-	for key := range unitsMap {
-		keys = append(keys, key)
-	}
-
-	sort.Strings(keys)
-
-	return keys
+// Sort sorts the units by path in place.
+func (u Units) Sort() {
+	sort.Slice(u, func(i, j int) bool {
+		return u[i].Path() < u[j].Path()
+	})
 }
 
-// FindByPath returns the unit that matches the given path, or nil if no such unit exists in the map.
-func (unitsMap UnitsMap) FindByPath(path string) *Unit {
-	if unit, ok := unitsMap[path]; ok {
-		return unit
+// FindByPath returns the unit that matches the given path, or nil if no such unit exists.
+func (u Units) FindByPath(path string) *Unit {
+	for _, unit := range u {
+		if unit.Path() == path {
+			return unit
+		}
 	}
 
 	return nil
-}
-
-// MergeMaps merges the given external dependencies into the given map of units if those dependencies
-// aren't already in the units map.
-func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
-	out := UnitsMap{}
-
-	maps.Copy(out, externalDependencies)
-	maps.Copy(out, unitsMap)
-
-	return out
 }

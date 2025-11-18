@@ -3,7 +3,6 @@ package runner
 
 import (
 	"context"
-	"maps"
 	"path/filepath"
 	"slices"
 
@@ -32,14 +31,17 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
 func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) component.Units {
-	matchedModulesMap := make(component.UnitsMap)
+	// Use a map for deduplication by path
+	matchedModulesMap := make(map[string]*component.Unit)
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		maps.Copy(matchedModulesMap, findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig))
+		for _, unit := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
+			matchedModulesMap[unit.Path()] = unit
+		}
 	}
 
-	var matchedModules = make(component.Units, 0, len(matchedModulesMap))
+	matchedModules := make(component.Units, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}
@@ -68,16 +70,14 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) component.UnitsMap {
-	matchedModulesMap := make(component.UnitsMap)
-
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) component.Units {
 	// Construct the full path to terragrunt.hcl in the directory
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
 	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	if err != nil {
 		l.Debugf("Failed to build terragrunt options from %s %v", configPath, err)
-		return matchedModulesMap
+		return nil
 	}
 
 	cfgOptions.Env = opts.Env
@@ -88,25 +88,28 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
-		return matchedModulesMap
+		return nil
 	}
 
 	stack := runner.GetStack()
 	dependentModules := runner.ListStackDependentUnits()
 
 	deps, found := dependentModules[opts.WorkingDir]
-	if found {
-		for _, comp := range stack.Units() {
-			if comp.Kind() != component.UnitKind {
-				continue
-			}
+	if !found {
+		return nil
+	}
 
-			unit := comp.(*component.Unit)
-			if slices.Contains(deps, unit.Path()) {
-				matchedModulesMap[unit.Path()] = unit
-			}
+	var matchedModules component.Units
+	for _, comp := range stack.Units() {
+		unit, ok := comp.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if slices.Contains(deps, unit.Path()) {
+			matchedModules = append(matchedModules, unit)
 		}
 	}
 
-	return matchedModulesMap
+	return matchedModules
 }

@@ -12,7 +12,7 @@ import (
 
 // telemetryFlagExternalDependencies flags external dependencies and prompts user for confirmation.
 // Discovery has already found and parsed external dependencies, so this only handles user prompts.
-func (d *Discovery) telemetryFlagExternalDependencies(ctx context.Context, l log.Logger, unitsMap component.UnitsMap) error {
+func (d *Discovery) telemetryFlagExternalDependencies(ctx context.Context, l log.Logger, units component.Units) error {
 	// Skip prompting for discovery-only commands like find/list
 	if d.skipExternalDependencyPrompt {
 		return nil
@@ -21,7 +21,7 @@ func (d *Discovery) telemetryFlagExternalDependencies(ctx context.Context, l log
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_external_dependencies", map[string]any{
 		"working_dir": d.workingDir,
 	}, func(_ context.Context) error {
-		return d.flagExternalDependencies(ctx, l, unitsMap)
+		return d.flagExternalDependencies(ctx, l, units)
 	})
 }
 
@@ -29,8 +29,8 @@ func (d *Discovery) telemetryFlagExternalDependencies(ctx context.Context, l log
 // prompting the user whether to apply them and setting appropriate flags.
 // Discovery has already found, parsed, and marked external dependencies.
 // This function only handles the user-facing logic for deciding whether to run them.
-func (d *Discovery) flagExternalDependencies(ctx context.Context, l log.Logger, unitsMap component.UnitsMap) error {
-	for _, unit := range unitsMap {
+func (d *Discovery) flagExternalDependencies(ctx context.Context, l log.Logger, units component.Units) error {
+	for _, unit := range units {
 		// Check if this unit was marked as external by discovery
 		// External units are outside the working directory
 		if !unit.External() {
@@ -43,7 +43,7 @@ func (d *Discovery) flagExternalDependencies(ctx context.Context, l log.Logger, 
 			// Find a unit that depends on this external dependency for context
 			var dependentUnit *component.Unit
 
-			for _, u := range unitsMap {
+			for _, u := range units {
 				dependencies := u.Dependencies()
 				for _, dep := range dependencies {
 					if dep.Path() == unit.Path() {

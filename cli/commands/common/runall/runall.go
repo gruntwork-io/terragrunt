@@ -91,7 +91,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
-	l.Debugf("%s", runner.GetStack().String())
+	l.Debugf("Stack at %s", runner.GetStack().Path())
 
 	if err := runner.LogUnitDeployOrder(l, opts.TerraformCommand); err != nil {
 		return err
