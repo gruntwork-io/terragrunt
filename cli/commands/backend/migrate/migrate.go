@@ -47,17 +47,16 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	// Check that components are Units using Kind() method
-	if srcModule.Kind() != component.UnitKind {
+	// Use type assertion to ensure components are Units
+	srcUnit, ok := srcModule.(*component.Unit)
+	if !ok {
 		return errors.Errorf("src module is not a unit")
 	}
 
-	if dstModuleComp.Kind() != component.UnitKind {
+	dstUnit, ok := dstModuleComp.(*component.Unit)
+	if !ok {
 		return errors.Errorf("dst module is not a unit")
 	}
-
-	srcUnit := srcModule.(*component.Unit)
-	dstUnit := dstModuleComp.(*component.Unit)
 
 	//nolint:staticcheck // TerragruntOptions() is deprecated but required for config.ParseRemoteState and remotestate.Migrate which haven't been migrated to RunnerOptions yet
 	srcOpts := srcUnit.TerragruntOptions()

@@ -271,8 +271,15 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"terragrunt_config_path": execOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			unitRunner := common.NewUnitRunner(u)
-			// Pass the full opts (terragruntOptions) which is available in the Run method scope
-			return unitRunner.Run(childCtx, opts, r.Stack.Report())
+
+			// Clone stack-level options with unit's config path to get unit-specific WorkingDir
+			// This ensures each unit executes in its own directory
+			_, unitOpts, err := opts.CloneWithConfigPath(u.Logger(), execOpts.TerragruntConfigPath)
+			if err != nil {
+				return err
+			}
+
+			return unitRunner.Run(childCtx, unitOpts, r.Stack.Report())
 		})
 	}
 

@@ -1070,7 +1070,7 @@ func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logge
 	}, func(_ context.Context) error {
 		var linkErr error
 
-		crossLinkedUnits, linkErr = convertDiscoveryToRunner(unitsMap)
+		crossLinkedUnits, linkErr = convertDiscoveryToRunner(unitsMap, d.discoverDependencies)
 
 		return linkErr
 	})

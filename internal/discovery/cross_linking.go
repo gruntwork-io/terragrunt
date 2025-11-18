@@ -13,7 +13,8 @@ import (
 // Component interface dependencies into concrete *Unit pointer dependencies.
 // Discovery found all dependencies and stored them as Component interfaces, but runner needs
 // concrete *Unit pointers for efficient execution. This function translates between domains.
-func convertDiscoveryToRunner(unitsMap component.UnitsMap) (component.Units, error) {
+// If discoverDependencies is false, dependencies are not added to units.
+func convertDiscoveryToRunner(unitsMap component.UnitsMap, discoverDependencies bool) (component.Units, error) {
 	units := component.Units{}
 
 	keys := unitsMap.SortedKeys()
@@ -21,17 +22,20 @@ func convertDiscoveryToRunner(unitsMap component.UnitsMap) (component.Units, err
 	for _, key := range keys {
 		unit := unitsMap[key]
 
-		dependencies, err := getDependenciesForUnit(unit, unitsMap)
-		if err != nil {
-			return units, err
-		}
+		// Only populate dependencies if discovery was requested
+		if discoverDependencies {
+			dependencies, err := getDependenciesForUnit(unit, unitsMap)
+			if err != nil {
+				return units, err
+			}
 
-		// Set the concrete dependencies slice
-		// Note: This modifies the unit's dependencies field directly
-		// The component.Unit.dependencies field contains Components from discovery
-		// We need to add a method to set concrete dependencies for runner
-		for _, dep := range dependencies {
-			unit.AddDependency(dep)
+			// Set the concrete dependencies slice
+			// Note: This modifies the unit's dependencies field directly
+			// The component.Unit.dependencies field contains Components from discovery
+			// We need to add a method to set concrete dependencies for runner
+			for _, dep := range dependencies {
+				unit.AddDependency(dep)
+			}
 		}
 
 		units = append(units, unit)
