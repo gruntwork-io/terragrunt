@@ -88,6 +88,7 @@ flags:
   - find-external
   - queue-construct-as
   - filter
+  - filter-affected
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -343,6 +344,17 @@ Examples below will omit the `--experiment filter-flag` flag for brevity.
 </Aside>
 
 The `find` command supports the `--filter` flag to target specific configurations using a flexible query language. This is particularly useful for discovering configurations that match specific criteria before running operations on them.
+
+### Finding Affected Components
+
+For the common use case of finding components affected by changes between the default branch and `HEAD`, you can use the `--filter-affected` flag:
+
+```bash
+# Find all components affected by changes between main and HEAD
+terragrunt find --filter-affected
+```
+
+This is equivalent to `terragrunt find --filter '[main...HEAD]'` and automatically detects your repository's default branch.
 
 ### Basic Filtering Examples
 

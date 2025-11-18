@@ -38,6 +38,7 @@ flags:
   - experimental-engine
   - feature
   - filter
+  - filter-affected
   - graph
   - iam-assume-role
   - iam-assume-role-duration
@@ -104,6 +105,20 @@ Examples below will omit the `--experiment filter-flag` flag for brevity.
 </Aside>
 
 The `run` command supports the `--filter` flag to target specific units using a flexible query language. This is particularly useful when running commands across multiple units with `--all`.
+
+### Running Affected Components
+
+For the common use case of running commands on components affected by changes between the default branch and `HEAD`, you can use the `--filter-affected` flag:
+
+```bash
+# Plan changes for affected components
+terragrunt run --all --filter-affected -- plan
+
+# Apply changes for affected components
+terragrunt run --all --filter-affected -- apply
+```
+
+This is equivalent to `terragrunt run --all --filter '[main...HEAD]' -- plan` and automatically detects your repository's default branch. When using `--filter-affected` with the `run` command, you must use one of the `plan` or `apply` commands, and not the `-destroy` flag.
 
 ### Basic Filtering Examples
 
