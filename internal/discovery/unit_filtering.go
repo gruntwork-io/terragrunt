@@ -212,10 +212,13 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, units com
 
 			// Fallback: check Config.ProcessedIncludes (include blocks from config)
 			// This is needed because unit.Reading may not be populated in all cases
-			for _, includeConfig := range unit.Config().ProcessedIncludes {
-				if includeConfig.Path == normalizedPath {
-					unit.SetFlagExcluded(false)
-					break
+			cfg := unit.Config()
+			if cfg != nil {
+				for _, includeConfig := range cfg.ProcessedIncludes {
+					if includeConfig.Path == normalizedPath {
+						unit.SetFlagExcluded(false)
+						break
+					}
 				}
 			}
 		}
@@ -302,7 +305,12 @@ func (d *Discovery) telemetryApplyExcludeModules(l log.Logger, withUnitsThatAreI
 // applyExcludeModules sets FlagExcluded on units based on the exclude block in their terragrunt.hcl.
 func (d *Discovery) applyExcludeModules(l log.Logger, opts *options.TerragruntOptions, reportInstance *report.Report, units component.Units) component.Units {
 	for _, unit := range units {
-		excludeConfig := unit.Config().Exclude
+		cfg := unit.Config()
+		if cfg == nil {
+			continue
+		}
+
+		excludeConfig := cfg.Exclude
 
 		if excludeConfig == nil {
 			continue
