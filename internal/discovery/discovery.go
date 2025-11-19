@@ -914,6 +914,14 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)
 
+	// Canonicalize the directory path to ensure consistent path representation
+	// across all components (initial discovery and dependency resolution)
+	canonicalDir, err := util.CanonicalPath(dir, "")
+	if err != nil {
+		// Fall back to original dir if canonicalization fails
+		canonicalDir = dir
+	}
+
 	componentOfBase := func(dir, base string) component.Component {
 		if base == config.DefaultStackFile {
 			return component.NewStack(dir)
@@ -927,7 +935,7 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 			continue
 		}
 
-		c := componentOfBase(dir, base)
+		c := componentOfBase(canonicalDir, base)
 
 		if d.discoveryContext != nil {
 			c.SetDiscoveryContext(d.discoveryContext)
@@ -1579,7 +1587,15 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 			depPath = filepath.Clean(filepath.Join(component.Path(), depPath))
 		}
 
-		deduped[depPath] = struct{}{}
+		// Canonicalize the path to ensure consistent path representation
+		// This is important for matching paths when linking dependencies
+		canonicalPath, err := util.CanonicalPath(depPath, "")
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		deduped[canonicalPath] = struct{}{}
 	}
 
 	if cfg.Dependencies != nil {
@@ -1588,7 +1604,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 				dependency = filepath.Clean(filepath.Join(component.Path(), dependency))
 			}
 
-			deduped[dependency] = struct{}{}
+			// Canonicalize the path to ensure consistent path representation
+			canonicalPath, err := util.CanonicalPath(dependency, "")
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			deduped[canonicalPath] = struct{}{}
 		}
 	}
 

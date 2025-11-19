@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // telemetryFlagExternalDependencies flags external dependencies and prompts user for confirmation.
@@ -43,10 +44,17 @@ func (d *Discovery) flagExternalDependencies(ctx context.Context, l log.Logger, 
 			// Find a unit that depends on this external dependency for context
 			var dependentUnit *component.Unit
 
+			// Normalize the external unit's path for comparison
+			unitPath := util.CleanPath(unit.Path())
+
 			for _, u := range units {
 				dependencies := u.Dependencies()
 				for _, dep := range dependencies {
-					if dep.Path() == unit.Path() {
+					// Normalize dependency path for comparison
+					// This handles cases where paths may differ in representation
+					// (e.g., symlinks resolved vs not resolved)
+					depPath := util.CleanPath(dep.Path())
+					if depPath == unitPath {
 						dependentUnit = u
 						break
 					}

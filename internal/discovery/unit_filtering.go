@@ -143,11 +143,21 @@ func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, l log.Logg
 
 	// Mark all affected dependencies as included before proceeding if not in strict include mode.
 	if !opts.StrictInclude {
+		// Build a path-to-unit map for efficient lookups
+		// This is needed because dependency references may point to different objects
+		// than the units in the slice (due to how dependencies are discovered)
+		pathToUnit := make(map[string]*component.Unit)
+		for _, u := range units {
+			pathToUnit[util.CleanPath(u.Path())] = u
+		}
+
 		for _, unit := range units {
 			if !unit.FlagExcluded() {
 				for _, dependency := range unit.Dependencies() {
-					if dep, ok := dependency.(*component.Unit); ok {
-						dep.SetFlagExcluded(false)
+					// Find the actual unit in the slice by path and set FlagExcluded on it
+					depPath := util.CleanPath(dependency.Path())
+					if actualUnit, ok := pathToUnit[depPath]; ok {
+						actualUnit.SetFlagExcluded(false)
 					}
 				}
 			}

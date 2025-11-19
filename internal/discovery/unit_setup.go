@@ -53,6 +53,10 @@ func (d *Discovery) telemetrySetupUnits(l log.Logger, discovered []component.Com
 // They are still included in the Units slice for dependency resolution but won't be executed.
 func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (component.Units, error) {
 	units := make(component.Units, 0, len(discovered))
+	// Map from old unit path to new unit for dependency remapping
+	oldToNew := make(map[string]*component.Unit)
+	// Store old dependencies for later remapping
+	oldDependencies := make(map[*component.Unit][]component.Component)
 
 	for _, c := range discovered {
 		// Only handle terraform units; skip stacks and anything else
@@ -99,6 +103,7 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 
 		if excludeFn(unitToExclude) {
 			units = append(units, unitToExclude)
+			oldToNew[dUnit.Path()] = unitToExclude
 
 			continue
 		}
@@ -138,17 +143,30 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		unit.SetReading(dUnit.Reading()...)
 		unit.SetDiscoveryContext(dUnit.DiscoveryContext())
 
-		// Preserve dependencies from discovery phase
-		// Dependencies were already discovered and added to dUnit during dependency discovery
-		for _, dep := range dUnit.Dependencies() {
-			unit.AddDependency(dep)
-		}
-
 		if isExternal {
 			unit.SetExternal()
 		}
 
 		units = append(units, unit)
+		// Store mapping and dependencies for later remapping
+		oldToNew[dUnit.Path()] = unit
+		if len(dUnit.Dependencies()) > 0 {
+			oldDependencies[unit] = dUnit.Dependencies()
+		}
+	}
+
+	// Remap dependencies to point to the new units
+	for unit, deps := range oldDependencies {
+		for _, dep := range deps {
+			// Look up the new unit for this dependency
+			if newDep, ok := oldToNew[dep.Path()]; ok {
+				unit.AddDependency(newDep)
+			} else {
+				// If we don't have a new unit for this dependency (e.g., external),
+				// keep the original dependency
+				unit.AddDependency(dep)
+			}
+		}
 	}
 
 	return units, nil
