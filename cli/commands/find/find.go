@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -16,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/mattn/go-shellwords"
 	"github.com/mgutz/ansi"
 )
 
@@ -84,6 +86,12 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			}
 
 			components = q.Components()
+
+			// For destroy operations, reverse the order since the queue is built
+			// for apply order (dependencies first) but destroy needs dependents first
+			if isDestroyCommand(opts.QueueConstructAs) {
+				slices.Reverse(components)
+			}
 
 			return nil
 		})
@@ -315,4 +323,32 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 // shouldColor returns true if the output should be colored.
 func shouldColor(l log.Logger) bool {
 	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
+}
+
+// isDestroyCommand returns true if the command string represents a destroy operation.
+func isDestroyCommand(cmdStr string) bool {
+	if cmdStr == "" {
+		return false
+	}
+
+	parser := shellwords.NewParser()
+
+	args, err := parser.Parse(cmdStr)
+	if err != nil || len(args) == 0 {
+		return false
+	}
+
+	cmd := args[0]
+	if cmd == "destroy" {
+		return true
+	}
+
+	if len(args) > 1 {
+		cmdArgs := args[1:]
+		if (cmd == "apply" || cmd == "plan") && slices.Contains(cmdArgs, "-destroy") {
+			return true
+		}
+	}
+
+	return false
 }

@@ -17,21 +17,20 @@ const (
 // Stack represents a discovered Terragrunt stack configuration.
 // This type serves as a DTO for data exchange between discovery and runner packages.
 type Stack struct {
-	logger                log.Logger
-	report                *report.Report
-	discoveryContext      *DiscoveryContext
-	childTerragruntConfig *config.TerragruntConfig
-	workingDir            string // Working directory for this stack (only field needed from TerragruntOptions)
-	cfg                   *config.StackConfig
-	path                  string
-	dependents            Components
-	reading               []string
-	dependencies          Components
-	units                 Components
-	parserOptions         []hclparse.Option
-	mu                    sync.RWMutex
-	flagExcluded          bool
-	external              bool
+	logger           log.Logger
+	report           *report.Report
+	discoveryContext *DiscoveryContext
+	workingDir       string // Working directory for this stack (only field needed from TerragruntOptions)
+	cfg              *config.StackConfig
+	path             string
+	dependents       Components
+	reading          []string
+	dependencies     Components
+	units            Components
+	parserOptions    []hclparse.Option
+	mu               sync.RWMutex
+	flagExcluded     bool
+	external         bool
 }
 
 // NewStack creates a new Stack component with the given path.
@@ -255,22 +254,6 @@ func (s *Stack) SetWorkingDir(dir string) {
 	defer s.unlock()
 
 	s.workingDir = dir
-}
-
-// ChildTerragruntConfig returns the child Terragrunt config for this stack.
-func (s *Stack) ChildTerragruntConfig() *config.TerragruntConfig {
-	s.rLock()
-	defer s.rUnlock()
-
-	return s.childTerragruntConfig
-}
-
-// SetChildTerragruntConfig sets the child Terragrunt config for this stack.
-func (s *Stack) SetChildTerragruntConfig(cfg *config.TerragruntConfig) {
-	s.lock()
-	defer s.unlock()
-
-	s.childTerragruntConfig = cfg
 }
 
 // Units returns the units collection for this stack.

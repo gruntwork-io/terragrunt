@@ -47,6 +47,13 @@ const (
 	// This is a hack, and there should be a better way of handling this...
 	skipNoVariableNamedDependencyDiagnostic = `There is no variable named "dependency".`
 
+	// skipNoVariableNamedIncludeDiagnostic is a string used to identify diagnostics
+	// that reference the missing include variable.
+	//
+	// This can happen during discovery when include blocks with expose=true haven't been
+	// fully resolved yet.
+	skipNoVariableNamedIncludeDiagnostic = `There is no variable named "include".`
+
 	// skipNullValueDiagnostic is a string used to identify diagnostics about accessing
 	// attributes on null values, which commonly happens during discovery when dependency
 	// outputs or other values haven't been resolved yet, and the configuration is being
@@ -539,6 +546,7 @@ func Parse(
 					filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
 						strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
 						strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
+						strings.Contains(hclDiag.Detail, skipNoVariableNamedIncludeDiagnostic) ||
 						strings.Contains(strings.ToLower(hclDiag.Summary), skipNullValueDiagnostic) ||
 						strings.Contains(strings.ToLower(hclDiag.Detail), skipNullValueDiagnostic)
 

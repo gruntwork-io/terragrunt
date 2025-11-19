@@ -36,7 +36,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		for _, unit := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
+		for _, unit := range findMatchingUnitsInPath(ctx, l, dir, opts) {
 			matchedModulesMap[unit.Path()] = unit
 		}
 	}
@@ -70,7 +70,7 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) component.Units {
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions) component.Units {
 	// Construct the full path to terragrunt.hcl in the directory
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
@@ -85,7 +85,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.TerraformCommand = opts.TerraformCommand
 	cfgOptions.NonInteractive = true
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
+	runner, err := FindStackInSubfolders(ctx, l, cfgOptions)
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
 		return nil

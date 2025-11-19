@@ -59,9 +59,14 @@ type DiscoveryContext struct {
 // Components is a list of discovered Terragrunt components.
 type Components []Component
 
-// Sort sorts the Components by path.
+// Sort sorts the Components by type first (stacks before units), then by path.
 func (c Components) Sort() Components {
 	sort.Slice(c, func(i, j int) bool {
+		// Sort by kind first: stacks come before units
+		if c[i].Kind() != c[j].Kind() {
+			return c[i].Kind() < c[j].Kind() // "stack" < "unit" alphabetically
+		}
+		// Then sort by path
 		return c[i].Path() < c[j].Path()
 	})
 

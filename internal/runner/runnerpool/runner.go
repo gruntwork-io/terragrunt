@@ -726,11 +726,6 @@ func (r *Runner) GetStack() *component.Stack {
 	return r.Stack
 }
 
-// SetTerragruntConfig sets the config for the stack.
-func (r *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
-	r.Stack.SetChildTerragruntConfig(config)
-}
-
 // SetParseOptions sets the ParseOptions for the stack.
 func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
 	r.Stack.SetParserOptions(parserOptions)
