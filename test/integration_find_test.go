@@ -63,7 +63,7 @@ func TestFindHidden(t *testing.T) {
 		{
 			name:     "hidden",
 			hidden:   true,
-			expected: ".hide/unit\nstack\nunit\n",
+			expected: "stack\n.hide/unit\nunit\n",
 		},
 	}
 
