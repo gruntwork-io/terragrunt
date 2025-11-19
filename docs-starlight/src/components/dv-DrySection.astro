@@ -1,0 +1,28 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import Card from '@components/dv-Card.astro';
+
+const includesLink = '/docs/features/includes';
+const stacksLink = '/docs/features/stacks';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+    <div class="flex flex-col w-full md:w-[680px] lg:w-[900px]">
+        <!-- Header Section -->
+        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+            <Eyebrow text="DRY" />
+            <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1"><span class="text-accent">Reduce</span> Code Repetition</h2>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col md:flex-row gap-6 ">
+            <Card class="basis-1/2 border-solid border-4 rounded-lg !border-[#F1F1F1] shadow-[0_0_0_2px_white]" title="Reuse Common Infrastructure Configurations">
+                <p class="text-sm font-sans text-gray-1">Define reusable infrastructure configurations, like module inputs, backend configurations, and providers once, then reference them wherever they’re needed using <a href={includesLink}>includes</a>.</p>
+            </Card>
+            <Card class="basis-1/2 border-solid border-4 rounded-lg !border-[#F1F1F1] shadow-[0_0_0_2px_white]" title="Reuse Production-Ready Patterns">
+                <p class="text-sm font-sans text-gray-1">Leverage <a href={stacksLink}>Terragrunt Stack</a> to encapsulate higher level collections of infrastructure components as a unified stack.</p>
+            </Card>
+        </div>
+    </div>
+</section>

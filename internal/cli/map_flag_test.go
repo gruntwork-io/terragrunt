@@ -125,6 +125,7 @@ func testMapFlagApply[K cli.MapFlagKeyType, V cli.MapFlagValueType](t *testing.T
 		if val, ok := envs[key]; ok {
 			return flag.Splitter(val, flag.EnvVarSep)
 		}
+
 		return nil
 	}
 
@@ -139,11 +140,13 @@ func testMapFlagApply[K cli.MapFlagKeyType, V cli.MapFlagValueType](t *testing.T
 		require.Equal(t, expectedErr, err)
 		return
 	}
+
 	require.NoError(t, err)
 
 	if !destDefined {
 		actualValue = (flag.Value().Get()).(map[K]V)
 	}
+
 	assert.Subset(t, expectedValue, actualValue)
 
 	assert.Equal(t, collections.MapJoin(expectedValue, flag.EnvVarSep, flag.KeyValSep), flag.GetValue(), "GetValue()")

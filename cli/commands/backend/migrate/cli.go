@@ -1,8 +1,8 @@
 package migrate
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -20,16 +20,21 @@ const (
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	flags := cli.Flags{
+	sharedFlags := cli.Flags{
+		shared.NewConfigFlag(opts, prefix, CommandName),
+		shared.NewDownloadDirFlag(opts, prefix, CommandName),
+	}
+	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, prefix)...)
+	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, prefix)...)
+
+	return append(sharedFlags,
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ForceBackendMigrateFlagName,
 			EnvVars:     tgPrefix.EnvVars(ForceBackendMigrateFlagName),
 			Usage:       "Force the backend to be migrated, even if the bucket is not versioned.",
 			Destination: &opts.ForceBackendMigrate,
 		}),
-	}
-
-	return append(flags, run.NewFlags(l, opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
+	)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {

@@ -1,0 +1,246 @@
+---
+title: "Step 4: Breaking the Terralith"
+description: Breaking the Terralith
+slug: docs/guides/terralith-to-terragrunt/step-4-breaking-the-terralith
+sidebar:
+  order: 7
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
+
+In the previous step, you successfully duplicated your `prod` environment as a new `dev` environment by replicating your `prod` module declaration as a new `dev` module instance in your `live/main.tf` file. While this demonstrated the power of reusable modules, it also introduced significant risk: the ***Terralith***. You've tightly coupled management of both your `dev` and `prod` environments in a single state file, and you introduce risk to one whenever you attempt to make changes to another.
+
+In this step, you'll solve this problem by breaking apart your Terralith apart. You'll refactor your `live` root module into two distinct `dev` and `prod` root modules. Each will have its own state file, completely eliminating the risk of accidental cross-environment changes.
+
+## Tutorial
+
+Breaking down your Terralith so that you have multiple root modules is fairly simple now that you understand state manipulation a bit better.
+
+First, let's create a top-level directory for `prod` in `live`.
+
+<Code title="live" lang="bash" frame="terminal" code={`mkdir prod`} />
+
+Next, let's move everything into the `prod` directory (If you're not comfortable with using the `find` command here, you can just drag the content into the `prod` directory).
+
+<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \;`} />
+
+To complete our new multi-environment setup, let's duplicate that `prod` directory to a new `dev` directory.
+
+<Code title="live" lang="bash" frame="terminal" code={`cp -R prod dev`} />
+
+We need to edit the contents of the `dev` and `prod` directories to make some key adjustments. First, we'll want to make sure that the `backend.tf` files are updated to use new keys so that the two root modules don't conflict with each other.
+
+import devBackendTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/backend.tf?raw';
+
+<Code title="live/dev/backend.tf" lang="hcl" code={devBackendTf} />
+
+import prodBackendTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/backend.tf?raw';
+
+<Code title="live/prod/backend.tf" lang="hcl" code={prodBackendTf} />
+
+We'll also want to update the references to the shared module, update the `.auto.tfvars` file and edit the outputs to handle all the changes necessary for this project.
+
+import devMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/main.tf?raw';
+
+<Code title="live/dev/main.tf" lang="hcl" code={devMainTf} />
+
+import prodMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/main.tf?raw';
+
+<Code title="live/prod/main.tf" lang="hcl" code={prodMainTf} />
+
+<Aside type="note">
+These two files are now *exactly the same*. This will be important to keep in mind later.
+</Aside>
+
+Given that we've renamed the the module, we'll also need to add `moved` blocks to handle the state moves that need to take place here. If you're not sure what we're doing here, consider reviewing earlier steps.
+
+import devMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/moved.tf?raw';
+
+<Code title="live/dev/moved.tf" lang="hcl" code={devMovedTf} />
+
+import prodMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/moved.tf?raw';
+
+<Code title="live/prod/moved.tf" lang="hcl" code={prodMovedTf} />
+
+Next, we'll update the outputs, just like we did for the `main.tf` files.
+
+import devOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/outputs.tf?raw';
+
+<Code title="live/dev/outputs.tf" lang="hcl" code={devOutputsTf} />
+
+import prodOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/outputs.tf?raw';
+
+<Code title="live/prod/outputs.tf" lang="hcl" code={prodOutputsTf} />
+
+<Aside type="note">
+These two files are *also exactly the same*. This will be important to keep in mind later.
+</Aside>
+
+Finally, we need to update the `.auto.tfvars` files to reflect the difference in inputs passed to variables in these two root modules.
+
+```hcl
+# live/prod/.auto.tfvars
+
+# Required: Name used for all resources (must be unique)
+name = "best-cat-2025-09-24-2359"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../../dist/best-cat.zip"
+```
+
+```hcl
+# live/dev/.auto.tfvars
+
+# Required: Name used for all resources (must be unique)
+name = "best-cat-2025-09-24-2359-dev"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../../dist/best-cat.zip"
+```
+<Aside type="note">
+These two files differ in that they have different `name` values. They're not identical, but they're very similar.
+</Aside>
+
+It's time for some more state manipulation! We currently have a single state file in S3 at `s3://[your-state-bucket]/tofu.tfstate`. Our plan for splitting the state is to basically duplicate state for both the `dev` and `prod` root modules, then remove resources that we don't need from state in each of the root modules.
+
+In addition to having the state in S3, we also have a local copy of state in each root module. Running the `tofu init -migrate-state` command with the `.terraform` directory populated by copy of state from the previous configuration of the project will copy state to the new location in each new root module.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu init -migrate-state
+
+Initializing the backend...
+Backend configuration changed!
+
+OpenTofu has detected that the configuration specified for the backend
+has changed. OpenTofu will now check for existing state in the backends.
+
+Do you want to copy existing state to the new backend?
+  Pre-existing state was found while migrating the previous "s3" backend to the
+  newly configured "s3" backend. No existing state was found in the newly
+  configured "s3" backend. Do you want to copy this state to the new "s3"
+  backend? Enter "yes" to copy and "no" to start with an empty state.
+
+  Enter a value: yes
+
+Successfully configured the backend "s3"! OpenTofu will automatically
+use this backend unless the backend configuration changes.
+`} />
+
+<Code title="live/prod" lang="bash" frame="terminal" code={`$ tofu init -migrate-state
+
+Initializing the backend...
+Backend configuration changed!
+
+OpenTofu has detected that the configuration specified for the backend
+has changed. OpenTofu will now check for existing state in the backends.
+
+Do you want to copy existing state to the new backend?
+  Pre-existing state was found while migrating the previous "s3" backend to the
+  newly configured "s3" backend. No existing state was found in the newly
+  configured "s3" backend. Do you want to copy this state to the new "s3"
+  backend? Enter "yes" to copy and "no" to start with an empty state.
+
+  Enter a value: yes
+
+Successfully configured the backend "s3"! OpenTofu will automatically
+use this backend unless the backend configuration changes.
+`} />
+
+We now have the state in `s3://[your-state-bucket]/tofu.tfstate` copied to both:
+
+- `s3://[your-state-bucket]/dev/tofu.tfstate`
+- `s3://[your-state-bucket]/prod/tofu.tfstate`
+
+We need to remove the resources from state that aren't relevant in the new root modules, now so that we don't deploy `prod` resources in the `dev` root module and vice versa.
+
+import devRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/dev/removed.tf?raw';
+
+<Code title="live/dev/removed.tf" lang="hcl" code={devRemovedTf} />
+
+import prodRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-4-breaking-the-terralith/live/prod/removed.tf?raw';
+
+<Code title="live/prod/removed.tf" lang="hcl" code={prodRemovedTf} />
+
+## Project Layout Check-in
+
+At this stage, we should have a `live` directory that looks like the following (the `catalog` directory shouldn't have changed at all):
+
+<FileTree>
+- live
+  - dev
+    - backend.tf
+    - main.tf
+    - moved.tf
+    - outputs.tf
+    - providers.tf
+    - removed.tf
+    - vars-optional.tf
+    - vars-required.tf
+    - versions.tf
+  - prod
+    - backend.tf
+    - main.tf
+    - moved.tf
+    - outputs.tf
+    - providers.tf
+    - removed.tf
+    - vars-optional.tf
+    - vars-required.tf
+    - versions.tf
+</FileTree>
+
+## Applying Updates
+
+We should now see that we're simply going to forget the removed resources instead of destroying them.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu plan
+...
+Plan: 0 to add, 1 to change, 0 to destroy, 11 to forget.
+...
+`} />
+
+Let's apply both `dev` and `prod` to finalize the moves and removals.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ tofu apply
+...
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed, 11 forgotten.
+...
+`} />
+
+<Code title="live/prod" lang="bash" frame="terminal" code={`$ tofu apply
+...
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed, 11 forgotten.
+...
+`} />
+
+## Trade-offs
+
+### Pros
+
+We did it! We successfully broke apart our Terralith using OpenTofu alone. Some organizations get to this stage in their IaC journey, and are perfectly happy with managing their infrastructure like this.
+
+You can limit the blast radius of your `dev` and `prod` environments this way, and it's fairly straightforward to adjust your current working directory to the `dev` root module when making modifications to the `dev` environment, and adjusting your working directory to the `prod` root module when making modifications to the  `prod` environment. This is actually the pattern that Gruntwork was initially helping customers achieve early on to make their infrastructure safer, and more manageable by teams.
+
+### Cons
+
+There are, however, some downsides to how we're managing infrastructure here.
+
+1. There's some annoying boilerplate that's inconvenient to create and maintain. The following files are identical in each environment, but need to be present just to get OpenTofu to provision the same module:
+    1. `main.tf`
+    2. `outputs.tf`
+    3. `providers.tf`
+    4. `vars-optional.tf`
+    5. `vars-required.tf`
+2. We also have *almost* the same file in each of these, and their values aren't really that interesting.
+    1. `backend.tf`
+    2. `.auto.tfvars`
+3. We also don't have a convenient way to run multiple root modules at once. What if we want to update both `dev` *and* `prod` at once? What if we want to break down the environments further?
+- As you might have guessed, the next step is to introduce Terragrunt to address some of these downsides, and unlock even more capabilities for managing infrastructure at scale.
+
+## Wrap Up
+
+This is a pivotal moment in this guide. You have successfully started to break down the Terralith!
+
+By migrating your state and refactoring your configuration, you have split your single, high-risk state file into two separate ones: one for `dev` and one for `prod`. The primary benefit is safety. You've drastically reduced the blast radius, as running `tofu apply` in the `dev` directory can now *only* affect development resources and running `tofu apply` in the `prod` directory can *only* affect production resources. However, this safety has come at the cost of duplication. Your `dev` and `prod` directories contain a lot of identical, boilerplate `.tf` files, and it isn't very scalable. What if you have twice as many environments? What if you have ten times as many? How are you going to handle making all those updates?
+
+Helping customers solve these problems and more at scale is what Terragrunt was designed for, which we'll introduce next to streamline your workflow.

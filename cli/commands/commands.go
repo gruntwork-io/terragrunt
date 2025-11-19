@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -22,22 +21,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
-	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
+	execcmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
-	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
+	helpcmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
-	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
+	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
-	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
+	versioncmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/hashicorp/go-version"
@@ -61,9 +60,9 @@ const (
 // Categories are ordered in increments of 10 for easy insertion of new categories.
 func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	mainCommands := cli.Commands{
-		runCmd.NewCommand(l, opts),  // run
+		runcmd.NewCommand(l, opts),  // run
 		stack.NewCommand(l, opts),   // stack
-		execCmd.NewCommand(l, opts), // exec
+		execcmd.NewCommand(l, opts), // exec
 		backend.NewCommand(l, opts), // backend
 	}.SetCategory(
 		&cli.Category{
@@ -93,14 +92,13 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		hcl.NewCommand(l, opts),                // hcl
-		info.NewCommand(l, opts),               // info
-		dag.NewCommand(l, opts),                // dag
-		render.NewCommand(l, opts),             // render
-		helpCmd.NewCommand(l, opts),            // help (hidden)
-		versionCmd.NewCommand(opts),            // version (hidden)
-		awsproviderpatch.NewCommand(l, opts),   // aws-provider-patch (hidden)
-		outputmodulegroups.NewCommand(l, opts), // output-module-groups (hidden)
+		hcl.NewCommand(l, opts),              // hcl
+		info.NewCommand(l, opts),             // info
+		dag.NewCommand(l, opts),              // dag
+		render.NewCommand(l, opts),           // render
+		helpcmd.NewCommand(l, opts),          // help (hidden)
+		versioncmd.NewCommand(opts),          // version (hidden)
+		awsproviderpatch.NewCommand(l, opts), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -115,8 +113,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 		},
 	)
 
-	allCommands := NewDeprecatedCommands(l, opts).
-		Merge(mainCommands...).
+	allCommands := mainCommands.
 		Merge(catalogCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
@@ -150,8 +147,8 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// Handle auto provider cache dir experiment
-	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) && !opts.NoAutoProviderCacheDir {
+	// Set up automatic provider caching if enabled
+	if !opts.NoAutoProviderCacheDir {
 		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
@@ -164,7 +161,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 			return err
 		}
 
-		ln, err := server.Listen()
+		ln, err := server.Listen(ctx)
 		if err != nil {
 			return err
 		}
@@ -209,14 +206,14 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	var err error
 
-	l, terraformVersion, tfImplementation, err := runCmd.GetTFVersion(ctx, l, opts)
+	l, terraformVersion, tfImplementation, err := run.GetTFVersion(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
 	// Check if OpenTofu is being used
 	if tfImplementation != options.OpenTofuImpl {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
+		return errors.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
 	}
 
 	// Check OpenTofu version > 1.10
@@ -226,11 +223,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	requiredVersion, err := version.NewVersion(minTofuVersionForAutoProviderCacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to parse required version: %w", err)
+		return errors.Errorf("failed to parse required version: %w", err)
 	}
 
 	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
+		return errors.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
 	}
 
 	// Set up the provider cache directory
@@ -238,7 +235,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	if providerCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
-			return fmt.Errorf("failed to get cache directory: %w", err)
+			return errors.Errorf("failed to get cache directory: %w", err)
 		}
 
 		providerCacheDir = filepath.Join(cacheDir, "providers")
@@ -248,7 +245,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	if !filepath.IsAbs(providerCacheDir) {
 		absPath, err := filepath.Abs(providerCacheDir)
 		if err != nil {
-			return fmt.Errorf("failed to get absolute path for provider cache directory: %w", err)
+			return errors.Errorf("failed to get absolute path for provider cache directory: %w", err)
 		}
 
 		providerCacheDir = absPath
@@ -258,7 +255,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
-		return fmt.Errorf("failed to create provider cache directory: %w", err)
+		return errors.Errorf("failed to create provider cache directory: %w", err)
 	}
 
 	// Initialize environment variables map if it's nil
@@ -279,7 +276,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
-	if cmdName == runCmd.CommandName {
+	if cmdName == runcmd.CommandName {
 		cmdName = args.CommandName()
 	} else {
 		args = append([]string{cmdName}, args...)
@@ -349,7 +346,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
-		(cliCtx.Command.Name == runCmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
+		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
@@ -359,11 +356,6 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	}
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
-
-	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
-	if err != nil {
-		return err
-	}
 
 	if len(opts.IncludeDirs) > 0 {
 		l.Debugf("Included directories set. Excluding by default.")
@@ -389,20 +381,38 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
-	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
+	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
+
+	// Sort and compact opts.IncludeDirs to make them unique
+	slices.Sort(opts.IncludeDirs)
+	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
+
+	if !doubleStarEnabled {
+		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return errors.Errorf("invalid include dirs: %w", err)
+		}
+	}
+
+	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
-	if err != nil {
-		return err
-	}
+	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
+	// Sort and compact opts.ExcludeDirs to make them unique
+	slices.Sort(opts.ExcludeDirs)
+	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
+	if !doubleStarEnabled {
+		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return errors.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
 
 	// --- Terragrunt Version
-	terragruntVersion, err := version.NewVersion(cliCtx.App.Version)
+	terragruntVersion, err := version.NewVersion(cliCtx.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
@@ -424,7 +434,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-	opts.RunTerragrunt = runCmd.Run
+	opts.RunTerragrunt = run.Run
 
 	exec.PrepareConsole(l)
 

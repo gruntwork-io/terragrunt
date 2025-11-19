@@ -1,0 +1,244 @@
+---
+title: "Step 8: Refactoring state with Terragrunt Stacks"
+description: Refactoring state with Terragrunt Stacks
+slug: docs/guides/terralith-to-terragrunt/step-8-refactoring-state-with-terragrunt-stacks
+sidebar:
+  order: 11
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
+
+You've just completed a major refactor using **Terragrunt Stacks**.
+
+However, there's one final piece of technical debt remaining to complete this guide. To make the transition in the previous step smoother, we used the `no_dot_terragrunt_stack` attribute, which generated the unit configurations directly into directories like `dev/s3` and `prod/lambda`.
+
+While this worked perfectly fine for our migration, and is a recommended first step to adopting Terragrunt Stacks, it's not the standard configuration you would arrive at if you wrote the configurations by hand. By default, Terragrunt generates unit configurations into a hidden `.terragrunt-stack` directory within each environment. This keeps your generated code is neatly tucked away and easily ignored by version control. Our current setup requires `.gitignore` files in each stack directory to prevent committing this generated code.
+
+In this final step, you will perform one last state migration to align your project with Terragrunt's best practices. You will remove the `no_dot_terragrunt_stack` attribute and move your state to match the default, conventional directory structure.
+
+## Tutorial
+
+To review, this is what our S3 layout looks like for our state (ignoring the state that we've left behind during our refactors):
+
+```bash
+$ aws s3 ls --recursive s3://[your-state-bucket] | awk '{print $4}' | rg -v '^tofu.tfstate$' | rg -v '^dev/tofu.tfstate$' | rg -v '^prod/tofu.tfstate$'
+dev/ddb/tofu.tfstate
+dev/iam/tofu.tfstate
+dev/lambda/tofu.tfstate
+dev/s3/tofu.tfstate
+prod/ddb/tofu.tfstate
+prod/iam/tofu.tfstate
+prod/lambda/tofu.tfstate
+prod/s3/tofu.tfstate
+```
+
+What we'd like our state keys to look like is the following, which is how it would look if we provisioned our stack without usage of `no_dot_terragrunt_stack` from the beginning:
+
+```bash
+dev/.terragrunt-stack/ddb/tofu.tfstate
+dev/.terragrunt-stack/iam/tofu.tfstate
+dev/.terragrunt-stack/lambda/tofu.tfstate
+dev/.terragrunt-stack/s3/tofu.tfstate
+prod/.terragrunt-stack/ddb/tofu.tfstate
+prod/.terragrunt-stack/iam/tofu.tfstate
+prod/.terragrunt-stack/lambda/tofu.tfstate
+prod/.terragrunt-stack/s3/tofu.tfstate
+```
+
+Given that there's a close relationship between filesystem layout and backend state keys, we can achieve this by having our units generated into the default `.terragrunt-stack` directories instead of being generated directly adjacent to `terragrunt.stack.hcl` files.
+
+What we'll want to do is perform state migration while having both unit layouts generated locally. If you remember earlier steps, the way to that this is to use the `state pull` and `state push` commands.
+
+First, let's make sure we have our stack generated as-is without removing the `no_dot_terragrunt_stack` attribute.
+
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt stack generate
+16:36:50.794 INFO   Generating stack from ./dev/terragrunt.stack.hcl
+16:36:50.797 INFO   Generating stack from ./prod/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit s3 from ./dev/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit ddb from ./dev/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit lambda from ./dev/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit iam from ./dev/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit lambda from ./prod/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit iam from ./prod/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit ddb from ./prod/terragrunt.stack.hcl
+16:36:50.798 INFO   Processing unit s3 from ./prod/terragrunt.stack.hcl
+`} />
+
+Now let's edit our `terragrunt.stack.hcl` files to remove the `no_dot_terragrunt_stack` attribute. This will generate units into the desired final directory structure.
+
+import liveDevTerragruntStackHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-8-refactoring-state-with-terragrunt-stacks/live/dev/terragrunt.stack.hcl?raw';
+
+<Code title="live/dev/terragrunt.stack.hcl" lang="hcl" code={liveDevTerragruntStackHcl} />
+
+import liveProdTerragruntStackHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-8-refactoring-state-with-terragrunt-stacks/live/prod/terragrunt.stack.hcl?raw';
+
+<Code title="live/prod/terragrunt.stack.hcl" lang="hcl" code={liveProdTerragruntStackHcl} />
+
+Now let's generate again to get that generated `.terragrunt-stack` directory.
+
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt stack generate`} />
+
+## Project Layout Check-in
+
+Should see a layout like the following now, with both a stack generated within `.terragrunt-stack` and one generated outside of it:
+
+<FileTree>
+- live
+  - dev
+    - **.terragrunt-stack**
+      - **ddb**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+      - **iam**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+      - **lambda**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+      - **s3**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+    - ddb
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - iam
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - lambda
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - s3
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - terragrunt.stack.hcl
+  - prod
+    - **.terragrunt-stack**
+      - **ddb**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+      - **iam**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+      - **lambda**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+      - **s3**
+        - **.terraform.lock.hcl**
+        - **.terragrunt-stack-manifest**
+        - **terragrunt.hcl**
+        - **terragrunt.values.hcl**
+    - ddb
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - iam
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - lambda
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - s3
+      - .terraform.lock.hcl
+      - .terragrunt-stack-manifest
+      - terragrunt.hcl
+      - terragrunt.values.hcl
+    - terragrunt.stack.hcl
+</FileTree>
+
+
+## Applying Updates
+
+To migrate state from the old unit paths to the new paths, we can run the following:
+
+<Code title="live" lang="bash" frame="terminal" code={`# Migrate dev state
+cd dev/ddb
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/ddb
+terragrunt state push /tmp/tofu.tfstate
+cd ../../s3
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/s3
+terragrunt state push /tmp/tofu.tfstate
+cd ../../iam
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/iam
+terragrunt state push /tmp/tofu.tfstate
+cd ../../lambda
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/lambda
+terragrunt state push /tmp/tofu.tfstate
+
+# Migrate prod state
+cd ../../../prod/ddb
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/ddb
+terragrunt state push /tmp/tofu.tfstate
+cd ../../s3
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/s3
+terragrunt state push /tmp/tofu.tfstate
+cd ../../iam
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/iam
+terragrunt state push /tmp/tofu.tfstate
+cd ../../lambda
+terragrunt state pull > /tmp/tofu.tfstate
+cd ../.terragrunt-stack/lambda
+terragrunt state push /tmp/tofu.tfstate
+`} />
+
+We can now remove the `.gitignore` files, and prove to ourselves that state has migrated successfully!
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -rf ./***/.gitignore ./***/ddb ./***/iam ./***/lambda ./***/s3
+terragrunt run --all plan
+
+# No changes!
+`} />
+
+## Trade-offs
+
+This final refactor brings your project into alignment with Terragrunt's standard conventions, but there are some minor trade-offs to consider.
+
+### Pros
+
+- **Cleaner Working Directory**: The most significant advantage is the cleanliness of your `live` directory. All generated code now resides in a hidden `.terragrunt-stack` directory, leaving your environment folders (e.g., `live/dev`) containing only your manually-managed `terragrunt.stack.hcl` file.
+- **Simplified Version Control**: You can now remove the environment-specific `.gitignore` files. A single, global entry to ignore `.terragrunt-stack` and `.terragrunt-cache` is all that's needed, making your version control rules simpler and more reliable.
+
+### Cons
+
+- **State Migration**: The primary cost is the one-time effort of performing the state migration. While powerful, any direct state manipulation requires careful execution to avoid errors. This refactor is an investment of time and attention to detail.
+- **Tooling Requirements**: If you currently use a CI/CD tool that supports Terragrunt, it has to have built-in awareness of how Terragrunt Stack generation, like [Gruntwork Pipelines](https://www.gruntwork.io/platform/pipelines). CI/CD tools that have been around for a long while might not prioritize handling stack generation, and lack support as a consequence. Placing all generated units in a `.gitignore` file, CI/CD tools might not be able to track when units change, and make selective changes to IaC.
+
+## Wrap Up
+
+This final step was about aligning with Terragrunt's standard conventions. By removing the `no_dot_terragrunt_stack` attribute, you enabled Terragrunt's default behavior of generating code into a hidden `.terragrunt-stack` directory.
+
+This required one last, careful state migration. You used **`terragrunt state pull`** to download state from old unit keys and **`terragrunt state push`** to the new, conventional backend keys that matched the updated directory structure from stack generation. Your project is now not only easy to manage but also immediately familiar to any engineer experienced with Terragrunt, featuring a state backend structure aligned with your filesystem.

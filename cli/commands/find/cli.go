@@ -4,6 +4,7 @@ package find
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -25,6 +26,7 @@ const (
 	External       = "external"
 	Exclude        = "exclude"
 	Include        = "include"
+	Reading        = "reading"
 
 	QueueConstructAsFlagName  = "queue-construct-as"
 	QueueConstructAsFlagAlias = "as"
@@ -79,10 +81,16 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Display include configurations in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
+			Name:        Reading,
+			EnvVars:     tgPrefix.EnvVars(Reading),
+			Destination: &opts.Reading,
+			Usage:       "Include the list of files that are read by components in the results (only when using --format=json).",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,
 			EnvVars:     tgPrefix.EnvVars(External),
 			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
+			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        QueueConstructAsFlagName,
@@ -91,17 +99,23 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
+		shared.NewFilterFlag(opts.TerragruntOptions),
 	}
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
 
+	// Base flags for find plus backend/feature flags
+	flags := NewFlags(cmdOpts, nil)
+	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
+	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
+
 	return &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandAlias},
 		Usage:   "Find relevant Terragrunt configurations.",
-		Flags:   NewFlags(cmdOpts, nil),
+		Flags:   flags,
 		Before: func(ctx *cli.Context) error {
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON

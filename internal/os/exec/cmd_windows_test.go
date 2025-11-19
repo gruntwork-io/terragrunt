@@ -34,7 +34,7 @@ func TestWindowsExitCode(t *testing.T) {
 	t.Parallel()
 
 	for i := 0; i <= 255; i++ {
-		cmd := exec.Command(`testdata\test_exit_code.bat`, strconv.Itoa(i))
+		cmd := exec.Command(t.Context(), `testdata\test_exit_code.bat`, strconv.Itoa(i))
 		err := cmd.Run()
 
 		if i == 0 {
@@ -60,7 +60,7 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 
 	expectedWait := 5
 
-	cmd := exec.Command(`testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
+	cmd := exec.Command(t.Context(), `testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
 
 	runChannel := make(chan error)
 

@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -41,6 +41,7 @@ func getPathRelativeTo(t *testing.T, path string, basePath string) string {
 
 	relPath, err := util.GetPathRelativeTo(path, basePath)
 	require.NoError(t, err)
+
 	return relPath
 }
 
@@ -52,6 +53,7 @@ func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	for i, path := range paths {
 		relPath, err := util.GetPathRelativeTo(path, basePath)
 		require.NoError(t, err)
+
 		relPaths[i] = relPath
 	}
 
@@ -162,6 +164,7 @@ func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string
 		URL    string   `json:"url"`
 		Hashes []string `json:"hashes"`
 	}
+
 	type Version struct {
 		Archives map[string]VersionProvider `json:"archives"`
 	}
@@ -195,6 +198,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 
 	file, err := os.Create(filepath.Join(providerDir, provider.filename()))
 	require.NoError(t, err)
+
 	defer func() {
 		file.Close()
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
@@ -208,6 +212,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
+
 	defer zipFile.Close()
 
 	zipWriter := zip.NewWriter(zipFile)
@@ -353,6 +358,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 
 func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value any) {
 	t.Helper()
+
 	output, hasPlatform := outputs[key]
 	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)
 	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
@@ -363,11 +369,13 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(helpers.TofuBinary, "-version") {
+		if util.IsCommandExecutable(context.Background(), helpers.TofuBinary, "-version") {
 			return helpers.TofuBinary
 		}
+
 		return helpers.TerraformBinary
 	}
+
 	return filepath.Base(value)
 }
 
@@ -386,13 +394,16 @@ func isTerraform() bool {
 
 func findFilesWithExtension(dir string, ext string) ([]string, error) {
 	var files []string
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if !info.IsDir() && filepath.Ext(path) == ext {
 			files = append(files, path)
 		}
+
 		return nil
 	})
 

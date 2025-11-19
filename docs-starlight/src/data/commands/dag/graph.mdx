@@ -8,6 +8,8 @@ description: Graph the Directed Acyclic Graph (DAG) in DOT language.
 usage: |
   Print a visual representation of the Terragrunt dependency graph in DOT language format.
   This command analyzes your Terragrunt configuration and outputs a directed acyclic graph (DAG) showing the relationships and dependencies between your Terraform modules.
+
+  **Note:** This command is an alias for `list --format=dot`. Both commands produce identical output.
 examples:
   - description: Graph all dependencies in the graph as a DotViz graph.
     code: |
@@ -22,3 +24,19 @@ examples:
       $ terragrunt dag graph  | dot -Tpng > graph.png
 
 ---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="note" title="Alias for list --format=dot">
+
+The `dag graph` command is an alias for `list --format=dot --dependencies --external`. Both commands produce identical DOT format output:
+
+```bash
+terragrunt dag graph
+# Equivalent to:
+terragrunt list --format=dot --dependencies --external
+```
+
+For more information about the DOT format and its usage, see the [list command documentation](/docs/reference/cli/commands/list#dot-format).
+
+</Aside>

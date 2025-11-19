@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
-          version: 2025.4.4
+          version: 2025.8.16
           experimental: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
@@ -61,7 +61,7 @@ jobs:
           TIMEOUT: ${{ matrix.flake.timeout }}
 
       - name: Upload Report (${{ matrix.flake.name }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-report-${{ matrix.flake.name }}
           path: result.xml

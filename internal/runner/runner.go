@@ -3,6 +3,7 @@ package runner
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -10,11 +11,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -23,13 +21,9 @@ import (
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
-	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
-		l.Infof("Using runner pool for stack %s", terragruntOptions.WorkingDir)
+	l.Infof("Using runner pool for stack %s", terragruntOptions.WorkingDir)
 
-		return runnerpool.Build(ctx, l, terragruntOptions, opts...)
-	}
-
-	return configstack.Build(ctx, l, terragruntOptions, opts...)
+	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 }
 
 // FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
@@ -41,9 +35,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		for k, v := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
-			matchedModulesMap[k] = v
-		}
+		maps.Copy(matchedModulesMap, findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig))
 	}
 
 	var matchedModules = make(common.Units, 0, len(matchedModulesMap))
@@ -78,11 +70,12 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.UnitsMap {
 	matchedModulesMap := make(common.UnitsMap)
 
-	dir += filepath.FromSlash("/")
+	// Construct the full path to terragrunt.hcl in the directory
+	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
-	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
+	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	if err != nil {
-		l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
+		l.Debugf("Failed to build terragrunt options from %s %v", configPath, err)
 		return matchedModulesMap
 	}
 

@@ -27,10 +27,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/mattn/go-shellwords"
 
 	"os"
 	"path/filepath"
@@ -38,12 +39,14 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -94,6 +97,9 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		t,
 		util.CopyFolderContents(logger.CreateLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil),
 	)
+
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	return tmpDir
 }
@@ -169,22 +175,26 @@ func UniqueID() string {
 }
 
 // CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
+func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.TerragruntOptionsFunc) *s3.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
 	require.NoError(t, err, "Error creating mockOptions")
 
+	for _, opt := range opts {
+		opt(mockOptions)
+	}
+
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	session, err := awshelper.CreateAwsSession(logger.CreateLogger(), awsConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), awsConfig, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
-	return s3.New(session)
+	return s3.NewFromConfig(cfg)
 }
 
 // CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.DynamoDB {
+func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_dynamodb_test")
@@ -196,23 +206,39 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	session, err := awshelper.CreateAwsSession(logger.CreateLogger(), sessionConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), sessionConfig, mockOptions)
 	require.NoError(t, err, "Error creating DynamoDB client")
 
-	return dynamodb.New(session)
+	return dynamodb.NewFromConfig(cfg)
 }
 
 // DeleteS3Bucket deletes the specified S3 bucket potentially with error to clean up after a test.
 func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
 	t.Helper()
 
-	client := CreateS3ClientForTest(t, awsRegion)
+	client := CreateS3ClientForTest(t, awsRegion, opts...)
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
+	// First check if bucket exists
+	_, err := client.HeadBucket(t.Context(), &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	if err != nil {
+		if isAWSResourceNotFoundError(err) {
+			t.Logf("S3 bucket %s does not exist, cleanup already complete", bucketName)
+			return nil
+		}
+
+		t.Logf("Error checking if S3 bucket %s exists: %v", bucketName, err)
+	}
+
 	cleanS3Bucket(t, client, bucketName)
 
-	if _, err := client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if isAWSResourceNotFoundError(err) {
+			t.Logf("S3 bucket %s was already deleted", bucketName)
+			return nil
+		}
+
 		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 
 		// If the bucket is not empty, try to clean it again before deleting it.
@@ -222,8 +248,14 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 		cleanS3Bucket(t, client, bucketName)
 
-		if _, err = client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if _, err = client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s was already deleted", bucketName)
+				return nil
+			}
+
 			t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+
 			return err
 		}
 
@@ -233,59 +265,88 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 	return nil
 }
 
-func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) {
+func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 	t.Helper()
 
-	t.Logf("Cleaning S3 bucket %s", bucketName)
-
-	// Use pagination to handle large numbers of objects/versions
-	versionsInput := &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
+	versionsInput := &s3.ListObjectVersionsInput{
+		Bucket: aws.String(bucketName),
+	}
 
 	for {
-		out, err := client.ListObjectVersions(versionsInput)
-		require.NoError(t, err)
+		out, err := client.ListObjectVersions(t.Context(), versionsInput)
+		if err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s does not exist, skipping cleanup", bucketName)
+				return
+			}
 
-		objectIdentifiers := []*s3.ObjectIdentifier{}
-
-		// Handle delete markers (created when versioned objects are deleted)
-		for _, deleteMarker := range out.DeleteMarkers {
-			objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-				Key:       deleteMarker.Key,
-				VersionId: deleteMarker.VersionId,
-			})
+			require.NoError(t, err)
 		}
 
-		// Handle object versions
-		for _, version := range out.Versions {
-			objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-				Key:       version.Key,
-				VersionId: version.VersionId,
-			})
+		if len(out.Versions) == 0 && len(out.DeleteMarkers) == 0 {
+			break
 		}
 
-		// Delete objects in batches (AWS limit is 1000 per request)
-		if len(objectIdentifiers) > 0 {
-			const maxBatchSize = 1000
-			for i := 0; i < len(objectIdentifiers); i += maxBatchSize {
-				end := min(i+maxBatchSize, len(objectIdentifiers))
+		if len(out.Versions) > 0 {
+			var objectsToDelete []s3types.ObjectIdentifier
 
-				batch := objectIdentifiers[i:end]
-				deleteInput := &s3.DeleteObjectsInput{
-					Bucket: aws.String(bucketName),
-					Delete: &s3.Delete{Objects: batch},
+			for _, version := range out.Versions {
+				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
+					Key:       version.Key,
+					VersionId: version.VersionId,
+				})
+			}
+
+			deleteInput := &s3.DeleteObjectsInput{
+				Bucket: aws.String(bucketName),
+				Delete: &s3types.Delete{
+					Objects: objectsToDelete,
+				},
+			}
+
+			_, err := client.DeleteObjects(t.Context(), deleteInput)
+			if err != nil {
+				if isAWSResourceNotFoundError(err) {
+					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+					return
 				}
 
-				_, err := client.DeleteObjects(deleteInput)
 				require.NoError(t, err)
 			}
 		}
 
-		// Check if there are more objects to process (pagination)
+		if len(out.DeleteMarkers) > 0 {
+			var objectsToDelete []s3types.ObjectIdentifier
+
+			for _, marker := range out.DeleteMarkers {
+				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
+					Key:       marker.Key,
+					VersionId: marker.VersionId,
+				})
+			}
+
+			deleteInput := &s3.DeleteObjectsInput{
+				Bucket: aws.String(bucketName),
+				Delete: &s3types.Delete{
+					Objects: objectsToDelete,
+				},
+			}
+
+			_, err := client.DeleteObjects(t.Context(), deleteInput)
+			if err != nil {
+				if isAWSResourceNotFoundError(err) {
+					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+					return
+				}
+
+				require.NoError(t, err)
+			}
+		}
+
 		if out.IsTruncated == nil || !*out.IsTruncated {
 			break
 		}
 
-		// Set up for next page
 		versionsInput.KeyMarker = out.NextKeyMarker
 		versionsInput.VersionIdMarker = out.NextVersionIdMarker
 	}
@@ -537,6 +598,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
+
 	defer zipFile.Close()
 
 	zipWriter := zip.NewWriter(zipFile)
@@ -694,7 +756,7 @@ func WrappedBinary() string {
 	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(TofuBinary, "-version") {
+		if util.IsCommandExecutable(context.Background(), TofuBinary, "-version") {
 			return TofuBinary
 		}
 
@@ -731,7 +793,7 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 		return false
 	}
 
-	output, err := exec.Command(WrappedBinary(), "-version").Output()
+	output, err := exec.CommandContext(t.Context(), WrappedBinary(), "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -748,12 +810,12 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 
 // IsOpenTofuInstalled checks if OpenTofu is installed.
 func IsOpenTofuInstalled() bool {
-	return util.IsCommandExecutable(TofuBinary, "-version")
+	return util.IsCommandExecutable(context.Background(), TofuBinary, "-version")
 }
 
 // IsTerraformInstalled checks if Terraform is installed.
 func IsTerraformInstalled() bool {
-	return util.IsCommandExecutable(TerraformBinary, "-version")
+	return util.IsCommandExecutable(context.Background(), TerraformBinary, "-version")
 }
 
 // IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
@@ -769,7 +831,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 	)
 
 	if IsTerraform() {
-		output, err := exec.Command(TerraformBinary, "-version").Output()
+		output, err := exec.CommandContext(t.Context(), TerraformBinary, "-version").Output()
 		require.NoError(t, err)
 
 		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -784,7 +846,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		return major > terraformRequiredMajor || (major == terraformRequiredMajor && minor >= terraformRequiredMinor)
 	}
 
-	output, err := exec.Command(TofuBinary, "-version").Output()
+	output, err := exec.CommandContext(t.Context(), TofuBinary, "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -852,10 +914,20 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntCommandWithContext(
+	t *testing.T,
+	ctx context.Context,
+	command string,
+	writer,
+	errwriter io.Writer,
+	extraArgs ...string,
+) error {
 	t.Helper()
 
-	args := splitCommand(command)
+	parser := shellwords.NewParser()
+
+	args, err := parser.Parse(command)
+	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
 		var builtinCmd []string
@@ -1011,39 +1083,6 @@ func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 	return childTerragruntDestPath
 }
 
-func splitCommand(command string) []string {
-	var (
-		next   int
-		quoted byte
-		args   []string
-	)
-
-	for index := range len(command) {
-		char := command[index]
-
-		if char == '"' || char == '\'' {
-			if quoted == 0 {
-				quoted = char
-			} else if quoted == char && index > 0 && command[index-1] != '\\' {
-				quoted = 0
-			}
-		}
-
-		if quoted != 0 || char != ' ' {
-			continue
-		}
-
-		arg := strings.TrimSpace(command[next:index])
-		next = index + 1
-
-		if arg != "" {
-			args = append(args, arg)
-		}
-	}
-
-	return append(args, command[next:])
-}
-
 func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 	t.Helper()
 
@@ -1064,7 +1103,7 @@ func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 func CreateGitRepo(t *testing.T, dir string) {
 	t.Helper()
 
-	commandOutput, err := exec.Command("git", "init", dir).CombinedOutput()
+	commandOutput, err := exec.CommandContext(t.Context(), "git", "init", dir).CombinedOutput()
 	require.NoErrorf(t, err, "Error initializing git repo: %v\n%s", err, string(commandOutput))
 }
 
@@ -1150,4 +1189,13 @@ func CopyFile(t *testing.T, src, dst string) {
 	require.NoError(t, err)
 
 	require.NoError(t, os.Chmod(dst, sourceInfo.Mode()))
+}
+
+// isAWSResourceNotFoundError checks if an error indicates that an AWS resource (S3 bucket, DynamoDB table, etc.) was not found
+func isAWSResourceNotFoundError(err error) bool {
+	var apiErr smithy.APIError
+
+	return errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchBucket" ||
+		apiErr.ErrorCode() == "NotFound" ||
+		apiErr.ErrorCode() == "ResourceNotFoundException")
 }

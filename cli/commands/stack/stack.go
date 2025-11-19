@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -36,7 +38,6 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
 			return config.CleanStacks(ctx, l, opts)
 		})
-
 		if err != nil {
 			return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 		}
@@ -46,7 +47,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return config.GenerateStacks(ctx, l, opts)
+		return generate.GenerateStacks(ctx, l, opts)
 	})
 }
 
@@ -60,7 +61,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}, func(ctx context.Context) error {
 		return RunGenerate(ctx, l, opts)
 	})
-
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := config.StackOutput(ctx, l, opts)
+		stackOutputs, err := output.StackOutput(ctx, l, opts)
 		outputs = stackOutputs
 
 		return err
@@ -155,13 +155,13 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 // RunClean recursively removes all stack directories under the specified WorkingDir.
 func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	telemeter := telemetry.TelemeterFromContext(ctx)
+
 	err := telemeter.Collect(ctx, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
 		return config.CleanStacks(ctx, l, opts)
 	})
-
 	if err != nil {
 		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 	}

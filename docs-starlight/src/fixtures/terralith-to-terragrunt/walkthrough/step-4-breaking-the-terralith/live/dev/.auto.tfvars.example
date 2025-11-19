@@ -1,0 +1,12 @@
+# Example configuration file - copy to terraform.tfvars and update values
+
+# Required: Name used for all resources (must be unique)
+name = "best-cat-2025-07-31-01-dev"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../../../../dist/best-cat.zip"
+
+# Optional: Force destroy S3 buckets even when they have objects in them.
+# You're generally advised not to do this with important infrastructure,
+# however this makes testing and cleanup easier for this guide.
+force_destroy = true

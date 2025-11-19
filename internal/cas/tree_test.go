@@ -69,11 +69,13 @@ func TestParseTreeEntry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got, err := cas.ParseTreeEntry(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
@@ -119,11 +121,13 @@ invalid format`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got, err := cas.ParseTree(tt.input, tt.path)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Len(t, got.Entries(), tt.wantLen)
 			assert.Equal(t, tt.wantPath, got.Path())
@@ -253,6 +257,7 @@ func TestLinkTree(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			// Verify all expected files and directories
@@ -280,7 +285,6 @@ func TestLinkTree(t *testing.T) {
 					require.NoError(t, err)
 
 					assert.True(t, os.SameFile(dataStat, storeStat))
-
 				}
 			}
 		})

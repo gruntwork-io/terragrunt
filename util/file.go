@@ -6,12 +6,15 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
+	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"fmt"
@@ -95,8 +98,41 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return CleanPath(absPath), nil
 }
 
+func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
+	basePath, err := CanonicalPath("", basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var errs []error
+
+	compiledGlobs := map[string]glob.Glob{}
+
+	for _, globPath := range globPaths {
+		canGlobPath, err := CanonicalPath(globPath, basePath)
+		if err != nil {
+			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
+			continue
+		}
+
+		compiledGlob, err := glob.Compile(canGlobPath, '/')
+		if err != nil {
+			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
+			continue
+		}
+
+		compiledGlobs[globPath] = compiledGlob
+	}
+
+	if len(errs) > 0 {
+		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
+	}
+
+	return compiledGlobs, nil
+}
+
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
+func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]string, error) {
 	if len(globPaths) == 0 {
 		return []string{}, nil
 	}
@@ -112,6 +148,11 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 	var paths []string
 
 	for _, globPath := range globPaths {
+		// Log a warning if globPath uses the old glob pattern
+		if strings.HasSuffix(globPath, "**/*") {
+			l.Warn("Glob behavior will change in a future version of Terragrunt. `**/*` will match all files in a directory and its subdirectories with a depth of at least one. Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
+		}
+
 		// Ensure globPath are absolute
 		if !filepath.IsAbs(globPath) {
 			globPath = filepath.Join(basePath, globPath)
@@ -184,6 +225,104 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
+func FindTFFiles(rootPath string) ([]string, error) {
+	var terraformFiles []string
+
+	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if IsTFFile(path) {
+			terraformFiles = append(terraformFiles, path)
+		}
+
+		return nil
+	})
+
+	return terraformFiles, err
+}
+
+// RegexFoundInTFFiles walks through the directory and checks if any OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json) contain the given regex pattern
+func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error) {
+	var found bool
+
+	err := filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !IsTFFile(path) {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if pattern.Match(content) {
+			found = true
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	return found, err
+}
+
+// DirContainsTFFiles checks if the given directory contains any Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
+func DirContainsTFFiles(dirPath string) (bool, error) {
+	var found bool
+
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if IsTFFile(path) {
+			found = true
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	return found, err
+}
+
+// IsTFFile checks if a given file is a Terraform/OpenTofu file (.tf, .tofu, .tf.json, .tofu.json)
+func IsTFFile(path string) bool {
+	suffixes := []string{
+		".tf",
+		".tofu",
+		".tf.json",
+		".tofu.json",
+	}
+
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IsDir returns true if the path points to a directory.
@@ -692,17 +831,17 @@ func (err PathIsNotFile) Error() string {
 func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) {
 	var tfFiles []string
 
-	walkFunc := filepath.Walk
+	walkFunc := filepath.WalkDir
 	if walkWithSymlinks {
-		walkFunc = WalkWithSymlinks
+		walkFunc = WalkDirWithSymlinks
 	}
 
-	err := walkFunc(directoryPath, func(path string, info os.FileInfo, err error) error {
+	err := walkFunc(directoryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() && filepath.Ext(path) == TfFileExtension {
+		if !d.IsDir() && filepath.Ext(path) == TfFileExtension {
 			tfFiles = append(tfFiles, path)
 		}
 
@@ -778,20 +917,18 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 		return nil, err
 	}
 
-	var dirs []string
+	var (
+		lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+		dirs  = make([]string, 0, len(lines))
+	)
 
-	lines := strings.SplitSeq(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	for dir := range lines {
-		if dir := strings.TrimSpace(dir); dir == "" || strings.HasPrefix(dir, "#") {
+	for _, dir := range lines {
+		dir = strings.TrimSpace(dir)
+		if dir == "" || strings.HasPrefix(dir, "#") {
 			continue
 		}
 
-		newDirs, err := GlobCanonicalPath(baseDir, dir)
-		if err != nil {
-			return nil, err
-		}
-
-		dirs = append(dirs, newDirs...)
+		dirs = append(dirs, dir)
 	}
 
 	return dirs, nil
@@ -879,7 +1016,6 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 			}
 		}),
 	)
-
 	if err != nil {
 		err = errors.New(err)
 	}
@@ -887,12 +1023,27 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 	return num, err
 }
 
-// WalkWithSymlinks traverses a directory tree, following symbolic links and calling
-// the provided function for each file or directory encountered. It handles both regular
+// evalRealPathForWalkDir evaluates symlinks and returns the real path and whether it's a directory.
+func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
+	realPath, err := filepath.EvalSymlinks(currentPath)
+	if err != nil {
+		return "", false, errors.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
+	}
+
+	realInfo, err := os.Stat(realPath)
+	if err != nil {
+		return "", false, errors.Errorf("failed to describe file %s: %w", realPath, err)
+	}
+
+	return realPath, realInfo.IsDir(), nil
+}
+
+// WalkDirWithSymlinks traverses a directory tree using filepath.WalkDir, following symbolic links
+// and calling the provided function for each file or directory encountered. It handles both regular
 // symlinks and circular symlinks without getting into infinite loops.
 //
 //nolint:funlen
-func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
+func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 	// pathPair keeps track of both the physical (real) path on disk
 	// and the logical path (how it appears in the walk)
 	type pathPair struct {
@@ -911,35 +1062,35 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 	var walkFn func(pathPair) error
 
 	walkFn = func(pair pathPair) error {
-		return filepath.Walk(pair.physical, func(currentPath string, info os.FileInfo, err error) error {
+		return filepath.WalkDir(pair.physical, func(currentPath string, d fs.DirEntry, err error) error {
 			if err != nil {
-				return externalWalkFn(currentPath, info, err)
+				return externalWalkFn(currentPath, d, err)
 			}
 
 			// Convert the current physical path to a logical path relative to the walk root
 			rel, err := filepath.Rel(pair.physical, currentPath)
 			if err != nil {
-				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)
-
-			realPath, realInfo, err := evalRealPathAndInfo(currentPath)
-			if err != nil {
-				return err
-			}
 
 			// Call the provided function only if we haven't seen this logical path before
 			if !visitedLogical[logicalPath] {
 				visitedLogical[logicalPath] = true
 
-				if err := externalWalkFn(logicalPath, realInfo, nil); err != nil {
+				if err := externalWalkFn(logicalPath, d, nil); err != nil {
 					return err
 				}
 			}
 
 			// If we encounter a symlink, resolve and follow it
-			if info.Mode()&os.ModeSymlink != 0 {
+			if d.Type()&fs.ModeSymlink != 0 {
+				realPath, isDir, evalErr := evalRealPathForWalkDir(currentPath)
+				if evalErr != nil {
+					return evalErr
+				}
+
 				// Skip if we've seen this symlink->target combination before
 				// This prevents infinite loops with circular symlinks
 				if visited[realPath+":"+currentPath] {
@@ -949,7 +1100,7 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 				visited[realPath+":"+currentPath] = true
 
 				// If the target is a directory, recursively walk it
-				if realInfo.IsDir() {
+				if isDir {
 					return walkFn(pathPair{
 						physical: realPath,
 						logical:  logicalPath,
@@ -963,7 +1114,7 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return fmt.Errorf("failed to get evaluate sym links for %s: %w", root, err)
+		return errors.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
 	// Start the walk from the root directory
@@ -971,21 +1122,6 @@ func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
 		physical: realRoot,
 		logical:  realRoot,
 	})
-}
-
-func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
-	realPath, err := filepath.EvalSymlinks(currentPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get evaluate sym links for %s: %w", currentPath, err)
-	}
-
-	// Get info about the symlink target
-	realInfo, err := os.Stat(realPath)
-	if err != nil {
-		return "", nil, errors.Errorf("failed to describe file %s: %w", realPath, err)
-	}
-
-	return realPath, realInfo, nil
 }
 
 // SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts
@@ -1019,4 +1155,24 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
 
 	return fullPath, nil
+}
+
+// MoveFile attempts to rename a file from source to destination, if this fails
+// due to invalid cross-device link it falls back to copying the file contents
+// and deleting the original file.
+func MoveFile(source string, destination string) error {
+	if renameErr := os.Rename(source, destination); renameErr != nil {
+		var sysErr syscall.Errno
+		if errors.As(renameErr, &sysErr) && sysErr == syscall.EXDEV {
+			if moveErr := CopyFile(source, destination); moveErr != nil {
+				return moveErr
+			}
+
+			return os.Remove(source)
+		}
+
+		return renameErr
+	}
+
+	return nil
 }

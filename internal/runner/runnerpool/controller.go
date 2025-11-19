@@ -112,8 +112,9 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 			for _, e := range readyEntries {
 				// log debug which entry is running
-				l.Debugf("Runner Pool Controller: running %s", e.Config.Path)
-				e.Status = queue.StatusRunning
+				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
+				dr.q.SetEntryStatus(e, queue.StatusRunning)
+
 				sem <- struct{}{}
 
 				wg.Add(1)
@@ -122,42 +123,40 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					defer func() {
 						<-sem
 						wg.Done()
+
 						select {
 						case dr.readyCh <- struct{}{}:
 						default:
 						}
 					}()
 
-					unit := dr.unitsMap[ent.Config.Path]
+					unit := dr.unitsMap[ent.Component.Path()]
 					if unit == nil {
-						err := errors.Errorf("unit for path %s not found in discovered units", ent.Config.Path)
-						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Config.Path)
+						err := errors.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
+						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Component.Path())
 						dr.q.FailEntry(ent)
-						results.Store(ent.Config.Path, err)
+						results.Store(ent.Component.Path(), err)
 
 						return
 					}
 
 					err := dr.runner(childCtx, unit)
-					results.Store(ent.Config.Path, err)
+					results.Store(ent.Component.Path(), err)
 
 					if err != nil {
-						l.Debugf("Runner Pool Controller: %s failed", ent.Config.Path)
+						l.Debugf("Runner Pool Controller: %s failed", ent.Component.Path())
 						dr.q.FailEntry(ent)
 
 						return
 					}
 
-					l.Debugf("Runner Pool Controller: %s succeeded", ent.Config.Path)
-					ent.Status = queue.StatusSucceeded
+					l.Debugf("Runner Pool Controller: %s succeeded", ent.Component.Path())
+					dr.q.SetEntryStatus(ent, queue.StatusSucceeded)
 				}(e)
 			}
 
-			if len(readyEntries) == 0 {
-				// If no goroutines are running, break
-				if len(sem) == 0 {
-					break
-				}
+			if len(readyEntries) == 0 && len(sem) == 0 {
+				break
 			}
 
 			select {
@@ -174,7 +173,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		errCollector := &errors.MultiError{}
 
 		for _, entry := range dr.q.Entries {
-			if err, ok := results.Load(entry.Config.Path); ok {
+			if err, ok := results.Load(entry.Component.Path()); ok {
 				if err == nil {
 					continue
 				}
@@ -185,11 +184,11 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			}
 
 			if entry.Status == queue.StatusEarlyExit {
-				errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
+				errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Component.Path()))
 			}
 
 			if entry.Status == queue.StatusFailed {
-				errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Config.Path))
+				errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Component.Path()))
 			}
 		}
 

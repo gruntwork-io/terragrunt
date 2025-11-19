@@ -45,36 +45,29 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	var renderedJSON = map[string]any{}
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var inputs = renderedJSON[config.MetadataInputs]
-	var expectedInputs = map[string]any{
-		"name": map[string]any{
-			"metadata": expectedMetadata,
-			"value":    "us-east-1-bucket",
-		},
-		"region": map[string]any{
-			"metadata": expectedMetadata,
-			"value":    "us-east-1",
-		},
-	}
+	var (
+		inputs         = renderedJSON[config.MetadataInputs]
+		expectedInputs = map[string]any{"name": map[string]any{"metadata": expectedMetadata, "value": "us-east-1-bucket"}, "region": map[string]any{"metadata": expectedMetadata, "value": "us-east-1"}}
+	)
+
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
-	var locals = renderedJSON[config.MetadataLocals]
-	var expectedLocals = map[string]any{
-		"aws_region": map[string]any{
-			"metadata": expectedMetadata,
-			"value":    "us-east-1",
-		},
-	}
+	var (
+		locals         = renderedJSON[config.MetadataLocals]
+		expectedLocals = map[string]any{"aws_region": map[string]any{"metadata": expectedMetadata, "value": "us-east-1"}}
+	)
+
 	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
-	var downloadDir = renderedJSON[config.MetadataDownloadDir]
-	var expecteDownloadDir = map[string]any{
-		"metadata": expectedMetadata,
-		"value":    "/tmp",
-	}
+	var (
+		downloadDir        = renderedJSON[config.MetadataDownloadDir]
+		expecteDownloadDir = map[string]any{"metadata": expectedMetadata, "value": "/tmp"}
+	)
+
 	assert.True(t, reflect.DeepEqual(expecteDownloadDir, downloadDir))
 
 	var iamAssumeRoleDuration = renderedJSON[config.MetadataIamAssumeRoleDuration]
+
 	expectedIamAssumeRoleDuration := map[string]any{
 		"metadata": expectedMetadata,
 		"value":    float64(666),
@@ -82,6 +75,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleDuration, iamAssumeRoleDuration))
 
 	var iamAssumeRoleName = renderedJSON[config.MetadataIamAssumeRoleSessionName]
+
 	expectedIamAssumeRoleName := map[string]any{
 		"metadata": expectedMetadata,
 		"value":    "qwe",
@@ -89,6 +83,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleName, iamAssumeRoleName))
 
 	var iamRole = renderedJSON[config.MetadataIamRole]
+
 	expectedIamRole := map[string]any{
 		"metadata": expectedMetadata,
 		"value":    "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
@@ -96,20 +91,15 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedIamRole, iamRole))
 
 	var preventDestroy = renderedJSON[config.MetadataPreventDestroy]
+
 	expectedPreventDestroy := map[string]any{
 		"metadata": expectedMetadata,
 		"value":    true,
 	}
 	assert.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
 
-	var skip = renderedJSON[config.MetadataSkip]
-	expectedSkip := map[string]any{
-		"metadata": expectedMetadata,
-		"value":    true,
-	}
-	assert.True(t, reflect.DeepEqual(expectedSkip, skip))
-
 	var terraformBinary = renderedJSON[config.MetadataTerraformBinary]
+
 	expectedTerraformBinary := map[string]any{
 		"metadata": expectedMetadata,
 		"value":    wrappedBinary(),
@@ -117,6 +107,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary), "expected: %v, got: %v", expectedTerraformBinary, terraformBinary)
 
 	var terraformVersionConstraint = renderedJSON[config.MetadataTerraformVersionConstraint]
+
 	expectedTerraformVersionConstraint := map[string]any{
 		"metadata": expectedMetadata,
 		"value":    ">= 0.11",
@@ -147,21 +138,11 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 		"found_in_file": util.JoinPath(appPath, "terragrunt.hcl"),
 	}
 
-	var inputs = renderedJSON[config.MetadataInputs]
-	var expectedInputs = map[string]any{
-		"static_value": map[string]any{
-			"metadata": includeMetadata,
-			"value":    "static_value",
-		},
-		"value": map[string]any{
-			"metadata": includeMetadata,
-			"value":    "output_value",
-		},
-		"not_existing_value": map[string]any{
-			"metadata": includeMetadata,
-			"value":    "",
-		},
-	}
+	var (
+		inputs         = renderedJSON[config.MetadataInputs]
+		expectedInputs = map[string]any{"static_value": map[string]any{"metadata": includeMetadata, "value": "static_value"}, "value": map[string]any{"metadata": includeMetadata, "value": "output_value"}, "not_existing_value": map[string]any{"metadata": includeMetadata, "value": ""}}
+	)
+
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 }
 
@@ -208,6 +189,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 			},
 		},
 	}
+
 	serializedDependency, err := json.Marshal(dependency)
 	require.NoError(t, err)
 
@@ -229,21 +211,13 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	generateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "generate.hcl")
 	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "common", "common.hcl")
 
-	var terragruntMetadata = map[string]any{
-		"found_in_file": terragruntHcl,
-	}
-	var localsMetadata = map[string]any{
-		"found_in_file": localsHcl,
-	}
-	var inputMetadata = map[string]any{
-		"found_in_file": inputHcl,
-	}
-	var generateMetadata = map[string]any{
-		"found_in_file": generateHcl,
-	}
-	var commonMetadata = map[string]any{
-		"found_in_file": commonHcl,
-	}
+	var (
+		terragruntMetadata = map[string]any{"found_in_file": terragruntHcl}
+		localsMetadata     = map[string]any{"found_in_file": localsHcl}
+		inputMetadata      = map[string]any{"found_in_file": inputHcl}
+		generateMetadata   = map[string]any{"found_in_file": generateHcl}
+		commonMetadata     = map[string]any{"found_in_file": commonHcl}
+	)
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
@@ -255,44 +229,24 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	var renderedJSON = map[string]any{}
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var inputs = renderedJSON[config.MetadataInputs]
-	var expectedInputs = map[string]any{
-		"content": map[string]any{
-			"metadata": localsMetadata,
-			"value":    "test",
-		},
-		"qwe": map[string]any{
-			"metadata": inputMetadata,
-			"value":    "123",
-		},
-	}
+	var (
+		inputs         = renderedJSON[config.MetadataInputs]
+		expectedInputs = map[string]any{"content": map[string]any{"metadata": localsMetadata, "value": "test"}, "qwe": map[string]any{"metadata": inputMetadata, "value": "123"}}
+	)
+
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
-	var locals = renderedJSON[config.MetadataLocals]
-	var expectedLocals = map[string]any{
-		"abc": map[string]any{
-			"metadata": terragruntMetadata,
-			"value":    "xyz",
-		},
-	}
+	var (
+		locals         = renderedJSON[config.MetadataLocals]
+		expectedLocals = map[string]any{"abc": map[string]any{"metadata": terragruntMetadata, "value": "xyz"}}
+	)
+
 	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
-	var generate = renderedJSON[config.MetadataGenerateConfigs]
-	var expectedGenerate = map[string]any{
-		"provider": map[string]any{
-			"metadata": generateMetadata,
-			"value": map[string]any{
-				"comment_prefix":    "# ",
-				"contents":          "# test\n",
-				"disable_signature": false,
-				"disable":           false,
-				"if_exists":         "overwrite",
-				"if_disabled":       "skip",
-				"hcl_fmt":           nil,
-				"path":              "provider.tf",
-			},
-		},
-	}
+	var (
+		generate         = renderedJSON[config.MetadataGenerateConfigs]
+		expectedGenerate = map[string]any{"provider": map[string]any{"metadata": generateMetadata, "value": map[string]any{"comment_prefix": "# ", "contents": "# test\n", "disable_signature": false, "disable": false, "if_exists": "overwrite", "if_disabled": "skip", "hcl_fmt": nil, "path": "provider.tf"}}}
+	)
 
 	// compare fields by serialization in json since map from "value" field is not deterministic
 	serializedGenerate, err := json.Marshal(generate)
@@ -303,22 +257,10 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 
 	assert.Equal(t, string(serializedExpectedGenerate), string(serializedGenerate))
 
-	var remoteState = renderedJSON[config.MetadataRemoteState]
-	var expectedRemoteState = map[string]any{
-		"metadata": commonMetadata,
-		"value": map[string]any{
-			"backend":                         "s3",
-			"disable_dependency_optimization": false,
-			"disable_init":                    false,
-			"generate":                        nil,
-			"config": map[string]any{
-				"bucket": "mybucket",
-				"key":    "path/to/my/key",
-				"region": "us-east-1",
-			},
-			"encryption": nil,
-		},
-	}
+	var (
+		remoteState         = renderedJSON[config.MetadataRemoteState]
+		expectedRemoteState = map[string]any{"metadata": commonMetadata, "value": map[string]any{"backend": "s3", "disable_dependency_optimization": false, "disable_init": false, "generate": nil, "config": map[string]any{"bucket": "mybucket", "key": "path/to/my/key", "region": "us-east-1"}, "encryption": nil}}
+	)
 
 	// compare fields by serialization in json since map from "value" field is not deterministic
 	serializedRemoteState, err := json.Marshal(remoteState)
@@ -411,12 +353,11 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "terraform.hcl")
 	remoteStateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "remote_state.hcl")
-	var terragruntMetadata = map[string]any{
-		"found_in_file": commonHcl,
-	}
-	var remoteMetadata = map[string]any{
-		"found_in_file": remoteStateHcl,
-	}
+
+	var (
+		terragruntMetadata = map[string]any{"found_in_file": commonHcl}
+		remoteMetadata     = map[string]any{"found_in_file": remoteStateHcl}
+	)
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
@@ -428,20 +369,10 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	var renderedJSON = map[string]any{}
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var terraform = renderedJSON[config.MetadataTerraform]
-	var expectedTerraform = map[string]any{
-		"metadata": terragruntMetadata,
-		"value": map[string]any{
-			"after_hook":               map[string]any{},
-			"before_hook":              map[string]any{},
-			"error_hook":               map[string]any{},
-			"extra_arguments":          map[string]any{},
-			"include_in_copy":          nil,
-			"exclude_from_copy":        nil,
-			"source":                   "../terraform",
-			"copy_terraform_lock_file": nil,
-		},
-	}
+	var (
+		terraform         = renderedJSON[config.MetadataTerraform]
+		expectedTerraform = map[string]any{"metadata": terragruntMetadata, "value": map[string]any{"after_hook": map[string]any{}, "before_hook": map[string]any{}, "error_hook": map[string]any{}, "extra_arguments": map[string]any{}, "include_in_copy": nil, "exclude_from_copy": nil, "source": "../terraform", "copy_terraform_lock_file": nil}}
+	)
 
 	// compare fields by serialization in json since map from "value" field is not deterministic
 	serializedTerraform, err := json.Marshal(terraform)
@@ -452,22 +383,10 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	assert.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
 
-	var remoteState = renderedJSON[config.MetadataRemoteState]
-	var expectedRemoteState = map[string]any{
-		"metadata": remoteMetadata,
-		"value": map[string]any{
-			"backend": "s3",
-			"config": map[string]any{
-				"bucket": "mybucket",
-				"key":    "path/to/my/key",
-				"region": "us-east-1",
-			},
-			"encryption":                      nil,
-			"disable_dependency_optimization": false,
-			"disable_init":                    false,
-			"generate":                        nil,
-		},
-	}
+	var (
+		remoteState         = renderedJSON[config.MetadataRemoteState]
+		expectedRemoteState = map[string]any{"metadata": remoteMetadata, "value": map[string]any{"backend": "s3", "config": map[string]any{"bucket": "mybucket", "key": "path/to/my/key", "region": "us-east-1"}, "encryption": nil, "disable_dependency_optimization": false, "disable_init": false, "generate": nil}}
+	)
 
 	// compare fields by serialization in json since map from "value" field is not deterministic
 	serializedRemoteState, err := json.Marshal(remoteState)

@@ -120,6 +120,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
+
 	ctx.TerragruntOptions = opts
 	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
 	ctx.TerragruntOptions.Env = env.Parse(os.Environ())

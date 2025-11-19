@@ -58,6 +58,7 @@ func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File)
 		}
 
 		var err error
+
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			ctx,
 			l,
@@ -65,7 +66,6 @@ func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File)
 			attrs,
 			evaluatedLocals,
 		)
-
 		if err != nil {
 			l.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.TerragruntConfigPath)
 			return evaluatedLocals, err
@@ -106,7 +106,7 @@ func attemptEvaluateLocals(
 	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
 ) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
-	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
+	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		l.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err

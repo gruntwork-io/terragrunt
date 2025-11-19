@@ -1,0 +1,231 @@
+---
+title: Run Report
+description: Learn how Terragrunt provides detailed reports of runs, and at-a-glance summaries of them.
+slug: docs/features/run-report
+sidebar:
+  order: 16
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Terragrunt uses an internal data store to track the results of runs when multiple are done at once. You can view this data, both with a high-level summary that is displayed at the end of each run, and via a detailed report that can be requested on-demand (coming soon).
+
+## Run Summary
+
+By default, when performing a queue-based run (e.g. `terragrunt run --all plan`), Terragrunt will emit some additional information to the console after the run is complete.
+
+```bash
+$ terragrunt run --all plan
+
+# Omitted for brevity...
+
+❯❯ Run Summary  3 units  62ms
+   ────────────────────────────
+   Succeeded    3
+```
+
+This output is called the "Run Summary". It provides at-a-glance information about the run that was just performed, including the following (as relevant):
+
+- Duration: The duration of the run.
+- Units: The number of units that were run.
+- Succeeded: The number of units that succeeded (if any did).
+- Failed: The number of units that failed (if any did).
+- Excluded: The number of units that were excluded from the run (if any were).
+- Early Exits: The number of units that exited early, due to a failure in a dependency (if any did).
+
+### Showing Unit Durations
+
+You can enable showing the duration of each unit in the run summary by using the `--summary-per-unit` flag.
+
+```bash
+$ terragrunt run --all plan --summary-per-unit
+
+# Omitted for brevity...
+
+❯❯ Run Summary  3 units     10m
+   ──────────────────────────────
+   Succeeded (3)
+      long-running-unit     10m
+      medium-running-unit   12s
+      short-running-unit    5ms
+```
+
+The units are sorted by duration, with the longest-running units shown first.
+
+### Disabling the summary
+
+You can disable the summary output by using the `--summary-disable` flag.
+
+```bash
+terragrunt run --all plan --summary-disable
+```
+
+The internal report will still be tracked, and is available for generation if requested.
+
+## Run Report
+
+Optionally, you can also generate a detailed report of the run, which has all the information used to generate the run summary.
+
+```bash
+terragrunt run --all plan --report-file report.csv
+```
+
+You can specify the format of the report using the `--report-format` flag, which supports either `csv` or `json`:
+
+```bash
+terragrunt run --all plan --report-file report.json --report-format json
+```
+
+The format can also be inferred from the file extension. If no format is specified and the file has no extension, CSV will be used by default:
+
+```bash
+# Will generate a CSV report
+terragrunt run --all plan --report-file report
+
+# Will generate a JSON report
+terragrunt run --all plan --report-file report.json
+
+# Will generate a CSV report
+terragrunt run --all plan --report-file report.csv
+```
+
+The report will be generated in the specified format at the given path in the current working directory. Here's an example of what the CSV format looks like:
+
+```csv
+Name,Started,Ended,Result,Reason,Cause
+first-exclude,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,excluded,exclude block,
+second-exclude,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,excluded,exclude block,
+first-failure,2025-06-05T16:28:41-04:00,2025-06-05T16:28:42-04:00,failed,run error,
+first-success,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,succeeded,,
+second-failure,2025-06-05T16:28:41-04:00,2025-06-05T16:28:42-04:00,failed,run error,
+second-success,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,succeeded,,
+second-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit,run error,
+first-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit,run error,
+```
+
+And here's an example of what the JSON format looks like:
+
+```json
+[
+  {
+    "Name": "first-exclude",
+    "Started": "2025-06-05T16:28:41-04:00",
+    "Ended": "2025-06-05T16:28:41-04:00",
+    "Result": "excluded",
+    "Reason": "exclude block"
+  },
+  {
+    "Name": "first-success",
+    "Started": "2025-06-05T16:28:41-04:00",
+    "Ended": "2025-06-05T16:28:41-04:00",
+    "Result": "succeeded"
+  }
+]
+```
+
+You can use this file to determine details for each unit run, including the name of the unit, the start and end times, the result, the reason for that result, and the cause for that reason. Note that in the JSON format, empty fields (Reason and Cause) are omitted entirely rather than being set to empty values.
+
+In general, the schema for this report should change infrequently, but we'll try to keep it up to date here.
+
+You can also generate a JSON schema file for the report, so that you have a programmatic way to validate that the report is going to conform to an expected schema.
+
+```bash
+terragrunt run --all plan --report-schema-file report.schema.json
+```
+
+The schema will be generated at the given path in the current working directory. The generated schema conforms to the [JSON Schema](https://json-schema.org/) standard.
+
+This generated schema will look like the following:
+
+```json
+{
+  "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
+    "properties": {
+      "Started": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Ended": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Reason": {
+        "type": "string",
+        "enum": [
+          "retry succeeded",
+          "error ignored",
+          "run error",
+          "--queue-exclude-dir",
+          "exclude block",
+          "ancestor error"
+        ]
+      },
+      "Cause": {
+        "type": "string"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Result": {
+        "type": "string",
+        "enum": [
+          "succeeded",
+          "failed",
+          "early exit",
+          "excluded"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "Started",
+      "Ended",
+      "Name",
+      "Result"
+    ],
+    "title": "Terragrunt Run Report Schema",
+    "description": "Schema for Terragrunt run report"
+  },
+  "type": "array",
+  "title": "Terragrunt Run Report Schema",
+  "description": "Array of Terragrunt runs"
+}
+```
+
+Note the `$id` field, which is used to identify the schema. This is useful to quickly determine which version of the schema is being used. You can also fetch the schema remotely from that URL.
+
+### Results
+
+Results are high level outcomes of a unit run, and will always be one of the following:
+
+- `succeeded`: The unit run succeeded.
+- `failed`: The unit run failed.
+- `excluded`: The unit was excluded from the run.
+- `early exit`: The unit exited early, due to a failure in a dependency.
+
+### Reasons
+
+Reasons are more granular details of those results, and will always be one of the following, based on the result of the unit run:
+
+- `succeeded`:
+  - ``: When the unit run succeeded without any special conditions, an empty string will be found here.
+  - `retry succeeded`: When the unit run initially failed, but was retried due to a `retry` block, and succeeded on a subsequent attempt, you can expect to see a value of `retry succeeded` here.
+  - `error ignored`: When the unit run failed, but the error was ignored due to an `ignore` block, you can expect to see a value of `error ignored` here.
+- `failed`:
+  - `run error`: When the unit run failed due to a run error, you can expect to see a value of `run error` here.
+- `excluded`:
+  - `exclude block`: When the unit was excluded from the run due to an `exclude` block, you can expect to see a value of `exclude block` here.
+  - `--queue-exclude-dir`: When the unit was excluded from the run due use of a `--queue-exclude-dir` flag, you can expect to see a value of `--queue-exclude-dir` here.
+- `early exit`:
+  - `ancestor error`: When the unit exited early due to an error in the run of a dependency, you can expect to see a value of `ancestor error` here.
+
+### Causes
+
+Causes indicate the specific reason for a given result, and are generally not guessable. These provide information on the exact mechanism that caused the result.
+
+- `error ignored`: You will find the name of the `ignore` block that resulted in the error being ignored.
+- `run error`: You will find the actual error message of the unit that failed.
+- `ancestor error`: You will find the name of the unit that failed.

@@ -39,12 +39,14 @@ var (
 )
 
 type CatalogConfig struct {
+	NoShell         *bool    `hcl:"no_shell,optional" cty:"no_shell"`
+	NoHooks         *bool    `hcl:"no_hooks,optional" cty:"no_hooks"`
 	DefaultTemplate string   `hcl:"default_template,optional" cty:"default_template"`
 	URLs            []string `hcl:"urls,attr" cty:"urls"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v}", cfg.URLs, cfg.DefaultTemplate)
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}", cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
@@ -192,8 +194,11 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
 		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
 		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*ctx.Locals)
-		terragruntConfig.Locals = localsParsed
-		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		// Only set Locals if there are actual values to avoid setting an empty map
+		if len(localsParsed) > 0 {
+			terragruntConfig.Locals = localsParsed
+			terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		}
 	}
 
 	return terragruntConfig, nil

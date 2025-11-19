@@ -1,0 +1,43 @@
+
+/* List styling to ensure proper rendering */
+ol {
+  list-style-type: decimal;
+  margin: 1em 0;
+  padding-left: 3em;
+}
+
+ol ol {
+  list-style-type: lower-alpha;
+  margin: 0.5em 0;
+  padding-left: 2.5em;
+}
+
+ol ol ol {
+  list-style-type: lower-roman;
+  margin: 0.5em 0;
+  padding-left: 2.5em;
+}
+
+/* Override numbering for sl-steps lists which have their own numbering */
+ol.sl-steps {
+  list-style-type: none;
+}
+
+ol.sl-steps ol {
+  list-style-type: none;
+}
+
+ol.sl-steps ol ol {
+  list-style-type: none;
+}
+
+li {
+  margin: 0.5em 0;
+  line-height: 1.6;
+}
+
+/* Ensure list items have proper spacing and alignment */
+ol li {
+  display: list-item;
+  text-align: left;
+}

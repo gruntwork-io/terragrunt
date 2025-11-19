@@ -136,6 +136,8 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 			logPrefix           string
 		)
 
+		trackFileRead(ctx.FilesRead, includeConfig.Path)
+
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, &includeConfig)
 			logPrefix = "[Partial] "
@@ -251,6 +253,14 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		cfg.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
+	if sourceConfig.IamAssumeRoleSessionName != "" {
+		cfg.IamAssumeRoleSessionName = sourceConfig.IamAssumeRoleSessionName
+	}
+
+	if sourceConfig.IamWebIdentityToken != "" {
+		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
+	}
+
 	if sourceConfig.TerraformVersionConstraint != "" {
 		cfg.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
@@ -263,24 +273,12 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		cfg.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
-	if sourceConfig.RetryMaxAttempts != nil {
-		cfg.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
-	}
-
-	if sourceConfig.RetrySleepIntervalSec != nil {
-		cfg.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
-	}
-
 	if sourceConfig.TerragruntVersionConstraint != "" {
 		cfg.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
 
 	if sourceConfig.Engine != nil {
 		cfg.Engine = sourceConfig.Engine.Clone()
-	}
-
-	if sourceConfig.Skip != nil {
-		cfg.Skip = sourceConfig.Skip
 	}
 
 	if sourceConfig.Exclude != nil {
@@ -330,10 +328,6 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		}
 	}
 
-	if sourceConfig.RetryableErrors != nil {
-		cfg.RetryableErrors = sourceConfig.RetryableErrors
-	}
-
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
 
@@ -381,6 +375,14 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
+	if sourceConfig.IamAssumeRoleSessionName != "" {
+		cfg.IamAssumeRoleSessionName = sourceConfig.IamAssumeRoleSessionName
+	}
+
+	if sourceConfig.IamWebIdentityToken != "" {
+		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
+	}
+
 	if sourceConfig.TerraformVersionConstraint != "" {
 		cfg.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
@@ -391,14 +393,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 	if sourceConfig.PreventDestroy != nil {
 		cfg.PreventDestroy = sourceConfig.PreventDestroy
-	}
-
-	if sourceConfig.RetryMaxAttempts != nil {
-		cfg.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
-	}
-
-	if sourceConfig.RetrySleepIntervalSec != nil {
-		cfg.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {
@@ -427,10 +421,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		}
 
 		cfg.Errors.Merge(sourceConfig.Errors)
-	}
-
-	if sourceConfig.Skip != nil {
-		cfg.Skip = sourceConfig.Skip
 	}
 
 	// Copy only dependencies which doesn't exist in source
@@ -473,7 +463,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
-
 	if err != nil {
 		return err
 	}
@@ -481,16 +470,11 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	cfg.TerragruntDependencies = mergedDeps
 
 	mergedFlags, err := deepMergeFeatureBlocks(cfg.FeatureFlags, sourceConfig.FeatureFlags)
-
 	if err != nil {
 		return err
 	}
 
 	cfg.FeatureFlags = mergedFlags
-
-	if sourceConfig.RetryableErrors != nil {
-		cfg.RetryableErrors = append(cfg.RetryableErrors, sourceConfig.RetryableErrors...)
-	}
 
 	// Handle complex structs by recursively merging the structs together
 	if sourceConfig.Terraform != nil {

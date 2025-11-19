@@ -1,0 +1,248 @@
+---
+title: "Step 6: Breaking the Terralith Further"
+description: Breaking the Terralith Further
+slug: docs/guides/terralith-to-terragrunt/step-6-breaking-the-terralith-further
+sidebar:
+  order: 9
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
+
+You've successfully added Terragrunt to your project, eliminating significant boilerplate from each of your `dev` and `prod` environments. While your environments are now isolated from each other, the resources *within* each environment (your S3 bucket, DynamoDB table, IAM role, and Lambda function) are still managed together in a single state file. This is essentially a smaller-scale Terralith within each environment.
+
+This tight coupling poses its own risks. Do you really want a routine update to your Lambda function's application code to require a plan that also evaluates your production database? Stateful resources like databases and storage buckets change infrequently and require maximum stability, while stateless application code changes constantly. Coupling them in the same state file means a mistake in one could still impact the other, increasing the blast radius of any single change.
+
+In this step, you will break the Terralith down even further. You will transform each environment from a single large unit into a collection of smaller, independent units, one for each core component (S3, DDB, IAM, and Lambda). This granular approach provides far more safety and flexibility, and is common in Terragrunt projects. To connect these newly independent components, you'll learn one of Terragrunt's most powerful features: the `dependency` block, which allows units to share outputs, such as passing the ARN of your S3 bucket to your IAM policy, and control the order of updates in your infrastructure units.
+
+## Tutorial
+
+We're going to follow a very similar process to what we did when breaking apart the Terralith into two environments.
+
+First, we'll create a directory for each of the new units we want to create for all the constituent modules of the `best_cat` megamodule. In each of our environments (`dev` and `prod`).
+
+<Code title="live" lang="bash" frame="terminal" code={`mkdir -p {dev, prod}/{s3, ddb, iam, lambda}`} />
+
+Next, we'll create the `terragrunt.hcl` files in each of these directories.
+
+import devDdbTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/ddb/terragrunt.hcl?raw';
+
+<Code title="live/dev/ddb/terragrunt.hcl" lang="hcl" code={devDdbTerragruntHcl} />
+
+import prodDdbTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/ddb/terragrunt.hcl?raw';
+
+<Code title="live/prod/ddb/terragrunt.hcl" lang="hcl" code={prodDdbTerragruntHcl} />
+
+import devS3TerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/s3/terragrunt.hcl?raw';
+
+<Code title="live/dev/s3/terragrunt.hcl" lang="hcl" code={devS3TerragruntHcl} />
+
+import prodS3TerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/s3/terragrunt.hcl?raw';
+
+<Code title="live/prod/s3/terragrunt.hcl" lang="hcl" code={prodS3TerragruntHcl} />
+
+In units where we need to integrate with other units (like the `iam` unit), we'll need to add a `dependency` block to tell Terragrunt how it can fetch outputs from relevant dependencies for use as inputs. Terragrunt has to integrate different units like this, as they don't have the same state file, so OpenTofu needs an external tool, like Terragrunt to pull outputs out of state from one unit and pass in inputs to another unit.
+
+import devIamTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/iam/terragrunt.hcl?raw';
+
+<Code title="live/dev/iam/terragrunt.hcl" lang="hcl" code={devIamTerragruntHcl} />
+
+import prodIamTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/iam/terragrunt.hcl?raw';
+
+<Code title="live/prod/iam/terragrunt.hcl" lang="hcl" code={prodIamTerragruntHcl} />
+
+<Aside type="note">
+Unfortunately, OpenTofu doesn't have a way of specifying certain inputs as “unknown” [as of yet](https://github.com/opentofu/opentofu/issues/812), but we can work around this limitation by taking advantage of Terragrunt's ability to mock outputs from dependencies using `mock_outputs`. This allows us to plan successfully without worrying about getting errors that required variables aren't passed in.
+</Aside>
+
+Note that some providers like the AWS provider require these inputs to be well formed (in this case, they have to be valid AWS ARNs). In these scenarios, it can be important to provide valid looking ARNs as a consequence to satisfy provider validations. If you just passed `mock-bucket-arn` as the value of the input `s3_bucket_arn`, the AWS provider might throw an error during plans, as it expects the value to look more like `arn:aws:s3:::mock-bucket-name`, and it assumes that the user made an error.
+
+We've also set the `mock_outputs_allowed_terraform_commands` attribute. By default, Terragrunt will use mocked outputs whenever a dependency returns no outputs. This is typically only the case for plans, but we can be explicit about when Terragrunt is allowed to mock outputs to avoid any accidental applies with mocked values. Other commands that might benefit from mocking are commands like `destroy` and `validate`. I don't anticipate needing them mocked here, so I've only allowed mocking for commands where I know we're going to need them mocked during this guide (you'll see why `state` can get mocked outputs in a bit).
+
+Finally, note that we've also set the `mock_outputs_merge_strategy_with_state` attribute. By default, Terragrunt treats mocking as something binary: Either outputs are mocked, or they're not. This is because you typically don't have a need to partially mock some outputs and not others. In our use-case, where we're migrating over state we will need to do this, as we'll be pushing existing state to units, but their outputs are also changing. We'll see what that looks like later.
+
+import devLambdaTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/lambda/terragrunt.hcl?raw';
+
+<Code title="live/dev/lambda/terragrunt.hcl" lang="hcl" code={devLambdaTerragruntHcl} />
+
+import prodLambdaTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/lambda/terragrunt.hcl?raw';
+
+<Code title="live/prod/lambda/terragrunt.hcl" lang="hcl" code={prodLambdaTerragruntHcl} />
+
+## Project Layout Check-in
+
+We should now have a file tree that looks like the following (we'll be getting rid of the two top-level `terragrunt.hcl` and `moved.tf` files in each environment soon):
+
+<FileTree>
+- live
+  - dev
+    - ddb
+      - terragrunt.hcl
+    - iam
+      - terragrunt.hcl
+    - lambda
+      - terragrunt.hcl
+    - s3
+      - terragrunt.hcl
+    - terragrunt.hcl (This is being removed soon)
+    - moved.tf (This is being removed soon)
+  - prod
+    - ddb
+      - terragrunt.hcl
+    - iam
+      - terragrunt.hcl
+    - lambda
+      - terragrunt.hcl
+    - s3
+      - terragrunt.hcl
+    - terragrunt.hcl (This is being removed soon)
+    - moved.tf (This is being removed soon)
+  - root.hcl
+</FileTree>
+
+
+## Migrating State to Individual Units
+
+It's time to engage in our favorite solution for IaC refactoring, state manipulation!
+
+We're going to use the tools we've learned so far, and *pull* state from those two top-level units, then *push* them into the constituent units we've broken the megamodule down into. We expect to need to both move resource addresses in state, and forget particular resources to avoid accidentally destroying anything.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu.tfstate
+cd ddb && terragrunt state push /tmp/tofu.tfstate
+cd ../iam && terragrunt state push /tmp/tofu.tfstate
+cd ../lambda && terragrunt state push /tmp/tofu.tfstate
+cd ../s3 && terragrunt state push /tmp/tofu.tfstate
+`} />
+
+<Code title="live/prod" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu.tfstate
+cd ddb && terragrunt state push /tmp/tofu.tfstate
+cd ../iam && terragrunt state push /tmp/tofu.tfstate
+cd ../lambda && terragrunt state push /tmp/tofu.tfstate
+cd ../s3 && terragrunt state push /tmp/tofu.tfstate
+`} />
+
+We can now clean up the extraneous files mentioned earlier at the root of the environments.
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -f {dev, prod}/{terragrunt.hcl, moved.tf}`} />
+
+Go ahead and run the following to see very similar plan output to what we've seen in the past when we needed to make state moves & removes.
+
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt run --all plan
+
+# Lots of destroys!`} />
+
+The following moves and removes will handle the state transitions necessary here.
+
+import devDdbMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/ddb/moved.tf?raw';
+
+<Code title="live/dev/ddb/moved.tf" lang="hcl" code={devDdbMovedTf} />
+
+import devDdbRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/ddb/removed.tf?raw';
+
+<Code title="live/dev/ddb/removed.tf" lang="hcl" code={devDdbRemovedTf} />
+
+import devIamMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/iam/moved.tf?raw';
+
+<Code title="live/dev/iam/moved.tf" lang="hcl" code={devIamMovedTf} />
+
+import devIamRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/iam/removed.tf?raw';
+
+<Code title="live/dev/iam/removed.tf" lang="hcl" code={devIamRemovedTf} />
+
+import devLambdaMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/lambda/moved.tf?raw';
+
+<Code title="live/dev/lambda/moved.tf" lang="hcl" code={devLambdaMovedTf} />
+
+import devLambdaRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/lambda/removed.tf?raw';
+
+<Code title="live/dev/lambda/removed.tf" lang="hcl" code={devLambdaRemovedTf} />
+
+import devS3MovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/s3/moved.tf?raw';
+
+<Code title="live/dev/s3/moved.tf" lang="hcl" code={devS3MovedTf} />
+
+import devS3RemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/s3/removed.tf?raw';
+
+<Code title="live/dev/s3/removed.tf" lang="hcl" code={devS3RemovedTf} />
+
+import prodDdbMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/ddb/moved.tf?raw';
+
+<Code title="live/prod/ddb/moved.tf" lang="hcl" code={prodDdbMovedTf} />
+
+import prodDdbRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/ddb/removed.tf?raw';
+
+<Code title="live/prod/ddb/removed.tf" lang="hcl" code={prodDdbRemovedTf} />
+
+import prodIamMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/iam/moved.tf?raw';
+
+<Code title="live/prod/iam/moved.tf" lang="hcl" code={prodIamMovedTf} />
+
+import prodIamRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/iam/removed.tf?raw';
+
+<Code title="live/prod/iam/removed.tf" lang="hcl" code={prodIamRemovedTf} />
+
+import prodLambdaMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/lambda/moved.tf?raw';
+
+<Code title="live/prod/lambda/moved.tf" lang="hcl" code={prodLambdaMovedTf} />
+
+import prodLambdaRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/lambda/removed.tf?raw';
+
+<Code title="live/prod/lambda/removed.tf" lang="hcl" code={prodLambdaRemovedTf} />
+
+import prodS3MovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/s3/moved.tf?raw';
+
+<Code title="live/prod/s3/moved.tf" lang="hcl" code={prodS3MovedTf} />
+
+import prodS3RemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/s3/removed.tf?raw';
+
+<Code title="live/prod/s3/removed.tf" lang="hcl" code={prodS3RemovedTf} />
+
+That was a ton of work! The effort of making these state moves might encourage you to do some early planning to avoid the need to do these kinds of state moves down the line as you plan your infrastructure estate.
+
+Folks sometimes feel like they don't really want or need to adopt Terragrunt before they reach a point where scaling up IaC further becomes painful. Deciding to avoid learning Terragrunt before this point is a form of tech debt accrual. Doing the work up-front to follow the patterns that Terragrunt enables (like segmenting state at granular levels) helps to mitigate the severity of refactor work down the line. If we had architected our IaC ahead of time to use small, focused units, we never would have had to do the work of these state moves.
+
+Hopefully, going through these state moves in this guide gives you confidence that you *can* do it if you need to, however. As long as you move carefully, and know what you're doing, you can break down even the largest Terraliths with time!
+
+## Applying Updates
+
+Now, let's repeat our plan to confirm that we won't destroy anything important. If you *do* see any destroys, you probably have something misconfigured in one of your `moved.tf` or `removed.tf` files. Review them carefully.
+
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt run --all plan
+
+# No destroys!
+# You might see some creates, but that's a side-effect of how
+# OpenTofu tracks state internally. You are safe to ignore them.
+`} />
+
+Thankfully, now that we've segmented state we can carefully run across the `dev` units before running in `prod`, with *zero risk* that we're going to accidentally break anything there. We can actually perform our updates *even more carefully* by updating one unit at a time, but that's not really necessary for our use-case here.
+
+Consider when it might make sense to do that for your own real infrastructure, however. If you are doing state manipulation like this on stateful production resources like databases or blob stores for example, it's a good idea to move slower to avoid data loss or outages.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`terragrunt run --all apply
+
+# Migration complete!`} />
+
+<Code title="live/prod" lang="bash" frame="terminal" code={`terragrunt run --all apply
+
+# Migration complete!`} />
+
+## Trade-offs
+
+You've now reached the most granular and arguably the safest way to structure a Terragrunt project (while remaining practical about avoiding over-segmenting resources). By breaking down each environment into component-specific units, you've moved from a "one state file per environment" model to a "one state file per component, per environment" model. This is a common and highly recommended pattern for mature Infrastructure as Code (IaC) management, but it comes with its own set of trade-offs.
+
+- Pros
+    - **Safety and Granular Blast Radius**: This is the single biggest advantage. A change to a stateless resource that changes frequently, like the **Lambda function**, now has **zero chance of impacting a stateful resource** that changes rarely, like the **DynamoDB table** or **S3 bucket**.
+    - **Reduced Lock Contention**: State locks are now per-component, meaning an `apply` on the Lambda function won't block a simultaneous `apply` on the IAM role, enabling more concurrent infrastructure work by platform teams.
+    - **Faster Feedback Loops**: When you run `terragrunt plan` inside a specific component directory (e.g., `live/dev/lambda`), OpenTofu only needs to refresh the state for that single component. This is significantly faster than refreshing the state for the entire environment, which is a huge productivity win on large projects.
+- Cons
+    - **Increased Configuration Complexity**: The number of directories and `terragrunt.hcl` files has multiplied. While each file is simple, managing the overall structure requires more discipline. The cognitive load shifts from understanding a single large module to understanding how many small, interconnected modules form a complete system.
+    - **Explicit Dependency Management**: You now *must* explicitly define the relationships between your components using `dependency` blocks. This is powerful but also creates another layer of configuration to maintain. Forgetting a dependency or referencing it incorrectly will cause failures.
+    - **Mocking Outputs**: As demonstrated in the tutorial, you can't `plan` a component that depends on another component that doesn't exist yet. This necessitates using `mock_outputs` if you want to perform a `run --all plan` against a stack with unapplied dependencies, which is a powerful workaround but adds another concept that engineers must learn and manage correctly.
+
+## Wrap Up
+
+You've now taken modularity to the next level. Instead of one state file per environment, you now have one state file per *component* (S3, DDB, IAM, Lambda) within each environment. This provides the ultimate level of granular control and safety. You can now update your application's Lambda function with zero risk of accidentally modifying your stateful database or storage bucket.
+
+The core lesson here was learning how to use the `dependency` block, Terragrunt's mechanism for wiring together independent units by passing outputs from one unit as inputs to another. You also learned to use `mock_outputs` to solve the problem that arises when planning interdependent infrastructure that doesn't exist yet.
+
+However, this safety came with a trade-off: a proliferation of `terragrunt.hcl` files across your codebase. In the next step, you will eliminate this final piece of boilerplate by using Terragrunt Stacks, which allow you to generate entire collections of units on-demand from a single `terragrunt.stack.hcl` file.

@@ -32,6 +32,8 @@ const (
 	//
 	// Only works with OpenTofu version >= 1.10.
 	AutoProviderCacheDir = "auto-provider-cache-dir"
+	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
+	FilterFlag = "filter-flag"
 )
 
 const (
@@ -63,13 +65,19 @@ func NewExperiments() Experiments {
 			Name: CAS,
 		},
 		{
-			Name: Report,
+			Name:   Report,
+			Status: StatusCompleted,
 		},
 		{
-			Name: RunnerPool,
+			Name:   RunnerPool,
+			Status: StatusCompleted,
 		},
 		{
-			Name: AutoProviderCacheDir,
+			Name:   AutoProviderCacheDir,
+			Status: StatusCompleted,
+		},
+		{
+			Name: FilterFlag,
 		},
 	}
 }
@@ -113,17 +121,20 @@ func (exps Experiments) Find(name string) *Experiment {
 
 // ExperimentMode enables the experiment mode.
 func (exps Experiments) ExperimentMode() {
-	for _, experiment := range exps.FilterByStatus(StatusOngoing) {
-		experiment.Enabled = true
+	for _, e := range exps {
+		if e.Status == StatusOngoing {
+			e.Enabled = true
+		}
 	}
 }
 
 // EnableExperiment validates that the specified experiment name is valid and enables this experiment.
 func (exps Experiments) EnableExperiment(name string) error {
-	if experiment := exps.Find(name); experiment != nil {
-		experiment.Enabled = true
-
-		return nil
+	for _, e := range exps {
+		if e.Name == name {
+			e.Enabled = true
+			return nil
+		}
 	}
 
 	return NewInvalidExperimentNameError(exps.FilterByStatus(StatusOngoing).Names())

@@ -68,7 +68,6 @@ func TestFindModules(t *testing.T) {
 			var realData []moduleData
 
 			for _, module := range modules {
-
 				realData = append(realData, moduleData{
 					title:       module.Title(),
 					description: module.Description(),
@@ -80,7 +79,6 @@ func TestFindModules(t *testing.T) {
 			assert.Equal(t, tc.expectedData, realData)
 		})
 	}
-
 }
 
 func TestModuleURL(t *testing.T) {

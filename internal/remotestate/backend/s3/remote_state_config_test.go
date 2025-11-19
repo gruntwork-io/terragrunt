@@ -5,9 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -33,8 +34,8 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			},
 			s3.PutBucketLoggingInput{
 				Bucket: aws.String("source-bucket"),
-				BucketLoggingStatus: &s3.BucketLoggingStatus{
-					LoggingEnabled: &s3.LoggingEnabled{
+				BucketLoggingStatus: &s3types.BucketLoggingStatus{
+					LoggingEnabled: &s3types.LoggingEnabled{
 						TargetBucket: aws.String("logging-bucket"),
 						TargetPrefix: aws.String(s3backend.DefaultS3BucketAccessLoggingTargetPrefix),
 					},
@@ -51,8 +52,8 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			},
 			s3.PutBucketLoggingInput{
 				Bucket: aws.String("source-bucket"),
-				BucketLoggingStatus: &s3.BucketLoggingStatus{
-					LoggingEnabled: &s3.LoggingEnabled{
+				BucketLoggingStatus: &s3types.BucketLoggingStatus{
+					LoggingEnabled: &s3types.LoggingEnabled{
 						TargetBucket: aws.String("logging-bucket"),
 					},
 				},
@@ -68,8 +69,8 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			},
 			s3.PutBucketLoggingInput{
 				Bucket: aws.String("source-bucket"),
-				BucketLoggingStatus: &s3.BucketLoggingStatus{
-					LoggingEnabled: &s3.LoggingEnabled{
+				BucketLoggingStatus: &s3types.BucketLoggingStatus{
+					LoggingEnabled: &s3types.LoggingEnabled{
 						TargetBucket: aws.String("logging-bucket"),
 						TargetPrefix: aws.String("custom-prefix/"),
 					},
@@ -87,13 +88,13 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			},
 			s3.PutBucketLoggingInput{
 				Bucket: aws.String("source-bucket"),
-				BucketLoggingStatus: &s3.BucketLoggingStatus{
-					LoggingEnabled: &s3.LoggingEnabled{
+				BucketLoggingStatus: &s3types.BucketLoggingStatus{
+					LoggingEnabled: &s3types.LoggingEnabled{
 						TargetBucket: aws.String("logging-bucket"),
 						TargetPrefix: aws.String("custom-prefix/"),
-						TargetObjectKeyFormat: &s3.TargetObjectKeyFormat{
-							PartitionedPrefix: &s3.PartitionedPrefix{
-								PartitionDateSource: aws.String("EventTime"),
+						TargetObjectKeyFormat: &s3types.TargetObjectKeyFormat{
+							PartitionedPrefix: &s3types.PartitionedPrefix{
+								PartitionDateSource: s3types.PartitionDateSource("EventTime"),
 							},
 						},
 					},
@@ -111,6 +112,7 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			createdLoggingInput := extS3Cfg.CreateS3LoggingInput()
+
 			actual := reflect.DeepEqual(createdLoggingInput, tc.loggingInput)
 			if !assert.Equal(t, tc.shouldBeEqual, actual) {
 				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, tc.loggingInput)
@@ -290,6 +292,7 @@ func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		name           string
 		extConfig      *s3backend.ExtendedRemoteStateConfigS3

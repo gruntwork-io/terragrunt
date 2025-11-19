@@ -187,7 +187,6 @@ func TestEnableControl(t *testing.T) {
 			controls := newTestControls()
 
 			for _, testEnableControl := range tc.enableControls {
-
 				err := controls.EnableControl(testEnableControl.controlName)
 
 				if testEnableControl.expectedErr != nil {
@@ -205,12 +204,12 @@ func TestEnableControl(t *testing.T) {
 				if control.GetEnabled() {
 					actualEnabledControls = append(actualEnabledControls, control.GetName())
 				}
+
 				for _, subcontrol := range control.GetSubcontrols() {
 					if subcontrol.GetEnabled() {
 						actualEnabledControls = append(actualEnabledControls, subcontrol.GetName())
 					}
 				}
-
 			}
 
 			assert.ElementsMatch(t, tc.expectedEnabledControls, actualEnabledControls)
@@ -263,6 +262,7 @@ func TestEnableStrictMode(t *testing.T) {
 				if control.GetEnabled() {
 					actualEnabledControls = append(actualEnabledControls, control.GetName())
 				}
+
 				for _, subcontrol := range control.GetSubcontrols() {
 					if subcontrol.GetEnabled() {
 						actualEnabledControls = append(actualEnabledControls, subcontrol.GetName())

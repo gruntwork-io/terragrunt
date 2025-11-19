@@ -92,7 +92,7 @@ Terragrunt stores the current state of infrastructure in one or more OpenTofu/Te
 
 State is an extremely important concept in the context of OpenTofu/Terraform, and it's helpful to read the relevant documentation there to understand what Terragrunt does to it.
 
-Terragrunt has myriad capabilities that are designed to make working with state easier, including automatically provisioning state backend resources, managing unit interaction with external state, and segmenting state.
+Terragrunt has myriad capabilities that are designed to make working with state easier, including tooling to bootstrap state backend resources on demand, managing unit interaction with external state, and segmenting state.
 
 The most common way in which state is segmented in Terragrunt projects is to take advantage of filesystem directory structures. Most Terragrunt projects are configured to store state in remote backends like S3 with keys that correspond to the relative path to the unit directory within a project, relative to the root `terragrunt.hcl` file.
 
@@ -139,6 +139,8 @@ Runs are the primary way that Terragrunt does work. When you run `terragrunt pla
 Note that runs abstract away a lot of the complexity that comes from working with OpenTofu/Terraform directly. Terragrunt might automatically perform some code generation, provision requisite resources, or add/modify to the underlying OpenTofu/Terraform configuration to ensure that day to day operations are as smooth as possible.
 
 The way in which these complexities are abstracted is via Terragrunt configuration files (`terragrunt.hcl`), which can be used to define how Terragrunt should forward commands to OpenTofu/Terraform.
+
+There is an explicit list of [supported shortcuts](https://terragrunt.gruntwork.io/docs/reference/cli/commands/opentofu-shortcuts/) that Terragrunt will forward to OpenTofu/Terraform by default. For all other commands that need to be forwarded to OpenTofu/Terraform, use the `run` command (e.g., `terragrunt run -- workspace ls`).
 
 In the simplest case, a run in a unit with an empty `terragrunt.hcl` file will be equivalent to running OpenTofu/Terraform directly in the unit directory (with some small additional features like automatic initialization and logging adjustments).
 

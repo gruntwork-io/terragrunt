@@ -58,7 +58,7 @@ func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	var foundCaches ProviderCaches
 
 	for _, cache := range caches {
-		if util.ListContainsElement(cache.requestIDs, requestID) {
+		if cache.containsRequestID(requestID) {
 			foundCaches = append(foundCaches, cache)
 		}
 	}
@@ -90,48 +90,23 @@ type ProviderCache struct {
 	requestIDs         []string
 	archiveCached      bool
 	ready              bool
+	mu                 sync.RWMutex
 }
 
 func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, error) {
-	if cache.documentSHA256Sums != nil || cache.SHA256SumsURL == "" {
-		return cache.documentSHA256Sums, nil
+	if existing := cache.getDocumentSHA256Sums(); existing != nil || cache.SHA256SumsURL == "" {
+		return existing, nil
 	}
 
-	var documentSHA256Sums = new(bytes.Buffer)
-
-	req, err := cache.newRequest(ctx, cache.SHA256SumsURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := helpers.Fetch(ctx, req, documentSHA256Sums); err != nil {
-		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
-	}
-
-	cache.documentSHA256Sums = documentSHA256Sums.Bytes()
-
-	return cache.documentSHA256Sums, nil
+	return cache.setDocumentSHA256Sums(ctx)
 }
 
 func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
-	if cache.signature != nil || cache.SHA256SumsSignatureURL == "" {
-		return cache.signature, nil
+	if existing := cache.getSignature(); existing != nil || cache.SHA256SumsSignatureURL == "" {
+		return existing, nil
 	}
 
-	var signature = new(bytes.Buffer)
-
-	req, err := cache.newRequest(ctx, cache.SHA256SumsSignatureURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := helpers.Fetch(ctx, req, signature); err != nil {
-		return nil, fmt.Errorf("failed to retrieve authentication signature for provider %q: %w", cache.Provider, err)
-	}
-
-	cache.signature = signature.Bytes()
-
-	return cache.signature, nil
+	return cache.setSignature(ctx)
 }
 
 func (cache *ProviderCache) Version() string {
@@ -194,7 +169,103 @@ func (cache *ProviderCache) ArchivePath() string {
 }
 
 func (cache *ProviderCache) addRequestID(requestID string) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
 	cache.requestIDs = append(cache.requestIDs, requestID)
+}
+
+func (cache *ProviderCache) containsRequestID(requestID string) bool {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	return util.ListContainsElement(cache.requestIDs, requestID)
+}
+
+func (cache *ProviderCache) getRequestIDs() []string {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	result := make([]string, len(cache.requestIDs))
+	copy(result, cache.requestIDs)
+
+	return result
+}
+
+func (cache *ProviderCache) isReady() bool {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	return cache.ready
+}
+
+func (cache *ProviderCache) setReady(ready bool) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	cache.ready = ready
+}
+
+func (cache *ProviderCache) getDocumentSHA256Sums() []byte {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	return cache.documentSHA256Sums
+}
+
+func (cache *ProviderCache) setDocumentSHA256Sums(ctx context.Context) ([]byte, error) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	if cache.documentSHA256Sums != nil {
+		return cache.documentSHA256Sums, nil
+	}
+
+	var documentSHA256Sums = new(bytes.Buffer)
+
+	req, err := cache.newRequest(ctx, cache.SHA256SumsURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := helpers.Fetch(ctx, req, documentSHA256Sums); err != nil {
+		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
+	}
+
+	cache.documentSHA256Sums = documentSHA256Sums.Bytes()
+
+	return cache.documentSHA256Sums, nil
+}
+
+func (cache *ProviderCache) getSignature() []byte {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	return cache.signature
+}
+
+func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	if cache.signature != nil {
+		return cache.signature, nil
+	}
+
+	var signature = new(bytes.Buffer)
+
+	req, err := cache.newRequest(ctx, cache.SHA256SumsSignatureURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := helpers.Fetch(ctx, req, signature); err != nil {
+		return nil, fmt.Errorf("failed to retrieve authentication signature for provider %q: %w", cache.Provider, err)
+	}
+
+	cache.signature = signature.Bytes()
+
+	return cache.signature, nil
 }
 
 // warmUp checks if the required provider already exists in the cache directory, if not:
@@ -360,7 +431,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 
 	for i, cache := range service.providerCaches {
 		service.logger.Debugf("Cache %d: %s, requestIDs: %v, ready: %v, err: %v",
-			i, cache.Provider, cache.requestIDs, cache.ready, cache.err)
+			i, cache.Provider, cache.getRequestIDs(), cache.isReady(), cache.err)
 	}
 
 	for _, provider := range caches {
@@ -369,7 +440,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 			service.logger.Errorf("Provider cache error for %s: %v", provider, provider.err)
 		}
 
-		if provider.ready {
+		if provider.isReady() {
 			providers = append(providers, provider)
 			service.logger.Debugf("Provider %s is ready", provider)
 		} else {
@@ -410,6 +481,7 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 	}
 
 	service.logger.Debugf("Sending provider %s to warm up channel", provider)
+
 	select {
 	case service.providerCacheWarmUpCh <- cache:
 		service.logger.Debugf("Successfully sent provider %s to warm up channel", provider)
@@ -432,7 +504,8 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	service.cacheMu.RLock()
 	defer service.cacheMu.RUnlock()
 
-	if cache := service.providerCaches.Find(provider); cache != nil && cache.ready {
+	cache := service.providerCaches.Find(provider)
+	if cache != nil && cache.isReady() {
 		return cache
 	}
 
@@ -501,6 +574,7 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	defer service.cacheReadyMu.RUnlock()
 
 	service.logger.Debugf("Starting provider caching for: %s", cache.Provider)
+
 	cache.started <- struct{}{}
 
 	// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
@@ -521,7 +595,8 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 		return cache.err
 	}
 
-	cache.ready = true
+	cache.setReady(true)
+
 	service.logger.Debugf("Successfully cached provider: %s", cache.Provider)
 
 	return nil

@@ -53,6 +53,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// without going through terragrunt.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
+
 	mockOptions.WorkingDir = rootPath
 
 	l := logger.CreateLogger()
@@ -76,6 +77,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// Also make sure the undefined variable is not included in the json file
 	debugJSONContents, err := os.ReadFile(debugFile)
 	require.NoError(t, err)
+
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(debugJSONContents, &data))
 	_, isDefined := data["undefined_var"]
@@ -308,7 +310,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+workDir+" -- apply -auto-approve")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --non-interactive --log-level trace --working-dir %s --json-out ", workDir)+jsonOut)
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --log-level trace --working-dir %s --json-out ", workDir)+jsonOut)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)

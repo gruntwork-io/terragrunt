@@ -87,7 +87,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		},
 		DownloadDir:    ".terragrunt-cache",
 		PreventDestroy: &testTrue,
-		Skip:           &testTrue,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]any{
 			"aws_region": "us-east-1",
@@ -154,6 +153,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	testConfigStructInfo := structs.New(testConfig)
 	testConfigFields := testConfigStructInfo.Names()
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
+
 	for _, field := range testConfigFields {
 		mapKey, isConverted := terragruntConfigStructFieldToMapKey(t, field)
 		if isConverted {
@@ -162,6 +162,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			checked[mapKey] = true
 		}
 	}
+
 	for key := range ctyMap {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
@@ -198,6 +199,7 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 	testConfigStructInfo := structs.New(testConfig)
 	testConfigFields := testConfigStructInfo.Names()
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
+
 	for _, field := range testConfigFields {
 		mapKey, isConverted := remoteStateStructFieldToMapKey(t, field)
 		if isConverted {
@@ -206,11 +208,11 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 			checked[mapKey] = true
 		}
 	}
+
 	for key := range ctyMap {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
 	}
-
 }
 
 // This test makes sure that all the fields in TerraformConfig exist in ctyTerraformConfig.
@@ -220,6 +222,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
 	terraformConfigFields := terraformConfigStructInfo.Names()
 	sort.Strings(terraformConfigFields)
+
 	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})
 	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
 	sort.Strings(ctyTerraformConfigFields)
@@ -283,8 +286,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "download_dir", true
 	case "PreventDestroy":
 		return "prevent_destroy", true
-	case "Skip":
-		return "skip", true
 	case "IamRole":
 		return "iam_role", true
 	case "IamAssumeRoleDuration":
@@ -307,12 +308,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "", false
 	case "FieldsMetadata":
 		return "", false
-	case "RetryableErrors":
-		return "retryable_errors", true
-	case "RetryMaxAttempts":
-		return "retry_max_attempts", true
-	case "RetrySleepIntervalSec":
-		return "retry_sleep_interval_sec", true
 	case "DependentModulesPath":
 		return "dependent_modules", true
 	case "Engine":

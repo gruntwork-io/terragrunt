@@ -35,7 +35,8 @@ const (
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL = "root-terragrunt-hcl"
 
-	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
+	// SkipDependenciesInputs is the control related to the deprecated dependency inputs feature.
+	// Dependency inputs are now disabled by default for performance.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
@@ -50,6 +51,10 @@ const (
 
 	// BareInclude is the control that prevents the use of the `include` block without a label.
 	BareInclude = "bare-include"
+
+	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
+	// and will log a warning when using **/*
+	DoubleStar = "double-star"
 )
 
 //nolint:lll
@@ -62,12 +67,12 @@ func New() strict.Controls {
 	}
 
 	skipDependenciesInputsControl := &Control{
-		// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
 		Name:        SkipDependenciesInputs,
-		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
+		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
 		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
-		Warning:     "Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+		Warning:     "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
 		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
 	}
 
 	requireExplicitBootstrapControl := &Control{
@@ -76,6 +81,7 @@ func New() strict.Controls {
 		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
 		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Category:    stageCategory,
+		Status:      strict.CompletedStatus,
 	}
 
 	controls := strict.Controls{
@@ -194,6 +200,14 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
 			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
+		},
+
+		&Control{
+			Name:        DoubleStar,
+			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
+			Category:    stageCategory,
+			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
+			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 		},
 	}
 

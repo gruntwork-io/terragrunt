@@ -11,12 +11,17 @@ import (
 // TestKeyLocksBasic verifies basic locking and unlocking behavior.
 func TestKeyLocksBasic(t *testing.T) {
 	t.Parallel()
+
 	kl := util.NewKeyLocks()
+
 	var counter int // Counter to track lock/unlock cycles
 
 	kl.Lock("key1")
+
 	counter++
+
 	kl.Unlock("key1")
+
 	counter++
 
 	require.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
@@ -25,16 +30,23 @@ func TestKeyLocksBasic(t *testing.T) {
 // TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
 func TestKeyLocksConcurrentAccess(t *testing.T) {
 	t.Parallel()
+
 	kl := util.NewKeyLocks()
-	var counters [10]int
-	var wg sync.WaitGroup
+
+	var (
+		counters [10]int
+		wg       sync.WaitGroup
+	)
 
 	for i := range 10 {
 		wg.Add(1)
+
 		go func(key string, idx int) {
 			defer wg.Done()
+
 			kl.Lock(key)
 			defer kl.Unlock(key)
+
 			counters[idx]++
 			counters[idx]++
 		}("test-key", i)
@@ -50,7 +62,9 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 // TestKeyLocksUnlockWithoutLock checks for safe behavior when unlocking without locking.
 func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 	t.Parallel()
+
 	kl := util.NewKeyLocks()
+
 	require.NotPanics(t, func() {
 		kl.Unlock("nonexistent_key")
 	}, "Unlocking without locking should not panic")
@@ -59,18 +73,28 @@ func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 // TestKeyLocksLockUnlockStressWithSharedKey tests a shared key under high concurrent load.
 func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 	t.Parallel()
+
 	kl := util.NewKeyLocks()
-	const numGoroutines = 100
-	const numOperations = 1000
-	var wg sync.WaitGroup
-	var counter int
+
+	const (
+		numGoroutines = 100
+		numOperations = 1000
+	)
+
+	var (
+		wg      sync.WaitGroup
+		counter int
+	)
 
 	for range numGoroutines {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
+
 			kl.Lock("shared_key")
 			defer kl.Unlock("shared_key")
+
 			for range numOperations {
 				counter++
 				counter++

@@ -65,6 +65,7 @@ func NewWorkerPool(maxWorkers int) *Pool {
 // Start initializes the worker pool
 func (wp *Pool) Start() {
 	wp.mu.Lock()
+
 	if wp.isRunning {
 		wp.mu.Unlock()
 		return
@@ -151,6 +152,7 @@ func (wp *Pool) Submit(task Task) {
 		defer wp.wg.Done()
 
 		wp.semaphore <- struct{}{}
+
 		defer func() { <-wp.semaphore }()
 
 		err := task()
@@ -206,10 +208,12 @@ func (wp *Pool) Stop() {
 
 			// Now it's truly safe to close resultChan as all goroutines are done
 			wp.mu.Lock()
+
 			if wp.isRunning {
 				close(wp.resultChan)
 				wp.isRunning = false
 			}
+
 			wp.mu.Unlock()
 		}()
 	}
