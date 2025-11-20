@@ -23,7 +23,6 @@ import (
 // You may want to expand this for more complex tests
 func newMockUnit() *component.Unit {
 	unit := component.NewUnit("mock/path")
-	unit.SetLogger(logger.CreateLogger())
 	unit.SetTerragruntOptions(&options.TerragruntOptions{})
 
 	return unit
@@ -45,7 +44,7 @@ func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
 	unit.SetAssumeAlreadyApplied(true)
 	runner := common.NewUnitRunner(unit)
 	report := &report.Report{}
-	err := runner.Run(t.Context(), &options.TerragruntOptions{}, report)
+	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{}, report)
 	require.NoError(t, err)
 	assert.Equal(t, common.Running, runner.Status)
 }
@@ -58,7 +57,7 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	path := t.TempDir()
 	unit.SetPath(path)
 	rep := report.NewReport().WithWorkingDir(path)
-	err := runner.Run(t.Context(), &options.TerragruntOptions{
+	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return errors.New("fail")
@@ -77,7 +76,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	unit.SetPath(path)
 	runner := common.NewUnitRunner(unit)
 	rep := report.NewReport().WithWorkingDir(path)
-	err := runner.Run(t.Context(), &options.TerragruntOptions{
+	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return nil

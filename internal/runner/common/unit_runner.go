@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -39,10 +40,9 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 	}
 }
 
-func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
-	logger := runner.Unit.Logger()
-	logger.Debugf("UnitRunner.runTerragrunt called for %s, opts.RunTerragrunt=%v", runner.Unit.Path(), opts.RunTerragrunt)
-	logger.Debugf("Running %s", runner.Unit.Path())
+func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
+	l.Debugf("UnitRunner.runTerragrunt called for %s, opts.RunTerragrunt=%v", runner.Unit.Path(), opts.RunTerragrunt)
+	l.Debugf("Running %s", runner.Unit.Path())
 
 	opts.Writer = component.NewUnitWriter(opts.Writer)
 
@@ -74,7 +74,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
 
-	runErr := opts.RunTerragrunt(ctx, logger, opts, r)
+	runErr := opts.RunTerragrunt(ctx, l, opts, r)
 
 	// Only merge the final unit exit code when the unit run completed without error
 	// and the exit code isn't stuck at 1 from a prior retry attempt.
@@ -87,7 +87,6 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		// Get the unit path (already computed above)
 		unitPath := runner.Unit.AbsolutePath()
 		unitPath = util.CleanPath(unitPath)
-		logger := runner.Unit.Logger()
 
 		if runErr != nil {
 			if endErr := r.EndRun(
@@ -96,11 +95,11 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 				report.WithReason(report.ReasonRunError),
 				report.WithCauseRunError(runErr.Error()),
 			); endErr != nil {
-				logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}
 		} else {
 			if endErr := r.EndRun(unitPath, report.WithResult(report.ResultSucceeded)); endErr != nil {
-				logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}
 		}
 	}
@@ -109,24 +108,21 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 }
 
 // Run a unit right now by executing the runTerragrunt command with the provided options.
-func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
-	logger := runner.Unit.Logger()
-	logger.Infof("[VERSION-DEBUG] UnitRunner.Run called for %s, working dir: %s", runner.Unit.Path(), opts.WorkingDir)
-
 	if runner.Unit.AssumeAlreadyApplied() {
-		logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path())
+		l.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path())
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, opts, r); err != nil {
+	if err := runner.runTerragrunt(ctx, l, opts, r); err != nil {
 		return err
 	}
 
 	// convert terragrunt output to json
 	if runner.Unit.GetOutputJSONFile() != "" {
-		l, jsonOptions, err := opts.CloneWithConfigPath(logger, opts.TerragruntConfigPath)
+		jsonLogger, jsonOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 		if err != nil {
 			return err
 		}
@@ -142,7 +138,7 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		// for the cache directory, while still satisfying RunTerragrunt's
 		// expectation for a non-nil report parameter.
 		adhocReport := report.NewReport()
-		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, adhocReport); err != nil {
+		if err := jsonOptions.RunTerragrunt(ctx, jsonLogger, jsonOptions, adhocReport); err != nil {
 			return err
 		}
 

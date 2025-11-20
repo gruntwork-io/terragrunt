@@ -15,16 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
-// discoveryUnitFilterAdapter adapts common.UnitFilter to discovery.UnitFilter interface
-type discoveryUnitFilterAdapter struct {
-	filter common.UnitFilter
-}
-
-func (a *discoveryUnitFilterAdapter) Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error {
-	// common.UnitFilter and discovery.UnitFilter have the same signature
-	return a.filter.Filter(ctx, units, opts)
-}
-
 // Build stack runner using discovery and queueing mechanisms.
 func Build(
 	ctx context.Context,
@@ -60,7 +50,7 @@ func Build(
 	// NOTE: Need to extract report from opts first
 	var (
 		reportForDiscovery *report.Report
-		unitFilters        []discovery.UnitFilter
+		unitFilters        []common.UnitFilter
 	)
 
 	// Apply options to extract report and filters
@@ -76,11 +66,7 @@ func Build(
 		}
 		// Extract unit filters if any
 		if len(tempRunner.unitFilters) > 0 {
-			// Convert common.UnitFilter to discovery.UnitFilter
-			for _, f := range tempRunner.unitFilters {
-				// Wrap the filter to match discovery's UnitFilter interface
-				unitFilters = append(unitFilters, &discoveryUnitFilterAdapter{filter: f})
-			}
+			unitFilters = append(unitFilters, tempRunner.unitFilters...)
 		}
 	}
 

@@ -255,7 +255,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	task := func(ctx context.Context, u *component.Unit) error {
 		execOpts := u.ExecutionOptions()
-		l.Warnf("[VERSION-DEBUG-WARN] Runner pool task starting for unit: %s, working dir: %s", u.Path(), execOpts.WorkingDir)
 
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
 			"terraform_command":      execOpts.TerraformCommand,
@@ -264,11 +263,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"terragrunt_config_path": execOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			unitRunner := common.NewUnitRunner(u)
-			l.Infof("[VERSION-DEBUG] About to call unitRunner.Run for %s", u.Path())
 
 			// Clone stack-level options with unit's config path to get unit-specific WorkingDir
 			// This ensures each unit executes in its own directory
-			_, unitOpts, err := opts.CloneWithConfigPath(u.Logger(), execOpts.TerragruntConfigPath)
+			scopedLogger, unitOpts, err := opts.CloneWithConfigPath(l, execOpts.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}
@@ -287,7 +285,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			// This ensures methods like GetOutputFile() and PlanFile() use the correct paths.
 			u.SetTerragruntOptions(unitOpts)
 
-			return unitRunner.Run(childCtx, unitOpts, r.Stack.Report())
+			return unitRunner.Run(childCtx, scopedLogger, unitOpts, r.Stack.Report())
 		})
 	}
 

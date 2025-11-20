@@ -43,7 +43,6 @@ func getUnitOutputLock(path string) *sync.Mutex {
 // This type is used by both discovery and runner packages.
 // It contains all fields needed throughout the unit's lifecycle.
 type Unit struct {
-	logger               log.Logger
 	cfg                  *config.TerragruntConfig
 	discoveryContext     *DiscoveryContext
 	runnerOptions        *runnertypes.RunnerOptions
@@ -311,22 +310,6 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 	}
 }
 
-// Logger returns the logger for this unit.
-func (u *Unit) Logger() log.Logger {
-	u.rLock()
-	defer u.rUnlock()
-
-	return u.logger
-}
-
-// SetLogger sets the logger for this unit.
-func (u *Unit) SetLogger(logger log.Logger) {
-	u.lock()
-	defer u.unlock()
-
-	u.logger = logger
-}
-
 // AssumeAlreadyApplied returns whether this unit should be assumed as already applied.
 func (u *Unit) AssumeAlreadyApplied() bool {
 	u.rLock()
@@ -360,11 +343,10 @@ func (u *Unit) SetFlagExcluded(excluded bool) {
 }
 
 // AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, returns the original path and logs a warning.
+// If path conversion fails, returns the original path.
 func (u *Unit) AbsolutePath() string {
 	u.rLock()
 	path := u.path
-	logger := u.logger
 	u.rUnlock()
 
 	if filepath.IsAbs(path) {
@@ -373,10 +355,8 @@ func (u *Unit) AbsolutePath() string {
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		if logger != nil {
-			logger.Warnf("Failed to get absolute path for %s: %v", path, err)
-		}
-
+		// Component paths should already be absolute from ingestion
+		// If this fails, return the original path
 		return path
 	}
 
@@ -422,14 +402,13 @@ func (u *Unit) FlushOutput() error {
 func (u *Unit) PlanFile() string {
 	u.rLock()
 	opts := u.runnerOptions
-	logger := u.logger
 	u.rUnlock()
 
 	if opts == nil {
 		return ""
 	}
 
-	return u.planFileWithExecutionOptions(logger, opts)
+	return u.planFileWithExecutionOptions(nil, opts)
 }
 
 // planFileWithExecutionOptions returns plan file location with execution options.
@@ -456,14 +435,13 @@ func (u *Unit) planFileWithExecutionOptions(l log.Logger, opts *runnertypes.Runn
 func (u *Unit) GetOutputFile() string {
 	u.rLock()
 	opts := u.runnerOptions
-	logger := u.logger
 	u.rUnlock()
 
 	if opts == nil || opts.OutputFolder == "" {
 		return ""
 	}
 
-	return u.outputFileWithExecutionOptions(logger, opts)
+	return u.outputFileWithExecutionOptions(nil, opts)
 }
 
 // outputFileWithExecutionOptions returns plan file location with execution options.
@@ -476,14 +454,13 @@ func (u *Unit) outputFileWithExecutionOptions(l log.Logger, opts *runnertypes.Ru
 func (u *Unit) GetOutputJSONFile() string {
 	u.rLock()
 	opts := u.runnerOptions
-	logger := u.logger
 	u.rUnlock()
 
 	if opts == nil || opts.JSONOutputFolder == "" {
 		return ""
 	}
 
-	return u.outputJSONFileWithExecutionOptions(logger, opts)
+	return u.outputJSONFileWithExecutionOptions(nil, opts)
 }
 
 // outputJSONFileWithExecutionOptions returns plan JSON file location with execution options.

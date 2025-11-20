@@ -95,7 +95,6 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 
 		// Exclusion check - create a temporary unit for matching
 		unitToExclude := component.NewUnit(unitPath)
-		unitToExclude.SetLogger(l)
 		unitToExclude.SetTerragruntOptions(opts)
 		unitToExclude.SetFlagExcluded(true)
 
@@ -137,7 +136,6 @@ func (d *Discovery) setupUnits(l log.Logger, discovered []component.Component) (
 		// discovery discovers everything, and filtering happens later in the pipeline.
 
 		unit := component.NewUnit(unitPath)
-		unit.SetLogger(l)
 		unit.StoreConfig(terragruntConfig)
 		unit.SetTerragruntOptions(opts)
 		unit.SetReading(dUnit.Reading()...)

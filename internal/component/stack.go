@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -17,7 +16,6 @@ const (
 // Stack represents a discovered Terragrunt stack configuration.
 // This type serves as a DTO for data exchange between discovery and runner packages.
 type Stack struct {
-	logger           log.Logger
 	report           *report.Report
 	discoveryContext *DiscoveryContext
 	workingDir       string // Working directory for this stack (only field needed from TerragruntOptions)
@@ -190,22 +188,6 @@ func (s *Stack) Dependents() Components {
 	defer s.rUnlock()
 
 	return s.dependents
-}
-
-// Logger returns the logger for this stack.
-func (s *Stack) Logger() log.Logger {
-	s.rLock()
-	defer s.rUnlock()
-
-	return s.logger
-}
-
-// SetLogger sets the logger for this stack.
-func (s *Stack) SetLogger(logger log.Logger) {
-	s.lock()
-	defer s.unlock()
-
-	s.logger = logger
 }
 
 // FlagExcluded returns whether this stack was excluded by filters/flags.

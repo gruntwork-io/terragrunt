@@ -107,7 +107,7 @@ type Discovery struct {
 	excludeDirs                  []string
 	includeDirs                  []string
 	compiledExcludePatterns      []CompiledPattern
-	unitFilters                  []UnitFilter
+	unitFilters                  []common.UnitFilter
 	compiledIncludePatterns      []CompiledPattern
 	hiddenDirMemo                hiddenDirMemo
 	numWorkers                   int
@@ -387,7 +387,7 @@ func (d *Discovery) WithReport(r *report.Report) *Discovery {
 }
 
 // WithUnitFilters adds custom unit filters to apply after standard resolution.
-func (d *Discovery) WithUnitFilters(filters ...UnitFilter) *Discovery {
+func (d *Discovery) WithUnitFilters(filters ...common.UnitFilter) *Discovery {
 	d.unitFilters = append(d.unitFilters, filters...)
 	return d
 }
@@ -404,11 +404,6 @@ func (d *Discovery) WithContext(ctx context.Context) *Discovery {
 func (d *Discovery) WithSkipValidation() *Discovery {
 	d.skipValidation = true
 	return d
-}
-
-// UnitFilter is an interface for filtering units.
-type UnitFilter interface {
-	Filter(ctx context.Context, units component.Units, opts *options.TerragruntOptions) error
 }
 
 // compileIncludePatterns compiles the include directory patterns for faster matching.
