@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	internalExec "github.com/gruntwork-io/terragrunt/internal/os/exec"
 )
 
 const (
@@ -280,5 +282,5 @@ func (g *GitRunner) SetWorkDir(dir string) {
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	return internalExec.GracefulCommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 }

@@ -58,9 +58,13 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	containsKilled := strings.Contains(actualErrStr, "signal: killed")
 	containsFailedExecute := strings.Contains(actualErrStr, fmt.Sprintf("Failed to execute \"%s", cmdPath))
 
+	if containsKilled {
+		t.Errorf("Expected process to gracefully terminate but got\n: %s", actualErrStr)
+	}
+
 	// On Windows, the batch file might exit with status 1 when interrupted, or be killed by signal
-	if !containsFailedExecute || (!containsExitStatus5 && !containsExitStatus1 && !containsKilled) {
-		t.Errorf("Expected error to contain 'Failed to execute \"%s' and either 'exit status 5', 'exit status 1', or 'signal: killed', but got:\n  %s",
+	if !containsFailedExecute || (!containsExitStatus5 && !containsExitStatus1) {
+		t.Errorf("Expected error to contain 'Failed to execute \"%s' and either 'exit status 5', or 'exit status 1', but got:\n  %s",
 			cmdPath, actualErrStr)
 	}
 }
