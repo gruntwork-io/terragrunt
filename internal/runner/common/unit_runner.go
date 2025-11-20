@@ -41,6 +41,7 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 
 func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	logger := runner.Unit.Logger()
+	logger.Debugf("UnitRunner.runTerragrunt called for %s, opts.RunTerragrunt=%v", runner.Unit.Path(), opts.RunTerragrunt)
 	logger.Debugf("Running %s", runner.Unit.Path())
 
 	opts.Writer = component.NewUnitWriter(opts.Writer)
@@ -118,6 +119,7 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 	runner.Status = Running
 
 	logger := runner.Unit.Logger()
+	logger.Infof("[VERSION-DEBUG] UnitRunner.Run called for %s, working dir: %s", runner.Unit.Path(), opts.WorkingDir)
 
 	if runner.Unit.AssumeAlreadyApplied() {
 		logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path())

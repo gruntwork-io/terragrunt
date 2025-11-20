@@ -151,7 +151,10 @@ func (d *Discovery) WithNoHidden() *Discovery {
 }
 
 // WithSkipExternalDependencyPrompt sets the flag to skip external dependency prompts.
-// This is useful for discovery-only commands like find/list that don't need user interaction.
+// Required for discovery-only commands (find/list) that:
+// 1. Don't execute terraform (so external deps are safe to include)
+// 2. Need to run non-interactively (prompts would block automated scripts)
+// 3. Only show/analyze the dependency graph (no risk of modifying external state)
 func (d *Discovery) WithSkipExternalDependencyPrompt() *Discovery {
 	d.skipExternalDependencyPrompt = true
 
@@ -516,8 +519,9 @@ func Parse(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	// When suppressing parse errors, also suppress error-level logging to prevent
-	// parsing errors from appearing in stderr during discovery
+	// When suppressing parse errors, also suppress logger output to prevent
+	// parsing errors from appearing in stderr during discovery.
+	// Note: This only affects logging DURING parsing, not before or after.
 	parsingLogger := l
 	if suppressParseErrors {
 		parsingLogger = l.WithOptions(log.WithOutput(io.Discard))

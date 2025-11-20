@@ -230,8 +230,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 			// nil out the parsed configurations, as it doesn't matter for this test
 			for _, c := range components {
-				if c.Kind() == component.UnitKind {
-					unit := c.(*component.Unit)
+				if unit, ok := c.(*component.Unit); ok {
 					unit.StoreConfig(nil)
 				}
 			}
@@ -335,8 +334,8 @@ exclude {
 	findUnit := func(path string) *component.Unit {
 		for _, c := range components {
 			if filepath.Base(c.Path()) == path {
-				if c.Kind() == component.UnitKind {
-					return c.(*component.Unit)
+				if unit, ok := c.(*component.Unit); ok {
+					return unit
 				}
 			}
 		}
@@ -611,8 +610,8 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 
 	for _, c := range components {
 		if c.Path() == appDir {
-			if c.Kind() == component.UnitKind {
-				appCfg = c.(*component.Unit)
+			if unit, ok := c.(*component.Unit); ok {
+				appCfg = unit
 			}
 
 			break
@@ -674,8 +673,8 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 
 	for _, c := range components {
 		if c.Path() == appDir {
-			if c.Kind() == component.UnitKind {
-				appComponent = c.(*component.Unit)
+			if unit, ok := c.(*component.Unit); ok {
+				appComponent = unit
 			}
 
 			break

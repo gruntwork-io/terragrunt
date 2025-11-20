@@ -21,17 +21,12 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	// Ensure WorkingDir is absolute to avoid filepath.Rel errors when comparing with absolute unit paths
-	if !filepath.IsAbs(opts.WorkingDir) {
-		absWorkingDir, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return errors.Errorf("failed to get absolute path for working directory %s: %w", opts.WorkingDir, err)
-		}
-
-		opts.WorkingDir = util.CleanPath(absWorkingDir)
-		// Also update the underlying TerragruntOptions
-		opts.TerragruntOptions.WorkingDir = opts.WorkingDir
-		opts.TerragruntOptions.RootWorkingDir = opts.WorkingDir
+	// Use RootWorkingDir which is already absolute (set by initialSetup in cli/commands/commands.go)
+	// We never want to use filepath.Abs() here as it depends on the process PWD
+	// Fall back to WorkingDir for tests that don't go through initialSetup
+	absWorkingDir := opts.RootWorkingDir
+	if absWorkingDir == "" {
+		absWorkingDir = opts.WorkingDir
 	}
 
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
@@ -104,7 +99,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}, func(ctx context.Context) error {
 		var convErr error
 
-		foundComponents, convErr = discoveredToFound(components, opts)
+		foundComponents, convErr = discoveredToFound(components, opts, absWorkingDir)
 
 		return convErr
 	})
@@ -137,7 +132,7 @@ type FoundComponent struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
+func discoveredToFound(components component.Components, opts *Options, absWorkingDir string) (FoundComponents, error) {
 	foundComponents := make(FoundComponents, 0, len(components))
 	errs := []error{}
 
@@ -147,8 +142,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		if opts.QueueConstructAs != "" {
-			if c.Kind() == component.UnitKind {
-				unit := c.(*component.Unit)
+			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
 					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
 						continue
@@ -157,7 +151,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, c.Path())
+		relPath, err := filepath.Rel(absWorkingDir, c.Path())
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -170,8 +164,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		if opts.Exclude {
-			if c.Kind() == component.UnitKind {
-				unit := c.(*component.Unit)
+			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
 					foundComponent.Exclude = cfg.Exclude.Clone()
 				}
@@ -179,8 +172,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		}
 
 		if opts.Include {
-			if c.Kind() == component.UnitKind {
-				unit := c.(*component.Unit)
+			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.ProcessedIncludes != nil {
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {
@@ -197,7 +189,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			foundComponent.Reading = make([]string, len(c.Reading()))
 
 			for i, reading := range c.Reading() {
-				relReadingPath, err := filepath.Rel(opts.WorkingDir, reading)
+				relReadingPath, err := filepath.Rel(absWorkingDir, reading)
 				if err != nil {
 					errs = append(errs, errors.New(err))
 				}
@@ -210,7 +202,7 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
 			for i, dep := range c.Dependencies() {
-				relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path())
+				relDepPath, err := filepath.Rel(absWorkingDir, dep.Path())
 				if err != nil {
 					errs = append(errs, errors.New(err))
 

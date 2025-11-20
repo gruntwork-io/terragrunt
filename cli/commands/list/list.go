@@ -24,6 +24,14 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
+	// Use RootWorkingDir which is already absolute (set by initialSetup in cli/commands/commands.go)
+	// We never want to use filepath.Abs() here as it depends on the process PWD
+	// Fall back to WorkingDir for tests that don't go through initialSetup
+	absWorkingDir := opts.RootWorkingDir
+	if absWorkingDir == "" {
+		absWorkingDir = opts.WorkingDir
+	}
+
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
 		WorkingDir:       opts.WorkingDir,
 		QueueConstructAs: opts.QueueConstructAs,
@@ -90,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}, func(ctx context.Context) error {
 		var convErr error
 
-		listedComponents, convErr = discoveredToListed(components, opts)
+		listedComponents, convErr = discoveredToListed(components, opts, absWorkingDir)
 
 		return convErr
 	})
@@ -162,20 +170,9 @@ func (l ListedComponents) Get(path string) *ListedComponent {
 	return nil
 }
 
-func discoveredToListed(components component.Components, opts *Options) (ListedComponents, error) {
+func discoveredToListed(components component.Components, opts *Options, absWorkingDir string) (ListedComponents, error) {
 	listedComponents := make(ListedComponents, 0, len(components))
 	errs := []error{}
-
-	// Ensure working directory is absolute for reliable path relativity calculations
-	absWorkingDir := opts.WorkingDir
-	if !filepath.IsAbs(absWorkingDir) {
-		var err error
-
-		absWorkingDir, err = filepath.Abs(absWorkingDir)
-		if err != nil {
-			return nil, errors.New(err)
-		}
-	}
 
 	for _, c := range components {
 		if c.External() && !opts.External {
@@ -198,19 +195,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			}
 		}
 
-		// Ensure component path is absolute for reliable relativity calculation
-		componentPath := c.Path()
-		if !filepath.IsAbs(componentPath) {
-			var err error
-
-			componentPath, err = filepath.Abs(componentPath)
-			if err != nil {
-				errs = append(errs, errors.New(err))
-				continue
-			}
-		}
-
-		relPath, err := filepath.Rel(absWorkingDir, componentPath)
+		relPath, err := filepath.Rel(absWorkingDir, c.Path())
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -232,19 +217,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		listedCfg.Dependencies = make([]*ListedComponent, len(c.Dependencies()))
 
 		for i, dep := range c.Dependencies() {
-			// Ensure dependency path is absolute for reliable relativity calculation
-			depPath := dep.Path()
-			if !filepath.IsAbs(depPath) {
-				var err error
-
-				depPath, err = filepath.Abs(depPath)
-				if err != nil {
-					errs = append(errs, errors.New(err))
-					continue
-				}
-			}
-
-			relDepPath, err := filepath.Rel(absWorkingDir, depPath)
+			relDepPath, err := filepath.Rel(absWorkingDir, dep.Path())
 			if err != nil {
 				errs = append(errs, errors.New(err))
 
@@ -254,8 +227,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			depExcluded := false
 
 			if opts.QueueConstructAs != "" {
-				if dep.Kind() == component.UnitKind {
-					depUnit := dep.(*component.Unit)
+				if depUnit, ok := dep.(*component.Unit); ok {
 					if depCfg := depUnit.Config(); depCfg != nil && depCfg.Exclude != nil {
 						if depCfg.Exclude.IsActionListed(opts.QueueConstructAs) {
 							depExcluded = true
