@@ -56,7 +56,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	}
 
 	if actualErr.Error() != expectedExitStatusErr {
-		t.Errorf("Expected error to be either:\n  %s\nor:\n  %s\nbut got:\n  %s",
+		t.Errorf("Expected error to be:\n  %s\nbut got:\n  %s",
 			expectedExitStatusErr, actualErr.Error())
 	}
 }
