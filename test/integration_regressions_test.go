@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	testFixtureRegressions               = "fixtures/regressions"
-	testFixtureDependencyGenerate        = "fixtures/regressions/dependency-generate"
-	testFixtureDependencyEmptyConfigPath = "fixtures/regressions/dependency-empty-config-path"
-	testFixtureParsingDeprecated         = "fixtures/parsing/exposed-include-with-deprecated-inputs"
-	testFixtureSensitiveValues           = "fixtures/regressions/sensitive-values"
+	testFixtureRegressions                       = "fixtures/regressions"
+	testFixtureDependencyGenerate                = "fixtures/regressions/dependency-generate"
+	testFixtureDependencyEmptyConfigPath         = "fixtures/regressions/dependency-empty-config-path"
+	testFixtureDisabledDependencyEmptyConfigPath = "fixtures/regressions/disabled-dependency-empty-config-path"
+	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
+	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -370,4 +371,51 @@ func TestSensitiveValues(t *testing.T) {
 	passwordLengthStr := fmt.Sprintf("%v", outputs["password_length"].Value)
 	assert.Equal(t, "25", passwordLengthStr,
 		"Password length should match dev password")
+}
+
+// TestDisabledDependencyEmptyConfigPath_NoCycleError tests that disabled dependencies with empty
+// config_path values do not cause cycle detection errors during discovery.
+// This is a regression test for issue #4977 where setting enabled = false on a dependency
+// with an empty config_path ("") was still causing terragrunt to throw cycle errors.
+//
+// The expected behavior is that disabled dependencies should be completely ignored during
+// dependency graph construction and cycle detection, regardless of their config_path value.
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/4977
+func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDisabledDependencyEmptyConfigPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledDependencyEmptyConfigPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDisabledDependencyEmptyConfigPath)
+	helpers.CreateGitRepo(t, rootPath)
+
+	unitBPath := util.JoinPath(rootPath, "unit-b")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --non-interactive --working-dir "+unitBPath,
+	)
+
+	require.NoError(t, err, "plan should succeed when disabled dependency has empty config_path")
+
+	combinedOutput := stdout + stderr
+	assert.NotContains(t, combinedOutput, "cycle",
+		"Should not see cycle detection errors for disabled dependencies")
+	assert.NotContains(t, combinedOutput, "Cycle detected",
+		"Should not see 'Cycle detected' error")
+
+	assert.NotContains(t, combinedOutput, "has empty config_path",
+		"Should not see empty config_path error for disabled dependency")
+
+	_, runAllStderr, runAllErr := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+
+	require.NoError(t, runAllErr, "run --all plan should succeed")
+
+	assert.NotContains(t, runAllStderr, "cycle",
+		"run --all should not see cycle errors")
+	assert.NotContains(t, runAllStderr, "dependency graph",
+		"run --all should not see dependency graph errors")
 }
