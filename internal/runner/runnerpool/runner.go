@@ -247,17 +247,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
 	// Allow continuing the queue when dependencies fail if requested via CLI
 	r.queue.IgnoreDependencyErrors = opts.IgnoreDependencyErrors
-	// Convert Stack.Units (component.Components) to []*component.Unit for the controller
-	units := make([]*component.Unit, 0, len(r.Stack.Units()))
-	for _, comp := range r.Stack.Units() {
-		if u, ok := comp.(*component.Unit); ok {
-			units = append(units, u)
-		}
-	}
 
+	// Controller accepts Components directly and extracts Units internally
 	controller := NewController(
 		r.queue,
-		units,
+		r.Stack.Units(),
 		WithRunner(task),
 		WithMaxConcurrency(opts.Parallelism),
 	)

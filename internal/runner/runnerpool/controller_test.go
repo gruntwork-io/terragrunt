@@ -63,7 +63,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 
 	dagRunner := runnerpool.NewController(
 		q,
-		units,
+		discoveryFromUnits(units),
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
@@ -90,7 +90,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 
 	dagRunner := runnerpool.NewController(
 		q,
-		units,
+		discoveryFromUnits(units),
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
@@ -120,7 +120,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
-		units,
+		discoveryFromUnits(units),
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
@@ -168,7 +168,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 
 	dagRunner := runnerpool.NewController(
 		q,
-		units,
+		discoveryFromUnits(units),
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)
@@ -199,7 +199,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
-		units,
+		discoveryFromUnits(units),
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)
@@ -236,7 +236,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
-		units,
+		discoveryFromUnits(units),
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)

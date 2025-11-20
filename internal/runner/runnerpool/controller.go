@@ -51,17 +51,18 @@ func WithMaxConcurrency(concurrency int) ControllerOption {
 }
 
 // NewController creates a new Controller with the given options and a pre-built queue.
-func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOption) *Controller {
+func NewController(q *queue.Queue, components component.Components, opts ...ControllerOption) *Controller {
 	dr := &Controller{
 		q:           q,
 		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
 		concurrency: options.DefaultParallelism,
 	}
 	// Map to link runner Units and Queue Entries
-	unitsMap := make(map[string]*component.Unit)
+	// Extract Unit components and build path->unit map
+	unitsMap := make(map[string]*component.Unit, len(components))
 
-	for _, u := range units {
-		if u != nil && u.Path() != "" {
+	for _, c := range components {
+		if u, ok := c.(*component.Unit); ok && u != nil && u.Path() != "" {
 			unitsMap[u.Path()] = u
 		}
 	}
