@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -346,25 +348,31 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 // handlePlan handles logic for plan command, including error buffer setup and summary.
 // Returns error buffers for each unit to capture stderr output for later analysis.
 func (r *Runner) handlePlan() []bytes.Buffer {
-	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units()))
-	i := 0
+	return slices.Collect(r.planBuffersIter())
+}
 
-	for _, comp := range r.Stack.Units() {
-		u, ok := comp.(*component.Unit)
-		if !ok {
-			continue
+// planBuffersIter returns an iterator that yields error buffers for each unit in the stack.
+// For each unit, it configures a buffer to capture errors via MultiWriter and yields the buffer.
+func (r *Runner) planBuffersIter() iter.Seq[bytes.Buffer] {
+	return func(yield func(bytes.Buffer) bool) {
+		for _, comp := range r.Stack.Units() {
+			u, ok := comp.(*component.Unit)
+			if !ok {
+				continue
+			}
+
+			var buf bytes.Buffer
+			execOpts := u.ExecutionOptions()
+			if execOpts != nil {
+				execOpts.ErrWriter = io.MultiWriter(&buf, execOpts.ErrWriter)
+				u.SetExecutionOptions(execOpts)
+			}
+
+			if !yield(buf) {
+				return
+			}
 		}
-
-		execOpts := u.ExecutionOptions()
-		if execOpts != nil {
-			execOpts.ErrWriter = io.MultiWriter(&planErrorBuffers[i], execOpts.ErrWriter)
-			u.SetExecutionOptions(execOpts)
-		}
-
-		i++
 	}
-
-	return planErrorBuffers[:i]
 }
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
