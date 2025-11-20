@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -508,14 +508,7 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 		Output: l.Writer(),
 	})
 
-	// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
-	// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
-	// when the command is cancelled.
-	cmd := exec.CommandContext(
-		context.WithoutCancel(ctx),
-		localEnginePath,
-	)
-
+	cmd := exec.GracefulCommandContext(ctx, localEnginePath)
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
