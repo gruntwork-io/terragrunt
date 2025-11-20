@@ -20,6 +20,7 @@ const (
 	testFixtureDisabledDependencyEmptyConfigPath = "fixtures/regressions/disabled-dependency-empty-config-path"
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
+	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -418,4 +419,24 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 		"run --all should not see cycle errors")
 	assert.NotContains(t, runAllStderr, "dependency graph",
 		"run --all should not see dependency graph errors")
+}
+
+func TestMultipleStacksDetection(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDetection)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDetection)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDetection, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "unit1")
+	assert.Contains(t, stderr, "unit2")
+
+	assert.NotContains(t, stderr, "appv2.terragrunt.stack.hcl")
+	assert.NotContains(t, stderr, "unit4")
+	assert.NotContains(t, stderr, "unit3")
 }

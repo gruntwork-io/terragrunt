@@ -740,7 +740,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	}
 
 	// check if file is stack file, decode as stack file
-	if strings.HasSuffix(targetConfig, DefaultStackFile) {
+	if filepath.Base(targetConfig) == DefaultStackFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
 		values, readErr := ReadValues(ctx, l, opts, stackSourceDir)
