@@ -51,6 +51,7 @@ const (
 	FuncNameGetEnv                                  = "get_env"
 	FuncNameRunCmd                                  = "run_cmd"
 	FuncNameReadTerragruntConfig                    = "read_terragrunt_config"
+	FuncNameReadTerragruntConfigWithCache           = "read_terragrunt_config_with_cache"
 	FuncNameGetPlatform                             = "get_platform"
 	FuncNameGetRepoRoot                             = "get_repo_root"
 	FuncNameGetPathFromRepoRoot                     = "get_path_from_repo_root"
@@ -155,6 +156,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, l log.Logger, configPath s
 		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(ctx, l, getEnvironmentVariable),
 		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(ctx, l, RunCommand),
 		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(ctx, l),
+		FuncNameReadTerragruntConfigWithCache:           readTerragruntConfigAsFuncImplWithCache(ctx, l),
 		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(ctx, l, getPlatform),
 		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(ctx, l, getRepoRoot),
 		FuncNameGetPathFromRepoRoot:                     wrapVoidToStringAsFuncImpl(ctx, l, getPathFromRepoRoot),
@@ -814,6 +816,63 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext, l log.Logger) function.
 
 			targetConfigPath := strArgs[0]
 			return ParseTerragruntConfig(ctx, l, targetConfigPath, defaultVal)
+		},
+	})
+}
+
+// Create a cty Function that can be used to for calling read_terragrunt_config_with_cache.
+func readTerragruntConfigAsFuncImplWithCache(ctx *ParsingContext, logger log.Logger) function.Function {
+	return function.New(&function.Spec{
+		// Takes one required string param
+		Params: []function.Parameter{{Type: cty.String}},
+		// And optional param that takes anything
+		VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
+		// We don't know the return type until we parse the terragrunt config, so we use a dynamic type
+		Type: function.StaticReturnType(cty.DynamicPseudoType),
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+			numParams := len(args)
+
+			if numParams == 0 || numParams > 2 {
+				return cty.NilVal, errors.New(WrongNumberOfParamsError{
+					Func: FuncNameReadTerragruntConfigWithCache, Expected: "1 or 2", Actual: numParams})
+			}
+
+			strArgs, err := ctySliceToStringSlice(args[:1])
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			var defaultVal *cty.Value
+			if numParams == matchedPats {
+				defaultVal = &args[1]
+			}
+
+			targetConfigPath := strArgs[0]
+
+			targetConfig := getCleanedTargetConfigPath(targetConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
+
+			cache := cache.ContextCache[cty.Value](ctx, ReadTerragruntConfigCacheContextKey)
+
+			var (
+				config   cty.Value
+				cacheKey = fmt.Sprintf("parse-terragrunt-config-%v-hasDefault=%t", targetConfig, defaultVal != nil)
+			)
+
+			if cacheConfig, found := cache.Get(ctx, cacheKey); found {
+				logger.Debugf("%s: cache hit for %s", FuncNameReadTerragruntConfigWithCache, targetConfig)
+				config = cacheConfig
+			} else {
+				logger.Debugf("%s: cache miss for %s", FuncNameReadTerragruntConfigWithCache, targetConfig)
+				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
+				config, err = ParseTerragruntConfig(ctx, logger, targetConfigPath, defaultVal)
+				if err != nil {
+					return config, err
+				}
+
+				cache.Put(ctx, cacheKey, config)
+			}
+
+			return config, nil
 		},
 	})
 }
