@@ -259,6 +259,15 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 		TerragruntConfigPath:        opts.TerragruntConfigPath,
 		IncludeExternalDependencies: opts.IncludeExternalDependencies,
 		NonInteractive:              opts.NonInteractive,
+		TFPath:                      opts.TFPath,
+		Env:                         opts.Env,
+		Engine:                      opts.Engine,
+		EngineEnabled:               opts.EngineEnabled,
+		Telemetry:                   opts.Telemetry,
+		TerraformImplementation:     opts.TerraformImplementation,
+		ForwardTFStdout:             opts.ForwardTFStdout,
+		JSONLogFormat:               opts.JSONLogFormat,
+		LogDisableErrorSummary:      opts.LogDisableErrorSummary,
 	}
 
 	u.SetExecutionOptions(runnerOptions)
@@ -290,6 +299,15 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 		IncludeExternalDependencies: opts.IncludeExternalDependencies,
 		NonInteractive:              opts.NonInteractive,
 		MaxFoldersToCheck:           options.DefaultMaxFoldersToCheck,
+		TFPath:                      opts.TFPath,
+		Env:                         opts.Env,
+		Engine:                      opts.Engine,
+		EngineEnabled:               opts.EngineEnabled,
+		Telemetry:                   opts.Telemetry,
+		TerraformImplementation:     opts.TerraformImplementation,
+		ForwardTFStdout:             opts.ForwardTFStdout,
+		JSONLogFormat:               opts.JSONLogFormat,
+		LogDisableErrorSummary:      opts.LogDisableErrorSummary,
 	}
 }
 
