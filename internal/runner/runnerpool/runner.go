@@ -223,16 +223,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			}
 
 			if u.FlagExcluded() {
-				// Ensure path is absolute for reporting
-				unitPath, err := common.EnsureAbsolutePath(u.Path())
+				// Component paths are always absolute from ingestion (via util.CanonicalPath)
+				run, err := r.Stack.Report().EnsureRun(u.Path())
 				if err != nil {
-					l.Errorf("Error getting absolute path for unit %s: %v", u.Path(), err)
-					continue
-				}
-
-				run, err := r.Stack.Report().EnsureRun(unitPath)
-				if err != nil {
-					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
+					l.Errorf("Error ensuring run for unit %s: %v", u.Path(), err)
 					continue
 				}
 
@@ -252,7 +246,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
 					); err != nil {
-						l.Errorf("Error ending run for unit %s: %v", unitPath, err)
+						l.Errorf("Error ending run for unit %s: %v", u.Path(), err)
 					}
 				}
 			}
@@ -339,16 +333,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				// Ensure path is absolute for reporting
-				unitPath, absErr := common.EnsureAbsolutePath(unit.Path())
-				if absErr != nil {
-					l.Errorf("Error getting absolute path for unit %s: %v", unit.Path(), absErr)
-					continue
-				}
-
-				run, reportErr := r.Stack.Report().EnsureRun(unitPath)
+				// Component paths are always absolute from ingestion (via util.CanonicalPath)
+				run, reportErr := r.Stack.Report().EnsureRun(unit.Path())
 				if reportErr != nil {
-					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
+					l.Errorf("Error ensuring run for early exit unit %s: %v", unit.Path(), reportErr)
 					continue
 				}
 
@@ -378,7 +366,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 
 				if endErr := r.Stack.Report().EndRun(run.Path, endOpts...); endErr != nil {
-					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
+					l.Errorf("Error ending run for early exit unit %s: %v", unit.Path(), endErr)
 				}
 			}
 		}

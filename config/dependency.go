@@ -892,7 +892,27 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, l log.Logger, te
 
 	l.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.TerragruntConfigPath)
 
-	out, err := tf.RunCommandWithOutput(ctx, l, targetTGOptions, tf.CommandNameOutput, "-json")
+	tfOpts := &tf.TFOptions{
+		TFPath:                  targetTGOptions.TFPath,
+		TFPathExplicitlySet:     targetTGOptions.TFPathExplicitlySet,
+		TerraformImplementation: targetTGOptions.TerraformImplementation,
+		TerraformCliArgs:        targetTGOptions.TerraformCliArgs,
+		WorkingDir:              targetTGOptions.WorkingDir,
+		TerragruntConfigPath:    targetTGOptions.TerragruntConfigPath,
+		DownloadDir:             targetTGOptions.DownloadDir,
+		Writer:                  targetTGOptions.Writer,
+		ErrWriter:               targetTGOptions.ErrWriter,
+		Env:                     targetTGOptions.Env,
+		ForwardTFStdout:         targetTGOptions.ForwardTFStdout,
+		JSONLogFormat:           targetTGOptions.JSONLogFormat,
+		Headless:                targetTGOptions.Headless,
+		LogDisableErrorSummary:  targetTGOptions.LogDisableErrorSummary,
+		Engine:                  targetTGOptions.Engine,
+		EngineEnabled:           targetTGOptions.EngineEnabled,
+		Telemetry:               targetTGOptions.Telemetry,
+	}
+
+	out, err := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1002,7 +1022,27 @@ func getTerragruntOutputJSONFromRemoteState(
 	}
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := tf.RunCommandWithOutput(ctx, l, targetTGOptions, tf.CommandNameOutput, "-json")
+	tfOpts := &tf.TFOptions{
+		TFPath:                  targetTGOptions.TFPath,
+		TFPathExplicitlySet:     targetTGOptions.TFPathExplicitlySet,
+		TerraformImplementation: targetTGOptions.TerraformImplementation,
+		TerraformCliArgs:        targetTGOptions.TerraformCliArgs,
+		WorkingDir:              targetTGOptions.WorkingDir,
+		TerragruntConfigPath:    targetTGOptions.TerragruntConfigPath,
+		DownloadDir:             targetTGOptions.DownloadDir,
+		Writer:                  targetTGOptions.Writer,
+		ErrWriter:               targetTGOptions.ErrWriter,
+		Env:                     targetTGOptions.Env,
+		ForwardTFStdout:         targetTGOptions.ForwardTFStdout,
+		JSONLogFormat:           targetTGOptions.JSONLogFormat,
+		Headless:                targetTGOptions.Headless,
+		LogDisableErrorSummary:  targetTGOptions.LogDisableErrorSummary,
+		Engine:                  targetTGOptions.Engine,
+		EngineEnabled:           targetTGOptions.EngineEnabled,
+		Telemetry:               targetTGOptions.Telemetry,
+	}
+
+	out, err := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1189,7 +1229,27 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, l log.Logger, work
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
 
-	if err = tf.RunCommand(ctx, l, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {
+	tfOpts := &tf.TFOptions{
+		TFPath:                  initTGOptions.TFPath,
+		TFPathExplicitlySet:     initTGOptions.TFPathExplicitlySet,
+		TerraformImplementation: initTGOptions.TerraformImplementation,
+		TerraformCliArgs:        initTGOptions.TerraformCliArgs,
+		WorkingDir:              initTGOptions.WorkingDir,
+		TerragruntConfigPath:    initTGOptions.TerragruntConfigPath,
+		DownloadDir:             initTGOptions.DownloadDir,
+		Writer:                  initTGOptions.Writer,
+		ErrWriter:               initTGOptions.ErrWriter,
+		Env:                     initTGOptions.Env,
+		ForwardTFStdout:         initTGOptions.ForwardTFStdout,
+		JSONLogFormat:           initTGOptions.JSONLogFormat,
+		Headless:                initTGOptions.Headless,
+		LogDisableErrorSummary:  initTGOptions.LogDisableErrorSummary,
+		Engine:                  initTGOptions.Engine,
+		EngineEnabled:           initTGOptions.EngineEnabled,
+		Telemetry:               initTGOptions.Telemetry,
+	}
+
+	if err = tf.RunCommandWithOptions(ctx, l, tfOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf(stderr.String())

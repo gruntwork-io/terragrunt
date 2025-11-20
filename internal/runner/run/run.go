@@ -356,7 +356,9 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(ctx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(ctx, l, opts, opts.TerraformCliArgs...)
+		// Convert to TFOptions for tf package call
+		tfOpts := toTFOptions(runnertypes.FromTerragruntOptions(opts))
+		out, runTerraformError := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, opts.TerraformCliArgs...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, cfg.Terraform) {

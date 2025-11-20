@@ -1,3 +1,47 @@
+// Package tf provides functions for running Terraform/OpenTofu commands.
+//
+// # TFOptions - Dedicated Options Type
+//
+// This package uses TFOptions, a dedicated options type that contains only
+// the fields needed for terraform operations. This provides clean separation
+// from TerragruntOptions and RunnerOptions.
+//
+// Preferred API (TFOptions-based):
+//
+//	tfOpts := &tf.TFOptions{
+//	    TFPath:                  "/usr/bin/terraform",
+//	    TerraformCliArgs:        []string{"apply"},
+//	    WorkingDir:              "/path/to/dir",
+//	    Writer:                  os.Stdout,
+//	    ErrWriter:               os.Stderr,
+//	    Env:                     map[string]string{},
+//	    TerraformImplementation: options.TerraformImpl,
+//	}
+//	err := tf.RunCommandWithOptions(ctx, l, tfOpts, args...)
+//
+// # Migration Guide
+//
+// Three generations of functions exist:
+//
+//  1. Old (deprecated): RunCommand/RunCommandWithOutput - uses TerragruntOptions
+//  2. Transitional (deprecated): RunCommandWithRunner/RunCommandWithOutputAndRunner - uses RunnerOptions
+//  3. New (preferred): RunCommandWithOptions/RunCommandWithOutputAndOptions - uses TFOptions
+//
+// Migration examples:
+//
+//	// From TerragruntOptions (deprecated):
+//	err := tf.RunCommand(ctx, l, opts, args...)
+//
+//	// From RunnerOptions (deprecated):
+//	runnerOpts := runnertypes.FromTerragruntOptions(opts)
+//	err := tf.RunCommandWithRunner(ctx, l, runnerOpts, args...)
+//
+//	// To TFOptions (preferred):
+//	tfOpts := toTFOptions(runnerOpts)
+//	err := tf.RunCommandWithOptions(ctx, l, tfOpts, args...)
+//
+// The old functions are maintained for backward compatibility but will be removed
+// in a future release.
 package tf
 
 import (
@@ -39,6 +83,9 @@ var commandsThatNeedPty = []string{
 }
 
 // RunCommand runs the given Terraform command.
+//
+// Deprecated: Use RunCommandWithRunner instead, which accepts RunnerOptions.
+// This function is maintained for backward compatibility with external callers.
 func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, opts, args...)
 
@@ -46,7 +93,10 @@ func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 }
 
 // RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
-// method's caller
+// method's caller.
+//
+// Deprecated: Use RunCommandWithOutputAndRunner instead, which accepts RunnerOptions.
+// This function is maintained for backward compatibility with external callers.
 func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
 	args = cli.Args(args).Normalize(cli.SingleDashFlag)
 
@@ -222,7 +272,9 @@ func buildErrWriter(opts *options.TerragruntOptions, logger log.Logger, errWrite
 }
 
 // RunCommandWithRunner runs the given Terraform command using RunnerOptions.
-// This is the RunnerOptions-based variant of RunCommand.
+//
+// Deprecated: Use RunCommandWithOptions instead, which accepts TFOptions.
+// This transitional function accepts RunnerOptions but tf package now has its own options.
 func RunCommandWithRunner(ctx context.Context, l log.Logger, runnerOpts *runnertypes.RunnerOptions, args ...string) error {
 	_, err := RunCommandWithOutputAndRunner(ctx, l, runnerOpts, args...)
 	return err
@@ -230,7 +282,9 @@ func RunCommandWithRunner(ctx context.Context, l log.Logger, runnerOpts *runnert
 
 // RunCommandWithOutputAndRunner runs the given Terraform command using RunnerOptions,
 // writing its stdout/stderr to the terminal AND returning stdout/stderr to this method's caller.
-// This is the RunnerOptions-based variant of RunCommandWithOutput.
+//
+// Deprecated: Use RunCommandWithOutputAndOptions instead, which accepts TFOptions.
+// This transitional function accepts RunnerOptions but tf package now has its own options.
 func RunCommandWithOutputAndRunner(ctx context.Context, l log.Logger, runnerOpts *runnertypes.RunnerOptions, args ...string) (*util.CmdOutput, error) {
 	args = cli.Args(args).Normalize(cli.SingleDashFlag)
 
@@ -349,6 +403,178 @@ func buildErrWriterWithRunner(runnerOpts *runnertypes.RunnerOptions, logger log.
 	logLevel := log.StderrLevel
 
 	if runnerOpts.Headless {
+		logLevel = log.ErrorLevel
+	}
+
+	options := []writer.Option{
+		writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+		writer.WithDefaultLevel(logLevel),
+	}
+	options = append(options, writerOptions...)
+
+	return writer.New(options...)
+}
+
+// RunCommandWithOptions runs the given Terraform command using TFOptions.
+// This is the preferred API for new code.
+func RunCommandWithOptions(ctx context.Context, l log.Logger, tfOpts *TFOptions, args ...string) error {
+	_, err := RunCommandWithOutputAndOptions(ctx, l, tfOpts, args...)
+	return err
+}
+
+// RunCommandWithOutputAndOptions runs the given Terraform command using TFOptions,
+// writing its stdout/stderr to the terminal AND returning stdout/stderr to this method's caller.
+// This is the preferred API for new code.
+func RunCommandWithOutputAndOptions(ctx context.Context, l log.Logger, tfOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
+	args = cli.Args(args).Normalize(cli.SingleDashFlag)
+
+	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
+		// Hook still expects TerragruntOptions, create minimal opts
+		opts := &options.TerragruntOptions{
+			TFPath:                  tfOpts.TFPath,
+			WorkingDir:              tfOpts.WorkingDir,
+			Writer:                  tfOpts.Writer,
+			ErrWriter:               tfOpts.ErrWriter,
+			Env:                     tfOpts.Env,
+			ForwardTFStdout:         tfOpts.ForwardTFStdout,
+			JSONLogFormat:           tfOpts.JSONLogFormat,
+			Headless:                tfOpts.Headless,
+			TerraformImplementation: tfOpts.TerraformImplementation,
+		}
+
+		return fn(ctx, l, opts, args)
+	}
+
+	needsPTY, err := isCommandThatNeedsPty(args)
+	if err != nil {
+		return nil, err
+	}
+
+	if !tfOpts.ForwardTFStdout {
+		// Clone tfOpts to avoid mutating the original
+		tfOpts = tfOpts.Clone()
+		tfOpts.Writer, tfOpts.ErrWriter = logTFOutputWithTFOptions(l, tfOpts, args)
+	}
+
+	// Convert TFOptions to RunnerOptions for shell package call
+	// Shell package doesn't need to know about TFOptions
+	runnerOpts := toRunnerOptions(tfOpts)
+
+	output, err := shell.RunCommandWithOutputAndRunner(ctx, l, runnerOpts, "", false, needsPTY, tfOpts.TFPath, args...)
+
+	if err != nil && util.ListContainsElement(args, FlagNameDetailedExitCode) {
+		code, _ := util.GetExitCode(err)
+		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
+			exitCode.Set(code)
+		}
+
+		if code != 1 {
+			return output, nil
+		}
+	}
+
+	return output, err
+}
+
+// toRunnerOptions converts TFOptions to RunnerOptions for shell package calls.
+// This is an internal conversion within tf package to call shell functions.
+func toRunnerOptions(tfOpts *TFOptions) *runnertypes.RunnerOptions {
+	if tfOpts == nil {
+		return nil
+	}
+
+	return &runnertypes.RunnerOptions{
+		TFPath:                  tfOpts.TFPath,
+		TFPathExplicitlySet:     tfOpts.TFPathExplicitlySet,
+		TerraformImplementation: tfOpts.TerraformImplementation,
+		TerraformCliArgs:        tfOpts.TerraformCliArgs,
+		WorkingDir:              tfOpts.WorkingDir,
+		TerragruntConfigPath:    tfOpts.TerragruntConfigPath,
+		DownloadDir:             tfOpts.DownloadDir,
+		Writer:                  tfOpts.Writer,
+		ErrWriter:               tfOpts.ErrWriter,
+		Env:                     tfOpts.Env,
+		ForwardTFStdout:         tfOpts.ForwardTFStdout,
+		JSONLogFormat:           tfOpts.JSONLogFormat,
+		Headless:                tfOpts.Headless,
+		LogDisableErrorSummary:  tfOpts.LogDisableErrorSummary,
+		Engine:                  tfOpts.Engine,
+		EngineEnabled:           tfOpts.EngineEnabled,
+		Telemetry:               tfOpts.Telemetry,
+	}
+}
+
+// logTFOutputWithTFOptions configures log writers for TF output using TFOptions.
+//
+//nolint:dupl // Intentional duplication for backward compatibility during migration
+func logTFOutputWithTFOptions(l log.Logger, tfOpts *TFOptions, args cli.Args) (io.Writer, io.Writer) {
+	var (
+		outWriter = tfOpts.Writer
+		errWriter = tfOpts.ErrWriter
+	)
+
+	logger := l.
+		WithField(placeholders.TFPathKeyName, filepath.Base(tfOpts.TFPath)).
+		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
+		WithField(placeholders.TFCmdKeyName, args.CommandName())
+
+	if tfOpts.JSONLogFormat && !args.Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
+		outWriter = buildOutWriterWithTFOptions(
+			tfOpts,
+			logger,
+			outWriter,
+			errWriter,
+		)
+
+		errWriter = buildErrWriterWithTFOptions(
+			tfOpts,
+			logger,
+			errWriter,
+		)
+	} else if !shouldForceForwardTFStdout(args) {
+		outWriter = buildOutWriterWithTFOptions(
+			tfOpts,
+			logger,
+			outWriter,
+			errWriter,
+			writer.WithMsgSeparator(logMsgSeparator),
+		)
+
+		errWriter = buildErrWriterWithTFOptions(
+			tfOpts,
+			logger,
+			errWriter,
+			writer.WithMsgSeparator(logMsgSeparator),
+			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
+		)
+	}
+
+	return outWriter, errWriter
+}
+
+// buildOutWriterWithTFOptions returns the writer for the command's stdout using TFOptions.
+func buildOutWriterWithTFOptions(tfOpts *TFOptions, logger log.Logger, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+	logLevel := log.StdoutLevel
+
+	if tfOpts.Headless {
+		logLevel = log.InfoLevel
+		outWriter = errWriter
+	}
+
+	options := []writer.Option{
+		writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
+		writer.WithDefaultLevel(logLevel),
+	}
+	options = append(options, writerOptions...)
+
+	return writer.New(options...)
+}
+
+// buildErrWriterWithTFOptions returns the writer for the command's stderr using TFOptions.
+func buildErrWriterWithTFOptions(tfOpts *TFOptions, logger log.Logger, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+	logLevel := log.StderrLevel
+
+	if tfOpts.Headless {
 		logLevel = log.ErrorLevel
 	}
 

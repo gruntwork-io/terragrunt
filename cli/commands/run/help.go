@@ -53,11 +53,30 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
 
 func runTFHelp(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) string {
 	opts = opts.Clone()
-	opts.Writer = io.Discard
+
+	tfOpts := &tf.TFOptions{
+		TFPath:                  opts.TFPath,
+		TFPathExplicitlySet:     opts.TFPathExplicitlySet,
+		TerraformImplementation: opts.TerraformImplementation,
+		TerraformCliArgs:        opts.TerraformCliArgs,
+		WorkingDir:              opts.WorkingDir,
+		TerragruntConfigPath:    opts.TerragruntConfigPath,
+		DownloadDir:             opts.DownloadDir,
+		Writer:                  io.Discard,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		JSONLogFormat:           opts.JSONLogFormat,
+		Headless:                opts.Headless,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Engine:                  opts.Engine,
+		EngineEnabled:           opts.EngineEnabled,
+		Telemetry:               opts.Telemetry,
+	}
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, ctx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, l, opts, terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {

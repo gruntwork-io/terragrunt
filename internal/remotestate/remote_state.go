@@ -150,7 +150,27 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, opts, args...)
+	tfOpts := &tf.TFOptions{
+		TFPath:                  opts.TFPath,
+		TFPathExplicitlySet:     opts.TFPathExplicitlySet,
+		TerraformImplementation: opts.TerraformImplementation,
+		TerraformCliArgs:        opts.TerraformCliArgs,
+		WorkingDir:              opts.WorkingDir,
+		TerragruntConfigPath:    opts.TerragruntConfigPath,
+		DownloadDir:             opts.DownloadDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		JSONLogFormat:           opts.JSONLogFormat,
+		Headless:                opts.Headless,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Engine:                  opts.Engine,
+		EngineEnabled:           opts.EngineEnabled,
+		Telemetry:               opts.Telemetry,
+	}
+
+	output, err := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, args...)
 	if err != nil {
 		return "", err
 	}
@@ -178,5 +198,25 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, opts, args...)
+	tfOpts := &tf.TFOptions{
+		TFPath:                  opts.TFPath,
+		TFPathExplicitlySet:     opts.TFPathExplicitlySet,
+		TerraformImplementation: opts.TerraformImplementation,
+		TerraformCliArgs:        opts.TerraformCliArgs,
+		WorkingDir:              opts.WorkingDir,
+		TerragruntConfigPath:    opts.TerragruntConfigPath,
+		DownloadDir:             opts.DownloadDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		JSONLogFormat:           opts.JSONLogFormat,
+		Headless:                opts.Headless,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Engine:                  opts.Engine,
+		EngineEnabled:           opts.EngineEnabled,
+		Telemetry:               opts.Telemetry,
+	}
+
+	return tf.RunCommandWithOptions(ctx, l, tfOpts, args...)
 }

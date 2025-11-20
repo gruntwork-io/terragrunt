@@ -55,15 +55,9 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 	// Only create report entries if report is not nil
 	if r != nil {
-		// Ensure path is absolute and normalized for reporting
-		unitPath, err := EnsureAbsolutePath(runner.Unit.Path())
-		if err != nil {
-			return err
-		}
-
-		unitPath = util.CleanPath(unitPath)
-
-		run, err := report.NewRun(unitPath)
+		// Component paths are always absolute from ingestion (via util.CanonicalPath)
+		// CanonicalPath already cleans the path, so no additional cleaning needed
+		run, err := report.NewRun(runner.Unit.Path())
 		if err != nil {
 			return err
 		}
