@@ -1472,6 +1472,23 @@ func (d *Discovery) Discover(
 		if err != nil {
 			errs = append(errs, errors.New(err))
 		}
+
+		// After unit resolution, apply prevent-destroy exclusions for destroy commands
+		// This must happen after resolution so we have access to parsed unit configs
+		if isDestroyCommand(d.terragruntOptions) {
+			units := make(component.Units, 0, len(components))
+			for _, c := range components {
+				if u, ok := c.(*component.Unit); ok {
+					units = append(units, u)
+				}
+			}
+
+			applyPreventDestroyExclusions(l, units)
+		}
+
+		// Note: We return ALL components (including excluded ones).
+		// The runner pool will filter out excluded units when building the execution queue.
+		// This preserves the full dependency graph for analysis and reporting.
 	}
 
 	if len(errs) > 0 {

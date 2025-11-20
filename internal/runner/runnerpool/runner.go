@@ -92,27 +92,20 @@ func NewRunnerPoolStack(
 	// Apply options (including report)
 	runner = runner.WithOptions(opts...)
 
-	// Discovery already resolved units and applied all filters
-	// Just convert Components to Units for further processing
-	units := make(component.Units, 0, len(nonStackComponents))
+	// Set units on stack (includes all units, even excluded ones for dependency tracking)
+	runner.Stack.SetUnits(nonStackComponents)
+
+	// Discovery has set FlagExcluded on units that should not be executed
+	// Filter to only executable units for the queue
+	executableComponents := make(component.Components, 0, len(nonStackComponents))
 	for _, c := range nonStackComponents {
-		if u, ok := c.(*component.Unit); ok {
-			units = append(units, u)
+		if u, ok := c.(*component.Unit); ok && !u.FlagExcluded() {
+			executableComponents = append(executableComponents, c)
 		}
 	}
 
-	// Set units on stack
-	runner.Stack.SetUnits(nonStackComponents)
-
-	if isDestroyCommand(terragruntOptions) {
-		applyPreventDestroyExclusions(l, units)
-	}
-
-	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
-	// This ensures excluded units are not shown in lists or scheduled at all.
-	filtered := FilterDiscoveredUnits(discovered, units)
-
-	q, queueErr := queue.NewQueue(filtered)
+	// Build queue with only executable units
+	q, queueErr := queue.NewQueue(executableComponents)
 	if queueErr != nil {
 		return nil, queueErr
 	}
@@ -212,46 +205,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, planErrorBuffers)
 	}
 
-	// Emit report entries for excluded units that haven't been reported yet.
-	// Units excluded by CLI flags or exclude blocks are already reported during unit resolution,
-	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
-	if r.Stack.Report() != nil {
-		for _, comp := range r.Stack.Units() {
-			u, ok := comp.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			if u.FlagExcluded() {
-				// Component paths are always absolute from ingestion (via util.CanonicalPath)
-				run, err := r.Stack.Report().EnsureRun(u.Path())
-				if err != nil {
-					l.Errorf("Error ensuring run for unit %s: %v", u.Path(), err)
-					continue
-				}
-
-				// Only report exclusion if it hasn't been reported yet
-				// Units excluded by --queue-exclude-dir or exclude blocks are already reported
-				// during unit resolution with the correct reason
-				if run.Result == "" {
-					// Determine the reason for exclusion
-					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
-					reason := report.ReasonExcludeBlock
-					if u.AssumeAlreadyApplied() {
-						reason = report.ReasonExcludeExternal
-					}
-
-					if err := r.Stack.Report().EndRun(
-						run.Path,
-						report.WithResult(report.ResultExcluded),
-						report.WithReason(reason),
-					); err != nil {
-						l.Errorf("Error ending run for unit %s: %v", u.Path(), err)
-					}
-				}
-			}
-		}
-	}
+	// Discovery has already reported all excluded units, so no need to report them here
 
 	task := func(ctx context.Context, u *component.Unit) error {
 		execOpts := u.ExecutionOptions()
@@ -563,142 +517,9 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 	}
 }
 
-// FilterDiscoveredUnits removes configs for units flagged as excluded and prunes dependencies
-// that point to excluded units. This keeps the execution queue and any user-facing listings
-// free from units not intended to run.
-//
-// Inputs:
-//   - discovered: raw discovery results (paths and dependency edges)
-//   - units: resolved units (slice), where exclude rules have already been applied
-//
-// Behavior:
-//   - A config is included only if there's a corresponding unit and its FlagExcluded is false.
-//   - For each included config, its Dependencies list is filtered to only include included configs.
-//   - The function returns a new slice with shallow-copied entries so the original discovery
-//     results remain unchanged.
-func FilterDiscoveredUnits(discovered component.Components, units component.Units) component.Components {
-	// Build allowlist from non-excluded unit paths
-	allowed := make(map[string]struct{}, len(units))
-	for _, u := range units {
-		if !u.FlagExcluded() {
-			allowed[u.Path()] = struct{}{}
-		}
-	}
-
-	// Capture the DiscoveryContext from the first discovered unit (all should have the same context)
-	var discoveryContext *component.DiscoveryContext
-	for _, c := range discovered {
-		if _, ok := c.(*component.Unit); ok {
-			discoveryContext = c.DiscoveryContext()
-			break
-		}
-	}
-
-	// First pass: keep only allowed configs and prune their dependencies to allowed ones
-	filtered := make(component.Components, 0, len(discovered))
-	present := make(map[string]*component.Unit, len(discovered))
-
-	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if _, ok := allowed[unit.Path()]; !ok {
-			// Drop configs that map to excluded/missing units
-			continue
-		}
-
-		copyCfg := component.NewUnit(unit.Path())
-		copyCfg.SetDiscoveryContext(unit.DiscoveryContext())
-		copyCfg.SetReading(unit.Reading()...)
-
-		if unit.External() {
-			copyCfg.SetExternal()
-		}
-
-		if len(unit.Dependencies()) > 0 {
-			for _, dep := range unit.Dependencies() {
-				if _, ok := allowed[dep.Path()]; ok {
-					copyCfg.AddDependency(dep)
-				}
-			}
-		}
-
-		filtered = append(filtered, copyCfg)
-		present[copyCfg.Path()] = copyCfg
-	}
-
-	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
-	for _, u := range units {
-		if u.FlagExcluded() {
-			continue
-		}
-
-		if _, ok := present[u.Path()]; ok {
-			continue
-		}
-
-		// Create a minimal discovered config for the missing unit
-		copyCfg := component.NewUnit(u.Path())
-		if discoveryContext != nil {
-			copyCfg.SetDiscoveryContext(discoveryContext)
-		}
-
-		filtered = append(filtered, copyCfg)
-		present[u.Path()] = copyCfg
-	}
-
-	// Augment dependencies from resolved units to ensure DAG edges are complete
-	for _, u := range units {
-		if u.FlagExcluded() {
-			continue
-		}
-
-		cfg := present[u.Path()]
-		if cfg == nil {
-			continue
-		}
-
-		// Build a set of existing dependency paths on cfg to avoid duplicates
-		existing := make(map[string]struct{}, len(cfg.Dependencies()))
-		for _, dep := range cfg.Dependencies() {
-			existing[dep.Path()] = struct{}{}
-		}
-
-		// Add any missing allowed dependencies from the resolved unit graph
-		for _, depComp := range u.Dependencies() {
-			depUnit, ok := depComp.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			if _, ok := allowed[depUnit.Path()]; !ok {
-				continue
-			}
-
-			if _, ok := existing[depUnit.Path()]; ok {
-				continue
-			}
-
-			// Ensure the dependency config exists in the filtered set
-			depCfg, ok := present[depUnit.Path()]
-			if !ok {
-				depCfg = component.NewUnit(depUnit.Path())
-				if discoveryContext != nil {
-					depCfg.SetDiscoveryContext(discoveryContext)
-				}
-
-				filtered = append(filtered, depCfg)
-				present[depUnit.Path()] = depCfg
-			}
-
-			cfg.AddDependency(depCfg)
-		}
-	}
-
-	return filtered
-}
+// All filtering logic has been moved to discovery package.
+// Discovery now returns only executable units (FlagExcluded=false).
+// See internal/discovery/unit_post_filter.go for the filtering implementation.
 
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
@@ -754,72 +575,5 @@ func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool 
 	return false
 }
 
-// isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(opts *options.TerragruntOptions) bool {
-	return opts.TerraformCommand == tf.CommandNameDestroy ||
-		util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy)
-}
-
-// applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
-// from being destroyed. This prevents accidental destruction of protected infrastructure.
-func applyPreventDestroyExclusions(l log.Logger, units component.Units) {
-	// First pass: identify units with prevent_destroy=true
-	protectedUnits := make(map[string]bool)
-
-	for _, unit := range units {
-		if unit.Config().PreventDestroy != nil && *unit.Config().PreventDestroy {
-			protectedUnits[unit.Path()] = true
-			unit.SetFlagExcluded(true)
-			l.Debugf("Unit %s is protected by prevent_destroy flag", unit.Path())
-		}
-	}
-
-	if len(protectedUnits) == 0 {
-		return
-	}
-
-	// Second pass: find all dependencies of protected units
-	// We need to prevent destruction of any unit that a protected unit depends on
-	dependencyPaths := make(map[string]bool)
-
-	for _, unit := range units {
-		if protectedUnits[unit.Path()] {
-			collectDependencies(unit, dependencyPaths)
-		}
-	}
-
-	// Third pass: mark dependencies as excluded
-	for _, unit := range units {
-		if dependencyPaths[unit.Path()] && !protectedUnits[unit.Path()] {
-			unit.SetFlagExcluded(true)
-			l.Debugf("Unit %s is excluded because it's a dependency of a protected unit", unit.Path())
-		}
-	}
-}
-
-// maxDependencyTraversalDepth bounds the depth of dependency traversal to prevent excessive recursion.
-const maxDependencyTraversalDepth = 256
-
-// collectDependencies collects dependency paths for a unit with a bounded recursion depth.
-func collectDependencies(unit *component.Unit, paths map[string]bool) {
-	collectDependenciesBounded(unit, paths, 0)
-}
-
-// collectDependenciesBounded recursively collects all dependency paths for a unit up to maxDependencyTraversalDepth.
-func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, depth int) {
-	if depth >= maxDependencyTraversalDepth {
-		return
-	}
-
-	for _, dep := range unit.Dependencies() {
-		depUnit, ok := dep.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if !paths[depUnit.Path()] {
-			paths[depUnit.Path()] = true
-			collectDependenciesBounded(depUnit, paths, depth+1)
-		}
-	}
-}
+// isDestroyCommand, applyPreventDestroyExclusions, and related helper functions
+// have been moved to internal/discovery/unit_post_filter.go
