@@ -20,7 +20,7 @@ const (
 	testFixtureDisabledDependencyEmptyConfigPath = "fixtures/regressions/disabled-dependency-empty-config-path"
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
-	testFixtureStackDetection            = "fixtures/regressions/multiple-stacks"
+	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -420,7 +420,6 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 	assert.NotContains(t, runAllStderr, "dependency graph",
 		"run --all should not see dependency graph errors")
 }
-
 
 func TestMultipleStacksDetection(t *testing.T) {
 	t.Parallel()
