@@ -516,7 +516,14 @@ func Parse(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
+	// When suppressing parse errors, also suppress error-level logging to prevent
+	// parsing errors from appearing in stderr during discovery
+	parsingLogger := l
+	if suppressParseErrors {
+		parsingLogger = l.WithOptions(log.WithOutput(io.Discard))
+	}
+
+	parsingCtx := config.NewParsingContext(ctx, parsingLogger, parseOpts).WithDecodeList(
 		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
@@ -583,7 +590,7 @@ func Parse(
 	)
 
 	//nolint: contextcheck
-	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err = config.PartialParseConfigFile(parsingCtx, parsingLogger, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		// Treat include-only/no-settings configs as non-fatal during discovery when suppression is enabled
 		if suppressParseErrors && containsNoSettingsError(err) {
