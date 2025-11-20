@@ -289,6 +289,7 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 		TerragruntConfigPath:        opts.TerragruntConfigPath,
 		IncludeExternalDependencies: opts.IncludeExternalDependencies,
 		NonInteractive:              opts.NonInteractive,
+		MaxFoldersToCheck:           options.DefaultMaxFoldersToCheck,
 	}
 }
 
