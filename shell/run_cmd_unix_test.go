@@ -53,9 +53,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 
 	if actualErr.Error() == expectedKilledErr {
 		t.Errorf("Expected process to gracefully terminate but got\n: %s", actualErr.Error())
-	}
-
-	if actualErr.Error() != expectedExitStatusErr {
+	} else if actualErr.Error() != expectedExitStatusErr {
 		t.Errorf("Expected error to be:\n  %s\nbut got:\n  %s",
 			expectedExitStatusErr, actualErr.Error())
 	}
