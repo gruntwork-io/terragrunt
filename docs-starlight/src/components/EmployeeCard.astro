@@ -10,12 +10,12 @@ import WebsiteIcon from '@assets/icons/website-icon-secondary.svg';
 import '@styles/global.css';
 
 const {
-  name = null,
-  title = null,
-  year = null,
+  name,
+  title,
+  year,
   image,
   github = null,
-  linkedin,
+  linkedin = null,
   website = null,
   bio = null,
   youCard = false,
@@ -37,7 +37,7 @@ const {
       </p>
       {year && (
         <p class={`font-sans text-xs font-bold text-gray-1 m-0`}>
-          Ambassador since {year}
+          {year}
         </p>
       )}
       {youCard && (
@@ -50,21 +50,21 @@ const {
       <div class="flex flex-row gap-2 justify-between items-center">
         {github && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={github}>
+            <a href={github} target="_blank">
               <Image src={GithubIcon} alt="Github" />
             </a>
           </div>
         )}
         {linkedin && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={linkedin}>
+            <a href={linkedin} target="_blank">
               <Image src={LinkedinIcon} alt="LinkedIn" />
             </a>
           </div>
         )}
         {website && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={website}>
+            <a href={website} target="_blank">
               <Image src={WebsiteIcon} alt="Website" />
             </a>
           </div>
@@ -72,12 +72,89 @@ const {
       </div>
       <div>
         {bio && (
-          <div class="flex flex-row items-center gap-1 text-gray-1">
+          <button class="modal-open bio-link cursor-pointer flex flex-row items-center bg-transparent gap-1 text-gray-1">
             <p class="text-sm m-0">Bio</p>
-            <Image src={InfoIcon} alt={"Info"} />
+            <Image src={InfoIcon} alt="Info" />
+          </button>
+
+          <div class="bio-modal modal-close fixed flex flex-col justify-center z-70 top-0 left-0 w-full h-[100vh] backdrop-blur-[3px]">
+            <div class="relative bg-surface-3 w-[50%] h-[35%] mx-auto flex flex-row rounded-md border border-stroke-dark overflow-hidden p-10 text-white">
+              <button class="modal-close bg-transparent absolute top-6 right-6">X</button>
+              <div class="grid grid-cols-[220px_1fr] gap-6">
+                <div>
+                  <div class="rounded-sm h-[195px] overflow-hidden">
+                    <Image src={image } alt={`A picture of ${name}`} class="min-w-[220px] max-w-[250px] h-auto" />
+                  </div>
+                  <div class="flex flex-col gap-1.5 mt-4">
+                    <p class={`font-sans text-lg text-[#777888] font-medium m-0`}>
+                      {name}
+                    </p>
+                    <p class={`font-sans text-sm text-gray-1 m-0`}>
+                      {title}
+                    </p>
+                    {year && (
+                      <p class={`font-sans text-xs font-bold text-gray-1 m-0`}>
+                        {year}
+                      </p>
+                    )}
+                    {youCard && (
+                      <p class={`font-sans text-xs text-gray-1 m-0`}>
+                        Lives and breathes all things Terragrunt.
+                      </p>
+                    )}
+                    <div class="flex flex-row gap-2 mt-4">
+                      {github && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={github} target="_blank">
+                            <Image src={GithubIcon} alt="Github" />
+                          </a>
+                        </div>
+                      )}
+                      {linkedin && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={linkedin} target="_blank">
+                            <Image src={LinkedinIcon} alt="LinkedIn" />
+                          </a>
+                        </div>
+                      )}
+                      {website && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={website} target="_blank">
+                            <Image src={WebsiteIcon} alt="Website" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm m-0">{bio}</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
     </div>
   </div>
 </div>
+
+<script type="text/javascript">
+  document.addEventListener('click', (e) => {
+    // open
+    const openBtn = e.target.closest('.modal-open');
+    if (openBtn) {
+      const modal = openBtn.nextElementSibling; // the matching .bio-modal
+      if (modal) modal.classList.remove('hidden');
+      return;
+    }
+
+    // close
+    const closeBtn = e.target.closest('.modal-close');
+    if (closeBtn) {
+      const modal = closeBtn.closest('.bio-modal');
+      if (modal) modal.classList.add('hidden');
+      return;
+    }
+  });
+</script>
