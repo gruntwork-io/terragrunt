@@ -79,11 +79,10 @@ const {
 
           <div class="bio-modal modal-close fixed flex flex-col justify-center z-70 top-0 left-0 w-full h-[100vh] backdrop-blur-[3px]">
             <div class="relative bg-surface-3 w-[50%] h-[35%] mx-auto flex flex-row rounded-md border border-stroke-dark overflow-hidden p-10 text-white">
-              <button class="modal-close bg-transparent absolute top-6 right-6">X</button>
               <div class="grid grid-cols-[220px_1fr] gap-6">
                 <div>
                   <div class="rounded-sm h-[195px] overflow-hidden">
-                    <Image src={image } alt={`A picture of ${name}`} class="min-w-[220px] max-w-[250px] h-auto" />
+                    <Image src={image} alt={`A picture of ${name}`} class="min-w-[220px] max-w-[250px] h-auto" />
                   </div>
                   <div class="flex flex-col gap-1.5 mt-4">
                     <p class={`font-sans text-lg text-[#777888] font-medium m-0`}>
@@ -95,11 +94,6 @@ const {
                     {year && (
                       <p class={`font-sans text-xs font-bold text-gray-1 m-0`}>
                         {year}
-                      </p>
-                    )}
-                    {youCard && (
-                      <p class={`font-sans text-xs text-gray-1 m-0`}>
-                        Lives and breathes all things Terragrunt.
                       </p>
                     )}
                     <div class="flex flex-row gap-2 mt-4">
