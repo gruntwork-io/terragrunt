@@ -495,6 +495,6 @@ func TestDestroyDependentModuleParseErrors(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+util.JoinPath(rootPath, "dev", "app1"))
 	require.NoError(t, err)
 
-	// shouldn't container parse error
+	// shouldn't contain SOPS errors which are printed during dependent units discovery
 	assert.NotContains(t, stderr, "sops metadata not found")
 }

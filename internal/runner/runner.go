@@ -84,7 +84,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.CheckDependentModules = opts.CheckDependentModules
 	cfgOptions.NonInteractive = true
 
-	l.Infof("Discovering dependent untis for %s", opts.TerragruntConfigPath)
+	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
 
 	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
 	if err != nil {
