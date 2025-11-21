@@ -33,23 +33,6 @@ import (
 )
 
 const (
-	// skipOutputDiagnostics is a string used to identify diagnostics that reference outputs.
-	skipOutputDiagnostics = "output"
-
-	// skipNoVariableNamedDependencyDiagnostic is a string used to identify diagnostics
-	// that reference the missing dependency variable.
-	//
-	// This is fine during discovery, as we don't need dependency outputs resolved.
-	//
-	// This is a hack, and there should be a better way of handling this...
-	skipNoVariableNamedDependencyDiagnostic = `There is no variable named "dependency".`
-
-	// skipNullValueDiagnostic is a string used to identify diagnostics about accessing
-	// attributes on null values, which commonly happens during discovery when dependency
-	// outputs or other values haven't been resolved yet, and the configuration is being
-	// converted to a cty value.
-	skipNullValueDiagnostic = "null value"
-
 	// defaultDiscoveryWorkers is the default number of concurrent workers for discovery operations
 	defaultDiscoveryWorkers = 4
 
@@ -502,35 +485,16 @@ func Parse(
 	}
 
 	if suppressParseErrors {
-		// If suppressing parse errors, we want to filter diagnostics that contain references to outputs,
-		// while leaving other diagnostics as is.
+		// Suppressing parse errors to avoid false positive errors
 		parseOptions := append(
 			parsingCtx.ParserOptions,
 			hclparse.WithDiagnosticsHandler(func(
 				file *hcl.File,
 				hclDiags hcl.Diagnostics,
 			) (hcl.Diagnostics, error) {
-				filteredDiags := hcl.Diagnostics{}
+				l.Debugf("Suppressed parsing errors %w", hclDiags)
 
-				for _, hclDiag := range hclDiags {
-					filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
-						strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
-						strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
-						strings.Contains(strings.ToLower(hclDiag.Summary), skipNullValueDiagnostic) ||
-						strings.Contains(strings.ToLower(hclDiag.Detail), skipNullValueDiagnostic)
-
-					if !filterOut {
-						filteredDiags = append(filteredDiags, hclDiag)
-					}
-				}
-
-				// If all diagnostics were filtered out, return nil instead of an empty slice
-				// to prevent the parser from treating it as an error
-				if len(filteredDiags) == 0 {
-					return nil, nil
-				}
-
-				return filteredDiags, nil
+				return nil, nil
 			}))
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
