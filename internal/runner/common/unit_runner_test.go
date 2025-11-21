@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -44,7 +45,7 @@ func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
 	unit.SetAssumeAlreadyApplied(true)
 	runner := common.NewUnitRunner(unit)
 	report := &report.Report{}
-	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{}, report)
+	err := runner.Run(t.Context(), logger.CreateLogger(), &types.RunnerOptions{}, report)
 	require.NoError(t, err)
 	assert.Equal(t, common.Running, runner.Status)
 }
@@ -57,7 +58,7 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	path := t.TempDir()
 	unit.SetPath(path)
 	rep := report.NewReport().WithWorkingDir(path)
-	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{
+	err := runner.Run(t.Context(), logger.CreateLogger(), &types.RunnerOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return errors.New("fail")
@@ -76,7 +77,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	unit.SetPath(path)
 	runner := common.NewUnitRunner(unit)
 	rep := report.NewReport().WithWorkingDir(path)
-	err := runner.Run(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{
+	err := runner.Run(t.Context(), logger.CreateLogger(), &types.RunnerOptions{
 		Writer: &bytes.Buffer{},
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			return nil

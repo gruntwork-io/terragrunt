@@ -29,9 +29,11 @@ import (
 // This is a runner-specific alternative to the global options.TerragruntOptions,
 // containing only the fields needed by the runner for executing Terraform/OpenTofu.
 type RunnerOptions struct {
-	Writer                       io.Writer
-	ErrWriter                    io.Writer
-	Env                          map[string]string
+	Writer    io.Writer
+	ErrWriter io.Writer
+	Env       map[string]string
+	// RunTerragrunt is a callback to execute Terraform/Terragrunt commands.
+	// It takes TerragruntOptions as it bridges to the run package which hasn't been refactored yet.
 	RunTerragrunt                func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error
 	Telemetry                    *telemetry.Options
 	TerraformVersion             *version.Version
@@ -180,6 +182,63 @@ func (opts *RunnerOptions) Clone() *RunnerOptions {
 	}
 
 	return newOpts
+}
+
+// ToTerragruntOptions converts RunnerOptions back to TerragruntOptions.
+// This is used when calling RunTerragrunt callback which still expects TerragruntOptions.
+// This is a bridge method until the run package is refactored.
+func (opts *RunnerOptions) ToTerragruntOptions() *options.TerragruntOptions {
+	if opts == nil {
+		return nil
+	}
+
+	return &options.TerragruntOptions{
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TerraformCommand:             opts.TerraformCommand,
+		TerraformCliArgs:             opts.TerraformCliArgs,
+		TerraformImplementation:      opts.TerraformImplementation,
+		TerraformVersion:             opts.TerraformVersion,
+		TFPath:                       opts.TFPath,
+		TFPathExplicitlySet:          opts.TFPathExplicitlySet,
+		WorkingDir:                   opts.WorkingDir,
+		TerragruntConfigPath:         opts.TerragruntConfigPath,
+		RootWorkingDir:               opts.RootWorkingDir,
+		DownloadDir:                  opts.DownloadDir,
+		OutputFolder:                 opts.OutputFolder,
+		JSONOutputFolder:             opts.JSONOutputFolder,
+		FeatureFlags:                 opts.FeatureFlags,
+		Experiments:                  opts.Experiments,
+		Engine:                       opts.Engine,
+		EngineEnabled:                opts.EngineEnabled,
+		Errors:                       opts.Errors,
+		Telemetry:                    opts.Telemetry,
+		LogDisableErrorSummary:       opts.LogDisableErrorSummary,
+		IAMRoleOptions:               opts.IAMRoleOptions,
+		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
+		Env:                          opts.Env,
+		AutoInit:                     opts.AutoInit,
+		AutoRetry:                    opts.AutoRetry,
+		BackendBootstrap:             opts.BackendBootstrap,
+		CheckDependentModules:        opts.CheckDependentModules,
+		Debug:                        opts.Debug,
+		Headless:                     opts.Headless,
+		IgnoreDependencyErrors:       opts.IgnoreDependencyErrors,
+		IncludeExternalDependencies:  opts.IncludeExternalDependencies,
+		NonInteractive:               opts.NonInteractive,
+		SourceUpdate:                 opts.SourceUpdate,
+		RunAllAutoApprove:            opts.RunAllAutoApprove,
+		FailFast:                     opts.FailFast,
+		IgnoreDependencyOrder:        opts.IgnoreDependencyOrder,
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Parallelism:                  opts.Parallelism,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		Source:                       opts.Source,
+		VersionManagerFileName:       opts.VersionManagerFileName,
+		TerragruntVersion:            opts.TerragruntVersion,
+		RunTerragrunt:                opts.RunTerragrunt,
+	}
 }
 
 // CloneWithConfigPath creates a copy of RunnerOptions with a new config path and working directory.

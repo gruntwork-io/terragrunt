@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func TestGraphDependencyFilter_SimpleChain(t *testing.T) {
 		TargetDir: "/project/c",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	// C should be included (it's the target)
@@ -63,7 +63,7 @@ func TestGraphDependencyFilter_WithDependents(t *testing.T) {
 		TargetDir: "/project/b",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	// A should be excluded (it's a dependency, not dependent)
@@ -104,7 +104,7 @@ func TestGraphDependencyFilter_ComplexGraph(t *testing.T) {
 		TargetDir: "/project/d",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	// A, B, C should be excluded (they are dependencies, not dependents)
@@ -139,7 +139,7 @@ func TestGraphDependencyFilter_TransitiveDependents(t *testing.T) {
 		TargetDir: "/project/a",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	assert.False(t, unitA.FlagExcluded(), "Unit A should be included (target)")
@@ -167,7 +167,7 @@ func TestGraphDependencyFilter_NoDependents(t *testing.T) {
 		TargetDir: "/project/c",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	assert.True(t, unitA.FlagExcluded(), "Unit A should be excluded")
@@ -205,7 +205,7 @@ func TestGraphDependencyFilter_MultiplePathsToTarget(t *testing.T) {
 		TargetDir: "/project/e",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	assert.True(t, unitA.FlagExcluded(), "Unit A should be excluded")
@@ -230,7 +230,7 @@ func TestGraphDependencyFilter_IsolatedUnits(t *testing.T) {
 		TargetDir: "/project/b",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	assert.True(t, unitA.FlagExcluded(), "Unit A should be excluded (no relationship)")
@@ -247,7 +247,7 @@ func TestGraphDependencyFilter_EmptyUnits(t *testing.T) {
 		TargetDir: "/project/a",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 	assert.Empty(t, units, "Empty units should remain empty")
 }
@@ -268,7 +268,7 @@ func TestGraphDependencyFilter_NonExistentTarget(t *testing.T) {
 		TargetDir: "/project/nonexistent",
 	}
 
-	err := filter.Filter(context.Background(), units, &options.TerragruntOptions{})
+	err := filter.Filter(context.Background(), units, &types.RunnerOptions{})
 	require.NoError(t, err)
 
 	assert.True(t, unitA.FlagExcluded(), "Unit A should be excluded")

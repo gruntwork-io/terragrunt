@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -40,7 +40,7 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 	}
 }
 
-func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts *types.RunnerOptions, r *report.Report) error {
 	l.Debugf("UnitRunner.runTerragrunt called for %s, opts.RunTerragrunt=%v", runner.Unit.Path(), opts.RunTerragrunt)
 	l.Debugf("Running %s", runner.Unit.Path())
 
@@ -74,7 +74,10 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
 
-	runErr := opts.RunTerragrunt(ctx, l, opts, r)
+	// Convert RunnerOptions to TerragruntOptions for the RunTerragrunt callback
+	// This is a bridge until the run package is refactored to use RunnerOptions
+	terragruntOpts := opts.ToTerragruntOptions()
+	runErr := opts.RunTerragrunt(ctx, l, terragruntOpts, r)
 
 	// Only merge the final unit exit code when the unit run completed without error
 	// and the exit code isn't stuck at 1 from a prior retry attempt.
@@ -108,7 +111,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, l log.Logger, opts 
 }
 
 // Run a unit right now by executing the runTerragrunt command with the provided options.
-func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *types.RunnerOptions, r *report.Report) error {
 	runner.Status = Running
 
 	if runner.Unit.AssumeAlreadyApplied() {
@@ -122,7 +125,7 @@ func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.T
 
 	// convert terragrunt output to json
 	if runner.Unit.GetOutputJSONFile() != "" {
-		jsonLogger, jsonOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+		jsonOptions, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
 		if err != nil {
 			return err
 		}
@@ -138,7 +141,9 @@ func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *options.T
 		// for the cache directory, while still satisfying RunTerragrunt's
 		// expectation for a non-nil report parameter.
 		adhocReport := report.NewReport()
-		if err := jsonOptions.RunTerragrunt(ctx, jsonLogger, jsonOptions, adhocReport); err != nil {
+		// Convert to TerragruntOptions for RunTerragrunt callback
+		jsonTGOpts := jsonOptions.ToTerragruntOptions()
+		if err := jsonOptions.RunTerragrunt(ctx, l, jsonTGOpts, adhocReport); err != nil {
 			return err
 		}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -138,13 +139,16 @@ func Build(
 	// Wrap runner pool creation with telemetry
 	var runner common.StackRunner
 
+	// Convert TerragruntOptions to RunnerOptions for the runner package API
+	runnerOptions := types.FromTerragruntOptions(terragruntOptions)
+
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_creation", map[string]any{
 		"discovered_configs": len(discovered),
 		"terraform_command":  terragruntOptions.TerraformCommand,
 	}, func(childCtx context.Context) error {
 		var runnerErr error
 
-		runner, runnerErr = NewRunnerPoolStack(childCtx, l, terragruntOptions, discovered, opts...)
+		runner, runnerErr = NewRunnerPoolStack(childCtx, l, runnerOptions, discovered, opts...)
 
 		return runnerErr
 	})

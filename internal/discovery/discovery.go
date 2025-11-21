@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -1168,8 +1169,10 @@ func (d *Discovery) telemetryApplyUnitFilters(ctx context.Context, units compone
 		"filter_count": len(d.unitFilters),
 	}, func(_ context.Context) error {
 		// Apply all filters in sequence
+		// Convert TerragruntOptions to RunnerOptions for filter API
+		runnerOpts := types.FromTerragruntOptions(d.terragruntOptions)
 		for _, filter := range d.unitFilters {
-			if err := filter.Filter(ctx, units, d.terragruntOptions); err != nil {
+			if err := filter.Filter(ctx, units, runnerOpts); err != nil {
 				return err
 			}
 		}

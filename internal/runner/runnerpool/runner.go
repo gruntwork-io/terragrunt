@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -29,7 +30,6 @@ import (
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/hashicorp/hcl/v2"
@@ -46,7 +46,7 @@ type Runner struct {
 func NewRunnerPoolStack(
 	ctx context.Context,
 	l log.Logger,
-	terragruntOptions *options.TerragruntOptions,
+	runnerOptions *types.RunnerOptions,
 	discovered component.Components,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
@@ -63,8 +63,10 @@ func NewRunnerPoolStack(
 		l.Warnf("No units discovered. Creating an empty runner.")
 
 		stack := component.NewStack("")
-		stack.SetWorkingDir(terragruntOptions.WorkingDir)
-		stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
+		stack.SetWorkingDir(runnerOptions.WorkingDir)
+		// Convert to TerragruntOptions for config package (not yet refactored)
+		terragruntOpts := runnerOptions.ToTerragruntOptions()
+		stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOpts))
 
 		runner := &Runner{
 			Stack: stack,
@@ -84,8 +86,10 @@ func NewRunnerPoolStack(
 	// Initialize stack with options
 	// Discovery has already resolved units, applied filters, and set FlagExcluded
 	stack := component.NewStack("")
-	stack.SetWorkingDir(terragruntOptions.WorkingDir)
-	stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOptions))
+	stack.SetWorkingDir(runnerOptions.WorkingDir)
+	// Convert to TerragruntOptions for config package (not yet refactored)
+	terragruntOpts := runnerOptions.ToTerragruntOptions()
+	stack.SetParserOptions(config.DefaultParserOptions(l, terragruntOpts))
 
 	runner := &Runner{
 		Stack: stack,
@@ -167,7 +171,7 @@ func isConfigurationErrorDepth(err error, depth int) bool {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (r *Runner) Run(ctx context.Context, l log.Logger, opts *types.RunnerOptions) error {
 	terraformCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
@@ -222,7 +226,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 			// Clone stack-level options with unit's config path to get unit-specific WorkingDir
 			// This ensures each unit executes in its own directory
-			scopedLogger, unitOpts, err := opts.CloneWithConfigPath(l, execOpts.TerragruntConfigPath)
+			unitOpts, err := opts.CloneWithConfigPath(execOpts.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}
@@ -239,9 +243,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 			// Update the unit's execution options with the cloned options.
 			// This ensures methods like GetOutputFile() and PlanFile() use the correct paths.
-			u.SetTerragruntOptions(unitOpts)
+			// Convert to TerragruntOptions for the unit (component package not yet refactored)
+			u.SetTerragruntOptions(unitOpts.ToTerragruntOptions())
 
-			return unitRunner.Run(childCtx, scopedLogger, unitOpts, r.Stack.Report())
+			// Use the logger passed to Run - scoping can be added later if needed
+			return unitRunner.Run(childCtx, l, unitOpts, r.Stack.Report())
 		})
 	}
 
@@ -362,6 +368,7 @@ func (r *Runner) planBuffersIter() iter.Seq[bytes.Buffer] {
 			}
 
 			var buf bytes.Buffer
+
 			execOpts := u.ExecutionOptions()
 			if execOpts != nil {
 				execOpts.ErrWriter = io.MultiWriter(&buf, execOpts.ErrWriter)
@@ -444,7 +451,7 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
-func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *types.RunnerOptions) {
 	for _, comp := range r.Stack.Units() {
 		unit, ok := comp.(*component.Unit)
 		if !ok {

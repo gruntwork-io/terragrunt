@@ -7,16 +7,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // StackRunner is the abstraction for running stack of units.
 type StackRunner interface {
 	// Run - Execute all units in the stack according to the specified Terraform command and options.
-	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
+	Run(ctx context.Context, l log.Logger, opts *types.RunnerOptions) error
 	// LogUnitDeployOrder Log the order in which units will be deployed for the given Terraform command.
 	LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	// JSONUnitDeployOrder Return the deployment order of units as a JSON string for the specified Terraform command.
