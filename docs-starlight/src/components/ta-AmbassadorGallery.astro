@@ -1,0 +1,84 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import EmployeeCard from '@components/EmployeeCard.astro';
+
+import Sienna from '@assets/grunty/grunty-2.svg';
+import Caitlyn from '@assets/grunty/grunty-2.svg';
+import Brian from '@assets/grunty/grunty-2.svg';
+
+const includesLink = '/docs/features/includes';
+const stacksLink = '/docs/features/stacks';
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+  <div class="flex flex-col w-full md:w-[680px] lg:w-[900px]">
+    <!-- Header Section -->
+    <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+      <Eyebrow text="Ambassadors" />
+      <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">
+         Meet the Terragrunt <span class="text-accent">Ambassadors</span>
+      </h2>
+    </div>
+    <!-- Content Wrapper -->
+    <div class="grid grid-cols-3 gap-6 ">
+      <EmployeeCard
+        name="Sienna Hewitt"
+        image={Sienna}
+        title="DevOps Solutions Engineer"
+        year="2021"
+        github="#"
+        linkedin="#"
+        website="#"
+        bio="Jane is a seasoned DevOps engineer with a passion for infrastructure as code and automation."
+      />
+      <EmployeeCard
+        name="Caitlyn King"
+        image={Caitlyn}
+        title="DevOps Solutions Engineer"
+        year="2021"
+        github="#"
+        linkedin="#"
+        website="#"
+        bio="Jane is a seasoned DevOps engineer with a passion for infrastructure as code and automation."
+      />
+      <EmployeeCard
+        name="Brian Torres"
+        image={Brian}
+        title="DevOps Solutions Engineer"
+        year="2021"
+        github="#"
+        linkedin="#"
+        website="#"
+        bio="Jane is a seasoned DevOps engineer with a passion for infrastructure as code and automation."
+      />
+      <EmployeeCard
+        name="Sienna Hewitt"
+        image={Sienna}
+        title="DevOps Solutions Engineer"
+        year="2021"
+        github="#"
+        linkedin="#"
+        website="#"
+        bio="Jane is a seasoned DevOps engineer with a passion for infrastructure as code and automation."
+      />
+      <EmployeeCard
+        name="Caitlyn King"
+        image={Sienna}
+        title="DevOps Solutions Engineer"
+        year="2021"
+        github="#"
+        linkedin="#"
+        website="#"
+        bio="Jane is a seasoned DevOps engineer with a passion for infrastructure as code and automation."
+      />
+      <EmployeeCard
+        name="You"
+        image={Sienna}
+        title="Terragrunt Champion"
+        youCard={true}
+      />
+    </div>
+  </div>
+</section>
