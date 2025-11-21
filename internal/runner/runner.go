@@ -82,6 +82,8 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.Env = opts.Env
 	cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 	cfgOptions.TerraformCommand = opts.TerraformCommand
+	cfgOptions.TerraformCliArgs = opts.TerraformCliArgs
+	cfgOptions.CheckDependentModules = opts.CheckDependentModules
 	cfgOptions.NonInteractive = true
 
 	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
