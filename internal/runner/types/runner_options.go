@@ -76,6 +76,7 @@ type RunnerOptions struct {
 	AutoInit                     bool
 	TFPathExplicitlySet          bool
 	LogDisableErrorSummary       bool
+	MaxFoldersToCheck            int
 }
 
 // FromTerragruntOptions extracts RunnerOptions from TerragruntOptions.
@@ -141,6 +142,7 @@ func FromTerragruntOptions(opts *options.TerragruntOptions) *RunnerOptions {
 
 		// Execution configuration
 		Parallelism:                  opts.Parallelism,
+		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 
 		// Source configuration
@@ -233,6 +235,7 @@ func (opts *RunnerOptions) ToTerragruntOptions() *options.TerragruntOptions {
 		ForwardTFStdout:              opts.ForwardTFStdout,
 		JSONLogFormat:                opts.JSONLogFormat,
 		Parallelism:                  opts.Parallelism,
+		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		Source:                       opts.Source,
 		VersionManagerFileName:       opts.VersionManagerFileName,
