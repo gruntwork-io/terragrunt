@@ -234,6 +234,254 @@ unit "database" {
 }
 ```
 
+### Recommended layout with a reusable catalog “main” stack
+
+When building larger infrastructures, it is often useful to have:
+
+- A **reusable catalog stack** that describes the full environment pattern (VPC, databases, IAM, compute, ingress, etc.).
+- One **live stack per environment** (dev, staging, prod, …) that simply instantiates that catalog stack with different values.
+
+A common pattern looks like this:
+
+<FileTree>
+
+- live
+  - dev
+    - terragrunt.stack.hcl              # Instantiates the catalog “main” stack for dev
+  - prod
+    - terragrunt.stack.hcl              # Instantiates the same “main” stack for prod
+- catalog
+  - stacks
+    - main
+      - terragrunt.stack.hcl            # Catalog “main” stack: composes all sub-stacks
+    - environment
+      - terragrunt.stack.hcl            # Env-level stack (networking, IAM, etc.)
+    - compute
+      - terragrunt.stack.hcl            # Compute stack (ECS/EKS, services, etc.)
+    - storage
+      - terragrunt.stack.hcl            # Storage stack (S3, backups, etc.)
+  - units
+    - networking
+      - vpc
+        - terragrunt.hcl
+    - database
+      - aurora
+        - terragrunt.hcl
+    - compute
+      - ecs-cluster
+        - terragrunt.hcl
+      - ecs-service
+        - terragrunt.hcl
+
+</FileTree>
+
+In this layout:
+
+- **`catalog/stacks/main/terragrunt.stack.hcl`** is the *catalog main stack*: it wires together the other catalog stacks (environment, compute, storage, etc.).
+- **`live/<env>/terragrunt.stack.hcl`** is very small: it just calls the catalog main stack once and passes environment-specific values.
+- You always run `terragrunt stack generate` and `terragrunt stack run` from a **live** directory (e.g. `live/dev`), not from `catalog`.
+
+A minimal `live/dev/terragrunt.stack.hcl` might look like this:
+
+```hcl
+# live/dev/terragrunt.stack.hcl
+stack "main" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//catalog/stacks/main?ref=v0.0.1"
+  path   = "dev"
+
+  values = {
+    environment    = "dev"
+    aws_account_id = "111111111111"
+    aws_region     = "us-east-1"
+
+    cidr           = "10.0.0.0/16"
+
+    tags = {
+      Project     = "my-app"
+      Environment = "dev"
+    }
+  }
+}
+```
+
+The catalog “main” stack can then fan out into more specific stacks. For example:
+
+```hcl
+# catalog/stacks/main/terragrunt.stack.hcl
+
+# Environment-level resources: VPC, IAM, KMS, etc.
+stack "environment" {
+  source = "../environment"
+  path   = "env"
+  values = {
+    environment    = values.environment
+    aws_account_id = values.aws_account_id
+    aws_region     = values.aws_region
+    cidr           = values.cidr
+    tags           = values.tags
+  }
+}
+
+# Compute resources: ECS/EKS clusters and services
+stack "compute" {
+  source = "../compute"
+  path   = "compute"
+  values = {
+    environment    = values.environment
+    aws_account_id = values.aws_account_id
+    aws_region     = values.aws_region
+    tags           = values.tags
+
+    # Example of passing a relative path that compute can use to depend on the VPC unit.
+    vpc_config_path = "../env/networking/vpc"
+  }
+}
+
+# Storage resources: S3 buckets, backups, etc.
+stack "storage" {
+  source = "../storage"
+  path   = "storage"
+  values = {
+    environment = values.environment
+    tags        = values.tags
+  }
+}
+```
+
+And inside a catalog stack like `catalog/stacks/environment/terragrunt.stack.hcl` you define the units using the propagated `values`:
+
+```hcl
+# catalog/stacks/environment/terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//catalog/units/networking/vpc?ref=v0.0.1"
+  path   = "networking/vpc"
+
+  values = {
+    vpc_name = "${values.environment}-vpc"
+    cidr     = values.cidr
+    tags     = values.tags
+  }
+}
+
+unit "kms_main" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//catalog/units/security/kms?ref=v0.0.1"
+  path   = "security/kms-main"
+
+  values = {
+    environment = values.environment
+    tags        = values.tags
+  }
+}
+```
+### Recommended use of `get_repo_root()` for stable and predictable paths
+
+When authoring catalog stacks, we strongly recommend using the
+`${get_repo_root()}` function to build paths for units and nested stacks.
+
+This ensures that:
+
+- Paths do not depend on the current working directory.
+- Both catalog stacks and live stacks resolve paths consistently.
+- Repositories can be reorganized without breaking references.
+- The catalog can be versioned and reused across multiple environments.
+
+For example, instead of writing:
+
+```hcl
+source = "../units/networking/vpc"
+```
+
+a more robust pattern is:
+
+```hcl
+source = "${get_repo_root()}/catalog/units/networking/vpc"
+```
+
+This makes the relationship between catalog stacks and catalog units explicit and avoids common pitfalls when generating stacks, especially in nested layouts.
+
+The same applies to nested stacks:
+
+```hcl
+stack "environment" {
+  source = "${get_repo_root()}/catalog/stacks/environment"
+  path   = "env"
+  values = {
+    environment = values.environment
+    tags        = values.tags
+  }
+}
+```
+
+Using `get_repo_root()` creates reproducible paths no matter where the stack is instantiated (e.g. `live/dev`, `live/prod`, CI runners, or different developer machines).
+
+### Passing `config_path` references through values when using explicit stacks
+
+When using explicit stacks, it is often tempting to declare `dependency` blocks directly inside a `terragrunt.stack.hcl` file.  
+However, **dependency blocks are not supported inside stack blueprints** and should only be defined inside generated `terragrunt.hcl` files (i.e., inside units).
+
+The recommended pattern is:
+
+1. **In the catalog stack**, pass the location of the dependency as a value (e.g., `vpc_config_path`).
+2. **In the unit**, declare an actual `dependency` block using that path.
+
+This keeps stack composition and dependency wiring clearly separated and avoids parsing errors in nested stacks.
+
+#### Example
+
+In `catalog/stacks/main/terragrunt.stack.hcl`:
+
+```hcl
+stack "compute" {
+  source = "${get_repo_root()}/catalog/stacks/compute"
+  path   = "compute"
+
+  values = {
+    environment     = values.environment
+    tags            = values.tags
+
+    # Pass the VPC location as a path reference
+    vpc_config_path = "../env/networking/vpc"
+  }
+}
+```
+
+Then inside the compute unit:
+
+```hcl
+# catalog/units/compute/ecs-service/terragrunt.hcl
+
+dependency "vpc" {
+  config_path = values.vpc_config_path
+
+  mock_outputs = {
+    vpc_id = "mock"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+  tags   = values.tags
+}
+```
+
+#### Why this pattern is recommended
+
+* It keeps catalog stacks declarative, focusing on *structure*.
+* It ensures unit files remain the only place where runtime dependencies are evaluated.
+* It avoids the “unsupported block `dependency` in stack” errors.
+* It enables nested stacks to pass dependency paths cleanly through recursive `values`.
+* It keeps the stack generate mechanism stable even in large multi–environment catalogs.
+
+This is the canonical approach for explicit stacks when working with large compositions of VPCs, databases, compute, and ingress components.
+
+A few important guidelines with this pattern:
+
+* The **catalog main stack** (`catalog/stacks/main/terragrunt.stack.hcl`) is the single entrypoint for a given environment; it composes the other catalog stacks.
+* **Live stacks** (`live/dev/terragrunt.stack.hcl`, `live/prod/terragrunt.stack.hcl`, etc.) only differ in their `values` (environment name, account ID, CIDR ranges, tags, and so on).
+* The `values` map is available inside catalog stacks and their units as `values.<key>`, but only in the context of `unit` or nested `stack` blocks.
+* You should avoid putting `dependency` blocks directly in `terragrunt.stack.hcl` files; instead, pass any needed `config_path` via `values` into units and declare `dependency` blocks in the units’ `terragrunt.hcl`. This keeps catalog stacks focused on structure, and units focused on dependency wiring.
+
 ### Working with Explicit Stacks
 
 ```bash
