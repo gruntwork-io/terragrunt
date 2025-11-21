@@ -18,8 +18,10 @@ func runVersionCommand(ctx context.Context, l log.Logger, runnerOpts *runnertype
 	if !tfOpts.TFPathExplicitlySet {
 		// getTfPathFromConfig still needs minimal TerragruntOptions for config parsing
 		opts := &options.TerragruntOptions{
-			TerragruntConfigPath: tfOpts.TerragruntConfigPath,
-			WorkingDir:           tfOpts.WorkingDir,
+			RuntimeOptions: options.RuntimeOptions{
+				TerragruntConfigPath: tfOpts.TerragruntConfigPath,
+				WorkingDir:           tfOpts.WorkingDir,
+			},
 		}
 
 		if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {

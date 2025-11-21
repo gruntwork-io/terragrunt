@@ -22,16 +22,20 @@ func TestAction(t *testing.T) {
 		{
 			name: "wrong tofu command",
 			opts: &options.TerragruntOptions{
-				TerraformCommand: "foo",
-				TFPath:           "tofu",
+				RuntimeOptions: options.RuntimeOptions{
+					TerraformCommand: "foo",
+					TFPath:           "tofu",
+				},
 			},
 			expectedErr: run.WrongTofuCommand("foo"),
 		},
 		{
 			name: "wrong terraform command",
 			opts: &options.TerragruntOptions{
-				TerraformCommand: "foo",
-				TFPath:           "terraform",
+				RuntimeOptions: options.RuntimeOptions{
+					TerraformCommand: "foo",
+					TFPath:           "terraform",
+				},
 			},
 			expectedErr: run.WrongTerraformCommand("foo"),
 		},

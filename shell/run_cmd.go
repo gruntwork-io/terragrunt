@@ -217,14 +217,16 @@ func RunCommandWithOutputAndRunner(
 				// Engine still expects TerragruntOptions, create minimal opts
 				// TODO: Eventually engine package should accept RunnerOptions
 				opts := &options.TerragruntOptions{
-					TFPath:                  runnerOpts.TFPath,
-					WorkingDir:              runnerOpts.WorkingDir,
-					Writer:                  runnerOpts.Writer,
-					ErrWriter:               runnerOpts.ErrWriter,
-					Env:                     runnerOpts.Env,
-					Engine:                  runnerOpts.Engine,
-					EngineEnabled:           runnerOpts.EngineEnabled,
-					TerraformImplementation: runnerOpts.TerraformImplementation,
+					RuntimeOptions: options.RuntimeOptions{
+						TFPath:                  runnerOpts.TFPath,
+						WorkingDir:              runnerOpts.WorkingDir,
+						Writer:                  runnerOpts.Writer,
+						ErrWriter:               runnerOpts.ErrWriter,
+						Env:                     runnerOpts.Env,
+						Engine:                  runnerOpts.Engine,
+						EngineEnabled:           runnerOpts.EngineEnabled,
+						TerraformImplementation: runnerOpts.TerraformImplementation,
+					},
 				}
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{

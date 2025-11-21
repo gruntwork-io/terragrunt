@@ -291,15 +291,17 @@ func RunCommandWithOutputAndRunner(ctx context.Context, l log.Logger, runnerOpts
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 		// Hook still expects TerragruntOptions, create minimal opts
 		opts := &options.TerragruntOptions{
-			TFPath:                  runnerOpts.TFPath,
-			WorkingDir:              runnerOpts.WorkingDir,
-			Writer:                  runnerOpts.Writer,
-			ErrWriter:               runnerOpts.ErrWriter,
-			Env:                     runnerOpts.Env,
-			ForwardTFStdout:         runnerOpts.ForwardTFStdout,
-			JSONLogFormat:           runnerOpts.JSONLogFormat,
-			Headless:                runnerOpts.Headless,
-			TerraformImplementation: runnerOpts.TerraformImplementation,
+			RuntimeOptions: options.RuntimeOptions{
+				TFPath:                  runnerOpts.TFPath,
+				WorkingDir:              runnerOpts.WorkingDir,
+				Writer:                  runnerOpts.Writer,
+				ErrWriter:               runnerOpts.ErrWriter,
+				Env:                     runnerOpts.Env,
+				ForwardTFStdout:         runnerOpts.ForwardTFStdout,
+				JSONLogFormat:           runnerOpts.JSONLogFormat,
+				Headless:                runnerOpts.Headless,
+				TerraformImplementation: runnerOpts.TerraformImplementation,
+			},
 		}
 
 		return fn(ctx, l, opts, args)
@@ -431,15 +433,17 @@ func RunCommandWithOutputAndOptions(ctx context.Context, l log.Logger, tfOpts *T
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 		// Hook still expects TerragruntOptions, create minimal opts
 		opts := &options.TerragruntOptions{
-			TFPath:                  tfOpts.TFPath,
-			WorkingDir:              tfOpts.WorkingDir,
-			Writer:                  tfOpts.Writer,
-			ErrWriter:               tfOpts.ErrWriter,
-			Env:                     tfOpts.Env,
-			ForwardTFStdout:         tfOpts.ForwardTFStdout,
-			JSONLogFormat:           tfOpts.JSONLogFormat,
-			Headless:                tfOpts.Headless,
-			TerraformImplementation: tfOpts.TerraformImplementation,
+			RuntimeOptions: options.RuntimeOptions{
+				TFPath:                  tfOpts.TFPath,
+				WorkingDir:              tfOpts.WorkingDir,
+				Writer:                  tfOpts.Writer,
+				ErrWriter:               tfOpts.ErrWriter,
+				Env:                     tfOpts.Env,
+				ForwardTFStdout:         tfOpts.ForwardTFStdout,
+				JSONLogFormat:           tfOpts.JSONLogFormat,
+				Headless:                tfOpts.Headless,
+				TerraformImplementation: tfOpts.TerraformImplementation,
+			},
 		}
 
 		return fn(ctx, l, opts, args)
@@ -484,23 +488,25 @@ func toRunnerOptions(tfOpts *TFOptions) *runnertypes.RunnerOptions {
 	}
 
 	return &runnertypes.RunnerOptions{
-		TFPath:                  tfOpts.TFPath,
-		TFPathExplicitlySet:     tfOpts.TFPathExplicitlySet,
-		TerraformImplementation: tfOpts.TerraformImplementation,
-		TerraformCliArgs:        tfOpts.TerraformCliArgs,
-		WorkingDir:              tfOpts.WorkingDir,
-		TerragruntConfigPath:    tfOpts.TerragruntConfigPath,
-		DownloadDir:             tfOpts.DownloadDir,
-		Writer:                  tfOpts.Writer,
-		ErrWriter:               tfOpts.ErrWriter,
-		Env:                     tfOpts.Env,
-		ForwardTFStdout:         tfOpts.ForwardTFStdout,
-		JSONLogFormat:           tfOpts.JSONLogFormat,
-		Headless:                tfOpts.Headless,
-		LogDisableErrorSummary:  tfOpts.LogDisableErrorSummary,
-		Engine:                  tfOpts.Engine,
-		EngineEnabled:           tfOpts.EngineEnabled,
-		Telemetry:               tfOpts.Telemetry,
+		RuntimeOptions: options.RuntimeOptions{
+			TFPath:                  tfOpts.TFPath,
+			TFPathExplicitlySet:     tfOpts.TFPathExplicitlySet,
+			TerraformImplementation: tfOpts.TerraformImplementation,
+			TerraformCliArgs:        tfOpts.TerraformCliArgs,
+			WorkingDir:              tfOpts.WorkingDir,
+			TerragruntConfigPath:    tfOpts.TerragruntConfigPath,
+			DownloadDir:             tfOpts.DownloadDir,
+			Writer:                  tfOpts.Writer,
+			ErrWriter:               tfOpts.ErrWriter,
+			Env:                     tfOpts.Env,
+			ForwardTFStdout:         tfOpts.ForwardTFStdout,
+			JSONLogFormat:           tfOpts.JSONLogFormat,
+			Headless:                tfOpts.Headless,
+			LogDisableErrorSummary:  tfOpts.LogDisableErrorSummary,
+			Engine:                  tfOpts.Engine,
+			EngineEnabled:           tfOpts.EngineEnabled,
+			Telemetry:               tfOpts.Telemetry,
+		},
 	}
 }
 

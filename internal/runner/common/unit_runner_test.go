@@ -59,9 +59,11 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	unit.SetPath(path)
 	rep := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), logger.CreateLogger(), &types.RunnerOptions{
-		Writer: &bytes.Buffer{},
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-			return errors.New("fail")
+		RuntimeOptions: options.RuntimeOptions{
+			Writer: &bytes.Buffer{},
+			RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
+				return errors.New("fail")
+			},
 		},
 	}, rep)
 	require.Error(t, err)
@@ -78,9 +80,11 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	runner := common.NewUnitRunner(unit)
 	rep := report.NewReport().WithWorkingDir(path)
 	err := runner.Run(t.Context(), logger.CreateLogger(), &types.RunnerOptions{
-		Writer: &bytes.Buffer{},
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-			return nil
+		RuntimeOptions: options.RuntimeOptions{
+			Writer: &bytes.Buffer{},
+			RunTerragrunt: func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
+				return nil
+			},
 		},
 	}, rep)
 	require.NoError(t, err)

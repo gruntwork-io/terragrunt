@@ -1,157 +1,48 @@
 // Package types provides runner-specific option structures and utilities.
-// This package defines RunnerOptions, a focused alternative to the global
-// TerragruntOptions, containing only the fields needed by the runner package
-// for executing Terraform/OpenTofu commands.
+// RunnerOptions is a thin wrapper around options.RuntimeOptions so downstream
+// runner code doesn't need to reach for the full TerragruntOptions god object.
 package types
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-version"
-	"github.com/puzpuzpuz/xsync/v3"
 )
 
-// RunnerOptions contains the options needed by the runner package.
-// This is a runner-specific alternative to the global options.TerragruntOptions,
-// containing only the fields needed by the runner for executing Terraform/OpenTofu.
+// RunnerOptions contains only the fields the runner needs, sourced from options.RuntimeOptions.
 type RunnerOptions struct {
-	Writer    io.Writer
-	ErrWriter io.Writer
-	Env       map[string]string
-	// RunTerragrunt is a callback to execute Terraform/Terragrunt commands.
-	// It takes TerragruntOptions as it bridges to the run package which hasn't been refactored yet.
-	RunTerragrunt                func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error
-	Telemetry                    *telemetry.Options
-	TerraformVersion             *version.Version
-	Errors                       *options.ErrorsConfig
-	TerragruntVersion            *version.Version
-	Engine                       *options.EngineOptions
-	FeatureFlags                 *xsync.MapOf[string, string]
-	RootWorkingDir               string
-	DownloadDir                  string
-	OutputFolder                 string
-	JSONOutputFolder             string
-	TerragruntConfigPath         string
-	Source                       string
-	WorkingDir                   string
-	OriginalTerragruntConfigPath string
-	TFPath                       string
-	TerraformImplementation      options.TerraformImplementationType
-	TerraformCommand             string
-	OriginalIAMRoleOptions       options.IAMRoleOptions
-	IAMRoleOptions               options.IAMRoleOptions
-	TerraformCliArgs             cli.Args
-	VersionManagerFileName       []string
-	Experiments                  experiment.Experiments
-	Parallelism                  int
-	NonInteractive               bool
-	IgnoreDependencyOrder        bool
-	Headless                     bool
-	IgnoreDependencyErrors       bool
-	IncludeExternalDependencies  bool
-	CheckDependentModules        bool
-	SourceUpdate                 bool
-	RunAllAutoApprove            bool
-	FailFast                     bool
-	Debug                        bool
-	ForwardTFStdout              bool
-	JSONLogFormat                bool
-	BackendBootstrap             bool
-	EngineEnabled                bool
-	AutoRetry                    bool
-	AutoInit                     bool
-	TFPathExplicitlySet          bool
-	LogDisableErrorSummary       bool
-	MaxFoldersToCheck            int
+	options.RuntimeOptions
 }
 
 // FromTerragruntOptions extracts RunnerOptions from TerragruntOptions.
-// This creates a runner-specific copy with only the fields needed by the runner package.
 func FromTerragruntOptions(opts *options.TerragruntOptions) *RunnerOptions {
 	if opts == nil {
 		return nil
 	}
 
 	return &RunnerOptions{
-		// I/O
-		Writer:    opts.Writer,
-		ErrWriter: opts.ErrWriter,
+		RuntimeOptions: *opts.RuntimeOptions.Clone(),
+	}
+}
 
-		// Terraform/OpenTofu execution
-		TerraformCommand:        opts.TerraformCommand,
-		TerraformCliArgs:        opts.TerraformCliArgs,
-		TerraformImplementation: opts.TerraformImplementation,
-		TerraformVersion:        opts.TerraformVersion,
-		TFPath:                  opts.TFPath,
-		TFPathExplicitlySet:     opts.TFPathExplicitlySet,
+// ToTerragruntOptions converts RunnerOptions back to TerragruntOptions.
+// Useful for bridging to code that still expects the broader options structure.
+func (opts *RunnerOptions) ToTerragruntOptions() *options.TerragruntOptions {
+	if opts == nil {
+		return nil
+	}
 
-		// Paths
-		WorkingDir:           opts.WorkingDir,
-		TerragruntConfigPath: opts.TerragruntConfigPath,
-		RootWorkingDir:       opts.RootWorkingDir,
-		DownloadDir:          opts.DownloadDir,
-
-		// Output configuration
-		OutputFolder:     opts.OutputFolder,
-		JSONOutputFolder: opts.JSONOutputFolder,
-
-		// Feature flags and configuration
-		FeatureFlags:           opts.FeatureFlags,
-		Experiments:            opts.Experiments,
-		Engine:                 opts.Engine,
-		EngineEnabled:          opts.EngineEnabled,
-		Errors:                 opts.Errors,
-		Telemetry:              opts.Telemetry,
-		LogDisableErrorSummary: opts.LogDisableErrorSummary,
-
-		// IAM and environment
-		IAMRoleOptions:         opts.IAMRoleOptions,
-		OriginalIAMRoleOptions: opts.OriginalIAMRoleOptions,
-		Env:                    opts.Env,
-
-		// Behavior flags
-		AutoInit:                    opts.AutoInit,
-		AutoRetry:                   opts.AutoRetry,
-		BackendBootstrap:            opts.BackendBootstrap,
-		CheckDependentModules:       opts.CheckDependentModules,
-		Debug:                       opts.Debug,
-		Headless:                    opts.Headless,
-		IgnoreDependencyErrors:      opts.IgnoreDependencyErrors,
-		IncludeExternalDependencies: opts.IncludeExternalDependencies,
-		NonInteractive:              opts.NonInteractive,
-		SourceUpdate:                opts.SourceUpdate,
-		RunAllAutoApprove:           opts.RunAllAutoApprove,
-		FailFast:                    opts.FailFast,
-		IgnoreDependencyOrder:       opts.IgnoreDependencyOrder,
-		ForwardTFStdout:             opts.ForwardTFStdout,
-		JSONLogFormat:               opts.JSONLogFormat,
-
-		// Execution configuration
-		Parallelism:                  opts.Parallelism,
-		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-
-		// Source configuration
-		Source:                 opts.Source,
-		VersionManagerFileName: opts.VersionManagerFileName,
-		TerragruntVersion:      opts.TerragruntVersion,
-
-		// Function callbacks
-		RunTerragrunt: opts.RunTerragrunt,
+	return &options.TerragruntOptions{
+		RuntimeOptions: *opts.RuntimeOptions.Clone(),
 	}
 }
 
@@ -161,91 +52,12 @@ func (opts *RunnerOptions) Clone() *RunnerOptions {
 		return nil
 	}
 
-	// Deep clone using the cloner package
-	newOpts := &RunnerOptions{}
-	*newOpts = *opts
-
-	// Deep clone slices and maps
-	if opts.TerraformCliArgs != nil {
-		newOpts.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
-		copy(newOpts.TerraformCliArgs, opts.TerraformCliArgs)
-	}
-
-	if opts.VersionManagerFileName != nil {
-		newOpts.VersionManagerFileName = make([]string, len(opts.VersionManagerFileName))
-		copy(newOpts.VersionManagerFileName, opts.VersionManagerFileName)
-	}
-
-	if opts.Env != nil {
-		newOpts.Env = make(map[string]string, len(opts.Env))
-		for k, v := range opts.Env {
-			newOpts.Env[k] = v
-		}
-	}
-
-	return newOpts
-}
-
-// ToTerragruntOptions converts RunnerOptions back to TerragruntOptions.
-// This is used when calling RunTerragrunt callback which still expects TerragruntOptions.
-// This is a bridge method until the run package is refactored.
-func (opts *RunnerOptions) ToTerragruntOptions() *options.TerragruntOptions {
-	if opts == nil {
-		return nil
-	}
-
-	return &options.TerragruntOptions{
-		Writer:                       opts.Writer,
-		ErrWriter:                    opts.ErrWriter,
-		TerraformCommand:             opts.TerraformCommand,
-		TerraformCliArgs:             opts.TerraformCliArgs,
-		TerraformImplementation:      opts.TerraformImplementation,
-		TerraformVersion:             opts.TerraformVersion,
-		TFPath:                       opts.TFPath,
-		TFPathExplicitlySet:          opts.TFPathExplicitlySet,
-		WorkingDir:                   opts.WorkingDir,
-		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		RootWorkingDir:               opts.RootWorkingDir,
-		DownloadDir:                  opts.DownloadDir,
-		OutputFolder:                 opts.OutputFolder,
-		JSONOutputFolder:             opts.JSONOutputFolder,
-		FeatureFlags:                 opts.FeatureFlags,
-		Experiments:                  opts.Experiments,
-		Engine:                       opts.Engine,
-		EngineEnabled:                opts.EngineEnabled,
-		Errors:                       opts.Errors,
-		Telemetry:                    opts.Telemetry,
-		LogDisableErrorSummary:       opts.LogDisableErrorSummary,
-		IAMRoleOptions:               opts.IAMRoleOptions,
-		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
-		Env:                          opts.Env,
-		AutoInit:                     opts.AutoInit,
-		AutoRetry:                    opts.AutoRetry,
-		BackendBootstrap:             opts.BackendBootstrap,
-		CheckDependentModules:        opts.CheckDependentModules,
-		Debug:                        opts.Debug,
-		Headless:                     opts.Headless,
-		IgnoreDependencyErrors:       opts.IgnoreDependencyErrors,
-		IncludeExternalDependencies:  opts.IncludeExternalDependencies,
-		NonInteractive:               opts.NonInteractive,
-		SourceUpdate:                 opts.SourceUpdate,
-		RunAllAutoApprove:            opts.RunAllAutoApprove,
-		FailFast:                     opts.FailFast,
-		IgnoreDependencyOrder:        opts.IgnoreDependencyOrder,
-		ForwardTFStdout:              opts.ForwardTFStdout,
-		JSONLogFormat:                opts.JSONLogFormat,
-		Parallelism:                  opts.Parallelism,
-		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		Source:                       opts.Source,
-		VersionManagerFileName:       opts.VersionManagerFileName,
-		TerragruntVersion:            opts.TerragruntVersion,
-		RunTerragrunt:                opts.RunTerragrunt,
+	return &RunnerOptions{
+		RuntimeOptions: *opts.RuntimeOptions.Clone(),
 	}
 }
 
 // CloneWithConfigPath creates a copy of RunnerOptions with a new config path and working directory.
-// This is useful for creating options for a Terraform module in a different folder.
 func (opts *RunnerOptions) CloneWithConfigPath(configPath string) (*RunnerOptions, error) {
 	if opts == nil {
 		return nil, nil
@@ -264,16 +76,13 @@ func (opts *RunnerOptions) CloneWithConfigPath(configPath string) (*RunnerOption
 		configPath = util.CleanPath(absConfigPath)
 	}
 
-	workingDir := filepath.Dir(configPath)
-
 	newOpts.TerragruntConfigPath = configPath
-	newOpts.WorkingDir = workingDir
+	newOpts.WorkingDir = filepath.Dir(configPath)
 
 	return newOpts, nil
 }
 
-// InsertTerraformCliArgs inserts the given args after the terraform command, but before remaining args.
-// This handles special cases like planfile extraction and subcommands.
+// InsertTerraformCliArgs inserts args after the terraform command but before remaining args.
 func (opts *RunnerOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
@@ -284,18 +93,15 @@ func (opts *RunnerOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 
 	commandLength := singleCommandLength
 	if len(opts.TerraformCliArgs) > 0 && util.ListContainsElement(options.TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
-		// Terraform commands with subcommands (e.g., "state list")
 		commandLength = util.Min(subCommandLength, len(opts.TerraformCliArgs))
 	}
 
-	// Options must be inserted after command but before other args
 	var args []string
 
 	args = append(args, opts.TerraformCliArgs[:commandLength]...)
 	args = append(args, restArgs...)
 	args = append(args, opts.TerraformCliArgs[commandLength:]...)
 
-	// Append planfile at the end if extracted
 	if planFile != nil {
 		args = append(args, *planFile)
 	}
@@ -328,8 +134,6 @@ func (opts *RunnerOptions) DataDir() string {
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
-// Helper functions
-
 // checkIfPlanFile checks if the argument is a terraform plan file.
 func checkIfPlanFile(arg string) bool {
 	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
@@ -357,7 +161,6 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
-// This implements error retry and ignore logic based on the Errors configuration.
 func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logger, r *report.Report, operation func() error) error {
 	if opts.Errors == nil {
 		return operation()
@@ -365,7 +168,6 @@ func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logge
 
 	currentAttempt := 1
 
-	// convert working dir to an absolute path for reporting
 	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
 		return err
@@ -377,7 +179,6 @@ func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logge
 			return nil
 		}
 
-		// Process the error through our error handling configuration
 		action, processErr := opts.Errors.ProcessError(l, err, currentAttempt)
 		if processErr != nil {
 			return fmt.Errorf("error processing error handling rules: %w", processErr)
@@ -390,7 +191,6 @@ func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logge
 		if action.ShouldIgnore {
 			l.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
 
-			// Handle ignore signals if any are configured
 			if len(action.IgnoreSignals) > 0 {
 				if err := opts.handleIgnoreSignals(l, action.IgnoreSignals); err != nil {
 					return err
@@ -415,7 +215,6 @@ func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logge
 		}
 
 		if action.ShouldRetry {
-			// Respect --no-auto-retry flag
 			if !opts.AutoRetry {
 				return err
 			}
@@ -428,7 +227,6 @@ func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logge
 				action.RetrySleepSecs,
 			)
 
-			// Record that a retry will be attempted without prematurely marking success.
 			run, err := r.EnsureRun(absWorkingDir)
 			if err != nil {
 				return err
@@ -443,10 +241,8 @@ func (opts *RunnerOptions) RunWithErrorHandling(ctx context.Context, l log.Logge
 				return err
 			}
 
-			// Sleep before retry
 			select {
 			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
-				// try again
 			case <-ctx.Done():
 				return errors.New(ctx.Err())
 			}

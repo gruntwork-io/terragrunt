@@ -246,30 +246,7 @@ func (u *Unit) SetTerragruntOptions(opts *options.TerragruntOptions) {
 		return
 	}
 
-	runnerOptions := &runnertypes.RunnerOptions{
-		Writer:                      opts.Writer,
-		ErrWriter:                   opts.ErrWriter,
-		TerraformCommand:            opts.TerraformCommand,
-		OutputFolder:                opts.OutputFolder,
-		JSONOutputFolder:            opts.JSONOutputFolder,
-		RootWorkingDir:              opts.RootWorkingDir,
-		TerraformCliArgs:            opts.TerraformCliArgs,
-		WorkingDir:                  opts.WorkingDir,
-		TerragruntConfigPath:        opts.TerragruntConfigPath,
-		IncludeExternalDependencies: opts.IncludeExternalDependencies,
-		NonInteractive:              opts.NonInteractive,
-		TFPath:                      opts.TFPath,
-		Env:                         opts.Env,
-		Engine:                      opts.Engine,
-		EngineEnabled:               opts.EngineEnabled,
-		Telemetry:                   opts.Telemetry,
-		TerraformImplementation:     opts.TerraformImplementation,
-		ForwardTFStdout:             opts.ForwardTFStdout,
-		JSONLogFormat:               opts.JSONLogFormat,
-		LogDisableErrorSummary:      opts.LogDisableErrorSummary,
-	}
-
-	u.SetExecutionOptions(runnerOptions)
+	u.SetExecutionOptions(runnertypes.FromTerragruntOptions(opts))
 }
 
 // TerragruntOptions returns a minimal TerragruntOptions for backward compatibility.
@@ -286,27 +263,29 @@ func (u *Unit) TerragruntOptions() *options.TerragruntOptions {
 	}
 
 	return &options.TerragruntOptions{
-		Writer:                      opts.Writer,
-		ErrWriter:                   opts.ErrWriter,
-		TerraformCommand:            opts.TerraformCommand,
-		OutputFolder:                opts.OutputFolder,
-		JSONOutputFolder:            opts.JSONOutputFolder,
-		RootWorkingDir:              opts.RootWorkingDir,
-		TerraformCliArgs:            opts.TerraformCliArgs,
-		WorkingDir:                  opts.WorkingDir,
-		TerragruntConfigPath:        opts.TerragruntConfigPath,
-		IncludeExternalDependencies: opts.IncludeExternalDependencies,
-		NonInteractive:              opts.NonInteractive,
-		MaxFoldersToCheck:           options.DefaultMaxFoldersToCheck,
-		TFPath:                      opts.TFPath,
-		Env:                         opts.Env,
-		Engine:                      opts.Engine,
-		EngineEnabled:               opts.EngineEnabled,
-		Telemetry:                   opts.Telemetry,
-		TerraformImplementation:     opts.TerraformImplementation,
-		ForwardTFStdout:             opts.ForwardTFStdout,
-		JSONLogFormat:               opts.JSONLogFormat,
-		LogDisableErrorSummary:      opts.LogDisableErrorSummary,
+		RuntimeOptions: options.RuntimeOptions{
+			Writer:                      opts.Writer,
+			ErrWriter:                   opts.ErrWriter,
+			TerraformCommand:            opts.TerraformCommand,
+			OutputFolder:                opts.OutputFolder,
+			JSONOutputFolder:            opts.JSONOutputFolder,
+			RootWorkingDir:              opts.RootWorkingDir,
+			TerraformCliArgs:            opts.TerraformCliArgs,
+			WorkingDir:                  opts.WorkingDir,
+			TerragruntConfigPath:        opts.TerragruntConfigPath,
+			IncludeExternalDependencies: opts.IncludeExternalDependencies,
+			NonInteractive:              opts.NonInteractive,
+			MaxFoldersToCheck:           options.DefaultMaxFoldersToCheck,
+			TFPath:                      opts.TFPath,
+			Env:                         opts.Env,
+			Engine:                      opts.Engine,
+			EngineEnabled:               opts.EngineEnabled,
+			Telemetry:                   opts.Telemetry,
+			TerraformImplementation:     opts.TerraformImplementation,
+			ForwardTFStdout:             opts.ForwardTFStdout,
+			JSONLogFormat:               opts.JSONLogFormat,
+			LogDisableErrorSummary:      opts.LogDisableErrorSummary,
+		},
 	}
 }
 
