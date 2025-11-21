@@ -489,7 +489,6 @@ func TestDestroyDependentModuleParseErrors(t *testing.T) {
 
 	// apply dev
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run -all apply --non-interactive --working-dir "+util.JoinPath(rootPath, "dev"))
-
 	require.NoError(t, err)
 
 	// try to destroy app1 to trigger dependent units scanning
