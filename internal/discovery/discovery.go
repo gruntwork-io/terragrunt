@@ -492,7 +492,7 @@ func Parse(
 				file *hcl.File,
 				hclDiags hcl.Diagnostics,
 			) (hcl.Diagnostics, error) {
-				l.Debugf("Suppresed parsing errors %w", hclDiags)
+				l.Debugf("Suppressed parsing errors %w", hclDiags)
 
 				return nil, nil
 			}))
