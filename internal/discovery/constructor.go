@@ -88,8 +88,9 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		}
 
 		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
+			WorkingDir: opts.WorkingDir,
+			Cmd:        cmd,
+			Args:       args,
 		})
 	}
 
@@ -97,7 +98,7 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 			if err != nil {
 				return nil, err
 			}
@@ -117,7 +118,7 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 			if err != nil {
 				return nil, err
 			}
@@ -137,7 +138,7 @@ func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
 		d = d.WithFilterFlagEnabled()
 
 		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
+			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 			if err != nil {
 				return nil, err
 			}
@@ -154,7 +155,6 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
 
 	discovery := &Discovery{
-		workingDir: dir,
 		includeDirs: []string{
 			config.StackDir,
 			filepath.Join(config.StackDir, "**"),
@@ -162,6 +162,9 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 		numWorkers:         numWorkers,
 		useDefaultExcludes: true,
 		maxDependencyDepth: defaultMaxDependencyDepth,
+		discoveryContext: &component.DiscoveryContext{
+			WorkingDir: dir,
+		},
 	}
 
 	for _, opt := range opts {

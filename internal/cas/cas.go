@@ -17,6 +17,7 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
@@ -46,7 +47,7 @@ type CloneOptions struct {
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
 	store *Store
-	git   *GitRunner
+	git   *git.GitRunner
 	opts  Options
 }
 
@@ -69,14 +70,14 @@ func New(opts Options) (*CAS, error) {
 
 	store := NewStore(opts.StorePath)
 
-	git, err := NewGitRunner()
+	g, err := git.NewGitRunner()
 	if err != nil {
 		return nil, err
 	}
 
 	return &CAS{
 		store: store,
-		git:   git,
+		git:   g,
 		opts:  opts,
 	}, nil
 }
@@ -127,8 +128,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 				}
 			}()
 
-			// Set the working directory for git operations
-			c.git.SetWorkDir(tempDir)
+			c.git.WithWorkDir(tempDir)
 
 			if cloneAndStoreErr := c.cloneAndStoreContent(childCtx, l, opts, url, hash); cloneAndStoreErr != nil {
 				return cloneAndStoreErr
@@ -142,19 +142,19 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 			return err
 		}
 
-		tree, err := ParseTree(string(treeData), targetDir)
+		tree, err := git.ParseTree(treeData, targetDir)
 		if err != nil {
 			return err
 		}
 
-		return tree.LinkTree(childCtx, c.store, targetDir)
+		return LinkTree(childCtx, c.store, tree, targetDir)
 	})
 }
 
 func (c *CAS) prepareTargetDirectory(dir, url string) string {
 	targetDir := dir
 	if targetDir == "" {
-		targetDir = GetRepoName(url)
+		targetDir = git.GetRepoName(url)
 	}
 
 	return filepath.Clean(targetDir)
@@ -186,8 +186,7 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *Clon
 }
 
 func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
-	// Get all blobs recursively in a single git ls-tree -r call at the root
-	tree, err := c.git.LsTreeRecursive(ctx, hash, ".")
+	tree, err := c.git.LsTreeRecursive(ctx, hash)
 	if err != nil {
 		return err
 	}
@@ -240,7 +239,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 }
 
 // storeTreeRecursive stores a tree fetched from git ls-tree -r
-func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *Tree) error {
+func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *git.Tree) error {
 	if !c.store.NeedsWrite(hash) {
 		return nil
 	}
@@ -259,7 +258,7 @@ func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string,
 }
 
 // storeBlobs stores blobs in the CAS
-func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
+func (c *CAS) storeBlobs(ctx context.Context, entries []git.TreeEntry) error {
 	for _, entry := range entries {
 		if !c.store.NeedsWrite(entry.Hash) {
 			continue
