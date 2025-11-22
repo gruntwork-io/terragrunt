@@ -295,17 +295,6 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 	return dependencyToDiscover
 }
 
-// FindComponentByPath searches for a component by path in both main components
-// and external dependencies. Returns the component if found, nil otherwise.
-func (dd *DependencyDiscovery) FindComponentByPath(path string) component.Component {
-	c := dd.components.FindByPath(path)
-	if c != nil {
-		return c
-	}
-
-	return dd.externalDependencies.FindByPath(path)
-}
-
 // ExternalDependencies returns the external dependencies discovered during dependency discovery.
 func (dd *DependencyDiscovery) ExternalDependencies() component.Components {
 	return dd.externalDependencies.ToComponents()

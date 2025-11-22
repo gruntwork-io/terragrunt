@@ -87,9 +87,6 @@ var defaultExcludeDirs = []string{
 	".terragrunt-cache/**",
 }
 
-// Sort is the sort order of the discovered configurations.
-type Sort string
-
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
 	ctx                          context.Context
@@ -99,7 +96,6 @@ type Discovery struct {
 	terragruntOptions            *options.TerragruntOptions
 	includeGlobs                 map[string]glob.Glob
 	workingDir                   string
-	sort                         Sort
 	configFilenames              []string
 	filters                      filter.Filters
 	dependencyTargetExpressions  []filter.Expression
@@ -127,7 +123,6 @@ type Discovery struct {
 	excludeByDefault             bool
 	discoverDependencies         bool
 	doubleStarEnabled            bool
-	skipValidation               bool
 	skipExternalDependencyPrompt bool
 	skipUnitResolution           bool
 }
@@ -167,13 +162,6 @@ func (d *Discovery) WithSkipExternalDependencyPrompt() *Discovery {
 // without full unit setup (which would skip configs with parse errors).
 func (d *Discovery) WithSkipUnitResolution() *Discovery {
 	d.skipUnitResolution = true
-
-	return d
-}
-
-// WithSort sets the Sort flag to the given sort.
-func (d *Discovery) WithSort(sort Sort) *Discovery {
-	d.sort = sort
 
 	return d
 }
@@ -396,14 +384,6 @@ func (d *Discovery) WithUnitFilters(filters ...common.UnitFilter) *Discovery {
 // WithContext sets the context for telemetry collection.
 func (d *Discovery) WithContext(ctx context.Context) *Discovery {
 	d.ctx = ctx
-	return d
-}
-
-// WithSkipValidation sets the skipValidation flag to true.
-// When enabled, discovery will not validate that units have Terraform files.
-// This is useful for tests that don't create actual .tf files.
-func (d *Discovery) WithSkipValidation() *Discovery {
-	d.skipValidation = true
 	return d
 }
 

@@ -58,9 +58,10 @@ func (opts *RunnerOptions) Clone() *RunnerOptions {
 }
 
 // CloneWithConfigPath creates a copy of RunnerOptions with a new config path and working directory.
-func (opts *RunnerOptions) CloneWithConfigPath(configPath string) (*RunnerOptions, error) {
+// It also returns a unit-specific logger with the working directory set as a field for proper log prefixing.
+func (opts *RunnerOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *RunnerOptions, error) {
 	if opts == nil {
-		return nil, nil
+		return l, nil, nil
 	}
 
 	newOpts := opts.Clone()
@@ -70,16 +71,22 @@ func (opts *RunnerOptions) CloneWithConfigPath(configPath string) (*RunnerOption
 	if !filepath.IsAbs(configPath) {
 		absConfigPath, err := filepath.Abs(configPath)
 		if err != nil {
-			return nil, err
+			return l, nil, err
 		}
 
 		configPath = util.CleanPath(absConfigPath)
 	}
 
-	newOpts.TerragruntConfigPath = configPath
-	newOpts.WorkingDir = filepath.Dir(configPath)
+	workingDir := filepath.Dir(configPath)
 
-	return newOpts, nil
+	newOpts.TerragruntConfigPath = configPath
+	newOpts.WorkingDir = workingDir
+
+	// Create unit-specific logger with working directory as prefix field
+	// This ensures logs from each unit are properly prefixed with the module name
+	unitLogger := l.WithField("prefix", workingDir)
+
+	return unitLogger, newOpts, nil
 }
 
 // InsertTerraformCliArgs inserts args after the terraform command but before remaining args.

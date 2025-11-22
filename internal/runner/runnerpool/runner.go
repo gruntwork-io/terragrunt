@@ -225,8 +225,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *types.RunnerOption
 			unitRunner := common.NewUnitRunner(u)
 
 			// Clone stack-level options with unit's config path to get unit-specific WorkingDir
-			// This ensures each unit executes in its own directory
-			unitOpts, err := opts.CloneWithConfigPath(execOpts.TerragruntConfigPath)
+			// This also creates a unit-specific logger with the proper prefix field
+			unitLogger, unitOpts, err := opts.CloneWithConfigPath(l, execOpts.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}
@@ -246,8 +246,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *types.RunnerOption
 			// Convert to TerragruntOptions for the unit (component package not yet refactored)
 			u.SetTerragruntOptions(unitOpts.ToTerragruntOptions())
 
-			// Use the logger passed to Run - scoping can be added later if needed
-			return unitRunner.Run(childCtx, l, unitOpts, r.Stack.Report())
+			// Use the unit-specific logger with proper prefix for all unit operations
+			return unitRunner.Run(childCtx, unitLogger, unitOpts, r.Stack.Report())
 		})
 	}
 

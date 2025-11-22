@@ -125,7 +125,7 @@ func (runner *UnitRunner) Run(ctx context.Context, l log.Logger, opts *types.Run
 
 	// convert terragrunt output to json
 	if runner.Unit.GetOutputJSONFile() != "" {
-		jsonOptions, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
+		_, jsonOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 		if err != nil {
 			return err
 		}
