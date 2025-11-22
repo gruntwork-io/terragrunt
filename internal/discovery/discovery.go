@@ -1377,6 +1377,10 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 	var errs []error
 
 	for _, dependency := range cfg.TerragruntDependencies {
+		if dependency.Enabled != nil && !*dependency.Enabled {
+			continue
+		}
+
 		if dependency.ConfigPath.Type() != cty.String {
 			errs = append(errs, errors.New("dependency config path is not a string"))
 			continue
