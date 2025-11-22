@@ -11,8 +11,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -43,6 +47,13 @@ const (
 	//
 	// This is a hack, and there should be a better way of handling this...
 	skipNoVariableNamedDependencyDiagnostic = `There is no variable named "dependency".`
+
+	// skipNoVariableNamedIncludeDiagnostic is a string used to identify diagnostics
+	// that reference the missing include variable.
+	//
+	// This can happen during discovery when include blocks with expose=true haven't been
+	// fully resolved yet.
+	skipNoVariableNamedIncludeDiagnostic = `There is no variable named "include".`
 
 	// skipNullValueDiagnostic is a string used to identify diagnostics about accessing
 	// attributes on null values, which commonly happens during discovery when dependency
@@ -76,94 +87,44 @@ var defaultExcludeDirs = []string{
 	".terragrunt-cache/**",
 }
 
-// Sort is the sort order of the discovered configurations.
-type Sort string
-
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
-	// discoveryContext is the context in which the discovery is happening.
-	discoveryContext *component.DiscoveryContext
-
-	// workingDir is the directory to search for Terragrunt configurations.
-	workingDir string
-
-	// sort determines the sort order of the discovered configurations.
-	sort Sort
-
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
-
-	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
-	compiledExcludePatterns []CompiledPattern
-
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
-
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
-
-	// excludeDirs is a list of directory patterns to exclude from discovery.
-	excludeDirs []string
-
-	// parserOptions are custom HCL parser options to use when parsing during discovery
-	parserOptions []hclparse.Option
-
-	// filters contains filter queries for component selection
-	filters filter.Filters
-
-	// dependencyTargetExpressions contains target expressions from graph filters that require dependency discovery
-	dependencyTargetExpressions []filter.Expression
-
-	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
-	dependentTargetExpressions []filter.Expression
-
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo hiddenDirMemo
-
-	// numWorkers determines the number of concurrent workers for discovery operations.
-	numWorkers int
-
-	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
-	maxDependencyDepth int
-
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
-
-	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
-	excludeByDefault bool
-
-	// noHidden determines whether to detect configurations in noHidden directories.
-	noHidden bool
-
-	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
-	requiresParse bool
-
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
-
-	// parseExclude determines whether to parse exclude configurations.
-	parseExclude bool
-
-	// parseInclude determines whether to parse include configurations.
-	parseInclude bool
-
-	// readFiles determines whether to parse for reading files.
-	readFiles bool
-
-	// discoverExternalDependencies determines whether to discover external dependencies.
+	ctx                          context.Context
+	excludeGlobs                 map[string]glob.Glob
+	report                       *report.Report
+	discoveryContext             *component.DiscoveryContext
+	terragruntOptions            *options.TerragruntOptions
+	includeGlobs                 map[string]glob.Glob
+	workingDir                   string
+	configFilenames              []string
+	filters                      filter.Filters
+	dependencyTargetExpressions  []filter.Expression
+	dependentTargetExpressions   []filter.Expression
+	parserOptions                []hclparse.Option
+	excludeDirs                  []string
+	includeDirs                  []string
+	compiledExcludePatterns      []CompiledPattern
+	unitFilters                  []common.UnitFilter
+	compiledIncludePatterns      []CompiledPattern
+	hiddenDirMemo                hiddenDirMemo
+	numWorkers                   int
+	maxDependencyDepth           int
+	requiresParse                bool
+	readFiles                    bool
 	discoverExternalDependencies bool
-
-	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
-	suppressParseErrors bool
-
-	// useDefaultExcludes determines whether to use default exclude patterns.
-	useDefaultExcludes bool
-
-	// filterFlagEnabled determines whether the filter flag experiment is active
-	filterFlagEnabled bool
-
-	// breakCycles determines whether to break cycles in the dependency graph if any exist.
-	breakCycles bool
+	suppressParseErrors          bool
+	useDefaultExcludes           bool
+	filterFlagEnabled            bool
+	breakCycles                  bool
+	parseInclude                 bool
+	parseExclude                 bool
+	strictInclude                bool
+	noHidden                     bool
+	excludeByDefault             bool
+	discoverDependencies         bool
+	doubleStarEnabled            bool
+	skipExternalDependencyPrompt bool
+	skipUnitResolution           bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -185,9 +146,22 @@ func (d *Discovery) WithNoHidden() *Discovery {
 	return d
 }
 
-// WithSort sets the Sort flag to the given sort.
-func (d *Discovery) WithSort(sort Sort) *Discovery {
-	d.sort = sort
+// WithSkipExternalDependencyPrompt sets the flag to skip external dependency prompts.
+// Required for discovery-only commands (find/list) that:
+// 1. Don't execute terraform (so external deps are safe to include)
+// 2. Need to run non-interactively (prompts would block automated scripts)
+// 3. Only show/analyze the dependency graph (no risk of modifying external state)
+func (d *Discovery) WithSkipExternalDependencyPrompt() *Discovery {
+	d.skipExternalDependencyPrompt = true
+
+	return d
+}
+
+// WithSkipUnitResolution sets the flag to skip the unit resolution pipeline.
+// This is useful for commands like hcl validate that only need to find and parse configs
+// without full unit setup (which would skip configs with parse errors).
+func (d *Discovery) WithSkipUnitResolution() *Discovery {
+	d.skipUnitResolution = true
 
 	return d
 }
@@ -389,6 +363,30 @@ func (d *Discovery) WithBreakCycles() *Discovery {
 	return d
 }
 
+// WithTerragruntOptions sets the base TerragruntOptions to clone for each unit.
+func (d *Discovery) WithTerragruntOptions(opts *options.TerragruntOptions) *Discovery {
+	d.terragruntOptions = opts
+	return d
+}
+
+// WithReport sets the report file for tracking exclusions.
+func (d *Discovery) WithReport(r *report.Report) *Discovery {
+	d.report = r
+	return d
+}
+
+// WithUnitFilters adds custom unit filters to apply after standard resolution.
+func (d *Discovery) WithUnitFilters(filters ...common.UnitFilter) *Discovery {
+	d.unitFilters = append(d.unitFilters, filters...)
+	return d
+}
+
+// WithContext sets the context for telemetry collection.
+func (d *Discovery) WithContext(ctx context.Context) *Discovery {
+	d.ctx = ctx
+	return d
+}
+
 // compileIncludePatterns compiles the include directory patterns for faster matching.
 func (d *Discovery) compileIncludePatterns(l log.Logger) {
 	d.compiledIncludePatterns = make([]CompiledPattern, 0, len(d.includeDirs))
@@ -449,6 +447,7 @@ func Parse(
 	opts *options.TerragruntOptions,
 	suppressParseErrors bool,
 	parserOptions []hclparse.Option,
+	configFilenames ...string,
 ) error {
 	parseOpts := opts.Clone()
 
@@ -470,8 +469,18 @@ func Parse(
 		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
 			configFilename = filepath.Base(p)
 		}
+		// Check custom config filenames if provided
+		if len(configFilenames) > 0 {
+			for _, fname := range configFilenames {
+				candidatePath := filepath.Join(workingDir, fname)
+				if util.FileExists(candidatePath) {
+					configFilename = fname
+					break
+				}
+			}
+		}
 		// Stacks always use the default stack filename
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			configFilename = config.DefaultStackFile
 		}
 	}
@@ -486,7 +495,15 @@ func Parse(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
+	// When suppressing parse errors, also suppress logger output to prevent
+	// parsing errors from appearing in stderr during discovery.
+	// Note: This only affects logging DURING parsing, not before or after.
+	parsingLogger := l
+	if suppressParseErrors {
+		parsingLogger = l.WithOptions(log.WithOutput(io.Discard))
+	}
+
+	parsingCtx := config.NewParsingContext(ctx, parsingLogger, parseOpts).WithDecodeList(
 		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
@@ -516,6 +533,7 @@ func Parse(
 					filterOut := strings.Contains(strings.ToLower(hclDiag.Summary), skipOutputDiagnostics) ||
 						strings.Contains(strings.ToLower(hclDiag.Detail), skipOutputDiagnostics) ||
 						strings.Contains(hclDiag.Detail, skipNoVariableNamedDependencyDiagnostic) ||
+						strings.Contains(hclDiag.Detail, skipNoVariableNamedIncludeDiagnostic) ||
 						strings.Contains(strings.ToLower(hclDiag.Summary), skipNullValueDiagnostic) ||
 						strings.Contains(strings.ToLower(hclDiag.Detail), skipNullValueDiagnostic)
 
@@ -552,7 +570,7 @@ func Parse(
 	)
 
 	//nolint: contextcheck
-	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err = config.PartialParseConfigFile(parsingCtx, parsingLogger, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		// Treat include-only/no-settings configs as non-fatal during discovery when suppression is enabled
 		if suppressParseErrors && containsNoSettingsError(err) {
@@ -721,6 +739,12 @@ func (d *Discovery) skipDirIfIgnorable(l log.Logger, path string) error {
 		for _, pattern := range d.compiledExcludePatterns {
 			if pattern.Compiled.Match(canonicalDir) {
 				l.Debugf("Directory %s excluded by glob %s", canonicalDir, pattern.Original)
+
+				// Report the exclusion if we have a report instance
+				if d.report != nil {
+					d.reportUnitExclusion(l, canonicalDir, report.ReasonExcludeDir)
+				}
+
 				return filepath.SkipDir
 			}
 		}
@@ -877,6 +901,14 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)
 
+	// Canonicalize the directory path to ensure consistent path representation
+	// across all components (initial discovery and dependency resolution)
+	canonicalDir, err := util.CanonicalPath(dir, "")
+	if err != nil {
+		// Fall back to original dir if canonicalization fails
+		canonicalDir = dir
+	}
+
 	componentOfBase := func(dir, base string) component.Component {
 		if base == config.DefaultStackFile {
 			return component.NewStack(dir)
@@ -890,7 +922,7 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 			continue
 		}
 
-		c := componentOfBase(dir, base)
+		c := componentOfBase(canonicalDir, base)
 
 		if d.discoveryContext != nil {
 			c.SetDiscoveryContext(d.discoveryContext)
@@ -996,7 +1028,7 @@ func (d *Discovery) parseWorker(
 		default:
 		}
 
-		err := Parse(c, ctx, l, opts, d.suppressParseErrors, d.parserOptions)
+		err := Parse(c, ctx, l, opts, d.suppressParseErrors, d.parserOptions, d.configFilenames...)
 
 		// Send error or handle context cancellation
 		select {
@@ -1009,12 +1041,159 @@ func (d *Discovery) parseWorker(
 	return nil
 }
 
+// initializeResolverFields sets up glob patterns and double-star control for unit resolution.
+func (d *Discovery) initializeResolverFields(ctx context.Context, opts *options.TerragruntOptions) error {
+	// Check if double-star strict control is enabled
+	if opts.StrictControls.FilterByNames(controls.DoubleStar).SuppressWarning().Evaluate(ctx) != nil {
+		d.doubleStarEnabled = true
+
+		// Compile globs only when double-star is enabled
+		var err error
+
+		d.includeGlobs, err = util.CompileGlobs(opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return errors.Errorf("invalid include dirs: %w", err)
+		}
+
+		d.excludeGlobs, err = util.CompileGlobs(opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return errors.Errorf("invalid exclude dirs: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// applyUnitResolutionPipeline applies the full unit resolution pipeline including:
+// - Setup units with cloned options and download directories
+// - Cross-linking dependencies (convert Component interfaces to concrete *Unit pointers)
+// - Flag external dependencies and prompt user
+// - Apply include/exclude directory filters
+// - Apply units-that-read filters
+// - Apply exclude blocks from config
+// - Apply custom unit filters
+//
+// Note: Stacks are preserved through this pipeline but not processed - they pass through unchanged.
+func (d *Discovery) applyUnitResolutionPipeline(ctx context.Context, l log.Logger, discovered component.Components) (component.Components, error) {
+	// Separate stacks from units - stacks pass through unchanged
+	var stacks component.Components
+	for _, c := range discovered {
+		if _, ok := c.(*component.Stack); ok {
+			stacks = append(stacks, c)
+		}
+	}
+
+	// Step 1: Setup units (clone options, set paths, validate)
+	// Dependencies are now preserved from discovery phase during setupUnits
+	units, err := d.telemetrySetupUnits(l, discovered)
+	if err != nil {
+		return discovered, err
+	}
+
+	// Sort units by path for consistent ordering
+	units.Sort()
+
+	// Step 2: Flag external dependencies and prompt user for confirmation
+	if err := d.telemetryFlagExternalDependencies(ctx, l, units); err != nil {
+		return discovered, err
+	}
+
+	// Step 3: Apply include directory filters
+	withUnitsIncluded := d.telemetryApplyIncludeDirs(l, units)
+
+	// Step 4: Process units-that-read filters
+	// This happens BEFORE exclude dirs/blocks so that explicit CLI excludes can take precedence
+	withUnitsRead := d.telemetryFlagUnitsThatRead(withUnitsIncluded)
+
+	// Step 5: Process exclude directory filters
+	// This happens BEFORE exclude blocks so that CLI flags take precedence
+	withUnitsExcludedByDirs := d.telemetryApplyExcludeDirs(l, withUnitsRead)
+
+	// Step 6: Apply exclude blocks from config
+	withExcludedUnits := d.telemetryApplyExcludeModules(l, withUnitsExcludedByDirs)
+
+	// Step 7: Apply custom filters after standard resolution logic
+	filteredUnits, err := d.telemetryApplyUnitFilters(ctx, withExcludedUnits)
+	if err != nil {
+		return discovered, err
+	}
+
+	// Convert Units back to Components and merge with preserved stacks
+	// Filter out external dependencies if WithDiscoverExternalDependencies was not set
+	components := make(component.Components, 0, len(filteredUnits)+len(stacks))
+	for _, unit := range filteredUnits {
+		// Skip external dependencies from the components list if not explicitly requested
+		// They remain linked as dependencies but won't be included in the output
+		if unit.External() && !d.discoverExternalDependencies {
+			continue
+		}
+
+		components = append(components, unit)
+	}
+
+	components = append(components, stacks...)
+
+	return components, nil
+}
+
+// telemetryApplyUnitFilters applies all configured unit filters to the resolved units
+func (d *Discovery) telemetryApplyUnitFilters(ctx context.Context, units component.Units) (component.Units, error) {
+	if len(d.unitFilters) == 0 {
+		return units, nil
+	}
+
+	var filteredUnits component.Units
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "apply_unit_filters", map[string]any{
+		"working_dir":  d.workingDir,
+		"filter_count": len(d.unitFilters),
+	}, func(_ context.Context) error {
+		// Apply all filters in sequence
+		// Convert TerragruntOptions to RunnerOptions for filter API
+		runnerOpts := types.FromTerragruntOptions(d.terragruntOptions)
+		for _, filter := range d.unitFilters {
+			if err := filter.Filter(ctx, units, runnerOpts); err != nil {
+				return err
+			}
+		}
+
+		filteredUnits = units
+
+		return nil
+	})
+
+	return filteredUnits, err
+}
+
 // Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
+	// Store context for telemetry
+	if d.ctx == nil {
+		d.ctx = ctx
+	}
+
+	// Store terragruntOptions if not already set
+	if d.terragruntOptions == nil {
+		d.terragruntOptions = opts
+	}
+
+	// When terragruntOptions are provided, we need to parse configs so that
+	// the unit resolution pipeline can validate units (e.g., check for .tf files)
+	// and apply filters properly.
+	// Skip this when unit resolution is skipped (e.g., HCL validate that handles its own parsing)
+	if opts != nil && !d.requiresParse && !d.skipUnitResolution {
+		d.requiresParse = true
+	}
+
+	// Initialize glob patterns and double-star flag for unit resolution
+	if err := d.initializeResolverFields(ctx, opts); err != nil {
+		return nil, err
+	}
+
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
@@ -1268,6 +1447,33 @@ func (d *Discovery) Discover(
 		}
 	}
 
+	// Apply unit resolution pipeline (setup, filtering, dependency prompting)
+	// This is only done when terragruntOptions is set (indicating we want full resolution)
+	// and when not explicitly skipped (e.g., for HCL validate that only needs to parse configs)
+	if d.terragruntOptions != nil && !d.skipUnitResolution {
+		components, err = d.applyUnitResolutionPipeline(ctx, l, components)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+		}
+
+		// After unit resolution, apply prevent-destroy exclusions for destroy commands
+		// This must happen after resolution so we have access to parsed unit configs
+		if isDestroyCommand(d.terragruntOptions) {
+			units := make(component.Units, 0, len(components))
+			for _, c := range components {
+				if u, ok := c.(*component.Unit); ok {
+					units = append(units, u)
+				}
+			}
+
+			applyPreventDestroyExclusions(l, units)
+		}
+
+		// Note: We return ALL components (including excluded ones).
+		// The runner pool will filter out excluded units when building the execution queue.
+		// This preserves the full dependency graph for analysis and reporting.
+	}
+
 	if len(errs) > 0 {
 		return components, errors.Join(errs...)
 	}
@@ -1391,7 +1597,15 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 			depPath = filepath.Clean(filepath.Join(component.Path(), depPath))
 		}
 
-		deduped[depPath] = struct{}{}
+		// Canonicalize the path to ensure consistent path representation
+		// This is important for matching paths when linking dependencies
+		canonicalPath, err := util.CanonicalPath(depPath, "")
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		deduped[canonicalPath] = struct{}{}
 	}
 
 	if cfg.Dependencies != nil {
@@ -1400,7 +1614,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 				dependency = filepath.Clean(filepath.Join(component.Path(), dependency))
 			}
 
-			deduped[dependency] = struct{}{}
+			// Canonicalize the path to ensure consistent path representation
+			canonicalPath, err := util.CanonicalPath(dependency, "")
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			deduped[canonicalPath] = struct{}{}
 		}
 	}
 

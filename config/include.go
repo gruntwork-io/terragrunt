@@ -136,7 +136,9 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 			logPrefix           string
 		)
 
-		trackFileRead(ctx.FilesRead, includeConfig.Path)
+		// Note: We do NOT track files read via include blocks as "reading" the file.
+		// Only explicit read operations like read_terragrunt_config(), read_tfvars_file(), etc.
+		// should be tracked for filtering purposes via --queue-include-units-reading flag.
 
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, &includeConfig)

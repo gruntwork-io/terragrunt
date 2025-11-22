@@ -19,7 +19,7 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 			name:         "version files slice is empty",
 			workingDir:   "",
 			versionFiles: nil,
-			want:         "r01AJjVD7VSXCQk1ORuh_no_NRY", // "no-version-files"
+			want:         "vf5EBFb5mAeonjrvR7hq6EKNHJo", // "no-version-files" scoped by working dir
 		},
 		{
 			name:       "workdir contains version files",
@@ -28,7 +28,7 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 				".terraform-version",
 				".tool-versions",
 			},
-			want: "XBE-VO9pOnQjPQDmLQCvSCdckSQ",
+			want: "J0w7vl4Bn60byyu0y6A2NMmIMFI",
 		},
 		{
 			name:       "workdir contains version files and we try to escape the working dir",
@@ -38,7 +38,7 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 				".tool-versions",
 				"../../../dev/random",
 			},
-			want: "XBE-VO9pOnQjPQDmLQCvSCdckSQ",
+			want: "J0w7vl4Bn60byyu0y6A2NMmIMFI",
 		},
 	}
 	for _, tt := range tests {

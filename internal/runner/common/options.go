@@ -1,7 +1,6 @@
 package common
 
 import (
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 )
@@ -54,17 +53,6 @@ func (o optionImpl) GetParseOptions() []hclparse.Option {
 	}
 
 	return nil
-}
-
-// WithChildTerragruntConfig sets the child Terragrunt configuration on a StackRunner.
-//
-// Useful when running a single child unit with a pre-parsed configuration.
-func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
-	return optionImpl{
-		apply: func(stack StackRunner) {
-			stack.SetTerragruntConfig(cfg)
-		},
-	}
 }
 
 // WithParseOptions provides custom HCL parser options to both discovery and stack execution.

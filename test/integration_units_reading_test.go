@@ -145,7 +145,8 @@ func TestSOPSUnitsReading(t *testing.T) {
 		},
 	}
 
-	includedLogEntryRegex := regexp.MustCompile(`=> Unit ./([^ ]+) \(excluded: false`)
+	// Match the new log format: "- Unit <path>"
+	includedLogEntryRegex := regexp.MustCompile(`- Unit ./([^ ]+)`)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -306,7 +307,8 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 		},
 	}
 
-	includedLogEntryRegex := regexp.MustCompile(`=> Unit ./([^ ]+) \(excluded: false`)
+	// Match the new log format: "- Unit <path>"
+	includedLogEntryRegex := regexp.MustCompile(`- Unit ./([^ ]+)`)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

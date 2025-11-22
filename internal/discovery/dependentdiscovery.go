@@ -287,10 +287,6 @@ func (dd *DependentDiscovery) DiscoverDependents(
 			dd.markChecked(candidate)
 
 			// Skip stacks for dependent discovery for now.
-			if _, ok := candidate.(*component.Stack); ok {
-				continue
-			}
-
 			unit, ok := candidate.(*component.Unit)
 			if !ok {
 				continue

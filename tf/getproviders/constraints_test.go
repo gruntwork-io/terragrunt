@@ -38,7 +38,9 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.TerraformImpl,
+		},
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -48,7 +50,9 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.OpenTofuImpl,
+		},
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -79,7 +83,9 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.TerraformImpl,
+		},
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -89,7 +95,9 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.OpenTofuImpl,
+		},
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -126,7 +134,9 @@ terraform {
 
 	// Test parsing with Terraform implementation - should use custom registry
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.TerraformImpl,
+		},
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -138,7 +148,9 @@ terraform {
 
 	// Test parsing with OpenTofu implementation - should also use custom registry (environment override takes precedence)
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.OpenTofuImpl,
+		},
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -184,7 +196,9 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.OpenTofuImpl,
+		},
 	}
 	constraints, err := getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -195,7 +209,9 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.TerraformImpl,
+		},
 	}
 	constraints, err = getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -236,7 +252,9 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.TerraformImpl,
+		},
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -248,7 +266,9 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		RuntimeOptions: options.RuntimeOptions{
+			TerraformImplementation: options.OpenTofuImpl,
+		},
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -334,7 +354,9 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			require.NoError(t, err)
 
 			opts := &options.TerragruntOptions{
-				TerraformImplementation: options.TerraformImpl,
+				RuntimeOptions: options.RuntimeOptions{
+					TerraformImplementation: options.TerraformImpl,
+				},
 			}
 			constraints, err := getproviders.ParseProviderConstraints(opts, testDir)
 			require.NoError(t, err)

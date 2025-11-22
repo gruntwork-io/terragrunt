@@ -161,7 +161,27 @@ func (cache *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, opts, args...)
+		tfOpts := &tf.TFOptions{
+			TFPath:                  opts.TFPath,
+			TFPathExplicitlySet:     opts.TFPathExplicitlySet,
+			TerraformImplementation: opts.TerraformImplementation,
+			TerraformCliArgs:        opts.TerraformCliArgs,
+			WorkingDir:              opts.WorkingDir,
+			TerragruntConfigPath:    opts.TerragruntConfigPath,
+			DownloadDir:             opts.DownloadDir,
+			Writer:                  opts.Writer,
+			ErrWriter:               opts.ErrWriter,
+			Env:                     opts.Env,
+			ForwardTFStdout:         opts.ForwardTFStdout,
+			JSONLogFormat:           opts.JSONLogFormat,
+			Headless:                opts.Headless,
+			LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+			Engine:                  opts.Engine,
+			EngineEnabled:           opts.EngineEnabled,
+			Telemetry:               opts.Telemetry,
+		}
+
+		return tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, args...)
 	}
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
@@ -270,7 +290,27 @@ func (cache *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return tf.RunCommandWithOutput(ctx, l, cloneOpts, args...)
+	tfOpts := &tf.TFOptions{
+		TFPath:                  cloneOpts.TFPath,
+		TFPathExplicitlySet:     cloneOpts.TFPathExplicitlySet,
+		TerraformImplementation: cloneOpts.TerraformImplementation,
+		TerraformCliArgs:        cloneOpts.TerraformCliArgs,
+		WorkingDir:              cloneOpts.WorkingDir,
+		TerragruntConfigPath:    cloneOpts.TerragruntConfigPath,
+		DownloadDir:             cloneOpts.DownloadDir,
+		Writer:                  cloneOpts.Writer,
+		ErrWriter:               cloneOpts.ErrWriter,
+		Env:                     cloneOpts.Env,
+		ForwardTFStdout:         cloneOpts.ForwardTFStdout,
+		JSONLogFormat:           cloneOpts.JSONLogFormat,
+		Headless:                cloneOpts.Headless,
+		LogDisableErrorSummary:  cloneOpts.LogDisableErrorSummary,
+		Engine:                  cloneOpts.Engine,
+		EngineEnabled:           cloneOpts.EngineEnabled,
+		Telemetry:               cloneOpts.Telemetry,
+	}
+
+	return tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -365,7 +405,27 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	cloneOpts.TerraformCliArgs = args
 	cloneOpts.Env = envs
 
-	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs...)
+	tfOpts := &tf.TFOptions{
+		TFPath:                  cloneOpts.TFPath,
+		TFPathExplicitlySet:     cloneOpts.TFPathExplicitlySet,
+		TerraformImplementation: cloneOpts.TerraformImplementation,
+		TerraformCliArgs:        cloneOpts.TerraformCliArgs,
+		WorkingDir:              cloneOpts.WorkingDir,
+		TerragruntConfigPath:    cloneOpts.TerragruntConfigPath,
+		DownloadDir:             cloneOpts.DownloadDir,
+		Writer:                  cloneOpts.Writer,
+		ErrWriter:               cloneOpts.ErrWriter,
+		Env:                     cloneOpts.Env,
+		ForwardTFStdout:         cloneOpts.ForwardTFStdout,
+		JSONLogFormat:           cloneOpts.JSONLogFormat,
+		Headless:                cloneOpts.Headless,
+		LogDisableErrorSummary:  cloneOpts.LogDisableErrorSummary,
+		Engine:                  cloneOpts.Engine,
+		EngineEnabled:           cloneOpts.EngineEnabled,
+		Telemetry:               cloneOpts.Telemetry,
+	}
+
+	output, err := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, cloneOpts.TerraformCliArgs...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
 		return new(util.CmdOutput), nil

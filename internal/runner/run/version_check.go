@@ -178,16 +178,35 @@ func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 		return l, nil, options.UnknownImpl, err
 	}
 
-	optsCopy.Writer = io.Discard
-	optsCopy.ErrWriter = io.Discard
+	// Create TFOptions directly for tf package call
+	tfOpts := &tf.TFOptions{
+		TFPath:                  optsCopy.TFPath,
+		TFPathExplicitlySet:     optsCopy.TFPathExplicitlySet,
+		TerraformImplementation: optsCopy.TerraformImplementation,
+		TerraformCliArgs:        optsCopy.TerraformCliArgs,
+		WorkingDir:              optsCopy.WorkingDir,
+		TerragruntConfigPath:    optsCopy.TerragruntConfigPath,
+		DownloadDir:             optsCopy.DownloadDir,
+		Writer:                  io.Discard,
+		ErrWriter:               io.Discard,
+		Env:                     make(map[string]string, len(optsCopy.Env)),
+		ForwardTFStdout:         optsCopy.ForwardTFStdout,
+		JSONLogFormat:           optsCopy.JSONLogFormat,
+		Headless:                optsCopy.Headless,
+		LogDisableErrorSummary:  optsCopy.LogDisableErrorSummary,
+		Engine:                  optsCopy.Engine,
+		EngineEnabled:           optsCopy.EngineEnabled,
+		Telemetry:               optsCopy.Telemetry,
+	}
 
-	for key := range optsCopy.Env {
-		if strings.HasPrefix(key, "TF_CLI_ARGS") {
-			delete(optsCopy.Env, key)
+	// Remove TF_CLI_ARGS from environment to avoid interference
+	for key, value := range optsCopy.Env {
+		if !strings.HasPrefix(key, "TF_CLI_ARGS") {
+			tfOpts.Env[key] = value
 		}
 	}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutputAndOptions(ctx, l, tfOpts, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, options.UnknownImpl, err
 	}
@@ -296,10 +315,20 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 
 // Helper to compute a cache key from the checksums of provided files
 func computeVersionFilesCacheKey(workingDir string, versionFiles []string) string {
+	const workingDirSections = 2
+
+	cleanWorkingDir := util.CleanPath(workingDir)
+	workingDirParts := strings.Split(cleanWorkingDir, "/")
+
+	workingDirKey := cleanWorkingDir
+	if len(workingDirParts) > workingDirSections {
+		workingDirKey = strings.Join(workingDirParts[len(workingDirParts)-workingDirSections:], "/")
+	}
+
 	var hashes []string
 
 	for _, file := range versionFiles {
-		path, err := util.SanitizePath(workingDir, file)
+		path, err := util.SanitizePath(cleanWorkingDir, file)
 		if err != nil {
 			continue
 		}
@@ -320,6 +349,8 @@ func computeVersionFilesCacheKey(workingDir string, versionFiles []string) strin
 	if len(hashes) != 0 {
 		cacheKey = strings.Join(hashes, "|")
 	}
+
+	cacheKey = fmt.Sprintf("%s|%s", workingDirKey, cacheKey)
 
 	return util.EncodeBase64Sha1(cacheKey)
 }

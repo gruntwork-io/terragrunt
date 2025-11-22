@@ -3,7 +3,8 @@ package common
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/runner/types"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -16,14 +17,15 @@ type UnitFilterGraph struct {
 
 // Filter implements UnitFilter.
 // It marks all units as excluded except for the target directory and units that depend on it.
-func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options.TerragruntOptions) error {
+func (f *UnitFilterGraph) Filter(ctx context.Context, units component.Units, opts *types.RunnerOptions) error {
 	// Build dependency map first
 	dependentUnits := make(map[string][]string)
 
 	for _, unit := range units {
-		if len(unit.Dependencies) != 0 {
-			for _, dep := range unit.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
+		dependencies := unit.Dependencies()
+		if len(dependencies) != 0 {
+			for _, dep := range dependencies {
+				dependentUnits[dep.Path()] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path()], unit.Path()))
 			}
 		}
 	}
@@ -62,9 +64,10 @@ func (f *UnitFilterGraph) Filter(ctx context.Context, units Units, opts *options
 
 	// Mark units as excluded unless they are in modulesToInclude
 	for _, module := range units {
-		module.FlagExcluded = true
-		if util.ListContainsElement(modulesToInclude, module.Path) {
-			module.FlagExcluded = false
+		module.SetFlagExcluded(true)
+
+		if util.ListContainsElement(modulesToInclude, module.Path()) {
+			module.SetFlagExcluded(false)
 		}
 	}
 

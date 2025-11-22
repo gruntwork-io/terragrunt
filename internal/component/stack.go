@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 )
 
 const (
@@ -12,15 +14,21 @@ const (
 )
 
 // Stack represents a discovered Terragrunt stack configuration.
+// This type serves as a DTO for data exchange between discovery and runner packages.
 type Stack struct {
+	report           *report.Report
+	discoveryContext *DiscoveryContext
+	workingDir       string // Working directory for this stack (only field needed from TerragruntOptions)
 	cfg              *config.StackConfig
 	path             string
-	reading          []string
-	discoveryContext *DiscoveryContext
-	dependencies     Components
 	dependents       Components
-	external         bool
+	reading          []string
+	dependencies     Components
+	units            Components
+	parserOptions    []hclparse.Option
 	mu               sync.RWMutex
+	flagExcluded     bool
+	external         bool
 }
 
 // NewStack creates a new Stack component with the given path.
@@ -180,4 +188,98 @@ func (s *Stack) Dependents() Components {
 	defer s.rUnlock()
 
 	return s.dependents
+}
+
+// FlagExcluded returns whether this stack was excluded by filters/flags.
+func (s *Stack) FlagExcluded() bool {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.flagExcluded
+}
+
+// SetFlagExcluded sets whether this stack was excluded by filters/flags.
+func (s *Stack) SetFlagExcluded(excluded bool) {
+	s.lock()
+	defer s.unlock()
+
+	s.flagExcluded = excluded
+}
+
+// Report returns the execution report for this stack.
+func (s *Stack) Report() *report.Report {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.report
+}
+
+// SetReport sets the execution report for this stack.
+func (s *Stack) SetReport(r *report.Report) {
+	s.lock()
+	defer s.unlock()
+
+	s.report = r
+}
+
+// WorkingDir returns the working directory for this stack.
+func (s *Stack) WorkingDir() string {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.workingDir
+}
+
+// SetWorkingDir sets the working directory for this stack.
+func (s *Stack) SetWorkingDir(dir string) {
+	s.lock()
+	defer s.unlock()
+
+	s.workingDir = dir
+}
+
+// Units returns the units collection for this stack.
+func (s *Stack) Units() Components {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.units
+}
+
+// SetUnits sets the units collection for this stack.
+func (s *Stack) SetUnits(units Components) {
+	s.lock()
+	defer s.unlock()
+
+	s.units = units
+}
+
+// ParserOptions returns the parser options for this stack.
+func (s *Stack) ParserOptions() []hclparse.Option {
+	s.rLock()
+	defer s.rUnlock()
+
+	return s.parserOptions
+}
+
+// SetParserOptions sets the parser options for this stack.
+func (s *Stack) SetParserOptions(opts []hclparse.Option) {
+	s.lock()
+	defer s.unlock()
+
+	s.parserOptions = opts
+}
+
+// FindUnitByPath finds a unit in the stack by its path.
+func (s *Stack) FindUnitByPath(path string) Component {
+	s.rLock()
+	defer s.rUnlock()
+
+	for _, comp := range s.units {
+		if comp.Path() == path {
+			return comp
+		}
+	}
+
+	return nil
 }

@@ -135,10 +135,12 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.Terra
 
 	// Construct minimal TerragruntOptions for role assumption.
 	providerOpts := options.TerragruntOptions{
-		IAMRoleOptions: options.IAMRoleOptions{
-			RoleARN:               role.RoleARN,
-			AssumeRoleDuration:    duration,
-			AssumeRoleSessionName: sessionName,
+		RuntimeOptions: options.RuntimeOptions{
+			IAMRoleOptions: options.IAMRoleOptions{
+				RoleARN:               role.RoleARN,
+				AssumeRoleDuration:    duration,
+				AssumeRoleSessionName: sessionName,
+			},
 		},
 	}
 

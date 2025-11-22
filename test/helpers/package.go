@@ -407,16 +407,16 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
+	// Match the new log format: "- Unit <path>"
+	// All units in the deploy order log are included (not excluded)
+	includedModulesRegexp, err := regexp.Compile(`- Unit (.+)`)
 	require.NoError(t, err)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
 
 	for _, match := range matches {
-		if match[2] == "false" {
-			includedModules = append(includedModules, GetPathRelativeTo(t, match[1], rootModulePath))
-		}
+		includedModules = append(includedModules, GetPathRelativeTo(t, match[1], rootModulePath))
 	}
 
 	sort.Strings(includedModules)

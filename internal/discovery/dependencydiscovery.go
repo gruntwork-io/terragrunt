@@ -142,13 +142,9 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 
 	// Stack configs don't have dependencies (at least for now),
 	// so we can return early.
-	if _, ok := dComponent.(*component.Stack); ok {
-		return nil
-	}
-
 	unit, ok := dComponent.(*component.Unit)
 	if !ok {
-		return errors.New("expected Unit component but got different type")
+		return nil
 	}
 
 	cfg := unit.Config()
@@ -180,7 +176,7 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
-			depComponent := dd.dependencyToDiscover(dComponent, depPath)
+			depComponent := dd.dependencyToDiscover(ctx, l, opts, dComponent, depPath)
 			if depComponent == nil {
 				return nil
 			}
@@ -215,6 +211,9 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 // marking as external if it's outside the working directory of discovery, and linking dependencies.
 // Returns nil if the dependency shouldn't be involved in discovery any further (e.g., already processed or ignored).
 func (dd *DependencyDiscovery) dependencyToDiscover(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
 	dComponent component.Component,
 	depPath string,
 ) component.Component {
@@ -239,6 +238,7 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 
 	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
 	// set, ensure that we link it to the correct component, and mark it as seen.
+	// We also add it to the main components collection so it gets processed by setupUnits.
 	if isExternal && !dd.discoverExternal {
 		existingDep := dd.externalDependencies.FindByPath(depPath)
 		if existingDep != nil {
@@ -255,7 +255,17 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 			depComponent.SetDiscoveryContext(dd.discoveryContext)
 		}
 
+		// Parse the external dependency so it has a config
+		// This is needed for setupUnits validation
+		err := Parse(depComponent, ctx, l, opts, dd.suppressParseErrors, dd.parserOptions)
+		if err != nil {
+			// If parsing fails, still add the component but it might be skipped later
+			l.Debugf("Failed to parse external dependency at %s: %v", depPath, err)
+		}
+
 		existingDep, _ = dd.externalDependencies.EnsureComponent(depComponent)
+		// Also add to main components so it gets processed by setupUnits and cross-linking
+		dd.components.EnsureComponent(existingDep)
 		dComponent.AddDependency(existingDep)
 
 		dd.markSeen(depPath)
@@ -283,17 +293,6 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 	dd.markSeen(depPath)
 
 	return dependencyToDiscover
-}
-
-// FindComponentByPath searches for a component by path in both main components
-// and external dependencies. Returns the component if found, nil otherwise.
-func (dd *DependencyDiscovery) FindComponentByPath(path string) component.Component {
-	c := dd.components.FindByPath(path)
-	if c != nil {
-		return c
-	}
-
-	return dd.externalDependencies.FindByPath(path)
 }
 
 // ExternalDependencies returns the external dependencies discovered during dependency discovery.

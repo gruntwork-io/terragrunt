@@ -6,26 +6,26 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/options"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
 // UnitRunner defines a function type that executes a Unit within a given context and returns an error.
-type UnitRunner func(ctx context.Context, u *common.Unit) error
+type UnitRunner func(ctx context.Context, u *component.Unit) error
 
 // Controller orchestrates concurrent execution over a DAG.
 type Controller struct {
 	q           *queue.Queue
 	runner      UnitRunner
 	readyCh     chan struct{}
-	unitsMap    map[string]*common.Unit
+	unitsMap    map[string]*component.Unit
 	concurrency int
 }
 
@@ -51,18 +51,19 @@ func WithMaxConcurrency(concurrency int) ControllerOption {
 }
 
 // NewController creates a new Controller with the given options and a pre-built queue.
-func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOption) *Controller {
+func NewController(q *queue.Queue, components component.Components, opts ...ControllerOption) *Controller {
 	dr := &Controller{
 		q:           q,
 		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
 		concurrency: options.DefaultParallelism,
 	}
 	// Map to link runner Units and Queue Entries
-	unitsMap := make(map[string]*common.Unit)
+	// Extract Unit components and build path->unit map
+	unitsMap := make(map[string]*component.Unit, len(components))
 
-	for _, u := range units {
-		if u != nil && u.Path != "" {
-			unitsMap[u.Path] = u
+	for _, c := range components {
+		if u, ok := c.(*component.Unit); ok && u != nil && u.Path() != "" {
+			unitsMap[u.Path()] = u
 		}
 	}
 

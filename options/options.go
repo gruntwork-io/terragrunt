@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -26,7 +25,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-version"
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
@@ -97,235 +95,75 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// If you want stdout to go somewhere other than os.stdout
-	Writer io.Writer
-	// If you want stderr to go somewhere other than os.stderr
-	ErrWriter io.Writer
-	// Version of terragrunt
-	TerragruntVersion *version.Version `clone:"shadowcopy"`
-	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
-	// Options to use engine for running IaC operations.
-	Engine *EngineOptions
-	// Telemetry are telemetry options.
-	Telemetry *telemetry.Options
-	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
-	AwsProviderPatchOverrides map[string]string
-	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
-	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version `clone:"shadowcopy"`
-	// Errors is a configuration for error handling.
-	Errors *ErrorsConfig
-	// Map to replace terraform source locations.
-	SourceMap map[string]string
-	// Environment variables at runtime
-	Env map[string]string
-	// StackAction is the action that should be performed on the stack.
-	StackAction string
-	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
-	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
-	// The Token for authentication to the Terragrunt Provider Cache server.
-	ProviderCacheToken string
-	// Current Terraform command being executed by Terragrunt
-	TerraformCommand string
-	// StackOutputFormat format how the stack output is rendered.
-	StackOutputFormat         string
-	TerragruntStackConfigPath string
-	// Location of the original Terragrunt config file.
-	OriginalTerragruntConfigPath string
-	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
-	RootWorkingDir string
-	// Download Terraform configurations from the specified source location into a temporary folder
-	Source string
-	// The working directory in which to run Terraform
-	WorkingDir string
-	// Location (or name) of the OpenTofu/Terraform binary
-	TFPath string
-	// Download Terraform configurations specified in the Source parameter into this folder
-	DownloadDir string
-	// Original Terraform command being executed by Terragrunt.
-	OriginalTerraformCommand string
-	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TerraformImplementation TerraformImplementationType
-	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
-	JSONOut string
-	// The path to store unpacked providers.
-	ProviderCacheDir string
-	// Custom log level for engine
-	EngineLogLevel string
-	// Path to cache directory for engine files
-	EngineCachePath string
-	// The command and arguments that can be used to fetch authentication configurations.
-	AuthProviderCmd string
-	// Folder to store JSON representation of output files.
-	JSONOutputFolder string
-	// Folder to store output files.
-	OutputFolder string
-	// The file which hclfmt should be specifically run on
-	HclFile string
-	// The hostname of the Terragrunt Provider Cache server.
-	ProviderCacheHostname string
-	// Location of the Terragrunt config file
-	TerragruntConfigPath string
-	// Name of the root Terragrunt configuration file, if used.
-	ScaffoldRootFileName string
-	// Path to a file with a list of directories that need to be excluded when running *-all commands.
-	ExcludesFile string
-	// Path to folder of scaffold output
-	ScaffoldOutputFolder string
-	// Root directory for graph command.
-	GraphRoot string
-	// Path to the report file.
-	ReportFile string
-	// Report format.
-	ReportFormat report.Format
-	// Path to the report schema file.
-	ReportSchemaFile string
-	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs cli.Args
-	// Unix-style glob of directories to include when running *-all commands
-	IncludeDirs []string
-	// Unix-style glob of directories to exclude when running *-all commands
-	ExcludeDirs []string
-	// Files with variables to be used in modules scaffolding.
-	ScaffoldVarFiles []string
-	// The list of remote registries to cached by Terragrunt Provider Cache server.
+	AwsProviderPatchOverrides  map[string]string
+	SourceMap                  map[string]string
+	StackAction                string
+	ProviderCacheToken         string
+	StackOutputFormat          string
+	TerragruntStackConfigPath  string
+	JSONOut                    string
+	ProviderCacheDir           string
+	EngineLogLevel             string
+	EngineCachePath            string
+	AuthProviderCmd            string
+	HclFile                    string
+	ProviderCacheHostname      string
+	ScaffoldRootFileName       string
+	ExcludesFile               string
+	ScaffoldOutputFolder       string
+	GraphRoot                  string
+	ReportFile                 string
+	ReportFormat               report.Format
+	ReportSchemaFile           string
+	IncludeDirs                []string
+	ExcludeDirs                []string
+	ScaffoldVarFiles           []string
 	ProviderCacheRegistryNames []string
-	// If set hclfmt will skip files in given directories.
-	HclExclude []string
-	// Variables for usage in scaffolding.
-	ScaffoldVars []string
-	// StrictControls is a slice of strict controls.
-	StrictControls strict.Controls `clone:"shadowcopy"`
-	// When used with `run --all`, restrict the modules in the stack to only those that include at least one of the files in this list.
-	ModulesThatInclude []string
-	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
-	UnitsReading []string
-	// FilterQueries contains filter query strings for component selection
-	FilterQueries []string
-	// When set, it will be used to compute the cache key for `-version` checks.
-	VersionManagerFileName []string
-	// Experiments is a map of experiments, and their status.
-	Experiments experiment.Experiments `clone:"shadowcopy"`
-	// Parallelism limits the number of commands to run concurrently during *-all commands
-	Parallelism int
-	// When searching the directory tree, this is the max folders to check before exiting with an error.
-	MaxFoldersToCheck int
-	// The port of the Terragrunt Provider Cache server.
-	ProviderCachePort int
-	// Output Terragrunt logs in JSON format
-	JSONLogFormat bool
-	// True if terragrunt should run in debug mode
-	Debug bool
-	// Disable TF output formatting
-	ForwardTFStdout bool
-	// Fail execution if is required to create S3 bucket
-	FailIfBucketCreationRequired bool
-	// Controls if s3 bucket should be updated or skipped
-	DisableBucketUpdate bool
-	// Disables validation terraform command
-	DisableCommandValidation bool
-	// If True then HCL from StdIn must should be formatted.
-	HclFromStdin bool
-	// Show diff, by default it's disabled.
-	Diff bool
-	// Do not include root unit in scaffolding.
-	ScaffoldNoIncludeRoot bool
-	// Enable check mode, by default it's disabled.
-	Check bool
-	// Enables caching of includes during partial parsing operations.
-	UsePartialParseConfigCache bool
-	// If set to true, do not include dependencies when processing IncludeDirs
-	StrictInclude bool
-	// Disable listing of dependent modules in render json output
-	JSONDisableDependentModules bool
-	// Enables Terragrunt's provider caching.
-	ProviderCache bool
-	// If set to true, exclude all directories by default when running *-all commands
-	ExcludeByDefault bool
-	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
+	HclExclude                 []string
+	ScaffoldVars               []string
+	StrictControls             strict.Controls `clone:"shadowcopy"`
+	ModulesThatInclude         []string
+	UnitsReading               []string
+	FilterQueries              []string
+	RuntimeOptions
+	ProviderCachePort              int
+	FailIfBucketCreationRequired   bool
+	DisableBucketUpdate            bool
+	DisableCommandValidation       bool
+	HclFromStdin                   bool
+	Diff                           bool
+	ScaffoldNoIncludeRoot          bool
+	Check                          bool
+	UsePartialParseConfigCache     bool
+	StrictInclude                  bool
+	JSONDisableDependentModules    bool
+	ProviderCache                  bool
+	ExcludeByDefault               bool
 	FetchDependencyOutputFromState bool
-	// True if is required to show dependent modules and confirm action
-	CheckDependentModules bool
-	// True if is required not to show dependent modules and confirm action
-	NoDestroyDependenciesCheck bool
-	// Include fields metadata in render-json
-	RenderJSONWithMetadata bool
-	// Whether we should automatically retry errored Terraform commands
-	AutoRetry bool
-	// Flag to enable engine for running IaC operations.
-	EngineEnabled bool
-	// Whether we should automatically run terraform init if necessary when executing other commands
-	AutoInit bool
-	// Allows to skip the output of all dependencies.
-	SkipOutput bool
-	// Whether we should prompt the user for confirmation or always assume "yes"
-	NonInteractive bool
-	// If set to true, apply all external dependencies when running *-all commands
-	IncludeExternalDependencies bool
-	// Skip checksum check for engine package.
-	EngineSkipChecksumCheck bool
-	// If set to true, skip any external dependencies when running *-all commands
-	IgnoreExternalDependencies bool
-	// If set to true, ignore the dependency order when running *-all command.
-	IgnoreDependencyOrder bool
-	// If set to true, continue running *-all commands even if a dependency has errors.
-	IgnoreDependencyErrors bool
-	// Whether we should automatically run terraform with -auto-apply in run --all mode.
-	RunAllAutoApprove bool
-	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
-	SourceUpdate bool
-	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
-	HCLValidateStrict bool
-	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
-	HCLValidateInputs bool
-	// HCLValidateShowConfigPath shows the paths of the hcl invalid configs.
-	HCLValidateShowConfigPath bool
-	// HCLValidateJSONOutput outputs the hcl validate result as a JSON string.
-	HCLValidateJSONOutput bool
-	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
-	DisableLogFormatting bool
-	// Headless is set when Terragrunt is running in headless mode.
-	Headless bool
-	// LogDisableErrorSummary is a flag to skip the error summary
-	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
-	// NoStackGenerate disable stack generation.
-	NoStackGenerate bool
-	// NoStackValidate disable generated stack validation.
-	NoStackValidate bool
-	// RunAll runs the provided OpenTofu/Terraform command against a stack.
-	RunAll bool
-	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
-	Graph bool
-	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
-	BackendBootstrap bool
-	// DeleteBucket determines whether to delete entire bucket.
-	DeleteBucket bool
-	// ForceBackendDelete forces the backend to be deleted, even if the bucket is not versioned.
-	ForceBackendDelete bool
-	// ForceBackendMigrate forces the backend to be migrated, even if the bucket is not versioned.
-	ForceBackendMigrate bool
-	// SummaryDisable disables the summary output at the end of a run.
-	SummaryDisable bool
-	// SummaryPerUnit enables showing duration information for each unit in the summary.
-	SummaryPerUnit bool
-	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
-	NoAutoProviderCacheDir bool
-	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
-	TFPathExplicitlySet bool
-	// FailFast is a flag to stop execution on the first error in apply of units.
-	FailFast bool
-	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
-	NoDependencyPrompt bool
-	// NoShell disables shell commands when using boilerplate templates in catalog and scaffold commands.
-	NoShell bool
-	// NoHooks disables hooks when using boilerplate templates in catalog and scaffold commands.
-	NoHooks bool
+	NoDestroyDependenciesCheck     bool
+	RenderJSONWithMetadata         bool
+	SkipOutput                     bool
+	EngineSkipChecksumCheck        bool
+	IgnoreExternalDependencies     bool
+	HCLValidateStrict              bool
+	HCLValidateInputs              bool
+	HCLValidateShowConfigPath      bool
+	HCLValidateJSONOutput          bool
+	DisableLogFormatting           bool
+	LogShowAbsPaths                bool
+	NoStackGenerate                bool
+	NoStackValidate                bool
+	RunAll                         bool
+	Graph                          bool
+	DeleteBucket                   bool
+	ForceBackendDelete             bool
+	ForceBackendMigrate            bool
+	SummaryDisable                 bool
+	SummaryPerUnit                 bool
+	NoAutoProviderCacheDir         bool
+	NoDependencyPrompt             bool
+	NoShell                        bool
+	NoHooks                        bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -383,57 +221,65 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                         DefaultWrappedPath,
+		RuntimeOptions: RuntimeOptions{
+			Writer:                      stdout,
+			ErrWriter:                   stderr,
+			TFPath:                      DefaultWrappedPath,
+			TerraformImplementation:     UnknownImpl,
+			TerraformCliArgs:            []string{},
+			Env:                         map[string]string{},
+			Source:                      "",
+			SourceUpdate:                false,
+			IgnoreDependencyErrors:      false,
+			IgnoreDependencyOrder:       false,
+			IgnoreExternalDependencies:  false,
+			IncludeExternalDependencies: false,
+			AutoInit:                    true,
+			RunAllAutoApprove:           true,
+			NonInteractive:              false,
+			MaxFoldersToCheck:           DefaultMaxFoldersToCheck,
+			AutoRetry:                   true,
+			Parallelism:                 DefaultParallelism,
+			FeatureFlags:                xsync.NewMapOf[string, string](),
+			Errors:                      defaultErrorsConfig(),
+			Experiments:                 experiment.NewExperiments(),
+			Telemetry:                   new(telemetry.Options),
+			VersionManagerFileName:      defaultVersionManagerFileName,
+			BackendBootstrap:            false,
+			EngineEnabled:               false,
+			LogDisableErrorSummary:      false,
+			Headless:                    false,
+			FailFast:                    false,
+			Debug:                       false,
+			ForwardTFStdout:             false,
+			JSONLogFormat:               false,
+			OriginalTerraformCommand:    "",
+			OutputFolder:                "",
+			JSONOutputFolder:            "",
+			RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
+				return errors.New(ErrRunTerragruntCommandNotSet)
+			},
+		},
 		ExcludesFile:                   defaultExcludesFile,
-		OriginalTerraformCommand:       "",
-		TerraformCommand:               "",
-		AutoInit:                       true,
-		RunAllAutoApprove:              true,
-		NonInteractive:                 false,
-		TerraformCliArgs:               []string{},
-		Env:                            map[string]string{},
-		Source:                         "",
 		SourceMap:                      map[string]string{},
-		SourceUpdate:                   false,
-		IgnoreDependencyErrors:         false,
-		IgnoreDependencyOrder:          false,
-		IgnoreExternalDependencies:     false,
-		IncludeExternalDependencies:    false,
-		Writer:                         stdout,
-		ErrWriter:                      stderr,
-		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
-		AutoRetry:                      true,
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
 		StrictInclude:                  false,
-		Parallelism:                    DefaultParallelism,
 		Check:                          false,
 		Diff:                           false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
-		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
-		TerraformImplementation:        UnknownImpl,
 		JSONDisableDependentModules:    false,
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
-			return errors.New(ErrRunTerragruntCommandNotSet)
-		},
-		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		OutputFolder:               "",
-		JSONOutputFolder:           "",
-		FeatureFlags:               xsync.NewMapOf[string, string](),
-		Errors:                     defaultErrorsConfig(),
-		StrictControls:             controls.New(),
-		Experiments:                experiment.NewExperiments(),
-		Telemetry:                  new(telemetry.Options),
-		NoStackValidate:            false,
-		NoStackGenerate:            false,
-		VersionManagerFileName:     defaultVersionManagerFileName,
-		NoAutoProviderCacheDir:     false,
-		NoDependencyPrompt:         false,
-		NoShell:                    false,
-		NoHooks:                    false,
+		ProviderCacheRegistryNames:     defaultProviderCacheRegistryNames,
+		NoStackValidate:                false,
+		NoStackGenerate:                false,
+		NoAutoProviderCacheDir:         false,
+		NoDependencyPrompt:             false,
+		NoShell:                        false,
+		NoHooks:                        false,
+		StrictControls:                 controls.New(),
 	}
 }
 
@@ -534,6 +380,17 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
+
+	// Update DownloadDir if the original was using the default for its config path.
+	// This ensures each unit uses its own .terragrunt-cache directory rather than
+	// inheriting the parent's download directory.
+	_, originalDefaultDownloadDir, err := DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if err == nil && opts.DownloadDir == originalDefaultDownloadDir {
+		_, newDefaultDownloadDir, err := DefaultWorkingAndDownloadDirs(configPath)
+		if err == nil {
+			newOpts.DownloadDir = newDefaultDownloadDir
+		}
+	}
 
 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 

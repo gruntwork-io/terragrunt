@@ -58,9 +58,29 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	l := logger.CreateLogger()
 
+	tfOpts := &tf.TFOptions{
+		TFPath:                  mockOptions.TFPath,
+		TFPathExplicitlySet:     mockOptions.TFPathExplicitlySet,
+		TerraformImplementation: mockOptions.TerraformImplementation,
+		TerraformCliArgs:        mockOptions.TerraformCliArgs,
+		WorkingDir:              mockOptions.WorkingDir,
+		TerragruntConfigPath:    mockOptions.TerragruntConfigPath,
+		DownloadDir:             mockOptions.DownloadDir,
+		Writer:                  mockOptions.Writer,
+		ErrWriter:               mockOptions.ErrWriter,
+		Env:                     mockOptions.Env,
+		ForwardTFStdout:         mockOptions.ForwardTFStdout,
+		JSONLogFormat:           mockOptions.JSONLogFormat,
+		Headless:                mockOptions.Headless,
+		LogDisableErrorSummary:  mockOptions.LogDisableErrorSummary,
+		Engine:                  mockOptions.Engine,
+		EngineEnabled:           mockOptions.EngineEnabled,
+		Telemetry:               mockOptions.Telemetry,
+	}
+
 	require.NoError(
 		t,
-		tf.RunCommand(t.Context(), l, mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommandWithOptions(t.Context(), l, tfOpts, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout = bytes.Buffer{}

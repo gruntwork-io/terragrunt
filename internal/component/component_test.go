@@ -21,10 +21,10 @@ func TestComponentsSort(t *testing.T) {
 	// Act
 	sorted := configs.Sort()
 
-	// Assert
+	// Assert - stacks come before units, then alphabetical within each type
 	require.Len(t, sorted, 3)
-	assert.Equal(t, "a", sorted[0].Path())
-	assert.Equal(t, "b", sorted[1].Path())
+	assert.Equal(t, "b", sorted[0].Path()) // stack first
+	assert.Equal(t, "a", sorted[1].Path()) // then units alphabetically
 	assert.Equal(t, "c", sorted[2].Path())
 }
 

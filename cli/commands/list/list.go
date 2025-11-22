@@ -24,6 +24,14 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
+	// Use RootWorkingDir which is already absolute (set by initialSetup in cli/commands/commands.go)
+	// We never want to use filepath.Abs() here as it depends on the process PWD
+	// Fall back to WorkingDir for tests that don't go through initialSetup
+	absWorkingDir := opts.RootWorkingDir
+	if absWorkingDir == "" {
+		absWorkingDir = opts.WorkingDir
+	}
+
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
 		WorkingDir:       opts.WorkingDir,
 		QueueConstructAs: opts.QueueConstructAs,
@@ -90,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}, func(ctx context.Context) error {
 		var convErr error
 
-		listedComponents, convErr = discoveredToListed(components, opts)
+		listedComponents, convErr = discoveredToListed(components, opts, absWorkingDir)
 
 		return convErr
 	})
@@ -162,7 +170,7 @@ func (l ListedComponents) Get(path string) *ListedComponent {
 	return nil
 }
 
-func discoveredToListed(components component.Components, opts *Options) (ListedComponents, error) {
+func discoveredToListed(components component.Components, opts *Options, absWorkingDir string) (ListedComponents, error) {
 	listedComponents := make(ListedComponents, 0, len(components))
 	errs := []error{}
 
@@ -187,7 +195,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, c.Path())
+		relPath, err := filepath.Rel(absWorkingDir, c.Path())
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -209,7 +217,7 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 		listedCfg.Dependencies = make([]*ListedComponent, len(c.Dependencies()))
 
 		for i, dep := range c.Dependencies() {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path())
+			relDepPath, err := filepath.Rel(absWorkingDir, dep.Path())
 			if err != nil {
 				errs = append(errs, errors.New(err))
 
