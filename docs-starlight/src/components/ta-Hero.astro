@@ -4,6 +4,7 @@ import { Image } from 'astro:assets';
 
 import HeroCompleteBackground from '@assets/hero-bg.png';
 import MobileHeroBackground from '@assets/hero-bkgnd.svg';
+import TerragruntAmbassadorLogo from '@assets/terragrunt-ambassador-logo.svg';
 ---
 
 <section class="relative h-[600px] flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden pt-[var(--sl-nav-height)] ">
@@ -29,6 +30,7 @@ import MobileHeroBackground from '@assets/hero-bkgnd.svg';
 
     <div class="flex flex-col gap-5 h-full w-full text-center">
         <div class="flex flex-col justify-center gap-5 h-full w-full max-w-[1024px] mx-auto">
+            <Image src={TerragruntAmbassadorLogo} alt="Terragrunt Ambassador Program Logo" class="w-52 h-auto mx-auto" />
             <h1 class="text-4xl md:text-6xl text-white leading-12 md:leading-18 m-0">
               Terragrunt Ambassador Program
             </h1>
