@@ -324,8 +324,7 @@ func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) (
 		if len(path) >= generationMaxPath {
 			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
 		}
-
-		if strings.HasSuffix(path, config.DefaultStackFile) {
+		if filepath.Base(path) == config.DefaultStackFile {
 			l.Debugf("Found stack file %s", path)
 			stackFiles = append(stackFiles, path)
 		}
