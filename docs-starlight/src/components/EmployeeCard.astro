@@ -78,10 +78,10 @@ const {
           </button>
 
           <div class="hidden bio-modal modal-close fixed flex flex-col justify-center z-70 top-0 left-0 w-full h-[100vh] backdrop-blur-[3px]">
-            <div class="relative bg-surface-3 w-[50%] h-[35%] mx-auto flex flex-row rounded-md border border-stroke-dark overflow-hidden p-10 text-white">
-              <div class="grid grid-cols-[220px_1fr] gap-6">
+            <div class="relative bg-surface-3 flex flex-row w-[90%] h-auto md:w-[80%] md:h-[35%] lg:w-[60%] max-w-[700px] mx-auto rounded-md border border-stroke-dark overflow-hidden p-10 text-white">
+              <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                 <div>
-                  <div class="rounded-sm h-[195px] overflow-hidden">
+                  <div class="rounded-sm flex justify-center align-middle sm:w-[228px] h-[195px] overflow-hidden">
                     <Image src={image} alt={`A picture of ${name}`} class="min-w-[220px] max-w-[250px] h-auto" />
                   </div>
                   <div class="flex flex-col gap-1.5 mt-4">

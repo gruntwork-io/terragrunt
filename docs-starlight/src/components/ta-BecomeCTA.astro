@@ -26,12 +26,12 @@ const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
 
     <div class="relative flex flex-col py-8 md:py-0 md:pt-20 md:pb-[100px] justify-center items-center">
       <!-- Header Section -->
-      <div class="flex flex-col px-5 xl:px-20 pb-10 md:pb-[60px] gap-8 md:text-center lg:items-center">
-        <Eyebrow class="bg-accent-3/[7%] text-accent-3" text="Join the Program" />
+      <div class="flex flex-col px-5 xl:px-20 pb-10 md:pb-[60px] gap-8 text-center items-center">
+        <Eyebrow text="Join the Program" />
         <h3 class="text-4xl md:text-[42px] font-sans text-white m-0">
           Become a Terragrunt <span class="text-accent-3">Ambassador</span>
         </h3>
-        <p class="text-gray-1 font-sans lg:w-[594px]">
+        <p class="text-gray-1 font-sans md:w-[594px]">
           We're looking for community members who are passionate, expert users of Terragrunt and are (or willing to be) active in the community.
         </p>
       </div>
@@ -40,7 +40,7 @@ const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
       <div class="flex flex-col px-8 gap-4">
         <h4 class="text-xl text-white font-bold text-center">To be considered, applicants should demonstrate</h4>
 
-        <div class="flex flex-row items-center p-6 bg-surface-1 border border-stroke-light rounded-sm">
+        <div class="flex flex-row items-center p-2 sm:p-6 bg-surface-1 border border-stroke-light rounded-sm">
           <div class="bg-surface-3 rounded-xs flex items-center justify-center mr-5 aspect-square w-8 h-8">
             <Image src={IaC} alt="" />
           </div>
@@ -49,7 +49,7 @@ const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
           </p>
         </div>
 
-        <div class="flex flex-row items-center p-6 bg-surface-1 border border-stroke-light rounded-sm">
+        <div class="flex flex-row items-center p-2 sm:p-6 bg-surface-1 border border-stroke-light rounded-sm">
           <div class="bg-surface-3 rounded-xs flex items-center justify-center mr-5 aspect-square w-8 h-8">
             <Image src={IaC} alt="" />
           </div>
@@ -58,7 +58,7 @@ const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
           </p>
         </div>
 
-        <div class="flex flex-row items-center p-6 bg-surface-1 border border-stroke-light rounded-sm">
+        <div class="flex flex-row items-center p-2 sm:p-6 bg-surface-1 border border-stroke-light rounded-sm">
           <div class="bg-surface-3 rounded-xs flex items-center justify-center mr-5 aspect-square w-8 h-8">
             <Image src={IaC} alt="" />
           </div>
@@ -67,18 +67,20 @@ const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
           </p>
         </div>
 
-        <p class="py-15 text-gray-1 font-sans max-w-[700px] text-center">
-          We understand that not everyone wants to be active on social channels or forums. If you show genuine enthusiasm for Terragrunt and are willing to be an active member of the community in other ways, we’d love to consider you as well!
-        </p>
+        <div class="w-full overflow-auto">
+          <p class="py-15 text-gray-1 font-sans max-w-[700px] text-center">
+            We understand that not everyone wants to be active on social channels or forums. If you show genuine enthusiasm for Terragrunt and are willing to be an active member of the community in other ways, we’d love to consider you as well!
+          </p>
+        </div>
 
         <Image
           src={grunty}
           alt="Grunty"
-          class="absolute right-8 bottom-100 pointer-events-none select-none w-40 md:w-52 xl:w-60 h-auto"
+          class="hidden sm:block sm:absolute right-8 bottom-100 pointer-events-none select-none w-40 lg:w-52 xl:w-60 h-auto"
         />
       </div>
 
-      <h3 class="text-3xl font-sans text-white m-0">
+      <h3 class="text-3xl font-sans text-white text-center mx-6 my-0">
         Think you're a <span class="text-accent-3">good fit?</span> We'd love to hear from you.
       </h3>
       <div class="relative mt-12 px-5 md:px-12 lg:px-8">
