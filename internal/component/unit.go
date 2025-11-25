@@ -1,26 +1,42 @@
 package component
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 const (
 	UnitKind Kind = "unit"
 )
 
+// UnitExecution holds execution-specific fields for running a unit.
+// This is nil during discovery phase and populated when preparing for execution.
+type UnitExecution struct {
+	TerragruntOptions    *options.TerragruntOptions
+	Logger               log.Logger
+	FlagExcluded         bool
+	AssumeAlreadyApplied bool
+}
+
 // Unit represents a discovered Terragrunt unit configuration.
 type Unit struct {
 	cfg              *config.TerragruntConfig
+	discoveryContext *DiscoveryContext
+	Execution        *UnitExecution
 	path             string
 	reading          []string
-	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
-	external         bool
 	mu               sync.RWMutex
+	external         bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -187,4 +203,106 @@ func (u *Unit) Dependents() Components {
 	defer u.rUnlock()
 
 	return u.dependents
+}
+
+// String renders this unit as a human-readable string for debugging.
+func (u *Unit) String() string {
+	deps := make([]string, 0, len(u.dependencies))
+	for _, dep := range u.dependencies {
+		deps = append(deps, dep.Path())
+	}
+
+	excluded := false
+	assumeApplied := false
+
+	if u.Execution != nil {
+		excluded = u.Execution.FlagExcluded
+		assumeApplied = u.Execution.AssumeAlreadyApplied
+	}
+
+	return fmt.Sprintf(
+		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
+		u.path, excluded, assumeApplied, strings.Join(deps, ", "),
+	)
+}
+
+// AbsolutePath returns the absolute path of the unit.
+// If path conversion fails, returns the original path and logs a warning.
+func (u *Unit) AbsolutePath() string {
+	if filepath.IsAbs(u.path) {
+		return u.path
+	}
+
+	absPath, err := filepath.Abs(u.path)
+	if err != nil {
+		return u.path
+	}
+
+	return absPath
+}
+
+// FindInPaths returns true if the unit is located in one of the target directories.
+func (u *Unit) FindInPaths(targetDirs []string) bool {
+	return slices.Contains(targetDirs, u.path)
+}
+
+// PlanFile returns plan file location if output folder is set.
+// Requires Execution to be populated.
+func (u *Unit) PlanFile(opts *options.TerragruntOptions) string {
+	if u.Execution == nil || u.Execution.TerragruntOptions == nil {
+		return ""
+	}
+
+	planFile := u.OutputFile(opts)
+
+	planCommand := u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan ||
+		u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+
+	// if JSON output enabled and no PlanFile specified, save plan in working dir
+	if planCommand && planFile == "" && u.Execution.TerragruntOptions.JSONOutputFolder != "" {
+		planFile = tf.TerraformPlanFile
+	}
+
+	return planFile
+}
+
+// OutputFile returns plan file location if output folder is set.
+func (u *Unit) OutputFile(opts *options.TerragruntOptions) string {
+	return u.getPlanFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
+}
+
+// OutputJSONFile returns plan JSON file location if JSON output folder is set.
+func (u *Unit) OutputJSONFile(opts *options.TerragruntOptions) string {
+	return u.getPlanFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+}
+
+// getPlanFilePath computes the path for plan output files.
+func (u *Unit) getPlanFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+	if outputFolder == "" {
+		return ""
+	}
+
+	relPath, err := filepath.Rel(opts.RootWorkingDir, u.path)
+	if err != nil {
+		relPath = u.path
+	}
+
+	dir := filepath.Join(outputFolder, relPath)
+
+	if !filepath.IsAbs(dir) {
+		base := opts.RootWorkingDir
+		if !filepath.IsAbs(base) {
+			if absBase, err := filepath.Abs(base); err == nil {
+				base = absBase
+			}
+		}
+
+		dir = filepath.Join(base, dir)
+
+		if absDir, err := filepath.Abs(dir); err == nil {
+			dir = absDir
+		}
+	}
+
+	return filepath.Join(dir, fileName)
 }

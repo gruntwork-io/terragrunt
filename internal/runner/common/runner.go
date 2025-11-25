@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -24,7 +25,7 @@ type StackRunner interface {
 	// ListStackDependentUnits Build and return a map of each unit to the list of units that depend on it.
 	ListStackDependentUnits() map[string][]string
 	// GetStack Retrieve the underlying Stack object managed by this runner.
-	GetStack() *Stack
+	GetStack() *component.Stack
 	// SetTerragruntConfig Set the child Terragrunt configuration for the stack.
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	// SetParseOptions Set the parser options used for HCL parsing in the stack.
