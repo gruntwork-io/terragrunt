@@ -495,7 +495,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 
 	for _, unit := range r.queue.Entries {
 		path := unit.Component.Path()
-		outStr += fmt.Sprintf("- Unit %s (ptr=%p)\n", path, unit.Component)
+		outStr += fmt.Sprintf("- Unit %s\n", path)
 	}
 
 	l.Info(outStr)
