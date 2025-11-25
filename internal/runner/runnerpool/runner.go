@@ -94,14 +94,17 @@ func resolveUnitsFromDiscovery(
 				return nil, err
 			}
 
-			// Set DownloadDir to be relative to the unit's working directory (absolute path)
-			// This ensures the cache is always created in the same location regardless of CWD
-			_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
-			if err != nil {
-				return nil, err
+			// Preserve existing DownloadDir (often root-level cache) to keep shared outputs reachable.
+			// Only fall back to the unit-local default when it's unset.
+			if clonedOpts.DownloadDir == "" {
+				_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+				if err != nil {
+					return nil, err
+				}
+
+				clonedOpts.DownloadDir = defaultDownloadDir
 			}
 
-			clonedOpts.DownloadDir = defaultDownloadDir
 			unitOpts = clonedOpts
 			unitLogger = clonedLogger
 		} else {
