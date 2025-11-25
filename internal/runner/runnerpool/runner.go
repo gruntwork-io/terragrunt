@@ -60,10 +60,36 @@ func resolveUnitsFromDiscovery(
 			continue
 		}
 
-		// Clone TerragruntOptions for this unit
+		// Determine the terragrunt config path
+		// Discovery paths are directories (e.g., "./other") not files
+		// We need to append the config filename to get the full config path
+		terragruntConfigPath := unit.Path()
+		if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
+			terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
+		}
+
+		// Convert to canonical absolute path - this is critical for dependency resolution
+		// Get the process's current working directory as the base for path resolution
+		// Note: terragrunt changes process CWD during execution, so this should be correct
+		basePath, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert the config path to absolute BEFORE passing to CloneWithConfigPath
+		// CloneWithConfigPath uses filepath.Abs which uses process's CWD, not stack's working dir
+		canonicalConfigPath, err := util.CanonicalPath(terragruntConfigPath, basePath)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update the unit's path to the canonical directory path
+		unit.SetPath(filepath.Dir(canonicalConfigPath))
+
+		// Clone TerragruntOptions for this unit using the absolute config path
 		var unitOpts *options.TerragruntOptions
 		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-			_, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath))
+			_, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
 			if err != nil {
 				return nil, err
 			}
@@ -79,9 +105,17 @@ func resolveUnitsFromDiscovery(
 			AssumeAlreadyApplied: false,
 		}
 
-		// Mark external units
+		// Handle external units - check if they should be excluded
 		if unit.External() {
 			unit.Execution.AssumeAlreadyApplied = true
+
+			// If --queue-exclude-external is set (IgnoreExternalDependencies),
+			// mark external units as excluded
+			if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
+				stack.Execution.TerragruntOptions.IgnoreExternalDependencies {
+				unit.Execution.FlagExcluded = true
+				l.Infof("Excluded external dependency: %s", unit.Path())
+			}
 		}
 
 		// Store config from discovery context if available
@@ -164,9 +198,9 @@ func NewRunnerPoolStack(
 		applyPreventDestroyExclusions(l, units)
 	}
 
-	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
-	// This ensures excluded units are not shown in lists or scheduled at all.
-	filtered := FilterDiscoveredUnits(discovered, units)
+	// Build queue from resolved units (which have canonical absolute paths).
+	// Filter out excluded units so they are not shown in lists or scheduled.
+	filtered := filterUnitsToComponents(units)
 
 	q, queueErr := queue.NewQueue(filtered)
 	if queueErr != nil {
@@ -176,6 +210,24 @@ func NewRunnerPoolStack(
 	runner.queue = q
 
 	return runner.WithOptions(opts...), nil
+}
+
+// filterUnitsToComponents converts resolved units to Components.
+// Excluded units that are assumed already applied are kept in the queue
+// so their dependents can run (they will be immediately marked as succeeded).
+// Only truly excluded units (FlagExcluded && !AssumeAlreadyApplied) are filtered out.
+func filterUnitsToComponents(units []*component.Unit) component.Components {
+	result := make(component.Components, 0, len(units))
+	for _, u := range units {
+		if u.Execution != nil && u.Execution.FlagExcluded && !u.Execution.AssumeAlreadyApplied {
+			// Truly excluded - skip entirely
+			continue
+		}
+
+		result = append(result, u)
+	}
+
+	return result
 }
 
 // Limit recursive descent when inspecting nested errors
@@ -437,7 +489,8 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	)
 
 	for _, unit := range r.queue.Entries {
-		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.Path())
+		path := unit.Component.Path()
+		outStr += fmt.Sprintf("- Unit %s (ptr=%p)\n", path, unit.Component)
 	}
 
 	l.Info(outStr)
@@ -566,7 +619,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
 func FilterDiscoveredUnits(discovered component.Components, units []*component.Unit) component.Components {
-	// Build allowlist from non-excluded unit paths
+	// Build allowlist from non-excluded unit paths (already canonical from resolveUnitsFromDiscovery)
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
 		if u.Execution == nil || !u.Execution.FlagExcluded {
@@ -575,6 +628,7 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 	}
 
 	// First pass: keep only allowed configs and prune their dependencies to allowed ones
+	// NOTE: Unit paths should already be canonical after resolveUnitsFromDiscovery modified them
 	filtered := make(component.Components, 0, len(discovered))
 	present := make(map[string]*component.Unit, len(discovered))
 
@@ -584,12 +638,16 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 			continue
 		}
 
-		if _, ok := allowed[unit.Path()]; !ok {
+		// Path should already be canonical from resolveUnitsFromDiscovery
+		unitPath := unit.Path()
+
+		if _, ok := allowed[unitPath]; !ok {
 			// Drop configs that map to excluded/missing units
 			continue
 		}
 
-		copyCfg := component.NewUnit(unit.Path())
+		// Create new unit with the path (already canonical)
+		copyCfg := component.NewUnit(unitPath)
 		copyCfg.SetDiscoveryContext(unit.DiscoveryContext())
 		copyCfg.SetReading(unit.Reading()...)
 
@@ -599,8 +657,12 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 
 		if len(unit.Dependencies()) > 0 {
 			for _, dep := range unit.Dependencies() {
-				if _, ok := allowed[dep.Path()]; ok {
-					copyCfg.AddDependency(dep)
+				// Dependency paths should also be canonical
+				depPath := dep.Path()
+				if _, ok := allowed[depPath]; ok {
+					// Create dependency with the path
+					depCfg := component.NewUnit(depPath)
+					copyCfg.AddDependency(depCfg)
 				}
 			}
 		}
