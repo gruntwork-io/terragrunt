@@ -699,7 +699,7 @@ func (d *Discovery) walkDirectoryConcurrently(
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.
-func (d *Discovery) skipDirIfIgnorable(l log.Logger, path string) error {
+func (d *Discovery) skipDirIfIgnorable(_ log.Logger, path string) error {
 	if err := skipDirIfIgnorable(path); err != nil {
 		return err
 	}
@@ -712,18 +712,10 @@ func (d *Discovery) skipDirIfIgnorable(l log.Logger, path string) error {
 	}
 
 	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns
+	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns
+	// We also avoid early skipping for CLI exclude patterns so reporting can capture excluded units.
 	if d.filterFlagEnabled {
 		return nil
-	}
-
-	canonicalDir, canErr := util.CanonicalPath(path, d.workingDir)
-	if canErr == nil {
-		for _, pattern := range d.compiledExcludePatterns {
-			if pattern.Compiled.Match(canonicalDir) {
-				l.Debugf("Directory %s excluded by glob %s", canonicalDir, pattern.Original)
-				return filepath.SkipDir
-			}
-		}
 	}
 
 	return nil
@@ -779,16 +771,8 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
 	if canErr == nil {
 		// Eventually, this is going to be removed entirely, as filter evaluation
-		// will be all that's needed.
-		if !d.filterFlagEnabled {
-			for _, pattern := range d.compiledExcludePatterns {
-				if pattern.Compiled.Match(canonicalDir) {
-					l.Debugf("Path %s excluded by glob %s", canonicalDir, pattern.Original)
-					return nil
-				}
-			}
-		}
-
+		// will be all that's needed. We no longer drop configs via exclude patterns here so
+		// reporting can record excluded units.
 		if d.filterFlagEnabled {
 			c := d.createComponentFromPath(path, filenames)
 			if c == nil {
