@@ -84,9 +84,12 @@ func resolveUnitsFromDiscovery(
 		unit.SetPath(filepath.Dir(canonicalConfigPath))
 
 		// Clone TerragruntOptions for this unit using the absolute config path
-		var unitOpts *options.TerragruntOptions
+		var (
+			unitOpts   *options.TerragruntOptions
+			unitLogger log.Logger
+		)
 		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-			_, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
+			clonedLogger, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
 			if err != nil {
 				return nil, err
 			}
@@ -100,12 +103,15 @@ func resolveUnitsFromDiscovery(
 
 			clonedOpts.DownloadDir = defaultDownloadDir
 			unitOpts = clonedOpts
+			unitLogger = clonedLogger
+		} else {
+			unitLogger = l
 		}
 
 		// Initialize execution context
 		unit.Execution = &component.UnitExecution{
 			TerragruntOptions:    unitOpts,
-			Logger:               l,
+			Logger:               unitLogger,
 			FlagExcluded:         unit.Excluded(),
 			AssumeAlreadyApplied: false,
 		}
