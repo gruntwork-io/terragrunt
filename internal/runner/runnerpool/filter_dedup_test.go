@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -16,7 +17,7 @@ func TestSetUnitFilters_Deduplication(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	// Create a filter instance
@@ -35,7 +36,7 @@ func TestSetUnitFilters_DifferentFilters(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	// Create different filter instances
@@ -54,7 +55,7 @@ func TestSetUnitFilters_MultipleCallsWithMixedFilters(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
@@ -80,7 +81,7 @@ func TestSetUnitFilters_SameValuesDifferentInstances(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	// Create two separate instances with the same values
@@ -99,7 +100,7 @@ func TestSetUnitFilters_EmptyCall(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
@@ -126,7 +127,7 @@ func TestSetUnitFilters_CustomFilterType(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	filter1 := &mockFilter{ID: "test1"}
@@ -146,7 +147,7 @@ func TestSetUnitFilters_MixedFilterTypes(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	graphFilter := &common.UnitFilterGraph{TargetDir: "/project/a"}
@@ -172,7 +173,7 @@ func TestSetUnitFilters_OrderPreserved(t *testing.T) {
 	t.Parallel()
 
 	runner := &runnerpool.Runner{
-		Stack: &common.Stack{},
+		Stack: &component.Stack{},
 	}
 
 	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}

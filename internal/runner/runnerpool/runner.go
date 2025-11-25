@@ -33,11 +33,67 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// UnitFilter is used to filter units during resolution.
+type UnitFilter = common.UnitFilter
+
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack       *common.Stack
+	Stack       *component.Stack
 	queue       *queue.Queue
-	unitFilters []common.UnitFilter
+	unitFilters []UnitFilter
+}
+
+// resolveUnitsFromDiscovery converts discovered components to units with execution context.
+// This replaces the old UnitResolver pattern with a simpler direct conversion.
+func resolveUnitsFromDiscovery(
+	_ context.Context,
+	l log.Logger,
+	stack *component.Stack,
+	discovered component.Components,
+	_ []UnitFilter, // filters applied via unit resolver mechanism
+) ([]*component.Unit, error) {
+	units := make([]*component.Unit, 0, len(discovered))
+
+	for _, c := range discovered {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		// Clone TerragruntOptions for this unit
+		var unitOpts *options.TerragruntOptions
+		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
+			_, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath))
+			if err != nil {
+				return nil, err
+			}
+
+			unitOpts = clonedOpts
+		}
+
+		// Initialize execution context
+		unit.Execution = &component.UnitExecution{
+			TerragruntOptions:    unitOpts,
+			Logger:               l,
+			FlagExcluded:         false,
+			AssumeAlreadyApplied: false,
+		}
+
+		// Mark external units
+		if unit.External() {
+			unit.Execution.AssumeAlreadyApplied = true
+		}
+
+		// Store config from discovery context if available
+		if unit.DiscoveryContext() != nil && unit.Config() == nil {
+			// Config should already be set during discovery
+			l.Debugf("Unit %s has no config from discovery", unit.Path())
+		}
+
+		units = append(units, unit)
+	}
+
+	return units, nil
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
@@ -60,13 +116,14 @@ func NewRunnerPoolStack(
 	if len(nonStackComponents) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
-		stack := common.Stack{
+		stack := component.NewStack(terragruntOptions.WorkingDir)
+		stack.Execution = &component.StackExecution{
 			TerragruntOptions: terragruntOptions,
 			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		}
 
 		runner := &Runner{
-			Stack: &stack,
+			Stack: stack,
 		}
 
 		// Create an empty queue
@@ -81,46 +138,35 @@ func NewRunnerPoolStack(
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
-	stack := common.Stack{
+	stack := component.NewStack(terragruntOptions.WorkingDir)
+	stack.Execution = &component.StackExecution{
 		TerragruntOptions: terragruntOptions,
 		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
 	runner := &Runner{
-		Stack: &stack,
+		Stack: stack,
 	}
 
 	// Apply options (including report) BEFORE resolving units so that
 	// the report is available during unit resolution for tracking exclusions
 	runner = runner.WithOptions(opts...)
 
-	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
-	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
+	// Resolve units from discovery - populates Execution fields on each unit
+	units, err := resolveUnitsFromDiscovery(ctx, l, runner.Stack, nonStackComponents, runner.unitFilters)
 	if err != nil {
 		return nil, err
 	}
 
-	// Add unit filters to the resolver
-	if len(runner.unitFilters) > 0 {
-		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
-	}
-
-	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
-	// Use nonStackComponents which has Stack components filtered out
-	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, nonStackComponents)
-	if err != nil {
-		return nil, err
-	}
-
-	runner.Stack.Units = unitsMap
+	runner.Stack.Units = units
 
 	if isDestroyCommand(terragruntOptions) {
-		applyPreventDestroyExclusions(l, unitsMap)
+		applyPreventDestroyExclusions(l, units)
 	}
 
 	// Build queue from discovered configs, excluding units flagged as excluded and pruning excluded dependencies.
 	// This ensures excluded units are not shown in lists or scheduled at all.
-	filtered := FilterDiscoveredUnits(discovered, unitsMap)
+	filtered := FilterDiscoveredUnits(discovered, units)
 
 	q, queueErr := queue.NewQueue(filtered)
 	if queueErr != nil {
@@ -187,7 +233,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	if opts.OutputFolder != "" {
 		for _, u := range r.Stack.Units {
-			planFile := u.OutputFile(l, opts)
+			planFile := u.OutputFile(opts)
 			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
 			}
@@ -218,17 +264,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// Emit report entries for excluded units that haven't been reported yet.
 	// Units excluded by CLI flags or exclude blocks are already reported during unit resolution,
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
-	if r.Stack.Report != nil {
+	if r.Stack.Execution != nil && r.Stack.Execution.Report != nil {
 		for _, u := range r.Stack.Units {
-			if u.FlagExcluded {
+			if u.Execution != nil && u.Execution.FlagExcluded {
 				// Ensure path is absolute for reporting
-				unitPath, err := common.EnsureAbsolutePath(u.Path)
-				if err != nil {
-					l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
-					continue
-				}
+				unitPath := u.AbsolutePath()
 
-				run, err := r.Stack.Report.EnsureRun(unitPath)
+				run, err := r.Stack.Execution.Report.EnsureRun(unitPath)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -241,11 +283,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					// Determine the reason for exclusion
 					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
 					reason := report.ReasonExcludeBlock
-					if u.AssumeAlreadyApplied {
+					if u.Execution.AssumeAlreadyApplied {
 						reason = report.ReasonExcludeExternal
 					}
 
-					if err := r.Stack.Report.EndRun(
+					if err := r.Stack.Execution.Report.EndRun(
 						run.Path,
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
@@ -257,15 +299,19 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	task := func(ctx context.Context, u *common.Unit) error {
+	task := func(ctx context.Context, u *component.Unit) error {
+		if u.Execution == nil || u.Execution.TerragruntOptions == nil {
+			return tgerrors.Errorf("unit %s has no execution context", u.Path())
+		}
+
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
-			"terraform_command":      u.TerragruntOptions.TerraformCommand,
-			"terraform_cli_args":     u.TerragruntOptions.TerraformCliArgs,
-			"working_dir":            u.TerragruntOptions.WorkingDir,
-			"terragrunt_config_path": u.TerragruntOptions.TerragruntConfigPath,
+			"terraform_command":      u.Execution.TerragruntOptions.TerraformCommand,
+			"terraform_cli_args":     u.Execution.TerragruntOptions.TerraformCliArgs,
+			"working_dir":            u.Execution.TerragruntOptions.WorkingDir,
+			"terragrunt_config_path": u.Execution.TerragruntOptions.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
-			unitRunner := common.NewUnitRunner(u)
-			return unitRunner.Run(childCtx, u.TerragruntOptions, r.Stack.Report)
+			unitRunner := common.NewUnitRunnerFromComponent(u)
+			return unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
 		})
 	}
 
@@ -283,7 +329,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	err := controller.Run(ctx, l)
 
 	// Emit report entries for early exit units after controller completes
-	if r.Stack.Report != nil {
+	if r.Stack.Execution != nil && r.Stack.Execution.Report != nil {
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
 		for _, qe := range r.queue.Entries {
@@ -299,13 +345,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 
 				// Ensure path is absolute for reporting
-				unitPath, absErr := common.EnsureAbsolutePath(unit.Path)
-				if absErr != nil {
-					l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
-					continue
-				}
+				unitPath := unit.AbsolutePath()
 
-				run, reportErr := r.Stack.Report.EnsureRun(unitPath)
+				run, reportErr := r.Stack.Execution.Report.EnsureRun(unitPath)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue
@@ -336,7 +378,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 				}
 
-				if endErr := r.Stack.Report.EndRun(run.Path, endOpts...); endErr != nil {
+				if endErr := r.Stack.Execution.Report.EndRun(run.Path, endOpts...); endErr != nil {
 					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 				}
 			}
@@ -373,7 +415,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 func (r *Runner) handlePlan() []bytes.Buffer {
 	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units))
 	for i, u := range r.Stack.Units {
-		u.TerragruntOptions.ErrWriter = io.MultiWriter(&planErrorBuffers[i], u.TerragruntOptions.ErrWriter)
+		if u.Execution != nil && u.Execution.TerragruntOptions != nil {
+			u.Execution.TerragruntOptions.ErrWriter = io.MultiWriter(&planErrorBuffers[i], u.Execution.TerragruntOptions.ErrWriter)
+		}
 	}
 
 	return planErrorBuffers
@@ -381,9 +425,14 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
+	workingDir := r.Stack.Path()
+	if r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil {
+		workingDir = r.Stack.Execution.TerragruntOptions.WorkingDir
+	}
+
 	outStr := fmt.Sprintf(
 		"The runner-pool runner at %s will be processed in the following order for command %s:\n",
-		r.Stack.TerragruntOptions.WorkingDir,
+		workingDir,
 		terraformCommand,
 	)
 
@@ -450,19 +499,23 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
-		unit.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		if unit.Execution == nil || unit.Execution.TerragruntOptions == nil {
+			continue
+		}
 
-		planFile := unit.PlanFile(l, opts)
+		unit.Execution.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+
+		planFile := unit.PlanFile(opts)
 		if planFile != "" {
-			l.Debugf("Using output file %s for unit %s", planFile, unit.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
 
-			if unit.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
+			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
+				unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
 				continue
 			}
 
-			unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
+			unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile)
 		}
 	}
 }
@@ -480,9 +533,11 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
 
-			if len(r.Stack.Units[i].Dependencies) > 0 {
-				if r.Stack.Units[i].Config.Dependencies != nil {
-					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Config.Dependencies.Paths)
+			unit := r.Stack.Units[i]
+			if len(unit.Dependencies()) > 0 {
+				cfg := unit.Config()
+				if cfg != nil && cfg.Dependencies != nil {
+					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", cfg.Dependencies.Paths)
 				} else {
 					dependenciesMsg = " contains dependencies and"
 				}
@@ -490,7 +545,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 
 			l.Infof("%v%v refers to remote State "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
-				r.Stack.Units[i].Path,
+				unit.Path(),
 				dependenciesMsg,
 			)
 		}
@@ -510,12 +565,12 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 //   - For each included config, its Dependencies list is filtered to only include included configs.
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
-func FilterDiscoveredUnits(discovered component.Components, units common.Units) component.Components {
+func FilterDiscoveredUnits(discovered component.Components, units []*component.Unit) component.Components {
 	// Build allowlist from non-excluded unit paths
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
-		if !u.FlagExcluded {
-			allowed[u.Path] = struct{}{}
+		if u.Execution == nil || !u.Execution.FlagExcluded {
+			allowed[u.Path()] = struct{}{}
 		}
 	}
 
@@ -556,28 +611,28 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 
 	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
 	for _, u := range units {
-		if u.FlagExcluded {
+		if u.Execution != nil && u.Execution.FlagExcluded {
 			continue
 		}
 
-		if _, ok := present[u.Path]; ok {
+		if _, ok := present[u.Path()]; ok {
 			continue
 		}
 
 		// Create a minimal discovered config for the missing unit
-		copyCfg := component.NewUnit(u.Path)
+		copyCfg := component.NewUnit(u.Path())
 
 		filtered = append(filtered, copyCfg)
-		present[u.Path] = copyCfg
+		present[u.Path()] = copyCfg
 	}
 
 	// Augment dependencies from resolved units to ensure DAG edges are complete
 	for _, u := range units {
-		if u.FlagExcluded {
+		if u.Execution != nil && u.Execution.FlagExcluded {
 			continue
 		}
 
-		cfg := present[u.Path]
+		cfg := present[u.Path()]
 		if cfg == nil {
 			continue
 		}
@@ -589,25 +644,26 @@ func FilterDiscoveredUnits(discovered component.Components, units common.Units) 
 		}
 
 		// Add any missing allowed dependencies from the resolved unit graph
-		for _, depUnit := range u.Dependencies {
-			if depUnit == nil {
+		for _, dep := range u.Dependencies() {
+			depUnit, ok := dep.(*component.Unit)
+			if !ok || depUnit == nil {
 				continue
 			}
 
-			if _, ok := allowed[depUnit.Path]; !ok {
+			if _, ok := allowed[depUnit.Path()]; !ok {
 				continue
 			}
 
-			if _, ok := existing[depUnit.Path]; ok {
+			if _, ok := existing[depUnit.Path()]; ok {
 				continue
 			}
 
 			// Ensure the dependency config exists in the filtered set
-			depCfg, ok := present[depUnit.Path]
+			depCfg, ok := present[depUnit.Path()]
 			if !ok {
-				depCfg = component.NewUnit(depUnit.Path)
+				depCfg = component.NewUnit(depUnit.Path())
 				filtered = append(filtered, depCfg)
-				present[depUnit.Path] = depCfg
+				present[depUnit.Path()] = depCfg
 			}
 
 			cfg.AddDependency(depCfg)
@@ -627,28 +683,40 @@ func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 }
 
 // GetStack returns the stack associated with the runner.
-func (r *Runner) GetStack() *common.Stack {
+func (r *Runner) GetStack() *component.Stack {
 	return r.Stack
 }
 
 // SetTerragruntConfig sets the config for the stack.
-func (r *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
-	r.Stack.ChildTerragruntConfig = config
+func (r *Runner) SetTerragruntConfig(cfg *config.TerragruntConfig) {
+	if r.Stack.Execution == nil {
+		r.Stack.Execution = &component.StackExecution{}
+	}
+
+	r.Stack.Execution.ChildTerragruntConfig = cfg
 }
 
 // SetParseOptions sets the ParseOptions for the stack.
 func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
-	r.Stack.ParserOptions = parserOptions
+	if r.Stack.Execution == nil {
+		r.Stack.Execution = &component.StackExecution{}
+	}
+
+	r.Stack.Execution.ParserOptions = parserOptions
 }
 
 // SetReport sets the report for the stack.
-func (r *Runner) SetReport(report *report.Report) {
-	r.Stack.Report = report
+func (r *Runner) SetReport(rpt *report.Report) {
+	if r.Stack.Execution == nil {
+		r.Stack.Execution = &component.StackExecution{}
+	}
+
+	r.Stack.Execution.Report = rpt
 }
 
 // SetUnitFilters sets the unit filters for the runner.
 // Filters are deduplicated before appending to prevent duplicate filter application.
-func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
+func (r *Runner) SetUnitFilters(filters ...UnitFilter) {
 	for _, filter := range filters {
 		if !containsFilter(r.unitFilters, filter) {
 			r.unitFilters = append(r.unitFilters, filter)
@@ -658,13 +726,13 @@ func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
 
 // GetUnitFilters returns the unit filters configured for the runner.
 // This is primarily used for testing purposes.
-func (r *Runner) GetUnitFilters() []common.UnitFilter {
+func (r *Runner) GetUnitFilters() []UnitFilter {
 	return r.unitFilters
 }
 
 // containsFilter checks if a filter already exists in the filters slice.
 // Uses DeepEqual to compare filters by both pointer identity and value equality.
-func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool {
+func containsFilter(filters []UnitFilter, target UnitFilter) bool {
 	for _, existing := range filters {
 		// DeepEqual handles both pointer equality and value equality,
 		// so we don't need separate pointer comparison
@@ -684,15 +752,19 @@ func isDestroyCommand(opts *options.TerragruntOptions) bool {
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
 // from being destroyed. This prevents accidental destruction of protected infrastructure.
-func applyPreventDestroyExclusions(l log.Logger, units common.Units) {
+func applyPreventDestroyExclusions(l log.Logger, units []*component.Unit) {
 	// First pass: identify units with prevent_destroy=true
 	protectedUnits := make(map[string]bool)
 
 	for _, unit := range units {
-		if unit.Config.PreventDestroy != nil && *unit.Config.PreventDestroy {
-			protectedUnits[unit.Path] = true
-			unit.FlagExcluded = true
-			l.Debugf("Unit %s is protected by prevent_destroy flag", unit.Path)
+		cfg := unit.Config()
+		if cfg != nil && cfg.PreventDestroy != nil && *cfg.PreventDestroy {
+			protectedUnits[unit.Path()] = true
+			if unit.Execution != nil {
+				unit.Execution.FlagExcluded = true
+			}
+
+			l.Debugf("Unit %s is protected by prevent_destroy flag", unit.Path())
 		}
 	}
 
@@ -705,16 +777,19 @@ func applyPreventDestroyExclusions(l log.Logger, units common.Units) {
 	dependencyPaths := make(map[string]bool)
 
 	for _, unit := range units {
-		if protectedUnits[unit.Path] {
+		if protectedUnits[unit.Path()] {
 			collectDependencies(unit, dependencyPaths)
 		}
 	}
 
 	// Third pass: mark dependencies as excluded
 	for _, unit := range units {
-		if dependencyPaths[unit.Path] && !protectedUnits[unit.Path] {
-			unit.FlagExcluded = true
-			l.Debugf("Unit %s is excluded because it's a dependency of a protected unit", unit.Path)
+		if dependencyPaths[unit.Path()] && !protectedUnits[unit.Path()] {
+			if unit.Execution != nil {
+				unit.Execution.FlagExcluded = true
+			}
+
+			l.Debugf("Unit %s is excluded because it's a dependency of a protected unit", unit.Path())
 		}
 	}
 }
@@ -723,20 +798,25 @@ func applyPreventDestroyExclusions(l log.Logger, units common.Units) {
 const maxDependencyTraversalDepth = 256
 
 // collectDependencies collects dependency paths for a unit with a bounded recursion depth.
-func collectDependencies(unit *common.Unit, paths map[string]bool) {
+func collectDependencies(unit *component.Unit, paths map[string]bool) {
 	collectDependenciesBounded(unit, paths, 0)
 }
 
 // collectDependenciesBounded recursively collects all dependency paths for a unit up to maxDependencyTraversalDepth.
-func collectDependenciesBounded(unit *common.Unit, paths map[string]bool, depth int) {
+func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, depth int) {
 	if depth >= maxDependencyTraversalDepth {
 		return
 	}
 
-	for _, dep := range unit.Dependencies {
-		if !paths[dep.Path] {
-			paths[dep.Path] = true
-			collectDependenciesBounded(dep, paths, depth+1)
+	for _, dep := range unit.Dependencies() {
+		depUnit, ok := dep.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if !paths[depUnit.Path()] {
+			paths[depUnit.Path()] = true
+			collectDependenciesBounded(depUnit, paths, depth+1)
 		}
 	}
 }
