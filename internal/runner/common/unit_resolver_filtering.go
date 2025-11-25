@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -34,6 +36,171 @@ func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, units Units) (
 	})
 
 	return filteredUnits, err
+}
+
+// telemetryApplyExcludeDirs re-applies exclude-dir reporting while preserving exclusion state.
+func (r *UnitResolver) telemetryApplyExcludeDirs(l log.Logger, units Units) Units {
+	matchesExclude := func(path string) bool {
+		for _, dir := range r.Stack.TerragruntOptions.ExcludeDirs {
+			cleanDir := dir
+			if !filepath.IsAbs(cleanDir) {
+				cleanDir = util.JoinPath(r.Stack.TerragruntOptions.WorkingDir, cleanDir)
+			}
+
+			cleanDir = util.CleanPath(cleanDir)
+
+			if util.HasPathPrefix(path, cleanDir) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	reportUnitExclusion := func(unitPath string, reason report.Reason) {
+		if r.Stack.Report == nil {
+			return
+		}
+
+		absPath, err := EnsureAbsolutePath(unitPath)
+		if err != nil {
+			l.Errorf("Error getting absolute path for unit %s: %v", unitPath, err)
+			return
+		}
+
+		absPath = util.CleanPath(absPath)
+
+		run, err := r.Stack.Report.EnsureRun(absPath)
+		if err != nil {
+			l.Errorf("Error ensuring run for unit %s: %v", absPath, err)
+			return
+		}
+
+		if err := r.Stack.Report.EndRun(
+			run.Path,
+			report.WithResult(report.ResultExcluded),
+			report.WithReason(reason),
+		); err != nil {
+			l.Errorf("Error ending run for unit %s: %v", absPath, err)
+			return
+		}
+	}
+
+	for _, unit := range units {
+		if matchesExclude(unit.Path) {
+			unit.FlagExcluded = true
+
+			reportUnitExclusion(unit.Path, report.ReasonExcludeDir)
+		}
+
+		for _, dep := range unit.Dependencies {
+			if matchesExclude(dep.Path) {
+				dep.FlagExcluded = true
+
+				reportUnitExclusion(dep.Path, report.ReasonExcludeDir)
+			}
+		}
+	}
+
+	return units
+}
+
+// telemetryApplyExcludeModules records exclude-block exclusions to the report.
+func (r *UnitResolver) telemetryApplyExcludeModules(l log.Logger, units Units) Units {
+	matchesExclude := func(path string) bool {
+		for _, dir := range r.Stack.TerragruntOptions.ExcludeDirs {
+			cleanDir := dir
+			if !filepath.IsAbs(cleanDir) {
+				cleanDir = util.JoinPath(r.Stack.TerragruntOptions.WorkingDir, cleanDir)
+			}
+
+			cleanDir = util.CleanPath(cleanDir)
+
+			if util.HasPathPrefix(path, cleanDir) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	reportUnitExclusion := func(unitPath string, reason report.Reason) {
+		if r.Stack.Report == nil {
+			return
+		}
+
+		absPath, err := EnsureAbsolutePath(unitPath)
+		if err != nil {
+			l.Errorf("Error getting absolute path for unit %s: %v", unitPath, err)
+			return
+		}
+
+		absPath = util.CleanPath(absPath)
+
+		run, err := r.Stack.Report.EnsureRun(absPath)
+		if err != nil {
+			l.Errorf("Error ensuring run for unit %s: %v", absPath, err)
+			return
+		}
+
+		if err := r.Stack.Report.EndRun(
+			run.Path,
+			report.WithResult(report.ResultExcluded),
+			report.WithReason(reason),
+		); err != nil {
+			l.Errorf("Error ending run for unit %s: %v", absPath, err)
+			return
+		}
+	}
+
+	for _, unit := range units {
+		excludeConfig := unit.Config.Exclude
+
+		if excludeConfig == nil {
+			continue
+		}
+
+		if !excludeConfig.IsActionListed(r.Stack.TerragruntOptions.TerraformCommand) {
+			continue
+		}
+
+		if excludeConfig.If {
+			wasAlreadyExcluded := unit.FlagExcluded
+			unit.FlagExcluded = true
+
+			// If CLI exclude-dir is set, prefer that reason for excluded units.
+			if !wasAlreadyExcluded {
+				reason := report.ReasonExcludeBlock
+				if len(r.Stack.TerragruntOptions.ExcludeDirs) > 0 {
+					reason = report.ReasonExcludeDir
+				}
+
+				if !matchesExclude(unit.Path) || reason == report.ReasonExcludeDir {
+					reportUnitExclusion(unit.Path, reason)
+				}
+			}
+		}
+
+		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
+			for _, dependency := range unit.Dependencies {
+				wasAlreadyExcluded := dependency.FlagExcluded
+				dependency.FlagExcluded = true
+
+				if !wasAlreadyExcluded {
+					reason := report.ReasonExcludeBlock
+					if len(r.Stack.TerragruntOptions.ExcludeDirs) > 0 {
+						reason = report.ReasonExcludeDir
+					}
+
+					if !matchesExclude(dependency.Path) || reason == report.ReasonExcludeDir {
+						reportUnitExclusion(dependency.Path, reason)
+					}
+				}
+			}
+		}
+	}
+
+	return units
 }
 
 // telemetryApplyIncludeDirs applies include directory filters and sets FlagExcluded accordingly.

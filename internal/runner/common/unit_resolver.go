@@ -37,6 +37,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -159,10 +160,44 @@ func (r *UnitResolver) ResolveFromDiscovery(ctx context.Context, l log.Logger, d
 	// Discovery already tracked all files read during parsing, so we check against unit.Reading.
 	withUnitsRead := r.telemetryFlagUnitsThatRead(withUnitsIncluded)
 
+	withUnitsExcludedByDirs := r.telemetryApplyExcludeDirs(l, withUnitsRead)
+
+	withExcludedUnits := r.telemetryApplyExcludeModules(l, withUnitsExcludedByDirs)
+
 	// Apply custom filters after standard resolution logic
-	filteredUnits, err := r.telemetryApplyFilters(ctx, withUnitsRead)
+	filteredUnits, err := r.telemetryApplyFilters(ctx, withExcludedUnits)
 	if err != nil {
 		return nil, err
+	}
+
+	// Ensure queue-exclude-dir exclusions are recorded with the correct reason, even if already excluded elsewhere.
+	if r.Stack.Report != nil && len(r.Stack.TerragruntOptions.ExcludeDirs) > 0 {
+		for _, unit := range filteredUnits {
+			for _, dir := range r.Stack.TerragruntOptions.ExcludeDirs {
+				cleanDir := dir
+				if !filepath.IsAbs(cleanDir) {
+					cleanDir = util.JoinPath(r.Stack.TerragruntOptions.WorkingDir, cleanDir)
+				}
+
+				cleanDir = util.CleanPath(cleanDir)
+
+				if util.HasPathPrefix(unit.Path, cleanDir) {
+					absPath, err := EnsureAbsolutePath(unit.Path)
+					if err != nil {
+						continue
+					}
+
+					absPath = util.CleanPath(absPath)
+
+					run, err := r.Stack.Report.EnsureRun(absPath)
+					if err != nil {
+						continue
+					}
+
+					_ = r.Stack.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
+				}
+			}
+		}
 	}
 
 	return filteredUnits, nil

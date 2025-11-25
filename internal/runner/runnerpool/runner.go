@@ -46,11 +46,11 @@ type Runner struct {
 // resolveUnitsFromDiscovery converts discovered components to units with execution context.
 // This replaces the old UnitResolver pattern with a simpler direct conversion.
 func resolveUnitsFromDiscovery(
-	_ context.Context,
+	ctx context.Context,
 	l log.Logger,
 	stack *component.Stack,
 	discovered component.Components,
-	_ []UnitFilter, // filters applied via unit resolver mechanism
+	filters []UnitFilter,
 ) ([]*component.Unit, error) {
 	units := make([]*component.Unit, 0, len(discovered))
 
@@ -94,13 +94,8 @@ func resolveUnitsFromDiscovery(
 				return nil, err
 			}
 
-			// Use the unit's default download directory unless the caller explicitly set a custom one.
-			var baseDefaultDownloadDir string
-			if stack.Execution.TerragruntOptions != nil {
-				_, baseDefaultDownloadDir, _ = options.DefaultWorkingAndDownloadDirs(stack.Execution.TerragruntOptions.TerragruntConfigPath) // best effort
-			}
-
-			if clonedOpts.DownloadDir == "" || clonedOpts.DownloadDir == baseDefaultDownloadDir {
+			// Use the unit's default download directory only when not explicitly set.
+			if clonedOpts.DownloadDir == "" {
 				_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
 				if err != nil {
 					return nil, err
@@ -126,12 +121,9 @@ func resolveUnitsFromDiscovery(
 
 		// Handle external units - check if they should be excluded
 		if unit.External() {
-			unit.Execution.AssumeAlreadyApplied = true
-
-			// If --queue-exclude-external is set (IgnoreExternalDependencies),
-			// mark external units as excluded
 			if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
 				stack.Execution.TerragruntOptions.IgnoreExternalDependencies {
+				unit.Execution.AssumeAlreadyApplied = true
 				unit.Execution.FlagExcluded = true
 				l.Infof("Excluded external dependency: %s", unit.Path())
 			}
@@ -144,6 +136,13 @@ func resolveUnitsFromDiscovery(
 		}
 
 		units = append(units, unit)
+	}
+
+	// Apply any unit filters (e.g., graph filters) after units are constructed so exclusions are reflected in execution.
+	if len(filters) > 0 && stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
+		if err := applyUnitFilters(ctx, filters, stack.Execution.TerragruntOptions, units); err != nil {
+			return nil, err
+		}
 	}
 
 	return units, nil
@@ -209,6 +208,36 @@ func NewRunnerPoolStack(
 	units, err := resolveUnitsFromDiscovery(ctx, l, runner.Stack, nonStackComponents, runner.unitFilters)
 	if err != nil {
 		return nil, err
+	}
+
+	// Record exclude-dir reasons in report before filtering.
+	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(terragruntOptions.ExcludeDirs) > 0 {
+		for _, unit := range units {
+			for _, dir := range terragruntOptions.ExcludeDirs {
+				cleanDir := dir
+				if !filepath.IsAbs(cleanDir) {
+					cleanDir = util.JoinPath(terragruntOptions.WorkingDir, cleanDir)
+				}
+
+				cleanDir = util.CleanPath(cleanDir)
+
+				if util.HasPathPrefix(unit.Path(), cleanDir) {
+					absPath := util.CleanPath(unit.Path())
+					if !filepath.IsAbs(absPath) {
+						if abs, err := filepath.Abs(absPath); err == nil {
+							absPath = util.CleanPath(abs)
+						}
+					}
+
+					run, err := runner.Stack.Execution.Report.EnsureRun(absPath)
+					if err != nil {
+						continue
+					}
+
+					_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
+				}
+			}
+		}
 	}
 
 	runner.Stack.Units = units
@@ -838,6 +867,78 @@ func containsFilter(filters []UnitFilter, target UnitFilter) bool {
 	}
 
 	return false
+}
+
+// applyUnitFilters adapts component units to common.Unit instances so existing filters (e.g., graph filters)
+// can operate without the full unit resolver pipeline.
+func applyUnitFilters(ctx context.Context, filters []UnitFilter, opts *options.TerragruntOptions, units []*component.Unit) error {
+	if len(filters) == 0 {
+		return nil
+	}
+
+	// Build common.Unit representations keyed by path for easy propagation of results.
+	commonUnits := make(common.Units, 0, len(units))
+	unitMap := make(map[string]*common.Unit, len(units))
+
+	compMap := make(map[string]*component.Unit, len(units))
+	for _, u := range units {
+		compMap[u.Path()] = u
+
+		flagExcluded := u.Excluded()
+		if u.Execution != nil && u.Execution.FlagExcluded {
+			flagExcluded = true
+		}
+
+		cu := &common.Unit{
+			Path:         u.Path(),
+			FlagExcluded: flagExcluded,
+		}
+
+		commonUnits = append(commonUnits, cu)
+		unitMap[u.Path()] = cu
+	}
+
+	// Wire dependencies between the common units using component unit dependencies.
+	for _, u := range units {
+		cu := unitMap[u.Path()]
+		if cu == nil {
+			continue
+		}
+
+		for _, dep := range u.Dependencies() {
+			depUnit, ok := dep.(*component.Unit)
+			if !ok || depUnit == nil {
+				continue
+			}
+
+			if mappedDep, ok := unitMap[depUnit.Path()]; ok {
+				cu.Dependencies = append(cu.Dependencies, mappedDep)
+				continue
+			}
+
+			// Fall back to a placeholder for dependencies not present in unitMap
+			// (should be rare as discovery should include all units).
+			cu.Dependencies = append(cu.Dependencies, &common.Unit{Path: depUnit.Path()})
+		}
+	}
+
+	composite := &common.CompositeFilter{Filters: filters}
+	if err := composite.Filter(ctx, commonUnits, opts); err != nil {
+		return err
+	}
+
+	// Propagate exclusions back to component units.
+	for _, cu := range commonUnits {
+		if u := compMap[cu.Path]; u != nil {
+			u.SetExcluded(cu.FlagExcluded)
+
+			if u.Execution != nil {
+				u.Execution.FlagExcluded = cu.FlagExcluded
+			}
+		}
+	}
+
+	return nil
 }
 
 // isDestroyCommand checks if the current command is a destroy operation
