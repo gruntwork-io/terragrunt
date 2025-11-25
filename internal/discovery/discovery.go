@@ -825,8 +825,10 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 		// Everything after this point is only relevant when the filter flag is disabled.
 		// It should be removed once the filter flag is generally available.
 
-		// Enforce include patterns only when strictInclude or excludeByDefault are set
-		if d.strictInclude || d.excludeByDefault {
+		// Enforce include patterns only when strictInclude or excludeByDefault are set AND patterns exist.
+		// When excludeByDefault is true without include patterns (e.g., --units-that-include), we keep configs
+		// so downstream filtering can mark exclusions based on read files.
+		if (d.strictInclude || d.excludeByDefault) && len(d.compiledIncludePatterns) > 0 {
 			included := false
 
 			for _, pattern := range d.compiledIncludePatterns {

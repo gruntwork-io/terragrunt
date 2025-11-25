@@ -94,9 +94,13 @@ func resolveUnitsFromDiscovery(
 				return nil, err
 			}
 
-			// Preserve existing DownloadDir (often root-level cache) to keep shared outputs reachable.
-			// Only fall back to the unit-local default when it's unset.
-			if clonedOpts.DownloadDir == "" {
+			// Use the unit's default download directory unless the caller explicitly set a custom one.
+			var baseDefaultDownloadDir string
+			if stack.Execution.TerragruntOptions != nil {
+				_, baseDefaultDownloadDir, _ = options.DefaultWorkingAndDownloadDirs(stack.Execution.TerragruntOptions.TerragruntConfigPath) // best effort
+			}
+
+			if clonedOpts.DownloadDir == "" || clonedOpts.DownloadDir == baseDefaultDownloadDir {
 				_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
 				if err != nil {
 					return nil, err
@@ -105,6 +109,7 @@ func resolveUnitsFromDiscovery(
 				clonedOpts.DownloadDir = defaultDownloadDir
 			}
 
+			clonedOpts.OriginalTerragruntConfigPath = canonicalConfigPath
 			unitOpts = clonedOpts
 			unitLogger = clonedLogger
 		} else {
