@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -38,9 +37,9 @@ func (r *UnitResolver) telemetryApplyFilters(ctx context.Context, units Units) (
 }
 
 // telemetryApplyIncludeDirs applies include directory filters and sets FlagExcluded accordingly.
-func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logger, units Units) (Units, error) {
+func (r *UnitResolver) telemetryApplyIncludeDirs(units Units) Units {
 	if !r.Stack.TerragruntOptions.ExcludeByDefault {
-		return units, nil
+		return units
 	}
 
 	for _, unit := range units {
@@ -55,16 +54,16 @@ func (r *UnitResolver) telemetryApplyIncludeDirs(ctx context.Context, l log.Logg
 		}
 	}
 
-	return units, nil
+	return units
 }
 
 // telemetryFlagUnitsThatRead un-excludes units that read files in the Terragrunt configuration.
-func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, units Units) (Units, error) {
+func (r *UnitResolver) telemetryFlagUnitsThatRead(units Units) Units {
 	// Combine both UnitsReading (new) and ModulesThatInclude (legacy) for backwards compatibility
 	filesToCheck := append(r.Stack.TerragruntOptions.ModulesThatInclude, r.Stack.TerragruntOptions.UnitsReading...) //nolint:gocritic
 
 	if len(filesToCheck) == 0 {
-		return units, nil
+		return units
 	}
 
 	normalizedPaths := []string{}
@@ -106,5 +105,5 @@ func (r *UnitResolver) telemetryFlagUnitsThatRead(ctx context.Context, units Uni
 		}
 	}
 
-	return units, nil
+	return units
 }
