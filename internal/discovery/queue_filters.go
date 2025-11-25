@@ -138,7 +138,14 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 			}
 
 			for _, includeConfig := range cfg.ProcessedIncludes {
-				if includeConfig.Path != normalizedPath {
+				includePath := includeConfig.Path
+				if !filepath.IsAbs(includePath) {
+					includePath = util.JoinPath(opts.WorkingDir, includePath)
+				}
+
+				includePath = util.CleanPath(includePath)
+
+				if includePath != normalizedPath {
 					continue
 				}
 
