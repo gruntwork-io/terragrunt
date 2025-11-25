@@ -106,7 +106,7 @@ func resolveUnitsFromDiscovery(
 		unit.Execution = &component.UnitExecution{
 			TerragruntOptions:    unitOpts,
 			Logger:               l,
-			FlagExcluded:         false,
+			FlagExcluded:         unit.Excluded(),
 			AssumeAlreadyApplied: false,
 		}
 
@@ -627,7 +627,12 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 	// Build allowlist from non-excluded unit paths (already canonical from resolveUnitsFromDiscovery)
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
-		if u.Execution == nil || !u.Execution.FlagExcluded {
+		excluded := u.Excluded()
+		if u.Execution != nil && u.Execution.FlagExcluded {
+			excluded = true
+		}
+
+		if !excluded {
 			allowed[u.Path()] = struct{}{}
 		}
 	}
@@ -678,7 +683,12 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 
 	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
 	for _, u := range units {
+		excluded := u.Excluded()
 		if u.Execution != nil && u.Execution.FlagExcluded {
+			excluded = true
+		}
+
+		if excluded {
 			continue
 		}
 
@@ -695,7 +705,12 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 
 	// Augment dependencies from resolved units to ensure DAG edges are complete
 	for _, u := range units {
+		excluded := u.Excluded()
 		if u.Execution != nil && u.Execution.FlagExcluded {
+			excluded = true
+		}
+
+		if excluded {
 			continue
 		}
 

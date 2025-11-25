@@ -37,6 +37,7 @@ type Unit struct {
 	dependents       Components
 	mu               sync.RWMutex
 	external         bool
+	excluded         bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -96,6 +97,16 @@ func (u *Unit) External() bool {
 // SetExternal marks the component as external.
 func (u *Unit) SetExternal() {
 	u.external = true
+}
+
+// Excluded returns whether the unit was excluded during discovery/filtering.
+func (u *Unit) Excluded() bool {
+	return u.excluded
+}
+
+// SetExcluded marks the unit as excluded during discovery/filtering.
+func (u *Unit) SetExcluded(excluded bool) {
+	u.excluded = excluded
 }
 
 // Reading returns the list of files being read by this component.

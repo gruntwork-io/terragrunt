@@ -1285,6 +1285,8 @@ func (d *Discovery) Discover(
 		return components, errors.Join(errs...)
 	}
 
+	components = d.applyQueueFilters(opts, components)
+
 	return components, nil
 }
 
@@ -1574,8 +1576,8 @@ func (d *Discovery) filterByExcludeBlock(l log.Logger, opts *options.TerragruntO
 
 		// If the exclude condition is true, filter out this component
 		if cfg.Exclude.If {
-			l.Debugf("Filtering out %s due to exclude block (if=true for command %s)", c.Path(), opts.TerraformCommand)
-			continue
+			l.Debugf("Marking %s as excluded due to exclude block (if=true for command %s)", c.Path(), opts.TerraformCommand)
+			unit.SetExcluded(true)
 		}
 
 		result = append(result, c)
