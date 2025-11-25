@@ -160,8 +160,8 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 }
 
 // applyExcludeDirs marks units as excluded when they match --queue-exclude-dir patterns.
-func (d *Discovery) applyExcludeDirs(opts *options.TerragruntOptions, components component.Components) component.Components {
-	if len(d.compiledExcludePatterns) == 0 || len(opts.ExcludeDirs) == 0 {
+func (d *Discovery) applyExcludeDirs(_ *options.TerragruntOptions, components component.Components) component.Components {
+	if len(d.compiledExcludePatterns) == 0 && len(d.excludeDirs) == 0 {
 		return components
 	}
 
