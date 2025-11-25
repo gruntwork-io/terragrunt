@@ -115,6 +115,11 @@ func (c Components) RemoveByPath(path string) Components {
 func (c Components) Paths() []string {
 	paths := make([]string, 0, len(c))
 	for _, component := range c {
+		// Skip components explicitly marked as excluded if they support Excluded().
+		if excludable, ok := component.(interface{ Excluded() bool }); ok && excludable.Excluded() {
+			continue
+		}
+
 		paths = append(paths, component.Path())
 	}
 

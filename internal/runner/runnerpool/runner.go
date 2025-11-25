@@ -94,14 +94,23 @@ func resolveUnitsFromDiscovery(
 				return nil, err
 			}
 
-			// Use the unit's default download directory only when not explicitly set.
-			if clonedOpts.DownloadDir == "" {
-				_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+			// Use a per-unit default download directory when the stack is using its own default
+			// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
+			// so each unit caches to its own .terragrunt-cache next to the config.
+			if stack.Execution.TerragruntOptions != nil {
+				_, stackDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(stack.Execution.TerragruntOptions.TerragruntConfigPath)
 				if err != nil {
 					return nil, err
 				}
 
-				clonedOpts.DownloadDir = defaultDownloadDir
+				if clonedOpts.DownloadDir == "" || clonedOpts.DownloadDir == stackDefaultDownloadDir {
+					_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+					if err != nil {
+						return nil, err
+					}
+
+					clonedOpts.DownloadDir = unitDefaultDownloadDir
+				}
 			}
 
 			clonedOpts.OriginalTerragruntConfigPath = canonicalConfigPath
