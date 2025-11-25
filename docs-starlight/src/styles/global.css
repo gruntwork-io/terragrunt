@@ -402,6 +402,6 @@
 
 /* FAQ */
 
-.accordion-item:last-child {
-  border-bottom: dashed 1px var(--color-gray-border);
+.accordion-item:last-of-type {
+  border-bottom: dashed 1px var(--color-gray-3);
 }

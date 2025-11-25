@@ -5,9 +5,10 @@ interface Props {
 }
 
 const { question, answer } = Astro.props;
+const uniqueId = `faq-${Math.random().toString(36).substring(2, 11)}`;
 ---
 
-<div class="accordion-item p-6 overflow-hidden border-t border-dashed border-gray-3">
+<div class="accordion-item p-6 overflow-hidden border-t border-dashed border-gray-3" data-accordion-id={uniqueId}>
   <div class="accordion-question cursor-pointer flex items-center justify-between" role="button" tabindex="0" aria-expanded="false">
     <h3 class="text-2xl font-sans text-dark-blue-1 mt-6 mb-2">
       {question}
@@ -20,41 +21,45 @@ const { question, answer } = Astro.props;
   <div class="accordion-answer hidden text-gray-1 font-sans prose prose-sm md:prose-base max-w-none" set:html={answer}></div>
 </div>
 
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const questions = document.querySelectorAll('.accordion-question');
+<script is:inline define:vars={{ uniqueId }}>
+  {
+    const accordionItem = document.querySelector(`[data-accordion-id="${uniqueId}"]`);
 
-    questions.forEach(question => {
-      const handleToggle = () => {
-        const answer = question.nextElementSibling as HTMLElement;
-        const caret = question.querySelector('.accordion-caret') as HTMLElement;
-        const accordionItem = question.parentElement as HTMLElement;
-        const h3 = question.querySelector('h3') as HTMLElement;
-        const isExpanded = question.getAttribute('aria-expanded') === 'true';
+    if (accordionItem) {
+      const question = accordionItem.querySelector('.accordion-question');
+      const answer = accordionItem.querySelector('.accordion-answer');
+      const caret = accordionItem.querySelector('.accordion-caret');
+      const heading = accordionItem.querySelector('h3');
 
-        if (isExpanded) {
-          answer.classList.add('hidden');
-          question.setAttribute('aria-expanded', 'false');
-          caret.style.transform = 'rotate(0deg)';
-          accordionItem.style.backgroundColor = '';
-          h3.style.color = '';
-        } else {
-          answer.classList.remove('hidden');
-          question.setAttribute('aria-expanded', 'true');
-          caret.style.transform = 'rotate(180deg)';
-          accordionItem.style.backgroundColor = 'var(--color-bg-dark)';
-          h3.style.color = 'white';
-        }
-      };
+      if (question && answer && caret && heading) {
+        const handleToggle = () => {
+          const isExpanded = question.getAttribute('aria-expanded') === 'true';
 
-      question.addEventListener('click', handleToggle);
-      question.addEventListener('keydown', (e) => {
-        const event = e as KeyboardEvent;
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          handleToggle();
-        }
-      });
-    });
-  });
+          if (isExpanded) {
+            answer.classList.add('hidden');
+            question.setAttribute('aria-expanded', 'false');
+            caret.style.transform = 'rotate(0deg)';
+            accordionItem.style.backgroundColor = '';
+            heading.style.color = '';
+            caret.style.color = '';
+          } else {
+            answer.classList.remove('hidden');
+            question.setAttribute('aria-expanded', 'true');
+            caret.style.transform = 'rotate(180deg)';
+            accordionItem.style.backgroundColor = 'var(--color-bg-dark)';
+            heading.style.color = 'white';
+            caret.style.color = 'white';
+          }
+        };
+
+        question.addEventListener('click', handleToggle);
+        question.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleToggle();
+          }
+        });
+      }
+    }
+  }
 </script>
