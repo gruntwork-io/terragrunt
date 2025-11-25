@@ -69,12 +69,9 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Convert to canonical absolute path - this is critical for dependency resolution
-		// Get the process's current working directory as the base for path resolution
-		// Note: terragrunt changes process CWD during execution, so this should be correct
-		basePath, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
+		// Use the stack's working directory as the base for path resolution
+		// This ensures paths are resolved relative to where run --all was executed
+		basePath := stack.Path()
 
 		// Convert the config path to absolute BEFORE passing to CloneWithConfigPath
 		// CloneWithConfigPath uses filepath.Abs which uses process's CWD, not stack's working dir
@@ -94,6 +91,14 @@ func resolveUnitsFromDiscovery(
 				return nil, err
 			}
 
+			// Set DownloadDir to be relative to the unit's working directory (absolute path)
+			// This ensures the cache is always created in the same location regardless of CWD
+			_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+			if err != nil {
+				return nil, err
+			}
+
+			clonedOpts.DownloadDir = defaultDownloadDir
 			unitOpts = clonedOpts
 		}
 
