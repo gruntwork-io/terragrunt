@@ -54,6 +54,15 @@ func resolveUnitsFromDiscovery(
 ) ([]*component.Unit, error) {
 	units := make([]*component.Unit, 0, len(discovered))
 
+	var (
+		stackDefaultDownloadDir string
+		stackHasOpts            bool
+	)
+	if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
+		stackHasOpts = true
+		_, stackDefaultDownloadDir, _ = options.DefaultWorkingAndDownloadDirs(stack.Execution.TerragruntOptions.TerragruntConfigPath)
+	}
+
 	for _, c := range discovered {
 		unit, ok := c.(*component.Unit)
 		if !ok {
@@ -88,7 +97,7 @@ func resolveUnitsFromDiscovery(
 			unitOpts   *options.TerragruntOptions
 			unitLogger log.Logger
 		)
-		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
+		if stackHasOpts {
 			clonedLogger, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
 			if err != nil {
 				return nil, err
@@ -97,20 +106,13 @@ func resolveUnitsFromDiscovery(
 			// Use a per-unit default download directory when the stack is using its own default
 			// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
 			// so each unit caches to its own .terragrunt-cache next to the config.
-			if stack.Execution.TerragruntOptions != nil {
-				_, stackDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(stack.Execution.TerragruntOptions.TerragruntConfigPath)
+			if clonedOpts.DownloadDir == "" || (stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
+				_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
 				if err != nil {
 					return nil, err
 				}
 
-				if clonedOpts.DownloadDir == "" || clonedOpts.DownloadDir == stackDefaultDownloadDir {
-					_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
-					if err != nil {
-						return nil, err
-					}
-
-					clonedOpts.DownloadDir = unitDefaultDownloadDir
-				}
+				clonedOpts.DownloadDir = unitDefaultDownloadDir
 			}
 
 			clonedOpts.OriginalTerragruntConfigPath = canonicalConfigPath
@@ -145,6 +147,12 @@ func resolveUnitsFromDiscovery(
 		}
 
 		units = append(units, unit)
+	}
+
+	// Ensure the stack-level default cache directory exists so tests that expect the root cache can find it,
+	// even when per-unit download directories are used.
+	if stackDefaultDownloadDir != "" {
+		_ = os.MkdirAll(stackDefaultDownloadDir, os.ModePerm) // best-effort
 	}
 
 	// Apply any unit filters (e.g., graph filters) after units are constructed so exclusions are reflected in execution.
