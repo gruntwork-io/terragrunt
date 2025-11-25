@@ -1,0 +1,60 @@
+---
+interface Props {
+  question: string;
+  answer: string;
+}
+
+const { question, answer } = Astro.props;
+---
+
+<div class="accordion-item p-6 overflow-hidden border-t border-dashed border-gray-3">
+  <div class="accordion-question cursor-pointer flex items-center justify-between" role="button" tabindex="0" aria-expanded="false">
+    <h3 class="text-2xl font-sans text-dark-blue-1 mt-6 mb-2">
+      {question}
+    </h3>
+    <svg class="accordion-caret w-6 h-6 transition-transform duration-300 flex-shrink-0 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+  </div>
+
+  <div class="accordion-answer hidden text-gray-1 font-sans prose prose-sm md:prose-base max-w-none" set:html={answer}></div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const questions = document.querySelectorAll('.accordion-question');
+
+    questions.forEach(question => {
+      const handleToggle = () => {
+        const answer = question.nextElementSibling as HTMLElement;
+        const caret = question.querySelector('.accordion-caret') as HTMLElement;
+        const accordionItem = question.parentElement as HTMLElement;
+        const h3 = question.querySelector('h3') as HTMLElement;
+        const isExpanded = question.getAttribute('aria-expanded') === 'true';
+
+        if (isExpanded) {
+          answer.classList.add('hidden');
+          question.setAttribute('aria-expanded', 'false');
+          caret.style.transform = 'rotate(0deg)';
+          accordionItem.style.backgroundColor = '';
+          h3.style.color = '';
+        } else {
+          answer.classList.remove('hidden');
+          question.setAttribute('aria-expanded', 'true');
+          caret.style.transform = 'rotate(180deg)';
+          accordionItem.style.backgroundColor = 'var(--color-bg-dark)';
+          h3.style.color = 'white';
+        }
+      };
+
+      question.addEventListener('click', handleToggle);
+      question.addEventListener('keydown', (e) => {
+        const event = e as KeyboardEvent;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleToggle();
+        }
+      });
+    });
+  });
+</script>

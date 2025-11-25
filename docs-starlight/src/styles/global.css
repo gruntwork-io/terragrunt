@@ -399,3 +399,9 @@
     --sl-nav-height: 148px;
   }
 }
+
+/* FAQ */
+
+.accordion-item:last-child {
+  border-bottom: dashed 1px var(--color-gray-border);
+}
