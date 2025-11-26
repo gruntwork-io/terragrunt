@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
@@ -45,7 +46,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
 
-	stackOpts := []runnerpool.Option{}
+	stackOpts := []common.Option{}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -68,7 +69,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Add unit filter for graph command to filter units based on dependencies
 	// This will be applied after units are resolved but before the queue is built
-	stackOpts = append(stackOpts, runnerpool.WithReport(r), runnerpool.WithUnitFilters(graphFilter))
+	stackOpts = append(stackOpts, common.WithReport(r), common.WithUnitFilters(graphFilter))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck

@@ -1,10 +1,9 @@
-package runnerpool
+package common
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 )
 
 // ParseOptionsSetter is a minimal interface for components that can accept HCL parser options.
@@ -14,17 +13,17 @@ type ParseOptionsSetter interface {
 
 // Option applies configuration to a StackRunner.
 type Option interface {
-	Apply(stack common.StackRunner)
+	Apply(stack StackRunner)
 }
 
 // optionImpl is a lightweight Option implementation that wraps an apply function
 // and optionally carries HCL parser options.
 type optionImpl struct {
-	apply         func(common.StackRunner)
+	apply         func(StackRunner)
 	parserOptions []hclparse.Option
 }
 
-func (o optionImpl) Apply(stack common.StackRunner) {
+func (o optionImpl) Apply(stack StackRunner) {
 	if o.apply != nil {
 		o.apply(stack)
 	}
@@ -47,7 +46,7 @@ func (o optionImpl) GetParseOptions() []hclparse.Option {
 // WithChildTerragruntConfig sets the child Terragrunt configuration on a StackRunner.
 func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
 	return optionImpl{
-		apply: func(stack common.StackRunner) {
+		apply: func(stack StackRunner) {
 			stack.SetTerragruntConfig(cfg)
 		},
 	}
@@ -56,7 +55,7 @@ func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
 // WithParseOptions provides custom HCL parser options to both discovery and stack execution.
 func WithParseOptions(parserOptions []hclparse.Option) Option {
 	return optionImpl{
-		apply: func(stack common.StackRunner) {
+		apply: func(stack StackRunner) {
 			stack.SetParseOptions(parserOptions)
 		},
 		parserOptions: parserOptions,
@@ -66,7 +65,7 @@ func WithParseOptions(parserOptions []hclparse.Option) Option {
 // WithReport attaches a report collector to the stack, enabling run summaries and metrics.
 func WithReport(r *report.Report) Option {
 	return optionImpl{
-		apply: func(stack common.StackRunner) {
+		apply: func(stack StackRunner) {
 			stack.SetReport(r)
 		},
 	}
@@ -80,7 +79,7 @@ type UnitFiltersSetter interface {
 // WithUnitFilters provides unit filters to customize unit exclusions after resolution.
 func WithUnitFilters(filters ...UnitFilter) Option {
 	return optionImpl{
-		apply: func(stack common.StackRunner) {
+		apply: func(stack StackRunner) {
 			if setter, ok := stack.(UnitFiltersSetter); ok {
 				setter.SetUnitFilters(filters...)
 			}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -151,8 +152,8 @@ func TestSetUnitFilters_MixedFilterTypes(t *testing.T) {
 
 	graphFilter := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
 	customFilter := &mockFilter{ID: "test"}
-	compositeFilter := &runnerpool.CompositeFilter{
-		Filters: []runnerpool.UnitFilter{graphFilter},
+	compositeFilter := &common.CompositeFilter{
+		Filters: []common.UnitFilter{graphFilter},
 	}
 
 	runner.SetUnitFilters(graphFilter, customFilter, compositeFilter)

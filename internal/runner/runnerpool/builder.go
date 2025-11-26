@@ -19,7 +19,7 @@ func Build(
 	ctx context.Context,
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
-	opts ...Option,
+	opts ...common.Option,
 ) (common.StackRunner, error) {
 	// discovery configurations
 	// Use RootWorkingDir which is the canonicalized absolute path, not WorkingDir which may be relative
@@ -169,8 +169,8 @@ func Build(
 	return runner, nil
 }
 
-// anySlice converts a slice of Option to a slice of interface{} for discovery plumbing.
-func anySlice(in []Option) []interface{} {
+// anySlice converts a slice of common.Option to a slice of interface{} for discovery plumbing.
+func anySlice(in []common.Option) []interface{} {
 	out := make([]interface{}, len(in))
 	for i, v := range in {
 		out[i] = v

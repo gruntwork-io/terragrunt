@@ -40,7 +40,7 @@ import (
 type Runner struct {
 	Stack       *component.Stack
 	queue       *queue.Queue
-	unitFilters []UnitFilter
+	unitFilters []common.UnitFilter
 }
 
 // resolveUnitsFromDiscovery converts discovered components to units with execution context.
@@ -50,7 +50,7 @@ func resolveUnitsFromDiscovery(
 	l log.Logger,
 	stack *component.Stack,
 	discovered component.Components,
-	filters []UnitFilter,
+	filters []common.UnitFilter,
 ) ([]*component.Unit, error) {
 	units := make([]*component.Unit, 0, len(discovered))
 
@@ -173,7 +173,7 @@ func resolveUnitsFromDiscovery(
 
 	// Apply any unit filters (e.g., graph filters) after units are constructed so exclusions are reflected in execution.
 	if len(filters) > 0 && stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-		composite := &CompositeFilter{Filters: filters}
+		composite := &common.CompositeFilter{Filters: filters}
 		if err := composite.Filter(ctx, units, stack.Execution.TerragruntOptions); err != nil {
 			return nil, err
 		}
@@ -188,7 +188,7 @@ func NewRunnerPoolStack(
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
 	discovered component.Components,
-	opts ...Option,
+	opts ...common.Option,
 ) (common.StackRunner, error) {
 	// Filter out Stack components - we only want Unit components
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
@@ -833,7 +833,7 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 }
 
 // WithOptions updates the stack with the provided options.
-func (r *Runner) WithOptions(opts ...Option) *Runner {
+func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
 		opt.Apply(r)
 	}
@@ -875,7 +875,7 @@ func (r *Runner) SetReport(rpt *report.Report) {
 
 // SetUnitFilters sets the unit filters for the runner.
 // Filters are deduplicated before appending to prevent duplicate filter application.
-func (r *Runner) SetUnitFilters(filters ...UnitFilter) {
+func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
 	for _, filter := range filters {
 		if !containsFilter(r.unitFilters, filter) {
 			r.unitFilters = append(r.unitFilters, filter)
@@ -885,13 +885,13 @@ func (r *Runner) SetUnitFilters(filters ...UnitFilter) {
 
 // GetUnitFilters returns the unit filters configured for the runner.
 // This is primarily used for testing purposes.
-func (r *Runner) GetUnitFilters() []UnitFilter {
+func (r *Runner) GetUnitFilters() []common.UnitFilter {
 	return r.unitFilters
 }
 
 // containsFilter checks if a filter already exists in the filters slice.
 // Uses DeepEqual to compare filters by both pointer identity and value equality.
-func containsFilter(filters []UnitFilter, target UnitFilter) bool {
+func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool {
 	for _, existing := range filters {
 		// DeepEqual handles both pointer equality and value equality,
 		// so we don't need separate pointer comparison
