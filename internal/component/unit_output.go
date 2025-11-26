@@ -4,23 +4,27 @@ import (
 	"sync"
 )
 
-// flushable is any writer that supports Flush() error.
-type flushable interface {
+// flusher is any writer that supports Flush() error.
+type flusher interface {
 	Flush() error
 }
 
 // unitOutputLocks provides per-unit locks for serializing flushes to the same writer.
 var unitOutputLocks sync.Map // map[string]*sync.Mutex
 
-func getUnitOutputLock(path string) *sync.Mutex {
+func unitOutputLock(path string) *sync.Mutex {
 	if mu, ok := unitOutputLocks.Load(path); ok {
 		return mu.(*sync.Mutex)
 	}
 
 	newMu := &sync.Mutex{}
-	actual, _ := unitOutputLocks.LoadOrStore(path, newMu)
 
-	return actual.(*sync.Mutex)
+	actual, loaded := unitOutputLocks.LoadOrStore(path, newMu)
+	if loaded {
+		return actual.(*sync.Mutex)
+	}
+
+	return newMu
 }
 
 // FlushOutput flushes buffer data to the output writer for this unit, if the writer supports it.
@@ -30,13 +34,13 @@ func FlushOutput(u *Unit) error {
 		return nil
 	}
 
-	writer, ok := u.Execution.TerragruntOptions.Writer.(flushable)
+	writer, ok := u.Execution.TerragruntOptions.Writer.(flusher)
 	if !ok {
 		return nil
 	}
 
 	key := u.AbsolutePath()
-	mu := getUnitOutputLock(key)
+	mu := unitOutputLock(key)
 
 	mu.Lock()
 	defer mu.Unlock()
