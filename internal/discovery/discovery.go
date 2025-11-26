@@ -825,32 +825,22 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 		// Enforce include patterns only when strictInclude or excludeByDefault are set AND patterns exist.
 		// When excludeByDefault is true without include patterns (e.g., --units-that-include), or when readFiles
 		// filtering is enabled, we keep configs so downstream filtering can mark exclusions based on read files.
-		if d.strictInclude && len(d.compiledIncludePatterns) > 0 {
-			included := false
-
+		// Consolidated include enforcement: only apply when we have include patterns and either:
+		// - strictInclude is enabled, or
+		// - excludeByDefault is enabled and readFiles filtering is NOT enabled
+		matchesInclude := func(dir string) bool {
 			for _, pattern := range d.compiledIncludePatterns {
-				if pattern.Compiled.Match(canonicalDir) {
-					included = true
-					break
+				if pattern.Compiled.Match(dir) {
+					return true
 				}
 			}
 
-			if !included {
-				return nil
-			}
-		} else if d.excludeByDefault && len(d.compiledIncludePatterns) > 0 && !d.readFiles {
-			included := false
+			return false
+		}
 
-			for _, pattern := range d.compiledIncludePatterns {
-				if pattern.Compiled.Match(canonicalDir) {
-					included = true
-					break
-				}
-			}
-
-			if !included {
-				return nil
-			}
+		enforceInclude := (d.strictInclude || (d.excludeByDefault && !d.readFiles)) && len(d.compiledIncludePatterns) > 0
+		if enforceInclude && !matchesInclude(canonicalDir) {
+			return nil
 		}
 	}
 
