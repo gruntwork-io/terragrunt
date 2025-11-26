@@ -19,7 +19,7 @@ func Build(
 	ctx context.Context,
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
-	opts ...common.Option,
+	opts ...Option,
 ) (common.StackRunner, error) {
 	// discovery configurations
 	// Use RootWorkingDir which is the canonicalized absolute path, not WorkingDir which may be relative
@@ -48,7 +48,7 @@ func Build(
 	newDiscovery := func(excludeByDefault bool) *discovery.Discovery {
 		d := discovery.
 			NewDiscovery(workingDir).
-			WithOptions(opts...).
+			WithOptions(anySlice(opts)...).
 			WithDiscoverExternalDependencies().
 			WithParseInclude().
 			WithParseExclude().
@@ -156,15 +156,25 @@ func Build(
 		"discovered_configs": len(discovered),
 		"terraform_command":  terragruntOptions.TerraformCommand,
 	}, func(childCtx context.Context) error {
-		var runnerErr error
+		var err2 error
 
-		runner, runnerErr = NewRunnerPoolStack(childCtx, l, terragruntOptions, discovered, opts...)
+		runner, err2 = NewRunnerPoolStack(childCtx, l, terragruntOptions, discovered, opts...)
 
-		return runnerErr
+		return err2
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return runner, nil
+}
+
+// anySlice converts a slice of Option to a slice of interface{} for discovery plumbing.
+func anySlice(in []Option) []interface{} {
+	out := make([]interface{}, len(in))
+	for i, v := range in {
+		out[i] = v
+	}
+
+	return out
 }

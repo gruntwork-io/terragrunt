@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -49,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stackOpts := []common.Option{}
+	stackOpts := []runnerpool.Option{}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -65,7 +66,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
+	stackOpts = append(stackOpts, runnerpool.WithReport(r))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ func TestSetUnitFilters_Deduplication(t *testing.T) {
 	}
 
 	// Create a filter instance
-	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
+	filter1 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
 
 	// Add the same filter twice
 	runner.SetUnitFilters(filter1)
@@ -40,8 +39,8 @@ func TestSetUnitFilters_DifferentFilters(t *testing.T) {
 	}
 
 	// Create different filter instances
-	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
-	filter2 := &common.UnitFilterGraph{TargetDir: "/project/b"}
+	filter1 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
+	filter2 := &runnerpool.UnitFilterGraph{TargetDir: "/project/b"}
 
 	runner.SetUnitFilters(filter1)
 	runner.SetUnitFilters(filter2)
@@ -58,9 +57,9 @@ func TestSetUnitFilters_MultipleCallsWithMixedFilters(t *testing.T) {
 		Stack: &component.Stack{},
 	}
 
-	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
-	filter2 := &common.UnitFilterGraph{TargetDir: "/project/b"}
-	filter3 := &common.UnitFilterGraph{TargetDir: "/project/c"}
+	filter1 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
+	filter2 := &runnerpool.UnitFilterGraph{TargetDir: "/project/b"}
+	filter3 := &runnerpool.UnitFilterGraph{TargetDir: "/project/c"}
 
 	// First call with filter1 and filter2
 	runner.SetUnitFilters(filter1, filter2)
@@ -85,8 +84,8 @@ func TestSetUnitFilters_SameValuesDifferentInstances(t *testing.T) {
 	}
 
 	// Create two separate instances with the same values
-	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
-	filter2 := &common.UnitFilterGraph{TargetDir: "/project/a"}
+	filter1 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
+	filter2 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
 
 	runner.SetUnitFilters(filter1)
 	runner.SetUnitFilters(filter2)
@@ -103,7 +102,7 @@ func TestSetUnitFilters_EmptyCall(t *testing.T) {
 		Stack: &component.Stack{},
 	}
 
-	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
+	filter1 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
 
 	runner.SetUnitFilters(filter1)
 	assert.Len(t, runner.GetUnitFilters(), 1, "Should have 1 filter")
@@ -150,10 +149,10 @@ func TestSetUnitFilters_MixedFilterTypes(t *testing.T) {
 		Stack: &component.Stack{},
 	}
 
-	graphFilter := &common.UnitFilterGraph{TargetDir: "/project/a"}
+	graphFilter := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
 	customFilter := &mockFilter{ID: "test"}
-	compositeFilter := &common.CompositeFilter{
-		Filters: []common.UnitFilter{graphFilter},
+	compositeFilter := &runnerpool.CompositeFilter{
+		Filters: []runnerpool.UnitFilter{graphFilter},
 	}
 
 	runner.SetUnitFilters(graphFilter, customFilter, compositeFilter)
@@ -176,9 +175,9 @@ func TestSetUnitFilters_OrderPreserved(t *testing.T) {
 		Stack: &component.Stack{},
 	}
 
-	filter1 := &common.UnitFilterGraph{TargetDir: "/project/a"}
-	filter2 := &common.UnitFilterGraph{TargetDir: "/project/b"}
-	filter3 := &common.UnitFilterGraph{TargetDir: "/project/c"}
+	filter1 := &runnerpool.UnitFilterGraph{TargetDir: "/project/a"}
+	filter2 := &runnerpool.UnitFilterGraph{TargetDir: "/project/b"}
+	filter3 := &runnerpool.UnitFilterGraph{TargetDir: "/project/c"}
 
 	runner.SetUnitFilters(filter1, filter2, filter3)
 
@@ -189,7 +188,7 @@ func TestSetUnitFilters_OrderPreserved(t *testing.T) {
 	assert.Equal(t, filter3, runner.GetUnitFilters()[2])
 
 	// Add some duplicates and a new one
-	filter4 := &common.UnitFilterGraph{TargetDir: "/project/d"}
+	filter4 := &runnerpool.UnitFilterGraph{TargetDir: "/project/d"}
 	runner.SetUnitFilters(filter2, filter4, filter1) // filter2 and filter1 are duplicates
 
 	// Order should be: filter1, filter2, filter3, filter4 (duplicates skipped)

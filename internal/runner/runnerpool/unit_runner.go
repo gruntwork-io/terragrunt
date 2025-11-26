@@ -1,4 +1,4 @@
-package common
+package runnerpool
 
 import (
 	"bytes"
@@ -13,8 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// UnitStatus represents the status of a unit that we are
-// trying to apply or destroy as part of the run --all apply or run --all destroy command
+// UnitStatus represents the status of a unit during execution.
 type UnitStatus int
 
 const (
@@ -22,8 +21,6 @@ const (
 	Running
 	Finished
 )
-
-// (legacy common.Unit runner removed; use ComponentUnitRunner below)
 
 // ComponentUnitRunner handles the logic for running a single component.Unit.
 type ComponentUnitRunner struct {

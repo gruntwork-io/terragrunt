@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -27,14 +26,15 @@ import (
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/hashicorp/hcl/v2"
 )
 
-// UnitFilter is used to filter units during resolution.
-type UnitFilter = common.UnitFilter
+// UnitFilter is used to filter units during resolution (declared in filters.go).
+// type UnitFilter interface {...}
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
@@ -173,7 +173,7 @@ func resolveUnitsFromDiscovery(
 
 	// Apply any unit filters (e.g., graph filters) after units are constructed so exclusions are reflected in execution.
 	if len(filters) > 0 && stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-		composite := &common.CompositeFilter{Filters: filters}
+		composite := &CompositeFilter{Filters: filters}
 		if err := composite.Filter(ctx, units, stack.Execution.TerragruntOptions); err != nil {
 			return nil, err
 		}
@@ -188,7 +188,7 @@ func NewRunnerPoolStack(
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
 	discovered component.Components,
-	opts ...common.Option,
+	opts ...Option,
 ) (common.StackRunner, error) {
 	// Filter out Stack components - we only want Unit components
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
@@ -444,7 +444,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"working_dir":            u.Execution.TerragruntOptions.WorkingDir,
 			"terragrunt_config_path": u.Execution.TerragruntOptions.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
-			unitRunner := common.NewUnitRunnerFromComponent(u)
+			unitRunner := NewUnitRunnerFromComponent(u)
 			return unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
 		})
 	}
@@ -833,7 +833,7 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 }
 
 // WithOptions updates the stack with the provided options.
-func (r *Runner) WithOptions(opts ...common.Option) *Runner {
+func (r *Runner) WithOptions(opts ...Option) *Runner {
 	for _, opt := range opts {
 		opt.Apply(r)
 	}

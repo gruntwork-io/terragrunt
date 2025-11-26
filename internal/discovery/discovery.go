@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -300,11 +299,11 @@ func (d *Discovery) SetParseOptions(options []hclparse.Option) {
 // WithOptions ingests runner options and applies any discovery-relevant settings.
 // Currently, it extracts HCL parser options provided via common.ParseOptionsProvider
 // and forwards them to discovery's parser configuration.
-func (d *Discovery) WithOptions(opts ...common.Option) *Discovery {
+func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
 	var parserOptions []hclparse.Option
 
 	for _, opt := range opts {
-		if p, ok := opt.(common.ParseOptionsProvider); ok {
+		if p, ok := opt.(interface{ GetParseOptions() []hclparse.Option }); ok {
 			if po := p.GetParseOptions(); len(po) > 0 {
 				parserOptions = append(parserOptions, po...)
 			}
