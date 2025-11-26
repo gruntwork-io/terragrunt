@@ -118,7 +118,7 @@ type mockFilter struct {
 	ID string
 }
 
-func (m *mockFilter) Filter(ctx context.Context, units common.Units, opts *options.TerragruntOptions) error {
+func (m *mockFilter) Filter(ctx context.Context, units []*component.Unit, opts *options.TerragruntOptions) error {
 	return nil
 }
 

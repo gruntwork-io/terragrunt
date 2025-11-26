@@ -173,7 +173,8 @@ func resolveUnitsFromDiscovery(
 
 	// Apply any unit filters (e.g., graph filters) after units are constructed so exclusions are reflected in execution.
 	if len(filters) > 0 && stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-		if err := applyUnitFilters(ctx, filters, stack.Execution.TerragruntOptions, units); err != nil {
+		composite := &common.CompositeFilter{Filters: filters}
+		if err := composite.Filter(ctx, units, stack.Execution.TerragruntOptions); err != nil {
 			return nil, err
 		}
 	}
@@ -900,78 +901,6 @@ func containsFilter(filters []UnitFilter, target UnitFilter) bool {
 	}
 
 	return false
-}
-
-// applyUnitFilters adapts component units to common.Unit instances so existing filters (e.g., graph filters)
-// can operate without the full unit resolver pipeline.
-func applyUnitFilters(ctx context.Context, filters []UnitFilter, opts *options.TerragruntOptions, units []*component.Unit) error {
-	if len(filters) == 0 {
-		return nil
-	}
-
-	// Build common.Unit representations keyed by path for easy propagation of results.
-	commonUnits := make(common.Units, 0, len(units))
-	unitMap := make(map[string]*common.Unit, len(units))
-
-	compMap := make(map[string]*component.Unit, len(units))
-	for _, u := range units {
-		compMap[u.Path()] = u
-
-		flagExcluded := u.Excluded()
-		if u.Execution != nil && u.Execution.FlagExcluded {
-			flagExcluded = true
-		}
-
-		cu := &common.Unit{
-			Path:         u.Path(),
-			FlagExcluded: flagExcluded,
-		}
-
-		commonUnits = append(commonUnits, cu)
-		unitMap[u.Path()] = cu
-	}
-
-	// Wire dependencies between the common units using component unit dependencies.
-	for _, u := range units {
-		cu := unitMap[u.Path()]
-		if cu == nil {
-			continue
-		}
-
-		for _, dep := range u.Dependencies() {
-			depUnit, ok := dep.(*component.Unit)
-			if !ok || depUnit == nil {
-				continue
-			}
-
-			if mappedDep, ok := unitMap[depUnit.Path()]; ok {
-				cu.Dependencies = append(cu.Dependencies, mappedDep)
-				continue
-			}
-
-			// Fall back to a placeholder for dependencies not present in unitMap
-			// (should be rare as discovery should include all units).
-			cu.Dependencies = append(cu.Dependencies, &common.Unit{Path: depUnit.Path()})
-		}
-	}
-
-	composite := &common.CompositeFilter{Filters: filters}
-	if err := composite.Filter(ctx, commonUnits, opts); err != nil {
-		return err
-	}
-
-	// Propagate exclusions back to component units.
-	for _, cu := range commonUnits {
-		if u := compMap[cu.Path]; u != nil {
-			u.SetExcluded(cu.FlagExcluded)
-
-			if u.Execution != nil {
-				u.Execution.FlagExcluded = cu.FlagExcluded
-			}
-		}
-	}
-
-	return nil
 }
 
 // isDestroyCommand checks if the current command is a destroy operation
