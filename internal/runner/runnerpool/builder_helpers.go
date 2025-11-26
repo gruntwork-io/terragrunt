@@ -70,9 +70,14 @@ func newBaseDiscovery(
 	configFilenames []string,
 	opts ...common.Option,
 ) *discovery.Discovery {
+	anyOpts := make([]interface{}, len(opts))
+	for i, v := range opts {
+		anyOpts[i] = v
+	}
+
 	return discovery.
 		NewDiscovery(workingDir).
-		WithOptions(anySlice(opts)...).
+		WithOptions(anyOpts...).
 		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
