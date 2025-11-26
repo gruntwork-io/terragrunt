@@ -37,6 +37,96 @@ type Runner struct {
 	queue *queue.Queue
 }
 
+// buildCanonicalConfigPath computes the canonical config path for a unit.
+// It handles .hcl/.json suffixes, joins DefaultTerragruntConfigPath when needed,
+// converts to canonical absolute path, and updates the unit's path.
+// Returns the canonical config path and the canonical unit directory.
+func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalConfigPath string, canonicalDir string, err error) {
+	// Discovery paths are directories (e.g., "./other") not files
+	// We need to append the config filename to get the full config path
+	terragruntConfigPath := unit.Path()
+	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
+		terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
+	}
+
+	// Convert to canonical absolute path - this is critical for dependency resolution
+	// Use the stack's working directory as the base for path resolution
+	// This ensures paths are resolved relative to where run --all was executed
+	canonicalConfigPath, err = util.CanonicalPath(terragruntConfigPath, basePath)
+	if err != nil {
+		return "", "", err
+	}
+
+	canonicalDir = filepath.Dir(canonicalConfigPath)
+
+	// Update the unit's path to the canonical directory path
+	unit.SetPath(canonicalDir)
+
+	return canonicalConfigPath, canonicalDir, nil
+}
+
+// cloneUnitOptions clones TerragruntOptions for a specific unit.
+// It handles CloneWithConfigPath, per-unit DownloadDir fallback, and OriginalTerragruntConfigPath.
+// Returns the cloned options and logger, or the original logger if stack has no options.
+func cloneUnitOptions(
+	stack *component.Stack,
+	canonicalConfigPath string,
+	stackDefaultDownloadDir string,
+	l log.Logger,
+) (*options.TerragruntOptions, log.Logger, error) {
+	if stack.Execution == nil || stack.Execution.TerragruntOptions == nil {
+		return nil, l, nil
+	}
+
+	clonedLogger, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Use a per-unit default download directory when the stack is using its own default
+	// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
+	// so each unit caches to its own .terragrunt-cache next to the config.
+	if clonedOpts.DownloadDir == "" || (stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
+		_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		clonedOpts.DownloadDir = unitDefaultDownloadDir
+	}
+
+	clonedOpts.OriginalTerragruntConfigPath = canonicalConfigPath
+
+	return clonedOpts, clonedLogger, nil
+}
+
+// shouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
+// neither a Terraform source nor any Terraform/OpenTofu files in its directory.
+// Returns true if the unit should be skipped, false otherwise.
+func shouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
+	terragruntConfig := unit.Config()
+
+	// If the unit has a Terraform source configured, don't skip it
+	if terragruntConfig != nil && terragruntConfig.Terraform != nil &&
+		terragruntConfig.Terraform.Source != nil && *terragruntConfig.Terraform.Source != "" {
+		return false, nil
+	}
+
+	// Check if the directory contains any Terraform/OpenTofu files
+	hasFiles, err := util.DirContainsTFFiles(dir)
+	if err != nil {
+		return false, err
+	}
+
+	if !hasFiles {
+		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", dir)
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // resolveUnitsFromDiscovery converts discovered components to units with execution context.
 // This replaces the old UnitResolver pattern with a simpler direct conversion.
 func resolveUnitsFromDiscovery(
@@ -47,14 +137,12 @@ func resolveUnitsFromDiscovery(
 ) ([]*component.Unit, error) {
 	units := make([]*component.Unit, 0, len(discovered))
 
-	var (
-		stackDefaultDownloadDir string
-		stackHasOpts            bool
-	)
+	var stackDefaultDownloadDir string
 	if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-		stackHasOpts = true
 		_, stackDefaultDownloadDir, _ = options.DefaultWorkingAndDownloadDirs(stack.Execution.TerragruntOptions.TerragruntConfigPath)
 	}
+
+	basePath := stack.Path()
 
 	for _, c := range discovered {
 		unit, ok := c.(*component.Unit)
@@ -62,73 +150,26 @@ func resolveUnitsFromDiscovery(
 			continue
 		}
 
-		// Determine the terragrunt config path
-		// Discovery paths are directories (e.g., "./other") not files
-		// We need to append the config filename to get the full config path
-		terragruntConfigPath := unit.Path()
-		if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
-			terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
-		}
-
-		// Convert to canonical absolute path - this is critical for dependency resolution
-		// Use the stack's working directory as the base for path resolution
-		// This ensures paths are resolved relative to where run --all was executed
-		basePath := stack.Path()
-
-		// Convert the config path to absolute BEFORE passing to CloneWithConfigPath
-		// CloneWithConfigPath uses filepath.Abs which uses process's CWD, not stack's working dir
-		canonicalConfigPath, err := util.CanonicalPath(terragruntConfigPath, basePath)
+		// Build canonical config path and update unit path
+		canonicalConfigPath, canonicalDir, err := buildCanonicalConfigPath(unit, basePath)
 		if err != nil {
 			return nil, err
 		}
 
-		// Update the unit's path to the canonical directory path
-		unit.SetPath(filepath.Dir(canonicalConfigPath))
-
-		// Clone TerragruntOptions for this unit using the absolute config path
-		var (
-			unitOpts   *options.TerragruntOptions
-			unitLogger log.Logger
-		)
-		if stackHasOpts {
-			clonedLogger, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
-			if err != nil {
-				return nil, err
-			}
-
-			// Use a per-unit default download directory when the stack is using its own default
-			// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
-			// so each unit caches to its own .terragrunt-cache next to the config.
-			if clonedOpts.DownloadDir == "" || (stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
-				_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
-				if err != nil {
-					return nil, err
-				}
-
-				clonedOpts.DownloadDir = unitDefaultDownloadDir
-			}
-
-			clonedOpts.OriginalTerragruntConfigPath = canonicalConfigPath
-			unitOpts = clonedOpts
-			unitLogger = clonedLogger
-		} else {
-			unitLogger = l
+		// Clone options for this unit
+		unitOpts, unitLogger, err := cloneUnitOptions(stack, canonicalConfigPath, stackDefaultDownloadDir, l)
+		if err != nil {
+			return nil, err
 		}
 
-		// Skip units that have neither Terraform source nor any Terraform/OpenTofu files.
-		terragruntConfig := unit.Config()
-		dir := filepath.Dir(canonicalConfigPath)
+		// Skip units without Terraform configuration
+		skip, err := shouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
+		if err != nil {
+			return nil, err
+		}
 
-		if terragruntConfig == nil || terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "" {
-			hasFiles, err := util.DirContainsTFFiles(dir)
-			if err != nil {
-				return nil, err
-			}
-
-			if !hasFiles {
-				unitLogger.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", dir)
-				continue
-			}
+		if skip {
+			continue
 		}
 
 		// Initialize execution context

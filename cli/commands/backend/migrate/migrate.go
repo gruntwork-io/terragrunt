@@ -55,13 +55,21 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	}
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.Execution.TerragruntOptions)
-	if err != nil || srcRemoteState == nil {
+	if err != nil {
 		return err
 	}
 
+	if srcRemoteState == nil {
+		return errors.Errorf("missing remote state configuration for source module: %s", srcPath)
+	}
+
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.Execution.TerragruntOptions)
-	if err != nil || dstRemoteState == nil {
+	if err != nil {
 		return err
+	}
+
+	if dstRemoteState == nil {
+		return errors.Errorf("missing remote state configuration for destination module: %s", dstPath)
 	}
 
 	if !opts.ForceBackendMigrate {

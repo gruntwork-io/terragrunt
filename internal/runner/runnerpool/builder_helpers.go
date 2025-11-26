@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -95,7 +96,7 @@ func prepareDiscovery(
 	tgOpts *options.TerragruntOptions,
 	excludeByDefault bool,
 	opts ...common.Option,
-) *discovery.Discovery {
+) (*discovery.Discovery, error) {
 	workingDir := resolveWorkingDir(tgOpts)
 	configFilenames := buildConfigFilenames(tgOpts)
 
@@ -126,12 +127,15 @@ func prepareDiscovery(
 
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
-		if filters, err := parseFilters(tgOpts.FilterQueries, workingDir); err == nil {
-			d = d.WithFilters(filters)
+		filters, err := parseFilters(tgOpts.FilterQueries, workingDir)
+		if err != nil {
+			return nil, errors.Errorf("failed to parse filter queries in %s: %w", workingDir, err)
 		}
+
+		d = d.WithFilters(filters)
 	}
 
-	return d
+	return d, nil
 }
 
 // runDiscovery executes discovery with telemetry and returns discovered components.
@@ -182,11 +186,14 @@ func maybeRetryDiscovery(
 
 	l.Debugf("Runner pool discovery returned 0 configs with modules-that-include; retrying without exclude-by-default")
 
-	disc := prepareDiscovery(tgOpts, false, opts...)
+	disc, err := prepareDiscovery(tgOpts, false, opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	var retryErr error
 
-	err := doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
+	err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
 		"working_dir": tgOpts.WorkingDir,
 	}, func(childCtx context.Context) error {
 		discovered, retryErr = disc.Discover(childCtx, l, tgOpts)

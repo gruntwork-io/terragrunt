@@ -122,112 +122,155 @@ func (d *Discovery) propagateIncludedDeps(components component.Components) {
 	}
 }
 
+// normalizePaths converts paths to canonical absolute paths relative to workDir.
+func normalizePaths(workDir string, paths []string) []string {
+	normalized := make([]string, 0, len(paths))
+
+	for _, path := range paths {
+		if !filepath.IsAbs(path) {
+			path = util.JoinPath(workDir, path)
+		}
+
+		normalized = append(normalized, util.CleanPath(path))
+	}
+
+	return normalized
+}
+
+// capturePreIncluded records the paths of units that are currently not excluded.
+func capturePreIncluded(components component.Components) map[string]struct{} {
+	preIncluded := make(map[string]struct{})
+
+	for _, c := range components {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if !unit.Excluded() {
+			preIncluded[unit.Path()] = struct{}{}
+		}
+	}
+
+	return preIncluded
+}
+
+// resetAllUnitsExcluded marks all units as excluded.
+func resetAllUnitsExcluded(components component.Components) {
+	for _, c := range components {
+		if unit, ok := c.(*component.Unit); ok {
+			unit.SetExcluded(true)
+		}
+	}
+}
+
+// unexcludeUnitsReading un-excludes units that read any of the normalized file paths.
+func unexcludeUnitsReading(components component.Components, normalizedReading []string, workDir string) {
+	if len(normalizedReading) == 0 {
+		return
+	}
+
+	readingSet := make(map[string]struct{}, len(normalizedReading))
+	for _, r := range normalizedReading {
+		readingSet[r] = struct{}{}
+	}
+
+	for _, c := range components {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		for _, readPath := range unit.Reading() {
+			if !filepath.IsAbs(readPath) {
+				readPath = util.JoinPath(workDir, readPath)
+			}
+
+			readPath = util.CleanPath(readPath)
+
+			if _, ok := readingSet[readPath]; ok {
+				unit.SetExcluded(false)
+
+				break
+			}
+		}
+	}
+}
+
+// unexcludeModulesThatInclude un-excludes units whose processed includes match any of the normalized paths.
+func unexcludeModulesThatInclude(components component.Components, normalizedIncluding []string, workDir string) {
+	if len(normalizedIncluding) == 0 {
+		return
+	}
+
+	for _, c := range components {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		cfg := unit.Config()
+		if cfg == nil || len(cfg.ProcessedIncludes) == 0 {
+			continue
+		}
+
+		for _, includeConfig := range cfg.ProcessedIncludes {
+			includePath := includeConfig.Path
+			if !filepath.IsAbs(includePath) {
+				includePath = util.JoinPath(workDir, includePath)
+			}
+
+			includePath = util.CleanPath(includePath)
+
+			for _, normalizedPath := range normalizedIncluding {
+				if includePath == normalizedPath {
+					unit.SetExcluded(false)
+
+					break
+				}
+			}
+		}
+	}
+}
+
+// restorePreIncluded re-applies prior inclusions by un-excluding units that were previously included.
+func restorePreIncluded(components component.Components, preIncluded map[string]struct{}) {
+	for _, c := range components {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if _, wasIncluded := preIncluded[unit.Path()]; wasIncluded {
+			unit.SetExcluded(false)
+		}
+	}
+}
+
 // flagUnitsThatRead un-excludes units that read files listed via --modules-that-include/--units-reading.
 func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, components component.Components) component.Components {
 	if len(opts.ModulesThatInclude) == 0 && len(opts.UnitsReading) == 0 {
 		return components
 	}
 
-	normalizedReading := make([]string, 0, len(opts.UnitsReading))
-	for _, path := range opts.UnitsReading {
-		if !filepath.IsAbs(path) {
-			path = util.JoinPath(opts.WorkingDir, path)
-		}
+	// Normalize paths
+	normalizedReading := normalizePaths(opts.WorkingDir, opts.UnitsReading)
+	normalizedIncluding := normalizePaths(opts.WorkingDir, opts.ModulesThatInclude)
 
-		normalizedReading = append(normalizedReading, util.CleanPath(path))
-	}
+	// Capture pre-included units before resetting
+	preIncluded := capturePreIncluded(components)
 
-	normalizedIncluding := make([]string, 0, len(opts.ModulesThatInclude))
-	for _, path := range opts.ModulesThatInclude {
-		if !filepath.IsAbs(path) {
-			path = util.JoinPath(opts.WorkingDir, path)
-		}
+	// Reset all units to excluded
+	resetAllUnitsExcluded(components)
 
-		normalizedIncluding = append(normalizedIncluding, util.CleanPath(path))
-	}
+	// Un-exclude units that read the requested files
+	unexcludeUnitsReading(components, normalizedReading, opts.WorkingDir)
 
-	// Track any units that were already included (e.g., via include dirs) so we can preserve them after resetting exclusions.
-	preIncluded := make(map[string]struct{})
+	// Un-exclude units that include the requested files
+	unexcludeModulesThatInclude(components, normalizedIncluding, opts.WorkingDir)
 
-	if len(normalizedReading) > 0 || len(normalizedIncluding) > 0 {
-		for _, c := range components {
-			if unit, ok := c.(*component.Unit); ok {
-				if !unit.Excluded() {
-					preIncluded[unit.Path()] = struct{}{}
-				}
-
-				unit.SetExcluded(true)
-			}
-		}
-	}
-
-	// Un-exclude units that explicitly read any of the requested files.
-	if len(normalizedReading) > 0 {
-		readingSet := make(map[string]struct{}, len(normalizedReading))
-		for _, r := range normalizedReading {
-			readingSet[r] = struct{}{}
-		}
-
-		for _, c := range components {
-			unit, ok := c.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			for _, readPath := range unit.Reading() {
-				if !filepath.IsAbs(readPath) {
-					readPath = util.JoinPath(opts.WorkingDir, readPath)
-				}
-
-				readPath = util.CleanPath(readPath)
-
-				if _, ok := readingSet[readPath]; ok {
-					unit.SetExcluded(false)
-					break
-				}
-			}
-		}
-	}
-
-	// Un-exclude units that include any of the requested files (modules-that-include).
-	if len(normalizedIncluding) > 0 {
-		for _, c := range components {
-			unit, ok := c.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			cfg := unit.Config()
-			if cfg == nil || len(cfg.ProcessedIncludes) == 0 {
-				continue
-			}
-
-			for _, includeConfig := range cfg.ProcessedIncludes {
-				includePath := includeConfig.Path
-				if !filepath.IsAbs(includePath) {
-					includePath = util.JoinPath(opts.WorkingDir, includePath)
-				}
-
-				includePath = util.CleanPath(includePath)
-
-				for _, normalizedPath := range normalizedIncluding {
-					if includePath == normalizedPath {
-						unit.SetExcluded(false)
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Re-apply any prior inclusions from include directories.
-	for _, c := range components {
-		if unit, ok := c.(*component.Unit); ok {
-			if _, wasIncluded := preIncluded[unit.Path()]; wasIncluded {
-				unit.SetExcluded(false)
-			}
-		}
-	}
+	// Restore prior inclusions
+	restorePreIncluded(components, preIncluded)
 
 	return components
 }

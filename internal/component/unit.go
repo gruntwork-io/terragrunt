@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -218,7 +219,11 @@ func (u *Unit) Dependents() Components {
 
 // String renders this unit as a human-readable string for debugging.
 func (u *Unit) String() string {
+	// Snapshot values under read lock to avoid data races
+	u.rLock()
+	path := u.path
 	deps := make([]string, 0, len(u.dependencies))
+
 	for _, dep := range u.dependencies {
 		deps = append(deps, dep.Path())
 	}
@@ -231,14 +236,16 @@ func (u *Unit) String() string {
 		assumeApplied = u.Execution.AssumeAlreadyApplied
 	}
 
+	u.rUnlock()
+
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		u.path, excluded, assumeApplied, strings.Join(deps, ", "),
+		path, excluded, assumeApplied, strings.Join(deps, ", "),
 	)
 }
 
 // AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, returns the original path and logs a warning.
+// If path conversion fails, returns the original path and logs a warning if a logger is available.
 func (u *Unit) AbsolutePath() string {
 	if filepath.IsAbs(u.path) {
 		return u.path
@@ -246,6 +253,10 @@ func (u *Unit) AbsolutePath() string {
 
 	absPath, err := filepath.Abs(u.path)
 	if err != nil {
+		if u.Execution != nil && u.Execution.Logger != nil {
+			u.Execution.Logger.Warnf("Failed to convert unit path %q to absolute path: %v", u.path, err)
+		}
+
 		return u.path
 	}
 
@@ -253,8 +264,18 @@ func (u *Unit) AbsolutePath() string {
 }
 
 // FindInPaths returns true if the unit is located in one of the target directories.
+// Paths are normalized before comparison to handle absolute/relative path mismatches.
 func (u *Unit) FindInPaths(targetDirs []string) bool {
-	return slices.Contains(targetDirs, u.path)
+	cleanUnitPath := util.CleanPath(u.path)
+
+	for _, dir := range targetDirs {
+		cleanDir := util.CleanPath(dir)
+		if util.HasPathPrefix(cleanUnitPath, cleanDir) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // PlanFile returns plan file location if output folder is set.

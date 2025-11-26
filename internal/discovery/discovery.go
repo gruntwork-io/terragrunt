@@ -724,8 +724,7 @@ func (d *Discovery) skipDirIfIgnorable(_ log.Logger, path string) error {
 		}
 	}
 
-	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns
-	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns
+	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns.
 	// We also avoid early skipping for CLI exclude patterns so reporting can capture excluded units.
 	if d.filterFlagEnabled {
 		return nil
@@ -1288,7 +1287,12 @@ func (d *Discovery) Discover(
 	}
 
 	if d.graphTarget != "" {
-		components = d.filterGraphTarget(l, components)
+		var err error
+
+		components, err = d.filterGraphTarget(components)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	components = d.applyQueueFilters(opts, components)
@@ -1297,35 +1301,46 @@ func (d *Discovery) Discover(
 }
 
 // filterGraphTarget prunes components to the target path and its dependents.
-func (d *Discovery) filterGraphTarget(l log.Logger, components component.Components) component.Components {
+func (d *Discovery) filterGraphTarget(components component.Components) (component.Components, error) {
 	if d.graphTarget == "" {
-		return components
+		return components, nil
 	}
 
-	targetPath := canonicalizeGraphTarget(l, d.workingDir, d.graphTarget)
+	targetPath, err := canonicalizeGraphTarget(d.workingDir, d.graphTarget)
+	if err != nil {
+		return nil, err
+	}
 
 	dependentUnits := buildDependentsIndex(components)
 	propagateTransitiveDependents(dependentUnits)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
-	return filterByAllowSet(components, allowed)
+	return filterByAllowSet(components, allowed), nil
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path.
-// Falls back to a cleaned relative path on canonicalization failure, logging at debug level.
-func canonicalizeGraphTarget(l log.Logger, baseDir, target string) string {
-	targetPath := target
-	if !filepath.IsAbs(targetPath) {
-		if abs, err := util.CanonicalPath(targetPath, baseDir); err == nil {
-			targetPath = abs
-		} else {
-			l.Debugf("Could not canonicalize graph target %s: %v", targetPath, err)
-			targetPath = filepath.Clean(targetPath)
-		}
+// Returns an error if the path cannot be made absolute.
+func canonicalizeGraphTarget(baseDir, target string) (string, error) {
+	// If already absolute, just clean it
+	if filepath.IsAbs(target) {
+		return filepath.Clean(target), nil
 	}
 
-	return targetPath
+	// Try canonical path first
+	if abs, err := util.CanonicalPath(target, baseDir); err == nil {
+		return abs, nil
+	}
+
+	// Fallback: join with baseDir and make absolute
+	joined := filepath.Join(baseDir, filepath.Clean(target))
+
+	abs, err := filepath.Abs(joined)
+	if err != nil {
+		return "", errors.Errorf("failed to resolve graph target %q relative to %q: %w", target, baseDir, err)
+	}
+
+	return abs, nil
 }
 
 // buildDependentsIndex builds an index mapping each unit path to the list of units

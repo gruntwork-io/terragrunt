@@ -16,7 +16,10 @@ func Build(
 	opts ...common.Option,
 ) (common.StackRunner, error) {
 	// Prepare discovery
-	d := prepareDiscovery(terragruntOptions, terragruntOptions.ExcludeByDefault, opts...)
+	d, err := prepareDiscovery(terragruntOptions, terragruntOptions.ExcludeByDefault, opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	// Run discovery
 	discovered, err := runDiscovery(ctx, l, d, terragruntOptions)
