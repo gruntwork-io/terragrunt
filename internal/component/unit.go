@@ -17,15 +17,6 @@ const (
 	UnitKind Kind = "unit"
 )
 
-// UnitExecution holds execution-specific fields for running a unit.
-// This is nil during discovery phase and populated when preparing for execution.
-type UnitExecution struct {
-	TerragruntOptions    *options.TerragruntOptions
-	Logger               log.Logger
-	FlagExcluded         bool
-	AssumeAlreadyApplied bool
-}
-
 // Unit represents a discovered Terragrunt unit configuration.
 type Unit struct {
 	cfg              *config.TerragruntConfig
@@ -38,6 +29,15 @@ type Unit struct {
 	mu               sync.RWMutex
 	external         bool
 	excluded         bool
+}
+
+// UnitExecution holds execution-specific fields for running a unit.
+// This is nil during discovery phase and populated when preparing for execution.
+type UnitExecution struct {
+	TerragruntOptions    *options.TerragruntOptions
+	Logger               log.Logger
+	FlagExcluded         bool
+	AssumeAlreadyApplied bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -279,16 +279,16 @@ func (u *Unit) PlanFile(opts *options.TerragruntOptions) string {
 
 // OutputFile returns plan file location if output folder is set.
 func (u *Unit) OutputFile(opts *options.TerragruntOptions) string {
-	return u.getPlanFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
+	return u.planFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // OutputJSONFile returns plan JSON file location if JSON output folder is set.
 func (u *Unit) OutputJSONFile(opts *options.TerragruntOptions) string {
-	return u.getPlanFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+	return u.planFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
-// getPlanFilePath computes the path for plan output files.
-func (u *Unit) getPlanFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+// planFilePath computes the path for plan output files.
+func (u *Unit) planFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}

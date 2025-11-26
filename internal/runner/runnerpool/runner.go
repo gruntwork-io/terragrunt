@@ -32,9 +32,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
-// UnitFilter is used to filter units during resolution (declared in filters.go).
-// type UnitFilter interface {...}
-
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
 	Stack *component.Stack
@@ -183,7 +180,7 @@ func NewRunnerPoolStack(
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
 	nonStackComponents := make(component.Components, 0, len(discovered))
 	for _, c := range discovered {
-		if c.Kind() != component.StackKind {
+		if _, ok := c.(*component.Unit); ok {
 			nonStackComponents = append(nonStackComponents, c)
 		}
 	}
