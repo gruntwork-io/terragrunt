@@ -1,4 +1,4 @@
-package runnerpool
+package common
 
 import (
 	"bytes"
@@ -22,29 +22,32 @@ const (
 	Finished
 )
 
-// ComponentUnitRunner handles the logic for running a single component.Unit.
-type ComponentUnitRunner struct {
+// UnitRunner handles the logic for running a single component.Unit.
+type UnitRunner struct {
 	Err    error
 	Unit   *component.Unit
 	Status UnitStatus
 }
 
-// NewUnitRunnerFromComponent creates a UnitRunner from a component.Unit.
-func NewUnitRunnerFromComponent(unit *component.Unit) *ComponentUnitRunner {
-	return &ComponentUnitRunner{
+// NewUnitRunner creates a UnitRunner from a component.Unit.
+func NewUnitRunner(unit *component.Unit) *UnitRunner {
+	return &UnitRunner{
 		Unit:   unit,
 		Status: Waiting,
 	}
 }
 
-func (runner *ComponentUnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+// Deprecated: use NewUnitRunner
+func NewUnitRunnerFromComponent(unit *component.Unit) *UnitRunner {
+	return NewUnitRunner(unit)
+}
+
+func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	if runner.Unit.Execution == nil || runner.Unit.Execution.Logger == nil {
 		return nil
 	}
 
 	runner.Unit.Execution.Logger.Debugf("Running %s", runner.Unit.Path())
-
-	opts.Writer = NewUnitWriter(opts.Writer)
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
@@ -106,7 +109,7 @@ func (runner *ComponentUnitRunner) runTerragrunt(ctx context.Context, opts *opti
 }
 
 // Run executes a component.Unit right now.
-func (runner *ComponentUnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
 	if runner.Unit.Execution == nil {

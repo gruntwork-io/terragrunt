@@ -427,7 +427,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"working_dir":            u.Execution.TerragruntOptions.WorkingDir,
 			"terragrunt_config_path": u.Execution.TerragruntOptions.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
-			unitRunner := NewUnitRunnerFromComponent(u)
+			// Wrap the writer to buffer unit-scoped output
+			u.Execution.TerragruntOptions.Writer = NewUnitWriter(u.Execution.TerragruntOptions.Writer)
+			unitRunner := common.NewUnitRunner(u)
+
 			return unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
 		})
 	}

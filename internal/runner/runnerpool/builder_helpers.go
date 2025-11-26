@@ -13,19 +13,29 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
-// prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
-func prepareDiscovery(
-	tgOpts *options.TerragruntOptions,
-	excludeByDefault bool,
-	opts ...common.Option,
-) *discovery.Discovery {
-	// Determine the canonical working directory to use for discovery
-	workingDir := tgOpts.RootWorkingDir
-	if workingDir == "" {
-		workingDir = tgOpts.WorkingDir
+// telemetry event names used in this file
+const (
+	telemetryDiscovery      = "runner_pool_discovery"
+	telemetryDiscoveryRetry = "runner_pool_discovery_retry"
+	telemetryCreation       = "runner_pool_creation"
+)
+
+// doWithTelemetry is a small helper to standardize telemetry collection calls.
+func doWithTelemetry(ctx context.Context, name string, fields map[string]any, fn func(context.Context) error) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, name, fields, fn)
+}
+
+// resolveWorkingDir determines the canonical working directory for discovery.
+func resolveWorkingDir(tgOpts *options.TerragruntOptions) string {
+	if tgOpts.RootWorkingDir != "" {
+		return tgOpts.RootWorkingDir
 	}
 
-	// Build config filenames list - include defaults plus any custom config file
+	return tgOpts.WorkingDir
+}
+
+// buildConfigFilenames returns the list of config filenames to consider, including custom if provided.
+func buildConfigFilenames(tgOpts *options.TerragruntOptions) []string {
 	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
 	customConfigName := filepath.Base(tgOpts.TerragruntConfigPath)
 	isCustom := true
@@ -41,7 +51,26 @@ func prepareDiscovery(
 		configFilenames = append(configFilenames, customConfigName)
 	}
 
-	d := discovery.
+	return configFilenames
+}
+
+// parseFilters wraps filter parsing for readability.
+func parseFilters(queries []string, workingDir string) (filter.Filters, error) {
+	if len(queries) == 0 {
+		return filter.Filters{}, nil
+	}
+
+	return filter.ParseFilterQueries(queries, workingDir)
+}
+
+// newBaseDiscovery constructs the base discovery with common immutable options.
+func newBaseDiscovery(
+	tgOpts *options.TerragruntOptions,
+	workingDir string,
+	configFilenames []string,
+	opts ...common.Option,
+) *discovery.Discovery {
+	return discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anySlice(opts)...).
 		WithDiscoverExternalDependencies().
@@ -54,6 +83,18 @@ func prepareDiscovery(
 			Cmd:  tgOpts.TerraformCliArgs.First(),
 			Args: tgOpts.TerraformCliArgs.Tail(),
 		})
+}
+
+// prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
+func prepareDiscovery(
+	tgOpts *options.TerragruntOptions,
+	excludeByDefault bool,
+	opts ...common.Option,
+) *discovery.Discovery {
+	workingDir := resolveWorkingDir(tgOpts)
+	configFilenames := buildConfigFilenames(tgOpts)
+
+	d := newBaseDiscovery(tgOpts, workingDir, configFilenames, opts...)
 
 	// Include / exclude directories
 	if len(tgOpts.IncludeDirs) > 0 {
@@ -80,7 +121,7 @@ func prepareDiscovery(
 
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
-		if filters, err := filter.ParseFilterQueries(tgOpts.FilterQueries, workingDir); err == nil {
+		if filters, err := parseFilters(tgOpts.FilterQueries, workingDir); err == nil {
 			d = d.WithFilters(filters)
 		}
 	}
@@ -97,7 +138,7 @@ func runDiscovery(
 ) (component.Components, error) {
 	var discovered component.Components
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_discovery", map[string]any{
+	err := doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
 		"working_dir":       tgOpts.WorkingDir,
 		"terraform_command": tgOpts.TerraformCommand,
 	}, func(childCtx context.Context) error {
@@ -140,7 +181,7 @@ func maybeRetryDiscovery(
 
 	var retryErr error
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_discovery_retry", map[string]any{
+	err := doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
 		"working_dir": tgOpts.WorkingDir,
 	}, func(childCtx context.Context) error {
 		discovered, retryErr = disc.Discover(childCtx, l, tgOpts)
@@ -167,7 +208,7 @@ func createRunner(
 ) (common.StackRunner, error) {
 	var runner common.StackRunner
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_creation", map[string]any{
+	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
 		"terraform_command":  tgOpts.TerraformCommand,
 	}, func(childCtx context.Context) error {
