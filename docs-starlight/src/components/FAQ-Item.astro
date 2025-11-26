@@ -18,7 +18,7 @@ const uniqueId = `faq-${Math.random().toString(36).substring(2, 11)}`;
     </svg>
   </div>
 
-  <div class="accordion-answer hidden text-gray-1 font-sans prose prose-sm md:prose-base max-w-none" set:html={answer}></div>
+  <div class="accordion-answer max-h-0 overflow-hidden transition-all duration-300 ease-in-out text-gray-1 font-sans prose prose-sm md:prose-base max-w-none" set:html={answer}></div>
 </div>
 
 <script is:inline define:vars={{ uniqueId }}>
@@ -36,14 +36,14 @@ const uniqueId = `faq-${Math.random().toString(36).substring(2, 11)}`;
           const isExpanded = question.getAttribute('aria-expanded') === 'true';
 
           if (isExpanded) {
-            answer.classList.add('hidden');
+            answer.style.maxHeight = '0';
             question.setAttribute('aria-expanded', 'false');
             caret.style.transform = 'rotate(0deg)';
             accordionItem.style.backgroundColor = '';
             heading.style.color = '';
             caret.style.color = '';
           } else {
-            answer.classList.remove('hidden');
+            answer.style.maxHeight = answer.scrollHeight + 'px';
             question.setAttribute('aria-expanded', 'true');
             caret.style.transform = 'rotate(180deg)';
             accordionItem.style.backgroundColor = 'var(--color-bg-dark)';
