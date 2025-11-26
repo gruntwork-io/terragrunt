@@ -1572,6 +1572,9 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 			depPath = filepath.Clean(filepath.Join(component.Path(), depPath))
 		}
 
+		// Resolve symlinks for consistent path comparison (e.g., macOS /var -> /private/var)
+		depPath = resolvePath(depPath)
+
 		deduped[depPath] = struct{}{}
 	}
 
@@ -1580,6 +1583,9 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 			if !filepath.IsAbs(dependency) {
 				dependency = filepath.Clean(filepath.Join(component.Path(), dependency))
 			}
+
+			// Resolve symlinks for consistent path comparison (e.g., macOS /var -> /private/var)
+			dependency = resolvePath(dependency)
 
 			deduped[dependency] = struct{}{}
 		}
