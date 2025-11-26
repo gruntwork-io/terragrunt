@@ -2,6 +2,7 @@ package discovery_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -20,6 +21,12 @@ func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+
+	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
+	cmd := exec.CommandContext(t.Context(), "git", "init")
+	cmd.Dir = tmpDir
+	cmd.Env = os.Environ()
+	require.NoError(t, cmd.Run())
 
 	// Create dependency chain: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -62,6 +69,12 @@ func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+
+	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
+	cmd := exec.CommandContext(t.Context(), "git", "init")
+	cmd.Dir = tmpDir
+	cmd.Env = os.Environ()
+	require.NoError(t, cmd.Run())
 
 	// Create dependency chain: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
