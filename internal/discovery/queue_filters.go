@@ -55,20 +55,44 @@ func (d *Discovery) matchesExclude(path string) bool {
 	return false
 }
 
+// unitFrom returns the underlying *component.Unit if the given component is a unit.
+func unitFrom(c component.Component) (*component.Unit, bool) {
+	u, ok := c.(*component.Unit)
+	return u, ok
+}
+
 // applyIncludeDirs mirrors the runner's include-dir handling for ExcludeByDefault and StrictInclude flags.
 func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, components component.Components) component.Components {
 	if !opts.ExcludeByDefault {
 		return components
 	}
 
+	// First pass: set excluded by default, then include any units matching include patterns.
+	d.includePass(opts, components)
+
+	// If strict include is set, do not propagate inclusion to dependencies.
+	if opts.StrictInclude {
+		return components
+	}
+
+	// Second pass: include dependencies of already-included units.
+	d.propagateIncludedDeps(components)
+
+	return components
+}
+
+// includePass applies the initial include-dir rules when excluding by default.
+// It marks all units excluded, then un-excludes units that match any include pattern.
+func (d *Discovery) includePass(_ *options.TerragruntOptions, components component.Components) {
 	for _, c := range components {
-		unit, ok := c.(*component.Unit)
+		unit, ok := unitFrom(c)
 		if !ok {
 			continue
 		}
 
 		unit.SetExcluded(true)
 
+		// Preserve original behavior: only attempt include matching when compiled patterns exist.
 		if len(d.compiledIncludePatterns) == 0 {
 			continue
 		}
@@ -77,13 +101,12 @@ func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, components
 			unit.SetExcluded(false)
 		}
 	}
+}
 
-	if opts.StrictInclude {
-		return components
-	}
-
+// propagateIncludedDeps un-excludes dependency units of already-included units.
+func (d *Discovery) propagateIncludedDeps(components component.Components) {
 	for _, c := range components {
-		unit, ok := c.(*component.Unit)
+		unit, ok := unitFrom(c)
 		if !ok || unit.Excluded() {
 			continue
 		}
@@ -97,8 +120,6 @@ func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, components
 			depUnit.SetExcluded(false)
 		}
 	}
-
-	return components
 }
 
 // flagUnitsThatRead un-excludes units that read files listed via --modules-that-include/--units-reading.
