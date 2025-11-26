@@ -70,19 +70,3 @@ func WithReport(r *report.Report) Option {
 		},
 	}
 }
-
-// UnitFiltersSetter is an interface for stack runners that support unit filtering.
-type UnitFiltersSetter interface {
-	SetUnitFilters(filters ...UnitFilter)
-}
-
-// WithUnitFilters provides unit filters to customize unit exclusions after resolution.
-func WithUnitFilters(filters ...UnitFilter) Option {
-	return optionImpl{
-		apply: func(stack StackRunner) {
-			if setter, ok := stack.(UnitFiltersSetter); ok {
-				setter.SetUnitFilters(filters...)
-			}
-		},
-	}
-}

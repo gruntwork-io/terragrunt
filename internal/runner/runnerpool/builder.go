@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -86,14 +85,13 @@ func Build(
 		// Note: Discovery will use glob-based filtering for include patterns.
 		// Exclude patterns are handled by the unit resolver to ensure proper reporting.
 
-		// Apply filter queries if the filter-flag experiment is enabled
-		if terragruntOptions.Experiments.Evaluate(experiment.FilterFlag) && len(terragruntOptions.FilterQueries) > 0 {
+		// Apply filter queries unconditionally when provided.
+		// WithFilters will internally enable filter flag behavior where needed.
+		if len(terragruntOptions.FilterQueries) > 0 {
 			filters, err := filter.ParseFilterQueries(terragruntOptions.FilterQueries, workingDir)
-			if err != nil {
-				return d
+			if err == nil {
+				d = d.WithFilters(filters)
 			}
-
-			d = d.WithFilters(filters)
 		}
 
 		return d

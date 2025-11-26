@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -38,19 +37,17 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack       *component.Stack
-	queue       *queue.Queue
-	unitFilters []common.UnitFilter
+	Stack *component.Stack
+	queue *queue.Queue
 }
 
 // resolveUnitsFromDiscovery converts discovered components to units with execution context.
 // This replaces the old UnitResolver pattern with a simpler direct conversion.
 func resolveUnitsFromDiscovery(
-	ctx context.Context,
+	_ context.Context,
 	l log.Logger,
 	stack *component.Stack,
 	discovered component.Components,
-	filters []common.UnitFilter,
 ) ([]*component.Unit, error) {
 	units := make([]*component.Unit, 0, len(discovered))
 
@@ -171,14 +168,6 @@ func resolveUnitsFromDiscovery(
 		_ = os.MkdirAll(stackDefaultDownloadDir, os.ModePerm) // best-effort
 	}
 
-	// Apply any unit filters (e.g., graph filters) after units are constructed so exclusions are reflected in execution.
-	if len(filters) > 0 && stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-		composite := &common.CompositeFilter{Filters: filters}
-		if err := composite.Filter(ctx, units, stack.Execution.TerragruntOptions); err != nil {
-			return nil, err
-		}
-	}
-
 	return units, nil
 }
 
@@ -239,7 +228,7 @@ func NewRunnerPoolStack(
 	runner = runner.WithOptions(opts...)
 
 	// Resolve units from discovery - populates Execution fields on each unit
-	units, err := resolveUnitsFromDiscovery(ctx, l, runner.Stack, nonStackComponents, runner.unitFilters)
+	units, err := resolveUnitsFromDiscovery(ctx, l, runner.Stack, nonStackComponents)
 	if err != nil {
 		return nil, err
 	}
@@ -871,36 +860,6 @@ func (r *Runner) SetReport(rpt *report.Report) {
 	}
 
 	r.Stack.Execution.Report = rpt
-}
-
-// SetUnitFilters sets the unit filters for the runner.
-// Filters are deduplicated before appending to prevent duplicate filter application.
-func (r *Runner) SetUnitFilters(filters ...common.UnitFilter) {
-	for _, filter := range filters {
-		if !containsFilter(r.unitFilters, filter) {
-			r.unitFilters = append(r.unitFilters, filter)
-		}
-	}
-}
-
-// GetUnitFilters returns the unit filters configured for the runner.
-// This is primarily used for testing purposes.
-func (r *Runner) GetUnitFilters() []common.UnitFilter {
-	return r.unitFilters
-}
-
-// containsFilter checks if a filter already exists in the filters slice.
-// Uses DeepEqual to compare filters by both pointer identity and value equality.
-func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool {
-	for _, existing := range filters {
-		// DeepEqual handles both pointer equality and value equality,
-		// so we don't need separate pointer comparison
-		if reflect.DeepEqual(existing, target) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // isDestroyCommand checks if the current command is a destroy operation
