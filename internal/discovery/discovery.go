@@ -31,6 +31,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// resolvedPathMemo caches results of filepath.EvalSymlinks to reduce repeated system calls.
+var resolvedPathMemo sync.Map // map[string]string
+
 const (
 	// skipOutputDiagnostics is a string used to identify diagnostics that reference outputs.
 	skipOutputDiagnostics = "output"
@@ -415,6 +418,17 @@ func (d *Discovery) compileIncludePatterns(l log.Logger) {
 			l.Warnf("Failed to compile include pattern '%s': %v. Pattern will be ignored.", pattern, err)
 		}
 	}
+}
+
+// matchesIncludePath reports whether the provided directory matches any compiled include pattern.
+func (d *Discovery) matchesIncludePath(dir string) bool {
+	for _, pattern := range d.compiledIncludePatterns {
+		if pattern.Compiled.Match(dir) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // compileExcludePatterns compiles the exclude directory patterns for faster matching.
@@ -827,18 +841,8 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 		// Consolidated include enforcement: only apply when we have include patterns and either:
 		// - strictInclude is enabled, or
 		// - excludeByDefault is enabled and readFiles filtering is NOT enabled
-		matchesInclude := func(dir string) bool {
-			for _, pattern := range d.compiledIncludePatterns {
-				if pattern.Compiled.Match(dir) {
-					return true
-				}
-			}
-
-			return false
-		}
-
 		enforceInclude := (d.strictInclude || (d.excludeByDefault && !d.readFiles)) && len(d.compiledIncludePatterns) > 0
-		if enforceInclude && !matchesInclude(canonicalDir) {
+		if enforceInclude && !d.matchesIncludePath(canonicalDir) {
 			return nil
 		}
 	}
@@ -854,13 +858,8 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 			allowHidden = isInStackDirectory(cleanDir)
 
 			if !allowHidden {
-				// Use precompiled patterns for include matching in hidden directory check
-				for _, pattern := range d.compiledIncludePatterns {
-					if pattern.Compiled.Match(canonicalDir) {
-						allowHidden = true
-						break
-					}
-				}
+				// Use a common helper for include matching
+				allowHidden = d.matchesIncludePath(canonicalDir)
 			}
 		}
 
@@ -1142,7 +1141,7 @@ func (d *Discovery) Discover(
 							return discoveryErr
 						}
 
-						l.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+						l.Warnf("Parsing errors were encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
 
 						l.Debugf("Errors: %v", discoveryErr)
 					}
@@ -1203,7 +1202,7 @@ func (d *Discovery) Discover(
 							return discoveryErr
 						}
 
-						l.Warnf("Parsing errors where encountered while discovering dependents. They were suppressed, and can be found in the debug logs.")
+						l.Warnf("Parsing errors were encountered while discovering dependents. They were suppressed, and can be found in the debug logs.")
 
 						l.Debugf("Errors: %w", discoveryErr)
 					}
@@ -1275,7 +1274,7 @@ func (d *Discovery) Discover(
 			if !d.suppressParseErrors {
 				errs = append(errs, errors.New(err))
 			} else {
-				l.Warnf("Parsing errors where encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
+				l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
 
 				l.Debugf("Errors: %w", err)
 			}
@@ -1319,39 +1318,72 @@ func (d *Discovery) filterGraphTarget(components component.Components) (componen
 	return filterByAllowSet(components, allowed), nil
 }
 
-// canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path.
+// canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
 // Returns an error if the path cannot be made absolute.
 func canonicalizeGraphTarget(baseDir, target string) (string, error) {
+	var abs string
+
 	// If already absolute, just clean it
 	if filepath.IsAbs(target) {
-		return filepath.Clean(target), nil
+		abs = filepath.Clean(target)
+	} else if canonicalAbs, err := util.CanonicalPath(target, baseDir); err == nil {
+		// Try canonical path first
+		abs = canonicalAbs
+	} else {
+		// Fallback: join with baseDir and make absolute
+		joined := filepath.Join(baseDir, filepath.Clean(target))
+
+		var absErr error
+
+		abs, absErr = filepath.Abs(joined)
+		if absErr != nil {
+			return "", errors.Errorf("failed to resolve graph target %q relative to %q: %w", target, baseDir, absErr)
+		}
 	}
 
-	// Try canonical path first
-	if abs, err := util.CanonicalPath(target, baseDir); err == nil {
-		return abs, nil
+	// Resolve symlinks for consistent path comparison (important on macOS where /var -> /private/var)
+	resolved, evalErr := filepath.EvalSymlinks(abs)
+	if evalErr != nil {
+		// If symlink resolution fails (e.g., path doesn't exist yet), return the absolute path
+		return abs, nil //nolint:nilerr // intentionally return nil error when EvalSymlinks fails
 	}
 
-	// Fallback: join with baseDir and make absolute
-	joined := filepath.Join(baseDir, filepath.Clean(target))
+	return resolved, nil
+}
 
-	abs, err := filepath.Abs(joined)
+// resolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+func resolvePath(path string) string {
+	if v, ok := resolvedPathMemo.Load(path); ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+
+	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return "", errors.Errorf("failed to resolve graph target %q relative to %q: %w", target, baseDir, err)
+		resolvedPathMemo.Store(path, path)
+		return path
 	}
 
-	return abs, nil
+	resolvedPathMemo.Store(path, resolved)
+
+	return resolved
 }
 
 // buildDependentsIndex builds an index mapping each unit path to the list of units
 // that directly depend on it. Duplicate entries are removed.
+// Paths are resolved to handle symlinks consistently across platforms.
 func buildDependentsIndex(components component.Components) map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, c := range components {
+		cPath := resolvePath(c.Path())
+
 		for _, dep := range c.Dependencies() {
-			dependentUnits[dep.Path()] = util.RemoveDuplicatesFromList(
-				append(dependentUnits[dep.Path()], c.Path()),
+			depPath := resolvePath(dep.Path())
+			dependentUnits[depPath] = util.RemoveDuplicatesFromList(
+				append(dependentUnits[depPath], cPath),
 			)
 		}
 	}
@@ -1410,10 +1442,13 @@ func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[st
 }
 
 // filterByAllowSet returns only the components whose path exists in the allow set.
+// Paths are resolved to handle symlinks consistently across platforms.
 func filterByAllowSet(components component.Components, allowed map[string]struct{}) component.Components {
 	filtered := make(component.Components, 0, len(components))
+
 	for _, c := range components {
-		if _, ok := allowed[c.Path()]; ok {
+		resolvedPath := resolvePath(c.Path())
+		if _, ok := allowed[resolvedPath]; ok {
 			filtered = append(filtered, c)
 		}
 	}
