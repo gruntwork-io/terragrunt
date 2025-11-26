@@ -122,6 +122,22 @@ func resolveUnitsFromDiscovery(
 			unitLogger = l
 		}
 
+		// Skip units that have neither Terraform source nor any Terraform/OpenTofu files.
+		terragruntConfig := unit.Config()
+		dir := filepath.Dir(canonicalConfigPath)
+
+		if terragruntConfig == nil || terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "" {
+			hasFiles, err := util.DirContainsTFFiles(dir)
+			if err != nil {
+				return nil, err
+			}
+
+			if !hasFiles {
+				unitLogger.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", dir)
+				continue
+			}
+		}
+
 		// Initialize execution context
 		unit.Execution = &component.UnitExecution{
 			TerragruntOptions:    unitOpts,

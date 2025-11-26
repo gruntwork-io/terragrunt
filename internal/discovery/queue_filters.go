@@ -103,37 +103,81 @@ func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, components
 
 // flagUnitsThatRead un-excludes units that read files listed via --modules-that-include/--units-reading.
 func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, components component.Components) component.Components {
-	filesToCheck := append(opts.ModulesThatInclude, opts.UnitsReading...)
-	if len(filesToCheck) == 0 {
+	if len(opts.ModulesThatInclude) == 0 && len(opts.UnitsReading) == 0 {
 		return components
 	}
 
-	normalizedPaths := make([]string, 0, len(filesToCheck))
-
-	for _, path := range filesToCheck {
-		normalized := path
-
-		if !filepath.IsAbs(normalized) {
-			normalized = util.JoinPath(opts.WorkingDir, normalized)
+	normalizedReading := make([]string, 0, len(opts.UnitsReading))
+	for _, path := range opts.UnitsReading {
+		if !filepath.IsAbs(path) {
+			path = util.JoinPath(opts.WorkingDir, path)
 		}
 
-		normalizedPaths = append(normalizedPaths, util.CleanPath(normalized))
+		normalizedReading = append(normalizedReading, util.CleanPath(path))
 	}
 
-	for _, normalizedPath := range normalizedPaths {
+	normalizedIncluding := make([]string, 0, len(opts.ModulesThatInclude))
+	for _, path := range opts.ModulesThatInclude {
+		if !filepath.IsAbs(path) {
+			path = util.JoinPath(opts.WorkingDir, path)
+		}
+
+		normalizedIncluding = append(normalizedIncluding, util.CleanPath(path))
+	}
+
+	// Track any units that were already included (e.g., via include dirs) so we can preserve them after resetting exclusions.
+	preIncluded := make(map[string]struct{})
+
+	if len(normalizedReading) > 0 || len(normalizedIncluding) > 0 {
+		for _, c := range components {
+			if unit, ok := c.(*component.Unit); ok {
+				if !unit.Excluded() {
+					preIncluded[unit.Path()] = struct{}{}
+				}
+
+				unit.SetExcluded(true)
+			}
+		}
+	}
+
+	// Un-exclude units that explicitly read any of the requested files.
+	if len(normalizedReading) > 0 {
+		readingSet := make(map[string]struct{}, len(normalizedReading))
+		for _, r := range normalizedReading {
+			readingSet[r] = struct{}{}
+		}
+
 		for _, c := range components {
 			unit, ok := c.(*component.Unit)
 			if !ok {
 				continue
 			}
 
-			if util.ListContainsElement(unit.Reading(), normalizedPath) {
-				unit.SetExcluded(false)
+			for _, readPath := range unit.Reading() {
+				if !filepath.IsAbs(readPath) {
+					readPath = util.JoinPath(opts.WorkingDir, readPath)
+				}
+
+				readPath = util.CleanPath(readPath)
+
+				if _, ok := readingSet[readPath]; ok {
+					unit.SetExcluded(false)
+					break
+				}
+			}
+		}
+	}
+
+	// Un-exclude units that include any of the requested files (modules-that-include).
+	if len(normalizedIncluding) > 0 {
+		for _, c := range components {
+			unit, ok := c.(*component.Unit)
+			if !ok {
 				continue
 			}
 
 			cfg := unit.Config()
-			if cfg == nil {
+			if cfg == nil || len(cfg.ProcessedIncludes) == 0 {
 				continue
 			}
 
@@ -145,13 +189,21 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 
 				includePath = util.CleanPath(includePath)
 
-				if includePath != normalizedPath {
-					continue
+				for _, normalizedPath := range normalizedIncluding {
+					if includePath == normalizedPath {
+						unit.SetExcluded(false)
+						break
+					}
 				}
+			}
+		}
+	}
 
+	// Re-apply any prior inclusions from include directories.
+	for _, c := range components {
+		if unit, ok := c.(*component.Unit); ok {
+			if _, wasIncluded := preIncluded[unit.Path()]; wasIncluded {
 				unit.SetExcluded(false)
-
-				break
 			}
 		}
 	}
