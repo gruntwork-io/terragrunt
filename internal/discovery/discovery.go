@@ -89,17 +89,16 @@ type Discovery struct {
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
+	graphTarget string
 
-	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
-	compiledExcludePatterns []CompiledPattern
+	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
+	includeDirs []string
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
 
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
+	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
+	compiledExcludePatterns []CompiledPattern
 
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
@@ -116,20 +115,20 @@ type Discovery struct {
 	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
 	dependentTargetExpressions []filter.Expression
 
+	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
+	compiledIncludePatterns []CompiledPattern
+
 	// hiddenDirMemo is a memoization of hidden directories.
 	hiddenDirMemo hiddenDirMemo
-
-	// numWorkers determines the number of concurrent workers for discovery operations.
-	numWorkers int
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
+	// numWorkers determines the number of concurrent workers for discovery operations.
+	numWorkers int
 
-	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
-	excludeByDefault bool
+	// parseInclude determines whether to parse include configurations.
+	parseInclude bool
 
 	// noHidden determines whether to detect configurations in noHidden directories.
 	noHidden bool
@@ -143,8 +142,8 @@ type Discovery struct {
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool
 
-	// parseInclude determines whether to parse include configurations.
-	parseInclude bool
+	// discoverDependencies determines whether to discover dependencies.
+	discoverDependencies bool
 
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
@@ -163,6 +162,9 @@ type Discovery struct {
 
 	// breakCycles determines whether to break cycles in the dependency graph if any exist.
 	breakCycles bool
+
+	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
+	excludeByDefault bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -308,6 +310,12 @@ func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
 				parserOptions = append(parserOptions, po...)
 			}
 		}
+
+		if g, ok := opt.(interface{ GraphTarget() string }); ok {
+			if target := g.GraphTarget(); target != "" {
+				d = d.WithGraphTarget(target)
+			}
+		}
 	}
 
 	if len(parserOptions) > 0 {
@@ -320,6 +328,12 @@ func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
 // WithStrictInclude enables strict include mode.
 func (d *Discovery) WithStrictInclude() *Discovery {
 	d.strictInclude = true
+	return d
+}
+
+// WithGraphTarget sets the graph target so discovery can prune to the target and its dependents.
+func (d *Discovery) WithGraphTarget(target string) *Discovery {
+	d.graphTarget = target
 	return d
 }
 
@@ -1283,9 +1297,82 @@ func (d *Discovery) Discover(
 		return components, errors.Join(errs...)
 	}
 
+	if d.graphTarget != "" {
+		components = d.filterGraphTarget(l, components)
+	}
+
 	components = d.applyQueueFilters(opts, components)
 
 	return components, nil
+}
+
+// filterGraphTarget prunes components to the target path and its dependents.
+func (d *Discovery) filterGraphTarget(l log.Logger, components component.Components) component.Components {
+	if d.graphTarget == "" {
+		return components
+	}
+
+	targetPath := d.graphTarget
+	if !filepath.IsAbs(targetPath) {
+		if abs, err := util.CanonicalPath(targetPath, d.workingDir); err == nil {
+			targetPath = abs
+		} else {
+			l.Debugf("Could not canonicalize graph target %s: %v", targetPath, err)
+			targetPath = filepath.Clean(targetPath)
+		}
+	}
+
+	dependentUnits := make(map[string][]string)
+
+	for _, c := range components {
+		for _, dep := range c.Dependencies() {
+			dependentUnits[dep.Path()] = util.RemoveDuplicatesFromList(
+				append(dependentUnits[dep.Path()], c.Path()),
+			)
+		}
+	}
+
+	// Propagate transitive dependents (similar to UnitFilterGraph).
+	maxIterations := len(components)
+	for i := 0; i < maxIterations; i++ {
+		updated := false
+
+		for unit, dependents := range dependentUnits {
+			for _, dep := range dependents {
+				old := dependentUnits[unit]
+				newList := util.RemoveDuplicatesFromList(
+					append(old, dependentUnits[dep]...),
+				)
+				newList = util.RemoveElementFromList(newList, unit)
+
+				if len(newList) != len(old) {
+					dependentUnits[unit] = newList
+					updated = true
+				}
+			}
+		}
+
+		if !updated {
+			break
+		}
+	}
+
+	// Build allowlist
+	allowed := make(map[string]struct{})
+
+	allowed[targetPath] = struct{}{}
+	for _, dep := range dependentUnits[targetPath] {
+		allowed[dep] = struct{}{}
+	}
+
+	filtered := make(component.Components, 0, len(components))
+	for _, c := range components {
+		if _, ok := allowed[c.Path()]; ok {
+			filtered = append(filtered, c)
+		}
+	}
+
+	return filtered
 }
 
 // determineDependencyStartingComponents determines the starting components for dependency discovery.
