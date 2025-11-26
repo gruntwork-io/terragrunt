@@ -49,6 +49,7 @@ const (
 	testFixtureReadStack                       = "fixtures/stacks/read-stack"
 	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
 	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
+	testFixtureStackExcludeTemplateModule      = "fixtures/stacks/exclude-template-module"
 	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
 	testFixtureStackTerragruntDir              = "fixtures/stacks/terragrunt-dir"
 	testFixtureStacksAllNoStackDir             = "fixtures/stacks/all-no-stack-dir"
@@ -124,6 +125,28 @@ func TestStacksGenerateBasicWithQueueExcludeDirFlag(t *testing.T) {
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
+}
+
+func TestStacksGenerateExcludeModuleWithStackVariables(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackExcludeTemplateModule)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackExcludeTemplateModule)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackExcludeTemplateModule, "live")
+
+	// The module/ directory contains terragrunt.hcl that uses ${values.env} in dependency block
+	// This test verifies that --queue-exclude-dir prevents parsing of excluded template modules
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --queue-exclude-dir '**/module' --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	// Verify the generated units in the project-A and project-B stacks are in the execution queue
+	assert.Contains(t, stderr, "- Unit ./project-A/.terragrunt-stack/production")
+	assert.Contains(t, stderr, "- Unit ./project-A/.terragrunt-stack/staging")
+	assert.Contains(t, stderr, "- Unit ./project-B/.terragrunt-stack/production")
+	assert.Contains(t, stderr, "- Unit ./project-B/.terragrunt-stack/staging")
 }
 
 func TestStacksGenerateBasic(t *testing.T) {
