@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -20,10 +19,8 @@ const (
 // StackExecution holds execution-specific fields for running a stack.
 // This is nil during discovery phase and populated when preparing for execution.
 type StackExecution struct {
-	Report                *report.Report
-	TerragruntOptions     *options.TerragruntOptions
-	ChildTerragruntConfig *config.TerragruntConfig
-	ParserOptions         []hclparse.Option
+	Report            *report.Report
+	TerragruntOptions *options.TerragruntOptions
 }
 
 // Stack represents a discovered Terragrunt stack configuration.

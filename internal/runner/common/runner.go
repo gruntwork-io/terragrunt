@@ -4,8 +4,6 @@ package common
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -25,10 +23,6 @@ type StackRunner interface {
 	ListStackDependentUnits() map[string][]string
 	// GetStack retrieves the underlying Stack object managed by this runner.
 	GetStack() *component.Stack
-	// SetTerragruntConfig sets the child Terragrunt configuration for the stack.
-	SetTerragruntConfig(cfg *config.TerragruntConfig)
-	// SetParseOptions sets the parser options used for HCL parsing in the stack.
-	SetParseOptions(parserOptions []hclparse.Option)
 	// SetReport attaches a report object to the stack for collecting run data and summaries.
 	SetReport(r *report.Report)
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -191,7 +190,6 @@ func NewRunnerPoolStack(
 		stack := component.NewStack(terragruntOptions.WorkingDir)
 		stack.Execution = &component.StackExecution{
 			TerragruntOptions: terragruntOptions,
-			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		}
 
 		runner := &Runner{
@@ -213,7 +211,6 @@ func NewRunnerPoolStack(
 	stack := component.NewStack(terragruntOptions.WorkingDir)
 	stack.Execution = &component.StackExecution{
 		TerragruntOptions: terragruntOptions,
-		ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
 	runner := &Runner{
@@ -830,24 +827,6 @@ func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 // GetStack returns the stack associated with the runner.
 func (r *Runner) GetStack() *component.Stack {
 	return r.Stack
-}
-
-// SetTerragruntConfig sets the config for the stack.
-func (r *Runner) SetTerragruntConfig(cfg *config.TerragruntConfig) {
-	if r.Stack.Execution == nil {
-		r.Stack.Execution = &component.StackExecution{}
-	}
-
-	r.Stack.Execution.ChildTerragruntConfig = cfg
-}
-
-// SetParseOptions sets the ParseOptions for the stack.
-func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
-	if r.Stack.Execution == nil {
-		r.Stack.Execution = &component.StackExecution{}
-	}
-
-	r.Stack.Execution.ParserOptions = parserOptions
 }
 
 // SetReport sets the report for the stack.

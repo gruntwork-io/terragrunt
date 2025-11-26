@@ -1,15 +1,9 @@
 package common
 
 import (
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 )
-
-// ParseOptionsSetter is a minimal interface for components that can accept HCL parser options.
-type ParseOptionsSetter interface {
-	SetParseOptions(parserOptions []hclparse.Option)
-}
 
 // Option applies configuration to a StackRunner.
 type Option interface {
@@ -43,21 +37,11 @@ func (o optionImpl) GetParseOptions() []hclparse.Option {
 	return nil
 }
 
-// WithChildTerragruntConfig sets the child Terragrunt configuration on a StackRunner.
-func WithChildTerragruntConfig(cfg *config.TerragruntConfig) Option {
-	return optionImpl{
-		apply: func(stack StackRunner) {
-			stack.SetTerragruntConfig(cfg)
-		},
-	}
-}
-
 // WithParseOptions provides custom HCL parser options to both discovery and stack execution.
 func WithParseOptions(parserOptions []hclparse.Option) Option {
 	return optionImpl{
-		apply: func(stack StackRunner) {
-			stack.SetParseOptions(parserOptions)
-		},
+		// No-op apply for runner; discovery picks up parser options via GetParseOptions
+		apply:         func(StackRunner) {},
 		parserOptions: parserOptions,
 	}
 }
