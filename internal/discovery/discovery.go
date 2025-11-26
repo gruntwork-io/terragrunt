@@ -1302,9 +1302,22 @@ func (d *Discovery) filterGraphTarget(l log.Logger, components component.Compone
 		return components
 	}
 
-	targetPath := d.graphTarget
+	targetPath := canonicalizeGraphTarget(l, d.workingDir, d.graphTarget)
+
+	dependentUnits := buildDependentsIndex(components)
+	propagateTransitiveDependents(dependentUnits)
+
+	allowed := buildAllowSet(targetPath, dependentUnits)
+
+	return filterByAllowSet(components, allowed)
+}
+
+// canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path.
+// Falls back to a cleaned relative path on canonicalization failure, logging at debug level.
+func canonicalizeGraphTarget(l log.Logger, baseDir, target string) string {
+	targetPath := target
 	if !filepath.IsAbs(targetPath) {
-		if abs, err := util.CanonicalPath(targetPath, d.workingDir); err == nil {
+		if abs, err := util.CanonicalPath(targetPath, baseDir); err == nil {
 			targetPath = abs
 		} else {
 			l.Debugf("Could not canonicalize graph target %s: %v", targetPath, err)
@@ -1312,6 +1325,12 @@ func (d *Discovery) filterGraphTarget(l log.Logger, components component.Compone
 		}
 	}
 
+	return targetPath
+}
+
+// buildDependentsIndex builds an index mapping each unit path to the list of units
+// that directly depend on it. Duplicate entries are removed.
+func buildDependentsIndex(components component.Components) map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, c := range components {
@@ -1322,8 +1341,23 @@ func (d *Discovery) filterGraphTarget(l log.Logger, components component.Compone
 		}
 	}
 
-	// Propagate transitive dependents (similar to UnitFilterGraph).
-	maxIterations := len(components)
+	return dependentUnits
+}
+
+// propagateTransitiveDependents expands the dependents index to include transitive dependents.
+// Iteratively propagates dependents until a fixed point is reached or the iteration cap is met.
+func propagateTransitiveDependents(dependentUnits map[string][]string) {
+	// Determine an upper bound on iterations based on unique nodes in the graph (keys + values).
+	nodes := make(map[string]struct{})
+	for unit, dependents := range dependentUnits {
+		nodes[unit] = struct{}{}
+		for _, dep := range dependents {
+			nodes[dep] = struct{}{}
+		}
+	}
+
+	maxIterations := len(nodes)
+
 	for i := 0; i < maxIterations; i++ {
 		updated := false
 
@@ -1346,8 +1380,10 @@ func (d *Discovery) filterGraphTarget(l log.Logger, components component.Compone
 			break
 		}
 	}
+}
 
-	// Build allowlist
+// buildAllowSet creates the allowlist containing the target and all of its dependents.
+func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[string]struct{} {
 	allowed := make(map[string]struct{})
 
 	allowed[targetPath] = struct{}{}
@@ -1355,6 +1391,11 @@ func (d *Discovery) filterGraphTarget(l log.Logger, components component.Compone
 		allowed[dep] = struct{}{}
 	}
 
+	return allowed
+}
+
+// filterByAllowSet returns only the components whose path exists in the allow set.
+func filterByAllowSet(components component.Components, allowed map[string]struct{}) component.Components {
 	filtered := make(component.Components, 0, len(components))
 	for _, c := range components {
 		if _, ok := allowed[c.Path()]; ok {
