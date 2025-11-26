@@ -12,7 +12,7 @@ const {
 } = Astro.props;
 ---
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
   <head>
     <!-- Primary Meta Tags -->
     <meta charset="UTF-8" />
@@ -43,7 +43,7 @@ const {
     <link rel="canonical" href={url} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
-  <body class="tg bg-[#FAFAFA]">
+  <body class="tg bg-[#FAFAFA] min-h-full">
     <slot />
   </body>
 </html>
