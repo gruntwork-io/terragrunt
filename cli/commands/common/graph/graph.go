@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -64,17 +62,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	// Limit graph to the working directory and its dependents.
-	// When the filter-flag experiment is enabled, use discovery filter queries:
-	// The prefix ellipsis means "include dependents"; target is included by default.
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
-	} else {
-		// Fallback when the experiment is disabled: prune at runner level to target + dependents.
-		stackOpts = append(stackOpts, discovery.WithGraphTarget(opts.WorkingDir))
-	}
-
-	stackOpts = append(stackOpts, common.WithReport(r))
+	stackOpts = append(stackOpts, discovery.WithGraphTarget(opts.WorkingDir), common.WithReport(r))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
