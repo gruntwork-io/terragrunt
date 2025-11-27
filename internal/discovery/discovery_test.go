@@ -14,6 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func normPath(p string) string {
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		return resolved
+	}
+
+	return p
+}
+
 func TestDiscovery(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +238,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 			for i, c := range components {
 				want := wantDiscovery[i]
-				assert.Equal(t, want.Path(), c.Path(), "Component path mismatch at index %d", i)
+				assert.Equal(t, normPath(want.Path()), normPath(c.Path()), "Component path mismatch at index %d", i)
 				assert.Equal(t, want.Kind(), c.Kind(), "Component kind mismatch at index %d", i)
 				assert.Equal(t, want.External(), c.External(), "Component external flag mismatch at index %d", i)
 
@@ -241,7 +249,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 				for j, dep := range cfgDeps {
 					wantDep := wantDeps[j]
-					assert.Equal(t, wantDep.Path(), dep.Path(), "Dependency path mismatch at component %d, dependency %d", i, j)
+					assert.Equal(t, normPath(wantDep.Path()), normPath(dep.Path()), "Dependency path mismatch at component %d, dependency %d", i, j)
 					assert.Equal(t, wantDep.Kind(), dep.Kind(), "Dependency kind mismatch at component %d, dependency %d", i, j)
 					assert.Equal(t, wantDep.External(), dep.External(), "Dependency external flag mismatch at component %d, dependency %d", i, j)
 
@@ -252,7 +260,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 					for k, nestedDep := range depDeps {
 						wantNestedDep := wantDepDeps[k]
-						assert.Equal(t, wantNestedDep.Path(), nestedDep.Path(), "Nested dependency path mismatch")
+						assert.Equal(t, normPath(wantNestedDep.Path()), normPath(nestedDep.Path()), "Nested dependency path mismatch")
 					}
 				}
 			}

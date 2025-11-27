@@ -1251,6 +1251,8 @@ func (d *Discovery) Discover(
 		}
 	}
 
+	allComponents := components
+
 	if len(d.filters) > 0 {
 		filtered, evaluateErr := d.filters.Evaluate(l, components)
 		if evaluateErr != nil {
@@ -1285,12 +1287,10 @@ func (d *Discovery) Discover(
 		return components, errors.Join(errs...)
 	}
 
-	// When filter queries include ONLY dependents (e.g., ...{target}) and NO dependencies,
-	// apply additional pruning to retain only the target(s) and their transitive dependents.
-	// Skip this when dependency expressions exist (e.g., ...{target}...) since those require
-	// keeping both dependencies AND dependents.
-	if len(d.dependencyTargetExpressions) == 0 {
-		components = d.applyDependentTargeting(l, components)
+	// When filter queries include dependents (e.g., ...{target}), re-expand the filtered set
+	// to include the target(s) and their transitive dependents from the full component graph.
+	if len(d.dependentTargetExpressions) > 0 {
+		components = d.applyDependentTargeting(allComponents, components)
 	}
 
 	if d.graphTarget != "" {
@@ -1326,43 +1326,32 @@ func (d *Discovery) filterGraphTarget(components component.Components) (componen
 	return filterByAllowSet(components, allowed), nil
 }
 
-// applyDependentTargeting prunes the discovered components to the union of all
-// filter targets that requested dependents (via ... prefix) and their transitive dependents.
-// This aligns behavior with --graph-target pruning when the filter queries specify dependents.
-func (d *Discovery) applyDependentTargeting(l log.Logger, components component.Components) component.Components {
+// applyDependentTargeting re-expands the filtered set of components to include
+// the target(s) selected by dependent filter expressions and their transitive dependents.
+func (d *Discovery) applyDependentTargeting(full component.Components, filtered component.Components) component.Components {
 	if len(d.dependentTargetExpressions) == 0 {
-		return components
+		return filtered
 	}
 
-	// Build dependents index once over the full component graph.
-	dependentUnits := buildDependentsIndex(components)
+	dependentUnits := buildDependentsIndex(full)
 	propagateTransitiveDependents(dependentUnits)
 
 	allowed := make(map[string]struct{})
 
-	for _, targetExpr := range d.dependentTargetExpressions {
-		matched, err := filter.Evaluate(l, targetExpr, components)
-		if err != nil {
-			l.Warnf("Failed to evaluate dependent target expression %q: %v", targetExpr, err)
+	for _, target := range filtered {
+		targetPath := resolvePath(target.Path())
+		allowed[targetPath] = struct{}{}
 
-			continue
-		}
-
-		for _, c := range matched {
-			targetPath := resolvePath(c.Path())
-			allowed[targetPath] = struct{}{}
-
-			for _, dep := range dependentUnits[targetPath] {
-				allowed[dep] = struct{}{}
-			}
+		for _, dep := range dependentUnits[targetPath] {
+			allowed[dep] = struct{}{}
 		}
 	}
 
 	if len(allowed) == 0 {
-		return components
+		return filtered
 	}
 
-	return filterByAllowSet(components, allowed)
+	return filterByAllowSet(full, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
