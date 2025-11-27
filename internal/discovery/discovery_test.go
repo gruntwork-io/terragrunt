@@ -544,6 +544,9 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	internalDir := filepath.Join(tmpDir, "internal")
 	externalDir := filepath.Join(tmpDir, "external")
 	appDir := filepath.Join(internalDir, "app")
