@@ -16,25 +16,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// resolvedPathMemo caches results of filepath.EvalSymlinks to reduce repeated system calls.
-var resolvedPathMemo sync.Map // map[string]string
-
 // resolvePath resolves symlinks in a path for consistent comparison across platforms.
 // On macOS, /var is a symlink to /private/var, so paths must be resolved.
 func resolvePath(path string) string {
-	if v, ok := resolvedPathMemo.Load(path); ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		resolvedPathMemo.Store(path, path)
 		return path
 	}
-
-	resolvedPathMemo.Store(path, resolved)
 
 	return resolved
 }
