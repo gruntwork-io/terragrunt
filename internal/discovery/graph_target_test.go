@@ -69,6 +69,8 @@ func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
 	cmd := exec.CommandContext(t.Context(), "git", "init")
