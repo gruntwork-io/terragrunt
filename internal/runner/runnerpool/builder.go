@@ -65,10 +65,12 @@ func Build(
 		d = d.WithIncludeDirs(terragruntOptions.IncludeDirs)
 	}
 
-	// NOTE: We do NOT pass ExcludeDirs to discovery because excluded units need to be
-	// discovered and reported (for --report-file functionality). The unit resolver will
-	// handle exclusions after discovery, ensuring excluded units appear in reports.
-	//
+	// Pass exclude directory filters to discovery
+	// Discovery will skip parsing (but still discover) excluded units for reporting
+	if len(terragruntOptions.ExcludeDirs) > 0 {
+		d = d.WithExcludeDirs(terragruntOptions.ExcludeDirs)
+	}
+
 	// For now... We can probably use the following once runnerpool has been updated to not expect external
 	// dependencies in the discovery results.
 	//
