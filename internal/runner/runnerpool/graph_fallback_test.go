@@ -25,6 +25,8 @@ func TestGraphFallbackMatchesFilterExperiment(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	// Make tmpDir a git repository so graph root detection works consistently
 	helpers.CreateGitRepo(t, tmpDir)
 
