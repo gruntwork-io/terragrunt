@@ -204,12 +204,6 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 			continue
 		}
 
-		// Skip positive filters that require dependent discovery - they are handled
-		// by applyDependentTargeting after relationship discovery when dependents are populated.
-		if len(collectGraphExpressionTargetsWithDependents(filter.expr)) > 0 {
-			continue
-		}
-
 		positiveFilters = append(positiveFilters, filter)
 	}
 

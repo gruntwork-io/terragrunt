@@ -1185,11 +1185,17 @@ func (d *Discovery) Discover(
 						dependentDiscovery = dependentDiscovery.WithFilenames(d.configFilenames)
 					}
 
-					// Compute git root if we have starting components
+					// Compute git root if we have starting components. When git root is unavailable
+					// (common in temp test fixtures), fall back to the Terragrunt root working dir to
+					// avoid walking out of the intended graph scope and parsing unrelated configs.
 					if len(dependentStartingComponents) > 0 {
 						startingPath := dependentStartingComponents[0].Path()
 						if gitRootPath, gitErr := shell.GitTopLevelDir(discoveryCtx, l, opts, startingPath); gitErr == nil {
 							dependentDiscovery = dependentDiscovery.WithGitRoot(gitRootPath)
+						} else if opts.RootWorkingDir != "" {
+							dependentDiscovery = dependentDiscovery.WithGitRoot(opts.RootWorkingDir)
+						} else {
+							dependentDiscovery = dependentDiscovery.WithGitRoot(d.workingDir)
 						}
 					}
 
@@ -1248,8 +1254,6 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	allComponents := components
-
 	if len(d.filters) > 0 {
 		filtered, evaluateErr := d.filters.Evaluate(l, components)
 		if evaluateErr != nil {
@@ -1284,12 +1288,6 @@ func (d *Discovery) Discover(
 		return components, errors.Join(errs...)
 	}
 
-	// When filter queries include dependents (e.g., ...{target}), re-expand the filtered set
-	// to include the target(s) and their transitive dependents from the full component graph.
-	if len(d.dependentTargetExpressions) > 0 {
-		components = d.applyDependentTargeting(allComponents, components)
-	}
-
 	if d.graphTarget != "" {
 		var err error
 
@@ -1321,34 +1319,6 @@ func (d *Discovery) filterGraphTarget(components component.Components) (componen
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
 	return filterByAllowSet(components, allowed), nil
-}
-
-// applyDependentTargeting re-expands the filtered set of components to include
-// the target(s) selected by dependent filter expressions and their transitive dependents.
-func (d *Discovery) applyDependentTargeting(full component.Components, filtered component.Components) component.Components {
-	if len(d.dependentTargetExpressions) == 0 {
-		return filtered
-	}
-
-	dependentUnits := buildDependentsIndex(full)
-	propagateTransitiveDependents(dependentUnits)
-
-	allowed := make(map[string]struct{})
-
-	for _, target := range filtered {
-		targetPath := resolvePath(target.Path())
-		allowed[targetPath] = struct{}{}
-
-		for _, dep := range dependentUnits[targetPath] {
-			allowed[dep] = struct{}{}
-		}
-	}
-
-	if len(allowed) == 0 {
-		return filtered
-	}
-
-	return filterByAllowSet(full, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
