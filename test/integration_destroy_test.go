@@ -342,7 +342,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	captured := <-capturedOutput
 
 	require.NoError(t, err)
-	assert.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
+	assert.NotContains(t, captured, "Should Terragrunt install the external dependency?")
 	assert.NotContains(t, captured, tmp)
 }
 
