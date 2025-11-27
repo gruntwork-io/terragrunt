@@ -45,3 +45,10 @@ func (writer *UnitWriter) flushUnsafe() error {
 
 	return nil
 }
+
+// ParentWriter returns the underlying output writer that this UnitWriter wraps.
+// This is used for creating writer-based locks to serialize concurrent flushes
+// to the same parent writer.
+func (writer *UnitWriter) ParentWriter() io.Writer {
+	return writer.out
+}

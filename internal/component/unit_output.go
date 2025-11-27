@@ -1,6 +1,8 @@
 package component
 
 import (
+	"fmt"
+	"io"
 	"sync"
 )
 
@@ -9,17 +11,24 @@ type flusher interface {
 	Flush() error
 }
 
-// unitOutputLocks provides per-unit locks for serializing flushes to the same writer.
+// parentWriterProvider is any writer that can provide its underlying parent writer.
+// This is used to create writer-based locks that serialize flushes to the same parent.
+type parentWriterProvider interface {
+	ParentWriter() io.Writer
+}
+
+// unitOutputLocks provides locks for serializing flushes to the same parent writer.
+// The key is the parent writer's address (via fmt.Sprintf("%p", writer)).
 var unitOutputLocks sync.Map // map[string]*sync.Mutex
 
-func unitOutputLock(path string) *sync.Mutex {
-	if mu, ok := unitOutputLocks.Load(path); ok {
+func unitOutputLock(key string) *sync.Mutex {
+	if mu, ok := unitOutputLocks.Load(key); ok {
 		return mu.(*sync.Mutex)
 	}
 
 	newMu := &sync.Mutex{}
 
-	actual, loaded := unitOutputLocks.LoadOrStore(path, newMu)
+	actual, loaded := unitOutputLocks.LoadOrStore(key, newMu)
 	if loaded {
 		return actual.(*sync.Mutex)
 	}
@@ -39,7 +48,13 @@ func FlushOutput(u *Unit) error {
 		return nil
 	}
 
+	// Use parent writer's address as lock key to serialize flushes to same parent.
+	// Falls back to unit path for writers without parentWriterProvider.
 	key := u.AbsolutePath()
+	if pwp, ok := u.Execution.TerragruntOptions.Writer.(parentWriterProvider); ok {
+		key = fmt.Sprintf("%p", pwp.ParentWriter())
+	}
+
 	mu := unitOutputLock(key)
 
 	mu.Lock()
