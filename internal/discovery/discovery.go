@@ -899,6 +899,26 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 	return nil
 }
 
+// skipParsing determines if the given component should be skipped based on compiled exclude patterns and its path.
+func (d *Discovery) skipParsing(comp component.Component) bool {
+	if len(d.compiledExcludePatterns) == 0 {
+		return false
+	}
+
+	canonicalPath, err := util.CanonicalPath(comp.Path(), d.workingDir)
+	if err != nil {
+		return false
+	}
+
+	for _, pattern := range d.compiledExcludePatterns {
+		if pattern.Compiled.Match(canonicalPath) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // parseConcurrently parses components concurrently to improve performance using errgroup.
 func (d *Discovery) parseConcurrently(
 	ctx context.Context,
@@ -913,6 +933,12 @@ func (d *Discovery) parseConcurrently(
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
 		if _, ok := c.(*component.Stack); ok {
+			continue
+		}
+
+		// Skip parsing components that match exclude patterns.
+		if d.skipParsing(c) {
+			l.Debugf("Skipping parse for excluded component: %s", c.Path())
 			continue
 		}
 
