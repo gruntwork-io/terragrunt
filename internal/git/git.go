@@ -1,4 +1,18 @@
-package cas
+// Package git provides support for Git operations needed throughout the Terragrunt codebase.
+//
+// The package primarily uses the `git` binary installed on the host system, but experimentally supports
+// the `go-git` library for some operations. As of yet, the performance of the `go-git` library is not
+// as good as the `git` binary, so we don't use it by default. If we can optimize usage of the `go-git` library
+// so that the performance difference is negligible, we can choose to use it instead of the `git` binary for certain
+// operations.
+//
+// Even assuming the performance differences are negligible, we'll still prefer to use the `git` binary for certain
+// operations. For example, operations related to remotes are likely easier to support with the `git` binary, as
+// users might have git configurations for authentication that would be inconvenient to port over to configuration
+// of the `go-git` library. This might change in the future.
+//
+// We'll prefix usage of the `go-git` library with "Go" to make it clear when we're using it.
+package git
 
 import (
 	"bytes"
@@ -10,6 +24,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/storage/filesystem"
 )
 
 const (
@@ -18,8 +35,10 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	GitPath string
-	WorkDir string
+	goRepo    *git.Repository
+	goStorage *filesystem.Storage
+	GitPath   string
+	WorkDir   string
 }
 
 // NewGitRunner creates a new GitRunner instance
@@ -33,15 +52,16 @@ func NewGitRunner() (*GitRunner, error) {
 		}
 	}
 
-	return &GitRunner{GitPath: gitPath}, nil
+	return &GitRunner{
+		GitPath: gitPath,
+	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	copy := *g
-	copy.WorkDir = workDir
+	g.WorkDir = workDir
 
-	return &copy
+	return g
 }
 
 // RequiresWorkDir returns an error if no working directory is set
@@ -51,6 +71,19 @@ func (g *GitRunner) RequiresWorkDir() error {
 			Op:      "git",
 			Context: "no working directory set",
 			Err:     ErrNoWorkDir,
+		}
+	}
+
+	return nil
+}
+
+// RequiresGoRepo returns an error if no go repository is set
+func (g *GitRunner) RequiresGoRepo() error {
+	if g.goRepo == nil {
+		return &WrappedError{
+			Op:      "git",
+			Context: "no go repository set",
+			Err:     ErrNoGoRepo,
 		}
 	}
 
@@ -171,7 +204,7 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 		}
 	}
 
-	g.SetWorkDir(tempDir)
+	g.WithWorkDir(tempDir)
 
 	cleanup := func() error {
 		if err := os.RemoveAll(tempDir); err != nil {
@@ -194,41 +227,15 @@ func GetRepoName(repo string) string {
 	return strings.TrimSuffix(name, ".git")
 }
 
-// LsTree runs git ls-tree and returns the parsed tree
-func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return nil, err
-	}
-
-	cmd := g.prepareCommand(ctx, "ls-tree", reference)
-	cmd.Dir = g.WorkDir
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, &WrappedError{
-			Op:      "git_ls_tree",
-			Context: stderr.String(),
-			Err:     ErrReadTree,
-		}
-	}
-
-	return ParseTree(stdout.String(), path)
-}
-
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
 // This eliminates the need for multiple separate ls-tree calls on subtrees
-func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string) (*Tree, error) {
+func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return nil, err
 	}
 
 	// Use recursive ls-tree to get all blobs in a single command
-	cmd := g.prepareCommand(ctx, "ls-tree", "-r", reference)
-	cmd.Dir = g.WorkDir
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", ref)
 
 	var stdout, stderr bytes.Buffer
 
@@ -243,7 +250,12 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string)
 		}
 	}
 
-	return ParseTree(stdout.String(), path)
+	tree, err := ParseTree(stdout.Bytes(), ".")
+	if err != nil {
+		return nil, err
+	}
+
+	return tree, nil
 }
 
 // CatFile writes the contents of a git object
@@ -256,7 +268,7 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 	var stderr bytes.Buffer
 
 	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
-	cmd.Dir = g.WorkDir
+
 	cmd.Stdout = out
 	cmd.Stderr = &stderr
 
@@ -274,11 +286,108 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 	return nil
 }
 
-// SetWorkDir sets the working directory for git commands
-func (g *GitRunner) SetWorkDir(dir string) {
-	g.WorkDir = dir
+// CreateDetachedWorktree creates a new detached worktree for a given reference
+// as a given directory
+func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "worktree", "add", "--detach", dir, ref)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_create_detached_worktree",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return nil
+}
+
+// RemoveWorktree removes a Git worktree for a given path
+func (g *GitRunner) RemoveWorktree(ctx context.Context, path string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "worktree", "remove", "--force", path)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_remove_worktree",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return nil
+}
+
+// Diff determines the diff between two Git references.
+func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	cmd := g.prepareCommand(ctx, "diff", "--name-status", "--no-renames", fromRef, toRef)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_diff",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return ParseDiff(stdout.Bytes())
+}
+
+// Init initializes a Git repository
+func (g *GitRunner) Init(ctx context.Context) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "init")
+
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_init",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return nil
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+
+	if g.WorkDir != "" {
+		cmd.Dir = g.WorkDir
+	}
+
+	return cmd
 }

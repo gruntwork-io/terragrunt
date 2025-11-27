@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,9 +75,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.Error(t, err)
 
-		var wrappedErr *cas.WrappedError
+		var wrappedErr *git.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cas.ErrNoMatchingReference)
+		assert.ErrorIs(t, wrappedErr.Err, git.ErrNoMatchingReference)
 	})
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {
@@ -93,9 +94,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
 
-		var wrappedErr *cas.WrappedError
+		var wrappedErr *git.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cas.ErrCommandSpawn)
+		assert.ErrorIs(t, wrappedErr.Err, git.ErrCommandSpawn)
 	})
 }
 
@@ -121,11 +122,11 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get the commit hash
-		git, err := cas.NewGitRunner()
+		g, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		git = git.WithWorkDir(filepath.Join(tempDir, "repo"))
-		results, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		g = g.WithWorkDir(filepath.Join(tempDir, "repo"))
+		results, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
@@ -142,7 +143,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse the tree data to confirm it's valid
-		tree, err := cas.ParseTree(string(treeData), "")
+		tree, err := git.ParseTree(treeData, "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
 	})

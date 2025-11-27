@@ -1100,13 +1100,6 @@ func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 	return false
 }
 
-func CreateGitRepo(t *testing.T, dir string) {
-	t.Helper()
-
-	commandOutput, err := exec.CommandContext(t.Context(), "git", "init", dir).CombinedOutput()
-	require.NoErrorf(t, err, "Error initializing git repo: %v\n%s", err, string(commandOutput))
-}
-
 // HCLFilesInDir returns a list of all HCL files in a directory.
 func HCLFilesInDir(t *testing.T, dir string) []string {
 	t.Helper()

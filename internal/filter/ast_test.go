@@ -17,47 +17,47 @@ func TestRestrictToStacks(t *testing.T) {
 	}{
 		{
 			name:     "path filter",
-			expr:     filter.NewPathFilter("./apps/*", "."),
+			expr:     filter.NewPathFilter("./apps/*"),
 			expected: false,
 		},
 		{
 			name:     "attribute filter restricted to stacks",
-			expr:     filter.NewAttributeFilter("type", "stack", "."),
+			expr:     filter.NewAttributeExpression("type", "stack"),
 			expected: true,
 		},
 		{
 			name:     "attribute filter not restricted to stacks",
-			expr:     filter.NewAttributeFilter("name", "foo", "."),
+			expr:     filter.NewAttributeExpression("name", "foo"),
 			expected: false,
 		},
 		{
 			name:     "prefix expression restricted to stacks",
-			expr:     filter.NewPrefixExpression("!", filter.NewAttributeFilter("type", "unit", ".")),
+			expr:     filter.NewPrefixExpression("!", filter.NewAttributeExpression("type", "unit")),
 			expected: true,
 		},
 		{
 			name:     "prefix expression not restricted to stacks",
-			expr:     filter.NewPrefixExpression("!", filter.NewAttributeFilter("name", "foo", ".")),
+			expr:     filter.NewPrefixExpression("!", filter.NewAttributeExpression("name", "foo")),
 			expected: false,
 		},
 		{
 			name:     "infix expression restricted to stacks",
-			expr:     filter.NewInfixExpression(filter.NewAttributeFilter("type", "stack", "."), "|", filter.NewAttributeFilter("external", "true", ".")),
+			expr:     filter.NewInfixExpression(filter.NewAttributeExpression("type", "stack"), "|", filter.NewAttributeExpression("external", "true")),
 			expected: true,
 		},
 		{
 			name:     "infix expression also restricted to stacks",
-			expr:     filter.NewInfixExpression(filter.NewAttributeFilter("external", "true", "."), "|", filter.NewAttributeFilter("type", "stack", ".")),
+			expr:     filter.NewInfixExpression(filter.NewAttributeExpression("external", "true"), "|", filter.NewAttributeExpression("type", "stack")),
 			expected: true,
 		},
 		{
 			name:     "infix expression not restricted to stacks",
-			expr:     filter.NewInfixExpression(filter.NewAttributeFilter("name", "foo", "."), "|", filter.NewAttributeFilter("external", "true", ".")),
+			expr:     filter.NewInfixExpression(filter.NewAttributeExpression("name", "foo"), "|", filter.NewAttributeExpression("external", "true")),
 			expected: false,
 		},
 		{
 			name:     "graph expression",
-			expr:     filter.NewGraphExpression(filter.NewAttributeFilter("name", "foo", "."), true, false, false),
+			expr:     filter.NewGraphExpression(filter.NewAttributeExpression("name", "foo"), true, false, false),
 			expected: false,
 		},
 	}

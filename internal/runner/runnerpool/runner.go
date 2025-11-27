@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -644,6 +645,11 @@ func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
 // SetReport sets the report for the stack.
 func (r *Runner) SetReport(report *report.Report) {
 	r.Stack.Report = report
+}
+
+// SetWorktrees sets the worktrees for the stack.
+func (r *Runner) SetWorktrees(worktrees *worktrees.Worktrees) {
+	r.Stack.Worktrees = worktrees
 }
 
 // SetUnitFilters sets the unit filters for the runner.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -82,10 +83,15 @@ type Sort string
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
+	//
+	// This is passed into objects created during discovery, like Components, and might be adjusted if discovery is
+	// performed in a worktree.
 	discoveryContext *component.DiscoveryContext
 
-	// workingDir is the directory to search for Terragrunt configurations.
-	workingDir string
+	// worktrees is the worktrees created for Git-based filters.
+	//
+	// This is set up by callers before calling Discover().
+	worktrees *worktrees.Worktrees
 
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
@@ -117,8 +123,8 @@ type Discovery struct {
 	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
 	dependentTargetExpressions []filter.Expression
 
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo hiddenDirMemo
+	// gitExpressions contains Git filter expressions that require worktree discovery
+	gitExpressions filter.GitExpressions
 
 	// numWorkers determines the number of concurrent workers for discovery operations.
 	numWorkers int
@@ -201,6 +207,13 @@ func (d *Discovery) WithDiscoverDependencies() *Discovery {
 	if d.maxDependencyDepth == 0 {
 		d.maxDependencyDepth = defaultMaxDependencyDepth
 	}
+
+	return d
+}
+
+// WithWorktrees sets the worktrees for the discovery.
+func (d *Discovery) WithWorktrees(worktrees *worktrees.Worktrees) *Discovery {
+	d.worktrees = worktrees
 
 	return d
 }
@@ -359,8 +372,8 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	}
 
 	// Collect target expressions from graph filters for selective graph traversal.
-	d.dependencyTargetExpressions = d.filters.RequiresDependencyDiscovery()
-	d.dependentTargetExpressions = d.filters.RequiresDependentDiscovery()
+	d.dependencyTargetExpressions = d.filters.DependencyGraphExpressions()
+	d.dependentTargetExpressions = d.filters.DependentGraphExpressions()
 
 	// When working with graph filters, we always perform discovery of components,
 	// regardless of whether or not they are external. We can filter them out after the fact if necessary.
@@ -372,6 +385,10 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	if _, ok := d.filters.RequiresParse(); ok {
 		d.WithRequiresParse()
 	}
+
+	// Collect Git references from filters if any Git filters are present.
+	// The worktrees will be created during discovery before filtering.
+	d.gitExpressions = d.filters.UniqueGitFilters()
 
 	return d
 }
@@ -585,8 +602,8 @@ func Parse(
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
-func (d *Discovery) isInHiddenDirectory(path string) bool {
-	ok := d.hiddenDirMemo.contains(path)
+func (d *Discovery) isInHiddenDirectory(hiddenDirMemo *hiddenDirMemo, path string) bool {
+	ok := hiddenDirMemo.contains(path)
 	if ok {
 		return true
 	}
@@ -606,7 +623,7 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 		}
 
 		if strings.HasPrefix(part, ".") && part != "." && part != ".." {
-			d.hiddenDirMemo.append(hiddenPath)
+			hiddenDirMemo.append(hiddenPath)
 
 			return true
 		}
@@ -620,40 +637,72 @@ func (d *Discovery) discoverConcurrently(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	hiddenDirMemo *hiddenDirMemo,
 	filenames []string,
 ) (component.Components, error) {
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(d.numWorkers + 1) // +1 for the file walker
+	g.SetLimit(d.numWorkers)
 
 	filePaths := make(chan string, d.numWorkers*channelBufferMultiplier)
-	results := make(chan component.Component, d.numWorkers*channelBufferMultiplier)
+
+	var (
+		errs []error
+		mu   sync.Mutex
+	)
 
 	g.Go(func() error {
 		defer close(filePaths)
-		return d.walkDirectoryConcurrently(ctx, l, opts, filePaths)
+
+		err := d.walkDirectoryConcurrently(ctx, l, opts, filePaths)
+		if err != nil {
+			mu.Lock()
+
+			errs = append(errs, err)
+
+			mu.Unlock()
+		}
+
+		return nil
 	})
 
-	for range d.numWorkers {
-		g.Go(func() error {
-			return d.configWorker(ctx, l, filePaths, results, filenames)
-		})
-	}
+	results := make(chan component.Component, d.numWorkers*channelBufferMultiplier)
 
-	// Close results channel when all workers are done
-	go func() {
+	g.Go(func() error {
 		defer close(results)
 
-		_ = g.Wait() // We handle errors in the main thread below
-	}()
+		for path := range filePaths {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 
-	components := make(component.Components, 0, len(results))
+			config := d.processFile(l, path, hiddenDirMemo, filenames)
 
-	for config := range results {
-		components = append(components, config)
+			if config != nil {
+				select {
+				case results <- config:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+		}
+
+		return nil
+	})
+
+	components := component.Components{}
+
+	for result := range results {
+		components = append(components, result)
 	}
 
 	if err := g.Wait(); err != nil {
-		return components, err
+		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return components, errors.Join(errs...)
 	}
 
 	return components, nil
@@ -695,7 +744,7 @@ func (d *Discovery) walkDirectoryConcurrently(
 		return nil
 	}
 
-	return walkFn(d.workingDir, processFn)
+	return walkFn(d.discoveryContext.WorkingDir, processFn)
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.
@@ -716,7 +765,7 @@ func (d *Discovery) skipDirIfIgnorable(l log.Logger, path string) error {
 		return nil
 	}
 
-	canonicalDir, canErr := util.CanonicalPath(path, d.workingDir)
+	canonicalDir, canErr := util.CanonicalPath(path, d.discoveryContext.WorkingDir)
 	if canErr == nil {
 		for _, pattern := range d.compiledExcludePatterns {
 			if pattern.Compiled.Match(canonicalDir) {
@@ -743,40 +792,16 @@ func isInStackDirectory(cleanDir string) bool {
 	return false
 }
 
-// configWorker processes file paths and determines if they are Terragrunt configurations.
-func (d *Discovery) configWorker(
-	ctx context.Context,
-	l log.Logger,
-	filePaths <-chan string,
-	results chan<- component.Component,
-	filenames []string,
-) error {
-	for path := range filePaths {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		config := d.processFile(path, l, filenames)
-
-		if config != nil {
-			select {
-			case results <- config:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	}
-
-	return nil
-}
-
 // processFile processes a single file to determine if it's a Terragrunt configuration.
-func (d *Discovery) processFile(path string, l log.Logger, filenames []string) component.Component {
+func (d *Discovery) processFile(
+	l log.Logger,
+	path string,
+	hiddenDirMemo *hiddenDirMemo,
+	filenames []string,
+) component.Component {
 	dir := filepath.Dir(path)
 
-	canonicalDir, canErr := util.CanonicalPath(dir, d.workingDir)
+	canonicalDir, canErr := util.CanonicalPath(dir, d.discoveryContext.WorkingDir)
 	if canErr == nil {
 		// Eventually, this is going to be removed entirely, as filter evaluation
 		// will be all that's needed.
@@ -796,7 +821,7 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 			}
 
 			// Check for hidden directories before returning
-			if d.noHidden && d.isInHiddenDirectory(path) {
+			if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
 				// Always allow .terragrunt-stack contents
 				cleanDir := util.CleanPath(canonicalDir)
 				if !isInStackDirectory(cleanDir) {
@@ -843,7 +868,7 @@ func (d *Discovery) processFile(path string, l log.Logger, filenames []string) c
 	}
 
 	// Now enforce hidden directory check if still applicable
-	if d.noHidden && d.isInHiddenDirectory(path) {
+	if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
 		// If the directory is hidden, allow it only if it matches an include pattern
 		allowHidden := false
 
@@ -1032,7 +1057,7 @@ func (d *Discovery) Discover(
 	if len(d.includeDirs) > 0 {
 		for _, p := range d.includeDirs {
 			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.workingDir, p)
+				p = filepath.Join(d.discoveryContext.WorkingDir, p)
 			}
 
 			includePatterns = append(includePatterns, util.CleanPath(p))
@@ -1042,7 +1067,7 @@ func (d *Discovery) Discover(
 	if len(d.excludeDirs) > 0 {
 		for _, p := range d.excludeDirs {
 			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.workingDir, p)
+				p = filepath.Join(d.discoveryContext.WorkingDir, p)
 			}
 
 			excludePatterns = append(excludePatterns, util.CleanPath(p))
@@ -1061,12 +1086,25 @@ func (d *Discovery) Discover(
 	}
 
 	// Use concurrent discovery for better performance
-	components, err := d.discoverConcurrently(ctx, l, opts, filenames)
+	components, err := d.discoverConcurrently(ctx, l, opts, &hiddenDirMemo{}, filenames)
 	if err != nil {
 		return components, err
 	}
 
 	errs := []error{}
+
+	if len(d.gitExpressions) > 0 {
+		worktreeDiscovery := NewWorktreeDiscovery(d.gitExpressions).
+			WithNumWorkers(d.numWorkers).
+			WithOriginalDiscovery(d)
+
+		worktreeComponents, worktreeErr := worktreeDiscovery.Discover(ctx, l, opts, d.worktrees)
+		if worktreeErr != nil {
+			return nil, worktreeErr
+		}
+
+		components = append(components, worktreeComponents...)
+	}
 
 	// We do an initial parse loop if we know we need to parse configurations,
 	// as we might need to parse configurations for multiple reasons.
@@ -1101,7 +1139,7 @@ func (d *Discovery) Discover(
 		if shouldRunDependencyDiscovery {
 			g.Go(func() error {
 				return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
-					"working_dir":                    d.workingDir,
+					"working_dir":                    d.discoveryContext.WorkingDir,
 					"config_count":                   len(components),
 					"starting_component_count":       len(dependencyStartingComponents),
 					"discover_external_dependencies": d.discoverExternalDependencies,
@@ -1109,7 +1147,6 @@ func (d *Discovery) Discover(
 				}, func(ctx context.Context) error {
 					dependencyDiscovery := NewDependencyDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
-						WithWorkingDir(d.workingDir).
 						WithNumWorkers(d.numWorkers)
 
 					if d.discoveryContext != nil {
@@ -1129,7 +1166,7 @@ func (d *Discovery) Discover(
 						dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
 					}
 
-					discoveryErr := dependencyDiscovery.DiscoverAllDependencies(discoveryCtx, l, opts, dependencyStartingComponents)
+					discoveryErr := dependencyDiscovery.Discover(discoveryCtx, l, opts, dependencyStartingComponents)
 					if discoveryErr != nil {
 						if !d.suppressParseErrors {
 							return discoveryErr
@@ -1148,14 +1185,13 @@ func (d *Discovery) Discover(
 		if shouldRunDependentDiscovery {
 			g.Go(func() error {
 				return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependents", map[string]any{
-					"working_dir":              d.workingDir,
+					"working_dir":              d.discoveryContext.WorkingDir,
 					"config_count":             len(components),
 					"starting_component_count": len(dependentStartingComponents),
 					"max_dependency_depth":     d.maxDependencyDepth,
 				}, func(ctx context.Context) error {
 					dependentDiscovery := NewDependentDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
-						WithWorkingDir(d.workingDir).
 						WithNumWorkers(d.numWorkers)
 
 					if d.discoveryContext != nil {
@@ -1190,7 +1226,7 @@ func (d *Discovery) Discover(
 						}
 					}
 
-					discoveryErr := dependentDiscovery.DiscoverAllDependents(discoveryCtx, l, dependentStartingComponents)
+					discoveryErr := dependentDiscovery.Discover(discoveryCtx, l, dependentStartingComponents)
 					if discoveryErr != nil {
 						if !d.suppressParseErrors {
 							return discoveryErr
@@ -1213,7 +1249,7 @@ func (d *Discovery) Discover(
 		components = threadSafeComponents.ToComponents()
 
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
-			"working_dir":  d.workingDir,
+			"working_dir":  d.discoveryContext.WorkingDir,
 			"config_count": len(components),
 		}, func(ctx context.Context) error {
 			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
@@ -1238,15 +1274,6 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	if len(d.filters) > 0 {
-		filtered, evaluateErr := d.filters.Evaluate(l, components)
-		if evaluateErr != nil {
-			errs = append(errs, errors.New(evaluateErr))
-		}
-
-		components = filtered
-	}
-
 	if d.filterFlagEnabled && d.discoverDependencies {
 		relationshipDiscovery := NewRelationshipDiscovery(&components).
 			WithMaxDepth(d.maxDependencyDepth).
@@ -1256,7 +1283,7 @@ func (d *Discovery) Discover(
 			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
 		}
 
-		err = relationshipDiscovery.DiscoverAllRelationships(ctx, l, opts, components)
+		err = relationshipDiscovery.Discover(ctx, l, opts, components)
 		if err != nil {
 			if !d.suppressParseErrors {
 				errs = append(errs, errors.New(err))
@@ -1266,6 +1293,15 @@ func (d *Discovery) Discover(
 				l.Debugf("Errors: %w", err)
 			}
 		}
+	}
+
+	if len(d.filters) > 0 {
+		filtered, evaluateErr := d.filters.Evaluate(l, components)
+		if evaluateErr != nil {
+			errs = append(errs, errors.New(evaluateErr))
+		}
+
+		components = filtered
 	}
 
 	if len(errs) > 0 {
