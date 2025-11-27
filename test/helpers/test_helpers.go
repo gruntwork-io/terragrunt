@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	internalExec "github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +76,7 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	t.Helper()
 
 	ctx := t.Context()
-	cmd := exec.CommandContext(ctx, command, args...)
+	cmd := internalExec.GracefulCommandContext(ctx, command, args...)
 	cmd.Dir = dir
 
 	var stdout, stderr bytes.Buffer

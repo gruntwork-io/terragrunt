@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -30,7 +31,7 @@ type Cmd struct {
 // the given arguments.
 func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd := &Cmd{
-		Cmd:             exec.CommandContext(ctx, name, args...),
+		Cmd:             exec.Command(name, args...),
 		logger:          log.Default(),
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
@@ -127,4 +128,21 @@ func (cmd *Cmd) SendSignal(sig os.Signal) {
 	if err := cmd.Process.Signal(sig); err != nil {
 		cmd.logger.Errorf("Failed to forwarding signal %s to %s: %v", sig, cmd.filename, err)
 	}
+}
+
+func GracefulCommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+
+	// Put subprocess in its own process group
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	go func() {
+		<-ctx.Done()
+		if cmd.Process != nil {
+			// Send the provided signal to the process group
+			syscall.Kill(-cmd.Process.Pid, signal.InterruptSignal)
+		}
+	}()
+
+	return cmd
 }
