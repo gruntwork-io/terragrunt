@@ -561,6 +561,7 @@ func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 func getTerragruntOutput(ctx *ParsingContext, l log.Logger, dependencyConfig Dependency) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
+
 	if !util.FileExists(targetConfigPath) {
 		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
 	}
@@ -669,11 +670,9 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, l log.Logger, targ
 
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
 
-	// `needUpdateDownloadDir` is true if `DownloadDir` was not explicitly specified by the user and we need to assign the default download dir, otherwise leave as is.
-	needUpdateDownloadDir := filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), util.TerragruntCacheDir) == ctx.TerragruntOptions.DownloadDir
-	if needUpdateDownloadDir {
-		targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
-	}
+	// Always use the dependency's default download directory for parsing
+	// dependencies, as the dependency's cache is where its state and modules exist.
+	targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
 
 	// Clear IAMRoleOptions in case if it is different from one passed through CLI to allow dependencies to define own iam roles
 	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
@@ -697,21 +696,16 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
-	// DownloadDir needs to be updated to be in the ctx of the new config, if using default
-	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(ctx.TerragruntOptions.TerragruntConfigPath)
+	// DownloadDir needs to be the dependency's default download directory
+	// because that's where the dependency's state was created when it was applied.
+	// We always use the dependency's default since outputs must be read from where
+	// the state exists, regardless of any stack-level download directory settings.
+	_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
 	if err != nil {
 		return l, nil, errors.New(err)
 	}
 
-	// Using default, so compute new download dir and update
-	if ctx.TerragruntOptions.DownloadDir == originalDefaultDownloadDir {
-		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
-		if err != nil {
-			return l, nil, errors.New(err)
-		}
-
-		targetOptions.DownloadDir = downloadDir
-	}
+	targetOptions.DownloadDir = downloadDir
 
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
@@ -792,7 +786,9 @@ func getTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 		targetConfig,
 		nil,
 	)
-	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
+	canGet := canGetRemoteState(remoteStateTGConfig.RemoteState)
+
+	if err != nil || !canGet {
 		l, targetOpts, err := cloneTerragruntOptionsForDependency(ctx, l, targetConfig)
 		if err != nil {
 			return nil, err

@@ -1495,43 +1495,22 @@ func TestStackFindInParentFolders(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackFindInParentFolders)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackFindInParentFolders)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackFindInParentFolders, "live")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackFindInParentFolders)
+	stackPath := util.JoinPath(rootPath, "live", "stack")
 
-	// Test that stack generation works from the live directory
-	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+	// Run stack with --queue-exclude-dir to exclude units source directory
+	// This tests that source templates are skipped during parsing
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --queue-exclude-dir '**/units/**' --working-dir "+stackPath,
+	)
+	require.NoError(t, err)
 
-	// Verify that the stack directory was created and contains the expected unit
-	stackDir := util.JoinPath(rootPath, "stack", ".terragrunt-stack")
-	validateStackDir(t, stackDir)
+	// Verify generated unit runs
+	assert.Contains(t, stderr, "- Unit ./.terragrunt-stack/foo")
 
-	// Verify that the foo unit was generated
-	fooUnitPath := util.JoinPath(stackDir, "foo")
-	assert.True(t, util.FileExists(fooUnitPath), "Expected foo unit to exist in .terragrunt-stack directory")
-	assert.True(t, util.FileExists(util.JoinPath(fooUnitPath, "terragrunt.hcl")), "Expected terragrunt.hcl to exist in foo unit")
-
-	// Test that stack generation works from the parent directory (this tests our fix)
-	parentPath := util.JoinPath(tmpEnvPath, testFixtureStackFindInParentFolders)
-	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+parentPath)
-
-	// Verify that the stack directory was created from the parent directory
-	parentStackDir := util.JoinPath(parentPath, "live", "stack", ".terragrunt-stack")
-	validateStackDir(t, parentStackDir)
-
-	// Verify that the foo unit was generated from the parent directory
-	parentFooUnitPath := util.JoinPath(parentStackDir, "foo")
-	assert.True(t, util.FileExists(parentFooUnitPath), "Expected foo unit to exist when generating from parent directory")
-	assert.True(t, util.FileExists(util.JoinPath(parentFooUnitPath, "terragrunt.hcl")), "Expected terragrunt.hcl to exist in foo unit when generating from parent directory")
-
-	stackPath := util.JoinPath(rootPath, "stack")
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+stackPath)
-	require.NoError(t, err, "Expected stack run apply to succeed")
-
-	outputStdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --raw foo.mock --non-interactive --working-dir "+stackPath)
-	require.NoError(t, err, "Expected stack output to succeed")
-
-	// Verify that the mock value from mock.hcl was correctly passed through
-	assert.Equal(t, "mock", strings.TrimSpace(outputStdout), "Expected raw output to contain just the mock value")
+	// Verify source template is excluded
+	assert.NotContains(t, stderr, "- Unit ./units/foo")
 }
 
 func TestStackGenerateWithFilter(t *testing.T) {

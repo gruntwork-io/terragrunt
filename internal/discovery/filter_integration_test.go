@@ -20,6 +20,8 @@ func TestDiscoveryWithFilters(t *testing.T) {
 
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create test directory structure
 	appsDir := filepath.Join(tmpDir, "apps")

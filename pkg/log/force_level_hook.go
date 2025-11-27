@@ -1,9 +1,6 @@
-package common
+package log
 
-import (
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/sirupsen/logrus"
-)
+import "github.com/sirupsen/logrus"
 
 // ForceLogLevelHook is a log hook which can change log level for messages which contains specific substrings
 type ForceLogLevelHook struct {
@@ -12,10 +9,10 @@ type ForceLogLevelHook struct {
 }
 
 // NewForceLogLevelHook creates default log reduction hook
-func NewForceLogLevelHook(forcedLevel log.Level) *ForceLogLevelHook {
+func NewForceLogLevelHook(forcedLevel Level) *ForceLogLevelHook {
 	return &ForceLogLevelHook{
 		forcedLevel:   forcedLevel.ToLogrusLevel(),
-		triggerLevels: log.AllLevels.ToLogrusLevels(),
+		triggerLevels: AllLevels.ToLogrusLevels(),
 	}
 }
 
