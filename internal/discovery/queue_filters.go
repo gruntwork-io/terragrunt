@@ -123,6 +123,7 @@ func (d *Discovery) propagateIncludedDeps(components component.Components) {
 }
 
 // normalizePaths converts paths to canonical absolute paths relative to workDir.
+// Uses resolvePath for consistent symlink resolution with memoization.
 func normalizePaths(workDir string, paths []string) []string {
 	normalized := make([]string, 0, len(paths))
 
@@ -131,7 +132,12 @@ func normalizePaths(workDir string, paths []string) []string {
 			path = util.JoinPath(workDir, path)
 		}
 
-		normalized = append(normalized, util.CleanPath(path))
+		path = util.CleanPath(path)
+
+		// Use resolvePath for memoized symlink resolution (macOS /var -> /private/var)
+		path = resolvePath(path)
+
+		normalized = append(normalized, path)
 	}
 
 	return normalized

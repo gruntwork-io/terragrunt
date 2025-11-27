@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -597,9 +598,16 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 		terraformCommand,
 	)
 
-	for _, unit := range r.queue.Entries {
-		path := unit.Component.Path()
-		outStr += fmt.Sprintf("- Unit %s\n", path)
+	// For destroy commands, reflect the actual processing order (reverse of apply order).
+	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
+	// IsUp() checks - dependents must complete before their dependencies are processed.
+	entries := slices.Clone(r.queue.Entries)
+	if r.Stack.Execution != nil && isDestroyCommand(r.Stack.Execution.TerragruntOptions) {
+		slices.Reverse(entries)
+	}
+
+	for _, unit := range entries {
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.Path())
 	}
 
 	l.Info(outStr)

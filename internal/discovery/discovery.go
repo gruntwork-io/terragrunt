@@ -1285,6 +1285,14 @@ func (d *Discovery) Discover(
 		return components, errors.Join(errs...)
 	}
 
+	// When filter queries include ONLY dependents (e.g., ...{target}) and NO dependencies,
+	// apply additional pruning to retain only the target(s) and their transitive dependents.
+	// Skip this when dependency expressions exist (e.g., ...{target}...) since those require
+	// keeping both dependencies AND dependents.
+	if len(d.dependencyTargetExpressions) == 0 {
+		components = d.applyDependentTargeting(l, components)
+	}
+
 	if d.graphTarget != "" {
 		var err error
 
@@ -1316,6 +1324,45 @@ func (d *Discovery) filterGraphTarget(components component.Components) (componen
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
 	return filterByAllowSet(components, allowed), nil
+}
+
+// applyDependentTargeting prunes the discovered components to the union of all
+// filter targets that requested dependents (via ... prefix) and their transitive dependents.
+// This aligns behavior with --graph-target pruning when the filter queries specify dependents.
+func (d *Discovery) applyDependentTargeting(l log.Logger, components component.Components) component.Components {
+	if len(d.dependentTargetExpressions) == 0 {
+		return components
+	}
+
+	// Build dependents index once over the full component graph.
+	dependentUnits := buildDependentsIndex(components)
+	propagateTransitiveDependents(dependentUnits)
+
+	allowed := make(map[string]struct{})
+
+	for _, targetExpr := range d.dependentTargetExpressions {
+		matched, err := filter.Evaluate(l, targetExpr, components)
+		if err != nil {
+			l.Warnf("Failed to evaluate dependent target expression %q: %v", targetExpr, err)
+
+			continue
+		}
+
+		for _, c := range matched {
+			targetPath := resolvePath(c.Path())
+			allowed[targetPath] = struct{}{}
+
+			for _, dep := range dependentUnits[targetPath] {
+				allowed[dep] = struct{}{}
+			}
+		}
+	}
+
+	if len(allowed) == 0 {
+		return components
+	}
+
+	return filterByAllowSet(components, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
@@ -1443,6 +1490,7 @@ func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[st
 
 // filterByAllowSet returns only the components whose path exists in the allow set.
 // Paths are resolved to handle symlinks consistently across platforms.
+// The output order matches the input order (no sorting is performed here).
 func filterByAllowSet(components component.Components, allowed map[string]struct{}) component.Components {
 	filtered := make(component.Components, 0, len(components))
 
