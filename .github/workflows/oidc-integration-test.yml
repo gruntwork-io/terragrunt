@@ -33,7 +33,7 @@ jobs:
               - .github/scripts/setup/tofu-switch.sh
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
