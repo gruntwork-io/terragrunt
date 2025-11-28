@@ -1387,6 +1387,9 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 		}
 
 		depPath := dependency.ConfigPath.AsString()
+		if depPath == "" || depPath == "." {
+			continue
+		}
 		if !filepath.IsAbs(depPath) {
 			depPath = filepath.Clean(filepath.Join(component.Path(), depPath))
 		}
@@ -1396,6 +1399,9 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Co
 
 	if cfg.Dependencies != nil {
 		for _, dependency := range cfg.Dependencies.Paths {
+			if dependency == "" || dependency == "." {
+				continue
+			}
 			if !filepath.IsAbs(dependency) {
 				dependency = filepath.Clean(filepath.Join(component.Path(), dependency))
 			}

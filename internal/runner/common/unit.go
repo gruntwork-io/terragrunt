@@ -204,6 +204,10 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 	}
 
 	for _, dependencyPath := range unit.Config.Dependencies.Paths {
+		// Skip empty paths (can occur from conditional dependencies)
+		if dependencyPath == "" || dependencyPath == "." {
+			continue
+		}
 		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path)
 		if err != nil {
 			return dependencies, errors.Errorf("failed to resolve canonical path for dependency %s: %w", dependencyPath, err)
@@ -215,6 +219,10 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
+			// Check if this is a disabled dependency - if so, skip rather than error
+			if unit.isDisabledDependency(dependencyPath) {
+				continue
+			}
 			dependencyErr := UnrecognizedDependencyError{
 				UnitPath:              unit.Path,
 				DependencyPath:        dependencyPath,
@@ -228,6 +236,19 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 	}
 
 	return dependencies, nil
+}
+
+// isDisabledDependency checks if a dependency path corresponds to a disabled dependency block
+func (unit *Unit) isDisabledDependency(dependencyPath string) bool {
+	for _, dep := range unit.Config.TerragruntDependencies {
+		if dep.Enabled != nil && !*dep.Enabled {
+			depPath := dep.ConfigPath.AsString()
+			if depPath == dependencyPath {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MergeMaps the given external dependencies into the given map of units if those dependencies aren't already in the

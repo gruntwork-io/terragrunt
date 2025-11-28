@@ -1000,10 +1000,13 @@ func TestDiscoveryDoesntDetectCycleWhenDisabled(t *testing.T) {
 	// Create terragrunt.hcl files with mutual dependencies
 	testFiles := map[string]string{
 		filepath.Join(fooDir, "terragrunt.hcl"): `
+locals {
+    bar_enabled = false
+}
 dependency "bar" {
 	config_path = "../bar"
 
-	enabled = false
+	enabled = local.bar_enabled
 }
 `,
 		filepath.Join(barDir, "terragrunt.hcl"): `
@@ -1037,4 +1040,89 @@ dependency "foo" {
 	componentPaths := components.Paths()
 	assert.Contains(t, componentPaths, fooDir, "Foo should be discovered")
 	assert.Contains(t, componentPaths, barDir, "Bar should be discovered")
+}
+
+func TestDiscoverySkipsEmptyDependencyPaths(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	commonDir := filepath.Join(tmpDir, "_env")
+	prodFooDir := filepath.Join(tmpDir, "prod", "foo")
+	devFooDir := filepath.Join(tmpDir, "dev", "foo")
+	devFooDeepDir := filepath.Join(tmpDir, "dev", "foodeep")
+	prodBarDir := filepath.Join(tmpDir, "prod", "bar")
+
+	for _, dir := range []string{commonDir, prodFooDir, devFooDir, devFooDeepDir, prodBarDir} {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create terragrunt.hcl files where foo has a conditional dependency on bar
+	// When bar doesn't exist, the empty config_path should be skipped
+	testFiles := map[string]string{
+		filepath.Join(commonDir, "foo.hcl"): `
+locals {
+    bar_path    = "../bar"
+    bar_enabled = fileexists(format("%s/terragrunt.hcl", local.bar_path))
+}
+
+dependency "bar" {
+    enabled     = local.bar_enabled
+    config_path = local.bar_path
+    mock_outputs = {
+        what = "ever"
+    }
+}
+`,
+		filepath.Join(prodFooDir, "terragrunt.hcl"): ` 
+include "envcommon" {
+  path           = "../../_env/foo.hcl"
+}
+`,
+		filepath.Join(devFooDir, "terragrunt.hcl"): `
+include "envcommon" {
+  path           = "../../_env/foo.hcl"
+}
+`,
+		filepath.Join(devFooDeepDir, "terragrunt.hcl"): `
+include "envcommon" {
+  path           = "../../_env/foo.hcl"
+  merge_strategy = "deep"
+}
+`,
+
+		filepath.Join(prodBarDir, "terragrunt.hcl"): `
+locals {
+    env = basename(dirname(get_terragrunt_dir()))
+}
+dependency "foo" {
+    enabled = local.env == "dev"
+    config_path = "../foo"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	l := logger.CreateLogger()
+
+	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err, "Discovery should complete successfully")
+
+	// Verify that a cycle is not detected
+	_, cycleErr := components.CycleCheck()
+	require.NoError(t, cycleErr, "No cycle should be detected - empty config_path should be skipped")
+
+	// Verify both components are discovered
+	componentPaths := components.Paths()
+	assert.Contains(t, componentPaths, prodFooDir, "ProdFoo should be discovered")
+	assert.Contains(t, componentPaths, devFooDir, "DevFoo should be discovered")
+	assert.Contains(t, componentPaths, devFooDeepDir, "DevFooDeep should be discovered")
+	assert.Contains(t, componentPaths, prodBarDir, "prodBar should be discovered")
 }

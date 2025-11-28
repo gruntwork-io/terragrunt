@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -144,4 +145,28 @@ func TestUnits_CheckForCycles(t *testing.T) {
 	units := common.Units{unitA, unitB}
 	err := units.CheckForCycles()
 	assert.Error(t, err)
+}
+
+func TestUnitsMap_ConvertDiscoveryToRunner_SkipsDisabledDependencies(t *testing.T) {
+	t.Parallel()
+	fooPath := "/abs/foo"
+	barPath := "/abs/bar"
+	disabledDepPath := "../disabled/dep"
+	disabled := false
+	m := common.UnitsMap{
+		fooPath: &common.Unit{Path: fooPath, Config: config.TerragruntConfig{}},
+		barPath: &common.Unit{
+			Path: barPath,
+			Config: config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{fooPath, disabledDepPath}},
+				TerragruntDependencies: config.Dependencies{
+					{Name: "foo", ConfigPath: cty.StringVal(fooPath)},
+					{Name: "disabled_dep", ConfigPath: cty.StringVal(disabledDepPath), Enabled: &disabled},
+				},
+			},
+		},
+	}
+	units, err := m.ConvertDiscoveryToRunner([]string{fooPath, barPath})
+	require.NoError(t, err)
+	assert.Len(t, units[0].Dependencies, 1)
 }
