@@ -293,7 +293,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(l log.Logger, decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
@@ -303,6 +303,14 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 	for _, decodedDependencyBlock := range decodedDependencyBlocks {
 		// skip dependency if is not enabled
 		if !decodedDependencyBlock.isEnabled() {
+			continue
+		}
+
+		// Skip if ConfigPath is not a known string value (can happen during discovery phase)
+		if decodedDependencyBlock.ConfigPath.IsNull() ||
+			!decodedDependencyBlock.ConfigPath.IsWhollyKnown() ||
+			!decodedDependencyBlock.ConfigPath.Type().Equals(cty.String) {
+			l.Debugf("Skipping dependency %q: ConfigPath is not a valid known string value", decodedDependencyBlock.Name)
 			continue
 		}
 

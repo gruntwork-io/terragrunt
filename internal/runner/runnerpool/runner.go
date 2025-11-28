@@ -382,8 +382,7 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf(
-		"The runner-pool runner at %s will be processed in the following order for command %s:\n",
-		r.Stack.TerragruntOptions.WorkingDir,
+		"Unit queue will be processed for %s in this order:\n",
 		terraformCommand,
 	)
 
