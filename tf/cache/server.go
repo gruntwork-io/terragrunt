@@ -74,8 +74,8 @@ func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*h
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
 func (server *Server) Listen(ctx context.Context) (net.Listener, error) {
 	lc := &net.ListenConfig{}
-	ln, err := lc.Listen(ctx, "tcp", server.Addr())
 
+	ln, err := lc.Listen(ctx, "tcp", server.Addr())
 	if err != nil {
 		return nil, errors.New(err)
 	}

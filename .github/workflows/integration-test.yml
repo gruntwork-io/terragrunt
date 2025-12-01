@@ -16,6 +16,7 @@ jobs:
           - name: Fixtures with OpenTofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
           - name: Fixtures with Latest OSS Terraform
@@ -60,7 +61,7 @@ jobs:
           - name: AWS Tofu
             os: ubuntu
             target: ./...
-            tags: aws
+            tags: 'aws,tofu'
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
@@ -112,14 +113,9 @@ jobs:
           - name: Provider Cache Server with Tofu
             os: ubuntu
             target: ./test
+            tags: tofu
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
-              - .github/scripts/setup/tofu-switch.sh
-          - name: Provider Cache Dir with Tofu
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/provider-cache-dir.sh
               - .github/scripts/setup/tofu-switch.sh
           - name: Deprecated
             os: ubuntu
@@ -153,10 +149,14 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
-            ignore_errors: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: "Setup Docker"
+        if: runner.os == 'Linux'
+        id: set-up-docker
+        uses: docker/setup-docker-action@v4
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -227,6 +227,10 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             # print command arguments
             set -x
+            if [[ "$HAS_DOCKER" == "true" ]]; then
+              TAGS="${TAGS:+$TAGS,docker}"
+              TAGS="${TAGS:=docker}"
+            fi
             go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
             # Generate XML report from test output
             go-junit-report < test_output.log > result.xml
@@ -234,7 +238,6 @@ jobs:
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
         shell: bash
-        continue-on-error: ${{ matrix.integration.ignore_errors || false }}
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -244,9 +247,10 @@ jobs:
           SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
+          HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ matrix.integration.name }}
           path: |
@@ -265,12 +269,13 @@ jobs:
       - name: Print Failed Tests (${{ matrix.integration.name }})
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
-          if [ -f test_output.log ]; then
-            failed_count=$(grep -c "FAIL:" test_output.log || echo "0")
+          if [[ -f test_output.log ]]; then
+            # Count only test failure lines in a way that is safe with -e -o pipefail
+            failed_count=$(grep -E -c '^--- FAIL:' test_output.log || echo 0)
             echo "Failed tests count: $failed_count"
-            if [ "$failed_count" -gt 0 ]; then
+            if [[ "${failed_count}" -gt 0 ]]; then
               echo "Failed test names:"
-              grep "FAIL:" test_output.log | sed 's/.*FAIL:[[:space:]]*//'
+              grep -E '^--- FAIL:' test_output.log | sed 's/.*FAIL:[[:space:]]*//'
             else
               echo "No failed tests found"
             fi

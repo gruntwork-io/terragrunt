@@ -1,0 +1,170 @@
+---
+title: "Step 3: Adding dev"
+description: Adding dev
+slug: docs/guides/terralith-to-terragrunt/step-3-adding-dev
+sidebar:
+  order: 6
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
+
+In the last step, you engaged in the foundational work of refactoring your monolithic configuration into a set of reusable modules, still instantiated in a single root module. Now it's time to leverage those newly develop skills to create new infrastructure.
+
+One of the main advantages gained in creating infrastructure using IaC is improved reproducibility. The naive approach to creating new infrastructure is to directly copy and paste IaC to duplicate it, but there's frequently advantage in packaging the infrastructure you're going to replicate as a new pattern in your `catalog` so that you have a single source of truth for your shared IaC patterns.
+
+In this step, you'll take the infrastructure you've created so far, do one more refactor to encapsulate it as a single reusable module, then instantiate it a second time as a second `dev` environment.
+
+## Tutorial
+
+Let's introduce that new higher level module as a new module named `best_cat`. It will provision the `s3`, `ddb`, `lambda` and `iam` modules we added in the last step, and wire them together. This will give us a single entity that we can duplicate across environments.
+
+<Aside type="note">
+We're basically taking all the stuff in `live` and shoving it into this new `best_cat` module.
+</Aside>
+
+import bestCatMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/main.tf?raw';
+
+<Code title="catalog/modules/best_cat/main.tf" lang="hcl" code={bestCatMainTf} />
+
+import bestCatOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/outputs.tf?raw';
+
+<Code title="catalog/modules/best_cat/outputs.tf" lang="hcl" code={bestCatOutputsTf} />
+
+import bestCatVarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/vars-optional.tf?raw';
+
+<Code title="catalog/modules/best_cat/vars-optional.tf" lang="hcl" code={bestCatVarsOptionalTf} />
+
+import bestCatVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/catalog/modules/best_cat/vars-required.tf?raw';
+
+<Code title="catalog/modules/best_cat/vars-required.tf" lang="hcl" code={bestCatVarsRequiredTf} />
+
+Similar to what we did before with the constituent modules, we can simply replace the content in `live` with a reference to our new `best_cat` module.
+
+import prodMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/main.tf?raw';
+
+<Code title="live/main.tf" lang="hcl" code={prodMainTf} />
+
+Once again, we get the scary `tofu plan` that tells us we would recreate all our infrastructure if we were to naively apply here:
+
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu plan
+...
+Plan: 11 to add, 0 to change, 11 to destroy.
+...
+`} />
+
+
+Luckily, we already know how to handle this. We're going to update our `moved.tf` file to declare all the moves that need to be performed to transition the old addresses of resources to their new addresses.
+
+import movedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/moved.tf?raw';
+
+<Code title="live/moved.tf" lang="hcl" code={movedTf} />
+
+Our apply now successfully completes without doing anything!
+
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu apply
+...
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+...
+`} />
+
+Now the stage is set to add the additional `dev` environment. We can do that by duplicating the `prod` module, and labeling the new `module` block `dev` (you'll also want to add a little suffix to the end of the `name` input to avoid naming collisions).
+
+import mainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/main.tf?raw';
+
+<Code title="live/main.tf" lang="hcl" code={mainTf} />
+
+We also need to expose some of the outputs of the new `dev` module, but if we just duplicated all the `prod` outputs, we'd end up with a massive wall of outputs that would be hard to parse. Luckily, we only need two outputs to be externally accessible per environment, so we can drop a bunch of outputs to streamline things.
+
+import outputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-3-adding-dev/live/outputs.tf?raw';
+
+<Code title="live/outputs.tf" lang="hcl" code={outputsTf} />
+
+## Project Layout Check-in
+
+We should have a project layout that looks like this now:
+
+<FileTree>
+- catalog
+  - modules
+    - **best_cat**
+      - **main.tf**
+      - **outputs.tf**
+      - **vars-optional.tf**
+      - **vars-required.tf**
+    - ddb
+      - main.tf
+      - outputs.tf
+      - vars-required.tf
+      - versions.tf
+    - iam
+      - data.tf
+      - main.tf
+      - outputs.tf
+      - vars-required.tf
+      - versions.tf
+    - lambda
+      - main.tf
+      - outputs.tf
+      - vars-optional.tf
+      - vars-required.tf
+      - versions.tf
+    - s3
+      - main.tf
+      - outputs.tf
+      - vars-optional.tf
+      - vars-required.tf
+      - versions.tf
+- live
+  - backend.tf
+  - main.tf
+  - moved.tf
+  - outputs.tf
+  - providers.tf
+  - vars-optional.tf
+  - vars-required.tf
+  - versions.tf
+</FileTree>
+
+
+## Applying Updates
+
+Now we can deploy our changes.
+
+<Aside type="note">
+We need to re-initialize here as we've added a new module.
+</Aside>
+
+<Code title="live" lang="bash" frame="terminal" code={`tofu init
+tofu apply
+`} />
+
+We now have our new, fresh dev environment!
+
+![fresh-dev-environment](../../../../assets/img/guides/terralith-to-terragrunt/app-without-images.png)
+
+<Aside type="note">
+This environment is *very* fresh. We don't have the static assets uploaded, and we're working with a fresh database. This guide isn't going to into the ways in which Terragrunt could integrate into your build system to do this for you automatically, but know that it *is* part of Terragrunt's feature set to handle this kind of thing. There are hints at the end of this guide to point those capabilities out and encourage your own exploration.
+</Aside>
+
+## Trade-offs
+
+### Pros
+
+We have officially reached the stage where we're hitting **risk increase** due to our ***Terralith***! This is the configuration of IaC that a lot of infrastructure estates grow to naturally as they tack on more resources and add environments. It's a tipping point in maintainability that is best caught early, and addressed.
+
+We gained the ability to easily provision new infrastructure via reusable modules and could simply copy and paste (then season to taste) some configuration in our `live/main.tf` file. We also had a single source of truth for representing all the infrastructure that we were provisioning, in both the reusable module, and our `live` OpenTofu root module.
+
+We traded that for additional risk incurred, as every `apply` or `destroy` now has the potential to modify or destroy multiple environments, and you have to carefully avoid misconfiguration by reading plans (and trusting that they're accurate) to avoid accidentally damaging the wrong environment. Furthermore, you also have to be very careful that you only modify the resources that you intend to modify *within* a given environment when you make updates to it (are you accidentally destroying your database when attempting a tagging update for your Lambda function?). The reason for this is that all your resources are in the same state file. OpenTofu has to make one atomic change to that single state file with every update, so all the resources in state are at risk when any change is made.
+
+For your information, there are tools out there, like [OPA](https://www.openpolicyagent.org/) that enable automated reasoning about plan risk, but those tools are typically adopted by more advanced infrastructure teams, and there is typically a significant amount of overhead in authoring and maintaining the policies that assess plan risk (and driving behavior off those assessments). There are hints at the end of this guide to point those capabilities out and encourage your own exploration on this topic.
+
+Generally, the approach that teams take to structurally reduce this risk is to start to ***break down the Terralith*** into separate root modules, each with their own state. This gives teams confidence that they ***can only*** modify `dev` when they set their current working directory to the `dev` root module, and `prod` when their current working directory is the `prod` root module. When thinking through access control, this can also be convenient, as you can segment the access control that you use for one root module from another. Teams frequently configure their setups so that they need to explicitly use different credentials via role assumption, etc. when running commands in root modules related to different environments (e.g. `dev` vs `prod` ) to avoid accidental updates in the wrong environment.
+
+### Cons
+
+The downside to that approach, as we'll see in the next step, is that it *does* increase the management burden of orchestrating and maintaining your IaC, and additional tooling like Terragrunt is a good way to handle that additional orchestration burden.
+
+## Wrap Up
+
+You've successfully spun up a second, isolated development environment by reusing your new `best_cat` module. However, this is also the point where the *Terralith* design pattern starts to incur some serious drawbacks. At this stage, all your infrastructure for both your environments (`dev` and `prod`) now lives in a single state file. This introduces significant risk. A small mistake intended for `dev` could potentially damage or destroy your `prod` environment because OpenTofu sees it all as one atomic unit to manage, and you're responsible for reasoning about the generated plan to see if you should proceed with an apply. The next step is the most critical step in maturing your IaC estate (as far as this guide is concerned) as you break this monolith apart to limit the blast radius of your updates.

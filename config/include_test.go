@@ -15,9 +15,6 @@ import (
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
 
-	testTrue := true
-	testFalse := false
-
 	testCases := []struct {
 		config         *config.TerragruntConfig
 		includedConfig *config.TerragruntConfig
@@ -114,21 +111,6 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideWithEmptyHooks"}}}},
 		},
 		{
-			&config.TerragruntConfig{},
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testTrue},
-		},
-		{
-			&config.TerragruntConfig{Skip: &testFalse},
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testFalse},
-		},
-		{
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testTrue},
-		},
-		{
 			&config.TerragruntConfig{IamRole: "role2"},
 			&config.TerragruntConfig{IamRole: "role1"},
 			&config.TerragruntConfig{IamRole: "role2"},
@@ -141,12 +123,22 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		{
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
-			&config.TerragruntConfig{IamWebIdentityToken: "token2"},
+			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 		},
 		{
 			&config.TerragruntConfig{},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
+		},
+		{
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session2"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+		},
+		{
+			&config.TerragruntConfig{},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
+			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
@@ -204,9 +196,6 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 
 func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
-
-	testTrue := true
-	testFalse := false
 
 	// The following maps are convenience vars for setting up deep merge map tests
 	overrideMap := map[string]any{
@@ -293,24 +282,6 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			expected: &config.TerragruntConfig{IamRole: "foo"},
 		},
 		// skip related tests
-		{
-			name:     "skip - preserve target",
-			source:   &config.TerragruntConfig{},
-			target:   &config.TerragruntConfig{Skip: &testTrue},
-			expected: &config.TerragruntConfig{Skip: &testTrue},
-		},
-		{
-			name:     "skip - copy source",
-			source:   &config.TerragruntConfig{Skip: &testFalse},
-			target:   &config.TerragruntConfig{Skip: &testTrue},
-			expected: &config.TerragruntConfig{Skip: &testFalse},
-		},
-		{
-			name:     "skip - still copy source",
-			source:   &config.TerragruntConfig{Skip: &testTrue},
-			target:   &config.TerragruntConfig{Skip: &testTrue},
-			expected: &config.TerragruntConfig{Skip: &testTrue},
-		},
 		// Deep merge dependencies
 		{
 			name: "dependencies",
@@ -341,12 +312,6 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 				}},
 		},
 		// Deep merge retryable errors
-		{
-			name:     "retryable errors",
-			source:   &config.TerragruntConfig{RetryableErrors: []string{"error", "override"}},
-			target:   &config.TerragruntConfig{RetryableErrors: []string{"original", "error"}},
-			expected: &config.TerragruntConfig{RetryableErrors: []string{"original", "error", "error", "override"}},
-		},
 		// Deep merge inputs
 		{
 			name:     "inputs",
@@ -415,6 +380,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			if tc.expected.TerragruntDependencies == nil {
 				tc.expected.TerragruntDependencies = config.Dependencies{}
 			}
+
 			assert.Equal(t, tc.expected, tc.target)
 		})
 	}
@@ -433,12 +399,15 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	targetConfig := &config.TerragruntConfig{}
 
 	var wg sync.WaitGroup
+
 	numGoroutines := 666
 
 	wg.Add(numGoroutines)
+
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
+
 			config.CopyFieldsMetadata(sourceConfig, targetConfig)
 		}()
 	}

@@ -1,0 +1,81 @@
+---
+import CheckoutForm from '@components/CheckoutForm.astro';
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import { Image } from 'astro:assets';
+import IconGithub from '@assets/icons/github-icon.svg';
+import IconGitlab from '@assets/icons/gitlab-icon.svg';
+---
+
+<section class="relative bg-[#FAFAFA] border-b border-solid border-gray-3 pt-[var(--sl-nav-height)] px-4 lg:px-19 overflow-x-hidden lg:overflow-visible">
+  <div class="max-w-[1440px] mx-auto pt-20 lg:pt-40 pb-10 lg:pb-15">
+    <div class="lg:grid lg:grid-cols-[1fr_426px] lg:gap-15">
+
+
+    <!-- How it works -->
+    <div class="flex flex-col gap-8 flex-1">
+      <Eyebrow text="Checkout" />
+      <h1 class="text-[64px] text-primary m-0">Purchase <span class="text-accent">Terragrunt Scale</span></h1>
+
+      <!-- Works with -->
+      <div class="flex gap-4 items-center">
+        <p class="font-mono text-xs uppercase text-[#777888] m-0 p-0 select-none">Works with:</p>
+
+        <div class="flex gap-1 items-center">
+          <div class="border border-stroke-dark rounded-lg flex flex-row gap-1.5 items-center m-0 pt-1 pb-1 pr-2.5 pl-1">
+            <div class="flex flex-col items-center justify-center bg-black p-[1px] rounded-sm">
+              <Image
+                alt=""
+                aria-hidden="true"
+                class={"aspect-[1/1] size-4 m-0 p-0"}
+                src={IconGithub}
+              />
+            </div>
+            <p class="font-mono text-xs uppercase text-[#777888] m-0 p-0 select-none">GitHub</p>
+          </div>
+          <div class="border border-stroke-dark rounded-lg flex flex-row gap-1.5 items-center m-0 pt-1 pb-1 pr-2.5 pl-1">
+            <div class="flex flex-col items-center justify-center bg-white p-[1px] rounded-sm">
+              <Image
+                alt=""
+                aria-hidden="true"
+                class={"aspect-[1/1] size-4 m-0 p-0"}
+                src={IconGitlab}
+              />
+            </div>
+            <p class="font-mono text-xs uppercase text-[#777888] m-0 p-0 select-none">GitLab</p>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="text-[42px] text-primary m-0">How it works</h2>
+
+      <!-- Steps -->
+      <div class="flex flex-col xl:grid xl:grid-cols-3 xl:grid-rows-1 bg-white gap-0 border border-dashed border-gray-3">
+
+        <div class="p-6 border-b xl:border-b-0 xl:border-r border-dashed border-gray-3">
+          <h3 class="text-xl font-mono font-medium text-accent my-2">01.</h3>
+          <h3 class="text-xl font-medium text-primary my-2">Sign Up</h3>
+          <p class="text-sm mt-4 text-gray-1">Select your billing cycle and complete payment with Stripe.</p>
+        </div>
+
+        <div class="p-6 border-b xl:border-b-0 xl:border-r border-dashed border-gray-3">
+          <h3 class="text-xl font-mono font-medium text-accent my-2">02.</h3>
+          <h3 class="text-xl font-medium text-primary my-2">Schedule onboarding</h3>
+          <p class="text-sm mt-4 text-gray-1">Book your onboarding with a Gruntwork Solutions Architect immediately after completing payment.</p>
+        </div>
+
+        <div class="p-6">
+          <h3 class="text-xl font-mono font-medium text-accent my-2">03.</h3>
+          <h3 class="text-xl font-medium text-primary my-2">Go Live!</h3>
+          <p class="text-sm mt-4 text-gray-1">Meet with us to gain access to the tools and receive hands-on assistance to configure it, as well as practical advice on how to make the most of Terragrunt Scale.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8 lg:mt-0">
+      <div class="relative mx-auto max-w-[700px] lg:sticky lg:top-40 lg:w-[426px]">
+        <CheckoutForm />
+      </div>
+    </div>
+
+  </div>
+</section>

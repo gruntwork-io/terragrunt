@@ -1,0 +1,36 @@
+---
+import GruntworkLogo from '@assets/gruntwork-logo.svg';
+import { Image } from 'astro:assets';
+import PatternDots from '@assets/pattern-dots.png';
+
+import '@styles/global.css';
+---
+<footer class="relative flex flex-col bg-[#FAFAFA] border-b border-solid border-gray-3">
+
+    <!-- Divider -->
+    <div class="relative w-full h-[13px] bg-gradient-to-l from-[#4F2FD0] to-bg-dark overflow-hidden">
+      <Image
+        src={PatternDots}
+        alt="Pattern Dots"
+        class="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none select-none"
+      />
+    </div>
+
+    <!-- Copyright -->
+    <div class="flex flex-col md:flex-row items-start md:items-center md:justify-between py-6 px-6 bg-[#FAFAFA] mt-auto gap-3">
+      <div class="flex items-center gap-2">
+        <Image src={GruntworkLogo} alt="Gruntwork Logo" class="w-[30px] h-[30px]" />
+        <span class="text-sm text-[#777888]">From the DevOps experts at
+          <a href="https://gruntwork.io" class="text-accent-1 no-underline border-b border-gray-1 hover:cursor-pointer hover:text-accent transition duration-100 ease-in-out">
+            Gruntwork
+          </a>
+        </span>
+      </div>
+      <div>
+        <p class="text-center text-sm text-gray-1 select-none">
+          &copy; {new Date().getFullYear()} Gruntwork, Inc. All rights reserved.
+        </p>
+      </div>
+    </div>
+
+</footer>

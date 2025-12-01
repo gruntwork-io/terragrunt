@@ -57,6 +57,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
 	// order
 	var allOutputBuffer BufferWithLocking
+
 	terragruntOptions.Writer = &allOutputBuffer
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
@@ -86,6 +87,7 @@ func assertOutputs(
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
 		assert.Len(t, allOutputs, len(expectedAllOutputs))
+
 		for i := range allOutputs {
 			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}
@@ -109,6 +111,7 @@ type BufferWithLocking struct {
 func (s *BufferWithLocking) Write(p []byte) (n int, err error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
 	return s.buffer.Write(p)
 }
 
@@ -117,5 +120,6 @@ func (s *BufferWithLocking) Write(p []byte) (n int, err error) {
 func (s *BufferWithLocking) String() string {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
 	return s.buffer.String()
 }

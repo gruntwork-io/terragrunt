@@ -1,24 +1,24 @@
 locals {
-  bar = run_cmd("echo", "foo")
-  foo = run_cmd("echo", "bar")
+  bar = run_cmd("echo", "echo_foo")
+  foo = run_cmd("echo", "echo_bar")
 
-  potato = run_cmd("echo", "potato")
-  potato2 = run_cmd("echo", "potato")
+  potato = run_cmd("echo", "echo_potato")
+  potato2 = run_cmd("echo", "echo_potato")
 
-  carrot = run_cmd("echo", "carrot")
+  carrot = run_cmd("echo", "echo_carrot")
 
-  random_arg = run_cmd("echo", "random_arg",  uuid())
-  random_arg2 = run_cmd("echo", "random_arg",  uuid())
+  random_arg = run_cmd("echo", "echo_random_arg",  uuid())
+  random_arg2 = run_cmd("echo", "echo_random_arg",  uuid())
 
-  uuid = run_cmd("echo", "uuid",  uuid())
+  uuid = run_cmd("echo", "echo_uuid_locals",  uuid())
 
-  another_arg = run_cmd("echo", "another_arg",  uuid())
+  another_arg = run_cmd("echo", "echo_another_arg",  uuid())
 
 }
 
 inputs = {
-  fileName = run_cmd("echo", "carrot")
-  uuid2 = run_cmd("echo", "uuid", uuid())
-  another_arg2 = run_cmd("echo", "another_arg",  uuid())
-  input_variable = run_cmd("echo", "input_variable", uuid())
+  fileName = run_cmd("echo", "echo_carrot")
+  uuid2 = run_cmd("echo", "echo_uuid_input", uuid())
+  another_arg2 = run_cmd("echo", "echo_another_arg",  uuid())
+  input_variable = run_cmd("echo", "echo_input_variable", uuid())
 }

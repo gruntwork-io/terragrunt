@@ -1,0 +1,287 @@
+---
+title: "Step 2: Refactoring"
+description: Refactoring
+slug: docs/guides/terralith-to-terragrunt/step-2-refactoring
+sidebar:
+  order: 5
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
+
+One of the most important skills you can learn when managing IaC is learning how to refactor IaC. The code you write directly relates to infrastructure that delivers value to your team and wider organization, so knowing how to safely reorganize your code so that it's easier to reuse and reason about without incurring risk for the infrastructure you support is invaluable.
+
+Some of the most common reasons you might engage in this kind of refactoring includes:
+
+- Rewriting bespoke IaC as consumption of a reusable module so that you can repurpose the common IaC in other environments/projects.
+- Standardizing IaC patterns for consistent application of security/cost best practices.
+- Abstracting away the implementation details of one or more resources as a module so that you can focus on the higher level abstraction of how that module integrates with the rest of your infrastructure.
+- Creating a generic module with a well defined API for a component in your infrastructure so that you can easily swap out the module with another module that shares a compatible (or close enough to compatible) API.
+
+In this step, we'll start going down the road of making our infrastructure components modular so that we are well prepared for the next step, when we introduce a secondary environment as a replica of the environment we provisioned in the last step.
+
+## Tutorial
+
+The Gruntwork recommended best practice for creating reusable IaC is to create a dedicated `catalog` directory (or a dedicated `catalog` repository) outside the `live` directory (or `live` repository) where reusable IaC patterns like OpenTofu/Terraform modules are stored.
+
+To reorganize the resources that we've created so far into reusable modules, we'll create a directory called `catalog/modules` where we can store our modules for reusability. We'll create an OpenTofu module for each piece of high-level functionality that we are provisioning in our current environment (`s3`, `lambda`, `iam` and `ddb`).
+
+```bash
+mkdir -p catalog/modules/{s3, lambda, iam, ddb}
+```
+
+Now we can move over the files that were provisioning these independent resources into their own modules so we can establish APIs for them and start reusing some of this code. It's a pretty standard convention to name the core file used in a module `main.tf`. Good modules do one thing, and if you can't figure out what a module does by the name of the module, it's probably indicative that you're making an odd abstraction.
+
+```bash
+mv live/ddb.tf catalog/modules/ddb/main.tf
+mv live/iam.tf catalog/modules/iam/main.tf
+mv live/data.tf catalog/modules/iam/data.tf
+mv live/lambda.tf catalog/modules/lambda/main.tf
+mv live/s3.tf catalog/modules/s3/main.tf
+```
+
+The contents of some of these files need a little massaging, however, as the IaC didn't have clear boundaries between the constituent components. Let's fix that by providing an API for each of these modules in the form of variables for inputs and outputs…. for outputs.
+
+import ddbVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/ddb/vars-required.tf?raw';
+
+<Code title="catalog/modules/ddb/vars-required.tf" lang="hcl" code={ddbVarsRequiredTf} />
+
+import ddbOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/ddb/outputs.tf?raw';
+
+<Code title="catalog/modules/ddb/outputs.tf" lang="hcl" code={ddbOutputsTf} />
+
+import s3VarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/s3/vars-required.tf?raw';
+
+<Code title="catalog/modules/s3/vars-required.tf" lang="hcl" code={s3VarsRequiredTf} />
+
+import s3VarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/s3/vars-optional.tf?raw';
+
+<Code title="catalog/modules/s3/vars-optional.tf" lang="hcl" code={s3VarsOptionalTf} />
+
+import s3OutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/s3/outputs.tf?raw';
+
+<Code title="catalog/modules/s3/outputs.tf" lang="hcl" code={s3OutputsTf} />
+
+import iamVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/iam/vars-required.tf?raw';
+
+<Code title="catalog/modules/iam/vars-required.tf" lang="hcl" code={iamVarsRequiredTf} />
+
+import iamOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/iam/outputs.tf?raw';
+
+<Code title="catalog/modules/iam/outputs.tf" lang="hcl" code={iamOutputsTf} />
+
+For the `iam` module, we're also going to need to make adjustments to the `main.tf` file to account for previous tight coupling between resources. The updates here take advantage of those new `s3_bucket_arn` and `dynamodb_table_arn` variables for message passing between modules, exposed by the outputs of the `ddb` and `s3` modules.
+
+import iamMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/iam/main.tf?raw';
+
+<Code title="catalog/modules/iam/main.tf" lang="hcl" code={iamMainTf} />
+
+import lambdaVarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/vars-optional.tf?raw';
+
+<Code title="catalog/modules/lambda/vars-optional.tf" lang="hcl" code={lambdaVarsOptionalTf} />
+
+import lambdaVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/vars-required.tf?raw';
+
+<Code title="catalog/modules/lambda/vars-required.tf" lang="hcl" code={lambdaVarsRequiredTf} />
+
+import lambdaOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/outputs.tf?raw';
+
+<Code title="catalog/modules/lambda/outputs.tf" lang="hcl" code={lambdaOutputsTf} />
+
+Again, for the Lambda module we're going to need to make updates to the `main.tf` file to account for the tight coupling between resources now that we're wiring them together via variables and outputs.
+
+import lambdaMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/main.tf?raw';
+
+<Code title="catalog/modules/lambda/main.tf" lang="hcl" code={lambdaMainTf} />
+
+Let's make sure that our modules have a copy of the `versions.tf` file that was in the root module (if you're not comfortable with using the `find` command below, you can just copy the `versions.tf` file into each of the modules you've created so far manually). It's a best practice to have reusable modules define their version constraints so that they can explicitly signal to module consumers when they use features in newer provider versions that might require a provider upgrade or are dodging a bug in a particular version of a provider that consumers should avoid.
+
+```bash
+find catalog/modules -mindepth 1 -type d -exec cp live/versions.tf {}/versions.tf \;
+```
+
+To use these modules, we need to use OpenTofu `module` blocks to reference them in a new `main.tf` file placed in the `live` directory (the OpenTofu root module).
+
+What we're doing here is simply instantiating each of the modules that we've created so far by referencing them using a relative path to the module in the `source` attribute, setting values for their required inputs (some of which are acquired as outputs from other modules).
+
+import liveMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/main.tf?raw';
+
+<Code title="live/main.tf" lang="hcl" code={liveMainTf} />
+
+We also want to forward outputs from these modules into our root module so that we can access them from the `tofu` CLI.
+
+import liveOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/outputs.tf?raw';
+
+<Code title="live/outputs.tf" lang="hcl" code={liveOutputsTf} />
+
+We can also reduce the amount of content in the optional variables file, now that each of the modules define the variables that matter to them. This keeps the API of each module clean, as each module exposes the variables that specifically control them.
+
+import liveVarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/vars-optional.tf?raw';
+
+<Code title="live/vars-optional.tf" lang="hcl" code={liveVarsOptionalTf} />
+
+After all this refactoring, we'll want to run a `plan` to make sure we can safely apply our changes.
+
+<Aside type="note">
+You'll need to re-initialize now that you're using modules here.
+</Aside>
+
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu init
+$ tofu plan
+...
+Plan: 11 to add, 0 to change, 11 to destroy.
+...
+`} />
+
+Oh no! After all our refactors, we've introduced changes that would *completely destroy* all of the infrastructure we've created so far!
+
+This is a common scenario that you need to become comfortable with as you learn how to refactor and adjust IaC for scalability and maintainability. You leveraged the built-in protections of plans to give you a dry-run of your infrastructure updates, and can reason about why OpenTofu is trying to do what it's doing here to avoid catastrophe.
+
+We, as authors of the IaC, know that all we've done in this step is move some files into different directories, but as far as OpenTofu is concerned, we've deleted resources at addresses like the following:
+
+```bash
+  # aws_lambda_function.main will be destroyed
+  # (because aws_lambda_function.main is not in configuration)
+```
+
+And introduced resources at addresses the like the following:
+
+```bash
+  # module.lambda.aws_lambda_function.main will be created
+```
+
+The reason for this is that OpenTofu doesn't really have a way of knowing the difference between moving a file like that for the sake of reorganization and completely removing infrastructure in one place and adding it in another without some help from IaC authors.
+
+The way we communicate to OpenTofu that a resource at one address has simply moved to a new address is to introduce `move` blocks.
+
+For each resource that we want to move, we'll want to introduce a `move` block with a `from` of the old address (what OpenTofu reports as being destroyed in our plan) and a `to` of the equivalent new address (what OpenTofu reports as being created in our plan).
+
+import liveMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/moved.tf?raw';
+
+<Code title="live/moved.tf" lang="hcl" code={liveMovedTf} />
+
+It's worth noting that we haven't been working with any infrastructure that's important to preserve in this demo so far. We can easily reproduce this infrastructure without much effort. It's important to know how to perform refactors without having to recreate infrastructure, though, as we need to be able to avoid paying the penalty of outages or data loss — especially when working with production infrastructure.
+
+If, for example, the database or s3 bucket being managed here had real customer information, it would be *extremely* important to avoid recreating these resources. OpenTofu doesn't always know that recreating a stateful resource can cause permanent data loss. If you want the benefits we mentioned earlier of refactored IaC, you'll want to know how to carefully handle state manipulation in OpenTofu and understand what it's trying to do.
+
+So, as a small tangent, let's discuss what actually happened when we introduced these `moved` blocks. There are multiple ways to configure OpenTofu backend state configurations, but the way that we've configured it here is to have the state files stored in S3 as JSON files. What we did under the hood with our `moved` blocks was update the content of that JSON file in `s3://[your-state-bucket]/tofu.tfstate` so that each of the `resources` in your state file used updated values for their resource addresses.
+
+In the example of this move:
+
+```hcl
+moved {
+  from = aws_dynamodb_table.asset_metadata
+  to   = module.ddb.aws_dynamodb_table.asset_metadata
+}
+```
+
+We updated one of the JSON objects in the state file from one that had these values:
+
+```json
+      # Some stuff
+      "mode": "managed",
+      "type": "aws_dynamodb_table",
+      "name": "asset_metadata",
+      "provider": "provider[\"registry.opentofu.org/hashicorp/aws\"]",
+      # More stuff
+```
+
+To one that had these values:
+
+```json
+      # Some stuff
+      "module": "module.ddb",
+      "mode": "managed",
+      "type": "aws_dynamodb_table",
+      "name": "asset_metadata",
+      "provider": "provider[\"registry.opentofu.org/hashicorp/aws\"]",
+      # More stuff
+```
+
+When OpenTofu wants to know the current state of `aws_dynamodb_table.asset_metadata`, it can look it up using the first value, and when it wants to lookup the state of `module.ddb.aws_dynamodb_table.asset_metadata` it uses the second value.
+
+By moving the value in state, we're just telling OpenTofu that we're calling the resource by a different name now, without actually changing anything in AWS.
+
+## Project Layout Check-in
+
+You should have a filesystem layout that look like the following for your IaC now:
+
+<FileTree>
+- catalog
+  - modules
+    - ddb
+      - main.tf
+      - outputs.tf
+      - vars-required.tf
+      - versions.tf
+    - iam
+      - data.tf
+      - main.tf
+      - outputs.tf
+      - vars-required.tf
+      - versions.tf
+    - lambda
+      - main.tf
+      - outputs.tf
+      - vars-optional.tf
+      - vars-required.tf
+      - versions.tf
+    - s3
+      - main.tf
+      - outputs.tf
+      - vars-optional.tf
+      - vars-required.tf
+      - versions.tf
+- live
+  - backend.tf
+  - main.tf
+  - moved.tf
+  - outputs.tf
+  - providers.tf
+  - vars-optional.tf
+  - vars-required.tf
+  - versions.tf
+</FileTree>
+
+
+## Applying Updates
+
+You can now run `tofu apply` with no changes (don't worry, you'll get a chance to confirm you want to proceed before you have to commit to anything).
+
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu apply
+...
+Plan: 0 to add, 0 to change, 0 to destroy.
+...
+
+Do you want to perform these actions?
+  OpenTofu will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value:
+`} />
+
+## Trade-Offs
+
+Before moving on to the next step, where we'll duplicate our entire infrastructure estate to introduce a new development environment, it's important to pause here and evaluate the trade-offs of this refactor.
+
+Both the infrastructure in step 1 and step 2 provisioned the exact same infrastructure (remember that there were `0 to add, 0 to change, 0 to destroy.`). In fact, with the exception of the next step where we introduce the new `dev` environment, every step will result in the exact same infrastructure being provisioned.
+
+Why then is this refactor valuable? What do we gain by refactoring our IaC like this? What do we trade away in exchange?
+
+### Pros
+
+- **Abstraction by encapsulation**. Instead of one large set of variables that could be used by any resource, or one large set of resources that could interact in ways that are difficult to understand, there are modules that encapsulate subsets of infrastructure so that they have explicit interfaces via variables and outputs.
+- **More code reusability**. Each of these modules can be reused in `live` infrastructure or in other `catalog` modules (which we'll see in the next step).
+
+### Cons
+
+- **Increased complexity**. Instead of one self-contained directory with files directly defining resources to be provisioned, there's a layer of indirection via modules. As someone consuming the module, you have to either trust it has been authored well (and that it's well documented, tested, etc.) or vet the module yourself.
+- **State Adjustment**. State manipulation or resource recreation is required to migrate to this pattern.
+
+Every subsequent stage is going to continue incurring trade-offs. You (or someone experienced you trust) must to decide whether these trade-offs are appropriate for your organization and your infrastructure estate.
+
+## Wrap Up
+
+This was a significant refactoring step. You've transformed your flat configuration into a set of distinct, reusable modules, each with a well-defined API of variables and outputs.
+
+The most critical lesson here was mastering the `moved` block. This powerful feature allowed you to completely reorganize your code's structure without OpenTofu needing to destroy and recreate your existing infrastructure, a vital skill for managing real-world infrastructure. While this adds a layer of indirection, the trade-off is greater code reusability and clearer separation of concerns. With this new modular structure, you're now perfectly positioned to create a second environment with ease.

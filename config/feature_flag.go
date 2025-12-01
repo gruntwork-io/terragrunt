@@ -96,7 +96,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 
 // Convert generic flag value to cty.Value.
 func flagToCtyValue(name string, value any) (cty.Value, error) {
-	ctyValue, err := goTypeToCty(value)
+	ctyValue, err := GoTypeToCty(value)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -106,7 +106,7 @@ func flagToCtyValue(name string, value any) (cty.Value, error) {
 		Value: ctyValue,
 	}
 
-	return goTypeToCty(ctyFlag)
+	return GoTypeToCty(ctyFlag)
 }
 
 // Convert a flag to a cty.Value using the provided cty.Type.
@@ -122,7 +122,7 @@ func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, e
 		flagValue = parsedValue
 	}
 
-	ctyOut, err := goTypeToCty(flagValue)
+	ctyOut, err := GoTypeToCty(flagValue)
 	if err != nil {
 		return cty.NilVal, errors.WithStack(err)
 	}
@@ -132,5 +132,5 @@ func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, e
 		Value: ctyOut,
 	}
 
-	return goTypeToCty(ctyFlag)
+	return GoTypeToCty(ctyFlag)
 }

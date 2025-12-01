@@ -1,13 +1,17 @@
 ---
 import config from 'virtual:starlight/user-config';
-import type { Props } from '@astrojs/starlight/props';
 import { Image } from 'astro:assets';
+// @ts-ignore
 import Search from 'virtual:starlight/components/Search';
 
 import HeadphonesIcon from '@assets/headset-icon.svg';
 import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import ThemeToggle from '@components/ThemeToggle.astro';
+
+import Button from '@components/ui/Button';
+import ButtonLink from '@components/ui/ButtonLink';
+
 import '@styles/global.css';
 
 /**
@@ -50,8 +54,30 @@ try {
 }
 ---
 
-<div class="navbar fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
-  <div class="flex flex-row justify-between px-5 py-2.5 md:py-6">
+<!--
+  This component is inheriting `data-theme="dark"` or `data-theme="light"` from the root element.
+  But the problem is that based on the design, we always want this header to behave as if it's in dark mode.
+  But that's tricky because dark mode colors are set in the CSS "theme" layer, which is then inherited by this component,
+  and this component can't change those variables directly.
+
+  To solve this, we override the variables causing us trouble.
+-->
+<style>
+  .header-dark-theme {
+    --sl-color-gray-1: #e8eefc;
+    --sl-color-gray-2: #bbc2d4;
+    --sl-color-gray-3: #7e8bac;
+    --sl-color-gray-4: #4c5776;
+    --sl-color-gray-5: #2d3754;
+    --sl-color-gray-6: #1c2541;
+    --sl-color-gray-7: #0f1731;
+    --sl-color-gray-8: #0f0934;
+    --sl-color-white: #ffffff;
+  }
+</style>
+
+<div class="navbar header-dark-theme fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
+  <div class="flex flex-row justify-between px-5 py-2.5 md:py-6 lg:h-full lg:mt-1">
     <!-- Logo -->
     <a href="/" class="flex flex-row items-center hover:cursor-pointer">
       <Image
@@ -66,8 +92,8 @@ try {
       <div class="flex items-center">
         <!-- Docs -->
         <div class="pr-4 lg:px-4">
-          <a href="/docs" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]">
-            <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <a href="/docs" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]" aria-label="Terragrunt Documentation">
+            <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
               <path opacity="0.1" d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" fill="currentColor"/>
               <path d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
               <path d="M9 12H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
@@ -77,14 +103,15 @@ try {
           </a>
         </div>
         <!-- Socials -->
-        <div class="hidden lg:flex items-center border-r border-stroke-dark pr-6 gap-4">
+        <div class="hidden border-r border-stroke-dark lg:flex items-center pr-6 gap-4">
           <a
-            class="social-icon flex items-center gap-2 transition duration-[250ms] ease-in-out"
+            aria-label="Visit the Terragrunt GitHub Repository"
+            class="social-icon flex items-center gap-2 transition duration-[250ms] ease-in-out no-underline"
             href="https://github.com/gruntwork-io/terragrunt"
             rel="noopener noreferrer"
             target="_blank"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-github" viewBox="0 0 16 16">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-github" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
             </svg>
             <span class="text-sm font-sans">{starCountDisplay}</span>
@@ -96,9 +123,22 @@ try {
             rel="noopener noreferrer"
             target="_blank"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
             </svg>
+          </a>
+          <!-- Ambassador -->
+          <a href="/terragrunt-ambassador" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]" aria-label="Learn more about the Terragrunt Ambassador Program">
+            <svg viewBox="0 0 512 513" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6" aria-hidden="true">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M256.867 0L479.187 128V384L256.867 512L34.5469 384V128L256.867 0ZM455.187 141.818L256.867 27.6359L58.5469 141.818V370.182L256.867 484.364L455.187 370.182V141.818Z" fill="white"/>
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M256.867 484.365V370.183V256.001L157.707 198.91L58.5469 141.819V256.001V370.183L256.867 484.365Z" fill="white"/>
+              <path d="M356.027 427.274L455.187 370.183L356.027 313.092L256.867 370.183V484.365L356.027 427.274Z" fill="white" fill-opacity="0.4"/>
+              <path d="M256.867 256.001V370.183L356.027 313.092L256.867 256.001Z" fill="white" fill-opacity="0.8"/>
+              <path d="M356.027 198.91L256.867 256.001L356.027 313.092L455.187 256.001L356.027 198.91Z" fill="white" fill-opacity="0.6"/>
+              <path d="M356.027 84.7278L256.867 27.6367L157.707 84.7278L58.5469 141.819L157.707 198.91L256.867 141.819L356.027 198.91L455.187 141.819L356.027 84.7278Z" fill="white" fill-opacity="0.4"/>
+              <path d="M256.867 256.001L356.027 198.91L256.867 141.819L157.707 198.91L256.867 256.001Z" fill="white" fill-opacity="0.8"/>
+            </svg>
+            <span>Ambassador</span>
           </a>
         </div>
         <!-- SearchBar -->
@@ -110,30 +150,54 @@ try {
       </div>
       <div class="flex items-center gap-3 md:gap-3.5">
         <!-- Buttons -->
-        <a href="https://www.gruntwork.io/platform/pipelines" class="hidden md:flex secondary-button items-center h-[39px] text-center leading-[1.25]">
-          CI/CD for Terragrunt
-        </a>
-        <a href="https://www.gruntwork.io/platform/pipelines" class="flex md:hidden secondary-button !p-3">
+        <ButtonLink
+          href="/terragrunt-scale"
+          variant="secondary"
+          className="hidden md:flex"
+        >
+          Automate Deployments
+        </ButtonLink>
+        <ButtonLink
+          href="/terragrunt-scale"
+          variant="secondary"
+          size="icon"
+          className="md:hidden"
+        >
           <Image
+            alt="Pipelines Icon"
+            height={20}
             src={PipelineIcon}
-            alt="Pipeline Icon"
             width={20}
-            height={20}
           />
-        </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="hidden md:flex primary-button items-center h-[39px] text-center leading-[1.25]">
+        </ButtonLink>
+        <ButtonLink
+          href="https://www.gruntwork.io/services/terragrunt"
+          variant="primary"
+          className="hidden md:flex"
+          isExternalLink={true}
+        >
           Enterprise Support
-        </a>
-        <a href="https://www.gruntwork.io/services/terragrunt" class="flex md:hidden primary-button !p-3">
+        </ButtonLink>
+        <ButtonLink
+          href="https://www.gruntwork.io/services/terragrunt"
+          variant="primary"
+          size="icon"
+          className="md:hidden"
+          isExternalLink={true}
+        >
           <Image
-            src={HeadphonesIcon}
             alt="Headphones Icon"
-            width={20}
             height={20}
-            class={"aspect-[1/1] h-auto"}
+            src={HeadphonesIcon}
+            width={20}
           />
-        </a>
+        </ButtonLink>
       </div>
     </div>
   </div>
 </div>
+
+<script src="https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL" type="text/javascript"></script>
+<script type="text/javascript">
+  (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5TTJJGTL')
+</script>

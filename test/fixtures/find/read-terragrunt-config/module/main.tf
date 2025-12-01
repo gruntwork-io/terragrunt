@@ -1,0 +1,4 @@
+output "value" {
+  value = "yes"
+}
+

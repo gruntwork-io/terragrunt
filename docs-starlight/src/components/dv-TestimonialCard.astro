@@ -3,24 +3,23 @@ import '@styles/global.css';
 import { Image } from 'astro:assets';
 
 const {
-  author,
-  title,
-  company,
   alt,
+  author,
   class: customClass = "",
+  company,
   content,
   job,
   logo,
-  theme = "light"
+  theme = "light",
+  title
 } = Astro.props;
 
 const isDark = theme === "dark";
 
 const bgClass = isDark ? "bg-bg-dark" : "bg-white";
+const jobtitle = isDark ? "text-white" : "text-gray-1";
 const textPrimary = isDark ? "text-white" : "text-gray-1";
 const textSecondary = isDark ? "text-white" : "text-gray-2";
-const jobtitle = isDark ? "text-white" : "text-gray-1";
-
 ---
 
 <div class={`border-4 border-solid rounded-lg ${bgClass} border-[#f1f1f1] ${customClass} p-6`}>

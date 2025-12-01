@@ -30,8 +30,10 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	goroutines := 100
 	semaphore := s3backend.NewCountingSemaphore(permits)
 
-	var goRoutinesExecutingSimultaneously uint32
-	var waitForAllGoRoutinesToFinish sync.WaitGroup
+	var (
+		goRoutinesExecutingSimultaneously uint32
+		waitForAllGoRoutinesToFinish      sync.WaitGroup
+	)
 
 	endGoRoutine := func() {
 		// Decrement the number of running goroutines. Note that decrementing an unsigned int is a bit odd.
@@ -44,6 +46,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 
 	runGoRoutine := func() {
 		defer endGoRoutine()
+
 		semaphore.Acquire()
 
 		// Increment the total number of running goroutines
@@ -61,6 +64,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	// Fire up a whole bunch of goroutines that will all try to acquire the semaphore at the same time
 	for range goroutines {
 		waitForAllGoRoutinesToFinish.Add(1)
+
 		go runGoRoutine()
 	}
 

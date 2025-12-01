@@ -20,6 +20,10 @@ import (
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]any using the Go json library.
+//
+// Note: This function will strip any marks (such as sensitive marks) from the values because JSON serialization does
+// not support cty marks. If you need to preserve marks, consider working with cty.Value directly instead of converting
+// to map[string]any.
 func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	if value.IsNull() {
 		return map[string]any{}, nil
@@ -32,7 +36,10 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 
 	value = updatedValue
 
-	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
+	// Unmark the value (including nested values) before JSON serialization as JSON doesn't support marks.
+	unmarkedValue, _ := value.UnmarkDeep()
+
+	jsonBytes, err := ctyjson.Marshal(unmarkedValue, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, errors.New(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
@@ -14,6 +15,7 @@ import (
 type UnitWriter struct {
 	buffer *bytes.Buffer
 	out    io.Writer
+	mu     sync.Mutex
 }
 
 // NewUnitWriter returns a new UnitWriter instance.
@@ -26,6 +28,9 @@ func NewUnitWriter(out io.Writer) *UnitWriter {
 
 // Write appends the contents of p to the buffer.
 func (writer *UnitWriter) Write(p []byte) (int, error) {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+
 	n, err := writer.buffer.Write(p)
 	if err != nil {
 		return n, errors.New(err)
@@ -34,7 +39,7 @@ func (writer *UnitWriter) Write(p []byte) (int, error) {
 	// If the last byte is a newline character, flush the buffer early.
 	if writer.buffer.Len() > 0 {
 		if p[len(p)-1] == '\n' {
-			if err := writer.Flush(); err != nil {
+			if err := writer.flushUnsafe(); err != nil {
 				return n, errors.New(err)
 			}
 		}
@@ -45,6 +50,15 @@ func (writer *UnitWriter) Write(p []byte) (int, error) {
 
 // Flush flushes buffer data to the `out` writer.
 func (writer *UnitWriter) Flush() error {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+
+	return writer.flushUnsafe()
+}
+
+// flushUnsafe flushes buffer data to the `out` writer.
+// Must be called with writer.mu held.
+func (writer *UnitWriter) flushUnsafe() error {
 	if _, err := fmt.Fprint(writer.out, writer.buffer); err != nil {
 		return errors.New(err)
 	}

@@ -202,7 +202,6 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 			} else {
 				require.NoError(t, actualErr)
 			}
-
 		})
 	}
 }

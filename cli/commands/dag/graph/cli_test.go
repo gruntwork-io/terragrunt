@@ -17,6 +17,7 @@ import (
 func BenchmarkRunGraphDependencies(b *testing.B) {
 	// Setup
 	b.StopTimer()
+
 	cwd, err := os.Getwd()
 	require.NoError(b, err)
 
@@ -37,18 +38,21 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 	for _, fixture := range fixtureDirs {
 		b.Run(fixture.description, func(b *testing.B) {
 			workingDir := filepath.Join(cwd, testDir, fixture.workingDir)
+
 			terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 			if fixture.usePartialParseCache {
 				terragruntOptions.UsePartialParseConfigCache = true
 			} else {
 				terragruntOptions.UsePartialParseConfigCache = false
 			}
+
 			require.NoError(b, err)
 
 			b.ResetTimer()
 			b.StartTimer()
 			ctx := cli.NewAppContext(b.Context(), cli.NewApp(), nil)
 			err = graph.Run(ctx, logger.CreateLogger(), terragruntOptions)
+
 			b.StopTimer()
 			require.NoError(b, err)
 		})

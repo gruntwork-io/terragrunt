@@ -1,0 +1,350 @@
+---
+title: "Step 5: Adding Terragrunt"
+description: Adding Terragrunt
+slug: docs/guides/terralith-to-terragrunt/step-5-adding-terragrunt
+sidebar:
+  order: 8
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside, Code } from '@astrojs/starlight/components';
+
+In the last step, you took a massive leap forward in safety by breaking your Terralith into separate `dev` and `prod` root modules. The trade-off, however, is that you've created a significant amount of boilerplate and duplication. Your `dev` and `prod` directories are filled with nearly identical `.tf` files (if not completely identical), and managing them involves a lot of careful copy-pasting. You also can't conveniently manage multiple root modules at once. This isn't scalable and is prone to error.
+
+This is the problem Terragrunt was created to solve. It acts as an orchestrator for OpenTofu/Terraform, helping you write DRY (Don't Repeat Yourself) infrastructure code that scales.
+
+In this step, you'll introduce Terragrunt to drastically reduce that boilerplate. You will:
+
+- Replace the duplicated `.tf` and `.auto.tfvars` files in each environment with a single, concise `terragrunt.hcl` file.
+- Use Terragrunt's `terraform`, `inputs`, and `generate` blocks to define the module source, pass variables, and create configuration files on the fly.
+- Centralize common configurations (like your S3 `backend` configuration) in a single `root.hcl` file using the `include` block, ensuring your setup is easy to maintain.
+
+By the end of this step, your `live` directory will be dramatically leaner, paving the way for easier management and scaling.
+
+## Tutorial
+
+Now that we've structured our project to segment environments into their own root modules (and their own state files), it's pretty simple to convert our root modules to Terragrunt units. In Terragrunt terminology, a [unit](https://terragrunt.gruntwork.io/docs/getting-started/terminology/#unit) is a single instance of infrastructure managed by Terragrunt. They're easy to manage, and they come with a lot of tooling to support common IaC needs, like code generation, authentication, error handling, and more.
+
+The process of converting an OpenTofu root module to a Terragrunt unit simply involves adding an empty `terragrunt.hcl` file to each root module (that's all the `find` command below does). This allows Terragrunt to recognize the contents of the directory as a Terragrunt unit, and orchestrate infrastructure updates within it.
+
+<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -type dir -exec touch {}/terragrunt.hcl \;`} />
+
+Now, we can use Terragrunt to orchestrate runs across both of these units.
+
+<Code title="live" lang="bash" frame="terminal" code={`$ terragrunt run --all plan
+15:07:02.593 INFO   The runner at . will be processed in the following order for command plan:
+Group 1
+- Unit ./dev
+- Unit ./prod
+...
+`} />
+
+We can also selectively run the plan for the `dev` environment by changing the working directory to `dev`, or using the [`--queue-include-dir`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#queue-include-dir) flag.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`$ terragrunt plan`} />
+
+<Code title="live" lang="bash" frame="terminal" code={`$ terragrunt run --all --queue-include-dir dev plan
+15:09:17.090 INFO   The runner at . will be processed in the following order for command plan:
+Group 1
+- Unit ./dev
+
+...
+`} />
+
+Terragrunt is frequently adopted gradually in this manner. If you have an infrastructure problem you want addressed, you can gradually introduce more and more Terragrunt tooling to address those problems.
+
+We can also simplify things significantly now that we're using Terragrunt. Terragrunt is designed to work well in this pattern where the majority of logic is abstracted away to a shared module. We can eliminate the need for some boilerplate now that we have access to the `terraform` block in `terragrunt.hcl` files (It's named `terraform` for legacy reasons. It's 100% compatible with OpenTofu).
+
+```hcl
+# live/dev/terragrunt.hcl
+
+terraform {
+    source = "../../catalog/modules//best_cat"
+}
+```
+
+```hcl
+# live/prod/terragrunt.hcl
+
+terraform {
+    source = "../../catalog/modules//best_cat"
+}
+```
+
+<Aside type="note">
+Those `//` are there on purpose. They're how `go-getter`, the library that Terragrunt uses (just like OpenTofu), indicates that it's working with a directory *within* a module source. This allows relative references like `../s3` to work within the `best_cat` module.
+</Aside>
+
+With those changes, we can now remove the unnecessary boilerplate related to invoking the shared module.
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -f ./*/main.tf ./*/outputs.tf ./*/vars-*.tf ./*/versions.tf`} />
+
+We can also leverage the `inputs` attribute in the `terragrunt.hcl` file to set inputs instead of relying on the separate `.auto.tfvars` file.
+
+```hcl
+# live/dev/terragrunt.hcl
+
+terraform {
+    source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+    name = "best-cat-2025-09-24-2359-dev"
+
+    lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+}
+```
+
+```hcl
+# live/prod/terragrunt.hcl
+
+terraform {
+    source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+    name = "best-cat-2025-09-24-2359"
+
+    lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+}
+```
+
+Note the use of `get_repo_root()`. This is a simple convenience function you can use to get the path to the root of your Git repository.
+
+You can use almost all of the same HCL functions you can use in OpenTofu, with some additional functions supplied by Terragrunt for tasks that are more useful in the context of Terragrunt (you can see the full list in the official Terragrunt [HCL functions](https://terragrunt.gruntwork.io/docs/reference/built-in-functions/) reference here).
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -f ./*/.auto.tfvars ./*/.auto.tfvars.example`} />
+
+We can also get Terragrunt to generate that `backend.tf` file for us on-demand using the `remote_state` block.
+
+```bash
+# live/dev/terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket         = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
+    key            = "dev/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    use_lockfile   = true
+  }
+}
+
+terraform {
+    source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+    name = "best-cat-2025-09-24-2359-dev"
+
+    lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+}
+```
+
+```bash
+# live/prod/terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket         = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
+    key            = "prod/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    use_lockfile   = true
+  }
+}
+
+terraform {
+    source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+    name = "best-cat-2025-09-24-2359"
+
+    lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+}
+```
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -f ./*/backend.tf`} />
+
+In fact, we can have Terragrunt generate any arbitrary file we need on-demand, including boilerplate files like we had in the `providers.tf` file.
+
+```bash
+# live/dev/terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket       = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
+    key          = "dev/tofu.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+generate "providers" {
+  path      = "providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+
+terraform {
+  source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+  name = "best-cat-2025-09-24-2359-dev"
+
+  lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+}
+```
+
+```bash
+# live/prod/terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket       = "terragrunt-to-terralith-tfstate-2025-09-24-2359"
+    key          = "prod/tofu.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+generate "providers" {
+  path      = "providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+
+terraform {
+  source = "../../catalog/modules//best_cat"
+}
+
+inputs = {
+  name = "best-cat-2025-09-24-2359"
+
+  lambda_zip_file = "${get_repo_root()}/dist/best-cat.zip"
+}
+```
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -f ./*/providers.tf`} />
+
+What basically all Terragrunt users do at this stage is refactor out that core shared configuration (`backend` and `provider` configurations in this case), into a shared `root.hcl` file that all `terragrunt.hcl` files `include`*.* This allows for greater reuse of configuration that's common to all Terragrunt units.
+
+import rootHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-5-adding-terragrunt/live/root.hcl?raw';
+
+<Code title="live/root.hcl" lang="hcl" code={rootHcl} />
+
+Note the use of `path_relative_to_include()`  in the `key`. This tells Terragrunt to use the *path* *relative* *to the include* of the `root.hcl` file.
+
+This can be a little confusing for new users, so just to make it very explicit:
+
+The `live/root.hcl` file is going to be included by the `live/dev/terragrunt.hcl` file. As such, the path of the including unit (`live/dev`) *relative* to the path of the directory for the included file (`live`) is `dev`. We therefore expect `${path_relative_to_include()}` to resolve to `dev` in the `live/dev` unit, and `prod` in the `live/prod` unit (which is coincidentally how we setup our state keys before).
+
+Now we can add the `include` block that actually performs this include in each of the unit configuration files, which is just three lines.
+
+import devTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-5-adding-terragrunt/live/dev/terragrunt.hcl?raw';
+
+<Code title="live/dev/terragrunt.hcl" lang="hcl" code={devTerragruntHcl} />
+
+import prodTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-5-adding-terragrunt/live/prod/terragrunt.hcl?raw';
+
+<Code title="live/prod/terragrunt.hcl" lang="hcl" code={prodTerragruntHcl} />
+
+Note the addition of `find_in_parent_folders()` in the added `include` block. As you might expect, it returns the path to the `root.hcl` file found in the parent folders of `live/prod` (which is `live/root.hcl`).
+
+We just need to do a little more state manipulation using `moved` blocks, which we should be very familiar with at this stage. When we removed the indirection of the `main` module in the `main.tf` file, we also changed the addresses of resources in state. Let's take care of that by updating the `moved.tf` file.
+
+import devMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-5-adding-terragrunt/live/dev/moved.tf?raw';
+
+<Code title="live/dev/moved.tf" lang="hcl" code={devMovedTf} />
+
+import prodMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-5-adding-terragrunt/live/prod/moved.tf?raw';
+
+<Code title="live/prod/moved.tf" lang="hcl" code={prodMovedTf} />
+
+<Aside type="note">
+This is an important movement to take note of. Even though we introduced the new abstraction of the Terragrunt unit, we actually reduced indirection in OpenTofu. As we'll see again later in this guide, creating granular Terragrunt units results in simpler OpenTofu modules, reducing the complexity of each unit of infrastructure.
+</Aside>
+
+We can also remove the `removed.tf` files now that we've already “forgotten” them.
+
+<Code title="live" lang="bash" frame="terminal" code={`rm -f ./*/removed.tf`} />
+
+## Project Layout Check-in
+
+We should now have a file layout like the following in the `live` directory:
+
+<FileTree>
+- live
+  - dev
+    - moved.tf
+    - **terragrunt.hcl**
+  - prod
+    - moved.tf
+    - **terragrunt.hcl**
+  - root.hcl
+</FileTree>
+
+
+## Applying Updates
+
+We're ready to run a `plan` across *both units* to see if things are working correctly after all our refactors!
+
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt run --all plan`} />
+
+When we're ready, we can `apply` our changes as well.
+
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt run --all apply`} />
+
+## Trade-offs
+
+### Pros
+
+- **Significantly Reduced Duplication**: We've eliminated the need to have the following files in every environment (along with their contents):
+    - `main.tf`
+    - `providers.tf`
+    - `versions.tf`
+    - `outputs.tf`
+- **Centralized Configuration**: You know have a central location for storing common configurations like `backend` and `provider` configurations in your `root.hcl` file.
+- **Scalable IaC Growth**: Adding new environments and more is scalable now. You simply add a new Terragrunt unit, and you get isolated infrastructure that can be managed independently of the rest of your infrastructure estate.
+- **Orchestration**: You can now manage all your environments from the root of the live directory using commands like `terragrunt run --all apply`, which was not possible before without custom scripting or other additional tooling.
+
+### Cons
+
+- **Additional Tooling**: You and your team now depend on Terragrunt for critical workflows. You need to make sure you have the tool is installed and supported everywhere you want to manage infrastructure, and that your team is educated on how it works.
+- **Added Abstraction**: Although the OpenTofu code that you manage in each unit is now simpler, you now have to reason about Terragrunt configurations and commands when considering how they'll be used.
+
+## Wrap Up
+
+With the introduction of Terragrunt, you've remediated the duplication and boilerplate created in the last step. You replaced numerous `.tf` and `.tfvars` files in each environment with a single, concise `terragrunt.hcl` file. In this step, you learned how to use the `terraform` block to specify a module source to generate a root module on demand, the `inputs` block to pass variables to that root module, and the `generate` block to inject additional files on the fly. Finally, you used the powerful `include` block to create a central `root.hcl`, ensuring your configuration is DRY (Don't Repeat Yourself). Your live infrastructure code is now dramatically leaner and easier to manage across many environments.

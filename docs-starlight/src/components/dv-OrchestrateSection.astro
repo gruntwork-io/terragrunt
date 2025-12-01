@@ -1,9 +1,9 @@
 ---
 import '@styles/global.css';
 
-import Eyebrow from '@components/dv-Eyebrow.astro';
 import Card from '@components/dv-Card.astro';
 import Divider from '@components/dv-Divider.astro';
+import Eyebrow from '@components/dv-Eyebrow.astro';
 
 const unitsLink = '/docs/features/units';
 const runQueueLink = '/docs/features/run-queue';
@@ -21,18 +21,16 @@ const authenticationLink = '/docs/features/authentication';
         <div class="flex flex-col flex-1">
             <Card title="Segment Your Infrastructure">
                 <p class="text-sm font-sans text-gray-1">Break down your monolithic infrastructure into manageable
-                <a href={unitsLink} class="text-accent-1 border-b border-gray-1/50 hover:cursor-pointer hover:text-accent transition duration-100 ease-in-out"> units </a>
-                that are safe to update independently, and have their own state.</p>
+                <a href={unitsLink}>units</a> that are safe to update independently, and have their own state.</p>
             </Card>
             <Divider />
             <Card title="Control Your Infrastructure">
                 <p class="text-sm font-sans text-gray-1">Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of the
-                <a href={runQueueLink} class="text-accent-1 border-b border-gray-1/50 hover:cursor-pointer hover:text-accent transition duration-100 ease-in-out"> Run Queue</a>
-                .</p>
+                <a href={runQueueLink}>Run Queue</a>.</p>
             </Card>
             <Divider />
             <Card title="Secure Your Infrastructure">
-                <p class="text-sm font-sans text-gray-1">Terragrunt <a href={authenticationLink} class="text-accent-1 border-b border-gray-1/50 hover:cursor-pointer hover:text-accent transition duration-100 ease-in-out">authentication tooling</a> makes it trivial to manage infrastructure across any number of environments or cloud providers with least privilege access.</p>
+                <p class="text-sm font-sans text-gray-1">Terragrunt <a href={authenticationLink}>authentication tooling</a> makes it trivial to manage infrastructure across any number of environments or cloud providers with least privilege access.</p>
             </Card>
         </div>
     </div>

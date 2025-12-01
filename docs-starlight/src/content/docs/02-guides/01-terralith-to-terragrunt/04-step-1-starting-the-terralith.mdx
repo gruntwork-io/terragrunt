@@ -1,0 +1,206 @@
+---
+title: "Step 1: Starting the Terralith"
+description: Starting the Terralith
+slug: docs/guides/terralith-to-terragrunt/step-1-starting-the-terralith
+sidebar:
+  order: 4
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
+
+During this step we're going to take the contents of the `dist` directory, and deploy the application in AWS using OpenTofu. The content that we're going to create here is not intended to be a best-practices IaC setup, but rather what one might do if they were to naively put together the IaC for this application from scratch without knowledge of best practices, or planning for future modifications.
+
+This will be reiterated at the end of this step, but note that this statement is not intended to be judgemental. There are perfectly valid reasons for building an MVP quickly without worrying about architecting the most optimally scaling IaC setup from day 1, and everyone has to start somewhere in their IaC journey.
+
+As you progress through this guide, you'll be exposed to the challenges that might arise if you design your IaC as prescribed at each step, and this guide will do its best to highlight those trade-offs. The goal is for you to be able to make judgements around the IaC design that is best suited to your infrastructure management.
+
+## Tutorial
+
+To start, create the `live` directory where you're going to be provisioning some infrastructure. Creating a dedicated `live` directory/repository separate from reusable infrastructure patterns is an established recommended best practice from Gruntwork that will become important in later iterations.
+
+```bash
+mkdir live
+```
+
+To get started, we'll want to define our [providers](https://opentofu.org/docs/language/providers/), which is how OpenTofu will actually effectuate infrastructure in AWS.
+
+import providersTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/providers.tf?raw';
+
+<Code title="live/providers.tf" lang="hcl" code={providersTf} />
+
+Don't worry about that `var.aws_region` bit there. We'll define it later. When we do, we'll be defining the region in which AWS will have resources provisioned.
+
+It's best practice to tell OpenTofu what your version constraints are, so that your IaC is reliably reusable. You'll pin version `>= 1.10` of OpenTofu here, as you're going to be using an OpenTofu 1.10+ feature later on, and you'll pin version `~> 6.0` because any change that makes the `resource` definitions we define here break *should* be in a future major release of the `aws` provider.
+
+import versionsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/versions.tf?raw';
+
+<Code title="live/versions.tf" lang="hcl" code={versionsTf} />
+
+Now define the resources that are provisioned in this step.
+
+First, we'll add the database that we use to provision resources in this project. For this guide, we'll be using DynamoDB, which is a fast, NoSQL database offered by AWS. The primary construct in DynamoDB is a table. All DynamoDB tables have a name, and a primary key (also called the hash key). This is what we'll use to uniquely reference items in the table.
+
+In this project, DynamoDB tables will be used to store the metadata about cats and the number of votes they've gotten as being the best cat.
+
+import ddbTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/ddb.tf?raw';
+
+<Code title="live/ddb.tf" lang="hcl" code={ddbTf} />
+
+Next, we'll add our object store. For this guide, we'll be using S3, which is a cheap, scalable object store provided by AWS. The primary construct of S3 is a bucket. All buckets must have a name that is globally unique, so we'll want to make sure that the value we select later on for `name` is appropriately unique.
+
+import s3Tf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/s3.tf?raw';
+
+<Code title="live/s3.tf" lang="hcl" code={s3Tf} />
+
+That `force_destroy` attribute there is important. It determines whether we can destroy the S3 bucket without getting rid of all its contents. You typically want this to be set to `false` in production environments, but it can be convenient to set this to `true` in test/ephemeral environments, where you expect the bucket to be short-lived.
+
+In addition to provisioning resources using OpenTofu, you can also lookup data using `data` configuration blocks. These can be useful ways to access frequently needed data in AWS resources, like AWS account IDs.
+
+import dataTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/data.tf?raw';
+
+<Code title="live/data.tf" lang="hcl" code={dataTf} />
+
+Using that `data` block, let's provision the IAM role that's used for our Lambda function. We'll want it to trust the Lambda service, so that the Lambda function is allowed to assume it, and have permissions to:
+
+1. Get and list the objects in S3 (our cat images).
+2. Interact with the DynamoDB table used for storing metadata on our assets (the votes for best cat).
+3. Basic permissions required to operate a Lambda function (the ability to log to [CloudWatch Logs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html)).
+
+import iamTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/iam.tf?raw';
+
+<Code title="live/iam.tf" lang="hcl" code={iamTf} />
+
+The final resource you're going to provision is the Lambda function. Lambda functions are a form of cheap, ephemeral compute that are especially useful for demo guides like this where you might forget to clean up some dummy resources. They won't cost you anything while they're not doing anything!
+
+import lambdaTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/lambda.tf?raw';
+
+<Code title="live/lambda.tf" lang="hcl" code={lambdaTf} />
+
+Now let's add some variables that we want to specify for this project. You can think of these as the *inputs* that you supply to your generically defined IaC to get infrastructure customized to your needs. As a matter of best practice, we're going to separate the required variables from the optional ones.
+
+import varsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/vars-required.tf?raw';
+
+<Code title="live/vars-required.tf" lang="hcl" code={varsRequiredTf} />
+
+import varsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/vars-optional.tf?raw';
+
+<Code title="live/vars-optional.tf" lang="hcl" code={varsOptionalTf} />
+
+Also add an `.auto.tfvars` file to define values for these variables automatically. This isn't strictly required as you'll be prompted for the values of required variables interactively if you don't supply them here, but it does make your life easier.
+
+<Aside type="note">
+You'll want to make sure that `name` is set to something globally unique, as it'll be used as part of an S3 bucket name, which might conflict with a bucket created by somebody else otherwise (a simple way to decrease your odds of a collision is to use something like the date in your bucket name).
+</Aside>
+
+```hcl
+# live/.auto.tfvars
+
+# Required: Name used for all resources (must be unique)
+name = "best-cat-2025-09-24-2359"
+
+# Required: Path to your Lambda function zip file
+lambda_zip_file = "../dist/best-cat.zip"
+```
+
+You'll also want to add some *outputs* so that you can easily interact with the infrastructure you create.
+
+import outputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/outputs.tf?raw';
+
+<Code title="live/outputs.tf" lang="hcl" code={outputsTf} />
+
+As a best practice, you'll want to add a `backend` configuration so that state isn't stored locally. This is important if you want to collaborate with others in infrastructure management. Note that you'll likely want to change the name of the bucket you use here, as it also has to be globally unique to avoid conflicts with anyone else.
+
+import backendTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/backend.tf?raw';
+
+<Code title="live/backend.tf" lang="hcl" code={backendTf} />
+
+<Aside type="note">
+We're using the special new ✨ lockfile-based state locking ✨ made available in OpenTofu 1.10! This is especially convenient for this guide, as it saves us from provisioning an additional DynamoDB table to handle state locking.
+</Aside>
+
+Unfortunately, OpenTofu will not provision this bucket for us automatically, so we will have to provision that manually.
+
+```bash
+aws s3api create-bucket --bucket 'terragrunt-to-terralith-tfstate-2025-09-24-2359' --region 'us-east-1'
+aws s3api put-bucket-versioning --bucket 'terragrunt-to-terralith-tfstate-2025-09-24-2359' --versioning-configuration 'Status=Enabled'
+```
+
+## Project Layout Check-in
+
+At this stage, you should have a `live` directory that looks like this:
+
+<FileTree>
+- live
+  - backend.tf
+  - data.tf
+  - ddb.tf
+  - iam.tf
+  - lambda.tf
+  - outputs.tf
+  - providers.tf
+  - s3.tf
+  - vars-optional.tf
+  - vars-required.tf
+  - versions.tf
+</FileTree>
+
+
+## Applying Updates
+
+We can now apply our live infrastructure!
+
+```bash
+cd live
+tofu init
+tofu apply
+```
+
+You'll receive a prompt to approve the apply (type `yes` then enter to continue).
+
+Make sure to review the plan thoroughly, then approve it. Assuming everything went well, you'll see a bunch of outputs at the end of the apply. One of them will be an output that looks like the following:
+
+```text
+lambda_function_url = "https://somerandomcharacters.lambda-url.us-east-1.on.aws/"
+```
+
+Copy that link, and paste it into your browser to see a page like the following:
+
+![app-without-images](../../../../assets/img/guides/terralith-to-terragrunt/app-without-images.png)
+
+Congratulations! You've got live infrastructure you built yourself running in AWS!
+
+We can see an error that the site doesn't have any images, and a prompt to upload some cat pictures to get started. To get those pictures uploaded, we'll want to grab the name of the S3 bucket, and use the AWS CLI to upload the assets.
+
+```bash
+# (Assuming you're using bash or zsh and you're in the `live` directory).
+
+# Grab the bucket name into the `bucket_name` variable.
+bucket_name="$(tofu output -raw s3_bucket_name)"
+
+# Navigate to the root of the git repository.
+cd "$(git rev-parse --show-toplevel)"
+
+# Navigate to the directory where you stored your cat pictures.
+cd dist/static
+
+# Use the AWS CLI to sync the assets to the bucket.
+aws s3 sync . "s3://${bucket_name}/"
+```
+
+If you reload the website, you should be able to see the cat images you uploaded.
+
+![app-with-images](../../../../assets/img/guides/terralith-to-terragrunt/app-goal.png)
+
+## Wrap Up
+
+You've successfully built and deployed a complete, serverless web application using OpenTofu!
+
+All of your infrastructure including:
+
+- An S3 bucket
+- A DynamoDB table
+- An IAM role
+- A Lambda function
+
+Are defined and managed within a single root module. This configuration, could be called a "Terralith" or "Megamodule," but it's probably not obvious that there's anything wrong with this setup. This a common and perfectly acceptable starting point for many projects. It's simple and direct, but as you continue to adjust and refactor this project, its monolithic nature will present challenges in reusability and safe environment management as you scale. In the next step, you'll begin to address these challenges by refactoring your code into reusable modules.

@@ -112,6 +112,7 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			createdLoggingInput := extS3Cfg.CreateS3LoggingInput()
+
 			actual := reflect.DeepEqual(createdLoggingInput, tc.loggingInput)
 			if !assert.Equal(t, tc.shouldBeEqual, actual) {
 				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, tc.loggingInput)
@@ -291,6 +292,7 @@ func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		name           string
 		extConfig      *s3backend.ExtendedRemoteStateConfigS3
