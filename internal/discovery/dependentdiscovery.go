@@ -315,7 +315,8 @@ func (dd *DependentDiscovery) discoverDependents(
 
 				candidate.AddDependency(c)
 
-				if dep == target.Path() {
+				// Use resolved paths for comparison to handle symlinks (e.g., macOS /var -> /private/var)
+				if resolvePath(dep) == resolvePath(target.Path()) {
 					dependsOnTarget = true
 				}
 			}

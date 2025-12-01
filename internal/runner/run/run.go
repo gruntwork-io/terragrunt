@@ -373,7 +373,7 @@ func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *
 		}
 
 		for _, module := range modules {
-			if _, err := opts.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
+			if _, err := opts.ErrWriter.Write([]byte(module.Path() + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}

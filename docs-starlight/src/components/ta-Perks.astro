@@ -1,0 +1,50 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import Card from '@components/dv-Card.astro';
+---
+
+<!-- TA Perks -->
+<section class="flex justify-center items-center px-5 md:px-0">
+  <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+    <!-- Header Section -->
+    <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+      <Eyebrow text="Program Benefits" />
+      <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">
+        Perks of being an <span class="text-accent">Ambassador</span>
+      </h2>
+    </div>
+    <!-- Content Wrapper -->
+    <div class="flex flex-col md:flex-row md:px-6">
+      <Card title="Visibility & Recognition" titleSize="text-md" class="border-x md:border-l w-full md:w-1/3">
+        <p class="text-sm font-sans text-gray-1">
+          Stand out in the Terragrunt community as a trusted expert. We’ll feature you on our website and in the <span class="text-accent">Terragrunt Discord channel</span>.
+        </p>
+      </Card>
+      <Card title="Ambassador Swag & Discounts" titleSize="text-md" class="border-x border-y-0 md:border md:border-l-0 w-full md:w-1/3">
+        <p class="text-sm font-sans text-gray-1">
+          Receive Terragrunt swag, exclusive gear, discounts on <span class="text-accent">Gruntwork products</span>, and event/travel support for speaking engagements.
+        </p>
+      </Card>
+      <Card title="Direct Access to Terragrunt Team" titleSize="text-md" class="border-x md:border-l-0 md:border-r w-full md:w-1/3">
+        <p class="text-sm font-sans text-gray-1">
+          <span class="text-accent">Private channel</span> with core Terragrunt team and fellow Ambassadors to ask questions, share insights, and shape the future of Terragrunt.
+        </p>
+      </Card>
+    </div>
+    <div class="flex flex-col md:flex-row md:px-6">
+      <Card title="Beta Access" titleSize="text-md" class="border-x md:border-l w-full border-t-0 md:w-1/3">
+        <p class="text-sm font-sans text-gray-1">
+          Get <span class="text-accent">early access</span> to new Terragrunt Scale features and provide critical feedback that helps shape the future of Terragrunt.
+        </p>
+      </Card>
+      <Card title="Social Amplification" titleSize="text-md" class="border-x md:border-l-0 border-t-0 w-full md:w-1/3">
+        <p class="text-sm font-sans text-gray-1">
+          We’ll promote your <span class="text-accent">Terragrunt-related</span> blog posts, videos, and talks through our official channels.
+        </p>
+      </Card>
+      <div class="w-1/3"></div>
+    </div>
+  </div>
+</section>

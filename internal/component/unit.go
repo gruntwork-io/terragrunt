@@ -1,10 +1,17 @@
 package component
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -14,13 +21,24 @@ const (
 // Unit represents a discovered Terragrunt unit configuration.
 type Unit struct {
 	cfg              *config.TerragruntConfig
+	discoveryContext *DiscoveryContext
+	Execution        *UnitExecution
 	path             string
 	reading          []string
-	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
-	external         bool
 	mu               sync.RWMutex
+	external         bool
+	excluded         bool
+}
+
+// UnitExecution holds execution-specific fields for running a unit.
+// This is nil during discovery phase and populated when preparing for execution.
+type UnitExecution struct {
+	TerragruntOptions    *options.TerragruntOptions
+	Logger               log.Logger
+	FlagExcluded         bool
+	AssumeAlreadyApplied bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -87,6 +105,16 @@ func (u *Unit) External() bool {
 // SetExternal marks the component as external.
 func (u *Unit) SetExternal() {
 	u.external = true
+}
+
+// Excluded returns whether the unit was excluded during discovery/filtering.
+func (u *Unit) Excluded() bool {
+	return u.excluded
+}
+
+// SetExcluded marks the unit as excluded during discovery/filtering.
+func (u *Unit) SetExcluded(excluded bool) {
+	u.excluded = excluded
 }
 
 // Reading returns the list of files being read by this component.
@@ -194,4 +222,126 @@ func (u *Unit) Dependents() Components {
 	defer u.rUnlock()
 
 	return u.dependents
+}
+
+// String renders this unit as a human-readable string for debugging.
+func (u *Unit) String() string {
+	// Snapshot values under read lock to avoid data races
+	u.rLock()
+	path := u.path
+	deps := make([]string, 0, len(u.dependencies))
+
+	for _, dep := range u.dependencies {
+		deps = append(deps, dep.Path())
+	}
+
+	excluded := false
+	assumeApplied := false
+
+	if u.Execution != nil {
+		excluded = u.Execution.FlagExcluded
+		assumeApplied = u.Execution.AssumeAlreadyApplied
+	}
+
+	u.rUnlock()
+
+	return fmt.Sprintf(
+		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
+		path, excluded, assumeApplied, strings.Join(deps, ", "),
+	)
+}
+
+// AbsolutePath returns the absolute path of the unit.
+// If path conversion fails, returns the original path and logs a warning if a logger is available.
+func (u *Unit) AbsolutePath() string {
+	if filepath.IsAbs(u.path) {
+		return u.path
+	}
+
+	absPath, err := filepath.Abs(u.path)
+	if err != nil {
+		if u.Execution != nil && u.Execution.Logger != nil {
+			u.Execution.Logger.Warnf("Failed to convert unit path %q to absolute path: %v", u.path, err)
+		}
+
+		return u.path
+	}
+
+	return absPath
+}
+
+// FindInPaths returns true if the unit is located in one of the target directories.
+// Paths are normalized before comparison to handle absolute/relative path mismatches.
+func (u *Unit) FindInPaths(targetDirs []string) bool {
+	cleanUnitPath := util.CleanPath(u.path)
+
+	for _, dir := range targetDirs {
+		cleanDir := util.CleanPath(dir)
+		if util.HasPathPrefix(cleanUnitPath, cleanDir) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// PlanFile returns plan file location if output folder is set.
+// Requires Execution to be populated.
+func (u *Unit) PlanFile(opts *options.TerragruntOptions) string {
+	if u.Execution == nil || u.Execution.TerragruntOptions == nil {
+		return ""
+	}
+
+	planFile := u.OutputFile(opts)
+
+	planCommand := u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan ||
+		u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+
+	// if JSON output enabled and no PlanFile specified, save plan in working dir
+	if planCommand && planFile == "" && u.Execution.TerragruntOptions.JSONOutputFolder != "" {
+		planFile = tf.TerraformPlanFile
+	}
+
+	return planFile
+}
+
+// OutputFile returns plan file location if output folder is set.
+func (u *Unit) OutputFile(opts *options.TerragruntOptions) string {
+	return u.planFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
+}
+
+// OutputJSONFile returns plan JSON file location if JSON output folder is set.
+func (u *Unit) OutputJSONFile(opts *options.TerragruntOptions) string {
+	return u.planFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+}
+
+// planFilePath computes the path for plan output files.
+func (u *Unit) planFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+	if outputFolder == "" {
+		return ""
+	}
+
+	relPath, err := filepath.Rel(opts.RootWorkingDir, u.path)
+	if err != nil {
+		relPath = u.path
+	}
+
+	dir := filepath.Join(outputFolder, relPath)
+
+	if !filepath.IsAbs(dir) {
+		base := opts.RootWorkingDir
+		if !filepath.IsAbs(base) {
+			if absBase, err := filepath.Abs(base); err == nil {
+				base = absBase
+			}
+		}
+
+		dir = filepath.Join(base, dir)
+
+		if absDir, err := filepath.Abs(dir); err == nil {
+			dir = absDir
+		}
+	}
+
+	return filepath.Join(dir, fileName)
 }

@@ -205,6 +205,9 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderParallel)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderParallel)
+	// Resolve symlinks to avoid path mismatches on macOS where /var -> /private/var
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
 
 	authProviderScript := filepath.Join(testPath, "auth-provider.sh")
 

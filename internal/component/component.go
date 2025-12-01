@@ -8,12 +8,24 @@
 package component
 
 import (
+	"path/filepath"
 	"slices"
 	"sort"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
+
+// resolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+func resolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
+}
 
 // Kind is the type of Terragrunt component.
 type Kind string
@@ -118,6 +130,11 @@ func (c Components) RemoveByPath(path string) Components {
 func (c Components) Paths() []string {
 	paths := make([]string, 0, len(c))
 	for _, component := range c {
+		// Skip components explicitly marked as excluded if they support Excluded().
+		if excludable, ok := component.(interface{ Excluded() bool }); ok && excludable.Excluded() {
+			continue
+		}
+
 		paths = append(paths, component.Path())
 	}
 
@@ -234,12 +251,15 @@ func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 }
 
 // FindByPath searches for a component by its path and returns it if found, otherwise returns nil.
+// Paths are resolved to handle symlinks consistently across platforms (e.g., macOS /var -> /private/var).
 func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
 
+	resolvedSearchPath := resolvePath(path)
+
 	for _, c := range tsc.components {
-		if c.Path() == path {
+		if resolvePath(c.Path()) == resolvedSearchPath {
 			return c
 		}
 	}

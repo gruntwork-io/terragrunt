@@ -1,0 +1,25 @@
+---
+import { Image } from 'astro:assets';
+import '@styles/global.css';
+
+import Card from '@components/dv-Card.astro';
+import Discord from '@assets/icons/discord-icon.svg';
+import Divider from '@components/dv-Divider.astro';
+import Eyebrow from '@components/dv-Eyebrow.astro';
+
+const unitsLink = '/docs/features/units';
+const runQueueLink = '/docs/features/run-queue';
+const authenticationLink = '/docs/features/authentication';
+---
+
+<section class="w-full px-5">
+  <div class="flex flex-col gap-8 py-20 bg-white border-4 border-[#F1F1F1] text-lg text-center rounded-lg mx-auto">
+    <div class="mx-auto max-w-[900px]">
+      <h2 class="text-[42px] leading-[120%] font-sans m-0 text-dark-blue-1 text-center">Still have questions about the <span class="text-accent">Terragrunt Ambassador</span> Program or just want to talk to the Terragrunt team? </h2>
+    </div>
+    <p class="text-gray-1">Connect with us on the Terragrunt Discord Channel.</p>
+    <a href="https://discord.gg/SPu4Degs5f" target="_blank" rel="noopener noreferrer">
+      <Image src={Discord} alt="Discord" />
+    </a>
+  </div>
+</section>
