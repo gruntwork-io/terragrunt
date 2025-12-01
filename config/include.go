@@ -686,11 +686,14 @@ func mergeListArgPreserveEmpty(childListArg *[]string, parentListArg **[]string)
 	if childListArg == nil {
 		return
 	}
+
 	if len(*childListArg) == 0 {
 		empty := make([]string, 0)
 		*parentListArg = &empty
+
 		return
 	}
+
 	copied := append([]string(nil), *childListArg...)
 	*parentListArg = &copied
 }
