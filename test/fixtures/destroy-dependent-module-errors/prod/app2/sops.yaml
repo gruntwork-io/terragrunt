@@ -1,0 +1,9 @@
+creation_rules:
+  - path_regex: prod/secrets.+$
+    encrypted_regex: ^.+$
+    gcp_kms: >-
+      xyz
+  - path_regex: dev/secrets.+$
+    encrypted_regex: ^.+$
+    gcp_kms: >-
+      xyz
