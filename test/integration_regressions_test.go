@@ -21,7 +21,6 @@ const (
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
-	testFixtureRegressions                       = "fixtures/regressions"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -454,6 +453,7 @@ func TestShallowMergeCopyFilters(t *testing.T) {
 
 	t.Run("parent_nil_child_set", func(t *testing.T) {
 		t.Parallel()
+
 		rootPath := util.JoinPath(fixturePath, "app")
 
 		stdout := bytes.Buffer{}
