@@ -9,7 +9,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/aws/aws-sdk-go-v2 v1.40.0
 	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.5
+	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
@@ -23,7 +23,7 @@ require (
 	github.com/gruntwork-io/boilerplate v0.10.1
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/terragrunt-engine-go v0.0.16
-	github.com/gruntwork-io/terratest v0.51.0
+	github.com/gruntwork-io/terratest v0.54.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.8.3
 	github.com/hashicorp/go-getter/v2 v2.2.3
@@ -31,7 +31,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/go-safetemp v1.0.0
-	github.com/hashicorp/go-version v1.7.0
+	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 
 	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
@@ -86,9 +86,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.52.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.92.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.2
-	github.com/aws/smithy-go v1.23.2
+	github.com/aws/smithy-go v1.24.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
-	github.com/charmbracelet/x/term v0.2.1
+	github.com/charmbracelet/x/term v0.2.2
 	github.com/docker/go-connections v0.6.0
 	github.com/gobwas/glob v0.2.3
 	github.com/invopop/jsonschema v0.13.0
@@ -179,7 +179,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.3.0 // indirect
-	github.com/charmbracelet/x/ansi v0.8.0 // indirect
+	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/exp/golden v0.0.0-20241011142426-46044092ad91 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
