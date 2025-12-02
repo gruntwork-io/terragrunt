@@ -65,31 +65,33 @@ func CreateFile(t *testing.T, paths ...string) {
 func CreateGitRepo(t *testing.T, path string) {
 	t.Helper()
 
+	ctx := t.Context()
+
 	// Initialize git repo
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(ctx, "git", "init")
 	cmd.Dir = path
 
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "git init failed: %s", string(output))
 
 	// Configure user for the repo
-	cmd = exec.Command("git", "config", "user.email", "test@test.com")
+	cmd = exec.CommandContext(ctx, "git", "config", "user.email", "test@test.com")
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git config user.email failed")
 
-	cmd = exec.Command("git", "config", "user.name", "Test User")
+	cmd = exec.CommandContext(ctx, "git", "config", "user.name", "Test User")
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git config user.name failed")
 
 	// Add all files and commit
-	cmd = exec.Command("git", "add", "-A")
+	cmd = exec.CommandContext(ctx, "git", "add", "-A")
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git add failed")
 
-	cmd = exec.Command("git", "commit", "-m", "initial commit", "--allow-empty")
+	cmd = exec.CommandContext(ctx, "git", "commit", "-m", "initial commit", "--allow-empty")
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git commit failed")

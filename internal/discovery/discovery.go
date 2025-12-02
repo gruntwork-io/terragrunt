@@ -127,9 +127,6 @@ type Discovery struct {
 	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
 	compiledIncludePatterns []CompiledPattern
 
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo hiddenDirMemo
-
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
