@@ -751,7 +751,6 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 
 	for {
 		response, err := output()
-
 		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}
