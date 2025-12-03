@@ -148,9 +148,20 @@ func (f *AzureServiceFactory) Reset(ctx context.Context, l log.Logger) error {
 // getCacheKey generates a cache key from the configuration
 func (f *AzureServiceFactory) getCacheKey(config map[string]interface{}) string {
 	// Create a simple cache key based on key configuration parameters
-	storageAccount, _ := config["storage_account_name"].(string)
-	subscriptionID, _ := config["subscription_id"].(string)
-	resourceGroup, _ := config["resource_group_name"].(string)
+	// Empty strings are acceptable defaults for missing config values
+	var storageAccount, subscriptionID, resourceGroup string
+
+	if v, ok := config["storage_account_name"].(string); ok {
+		storageAccount = v
+	}
+
+	if v, ok := config["subscription_id"].(string); ok {
+		subscriptionID = v
+	}
+
+	if v, ok := config["resource_group_name"].(string); ok {
+		resourceGroup = v
+	}
 
 	return fmt.Sprintf("%s-%s-%s", storageAccount, subscriptionID, resourceGroup)
 }

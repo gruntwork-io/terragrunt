@@ -241,16 +241,23 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 	}
 
 	// Check if resource group is specified
-	resourceGroupName, _ := config["resource_group_name"].(string)
-	if resourceGroupName == "" {
+	resourceGroupName, ok := config["resource_group_name"].(string)
+	if !ok || resourceGroupName == "" {
 		l.Warn("No resource_group_name specified in config, using storage account name as resource group")
 
 		resourceGroupName = storageAccountName + "-rg"
 	}
 
 	// Extract subscription ID if provided in config (empty string is valid default)
-	subscriptionID, _ := config["subscription_id"].(string) //nolint:errcheck // type assertion returns zero value if missing
-	location, _ := config["location"].(string)              //nolint:errcheck // type assertion returns zero value if missing
+	var subscriptionID, location string
+
+	if v, ok := config["subscription_id"].(string); ok {
+		subscriptionID = v
+	}
+
+	if v, ok := config["location"].(string); ok {
+		location = v
+	}
 
 	// Use centralized authentication logic
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
@@ -656,9 +663,11 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	// Check SKU/ReplicationType (read-only after creation)
 	if account.SKU != nil && config.ReplicationType != "" {
 		currentSKU := string(*account.SKU.Name)
-		expectedSKU, _ := GetStorageAccountSKU(config.AccountTier, config.ReplicationType)
 
-		if currentSKU != expectedSKU {
+		expectedSKU, valid := GetStorageAccountSKU(config.AccountTier, config.ReplicationType)
+		if !valid {
+			l.Warnf("Could not determine expected SKU for tier %s and replication %s", config.AccountTier, config.ReplicationType)
+		} else if currentSKU != expectedSKU {
 			l.Warnf("Storage account SKU cannot be changed after creation. Current: %s, Desired: %s",
 				currentSKU, expectedSKU)
 		}

@@ -869,8 +869,13 @@ func (c *ProductionServiceContainer) GetRBACService(ctx context.Context, l log.L
 		return nil, err
 	}
 
-	// Extract configuration
-	subscriptionID, _ := config["subscriptionId"].(string)
+	// Extract configuration (empty string is valid - may come from environment)
+	var subscriptionID string
+
+	if v, ok := config["subscriptionId"].(string); ok {
+		subscriptionID = v
+	}
+
 	rbacConfig := interfaces.DefaultRBACConfig()
 
 	return NewRBACService(client, rbacConfig, subscriptionID), nil
@@ -882,11 +887,29 @@ func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Contex
 	mergedConfig := mergeConfig(c.config, config)
 
 	// Extract configuration (empty values are valid defaults for optional fields)
-	subscriptionID, _ := mergedConfig["subscriptionId"].(string)       //nolint:errcheck // type assertion returns zero value if missing
-	tenantID, _ := mergedConfig["tenantId"].(string)                   //nolint:errcheck // type assertion returns zero value if missing
-	clientID, _ := mergedConfig["clientId"].(string)                   //nolint:errcheck // type assertion returns zero value if missing
-	clientSecret, _ := mergedConfig["clientSecret"].(string)           //nolint:errcheck // type assertion returns zero value if missing
-	useManagedIdentity, _ := mergedConfig["useManagedIdentity"].(bool) //nolint:errcheck // type assertion returns zero value if missing
+	var subscriptionID, tenantID, clientID, clientSecret string
+
+	var useManagedIdentity bool
+
+	if v, ok := mergedConfig["subscriptionId"].(string); ok {
+		subscriptionID = v
+	}
+
+	if v, ok := mergedConfig["tenantId"].(string); ok {
+		tenantID = v
+	}
+
+	if v, ok := mergedConfig["clientId"].(string); ok {
+		clientID = v
+	}
+
+	if v, ok := mergedConfig["clientSecret"].(string); ok {
+		clientSecret = v
+	}
+
+	if v, ok := mergedConfig["useManagedIdentity"].(bool); ok {
+		useManagedIdentity = v
+	}
 
 	authConfig := interfaces.AuthenticationConfig{
 		SubscriptionID:     subscriptionID,
@@ -914,8 +937,8 @@ func (c *ProductionServiceContainer) GetResourceGroupService(ctx context.Context
 
 	// Create Azure resource group client
 	// Extract required fields from config
-	subscriptionID, _ := mergedConfig["subscriptionId"].(string)
-	if subscriptionID == "" {
+	subscriptionID, ok := mergedConfig["subscriptionId"].(string)
+	if !ok || subscriptionID == "" {
 		return nil, errors.New("subscription ID is required")
 	}
 
@@ -1086,16 +1109,31 @@ func createBlobClient(ctx context.Context, config map[string]interface{}) (*azur
 
 func createRBACClient(config map[string]interface{}) (azcore.TokenCredential, error) {
 	// Extract subscription ID from config
-	subscriptionID, _ := config["subscriptionId"].(string)
-	if subscriptionID == "" {
+	subscriptionID, ok := config["subscriptionId"].(string)
+	if !ok || subscriptionID == "" {
 		return nil, errors.New("subscription ID is required for RBAC operations")
 	}
 
-	// Create credentials based on config
-	tenantID, _ := config["tenantId"].(string)
-	clientID, _ := config["clientId"].(string)
-	clientSecret, _ := config["clientSecret"].(string)
-	useManagedIdentity, _ := config["useManagedIdentity"].(bool)
+	// Create credentials based on config (empty values are valid defaults)
+	var tenantID, clientID, clientSecret string
+
+	var useManagedIdentity bool
+
+	if v, ok := config["tenantId"].(string); ok {
+		tenantID = v
+	}
+
+	if v, ok := config["clientId"].(string); ok {
+		clientID = v
+	}
+
+	if v, ok := config["clientSecret"].(string); ok {
+		clientSecret = v
+	}
+
+	if v, ok := config["useManagedIdentity"].(bool); ok {
+		useManagedIdentity = v
+	}
 
 	// Create the credential based on available authentication methods
 	switch {
