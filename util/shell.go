@@ -43,13 +43,11 @@ func GetExitCode(err error) (int, error) {
 	var exitStatus interface {
 		ExitStatus() (int, error)
 	}
-
 	if errors.As(err, &exitStatus) {
 		return exitStatus.ExitStatus()
 	}
 
 	var exitCoder cli.ExitCoder
-
 	if errors.As(err, &exitCoder) {
 		return exitCoder.ExitCode(), nil
 	}

@@ -138,9 +138,10 @@ func GracefulCommandContext(ctx context.Context, name string, args ...string) *e
 
 	go func() {
 		<-ctx.Done()
+
 		if cmd.Process != nil {
 			// Send the provided signal to the process group
-			syscall.Kill(-cmd.Process.Pid, signal.InterruptSignal)
+			_ = syscall.Kill(-cmd.Process.Pid, signal.InterruptSignal)
 		}
 	}()
 
