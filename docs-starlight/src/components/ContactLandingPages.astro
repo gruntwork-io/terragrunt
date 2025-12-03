@@ -1,0 +1,56 @@
+---
+// Simple Contact component to send a message
+// Form is called "Landing Pages - Send a Message" in Hubspot
+---
+
+<div class="flex flex-col w-full items-center lg:items-end">
+
+  <div id="contact-form" class="w-full">
+    <div id="hs-form" class="py-2" role="form" aria-label="Contact Form"></div>
+    <p class="text-xs text-gray-1 text-center">We generally respond the same business day!</p>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const contactFormView = document.getElementById('contact-form');
+
+    // @ts-ignore
+    if (typeof hbspt !== 'undefined' && contactFormView) {
+        // @ts-ignore
+        hbspt.forms.create({
+        portalId: "8376079",
+        formId: "d403816b-64fb-4e43-9d1f-3e5fccd8b57f",
+        region: "na1",
+        target: '#hs-form',
+        cssClass: 'hs-form w-full h-full'
+      });
+    }
+  });
+</script>
+
+<script
+  charset="utf-8"
+  type="text/javascript"
+  src="//js.hsforms.net/forms/embed/v2.js"
+  defer
+></script>
+<script type="text/javascript" src="https://js.hs-scripts.com/8376079.js" async defer></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var poll = setInterval(function() {
+      var field = document.getElementById("landing_page_url-d403816b-64fb-4e43-9d1f-3e5fccd8b57f");
+      if (!field) return;
+
+      clearInterval(poll);
+
+      function setWebsiteField() {
+        if (field) {
+          (field as HTMLInputElement).value = window.location.href;
+        }
+      }
+      setWebsiteField();
+    }, 250);
+  });
+</script>

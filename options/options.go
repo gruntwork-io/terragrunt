@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -136,8 +135,6 @@ type TerragruntOptions struct {
 	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
-	// ReadFiles is a map of files to the Units that read them using HCL functions in the unit.
-	ReadFiles *xsync.MapOf[string, []string] `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
 	// Map to replace terraform source locations.
@@ -213,8 +210,6 @@ type TerragruntOptions struct {
 	IncludeDirs []string
 	// Unix-style glob of directories to exclude when running *-all commands
 	ExcludeDirs []string
-	// RetryableErrors is an array of regular expressions with RE2 syntax that qualify for retrying
-	RetryableErrors []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -229,20 +224,18 @@ type TerragruntOptions struct {
 	ModulesThatInclude []string
 	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
 	UnitsReading []string
+	// FilterQueries contains filter query strings for component selection
+	FilterQueries []string
 	// When set, it will be used to compute the cache key for `-version` checks.
 	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
-	// Maximum number of times to retry errors matching RetryableErrors
-	RetryMaxAttempts int
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
 	MaxFoldersToCheck int
 	// The port of the Terragrunt Provider Cache server.
 	ProviderCachePort int
-	// The duration in seconds to wait before retrying
-	RetrySleepInterval time.Duration
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -349,6 +342,10 @@ type TerragruntOptions struct {
 	FailFast bool
 	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
 	NoDependencyPrompt bool
+	// NoShell disables shell commands when using boilerplate templates in catalog and scaffold commands.
+	NoShell bool
+	// NoHooks disables hooks when using boilerplate templates in catalog and scaffold commands.
+	NoHooks bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -436,9 +433,6 @@ func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr 
 		ErrWriter:                      stderr,
 		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
-		RetryMaxAttempts:               DefaultRetryMaxAttempts,
-		RetrySleepInterval:             DefaultRetrySleepInterval,
-		RetryableErrors:                cloner.Clone(DefaultRetryableErrors),
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
@@ -459,7 +453,7 @@ func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr 
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
 		FeatureFlags:               xsync.NewMapOf[string, string](),
-		ReadFiles:                  xsync.NewMapOf[string, []string](),
+		Errors:                     defaultErrorsConfig(),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
 		Telemetry:                  new(telemetry.Options),
@@ -468,6 +462,8 @@ func NewTerragruntOptionsWithWritersContext(ctx context.Context, stdout, stderr 
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
 		NoDependencyPrompt:         false,
+		NoShell:                    false,
+		NoHooks:                    false,
 	}
 
 	// Run any registered options hooks
@@ -662,67 +658,6 @@ func (opts *TerragruntOptions) DataDir() string {
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
-// AppendReadFile appends to the list of files read by a given unit.
-func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
-	if opts.ReadFiles == nil {
-		opts.ReadFiles = xsync.NewMapOf[string, []string]()
-	}
-
-	units, ok := opts.ReadFiles.Load(file)
-	if !ok {
-		opts.ReadFiles.Store(file, []string{unit})
-		return
-	}
-
-	if slices.Contains(units, unit) {
-		return
-	}
-
-	// Atomic insert
-	// https://github.com/puzpuzpuz/xsync/issues/123#issuecomment-1963458519
-	_, _ = opts.ReadFiles.Compute(file, func(oldUnits []string, loaded bool) ([]string, bool) {
-		var newUnits []string
-
-		if loaded {
-			newUnits = append(make([]string, 0, len(oldUnits)+1), oldUnits...)
-			newUnits = append(newUnits, unit)
-		} else {
-			newUnits = []string{unit}
-		}
-
-		return newUnits, false
-	})
-}
-
-// DidReadFile checks if a given file was read by a given unit.
-func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
-	if opts.ReadFiles == nil {
-		return false
-	}
-
-	units, ok := opts.ReadFiles.Load(file)
-	if !ok {
-		return false
-	}
-
-	return slices.Contains(units, unit)
-}
-
-// CloneReadFiles creates a copy of the ReadFiles map.
-func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []string]) {
-	if readFiles == nil {
-		return
-	}
-
-	readFiles.Range(func(key string, units []string) bool {
-		for _, unit := range units {
-			opts.AppendReadFile(key, unit)
-		}
-
-		return true
-	})
-}
-
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
 func identifyDefaultWrappedExecutable(ctx context.Context) string {
 	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
@@ -825,6 +760,11 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 		}
 
 		if action.ShouldRetry {
+			// Respect --no-auto-retry flag
+			if !opts.AutoRetry {
+				return err
+			}
+
 			l.Warnf(
 				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
 				action.RetryMessage,

@@ -43,8 +43,6 @@ func (err InfiniteRecursionError) Error() string {
 	return errors.Errorf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Units involved: %v", err.RecursionLevel, err.Units).Error()
 }
 
-var ErrNoUnitsFound = errors.New("could not find any subfolders with Terragrunt configuration files")
-
 type DependencyCycleError []string
 
 func (err DependencyCycleError) Error() string {

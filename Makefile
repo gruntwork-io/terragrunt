@@ -27,13 +27,13 @@ install-pre-commit-hook:
 
 
 # This build target just for convenience for those building directly from
-# source. See also: .circleci/config.yml
+# source. See also: .github/workflows/build.yml
 build: terragrunt
 terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
                         -o \( -type f -name '*.go'   -print \) )
 	set -xe ;\
 	vtag_maybe_extra=$$(git describe --tags --abbrev=12 --dirty --broken) ;\
-	go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra} -extldflags '-static'" .
+	CGO_ENABLED=0 go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra}" .
 
 clean:
 	rm -f terragrunt

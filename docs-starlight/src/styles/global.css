@@ -8,6 +8,7 @@
 
 /* Starlight Fixes */
 @import "./starlight-search.css" layer(components);
+@import "./starlight-right-sidebar.css" layer(components);
 
 @font-face {
   font-family: 'Inter';
@@ -88,6 +89,13 @@
   --sl-text-sm: 16px;
   --sl-color-stroke-dark: #2E375A;
   --sl-z-index-toc: 10;
+
+  /* Strokes */
+  --color-stroke-light: #282A46;
+
+  /* Surfaces */
+  --color-surface-1: #0F0726;
+  --color-surface-3: #1C1833;
 
   /* Navigation */
   --sl-color-bg-nav: #0F1731;
@@ -397,4 +405,10 @@
   :root {
     --sl-nav-height: 148px;
   }
+}
+
+/* FAQ */
+
+.accordion-item:last-of-type {
+  border-bottom: dashed 1px var(--color-gray-3);
 }

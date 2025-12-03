@@ -1059,7 +1059,13 @@ func TestAwsProviderPatch(t *testing.T) {
 	mainContents = strings.ReplaceAll(mainContents, "__BRANCH_NAME__", branchName)
 	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt aws-provider-patch --override-attr region=\"eu-west-1\" --override-attr allowed_account_ids=[\"00000000000\"] --working-dir %s --log-level trace", modulePath))
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			`terragrunt aws-provider-patch --override-attr 'region="eu-west-1"' --override-attr allowed_account_ids='["00000000000"]' --working-dir %s --log-level trace`,
+			modulePath,
+		),
+	)
 	require.NoError(t, err)
 
 	assert.Regexp(t, "Patching AWS provider in .+test/fixtures/aws-provider-patch/example-module/main.tf", stderr)
@@ -1400,7 +1406,7 @@ func TestAwsAssumeRole(t *testing.T) {
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-	helpers.RunTerragrunt(t, "terragrunt validate-inputs -auto-approve --non-interactive --working-dir "+testPath)
+	helpers.RunTerragrunt(t, "terragrunt hcl validate --inputs -auto-approve --non-interactive --working-dir "+testPath)
 
 	// validate generated backend.tf
 	backendFile := filepath.Join(testPath, "backend.tf")
@@ -1438,7 +1444,7 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-	helpers.RunTerragrunt(t, "terragrunt validate-inputs -auto-approve --non-interactive --working-dir "+testPath)
+	helpers.RunTerragrunt(t, "terragrunt hcl validate --inputs -auto-approve --non-interactive --working-dir "+testPath)
 
 	// validate generated backend.tf
 	backendFile := filepath.Join(testPath, "backend.tf")

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -21,12 +23,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/hashicorp/hcl/v2"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -36,42 +40,44 @@ type Runner struct {
 	unitFilters []common.UnitFilter
 }
 
-// SetQueue replaces the runner's queue with a new one.
-// This is useful for filtering the queue after initial discovery.
-func (r *Runner) SetQueue(q *queue.Queue) {
-	r.queue = q
-}
-
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
-	if len(discovered) == 0 {
-		// If any filtering options are enabled that can result in valid empty results, create an empty runner.
-		isFilteringEnabled := terragruntOptions.StrictInclude ||
-			len(terragruntOptions.ModulesThatInclude) > 0
+func NewRunnerPoolStack(
+	ctx context.Context,
+	l log.Logger,
+	terragruntOptions *options.TerragruntOptions,
+	discovered component.Components,
+	opts ...common.Option,
+) (common.StackRunner, error) {
+	// Filter out Stack components - we only want Unit components
+	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
+	nonStackComponents := make(component.Components, 0, len(discovered))
+	for _, c := range discovered {
+		if c.Kind() != component.StackKind {
+			nonStackComponents = append(nonStackComponents, c)
+		}
+	}
 
-		if isFilteringEnabled {
-			// Create an empty runner that will process no units
-			stack := common.Stack{
-				TerragruntOptions: terragruntOptions,
-				ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-			}
+	if len(nonStackComponents) == 0 {
+		l.Warnf("No units discovered. Creating an empty runner.")
 
-			runner := &Runner{
-				Stack: &stack,
-			}
-
-			// Create an empty queue
-			q, queueErr := queue.NewQueue(discovery.DiscoveredConfigs{})
-			if queueErr != nil {
-				return nil, queueErr
-			}
-
-			runner.queue = q
-
-			return runner.WithOptions(opts...), nil
+		stack := common.Stack{
+			TerragruntOptions: terragruntOptions,
+			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		}
 
-		return nil, common.ErrNoUnitsFound
+		runner := &Runner{
+			Stack: &stack,
+		}
+
+		// Create an empty queue
+		q, queueErr := queue.NewQueue(component.Components{})
+		if queueErr != nil {
+			return nil, queueErr
+		}
+
+		runner.queue = q
+
+		return runner.WithOptions(opts...), nil
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
@@ -88,31 +94,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	// the report is available during unit resolution for tracking exclusions
 	runner = runner.WithOptions(opts...)
 
-	// Collect all terragrunt.hcl paths for resolution.
-	unitPaths := make([]string, 0, len(discovered))
-
-	for _, cfg := range discovered {
-		if cfg.Parsed == nil {
-			// Skip configurations that could not be parsed
-			l.Warnf("Skipping unit at %s due to parse error", cfg.Path)
-			continue
-		}
-
-		// Determine per-unit config filename
-		var fname string
-		if cfg.Type == discovery.ConfigTypeStack {
-			fname = config.DefaultStackFile
-		} else {
-			fname = config.DefaultTerragruntConfigPath
-			if terragruntOptions.TerragruntConfigPath != "" && !util.IsDir(terragruntOptions.TerragruntConfigPath) {
-				fname = filepath.Base(terragruntOptions.TerragruntConfigPath)
-			}
-		}
-
-		terragruntConfigPath := filepath.Join(cfg.Path, fname)
-		unitPaths = append(unitPaths, terragruntConfigPath)
-	}
-
 	// Resolve units (this applies to include/exclude logic and sets FlagExcluded accordingly).
 	unitResolver, err := common.NewUnitResolver(ctx, runner.Stack)
 	if err != nil {
@@ -124,17 +105,16 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		unitResolver = unitResolver.WithFilters(runner.unitFilters...)
 	}
 
-	unitsMap, err := unitResolver.ResolveTerraformModules(ctx, l, unitPaths)
+	// Use discovery-based resolution (no legacy fallback needed since discovery parses all required blocks)
+	// Use nonStackComponents which has Stack components filtered out
+	unitsMap, err := unitResolver.ResolveFromDiscovery(ctx, l, nonStackComponents)
 	if err != nil {
 		return nil, err
 	}
 
 	runner.Stack.Units = unitsMap
 
-	// Handle prevent_destroy logic for destroy operations
-	// If running destroy, exclude units with prevent_destroy=true and their dependencies
 	if isDestroyCommand(terragruntOptions) {
-		l.Debugf("Detected destroy command, applying prevent_destroy exclusions")
 		applyPreventDestroyExclusions(l, unitsMap)
 	}
 
@@ -150,6 +130,54 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	runner.queue = q
 
 	return runner.WithOptions(opts...), nil
+}
+
+// Limit recursive descent when inspecting nested errors
+const maxConfigurationErrorDepth = 100
+
+// isConfigurationError checks if an error is a configuration/validation error
+// that should always cause command failure regardless of fail-fast setting.
+func isConfigurationError(err error) bool {
+	return isConfigurationErrorDepth(err, 0)
+}
+
+func isConfigurationErrorDepth(err error, depth int) bool {
+	if err == nil {
+		return false
+	}
+
+	if depth >= maxConfigurationErrorDepth {
+		return false
+	}
+
+	// Check for specific configuration error types
+	if tgerrors.IsError(err, config.ConflictingRunCmdCacheOptionsError{}) {
+		return true
+	}
+
+	// Inspect HCL diagnostics (structured errors) for run_cmd cache-option conflicts
+	for _, unwrapped := range tgerrors.UnwrapErrors(err) {
+		var diags hcl.Diagnostics
+		if errors.As(unwrapped, &diags) {
+			for _, d := range diags {
+				if d != nil && d.Severity == hcl.DiagError && d.Summary == "Error in function call" {
+					return true
+				}
+			}
+		}
+	}
+
+	// Check wrapped errors in MultiError
+	var multiErr *tgerrors.MultiError
+	if errors.As(err, &multiErr) {
+		for _, wrappedErr := range multiErr.WrappedErrors() {
+			if isConfigurationErrorDepth(wrappedErr, depth+1) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Run executes the stack according to TerragruntOptions and returns the first
@@ -175,9 +203,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
-		r.handleApplyDestroy(l, opts)
+		if opts.RunAllAutoApprove {
+			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+		}
+
+		r.syncTerraformCliArgs(l, opts)
 	case tf.CommandNameShow:
-		r.handleShow(l, opts)
+		r.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
 		planErrorBuffers = r.handlePlan()
 		defer r.summarizePlanAllErrors(l, planErrorBuffers)
@@ -190,15 +222,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		for _, u := range r.Stack.Units {
 			if u.FlagExcluded {
 				// Ensure path is absolute for reporting
-				unitPath := u.Path
-				if !filepath.IsAbs(unitPath) {
-					var err error
-
-					unitPath, err = filepath.Abs(unitPath)
-					if err != nil {
-						l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
-						continue
-					}
+				unitPath, err := common.EnsureAbsolutePath(u.Path)
+				if err != nil {
+					l.Errorf("Error getting absolute path for unit %s: %v", u.Path, err)
+					continue
 				}
 
 				run, err := r.Stack.Report.EnsureRun(unitPath)
@@ -260,27 +287,22 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
 		for _, qe := range r.queue.Entries {
-			statusByPath[qe.Config.Path] = qe.Status
+			statusByPath[qe.Component.Path()] = qe.Status
 		}
 
 		for _, entry := range r.queue.Entries {
 			if entry.Status == queue.StatusEarlyExit {
-				unit := r.getUnitByPath(entry.Config.Path)
+				unit := r.Stack.FindUnitByPath(entry.Component.Path())
 				if unit == nil {
-					l.Warnf("Could not find unit for early exit entry: %s", entry.Config.Path)
+					l.Warnf("Could not find unit for early exit entry: %s", entry.Component.Path())
 					continue
 				}
 
 				// Ensure path is absolute for reporting
-				unitPath := unit.Path
-				if !filepath.IsAbs(unitPath) {
-					var absErr error
-
-					unitPath, absErr = filepath.Abs(unitPath)
-					if absErr != nil {
-						l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
-						continue
-					}
+				unitPath, absErr := common.EnsureAbsolutePath(unit.Path)
+				if absErr != nil {
+					l.Errorf("Error getting absolute path for unit %s: %v", unit.Path, absErr)
+					continue
 				}
 
 				run, reportErr := r.Stack.Report.EnsureRun(unitPath)
@@ -293,16 +315,16 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// If a dependency failed, use it; otherwise if a dependency exited early, use it
 				var failedAncestor string
 
-				for _, dep := range entry.Config.Dependencies {
-					status := statusByPath[dep.Path]
+				for _, dep := range entry.Component.Dependencies() {
+					status := statusByPath[dep.Path()]
 					if status == queue.StatusFailed {
-						failedAncestor = filepath.Base(dep.Path)
+						failedAncestor = filepath.Base(dep.Path())
 						break
 					}
 
 					if status == queue.StatusEarlyExit && failedAncestor == "" {
 						// Use early exit dependency as fallback
-						failedAncestor = filepath.Base(dep.Path)
+						failedAncestor = filepath.Base(dep.Path())
 					}
 				}
 
@@ -321,21 +343,29 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	return err
-}
+	// Handle errors based on fail-fast mode and error type
+	// Configuration errors always fail regardless of --fail-fast
+	// Execution errors are suppressed when --fail-fast is not set
+	if err != nil {
+		if isConfigurationError(err) || opts.FailFast {
+			// Configuration errors or fail-fast mode: propagate error
+			return err
+		}
 
-// handleApplyDestroy handles logic for apply and destroy commands.
-func (r *Runner) handleApplyDestroy(l log.Logger, opts *options.TerragruntOptions) {
-	if opts.RunAllAutoApprove {
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+		// Execution errors without fail-fast: log but don't fail
+		l.Errorf("Run failed: %v", err)
+
+		// Set detailed exit code if context has one
+		exitCode := tf.DetailedExitCodeFromContext(ctx)
+		if exitCode != nil {
+			exitCode.Set(int(cli.ExitCodeGeneralError))
+		}
+
+		// Return nil to indicate success (no --fail-fast) but errors were logged
+		return nil
 	}
 
-	r.syncTerraformCliArgs(l, opts)
-}
-
-// handleShow handles logic for show command.
-func (r *Runner) handleShow(l log.Logger, opts *options.TerragruntOptions) {
-	r.syncTerraformCliArgs(l, opts)
+	return err
 }
 
 // handlePlan handles logic for plan command, including error buffer setup and summary.
@@ -349,22 +379,15 @@ func (r *Runner) handlePlan() []bytes.Buffer {
 	return planErrorBuffers
 }
 
-// getUnitByPath returns the unit with the given path, or nil if not found.
-func (r *Runner) getUnitByPath(path string) *common.Unit {
-	for _, u := range r.Stack.Units {
-		if u.Path == path {
-			return u
-		}
-	}
-
-	return nil
-}
-
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
-	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
+	outStr := fmt.Sprintf(
+		"Unit queue will be processed for %s in this order:\n",
+		terraformCommand,
+	)
+
 	for _, unit := range r.queue.Entries {
-		outStr += fmt.Sprintf("- Unit %s\n", unit.Config.Path)
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.Path())
 	}
 
 	l.Info(outStr)
@@ -376,7 +399,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
-		orderedUnits = append(orderedUnits, unit.Config.Path)
+		orderedUnits = append(orderedUnits, unit.Component.Path())
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")
@@ -392,9 +415,9 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, unit := range r.queue.Entries {
-		if len(unit.Config.Dependencies) != 0 {
-			for _, dep := range unit.Config.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Config.Path))
+		if len(unit.Component.Dependencies()) != 0 {
+			for _, dep := range unit.Component.Dependencies() {
+				dependentUnits[dep.Path()] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path()], unit.Component.Path()))
 			}
 		}
 	}
@@ -486,7 +509,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 //   - For each included config, its Dependencies list is filtered to only include included configs.
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
-func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.Units) discovery.DiscoveredConfigs {
+func FilterDiscoveredUnits(discovered component.Components, units common.Units) component.Components {
 	// Build allowlist from non-excluded unit paths
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
@@ -496,32 +519,38 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 	}
 
 	// First pass: keep only allowed configs and prune their dependencies to allowed ones
-	filtered := make(discovery.DiscoveredConfigs, 0, len(discovered))
-	present := make(map[string]*discovery.DiscoveredConfig, len(discovered))
+	filtered := make(component.Components, 0, len(discovered))
+	present := make(map[string]*component.Unit, len(discovered))
 
-	for _, cfg := range discovered {
-		if _, ok := allowed[cfg.Path]; !ok {
+	for _, c := range discovered {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if _, ok := allowed[unit.Path()]; !ok {
 			// Drop configs that map to excluded/missing units
 			continue
 		}
 
-		// Shallow copy unit struct to avoid field drift as values update
-		copyVal := *cfg
-		copyCfg := &copyVal
+		copyCfg := component.NewUnit(unit.Path())
+		copyCfg.SetDiscoveryContext(unit.DiscoveryContext())
+		copyCfg.SetReading(unit.Reading()...)
 
-		if cfg.Dependencies != nil {
-			deps := make(discovery.DiscoveredConfigs, 0, len(cfg.Dependencies))
-			for _, dep := range cfg.Dependencies {
-				if _, ok := allowed[dep.Path]; ok {
-					deps = append(deps, dep)
+		if unit.External() {
+			copyCfg.SetExternal()
+		}
+
+		if len(unit.Dependencies()) > 0 {
+			for _, dep := range unit.Dependencies() {
+				if _, ok := allowed[dep.Path()]; ok {
+					copyCfg.AddDependency(dep)
 				}
 			}
-
-			copyCfg.Dependencies = deps
 		}
 
 		filtered = append(filtered, copyCfg)
-		present[copyCfg.Path] = copyCfg
+		present[copyCfg.Path()] = copyCfg
 	}
 
 	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
@@ -535,10 +564,7 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		}
 
 		// Create a minimal discovered config for the missing unit
-		copyCfg := &discovery.DiscoveredConfig{
-			Type: discovery.ConfigTypeUnit,
-			Path: u.Path,
-		}
+		copyCfg := component.NewUnit(u.Path)
 
 		filtered = append(filtered, copyCfg)
 		present[u.Path] = copyCfg
@@ -556,9 +582,9 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 		}
 
 		// Build a set of existing dependency paths on cfg to avoid duplicates
-		existing := make(map[string]struct{}, len(cfg.Dependencies))
-		for _, dep := range cfg.Dependencies {
-			existing[dep.Path] = struct{}{}
+		existing := make(map[string]struct{}, len(cfg.Dependencies()))
+		for _, dep := range cfg.Dependencies() {
+			existing[dep.Path()] = struct{}{}
 		}
 
 		// Add any missing allowed dependencies from the resolved unit graph
@@ -578,12 +604,12 @@ func FilterDiscoveredUnits(discovered discovery.DiscoveredConfigs, units common.
 			// Ensure the dependency config exists in the filtered set
 			depCfg, ok := present[depUnit.Path]
 			if !ok {
-				depCfg = &discovery.DiscoveredConfig{Type: discovery.ConfigTypeUnit, Path: depUnit.Path}
+				depCfg = component.NewUnit(depUnit.Path)
 				filtered = append(filtered, depCfg)
 				present[depUnit.Path] = depCfg
 			}
 
-			cfg.Dependencies = append(cfg.Dependencies, depCfg)
+			cfg.AddDependency(depCfg)
 		}
 	}
 
@@ -636,20 +662,11 @@ func (r *Runner) GetUnitFilters() []common.UnitFilter {
 }
 
 // containsFilter checks if a filter already exists in the filters slice.
-// Uses reflection to compare filter pointers for deduplication.
+// Uses DeepEqual to compare filters by both pointer identity and value equality.
 func containsFilter(filters []common.UnitFilter, target common.UnitFilter) bool {
-	targetValue := reflect.ValueOf(target)
-	targetPtr := targetValue.Pointer()
-
 	for _, existing := range filters {
-		existingValue := reflect.ValueOf(existing)
-
-		// Compare by pointer for function-type filters
-		if existingValue.Pointer() == targetPtr {
-			return true
-		}
-
-		// For struct-based filters, compare by value equality
+		// DeepEqual handles both pointer equality and value equality,
+		// so we don't need separate pointer comparison
 		if reflect.DeepEqual(existing, target) {
 			return true
 		}

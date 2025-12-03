@@ -89,13 +89,6 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		expectedModules    []string
 		notExpectedModules []string
 	}{
-		// We can keep this until the graph command is removed.
-		{
-			args:               "graph apply --non-interactive --working-dir %s --graph-root %s",
-			path:               "services/eks-service-3-v2",
-			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
-			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
-		},
 		{
 			args:               "run --graph apply --non-interactive --working-dir %s --graph-root %s",
 			path:               "lambda",

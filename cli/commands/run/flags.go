@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -15,16 +16,11 @@ import (
 )
 
 const (
-	ConfigFlagName                         = "config"
 	NoAutoInitFlagName                     = "no-auto-init"
 	NoAutoRetryFlagName                    = "no-auto-retry"
 	NoAutoApproveFlagName                  = "no-auto-approve"
 	NoAutoProviderCacheDirFlagName         = "no-auto-provider-cache-dir"
-	DownloadDirFlagName                    = "download-dir"
 	TFForwardStdoutFlagName                = "tf-forward-stdout"
-	TFPathFlagName                         = "tf-path"
-	ParallelismFlagName                    = "parallelism"
-	InputsDebugFlagName                    = "inputs-debug"
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
@@ -32,7 +28,6 @@ const (
 	VersionManagerFileNameFlagName         = "version-manager-file-name"
 
 	DisableCommandValidationFlagName   = "disable-command-validation"
-	AuthProviderCmdFlagName            = "auth-provider-cmd"
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
 
 	SourceFlagName       = "source"
@@ -40,25 +35,6 @@ const (
 	SourceUpdateFlagName = "source-update"
 
 	NoStackGenerate = "no-stack-generate"
-
-	// Assume IAM Role flags.
-
-	IAMAssumeRoleFlagName                 = "iam-assume-role"
-	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
-	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
-	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
-
-	// Queue related flags.
-
-	QueueIgnoreErrorsFlagName        = "queue-ignore-errors"
-	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
-	QueueExcludeExternalFlagName     = "queue-exclude-external"
-	QueueExcludeDirFlagName          = "queue-exclude-dir"
-	QueueExcludesFileFlagName        = "queue-excludes-file"
-	QueueIncludeDirFlagName          = "queue-include-dir"
-	QueueIncludeExternalFlagName     = "queue-include-external"
-	QueueStrictIncludeFlagName       = "queue-strict-include"
-	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 
 	// Terragrunt Provider Cache related flags.
 
@@ -93,11 +69,23 @@ const (
 
 	FailFastFlagName = "fail-fast"
 
-	// Backend and feature flags (shared with backend commands)
-	BackendBootstrapFlagName        = "backend-bootstrap"
-	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
-	DisableBucketUpdateFlagName     = "disable-bucket-update"
-	FeatureFlagName                 = "feature"
+	// Backend and feature flags (shared with backend commands) - use shared package constants
+	BackendBootstrapFlagName        = shared.BackendBootstrapFlagName
+	BackendRequireBootstrapFlagName = shared.BackendRequireBootstrapFlagName
+	DisableBucketUpdateFlagName     = shared.DisableBucketUpdateFlagName
+	FeatureFlagName                 = shared.FeatureFlagName
+
+	// Config and download flags - use shared package constants
+	ConfigFlagName      = shared.ConfigFlagName
+	DownloadDirFlagName = shared.DownloadDirFlagName
+
+	// Auth and IAM flags - use shared package constants
+	AuthProviderCmdFlagName               = shared.AuthProviderCmdFlagName
+	InputsDebugFlagName                   = shared.InputsDebugFlagName
+	IAMAssumeRoleFlagName                 = shared.IAMAssumeRoleFlagName
+	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName
+	IAMAssumeRoleSessionNameFlagName      = shared.IAMAssumeRoleSessionNameFlagName
+	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
 )
 
 // NewFlags creates and returns global flags.
@@ -126,7 +114,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out-dir"), terragruntPrefixControl)),
 
-		// `graph/-grpah` related flags.
+		// `graph/-graph` related flags.
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        GraphRootFlagName,
@@ -147,15 +135,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 		//  Backward compatibility with `terragrunt-` prefix flags.
 
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        ConfigFlagName,
-			EnvVars:     tgPrefix.EnvVars(ConfigFlagName),
-			Destination: &opts.TerragruntConfigPath,
-			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("config"), terragruntPrefixControl)),
+		shared.NewConfigFlag(opts, prefix, CommandName),
 
-		NewTFPathFlag(opts, prefix),
+		shared.NewTFPathFlag(opts),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoAutoInitFlagName,
@@ -197,17 +179,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
 		}),
 
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        DownloadDirFlagName,
-			EnvVars:     tgPrefix.EnvVars(DownloadDirFlagName),
-			Destination: &opts.DownloadDir,
-			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
-		}, flags.WithDeprecatedEnvVars(
-			append(
-				terragruntPrefix.EnvVars("download"),
-				terragruntPrefix.EnvVars("download-dir")...,
-			),
-			terragruntPrefixControl)),
+		shared.NewDownloadDirFlag(opts, prefix, CommandName),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        SourceFlagName,
@@ -235,117 +207,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source-map"), terragruntPrefixControl)),
 
 		// Assume IAM Role flags.
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        IAMAssumeRoleFlagName,
-			EnvVars:     tgPrefix.EnvVars(IAMAssumeRoleFlagName),
-			Destination: &opts.IAMRoleOptions.RoleARN,
-			Usage:       "Assume the specified IAM role before executing OpenTofu/Terraform.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-role"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.GenericFlag[int64]{
-			Name:        IAMAssumeRoleDurationFlagName,
-			EnvVars:     tgPrefix.EnvVars(IAMAssumeRoleDurationFlagName),
-			Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
-			Usage:       "Session duration for IAM Assume Role session.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-duration"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        IAMAssumeRoleSessionNameFlagName,
-			EnvVars:     tgPrefix.EnvVars(IAMAssumeRoleSessionNameFlagName),
-			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
-			Usage:       "Name for the IAM Assumed Role session.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-session-name"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        IAMAssumeRoleWebIdentityTokenFlagName,
-			EnvVars:     tgPrefix.EnvVars(IAMAssumeRoleWebIdentityTokenFlagName),
-			Destination: &opts.IAMRoleOptions.WebIdentityToken,
-			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
-		},
-			flags.WithDeprecatedEnvVars(
-				append(
-					terragruntPrefix.EnvVars("iam-web-identity-token"),
-					terragruntPrefix.EnvVars("iam-assume-role-web-identity-token")...,
-				),
-				terragruntPrefixControl,
-			),
-		),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        QueueIgnoreErrorsFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueIgnoreErrorsFlagName),
-			Destination: &opts.IgnoreDependencyErrors,
-			Usage:       "Continue processing Units even if a dependency fails.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-errors"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        QueueIgnoreDAGOrderFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueIgnoreDAGOrderFlagName),
-			Destination: &opts.IgnoreDependencyOrder,
-			Usage:       "Ignore DAG order for --all commands.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-order"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        QueueExcludeExternalFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
-			Destination: &opts.IgnoreExternalDependencies,
-			Usage:       "Ignore external dependencies for --all commands.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        QueueIncludeExternalFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueIncludeExternalFlagName),
-			Destination: &opts.IncludeExternalDependencies,
-			Usage:       "Include external dependencies for --all commands without asking.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.GenericFlag[int]{
-			Name:        ParallelismFlagName,
-			EnvVars:     tgPrefix.EnvVars(ParallelismFlagName),
-			Destination: &opts.Parallelism,
-			Usage:       "Parallelism for --all commands.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        QueueExcludesFileFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueExcludesFileFlagName),
-			Destination: &opts.ExcludesFile,
-			Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("excludes-file"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.SliceFlag[string]{
-			Name:        QueueExcludeDirFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueExcludeDirFlagName),
-			Destination: &opts.ExcludeDirs,
-			Usage:       "Unix-style glob of directories to exclude from the queue of Units to run.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("exclude-dir"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.SliceFlag[string]{
-			Name:        QueueIncludeDirFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueIncludeDirFlagName),
-			Destination: &opts.IncludeDirs,
-			Usage:       "Unix-style glob of directories to include from the queue of Units to run.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-dir"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        InputsDebugFlagName,
-			EnvVars:     tgPrefix.EnvVars(InputsDebugFlagName),
-			Destination: &opts.Debug,
-			Usage:       "Write debug.tfvars to working folder to help root-cause issues.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("debug"), terragruntPrefixControl)),
+		shared.NewInputsDebugFlag(opts, prefix, CommandName),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        UsePartialParseConfigCacheFlagName,
@@ -379,14 +241,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("forward-tf-stdout"), terragruntPrefixControl),
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-module-prefix"), legacyLogsControl)),
 
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        QueueStrictIncludeFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueStrictIncludeFlagName),
-			Destination: &opts.StrictInclude,
-			Usage:       "If flag is set, only modules under the directories passed in with '--include-dir' will be included.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-include"), terragruntPrefixControl)),
-
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:        UnitsThatIncludeFlagName,
 			EnvVars:     tgPrefix.EnvVars(UnitsThatIncludeFlagName),
@@ -394,14 +248,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("modules-that-include"), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.SliceFlag[string]{
-			Name:        QueueIncludeUnitsReadingFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
-			Destination: &opts.UnitsReading,
-			Usage:       "If flag is set, 'run --all' will only run the command against Terragrunt units that read the specified file via an HCL function or include.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DisableCommandValidationFlagName,
@@ -469,13 +315,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-registry-names"), terragruntPrefixControl)),
 
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        AuthProviderCmdFlagName,
-			EnvVars:     tgPrefix.EnvVars(AuthProviderCmdFlagName),
-			Destination: &opts.AuthProviderCmd,
-			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("auth-provider-cmd"), terragruntPrefixControl)),
+		shared.NewAuthProviderCmdFlag(opts, prefix, CommandName),
 
 		// Terragrunt engine flags.
 
@@ -596,86 +436,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 	}
 
-	// Add shared backend and feature flags
-	flags = flags.Add(NewBackendFlags(l, opts, prefix)...)
-	flags = flags.Add(NewFeatureFlags(l, opts, prefix)...)
+	// Add shared flags
+	flags = flags.Add(shared.NewBackendFlags(opts, prefix)...)
+	flags = flags.Add(shared.NewFeatureFlags(opts, prefix)...)
+	flags = flags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...)
+	flags = flags.Add(shared.NewQueueFlags(opts, prefix)...)
+	flags = flags.Add(shared.NewFilterFlag(opts))
+	flags = flags.Add(shared.NewParallelismFlag(opts))
 
 	return flags.Sort()
-}
-
-// NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
-func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
-
-	return flags.NewFlag(
-		&cli.GenericFlag[string]{
-			Name:    TFPathFlagName,
-			EnvVars: tgPrefix.EnvVars(TFPathFlagName),
-			Usage:   "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
-			Setter: func(value string) error {
-				opts.TFPath = value
-				opts.TFPathExplicitlySet = true
-				return nil
-			},
-		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("tfpath"), terragruntPrefixControl),
-	)
-}
-
-// NewBackendFlags defines backend-related flags that should be available to both `run` and `backend` commands.
-func NewBackendFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
-
-	return cli.Flags{
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        BackendBootstrapFlagName,
-			EnvVars:     tgPrefix.EnvVars(BackendBootstrapFlagName),
-			Destination: &opts.BackendBootstrap,
-			Usage:       "Automatically bootstrap backend infrastructure before attempting to use it.",
-		}),
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        BackendRequireBootstrapFlagName,
-			EnvVars:     tgPrefix.EnvVars(BackendRequireBootstrapFlagName),
-			Destination: &opts.FailIfBucketCreationRequired,
-			Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fail-on-state-bucket-creation"), terragruntPrefixControl),
-		),
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        DisableBucketUpdateFlagName,
-			EnvVars:     tgPrefix.EnvVars(DisableBucketUpdateFlagName),
-			Destination: &opts.DisableBucketUpdate,
-			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-bucket-update"), terragruntPrefixControl),
-		),
-	}
-}
-
-// NewFeatureFlags defines the feature flag map that should be available to both `run` and `backend` commands.
-func NewFeatureFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
-
-	return cli.Flags{
-		flags.NewFlag(&cli.MapFlag[string, string]{
-			Name:    FeatureFlagName,
-			EnvVars: tgPrefix.EnvVars(FeatureFlagName),
-			Usage:   "Set feature flags for the HCL code.",
-			// Use default splitting behavior with comma separators via MapFlag defaults
-			Action: func(_ *cli.Context, value map[string]string) error {
-				for key, val := range value {
-					opts.FeatureFlags.Store(key, val)
-				}
-				return nil
-			},
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("feature"), terragruntPrefixControl),
-		),
-	}
 }

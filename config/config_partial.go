@@ -5,15 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
@@ -32,7 +28,6 @@ const (
 	TerraformBlock
 	TerraformSource
 	TerragruntFlags
-	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
@@ -84,12 +79,11 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
+// terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy)
 type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
 	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
 	PreventDestroy      *bool    `hcl:"prevent_destroy,attr"`
-	Skip                *bool    `hcl:"skip,attr"`
 	Remain              hcl.Body `hcl:",remain"`
 }
 
@@ -112,12 +106,6 @@ type TerragruntDependency struct {
 type terragruntRemoteState struct {
 	RemoteState *remotestate.ConfigFile `hcl:"remote_state,block"`
 	Remain      hcl.Body                `hcl:",remain"`
-}
-
-// terragruntInputs is a struct that can be used to only decode the inputs block.
-type terragruntInputs struct {
-	Inputs *cty.Value `hcl:"inputs,attr"`
-	Remain hcl.Body   `hcl:",remain"`
 }
 
 // terragruntEngine is a struct that can only be used to decode the engine block.
@@ -186,7 +174,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.File, in
 		errs = errs.Append(err)
 	}
 
-	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
+	localsAsCtyVal, err := ConvertValuesMapToCtyVal(locals)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +216,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		}
 	}
 
-	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+	flagsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedFlags)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -370,6 +358,14 @@ func PartialParseConfigString(ctx *ParsingContext, l log.Logger, configPath, con
 func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
+	// Detect and block deprecated configurations early, before attempting to parse.
+	// This ensures included configs with deprecated syntax get clear error messages
+	// instead of cryptic "Could not find Terragrunt configuration settings" errors.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/4983
+	if err := DetectDeprecatedConfigurations(ctx, l, file); err != nil {
+		return nil, err
+	}
+
 	ctx = ctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
@@ -408,6 +404,8 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
 	// them into the output TerragruntConfig struct.
+	hasExcludeBlock := false
+
 	for _, decode := range ctx.PartialParseDecodeList {
 		switch decode {
 		case DependenciesBlock:
@@ -461,7 +459,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			output.TerragruntDependencies = decoded.Dependencies
 			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
-			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
+			dependencies := dependencyBlocksToModuleDependencies(l, decoded.Dependencies)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
 			} else {
@@ -490,10 +488,6 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 				output.PreventDestroy = decoded.PreventDestroy
 			}
 
-			if decoded.Skip != nil {
-				output.Skip = decoded.Skip
-			}
-
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole
 			}
@@ -501,60 +495,6 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			if decoded.IamWebIdentityToken != nil {
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
-		case TerragruntInputs:
-			allControls := ctx.TerragruntOptions.StrictControls
-
-			skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
-			if skipDependenciesInputs == nil {
-				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
-			}
-
-			skipDependenciesInputs.SuppressWarning()
-
-			if err := skipDependenciesInputs.Evaluate(ctx); err != nil {
-				l.Debugf(
-					"Skipping inputs parse from %v in dependency for better performance, due to usage of %s strict control",
-					file.ConfigPath,
-					controls.SkipDependenciesInputs,
-				)
-
-				break
-			}
-
-			decoded := terragruntInputs{}
-
-			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
-				// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
-				retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, file)
-				if err != nil {
-					return nil, err
-				}
-
-				evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
-			}
-
-			if err := file.Decode(&decoded, evalParsingContext); err != nil {
-				var diagErr hcl.Diagnostics
-
-				ok := errors.As(err, &diagErr)
-
-				// in case of render-json command and inputs reference error, we update the inputs with default value
-				if !ok || !isRenderJSONCommand(ctx) || !isRenderCommand(ctx) || !isAttributeAccessError(diagErr) {
-					return nil, err
-				}
-
-				l.Warnf("Failed to decode inputs %v", diagErr)
-			}
-
-			if decoded.Inputs != nil {
-				inputs, err := ctyhelper.ParseCtyValueToMap(*decoded.Inputs)
-				if err != nil {
-					return nil, err
-				}
-
-				output.Inputs = inputs
-			}
-
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
 
@@ -612,16 +552,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			}
 
 		case ExcludeBlock:
-			decoded, err := processExcludes(ctx, l, output, file)
-			if err != nil {
-				return nil, err
-			}
-
-			if output.Exclude != nil {
-				output.Exclude.Merge(decoded.Exclude)
-			} else {
-				output.Exclude = decoded.Exclude
-			}
+			hasExcludeBlock = true
 
 		case ErrorsBlock:
 			decoded := terragruntErrors{}
@@ -667,7 +598,11 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 		return output, errs.ErrorOrNil()
 	}
 
-	return processExcludes(ctx, l, output, file)
+	if hasExcludeBlock {
+		return processExcludes(ctx, l, output, file)
+	}
+
+	return output, nil
 }
 
 // processExcludes evaluate exclude blocks and merge them into the config.

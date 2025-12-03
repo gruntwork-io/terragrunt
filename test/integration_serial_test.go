@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -19,13 +20,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/test"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
+	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -85,17 +86,37 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	}
 	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))
-
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
 
-	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
-	require.NoError(t, err)
+	// Retry to handle intermittent failures due to network issues on CICD
+	retry.DoWithRetry(t, "Run terragrunt init with provider cache", 3, 0, func() (string, error) {
+		// Clean up before each attempt
+		helpers.CleanupTerraformFolder(t, appPath)
 
-	terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+		// Run terragrunt init
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
 
-	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
+		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
+		if err != nil {
+			return "", fmt.Errorf("terragrunt command failed: %w", err)
+		}
+
+		// Verify the config was created correctly
+		terraformrcBytes, readErr := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+		if readErr != nil {
+			return "", fmt.Errorf("failed to read .terraformrc: %w", readErr)
+		}
+
+		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+
+		if !strings.Contains(terraformrc, expectedProviderInstallation) {
+			return "", fmt.Errorf("config mismatch:\nactual: %s\nexpected substring: %s", terraformrc, expectedProviderInstallation)
+		}
+
+		return "Success", nil
+	})
 }
 
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
@@ -206,77 +227,6 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
 
 		assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
-	}
-}
-
-func TestTerragruntInputsFromDependency(t *testing.T) {
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputsFromDependency)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureInputsFromDependency)
-	rootPath := util.JoinPath(rootTerragruntPath, "apps")
-
-	curDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	relRootPath, err := filepath.Rel(curDir, rootPath)
-	require.NoError(t, err)
-
-	testCases := []struct {
-		rootPath    string
-		downloadDir string
-	}{
-		{
-			rootPath:    rootPath,
-			downloadDir: "",
-		},
-		{
-			rootPath:    relRootPath,
-			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
-		},
-	}
-
-	for _, tc := range testCases {
-		var (
-			stdout bytes.Buffer
-			stderr bytes.Buffer
-		)
-
-		var (
-			appDir  string
-			appDirs = []string{"c", "b", "a"}
-		)
-
-		for _, app := range appDirs {
-			appDir = filepath.Join(tc.rootPath, app)
-
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, tc.downloadDir))
-			config.ClearOutputCache()
-		}
-
-		if tc.downloadDir != "" {
-			entries, err := os.ReadDir(tc.downloadDir)
-			require.NoError(t, err)
-			assert.Len(t, entries, len(appDirs))
-		}
-
-		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)
-
-		expectedOutpus := map[string]string{
-			"bar": "parent-bar",
-			"baz": "b-baz",
-			"foo": "c-foo",
-		}
-
-		output := stdout.String()
-		for key, value := range expectedOutpus {
-			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-		}
-
-		// Check that we're getting a warning for usage of deprecated functionality.
-		assert.Contains(
-			t,
-			stderr.String(),
-			"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
-		)
 	}
 }
 
@@ -823,4 +773,42 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_creation\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_controller\"")
 	assert.Contains(t, telemetryOutput, "\"Name\":\"runner_pool_task\"")
+}
+
+func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	expected := 3
+
+	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+func TestVersionIsInvokedOnlyOnce(t *testing.T) {
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+	testPath, err := filepath.EvalSymlinks(testPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	// check that version command was invoked only once -version
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	expected := 2
+
+	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 }

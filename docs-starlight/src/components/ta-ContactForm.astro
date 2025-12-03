@@ -1,0 +1,39 @@
+---
+// Contact component using HubSpot form embed
+---
+
+<div class="flex flex-col w-full items-center lg:items-end">
+
+  <!-- Contact Form -->
+  <div id="contact-form" class="w-full max-w-md" role="form" aria-label="Contact Form">
+    <!-- HubSpot Form will be embedded here -->
+    <div id="hs-form" class="w-full py-2 min-h-[600px]"></div>
+    <p class="text-xs text-gray-1 text-center">We generally respond the same business day!</p>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const contactFormView = document.getElementById('contact-form');
+
+    // @ts-ignore
+    if (typeof hbspt !== 'undefined' && contactFormView) {
+        // @ts-ignore
+        hbspt.forms.create({
+        portalId: "8376079",
+        formId: "5a923547-6cff-42a3-a61e-31c580e7725f",
+        region: "na1",
+        target: '#hs-form',
+        cssClass: 'hs-form w-full h-full'
+      });
+    }
+  });
+</script>
+
+<script
+  charset="utf-8"
+  type="text/javascript"
+  src="//js.hsforms.net/forms/embed/v2.js"
+  defer
+></script>
+<script type="text/javascript" src="https://js.hs-scripts.com/8376079.js" async defer></script>

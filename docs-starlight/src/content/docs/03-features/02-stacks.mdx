@@ -6,7 +6,8 @@ sidebar:
   order: 2
 ---
 
-import { Aside, FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 ## What are Stacks?
 
@@ -660,12 +661,14 @@ For example, if `destroy` was called on the `Valkey` unit, you'd be asked for co
 
 ## Visualizing the DAG
 
-To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command).
+To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command), or its equivalent `list --format=dot --dependencies --external` command.
 
 The graph is output in DOT format. The typical program used to render this file format is GraphViz, but many web services are available that can do this as well.
 
 ```bash
 terragrunt dag graph | dot -Tsvg > graph.svg
+# Or equivalently:
+terragrunt list --format=dot --dependencies --external | dot -Tsvg > graph.svg
 ```
 
 The example above generates the following graph:

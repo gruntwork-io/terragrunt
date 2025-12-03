@@ -1,4 +1,4 @@
-// Package run contains the logic for interacting with OpenTofu/Terraform.
+// Package run contains the CLI command definition for interacting with OpenTofu/Terraform.
 package run
 
 import (
@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -47,8 +49,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(l, opts, cmd, Run, false)
-	cmd = graph.WrapCommand(l, opts, cmd, Run, false)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run, false)
+	cmd = graph.WrapCommand(l, opts, cmd, run.Run, false)
 	cmd = wrapWithStackGenerate(l, opts, cmd)
 
 	return cmd
@@ -87,7 +89,7 @@ func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		return Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
+		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
 	}
 }
 
@@ -97,10 +99,10 @@ func validateCommand(opts *options.TerragruntOptions) error {
 	}
 
 	if isTerraformPath(opts) {
-		return WrongTerraformCommand(opts.TerraformCommand)
+		return run.WrongTerraformCommand(opts.TerraformCommand)
 	}
 
-	return WrongTofuCommand(opts.TerraformCommand)
+	return run.WrongTofuCommand(opts.TerraformCommand)
 }
 
 func isTerraformPath(opts *options.TerragruntOptions) bool {
@@ -145,7 +147,7 @@ func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *c
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return config.GenerateStacks(ctx, l, opts)
+			return generate.GenerateStacks(ctx, l, opts)
 		})
 
 		// Handle any errors during stack generation

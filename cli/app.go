@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/engine"

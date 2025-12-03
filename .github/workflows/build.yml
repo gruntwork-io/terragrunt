@@ -4,8 +4,32 @@ on:
   workflow_call:
 
 jobs:
+  detect_release:
+    name: Detect if this is a release build
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.check.outputs.is_release }}
+    steps:
+      - name: Check if release tag
+        id: check
+        run: |
+          REF="${GITHUB_REF}"
+          echo "Git ref: $REF"
+
+          # Check if this is a release tag (v*, alpha*, beta*)
+          if [[ "$REF" =~ ^refs/tags/v.* ]] || \
+             [[ "$REF" =~ ^refs/tags/alpha.* ]] || \
+             [[ "$REF" =~ ^refs/tags/beta.* ]]; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "This is a RELEASE build - signing will be enabled"
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "This is NOT a release build - signing will be skipped"
+          fi
+
   build:
     name: Build (${{ matrix.os }}/${{ matrix.arch }})
+    needs: detect_release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,94 +75,125 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
         run: |
           OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
           if [[ "${GOOS}" == "windows" ]]; then
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
+            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME}" \
             .
 
+      - name: Verify Static Linking
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
+          if [[ "${GOOS}" == "windows" ]]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
+
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
-  sign:
-    name: Sign Binaries
-    needs: build
-    runs-on: macos-latest
-    env:
-      MISE_PROFILE: cicd
-      GON_VERSION: v0.0.37
+  sign_macos:
+    name: Sign MacOS Binaries
+    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    needs: [detect_release, build]
+    uses: ./.github/workflows/sign-macos.yml
+    secrets: inherit
+
+  sign_windows:
+    name: Sign Windows Binaries
+    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    needs: [detect_release, build]
+    uses: ./.github/workflows/sign-windows.yml
+    secrets: inherit
+
+  merge_signed_binaries:
+    name: Merge All Signed Binaries
+    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    needs: [detect_release, sign_macos, sign_windows]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download macOS signed binaries
+        uses: actions/download-artifact@v6
         with:
-          path: artifacts/
+          name: macos-signed-files
+          path: bin/
 
-      - name: Prepare build artifacts
+      - name: Verify macOS binaries after download
         run: |
-          mkdir -p bin
-          find artifacts -type f -exec cp {} bin/ \;
+          # Get list of expected macOS binaries from config
+          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
+
+          echo "Expected macOS binaries from config:"
+          echo "$macos_binaries"
+          echo ""
+
+          echo "Listing expected files in bin/:"
+          for binary in $macos_binaries; do
+            if [[ -f "bin/$binary" ]]; then
+              ls -lh "bin/$binary"
+            fi
+            if [[ -f "bin/$binary.zip" ]]; then
+              ls -lh "bin/$binary.zip"
+            fi
+          done
+          echo ""
+
+          echo "Verifying macOS binaries:"
+          for binary in $macos_binaries; do
+            echo "Checking bin/$binary:"
+
+            [[ -f "bin/$binary" ]] || {
+              echo "  ERROR: Binary bin/$binary is missing from downloaded artifact"
+              exit 1
+            }
+
+            echo "  OK: bin/$binary"
+            file "bin/$binary"
+
+            # Check for ZIP file
+            if [[ -f "bin/$binary.zip" ]]; then
+              echo "  OK: bin/$binary.zip"
+              ls -lh "bin/$binary.zip"
+            else
+              echo "  NOTICE: bin/$binary.zip (not present, will be created in merge)"
+            fi
+            echo ""
+          done
+
+      - name: Download Windows signed binaries
+        uses: actions/download-artifact@v6
+        with:
+          name: windows-signed-files
+          path: bin/
+
+      - name: Download Linux binaries (unsigned)
+        uses: actions/download-artifact@v6
+        with:
+          pattern: terragrunt_linux_*
+          path: bin/
+          merge-multiple: true
+
+      - name: List all binaries
+        run: |
+          echo "All binaries ready for release:"
           ls -lahrt bin/*
 
-      - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+      - name: Upload All Signed Binaries
+        uses: actions/upload-artifact@v5
         with:
-          version: 2025.8.16
-          experimental: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache gon binary
-        id: cache-gon
-        uses: actions/cache@v4
-        with:
-          path: gon
-          key: gon-${{ env.GON_VERSION }}
-
-      - name: Download gon release
-        if: steps.cache-gon.outputs.cache-hit != 'true'
-        run: |
-          curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
-          unzip gon.zip
-          chmod +x gon
-
-      - name: Move gon to system path
-        run: |
-          sudo mv gon /usr/local/bin/gon
-          sudo chmod +x /usr/local/bin/gon
-
-      - name: Run gon version
-        run: |
-          gon --version
-
-      - name: Sign Binaries
-        env:
-          AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
-          AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
-          AC_USERNAME: ${{ secrets.MACOS_AC_LOGIN }}
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          ls -lahrt bin/*
-          file bin/terragrunt_linux_arm64
-          .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
-          .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
-          echo "Done signing the binary"
-
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
-          codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
-
-      - name: Upload Signed Executables
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-files
+          name: all-signed-binaries
           path: bin/*

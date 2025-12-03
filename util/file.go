@@ -111,13 +111,13 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 	for _, globPath := range globPaths {
 		canGlobPath, err := CanonicalPath(globPath, basePath)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
+			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
 			continue
 		}
 
 		compiledGlob, err := glob.Compile(canGlobPath, '/')
 		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid glob pattern %q: %w", globPath, err))
+			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
 			continue
 		}
 
@@ -125,7 +125,7 @@ func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, e
 	}
 
 	if len(errs) > 0 {
-		return compiledGlobs, fmt.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
+		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
 	}
 
 	return compiledGlobs, nil
@@ -831,17 +831,17 @@ func (err PathIsNotFile) Error() string {
 func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) {
 	var tfFiles []string
 
-	walkFunc := filepath.Walk
+	walkFunc := filepath.WalkDir
 	if walkWithSymlinks {
-		walkFunc = WalkWithSymlinks
+		walkFunc = WalkDirWithSymlinks
 	}
 
-	err := walkFunc(directoryPath, func(path string, info os.FileInfo, err error) error {
+	err := walkFunc(directoryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() && filepath.Ext(path) == TfFileExtension {
+		if !d.IsDir() && filepath.Ext(path) == TfFileExtension {
 			tfFiles = append(tfFiles, path)
 		}
 
@@ -1023,117 +1023,16 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 	return num, err
 }
 
-// WalkWithSymlinks traverses a directory tree, following symbolic links and calling
-// the provided function for each file or directory encountered. It handles both regular
-// symlinks and circular symlinks without getting into infinite loops.
-//
-//nolint:funlen
-func WalkWithSymlinks(root string, externalWalkFn filepath.WalkFunc) error {
-	// pathPair keeps track of both the physical (real) path on disk
-	// and the logical path (how it appears in the walk)
-	type pathPair struct {
-		physical string
-		logical  string
-	}
-
-	// visited tracks symlink paths to prevent circular references
-	// key is combination of realPath:symlinkPath
-	visited := make(map[string]bool)
-
-	// visitedLogical tracks logical paths to prevent duplicates
-	// when the same directory is reached through different symlinks
-	visitedLogical := make(map[string]bool)
-
-	var walkFn func(pathPair) error
-
-	walkFn = func(pair pathPair) error {
-		return filepath.Walk(pair.physical, func(currentPath string, info os.FileInfo, err error) error {
-			if err != nil {
-				return externalWalkFn(currentPath, info, err)
-			}
-
-			// Convert the current physical path to a logical path relative to the walk root
-			rel, err := filepath.Rel(pair.physical, currentPath)
-			if err != nil {
-				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
-			}
-
-			logicalPath := filepath.Join(pair.logical, rel)
-
-			realPath, realInfo, err := evalRealPathAndInfo(currentPath)
-			if err != nil {
-				return err
-			}
-
-			// Call the provided function only if we haven't seen this logical path before
-			if !visitedLogical[logicalPath] {
-				visitedLogical[logicalPath] = true
-
-				if err := externalWalkFn(logicalPath, realInfo, nil); err != nil {
-					return err
-				}
-			}
-
-			// If we encounter a symlink, resolve and follow it
-			if info.Mode()&os.ModeSymlink != 0 {
-				// Skip if we've seen this symlink->target combination before
-				// This prevents infinite loops with circular symlinks
-				if visited[realPath+":"+currentPath] {
-					return nil
-				}
-
-				visited[realPath+":"+currentPath] = true
-
-				// If the target is a directory, recursively walk it
-				if realInfo.IsDir() {
-					return walkFn(pathPair{
-						physical: realPath,
-						logical:  logicalPath,
-					})
-				}
-			}
-
-			return nil
-		})
-	}
-
-	realRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return fmt.Errorf("failed to get evaluate sym links for %s: %w", root, err)
-	}
-
-	// Start the walk from the root directory
-	return walkFn(pathPair{
-		physical: realRoot,
-		logical:  realRoot,
-	})
-}
-
-func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
-	realPath, err := filepath.EvalSymlinks(currentPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get evaluate sym links for %s: %w", currentPath, err)
-	}
-
-	// Get info about the symlink target
-	realInfo, err := os.Stat(realPath)
-	if err != nil {
-		return "", nil, errors.Errorf("failed to describe file %s: %w", realPath, err)
-	}
-
-	return realPath, realInfo, nil
-}
-
 // evalRealPathForWalkDir evaluates symlinks and returns the real path and whether it's a directory.
 func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 	realPath, err := filepath.EvalSymlinks(currentPath)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
+		return "", false, errors.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
 	}
 
 	realInfo, err := os.Stat(realPath)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to describe file %s: %w", realPath, err)
+		return "", false, errors.Errorf("failed to describe file %s: %w", realPath, err)
 	}
 
 	return realPath, realInfo.IsDir(), nil
@@ -1142,9 +1041,6 @@ func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 // WalkDirWithSymlinks traverses a directory tree using filepath.WalkDir, following symbolic links
 // and calling the provided function for each file or directory encountered. It handles both regular
 // symlinks and circular symlinks without getting into infinite loops.
-//
-// This function is similar to WalkWithSymlinks but uses the newer filepath.WalkDir API which
-// accepts fs.DirEntry instead of os.FileInfo.
 //
 //nolint:funlen
 func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
@@ -1174,7 +1070,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 			// Convert the current physical path to a logical path relative to the walk root
 			rel, err := filepath.Rel(pair.physical, currentPath)
 			if err != nil {
-				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)
@@ -1218,7 +1114,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+		return errors.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
 	// Start the walk from the root directory

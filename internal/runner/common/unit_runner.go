@@ -53,14 +53,9 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	// Only create report entries if report is not nil
 	if r != nil {
 		// Ensure path is absolute and normalized for reporting
-		unitPath := runner.Unit.Path
-		if !filepath.IsAbs(unitPath) {
-			p, absErr := filepath.Abs(unitPath)
-			if absErr != nil {
-				return absErr
-			}
-
-			unitPath = p
+		unitPath, err := EnsureAbsolutePath(runner.Unit.Path)
+		if err != nil {
+			return err
 		}
 
 		unitPath = util.CleanPath(unitPath)
@@ -75,21 +70,25 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		}
 	}
 
+	// Use a unit-scoped detailed exit code so retries in this unit don't clobber global state
+	globalExitCode := tf.DetailedExitCodeFromContext(ctx)
+
+	var unitExitCode tf.DetailedExitCode
+
+	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
+
 	runErr := opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
+
+	// Only merge the final unit exit code when the unit run completed without error
+	// and the exit code isn't stuck at 1 from a prior retry attempt.
+	if runErr == nil && globalExitCode != nil && unitExitCode.Get() != tf.DetailedExitCodeError {
+		globalExitCode.Set(unitExitCode.Get())
+	}
 
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
 		// Get the unit path (already computed above)
-		unitPath := runner.Unit.Path
-		if !filepath.IsAbs(unitPath) {
-			p, absErr := filepath.Abs(unitPath)
-			if absErr != nil {
-				runner.Unit.Logger.Errorf("Error getting absolute path for unit %s: %v", runner.Unit.Path, absErr)
-			} else {
-				unitPath = p
-			}
-		}
-
+		unitPath := runner.Unit.AbsolutePath(runner.Unit.Logger)
 		unitPath = util.CleanPath(unitPath)
 
 		if runErr != nil {

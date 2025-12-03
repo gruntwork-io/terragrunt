@@ -6,7 +6,8 @@ sidebar:
   order: 9
 ---
 
-import { Code, FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 You've successfully added Terragrunt to your project, eliminating significant boilerplate from each of your `dev` and `prod` environments. While your environments are now isolated from each other, the resources *within* each environment (your S3 bucket, DynamoDB table, IAM role, and Lambda function) are still managed together in a single state file. This is essentially a smaller-scale Terralith within each environment.
 

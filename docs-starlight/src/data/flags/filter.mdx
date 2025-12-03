@@ -1,0 +1,165 @@
+---
+name: filter
+description: Filter configurations using a flexible query language
+type: list(string)
+---
+
+import {Aside} from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --filter 'foo'
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+</Aside>
+
+The `--filter` flag provides a sophisticated querying syntax for targeting specific [units](/docs/features/units) and [stacks](/docs/features/stacks) in Terragrunt commands.
+
+## Usage
+
+```bash
+terragrunt find --filter 'app*'
+terragrunt list --filter './prod/** | type=unit'
+terragrunt run --all --filter './prod/**' -- plan
+terragrunt hcl fmt --filter './prod/**'
+terragrunt hcl validate --filter 'type=unit'
+```
+
+### Name-Based Filtering
+Match configurations by their name using exact matches or glob patterns:
+
+```bash
+# Exact match
+terragrunt find --filter app1
+
+# Glob pattern
+terragrunt find --filter 'app*'
+```
+
+### Path-Based Filtering
+Match configurations by their file system path:
+
+```bash
+# Relative paths with globs
+terragrunt find --filter './envs/prod/**'
+
+# Absolute paths
+terragrunt find --filter '/absolute/path/to/envs/dev/apps/*'
+```
+
+### Attribute-Based Filtering
+Match configurations by their configuration attributes:
+
+```bash
+# Filter by type
+terragrunt find --filter 'type=unit'
+terragrunt find --filter 'type=stack'
+
+# Filter by external dependency status
+terragrunt find --filter 'external=false'
+
+# Filter by files read
+terragrunt find --filter 'reading=shared.hcl'
+terragrunt find --filter 'reading=common/*.hcl' # Globs supported!
+terragrunt find --filter 'reading=config/**' # Double-wildcard globs are required filtering on files nested in subdirectories.
+terragrunt find --filter 'reading=config/vars.tfvars'
+```
+
+<Aside type="tip" title="What does 'Reading' mean?">
+
+The `reading` attribute filters configurations based on which files they themselves read. This is useful for finding all infrastructure that could potentially be impacted by shared configuration, and is particularly useful when a commonly included configuration (like `root.hcl`) is updated.
+
+See the [mark_as_read function documentation](/docs/reference/hcl/functions/#mark_as_read) for more information on how Terragrunt tracks files that are read during parsing.
+
+</Aside>
+
+### Negation
+Exclude configurations using the `!` prefix:
+
+```bash
+# Exclude by name
+terragrunt find --filter '!app1'
+
+# Exclude by path
+terragrunt find --filter '!./prod/**'
+```
+
+### Intersection (Refinement)
+Use the `|` operator to refine results:
+
+```bash
+# Find all units in prod directory
+terragrunt find --filter './prod/** | type=unit'
+
+# Chain multiple filters
+terragrunt find --filter './dev/** | type=unit | !name=unit1'
+```
+
+### Graph-Based Filtering
+Filter configurations based on dependency relationships using graph traversal. Use ellipsis (`...`) to traverse the dependency graph and caret (`^`) to exclude the target from results.
+
+**Syntax variants:**
+- `foo...` - Include target and all dependencies (things it depends on)
+- `...foo` - Include target and all dependents (things that depend on it)
+- `...foo...` - Include target, dependencies, and dependents
+- `^foo...` - Include only dependencies (exclude target)
+- `...^foo` - Include only dependents (exclude target)
+- `...^foo...` - Include dependencies and dependents (exclude target)
+
+```bash
+# Find 'service' and everything it depends on
+terragrunt find --filter 'service...'
+
+# Find 'vpc' and everything that depends on it
+terragrunt find --filter '...vpc'
+
+# Find complete dependency graph for 'db'
+terragrunt find --filter '...db...'
+
+# Find dependencies of 'service' but exclude 'service' itself
+terragrunt find --filter '^service...'
+
+# Combine graph traversal with path filters (note the use of braces to escape the path)
+terragrunt find --filter '{./apps/service}...'
+
+# Combine graph traversal with attribute filters
+terragrunt find --filter '...type=unit'
+
+# Refine graph results with intersection
+terragrunt find --filter 'service... | external=false'
+```
+
+<Aside type="note">
+Graph expressions require dependency discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components. This may add some overhead compared to simple name or path filters.
+
+For more detailed examples and explanations, see the [Filters feature documentation](/docs/features/filter#graph-based-filtering).
+</Aside>
+
+### Union (Multiple Filters)
+Specify multiple `--filter` flags to combine results using OR logic:
+
+```bash
+# Find components named 'unit1' OR 'stack1'
+terragrunt find --filter unit1 --filter stack1
+```
+
+## Supported Commands
+
+Currently supported in:
+- [find](/docs/reference/cli/commands/find)
+- [list](/docs/reference/cli/commands/list)
+- [run](/docs/reference/cli/commands/run)
+- [hcl fmt](/docs/reference/cli/commands/hcl/fmt)
+- [hcl validate](/docs/reference/cli/commands/hcl/validate)
+
+Planned for future releases:
+- [dag graph](/docs/reference/cli/commands/dag/graph)
+
+## Learn More
+
+For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter).

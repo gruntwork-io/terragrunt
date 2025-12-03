@@ -136,6 +136,8 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 			logPrefix           string
 		)
 
+		trackFileRead(ctx.FilesRead, includeConfig.Path)
+
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, &includeConfig)
 			logPrefix = "[Partial] "
@@ -271,24 +273,12 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		cfg.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
-	if sourceConfig.RetryMaxAttempts != nil {
-		cfg.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
-	}
-
-	if sourceConfig.RetrySleepIntervalSec != nil {
-		cfg.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
-	}
-
 	if sourceConfig.TerragruntVersionConstraint != "" {
 		cfg.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
 
 	if sourceConfig.Engine != nil {
 		cfg.Engine = sourceConfig.Engine.Clone()
-	}
-
-	if sourceConfig.Skip != nil {
-		cfg.Skip = sourceConfig.Skip
 	}
 
 	if sourceConfig.Exclude != nil {
@@ -336,10 +326,6 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		} else {
 			cfg.Dependencies.Merge(sourceConfig.Dependencies)
 		}
-	}
-
-	if sourceConfig.RetryableErrors != nil {
-		cfg.RetryableErrors = sourceConfig.RetryableErrors
 	}
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
@@ -409,14 +395,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
-	if sourceConfig.RetryMaxAttempts != nil {
-		cfg.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
-	}
-
-	if sourceConfig.RetrySleepIntervalSec != nil {
-		cfg.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
-	}
-
 	if sourceConfig.TerragruntVersionConstraint != "" {
 		cfg.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
@@ -443,10 +421,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		}
 
 		cfg.Errors.Merge(sourceConfig.Errors)
-	}
-
-	if sourceConfig.Skip != nil {
-		cfg.Skip = sourceConfig.Skip
 	}
 
 	// Copy only dependencies which doesn't exist in source
@@ -501,10 +475,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	}
 
 	cfg.FeatureFlags = mergedFlags
-
-	if sourceConfig.RetryableErrors != nil {
-		cfg.RetryableErrors = append(cfg.RetryableErrors, sourceConfig.RetryableErrors...)
-	}
 
 	// Handle complex structs by recursively merging the structs together
 	if sourceConfig.Terraform != nil {

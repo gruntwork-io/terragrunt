@@ -61,33 +61,15 @@ func (cfg *Config) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOp
 		return errors.New(ErrGenerateCalledWithNoGenerateAttr)
 	}
 
-	// Init the encryption config based on the key provider
-	var encryption map[string]any
-
 	switch {
 	case cfg.Encryption == nil:
 		l.Debug("No encryption block in remote_state config")
 	case len(cfg.Encryption) == 0:
 		l.Debug("Empty encryption block in remote_state config")
 	default:
-		keyProvider, ok := cfg.Encryption[codegen.EncryptionKeyProviderKey].(string)
+		_, ok := cfg.Encryption[codegen.EncryptionKeyProviderKey].(string)
 		if !ok {
 			return errors.New("key_provider not found in encryption config")
-		}
-
-		encryptionProvider, err := NewRemoteEncryptionKeyProvider(keyProvider)
-		if err != nil {
-			return errors.Errorf("error creating provider: %w", err)
-		}
-
-		err = encryptionProvider.UnmarshalConfig(cfg.Encryption)
-		if err != nil {
-			return err
-		}
-
-		encryption, err = encryptionProvider.ToMap()
-		if err != nil {
-			return errors.Errorf("error decoding struct to map: %w", err)
 		}
 	}
 
@@ -97,7 +79,7 @@ func (cfg *Config) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOp
 		return err
 	}
 
-	configBytes, err := codegen.RemoteStateConfigToTerraformCode(cfg.BackendName, backendConfig, encryption)
+	configBytes, err := codegen.RemoteStateConfigToTerraformCode(cfg.BackendName, backendConfig, cfg.Encryption)
 	if err != nil {
 		return err
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
@@ -25,27 +25,23 @@ func mockUnit(path string, deps ...*common.Unit) *common.Unit {
 	}
 }
 
-// Add a helper to convert units to discovered configs
-func discoveryFromUnits(units []*common.Unit) []*discovery.DiscoveredConfig {
-	discovered := make([]*discovery.DiscoveredConfig, 0, len(units))
-	unitMap := make(map[*common.Unit]*discovery.DiscoveredConfig)
-	// First pass: create configs
+// Add a helper to convert units to discovered components
+func discoveryFromUnits(units []*common.Unit) component.Components {
+	discovered := make(component.Components, 0, len(units))
+	unitMap := make(map[*common.Unit]*component.Unit)
+	// First pass: create components
 	for _, u := range units {
-		cfg := &discovery.DiscoveredConfig{Path: u.Path}
+		cfg := component.NewUnit(u.Path)
 		unitMap[u] = cfg
 		discovered = append(discovered, cfg)
 	}
 	// Second pass: wire dependencies
 	for i, u := range units {
-		var deps []*discovery.DiscoveredConfig
-
 		for _, dep := range u.Dependencies {
 			if depCfg, ok := unitMap[dep]; ok {
-				deps = append(deps, depCfg)
+				discovered[i].AddDependency(depCfg)
 			}
 		}
-
-		discovered[i].Dependencies = deps
 	}
 
 	return discovered
@@ -55,13 +51,14 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	t.Parallel()
 
 	// A -> B -> C
-	// Build DiscoveredConfig objects directly
-	cfgA := &discovery.DiscoveredConfig{Path: "A"}
-	cfgB := &discovery.DiscoveredConfig{Path: "B"}
-	cfgC := &discovery.DiscoveredConfig{Path: "C"}
-	cfgB.Dependencies = []*discovery.DiscoveredConfig{cfgA}
-	cfgC.Dependencies = []*discovery.DiscoveredConfig{cfgB}
-	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+	// Build Component objects directly
+	compA := component.NewUnit("A")
+	compB := component.NewUnit("B")
+	compB.AddDependency(compA)
+
+	compC := component.NewUnit("C")
+	compC.AddDependency(compB)
+	components := component.Components{compA, compB, compC}
 
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
@@ -72,7 +69,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		return nil
 	}
 
-	q, err := queue.NewQueue(configs)
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	dagRunner := runnerpool.NewController(
