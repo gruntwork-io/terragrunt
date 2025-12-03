@@ -237,7 +237,9 @@ func (err TransientAzureError) Unwrap() error {
 func (err TransientAzureError) IsRetryable() bool {
 	// Common transient HTTP status codes
 	switch err.StatusCode {
-	case http.StatusTooManyRequests, // 429 - Too Many Requests
+	case http.StatusRequestTimeout, // 408 - Request Timeout
+		http.StatusConflict,            // 409 - Conflict (often transient in Azure)
+		http.StatusTooManyRequests,     // 429 - Too Many Requests
 		http.StatusInternalServerError, // 500 - Internal Server Error
 		http.StatusBadGateway,          // 502 - Bad Gateway
 		http.StatusServiceUnavailable,  // 503 - Service Unavailable

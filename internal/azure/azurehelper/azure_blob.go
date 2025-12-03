@@ -102,7 +102,17 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		l.Infof("Verified storage account %s exists", storageAccountName)
 	}
 
-	url := fmt.Sprintf("https://%s.blob.core.windows.net", storageAccountName)
+	// Support custom endpoints from config, default to public cloud
+	endpointSuffix, ok := config["endpoint_suffix"].(string)
+	if !ok || endpointSuffix == "" {
+		// Try to get cloud environment and derive endpoint suffix
+		if cloudEnv, ok := config["cloud_environment"].(string); ok && cloudEnv != "" {
+			endpointSuffix = azureauth.GetEndpointSuffix(cloudEnv)
+		} else {
+			endpointSuffix = "core.windows.net" // Default to public cloud
+		}
+	}
+	url := fmt.Sprintf("https://%s.blob.%s", storageAccountName, endpointSuffix)
 
 	// Use the centralized auth package to get credentials
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)

@@ -9,12 +9,12 @@ import (
 
 // RBAC role definition names
 const (
-	RoleOwner                 = "Owner"
-	RoleContributor           = "Contributor"
-	RoleReader                = "Reader"
-	RoleStorageBlobDataOwner  = "Storage Blob Data Owner"
-	RoleStorageBlobDataReader = "Storage Blob Data Reader"
-	RoleStorageBlobDataWriter = "Storage Blob Data Contributor"
+	RoleOwner                      = "Owner"
+	RoleContributor                = "Contributor"
+	RoleReader                     = "Reader"
+	RoleStorageBlobDataOwner       = "Storage Blob Data Owner"
+	RoleStorageBlobDataReader      = "Storage Blob Data Reader"
+	RoleStorageBlobDataContributor = "Storage Blob Data Contributor"
 )
 
 // Principal represents an Azure AD principal (user, service principal, or group)

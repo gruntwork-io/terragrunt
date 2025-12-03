@@ -13,6 +13,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// safeString safely dereferences a string pointer, returning empty string if nil
+func safeString(s *string) string {
+	if s != nil {
+		return *s
+	}
+	return ""
+}
+
 // Adapter implementations to bridge between azurehelper and interfaces
 
 // storageAccountServiceAdapter implements interfaces.StorageAccountService
@@ -66,7 +74,7 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 	result := &types.StorageAccount{
 		Name:              accountName,
 		ResourceGroupName: resourceGroupName,
-		Location:          *account.Location,
+		Location:          safeString(account.Location),
 	}
 
 	if account.Properties != nil {
@@ -94,15 +102,13 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 func (s *storageAccountServiceAdapter) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
 	// The azurehelper client doesn't expose this method yet
 	// This would need to be implemented in the azurehelper client
-	// For now, return a placeholder implementation
-	return []string{}, nil
+	return nil, errors.New("GetStorageAccountKeys not implemented")
 }
 
 // GetStorageAccountSAS generates a SAS token for the storage account
 func (s *storageAccountServiceAdapter) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
 	// This would need to be implemented in the azurehelper client
-	// For now, return a placeholder implementation
-	return "", nil
+	return "", errors.New("GetStorageAccountSAS not implemented")
 }
 
 // GetStorageAccountProperties retrieves properties of a storage account

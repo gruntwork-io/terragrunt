@@ -118,17 +118,20 @@ type ResourceGroupConfig struct {
 
 // CreateResourceGroupClient creates a new ResourceGroup client
 func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID string) (*ResourceGroupClient, error) {
-	// If subscription ID is empty, use the centralized authentication package to get it
+	// Create config with subscription ID if provided
+	config := make(map[string]interface{})
+	if subscriptionID != "" {
+		config["subscription_id"] = subscriptionID
+	}
+
+	// Get auth config once - this retrieves subscription ID from environment if not provided
+	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
+	if err != nil {
+		return nil, fmt.Errorf("error getting azure auth config: %w", err)
+	}
+
+	// Use subscription ID from auth config if we didn't have one
 	if subscriptionID == "" {
-		// Create empty config
-		config := make(map[string]interface{})
-
-		// Get auth config which includes subscription ID from environment variables if available
-		authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
-		if err != nil {
-			return nil, fmt.Errorf("error getting azure auth config: %w", err)
-		}
-
 		if authConfig.SubscriptionID != "" {
 			subscriptionID = authConfig.SubscriptionID
 			l.Infof("Using subscription ID from auth config: %s", subscriptionID)
@@ -147,15 +150,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 		return nil, errors.Errorf("invalid subscription ID format: %s", subscriptionID)
 	}
 
-	// Get Azure credentials using the centralized auth package
-	config := make(map[string]interface{})
-	config["subscription_id"] = subscriptionID
-
-	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
-	if err != nil {
-		return nil, fmt.Errorf("error getting azure auth config: %w", err)
-	}
-
+	// Get Azure credentials using the auth config we already retrieved
 	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error getting azure credentials: %w", err)
