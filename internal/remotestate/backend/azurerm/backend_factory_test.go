@@ -85,9 +85,7 @@ func TestBackendFromRemoteStateConfig(t *testing.T) {
 		"subscription_id":      "test-subscription-id",
 	}
 
-	opts := &options.TerragruntOptions{
-		RetryMaxAttempts: 5,
-	}
+	opts := &options.TerragruntOptions{}
 
 	backend, err := NewBackendFromRemoteStateConfig(config, opts)
 	require.NoError(t, err)

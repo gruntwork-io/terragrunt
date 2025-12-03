@@ -214,21 +214,19 @@ func NewBackendFromRemoteStateConfig(remoteStateConfig backend.Config, opts *opt
 
 // extractBackendConfigFromRemoteState extracts backend configuration from remote state config
 func extractBackendConfigFromRemoteState(remoteStateConfig backend.Config, cfg *BackendConfig, opts *options.TerragruntOptions) {
-	// Set retry configuration based on environment or defaults
-	if retryCount := opts.RetryMaxAttempts; retryCount > 0 {
-		cfg.RetryConfig = &interfaces.RetryConfig{
-			MaxRetries: retryCount,
-			RetryDelay: defaultRetryDelaySeconds,
-			MaxDelay:   defaultMaxDelaySeconds,
-			RetryableStatusCodes: []int{
-				http.StatusRequestTimeout,
-				http.StatusTooManyRequests,
-				http.StatusInternalServerError,
-				http.StatusBadGateway,
-				http.StatusServiceUnavailable,
-				http.StatusGatewayTimeout,
-			},
-		}
+	// Set retry configuration based on defaults
+	cfg.RetryConfig = &interfaces.RetryConfig{
+		MaxRetries: options.DefaultRetryMaxAttempts,
+		RetryDelay: defaultRetryDelaySeconds,
+		MaxDelay:   defaultMaxDelaySeconds,
+		RetryableStatusCodes: []int{
+			http.StatusRequestTimeout,
+			http.StatusTooManyRequests,
+			http.StatusInternalServerError,
+			http.StatusBadGateway,
+			http.StatusServiceUnavailable,
+			http.StatusGatewayTimeout,
+		},
 	}
 
 	// Configure telemetry settings based on options
