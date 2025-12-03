@@ -5,12 +5,10 @@ import Eyebrow from '@components/dv-Eyebrow.astro';
 import EmployeeCard from '@components/EmployeeCard.astro';
 
 import Axel from '@assets/ambassadors/axel-mendoza.jpg';
+import Dallas from '@assets/ambassadors/dallas-slaughter.jpg';
+import Joshua from '@assets/ambassadors/joshua-ward.jpg';
 import Juan from '@assets/ambassadors/juan-reyes.jpg';
 import Steven from '@assets/ambassadors/steven-tseng.jpg';
-import Brian from '@assets/grunty/grunty-2.svg';
-
-const includesLink = '/docs/features/includes';
-const stacksLink = '/docs/features/stacks';
 ---
 
 <section class="flex justify-center items-center px-5 md:px-0">
@@ -51,8 +49,25 @@ const stacksLink = '/docs/features/stacks';
         bio="Steven Tseng is currently a leading DevOps engineer at Easygo. As part of day to day activities, Steven maintains a large number of cloud platforms & services to support a global fast-growing platform serving millions of customers, and generating thousands of transactions per second. Daily Terragrunt user, and a firm believer of IaC."
       />
       <EmployeeCard
+        name="Dallas Slaughter"
+        image={Dallas}
+        title="Founding Engineer"
+        year="Founding Ambassador"
+        github="https://github.com/slaughtr"
+        linkedin="https://linkedin.com/dallas-slaughter"
+        bio="Dallas loves to build things almost as much as he loves to break them, and has plenty of experience at both to share. Having spent years as a DevOps engineer, someone got the bright idea to let him write code again and he's having a blast. Always happy to help, or listen, or just be the void that gets screamed into."
+      />
+      <EmployeeCard
+        name="Joshua Ward"
+        image={Joshua}
+        title="DevOps Architect"
+        year="Founding Ambassador"
+        github="https://github.com/j2udev"
+        linkedin="https://www.linkedin.com/in/joshua-ward-78997612a/"
+        bio="I'm a DevOps enthusiast who loves building meaningful, high-impact solutions. I enjoy turning big-picture ideas into reality by choosing the right tools for the job. Terragrunt is often the first tool I reach for. It helps turn IaC chaos into organized, scalable, and maintainable infrastructure."
+      />
+      <EmployeeCard
         name="You"
-        image={Brian}
         title="Terragrunt Champion"
         youCard={true}
       />
