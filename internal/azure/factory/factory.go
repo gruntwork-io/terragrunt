@@ -315,8 +315,8 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 	}
 
 	// Extract the subscription ID from config
-	subscriptionID, _ := config["subscription_id"].(string)
-	if subscriptionID == "" {
+	subscriptionID, ok := config["subscription_id"].(string)
+	if !ok || subscriptionID == "" {
 		return nil, errors.New("subscription_id is required in the configuration")
 	}
 

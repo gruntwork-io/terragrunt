@@ -213,125 +213,124 @@ func ConvertAzureError(err error) *AzureResponseError {
 	return nil
 }
 
-// ClassifyError determines the error classification from an error
+// classifyByStatusCode classifies errors based on HTTP status codes.
+func classifyByStatusCode(statusCode int) (ErrorClass, bool) {
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return ErrorClassAuthentication, true
+	case http.StatusNotFound:
+		return ErrorClassNotFound, true
+	case http.StatusTooManyRequests:
+		return ErrorClassThrottling, true
+	case http.StatusInternalServerError, http.StatusBadGateway,
+		http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return ErrorClassTransient, true
+	}
+
+	return ErrorClassUnknown, false
+}
+
+// classifyByErrorCode classifies errors based on Azure error codes.
+func classifyByErrorCode(errorCode string) (ErrorClass, bool) {
+	switch errorCode {
+	case "StorageAccountNotFound", "ContainerNotFound", "BlobNotFound":
+		return ErrorClassNotFound, true
+	case "AuthorizationFailed", "Forbidden", "Unauthorized":
+		return ErrorClassAuthentication, true
+	case "InsufficientAccountPermissions", "AccessDenied":
+		return ErrorClassPermission, true
+	case "ThrottledRequest", "TooManyRequests":
+		return ErrorClassThrottling, true
+	case "InternalError", "ServiceUnavailable":
+		return ErrorClassTransient, true
+	}
+
+	return ErrorClassUnknown, false
+}
+
+// classifyByErrorString classifies errors based on error message content.
+func classifyByErrorString(errStr string) ErrorClass {
+	// Authentication/authorization errors
+	if containsAny(errStr, "authentication", "auth", "unauthorized", "unauthenticated",
+		"invalid credentials", "token expired", "authentication failed",
+		"permission denied", "access denied") {
+		return ErrorClassAuthentication
+	}
+
+	// Permission/RBAC errors
+	if containsAny(errStr, "rbac", "role assignment", "insufficient privileges") {
+		return ErrorClassPermission
+	}
+
+	// Resource errors
+	if containsAny(errStr, "container", "storage account", "blob") {
+		return ErrorClassResource
+	}
+
+	// Not found errors
+	if containsAny(errStr, "not found", "404", "does not exist") {
+		return ErrorClassNotFound
+	}
+
+	// Network errors
+	if containsAny(errStr, "network", "connection", "dial", "tcp", "http", "timeout", "timed out", "dns") {
+		return ErrorClassNetworking
+	}
+
+	// Request validation errors
+	if containsAny(errStr, "config", "parameter", "argument", "flag", "missing required") {
+		return ErrorClassInvalidRequest
+	}
+
+	// Throttling/rate limiting errors
+	if containsAny(errStr, "throttled", "rate limit", "429", "quota", "too many requests") {
+		return ErrorClassThrottling
+	}
+
+	// Transient/system errors
+	if containsAny(errStr, "transient", "temporary", "retry", "server error", "system", "internal") {
+		return ErrorClassTransient
+	}
+
+	// Configuration errors
+	if strings.Contains(errStr, "missing") &&
+		containsAny(errStr, "subscription", "location", "resource group") {
+		return ErrorClassConfiguration
+	}
+
+	return ErrorClassUnknown
+}
+
+// containsAny checks if s contains any of the given substrings.
+func containsAny(s string, substrs ...string) bool {
+	for _, substr := range substrs {
+		if strings.Contains(s, substr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ClassifyError determines the error classification from an error.
 func ClassifyError(err error) ErrorClass {
 	if err == nil {
 		return ErrorClassUnknown
 	}
 
 	// First try to use structured error analysis
-	azureErr := ConvertAzureError(err)
-	if azureErr != nil {
-		// Use status codes for classification when available
-		switch azureErr.StatusCode {
-		case http.StatusUnauthorized, http.StatusForbidden:
-			return ErrorClassAuthentication
-		case http.StatusNotFound:
-			return ErrorClassNotFound
-		case http.StatusTooManyRequests:
-			return ErrorClassThrottling
-		case http.StatusInternalServerError, http.StatusBadGateway,
-			http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			return ErrorClassTransient
+	if azureErr := ConvertAzureError(err); azureErr != nil {
+		if class, ok := classifyByStatusCode(azureErr.StatusCode); ok {
+			return class
 		}
 
-		// Check specific Azure error codes
-		switch azureErr.ErrorCode {
-		case "StorageAccountNotFound", "ContainerNotFound", "BlobNotFound":
-			return ErrorClassNotFound
-		case "AuthorizationFailed", "Forbidden", "Unauthorized":
-			return ErrorClassAuthentication
-		case "InsufficientAccountPermissions", "AccessDenied":
-			return ErrorClassPermission
-		case "ThrottledRequest", "TooManyRequests":
-			return ErrorClassThrottling
-		case "InternalError", "ServiceUnavailable":
-			return ErrorClassTransient
+		if class, ok := classifyByErrorCode(azureErr.ErrorCode); ok {
+			return class
 		}
 	}
 
 	// Fallback to string-based detection
-	errStr := strings.ToLower(err.Error())
-
-	switch {
-	// Authentication/authorization errors (more comprehensive patterns)
-	case strings.Contains(errStr, "authentication") ||
-		strings.Contains(errStr, "auth") ||
-		strings.Contains(errStr, "unauthorized") ||
-		strings.Contains(errStr, "unauthenticated") ||
-		strings.Contains(errStr, "invalid credentials") ||
-		strings.Contains(errStr, "token expired") ||
-		strings.Contains(errStr, "authentication failed") ||
-		strings.Contains(errStr, "permission denied") ||
-		strings.Contains(errStr, "access denied"):
-		return ErrorClassAuthentication
-
-	// Permission/RBAC errors (more specific permission handling)
-	case strings.Contains(errStr, "rbac") ||
-		strings.Contains(errStr, "role assignment") ||
-		strings.Contains(errStr, "insufficient privileges"):
-		return ErrorClassPermission
-
-	// Resource errors (takes precedence over not found for resource-related errors)
-	case strings.Contains(errStr, "container") ||
-		strings.Contains(errStr, "storage account") ||
-		strings.Contains(errStr, "blob"):
-		return ErrorClassResource
-
-	// Not found errors
-	case strings.Contains(errStr, "not found") ||
-		strings.Contains(errStr, "404") ||
-		strings.Contains(errStr, "does not exist"):
-		return ErrorClassNotFound
-
-	// Network errors
-	case strings.Contains(errStr, "network") ||
-		strings.Contains(errStr, "connection") ||
-		strings.Contains(errStr, "dial") ||
-		strings.Contains(errStr, "tcp") ||
-		strings.Contains(errStr, "http") ||
-		strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "timed out") ||
-		strings.Contains(errStr, "dns"):
-		return ErrorClassNetworking
-
-	// Request validation errors (more specific patterns)
-	case strings.Contains(errStr, "config") ||
-		strings.Contains(errStr, "parameter") ||
-		strings.Contains(errStr, "argument") ||
-		strings.Contains(errStr, "flag") ||
-		strings.Contains(errStr, "missing required"):
-		return ErrorClassInvalidRequest
-
-	// Throttling/rate limiting errors
-	case strings.Contains(errStr, "throttled") ||
-		strings.Contains(errStr, "rate limit") ||
-		strings.Contains(errStr, "429") ||
-		strings.Contains(errStr, "quota") ||
-		strings.Contains(errStr, "limit") ||
-		strings.Contains(errStr, "capacity") ||
-		strings.Contains(errStr, "exceeded") ||
-		strings.Contains(errStr, "too many requests"):
-		return ErrorClassThrottling
-
-	// Transient/system errors
-	case strings.Contains(errStr, "transient") ||
-		strings.Contains(errStr, "temporary") ||
-		strings.Contains(errStr, "retry") ||
-		strings.Contains(errStr, "server error") ||
-		strings.Contains(errStr, "system") ||
-		strings.Contains(errStr, "internal"):
-		return ErrorClassTransient
-
-	// Configuration errors
-	case strings.Contains(errStr, "missing") && (strings.Contains(errStr, "subscription") ||
-		strings.Contains(errStr, "location") ||
-		strings.Contains(errStr, "resource group")):
-		return ErrorClassConfiguration
-
-	default:
-		return ErrorClassUnknown
-	}
+	return classifyByErrorString(strings.ToLower(err.Error()))
 }
 
 // WrapError wraps an error with additional Azure context

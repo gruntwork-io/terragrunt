@@ -881,12 +881,12 @@ func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Contex
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
-	// Extract configuration
-	subscriptionID, _ := mergedConfig["subscriptionId"].(string)
-	tenantID, _ := mergedConfig["tenantId"].(string)
-	clientID, _ := mergedConfig["clientId"].(string)
-	clientSecret, _ := mergedConfig["clientSecret"].(string)
-	useManagedIdentity, _ := mergedConfig["useManagedIdentity"].(bool)
+	// Extract configuration (empty values are valid defaults for optional fields)
+	subscriptionID, _ := mergedConfig["subscriptionId"].(string)       //nolint:errcheck // type assertion returns zero value if missing
+	tenantID, _ := mergedConfig["tenantId"].(string)                   //nolint:errcheck // type assertion returns zero value if missing
+	clientID, _ := mergedConfig["clientId"].(string)                   //nolint:errcheck // type assertion returns zero value if missing
+	clientSecret, _ := mergedConfig["clientSecret"].(string)           //nolint:errcheck // type assertion returns zero value if missing
+	useManagedIdentity, _ := mergedConfig["useManagedIdentity"].(bool) //nolint:errcheck // type assertion returns zero value if missing
 
 	authConfig := interfaces.AuthenticationConfig{
 		SubscriptionID:     subscriptionID,

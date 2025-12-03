@@ -112,6 +112,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 			endpointSuffix = "core.windows.net" // Default to public cloud
 		}
 	}
+
 	url := fmt.Sprintf("https://%s.blob.%s", storageAccountName, endpointSuffix)
 
 	// Use the centralized auth package to get credentials

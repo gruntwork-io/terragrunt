@@ -2,6 +2,7 @@
 package azureutil
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
@@ -42,6 +43,15 @@ type ErrorMetrics struct {
 	RetryAttempts  int
 	Additional     map[string]interface{}
 	IsRetryable    bool
+}
+
+// Error implements the error interface for ErrorMetrics.
+func (e ErrorMetrics) Error() string {
+	if e.ErrorMessage != "" {
+		return e.ErrorMessage
+	}
+
+	return fmt.Sprintf("%s error: %s (status: %d)", e.ErrorType, e.Classification, e.StatusCode)
 }
 
 // ClassifyError determines the classification of an error based on its content

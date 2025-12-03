@@ -248,9 +248,9 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 		resourceGroupName = storageAccountName + "-rg"
 	}
 
-	// Extract subscription ID if provided in config
-	subscriptionID, _ := config["subscription_id"].(string)
-	location, _ := config["location"].(string)
+	// Extract subscription ID if provided in config (empty string is valid default)
+	subscriptionID, _ := config["subscription_id"].(string) //nolint:errcheck // type assertion returns zero value if missing
+	location, _ := config["location"].(string)              //nolint:errcheck // type assertion returns zero value if missing
 
 	// Use centralized authentication logic
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
