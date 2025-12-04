@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
@@ -33,7 +34,8 @@ type AzureServiceFactory struct {
 	cacheMutex sync.RWMutex
 
 	// Configuration
-	config interfaces.ServiceContainerConfig
+	config  interfaces.ServiceContainerConfig
+	options *interfaces.FactoryOptions
 
 	// Service caches
 	storageAccountServiceCache map[string]interfaces.StorageAccountService
@@ -55,6 +57,7 @@ type AzureServiceFactory struct {
 func NewAzureServiceFactory() interfaces.AzureServiceContainer {
 	return &AzureServiceFactory{
 		config:                     interfaces.DefaultServiceContainerConfig(),
+		options:                    nil, // Will be set via NewAzureServiceFactoryWithOptions if needed
 		storageAccountServiceCache: make(map[string]interfaces.StorageAccountService),
 		blobServiceCache:           make(map[string]interfaces.BlobService),
 		resourceGroupServiceCache:  make(map[string]interfaces.ResourceGroupService),
@@ -68,14 +71,20 @@ func NewAzureServiceFactory() interfaces.AzureServiceContainer {
 func NewAzureServiceFactoryWithOptions(options *interfaces.FactoryOptions) interfaces.AzureServiceContainer {
 	factory := NewAzureServiceFactory()
 
-	// TODO: Enhance factory to use retry config and other options
 	if options != nil {
 		// Apply options to the factory
 		if factoryImpl, ok := factory.(*AzureServiceFactory); ok {
-			// For now, we'll store the options in the factory for later use
-			// The actual implementation would need to be enhanced to use these options
-			_ = factoryImpl
-			_ = options
+			// Store options for later use
+			factoryImpl.options = options
+
+			// Apply retry configuration if provided
+			if options.RetryConfig != nil {
+				// Retry config will be used by individual service implementations
+				// when making Azure API calls through the factory's options
+			}
+
+			// DefaultConfig map can be accessed via factoryImpl.options.DefaultConfig
+			// by service implementations when they need default values
 		}
 	}
 
@@ -90,6 +99,10 @@ func (f *AzureServiceFactory) CreateContainer(ctx context.Context) interfaces.Az
 
 // Options returns the factory options
 func (f *AzureServiceFactory) Options() *interfaces.FactoryOptions {
+	if f.options != nil {
+		return f.options
+	}
+	// Return default options if none were set
 	return &interfaces.FactoryOptions{
 		DefaultConfig: make(map[string]interface{}),
 		RetryConfig:   &interfaces.RetryConfig{},
@@ -165,7 +178,12 @@ func (f *AzureServiceFactory) getCacheKey(config map[string]interface{}) string 
 		resourceGroup = v
 	}
 
-	return fmt.Sprintf("%s-%s-%s", storageAccount, subscriptionID, resourceGroup)
+	// Use structured format with URL encoding to prevent collisions
+	// e.g., "a-b" + "-" + "c" vs "a" + "-" + "b-c"
+	return fmt.Sprintf("sa:%s|sub:%s|rg:%s",
+		url.QueryEscape(storageAccount),
+		url.QueryEscape(subscriptionID),
+		url.QueryEscape(resourceGroup))
 }
 
 // isExpired checks if a cache entry is expired

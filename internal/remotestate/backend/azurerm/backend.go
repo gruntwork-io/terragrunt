@@ -868,6 +868,16 @@ func (backend *Backend) uploadBlobFromReader(
 	blobName string,
 	data io.ReadCloser,
 ) error {
+	// Define a reasonable max size for state files (500MB)
+	const maxStateFileSize = 500 * 1024 * 1024
+
+	// If the reader provides size info, check it
+	if sizer, ok := data.(interface{ Size() int64 }); ok {
+		if size := sizer.Size(); size > maxStateFileSize {
+			return fmt.Errorf("state file too large: %d bytes exceeds limit of %d bytes", size, maxStateFileSize)
+		}
+	}
+
 	// Read all data from the reader
 	blobData, err := io.ReadAll(data)
 	if err != nil {

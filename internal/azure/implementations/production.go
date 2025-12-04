@@ -27,7 +27,7 @@ type StorageAccountServiceImpl struct {
 	client *azurehelper.StorageAccountClient
 }
 
-const jwtTokenParts = 3
+const jwtExpectedPartCount = 3 // JWT has 3 parts: header, payload, signature
 
 // NewStorageAccountService creates a new StorageAccountService implementation
 func NewStorageAccountService(client *azurehelper.StorageAccountClient) interfaces.StorageAccountService {
@@ -741,28 +741,48 @@ func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, upd
 		return nil
 	}
 
-	// Update subscription ID if provided
-	if subscriptionID, ok := updates["subscriptionId"].(string); ok {
+	// Update subscription ID if provided (try snake_case first, then camelCase)
+	subscriptionID, _ := updates["subscription_id"].(string)
+	if subscriptionID == "" {
+		subscriptionID, _ = updates["subscriptionId"].(string)
+	}
+	if subscriptionID != "" {
 		a.config.SubscriptionID = subscriptionID
 	}
 
-	// Update tenant ID if provided
-	if tenantID, ok := updates["tenantId"].(string); ok {
+	// Update tenant ID if provided (try snake_case first, then camelCase)
+	tenantID, _ := updates["tenant_id"].(string)
+	if tenantID == "" {
+		tenantID, _ = updates["tenantId"].(string)
+	}
+	if tenantID != "" {
 		a.config.TenantID = tenantID
 	}
 
-	// Update client ID if provided
-	if clientID, ok := updates["clientId"].(string); ok {
+	// Update client ID if provided (try snake_case first, then camelCase)
+	clientID, _ := updates["client_id"].(string)
+	if clientID == "" {
+		clientID, _ = updates["clientId"].(string)
+	}
+	if clientID != "" {
 		a.config.ClientID = clientID
 	}
 
-	// Update client secret if provided
-	if clientSecret, ok := updates["clientSecret"].(string); ok {
+	// Update client secret if provided (try snake_case first, then camelCase)
+	clientSecret, _ := updates["client_secret"].(string)
+	if clientSecret == "" {
+		clientSecret, _ = updates["clientSecret"].(string)
+	}
+	if clientSecret != "" {
 		a.config.ClientSecret = clientSecret
 	}
 
-	// Update managed identity flag if provided
-	if useManagedIdentity, ok := updates["useManagedIdentity"].(bool); ok {
+	// Update managed identity flag if provided (try snake_case first, then camelCase)
+	useManagedIdentity, ok := updates["use_managed_identity"].(bool)
+	if !ok {
+		useManagedIdentity, ok = updates["useManagedIdentity"].(bool)
+	}
+	if ok {
 		a.config.UseManagedIdentity = useManagedIdentity
 	}
 
@@ -873,10 +893,10 @@ func (c *ProductionServiceContainer) GetRBACService(ctx context.Context, l log.L
 	}
 
 	// Extract configuration (empty string is valid - may come from environment)
-	var subscriptionID string
-
-	if v, ok := config["subscriptionId"].(string); ok {
-		subscriptionID = v
+	// Try snake_case first, then camelCase
+	subscriptionID, _ := config["subscription_id"].(string)
+	if subscriptionID == "" {
+		subscriptionID, _ = config["subscriptionId"].(string)
 	}
 
 	rbacConfig := interfaces.DefaultRBACConfig()
@@ -890,28 +910,30 @@ func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Contex
 	mergedConfig := mergeConfig(c.config, config)
 
 	// Extract configuration (empty values are valid defaults for optional fields)
-	var subscriptionID, tenantID, clientID, clientSecret string
-
-	var useManagedIdentity bool
-
-	if v, ok := mergedConfig["subscriptionId"].(string); ok {
-		subscriptionID = v
+	// Try snake_case first, then camelCase for all fields
+	subscriptionID, _ := mergedConfig["subscription_id"].(string)
+	if subscriptionID == "" {
+		subscriptionID, _ = mergedConfig["subscriptionId"].(string)
 	}
 
-	if v, ok := mergedConfig["tenantId"].(string); ok {
-		tenantID = v
+	tenantID, _ := mergedConfig["tenant_id"].(string)
+	if tenantID == "" {
+		tenantID, _ = mergedConfig["tenantId"].(string)
 	}
 
-	if v, ok := mergedConfig["clientId"].(string); ok {
-		clientID = v
+	clientID, _ := mergedConfig["client_id"].(string)
+	if clientID == "" {
+		clientID, _ = mergedConfig["clientId"].(string)
 	}
 
-	if v, ok := mergedConfig["clientSecret"].(string); ok {
-		clientSecret = v
+	clientSecret, _ := mergedConfig["client_secret"].(string)
+	if clientSecret == "" {
+		clientSecret, _ = mergedConfig["clientSecret"].(string)
 	}
 
-	if v, ok := mergedConfig["useManagedIdentity"].(bool); ok {
-		useManagedIdentity = v
+	useManagedIdentity, ok := mergedConfig["use_managed_identity"].(bool)
+	if !ok {
+		useManagedIdentity, _ = mergedConfig["useManagedIdentity"].(bool)
 	}
 
 	authConfig := interfaces.AuthenticationConfig{
@@ -938,13 +960,16 @@ func (c *ProductionServiceContainer) GetResourceGroupService(ctx context.Context
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
-	// Create Azure resource group client
-	// Extract required fields from config
-	subscriptionID, ok := mergedConfig["subscriptionId"].(string)
-	if !ok || subscriptionID == "" {
+	// Extract and validate required fields early (try snake_case first, then camelCase)
+	subscriptionID, _ := mergedConfig["subscription_id"].(string)
+	if subscriptionID == "" {
+		subscriptionID, _ = mergedConfig["subscriptionId"].(string)
+	}
+	if subscriptionID == "" {
 		return nil, errors.New("subscription ID is required")
 	}
 
+	// Create Azure resource group client
 	client, err := azurehelper.CreateResourceGroupClient(ctx, l, subscriptionID)
 	if err != nil {
 		return nil, err
@@ -973,7 +998,10 @@ func (c *ProductionServiceContainer) GetRegisteredServices() []string {
 // GetServiceInfo returns information about a registered service
 func (c *ProductionServiceContainer) GetServiceInfo(serviceName string) (map[string]interface{}, error) {
 	if info, exists := c.cache[serviceName]; exists {
-		return info.(map[string]interface{}), nil
+		return map[string]interface{}{
+			"type": fmt.Sprintf("%T", info),
+			"name": serviceName,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("service %s not registered", serviceName)
@@ -1097,17 +1125,11 @@ func extractRoleNameFromDefinitionID(roleDefinitionID string) string {
 // Helper functions for client creation
 
 func createStorageClient(ctx context.Context, config map[string]interface{}) (*azurehelper.StorageAccountClient, error) {
-	// This is a stub that will return descriptive error
-	// Using the existing function requires a logger and configuration
-	// that may not be available in all contexts
-	return nil, errors.New("storage account client creation not initialized: use proper initialization through a service container instead")
+	return azurehelper.CreateStorageAccountClient(ctx, log.Default(), config)
 }
 
 func createBlobClient(ctx context.Context, config map[string]interface{}) (*azurehelper.BlobServiceClient, error) {
-	// This is a stub that will return descriptive error
-	// Using the existing function requires a logger and configuration
-	// that may not be available in all contexts
-	return nil, errors.New("blob service client creation not initialized: use proper initialization through a service container instead")
+	return azurehelper.CreateBlobServiceClient(ctx, log.Default(), nil, config)
 }
 
 func createRBACClient(config map[string]interface{}) (azcore.TokenCredential, error) {
@@ -1310,7 +1332,7 @@ func (r *RBACServiceImpl) extractPrincipalInfoFromToken(tokenString string) (str
 func parseJWTToken(tokenString string) (map[string]interface{}, error) {
 	// Split the JWT token into parts
 	parts := strings.Split(tokenString, ".")
-	if len(parts) != jwtTokenParts {
+	if len(parts) != jwtExpectedPartCount {
 		return nil, errors.New("invalid token format")
 	}
 
