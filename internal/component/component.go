@@ -127,8 +127,8 @@ func (c Components) RemoveByPath(path string) Components {
 func (c Components) Paths() []string {
 	paths := make([]string, 0, len(c))
 	for _, component := range c {
-		// Skip components explicitly marked as excluded if they support Excluded().
-		if excludable, ok := component.(interface{ Excluded() bool }); ok && excludable.Excluded() {
+		// Skip units explicitly marked as excluded.
+		if unit, ok := component.(*Unit); ok && unit.Excluded() {
 			continue
 		}
 
