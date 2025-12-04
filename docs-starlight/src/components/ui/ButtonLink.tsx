@@ -11,7 +11,6 @@ interface ButtonLinkProps extends ButtonProps {
   href?: string;
   rel?: string;
   target?: "_blank" | "_self" | "_parent" | "_top";
-  width?: "full" | "auto";
 }
 
 export default function ButtonLink({
@@ -19,7 +18,6 @@ export default function ButtonLink({
   href,
   rel,
   target,
-  width,
   className,
   ...buttonProps
 }: ButtonLinkProps) {
@@ -37,7 +35,6 @@ export default function ButtonLink({
         "hover:text-inherit",
         // Ensure proper display
         "inline-block",
-        width === "full" ? "w-full" : "w-auto",
         className
       )}
     >
