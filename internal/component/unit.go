@@ -218,6 +218,10 @@ func (u *Unit) Dependents() Components {
 }
 
 // String renders this unit as a human-readable string for debugging.
+//
+// Example output:
+//
+//	Unit /path/to/unit (excluded: false, assume applied: false, dependencies: [/dep1, /dep2])
 func (u *Unit) String() string {
 	// Snapshot values under read lock to avoid data races
 	u.rLock()

@@ -197,6 +197,12 @@ func (s *Stack) Dependents() Components {
 }
 
 // String renders this stack as a human-readable string.
+//
+// Example output:
+//
+//	Stack at /path/to/stack:
+//	  => Unit /path/to/unit1 (excluded: false, assume applied: false, dependencies: [/dep1])
+//	  => Unit /path/to/unit2 (excluded: true, assume applied: false, dependencies: [])
 func (s *Stack) String() string {
 	units := make([]string, 0, len(s.Units))
 	for _, unit := range s.Units {
