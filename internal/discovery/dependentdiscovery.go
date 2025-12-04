@@ -275,6 +275,9 @@ func (dd *DependentDiscovery) DiscoverDependents(
 	g.Go(func() error {
 		defer close(discoveredDependents)
 
+		// Resolve target path once for all candidates (handles symlinks like macOS /var -> /private/var)
+		resolvedTargetPath := resolvePath(target.Path())
+
 		for candidate := range candidates {
 			if dd.discoveryContext != nil {
 				candidate.SetDiscoveryContext(dd.discoveryContext)
@@ -340,7 +343,7 @@ func (dd *DependentDiscovery) DiscoverDependents(
 				candidate.AddDependency(c)
 
 				// Use resolved paths for comparison to handle symlinks (e.g., macOS /var -> /private/var)
-				if resolvePath(dep) == resolvePath(target.Path()) {
+				if resolvePath(dep) == resolvedTargetPath {
 					dependsOnTarget = true
 				}
 			}
