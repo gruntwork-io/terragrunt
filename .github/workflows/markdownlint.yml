@@ -15,4 +15,5 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v20
         with:
           globs: |
-            docs/**/*.md
+            docs-starlight/**/*.md
+            docs-starlight/**/*.mdx

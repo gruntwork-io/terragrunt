@@ -2,6 +2,7 @@
 package global
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -187,6 +188,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Setter:  opts.Experiments.EnableExperiment,
 			Action: func(_ *cli.Context, val []string) error {
 				opts.Experiments.NotifyCompletedExperiments(l)
+
+				// Re-register backends after experiments are enabled
+				// This is needed because RegisterBackends is called during options initialization
+				// before CLI flags are processed, so experimental backends need to be registered again
+				options.RunHooks(context.Background(), opts)
 
 				return nil
 			},

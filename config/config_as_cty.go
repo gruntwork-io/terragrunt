@@ -556,32 +556,32 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 // serialize the struct because `config` and `encryption` are arbitrary
 // interfaces whose type we do not know, so we have to do a hack to go through json.
 func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
-	if remote == nil || remote.Config == nil {
+	if remote == nil {
 		return cty.NilVal, nil
 	}
 
-	config := remote.Config
+	// Use remote directly since the struct is now flattened
 
 	output := map[string]cty.Value{}
-	output["backend"] = gostringToCty(config.BackendName)
-	output["disable_init"] = goboolToCty(config.DisableInit)
-	output["disable_dependency_optimization"] = goboolToCty(config.DisableDependencyOptimization)
+	output["backend"] = gostringToCty(remote.BackendName)
+	output["disable_init"] = goboolToCty(remote.DisableInit)
+	output["disable_dependency_optimization"] = goboolToCty(remote.DisableDependencyOptimization)
 
-	generateCty, err := GoTypeToCty(config.Generate)
+	generateCty, err := GoTypeToCty(remote.Generate)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	output["generate"] = generateCty
 
-	ctyJSONVal, err := convertToCtyWithJSON(config.BackendConfig)
+	ctyJSONVal, err := convertToCtyWithJSON(remote.BackendConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	output["config"] = ctyJSONVal
 
-	ctyJSONVal, err = convertToCtyWithJSON(config.Encryption)
+	ctyJSONVal, err = convertToCtyWithJSON(remote.Encryption)
 	if err != nil {
 		return cty.NilVal, err
 	}
