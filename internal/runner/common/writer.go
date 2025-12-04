@@ -1,4 +1,4 @@
-package runnerpool
+package common
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 )
 
 // UnitWriter represents a Writer with data buffering.
+// It buffers writes and flushes them to the underlying writer on demand.
+// Thread-safe for concurrent Write calls.
 type UnitWriter struct {
 	out    io.Writer
 	buffer bytes.Buffer
@@ -20,6 +22,7 @@ func NewUnitWriter(out io.Writer) *UnitWriter {
 	}
 }
 
+// Write buffers data for later flushing.
 func (writer *UnitWriter) Write(p []byte) (int, error) {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
