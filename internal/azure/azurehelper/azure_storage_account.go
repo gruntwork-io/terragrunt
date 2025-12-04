@@ -450,128 +450,140 @@ func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Conte
 	return c.updateStorageAccountIfNeeded(ctx, l, config, account)
 }
 
-// createStorageAccount creates a new storage account
-func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.Logger, config StorageAccountConfig) error {
-	// Default to Standard_LRS replication if not specified
-	sku := armstorage.SKUNameStandardLRS
-
-	l.Infof("Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
-
-	// Map replication type if specified
-	if config.ReplicationType != "" {
-		switch config.ReplicationType {
-		case "LRS":
-			sku = armstorage.SKUNameStandardLRS
-		case "GRS":
-			sku = armstorage.SKUNameStandardGRS
-		case "RAGRS":
-			sku = armstorage.SKUNameStandardRAGRS
-		case "ZRS":
-			sku = armstorage.SKUNameStandardZRS
-		case "GZRS":
-			sku = armstorage.SKUNameStandardGZRS
-		case "RAGZRS":
-			sku = armstorage.SKUNameStandardRAGZRS
-		default:
-			l.Warnf("Unsupported replication type %s, using Standard_LRS", config.ReplicationType)
-		}
+// mapReplicationType maps a replication type string to the ARM storage SKU.
+func mapReplicationType(replicationType string, l log.Logger) armstorage.SKUName {
+	if replicationType == "" {
+		return armstorage.SKUNameStandardLRS
 	}
 
-	// Map account kind if specified
-	kind := armstorage.KindStorageV2
-
-	if config.AccountKind != "" {
-		switch config.AccountKind {
-		case "StorageV2":
-			kind = armstorage.KindStorageV2
-		case "Storage":
-			kind = armstorage.KindStorage
-		case "BlobStorage":
-			kind = armstorage.KindBlobStorage
-		case "BlockBlobStorage":
-			kind = armstorage.KindBlockBlobStorage
-		case "FileStorage":
-			kind = armstorage.KindFileStorage
-		default:
-			l.Warnf("Unsupported account kind %s, using StorageV2", config.AccountKind)
-		}
+	skuMapping := map[string]armstorage.SKUName{
+		"LRS":    armstorage.SKUNameStandardLRS,
+		"GRS":    armstorage.SKUNameStandardGRS,
+		"RAGRS":  armstorage.SKUNameStandardRAGRS,
+		"ZRS":    armstorage.SKUNameStandardZRS,
+		"GZRS":   armstorage.SKUNameStandardGZRS,
+		"RAGZRS": armstorage.SKUNameStandardRAGZRS,
 	}
 
-	// Map access tier if specified
-	accessTierStr := config.AccessTier
-	if accessTierStr == "" {
-		accessTierStr = AccessTierHot // Default
+	if sku, ok := skuMapping[replicationType]; ok {
+		return sku
 	}
 
-	switch accessTierStr {
-	case AccessTierHot, AccessTierCool, AccessTierPremium:
-		// Valid tier
-	default:
-		l.Warnf("Unsupported access tier %s, using Hot", accessTierStr)
-		accessTierStr = AccessTierHot
+	l.Warnf("Unsupported replication type %s, using Standard_LRS", replicationType)
+
+	return armstorage.SKUNameStandardLRS
+}
+
+// mapAccountKind maps an account kind string to the ARM storage kind.
+func mapAccountKind(accountKind string, l log.Logger) armstorage.Kind {
+	if accountKind == "" {
+		return armstorage.KindStorageV2
 	}
 
-	// Convert tags map to pointer map
-	l.Infof("Using access tier: %s", accessTierStr)
+	kindMapping := map[string]armstorage.Kind{
+		"StorageV2":        armstorage.KindStorageV2,
+		"Storage":          armstorage.KindStorage,
+		"BlobStorage":      armstorage.KindBlobStorage,
+		"BlockBlobStorage": armstorage.KindBlockBlobStorage,
+		"FileStorage":      armstorage.KindFileStorage,
+	}
 
-	tags := make(map[string]*string, len(config.Tags))
+	if kind, ok := kindMapping[accountKind]; ok {
+		return kind
+	}
 
-	if len(config.Tags) > 0 {
-		for k, v := range config.Tags {
-			value := v // Create a new variable to avoid capturing the loop variable
+	l.Warnf("Unsupported account kind %s, using StorageV2", accountKind)
+
+	return armstorage.KindStorageV2
+}
+
+// validateAccessTier validates and returns a valid access tier string.
+func validateAccessTier(accessTier string, l log.Logger) string {
+	if accessTier == "" {
+		return AccessTierHot
+	}
+
+	validTiers := map[string]bool{
+		AccessTierHot:     true,
+		AccessTierCool:    true,
+		AccessTierPremium: true,
+	}
+
+	if validTiers[accessTier] {
+		return accessTier
+	}
+
+	l.Warnf("Unsupported access tier %s, using Hot", accessTier)
+
+	return AccessTierHot
+}
+
+// buildStorageAccountTags builds the tags map for storage account creation.
+func buildStorageAccountTags(configTags map[string]string) map[string]*string {
+	tags := make(map[string]*string, len(configTags))
+
+	if len(configTags) > 0 {
+		for k, v := range configTags {
+			value := v
 			tags[k] = &value
 		}
 	} else {
-		// Set default tags if none provided
 		defaultTag := "terragrunt"
 		tags["created-by"] = &defaultTag
 	}
 
-	// Use provided location or default
-	location := config.Location
-	if location == "" {
-		location = c.location
-		if location == "" {
-			location = defaultLocation // Default location
-			l.Warnf("No location specified, using default location: %s", location)
-		}
+	return tags
+}
+
+// resolveLocation returns the location to use for storage account creation.
+func (c *StorageAccountClient) resolveLocation(configLocation string, l log.Logger) string {
+	if configLocation != "" {
+		return configLocation
 	}
 
-	// Note: The actual structure depends on the SDK version
-	// This is a simplified version that should work with most SDK versions
+	if c.location != "" {
+		return c.location
+	}
+
+	l.Warnf("No location specified, using default location: %s", defaultLocation)
+
+	return defaultLocation
+}
+
+// buildStorageAccountParameters builds the parameters for storage account creation.
+func (c *StorageAccountClient) buildStorageAccountParameters(config StorageAccountConfig, l log.Logger) armstorage.AccountCreateParameters {
+	sku := mapReplicationType(config.ReplicationType, l)
+	kind := mapAccountKind(config.AccountKind, l)
+	accessTierStr := validateAccessTier(config.AccessTier, l)
+	tags := buildStorageAccountTags(config.Tags)
+	location := c.resolveLocation(config.Location, l)
+
+	l.Infof("Using access tier: %s", accessTierStr)
+
 	parameters := armstorage.AccountCreateParameters{
-		SKU: &armstorage.SKU{
-			Name: &sku,
-		},
-		Kind: &kind,
-		// Properties are set directly on AccountCreateParameters in some SDK versions
+		SKU:      &armstorage.SKU{Name: &sku},
+		Kind:     &kind,
 		Location: to.Ptr(location),
 		Tags:     tags,
+		Properties: &armstorage.AccountPropertiesCreateParameters{
+			EnableHTTPSTrafficOnly: to.Ptr(true),
+			MinimumTLSVersion:      to.Ptr(armstorage.MinimumTLSVersionTLS12),
+			AllowBlobPublicAccess:  to.Ptr(config.AllowBlobPublicAccess),
+			AccessTier:             convertAccessTierToARM(accessTierStr),
+		},
 	}
 
-	// Set properties for the storage account
-	var accessTier *armstorage.AccessTier
+	return parameters
+}
 
-	switch accessTierStr {
-	case AccessTierHot:
-		accessTier = to.Ptr(armstorage.AccessTierHot)
-	case AccessTierCool:
-		accessTier = to.Ptr(armstorage.AccessTierCool)
-	case AccessTierPremium:
-		accessTier = to.Ptr(armstorage.AccessTierPremium)
-	}
+// createStorageAccount creates a new storage account
+func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.Logger, config StorageAccountConfig) error {
+	l.Infof("Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
-	// Create properties object
-	parameters.Properties = &armstorage.AccountPropertiesCreateParameters{
-		EnableHTTPSTrafficOnly: to.Ptr(true),
-		MinimumTLSVersion:      to.Ptr(armstorage.MinimumTLSVersionTLS12),
-		AllowBlobPublicAccess:  to.Ptr(config.AllowBlobPublicAccess),
-		AccessTier:             accessTier,
-		// Add more properties as needed based on your requirements
-	}
+	parameters := c.buildStorageAccountParameters(config, l)
 
 	l.Infof("Creating storage account %s in %s (Kind: %s, SKU: %s)",
-		c.storageAccountName, location, *parameters.Kind, *parameters.SKU.Name)
+		c.storageAccountName, *parameters.Location, *parameters.Kind, *parameters.SKU.Name)
 
 	pollerResp, err := c.client.BeginCreate(ctx, c.resourceGroupName, c.storageAccountName, parameters, nil)
 	if err != nil {
@@ -585,16 +597,12 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 
 	l.Infof("Successfully created storage account %s", c.storageAccountName)
 
-	// Assign Storage Blob Data Owner role to the current user
-	err = c.AssignStorageBlobDataOwnerRole(ctx, l)
-	if err != nil {
+	if err := c.AssignStorageBlobDataOwnerRole(ctx, l); err != nil {
 		l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
 	}
 
-	// If versioning is enabled, enable it on the storage account
 	if config.EnableVersioning {
-		err = c.EnableStorageAccountVersioning(ctx, l)
-		if err != nil {
+		if err := c.EnableStorageAccountVersioning(ctx, l); err != nil {
 			return err
 		}
 	}
@@ -602,93 +610,163 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	return nil
 }
 
+// checkBlobPublicAccessUpdate checks and prepares AllowBlobPublicAccess update if needed.
+func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
+	if account.Properties.AllowBlobPublicAccess == nil {
+		return false
+	}
+
+	if *account.Properties.AllowBlobPublicAccess == config.AllowBlobPublicAccess {
+		return false
+	}
+
+	updateParams.Properties.AllowBlobPublicAccess = to.Ptr(config.AllowBlobPublicAccess)
+	l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s",
+		*account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
+
+	return true
+}
+
+// checkAccessTierUpdate checks and prepares AccessTier update if needed.
+func (c *StorageAccountClient) checkAccessTierUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
+	if config.AccessTier == "" || CompareAccessTier(account.Properties.AccessTier, config.AccessTier) {
+		return false
+	}
+
+	accessTier := convertAccessTierToARM(config.AccessTier)
+	if accessTier == nil {
+		l.Warnf("Unsupported access tier %s, skipping update", config.AccessTier)
+
+		return false
+	}
+
+	updateParams.Properties.AccessTier = accessTier
+	currentTier := "Unknown"
+
+	if account.Properties.AccessTier != nil {
+		currentTier = string(*account.Properties.AccessTier)
+	}
+
+	l.Infof("Updating AccessTier from %s to %s on storage account %s", currentTier, config.AccessTier, c.storageAccountName)
+
+	return true
+}
+
+// convertAccessTierToARM converts a string access tier to the ARM storage type.
+func convertAccessTierToARM(tier string) *armstorage.AccessTier {
+	switch tier {
+	case AccessTierHot:
+		return to.Ptr(armstorage.AccessTierHot)
+	case AccessTierCool:
+		return to.Ptr(armstorage.AccessTierCool)
+	case AccessTierPremium:
+		return to.Ptr(armstorage.AccessTierPremium)
+	default:
+		return nil
+	}
+}
+
+// checkTagsUpdate checks and prepares Tags update if needed.
+func (c *StorageAccountClient) checkTagsUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
+	if len(config.Tags) == 0 || CompareStringMaps(account.Tags, config.Tags) {
+		return false
+	}
+
+	updateParams.Tags = ConvertToPointerMap(config.Tags)
+
+	l.Infof("Updating tags on storage account %s", c.storageAccountName)
+
+	return true
+}
+
+// warnReadOnlyPropertyDiffs logs warnings for immutable properties that differ from desired configuration.
+func (c *StorageAccountClient) warnReadOnlyPropertyDiffs(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+	c.warnSKUDiff(l, config, account)
+	c.warnAccountKindDiff(l, config, account)
+	c.warnLocationDiff(l, config, account)
+}
+
+// warnSKUDiff logs a warning if SKU/ReplicationType differs from desired configuration.
+func (c *StorageAccountClient) warnSKUDiff(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+	if account.SKU == nil || config.ReplicationType == "" {
+		return
+	}
+
+	currentSKU := string(*account.SKU.Name)
+	expectedSKU, valid := GetStorageAccountSKU(config.AccountTier, config.ReplicationType)
+
+	if !valid {
+		l.Warnf("Could not determine expected SKU for tier %s and replication %s", config.AccountTier, config.ReplicationType)
+
+		return
+	}
+
+	if currentSKU != expectedSKU {
+		l.Warnf("Storage account SKU cannot be changed after creation. Current: %s, Desired: %s",
+			currentSKU, expectedSKU)
+	}
+}
+
+// warnAccountKindDiff logs a warning if AccountKind differs from desired configuration.
+func (c *StorageAccountClient) warnAccountKindDiff(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+	if account.Kind == nil || config.AccountKind == "" {
+		return
+	}
+
+	currentKind := string(*account.Kind)
+	if currentKind != config.AccountKind {
+		l.Warnf("Storage account kind cannot be changed after creation. Current: %s, Desired: %s",
+			currentKind, config.AccountKind)
+	}
+}
+
+// warnLocationDiff logs a warning if Location differs from desired configuration.
+func (c *StorageAccountClient) warnLocationDiff(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+	if account.Location == nil || config.Location == "" {
+		return
+	}
+
+	if *account.Location != config.Location {
+		l.Warnf("Storage account location cannot be changed after creation. Current: %s, Desired: %s",
+			*account.Location, config.Location)
+	}
+}
+
+// syncVersioningState ensures the versioning state matches the desired configuration.
+func (c *StorageAccountClient) syncVersioningState(ctx context.Context, l log.Logger, enableVersioning bool) error {
+	isVersioningEnabled, err := c.GetStorageAccountVersioning(ctx)
+	if err != nil {
+		return err
+	}
+
+	if enableVersioning && !isVersioningEnabled {
+		l.Infof("Enabling versioning on existing storage account %s", c.storageAccountName)
+
+		return c.EnableStorageAccountVersioning(ctx, l)
+	}
+
+	if !enableVersioning && isVersioningEnabled {
+		l.Infof("Disabling versioning on existing storage account %s", c.storageAccountName)
+
+		return c.DisableStorageAccountVersioning(ctx, l)
+	}
+
+	return nil
+}
+
 // updateStorageAccountIfNeeded updates a storage account if settings don't match
 func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context, l log.Logger, config StorageAccountConfig, account *armstorage.Account) error {
-	var needsUpdate bool
-
 	var updateParams armstorage.AccountUpdateParameters
 
 	updateParams.Properties = &armstorage.AccountPropertiesUpdateParameters{}
 
-	// Check updatable properties first
+	// Check updatable properties
+	needsUpdate := c.checkBlobPublicAccessUpdate(l, config, account, &updateParams) ||
+		c.checkAccessTierUpdate(l, config, account, &updateParams) ||
+		c.checkTagsUpdate(l, config, account, &updateParams)
 
-	// 1. Check AllowBlobPublicAccess
-	if account.Properties.AllowBlobPublicAccess != nil &&
-		*account.Properties.AllowBlobPublicAccess != config.AllowBlobPublicAccess {
-		needsUpdate = true
-		updateParams.Properties.AllowBlobPublicAccess = to.Ptr(config.AllowBlobPublicAccess)
-		l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s",
-			*account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
-	}
-
-	// 2. Check AccessTier
-	if !CompareAccessTier(account.Properties.AccessTier, config.AccessTier) && config.AccessTier != "" {
-		needsUpdate = true
-
-		var accessTier *armstorage.AccessTier
-
-		switch config.AccessTier {
-		case AccessTierHot:
-			accessTier = to.Ptr(armstorage.AccessTierHot)
-		case AccessTierCool:
-			accessTier = to.Ptr(armstorage.AccessTierCool)
-		case AccessTierPremium:
-			accessTier = to.Ptr(armstorage.AccessTierPremium)
-		default:
-			l.Warnf("Unsupported access tier %s, skipping update", config.AccessTier)
-		}
-
-		if accessTier != nil {
-			updateParams.Properties.AccessTier = accessTier
-			currentTier := "Unknown"
-
-			if account.Properties.AccessTier != nil {
-				currentTier = string(*account.Properties.AccessTier)
-			}
-
-			l.Infof("Updating AccessTier from %s to %s on storage account %s", currentTier, config.AccessTier, c.storageAccountName)
-		}
-	}
-
-	// 3. Check Tags
-	if !CompareStringMaps(account.Tags, config.Tags) && len(config.Tags) > 0 {
-		needsUpdate = true
-		updateParams.Tags = ConvertToPointerMap(config.Tags)
-
-		l.Infof("Updating tags on storage account %s", c.storageAccountName)
-	}
-
-	// Check read-only properties and warn if they differ
-
-	// Check SKU/ReplicationType (read-only after creation)
-	if account.SKU != nil && config.ReplicationType != "" {
-		currentSKU := string(*account.SKU.Name)
-
-		expectedSKU, valid := GetStorageAccountSKU(config.AccountTier, config.ReplicationType)
-		if !valid {
-			l.Warnf("Could not determine expected SKU for tier %s and replication %s", config.AccountTier, config.ReplicationType)
-		} else if currentSKU != expectedSKU {
-			l.Warnf("Storage account SKU cannot be changed after creation. Current: %s, Desired: %s",
-				currentSKU, expectedSKU)
-		}
-	}
-
-	// Check AccountKind (read-only after creation)
-	if account.Kind != nil && config.AccountKind != "" {
-		currentKind := string(*account.Kind)
-		if currentKind != config.AccountKind {
-			l.Warnf("Storage account kind cannot be changed after creation. Current: %s, Desired: %s",
-				currentKind, config.AccountKind)
-		}
-	}
-
-	// Check Location (read-only after creation)
-	if account.Location != nil && config.Location != "" {
-		if *account.Location != config.Location {
-			l.Warnf("Storage account location cannot be changed after creation. Current: %s, Desired: %s",
-				*account.Location, config.Location)
-		}
-	}
+	// Warn about read-only properties that differ
+	c.warnReadOnlyPropertyDiffs(l, config, account)
 
 	// Apply updates if needed
 	if needsUpdate {
@@ -705,27 +783,7 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	}
 
 	// Handle versioning separately (as it's a blob service property, not account property)
-	isVersioningEnabled, err := c.GetStorageAccountVersioning(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Only update versioning if it doesn't match expected state
-	if config.EnableVersioning && !isVersioningEnabled {
-		l.Infof("Enabling versioning on existing storage account %s", c.storageAccountName)
-
-		if err := c.EnableStorageAccountVersioning(ctx, l); err != nil {
-			return err
-		}
-	} else if !config.EnableVersioning && isVersioningEnabled {
-		l.Infof("Disabling versioning on existing storage account %s", c.storageAccountName)
-
-		if err := c.DisableStorageAccountVersioning(ctx, l); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return c.syncVersioningState(ctx, l, config.EnableVersioning)
 }
 
 // DeleteStorageAccount deletes a storage account
@@ -1007,67 +1065,70 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 	return err
 }
 
+// handleRBACRetry handles the retry logic for RBAC permission checks.
+func (c *StorageAccountClient) handleRBACRetry(ctx context.Context, _ log.Logger, attempt int) error {
+	if attempt >= RbacRetryAttempts {
+		return nil // No more retries
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(RbacRetryDelay):
+		return nil
+	}
+}
+
+// testRBACPermissions tests if RBAC permissions are available by checking storage account properties.
+func (c *StorageAccountClient) testRBACPermissions(ctx context.Context) error {
+	_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+
+	return err
+}
+
+// processPermissionError handles permission-related errors during RBAC testing.
+func (c *StorageAccountClient) processPermissionError(ctx context.Context, l log.Logger, err error, attempt int) error {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		l.Debugf("Unknown error during RBAC test (attempt %d): %v", attempt, err)
+
+		return c.handleRBACRetry(ctx, l, attempt)
+	}
+
+	if isPermissionError(respErr) {
+		if attempt < RbacRetryAttempts {
+			l.Debugf("Permission denied on attempt %d, waiting %v before retry (Error: %s)",
+				attempt, RbacRetryDelay, respErr.Error())
+
+			return c.handleRBACRetry(ctx, l, attempt)
+		}
+
+		l.Warnf("Permission still denied after %d attempts. RBAC may need more time to propagate", RbacRetryAttempts)
+
+		return fmt.Errorf("RBAC permissions not available after %d attempts: %w", RbacRetryAttempts, err)
+	}
+
+	l.Debugf("Non-permission error during RBAC test (attempt %d): %v", attempt, err)
+
+	return c.handleRBACRetry(ctx, l, attempt)
+}
+
 // waitForRBACPermissions waits for RBAC permissions to propagate by testing storage account access
 func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log.Logger) error {
 	l.Infof("Waiting for RBAC permissions to propagate (up to %d attempts with %v delays)", RbacRetryAttempts, RbacRetryDelay)
 
-	// Test permissions by trying to check if a test container exists
-	// We'll use the storage account client directly to test permissions
 	for attempt := 1; attempt <= RbacRetryAttempts; attempt++ {
 		l.Debugf("RBAC permission test attempt %d/%d", attempt, RbacRetryAttempts)
 
-		// Test permissions by trying to get storage account properties
-		// This operation requires appropriate Storage permissions
-		_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+		err := c.testRBACPermissions(ctx)
 		if err == nil {
 			l.Infof("RBAC permissions verified successfully on attempt %d", attempt)
+
 			return nil
 		}
 
-		// Check if this is a permission-related error
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) {
-			if isPermissionError(respErr) {
-				if attempt < RbacRetryAttempts {
-					l.Debugf("Permission denied on attempt %d, waiting %v before retry (Error: %s)",
-						attempt, RbacRetryDelay, respErr.Error())
-
-					// Wait before retrying
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(RbacRetryDelay):
-						continue
-					}
-				} else {
-					l.Warnf("Permission still denied after %d attempts. RBAC may need more time to propagate", RbacRetryAttempts)
-					return fmt.Errorf("RBAC permissions not available after %d attempts: %w", RbacRetryAttempts, err)
-				}
-			} else {
-				// Non-permission error, permissions might be working but other issue
-				l.Debugf("Non-permission error during RBAC test (attempt %d): %v", attempt, err)
-
-				if attempt < RbacRetryAttempts {
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(RbacRetryDelay):
-						continue
-					}
-				}
-			}
-		} else {
-			// Unknown error type
-			l.Debugf("Unknown error during RBAC test (attempt %d): %v", attempt, err)
-
-			if attempt < RbacRetryAttempts {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(RbacRetryDelay):
-					continue
-				}
-			}
+		if retryErr := c.processPermissionError(ctx, l, err, attempt); retryErr != nil {
+			return retryErr
 		}
 	}
 
@@ -1330,10 +1391,10 @@ func (c *StorageAccountClient) GetStorageAccountProperties(ctx context.Context) 
 
 // GetResourceGroupName returns the resource group name configured for this client
 func (c *StorageAccountClient) GetResourceGroupName() string {
-return c.resourceGroupName
+	return c.resourceGroupName
 }
 
 // GetStorageAccountName returns the storage account name configured for this client
 func (c *StorageAccountClient) GetStorageAccountName() string {
-return c.storageAccountName
+	return c.storageAccountName
 }

@@ -27,7 +27,13 @@ type StorageAccountServiceImpl struct {
 	client *azurehelper.StorageAccountClient
 }
 
-const jwtExpectedPartCount = 3 // JWT has 3 parts: header, payload, signature
+const (
+	jwtExpectedPartCount = 3 // JWT has 3 parts: header, payload, signature
+
+	// Error message formats for configuration mismatch errors
+	errResourceGroupMismatchFmt  = "resource group mismatch: client configured for %s, requested %s"
+	errStorageAccountMismatchFmt = "storage account mismatch: client configured for %s, requested %s"
+)
 
 // NewStorageAccountService creates a new StorageAccountService implementation
 func NewStorageAccountService(client *azurehelper.StorageAccountClient) interfaces.StorageAccountService {
@@ -59,13 +65,15 @@ func (s *StorageAccountServiceImpl) CreateStorageAccount(ctx context.Context, cf
 func (s *StorageAccountServiceImpl) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
 	// Validate that the requested account matches the client's configuration
 	if s.client.GetResourceGroupName() != resourceGroupName {
-		return fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+		return fmt.Errorf(errResourceGroupMismatchFmt,
 			s.client.GetResourceGroupName(), resourceGroupName)
 	}
+
 	if s.client.GetStorageAccountName() != accountName {
-		return fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+		return fmt.Errorf(errStorageAccountMismatchFmt,
 			s.client.GetStorageAccountName(), accountName)
 	}
+
 	return s.client.DeleteStorageAccount(ctx, log.Default())
 }
 
@@ -84,6 +92,53 @@ func (s *StorageAccountServiceImpl) GetResourceID(ctx context.Context) string {
 	return ""
 }
 
+// mapStorageAccountProperties maps Azure SDK properties to internal types.
+func mapStorageAccountProperties(props *armstorage.AccountProperties) *types.StorageAccountProperties {
+	if props == nil {
+		return nil
+	}
+
+	result := &types.StorageAccountProperties{
+		SupportsHTTPSOnly: getBoolValue(props.EnableHTTPSTrafficOnly),
+		IsHnsEnabled:      getBoolValue(props.IsHnsEnabled),
+	}
+
+	if props.ProvisioningState != nil {
+		result.ProvisioningState = string(*props.ProvisioningState)
+	}
+
+	if props.AccessTier != nil {
+		result.AccessTier = types.AccessTier(string(*props.AccessTier))
+	}
+
+	if props.StatusOfPrimary != nil {
+		result.StatusOfPrimary = string(*props.StatusOfPrimary)
+	}
+
+	if props.StatusOfSecondary != nil {
+		result.StatusOfSecondary = string(*props.StatusOfSecondary)
+	}
+
+	result.PrimaryEndpoints = mapStorageEndpoints(props.PrimaryEndpoints)
+	result.SecondaryEndpoints = mapStorageEndpoints(props.SecondaryEndpoints)
+
+	return result
+}
+
+// mapStorageEndpoints maps Azure SDK endpoints to internal types.
+func mapStorageEndpoints(endpoints *armstorage.Endpoints) types.StorageEndpoints {
+	if endpoints == nil {
+		return types.StorageEndpoints{}
+	}
+
+	return types.StorageEndpoints{
+		Blob:  getStringValue(endpoints.Blob),
+		Queue: getStringValue(endpoints.Queue),
+		Table: getStringValue(endpoints.Table),
+		File:  getStringValue(endpoints.File),
+	}
+}
+
 // mapAzureAccountToInternalType converts an Azure SDK Account to our internal StorageAccount type
 func (s *StorageAccountServiceImpl) mapAzureAccountToInternalType(account *armstorage.Account, resourceGroupName string) *types.StorageAccount {
 	if account == nil {
@@ -94,59 +149,14 @@ func (s *StorageAccountServiceImpl) mapAzureAccountToInternalType(account *armst
 		Name:              getStringValue(account.Name),
 		ResourceGroupName: resourceGroupName,
 		Location:          getStringValue(account.Location),
+		Properties:        mapStorageAccountProperties(account.Properties),
 	}
 
-	if account.Properties != nil {
-		storageAccount.Properties = &types.StorageAccountProperties{
-			SupportsHTTPSOnly: getBoolValue(account.Properties.EnableHTTPSTrafficOnly),
-			IsHnsEnabled:      getBoolValue(account.Properties.IsHnsEnabled),
-		}
-
-		// Map provisioning state (it's an enum, need to convert)
-		if account.Properties.ProvisioningState != nil {
-			storageAccount.Properties.ProvisioningState = string(*account.Properties.ProvisioningState)
-		}
-
-		// Map access tier
-		if account.Properties.AccessTier != nil {
-			storageAccount.Properties.AccessTier = types.AccessTier(string(*account.Properties.AccessTier))
-		}
-
-		// Map primary status
-		if account.Properties.StatusOfPrimary != nil {
-			storageAccount.Properties.StatusOfPrimary = string(*account.Properties.StatusOfPrimary)
-		}
-
-		// Map secondary status
-		if account.Properties.StatusOfSecondary != nil {
-			storageAccount.Properties.StatusOfSecondary = string(*account.Properties.StatusOfSecondary)
-		}
-
-		// Map endpoints
-		if account.Properties.PrimaryEndpoints != nil {
-			storageAccount.Properties.PrimaryEndpoints = types.StorageEndpoints{
-				Blob:  getStringValue(account.Properties.PrimaryEndpoints.Blob),
-				Queue: getStringValue(account.Properties.PrimaryEndpoints.Queue),
-				Table: getStringValue(account.Properties.PrimaryEndpoints.Table),
-				File:  getStringValue(account.Properties.PrimaryEndpoints.File),
-			}
-		}
-
-		if account.Properties.SecondaryEndpoints != nil {
-			storageAccount.Properties.SecondaryEndpoints = types.StorageEndpoints{
-				Blob:  getStringValue(account.Properties.SecondaryEndpoints.Blob),
-				Queue: getStringValue(account.Properties.SecondaryEndpoints.Queue),
-				Table: getStringValue(account.Properties.SecondaryEndpoints.Table),
-				File:  getStringValue(account.Properties.SecondaryEndpoints.File),
-			}
-		}
-	}
-
-	// Map account kind from the top-level Kind field
 	if account.Kind != nil {
 		if storageAccount.Properties == nil {
 			storageAccount.Properties = &types.StorageAccountProperties{}
 		}
+
 		storageAccount.Properties.Kind = types.AccountKind(string(*account.Kind))
 	}
 
@@ -174,11 +184,12 @@ func getBoolValue(ptr *bool) bool {
 func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
 	// Validate that the requested account matches the client's configuration
 	if s.client.GetResourceGroupName() != resourceGroupName {
-		return nil, fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+		return nil, fmt.Errorf(errResourceGroupMismatchFmt,
 			s.client.GetResourceGroupName(), resourceGroupName)
 	}
+
 	if s.client.GetStorageAccountName() != accountName {
-		return nil, fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+		return nil, fmt.Errorf(errStorageAccountMismatchFmt,
 			s.client.GetStorageAccountName(), accountName)
 	}
 
@@ -198,13 +209,15 @@ func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resou
 func (s *StorageAccountServiceImpl) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
 	// Validate that the requested account matches the client's configuration
 	if s.client.GetResourceGroupName() != resourceGroupName {
-		return nil, fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+		return nil, fmt.Errorf(errResourceGroupMismatchFmt,
 			s.client.GetResourceGroupName(), resourceGroupName)
 	}
+
 	if s.client.GetStorageAccountName() != accountName {
-		return nil, fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+		return nil, fmt.Errorf(errStorageAccountMismatchFmt,
 			s.client.GetStorageAccountName(), accountName)
 	}
+
 	return s.client.GetStorageAccountKeys(ctx)
 }
 
@@ -214,13 +227,15 @@ func (s *StorageAccountServiceImpl) GetStorageAccountKeys(ctx context.Context, r
 func (s *StorageAccountServiceImpl) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
 	// Validate that the requested account matches the client's configuration
 	if s.client.GetResourceGroupName() != resourceGroupName {
-		return "", fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+		return "", fmt.Errorf(errResourceGroupMismatchFmt,
 			s.client.GetResourceGroupName(), resourceGroupName)
 	}
+
 	if s.client.GetStorageAccountName() != accountName {
-		return "", fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+		return "", fmt.Errorf(errStorageAccountMismatchFmt,
 			s.client.GetStorageAccountName(), accountName)
 	}
+
 	return s.client.GetStorageAccountSAS(ctx, "", nil)
 }
 
@@ -371,6 +386,26 @@ func (r *RBACServiceImpl) AssignRole(ctx context.Context, l log.Logger, roleName
 	return nil
 }
 
+// matchesRoleAssignment checks if an assignment matches the target principal and role.
+func matchesRoleAssignment(assignment *armauthorization.RoleAssignment, principalID, roleName string) bool {
+	props := assignment.Properties
+	if props == nil || props.PrincipalID == nil || props.RoleDefinitionID == nil {
+		return false
+	}
+
+	if *props.PrincipalID != principalID {
+		return false
+	}
+
+	if roleName == "" {
+		return true
+	}
+
+	roleDefID := *props.RoleDefinitionID
+
+	return strings.Contains(strings.ToLower(roleDefID), strings.ToLower(roleName))
+}
+
 // RemoveRole removes a role assignment from a principal at the specified scope
 func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName, principalID, scope string) error {
 	client, err := armauthorization.NewRoleAssignmentsClient(r.subscriptionID, r.credential, nil)
@@ -378,28 +413,14 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 		return err
 	}
 
-	// List existing role assignments to find the one to remove
 	assignments, err := r.listRoleAssignments(ctx, scope)
 	if err != nil {
 		return err
 	}
 
 	for _, assignment := range assignments {
-		props := assignment.Properties
-		if props == nil || props.PrincipalID == nil || props.RoleDefinitionID == nil {
+		if !matchesRoleAssignment(assignment, principalID, roleName) {
 			continue
-		}
-
-		if *props.PrincipalID != principalID {
-			continue
-		}
-
-		// Role name should match if provided
-		if roleName != "" {
-			roleDefID := *props.RoleDefinitionID
-			if !strings.Contains(strings.ToLower(roleDefID), strings.ToLower(roleName)) {
-				continue
-			}
 		}
 
 		if assignment.Name == nil {
@@ -409,6 +430,7 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 		_, err = client.Delete(ctx, scope, *assignment.Name, nil)
 		if err != nil {
 			l.Debugf("Failed to remove role assignment %s: %v", *assignment.Name, err)
+
 			return err
 		}
 
@@ -787,6 +809,7 @@ func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, upd
 	if subscriptionID == "" {
 		subscriptionID, _ = updates["subscriptionId"].(string)
 	}
+
 	if subscriptionID != "" {
 		a.config.SubscriptionID = subscriptionID
 	}
@@ -796,6 +819,7 @@ func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, upd
 	if tenantID == "" {
 		tenantID, _ = updates["tenantId"].(string)
 	}
+
 	if tenantID != "" {
 		a.config.TenantID = tenantID
 	}
@@ -805,6 +829,7 @@ func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, upd
 	if clientID == "" {
 		clientID, _ = updates["clientId"].(string)
 	}
+
 	if clientID != "" {
 		a.config.ClientID = clientID
 	}
@@ -814,6 +839,7 @@ func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, upd
 	if clientSecret == "" {
 		clientSecret, _ = updates["clientSecret"].(string)
 	}
+
 	if clientSecret != "" {
 		a.config.ClientSecret = clientSecret
 	}
@@ -823,6 +849,7 @@ func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, upd
 	if !ok {
 		useManagedIdentity, ok = updates["useManagedIdentity"].(bool)
 	}
+
 	if ok {
 		a.config.UseManagedIdentity = useManagedIdentity
 	}
@@ -1021,6 +1048,7 @@ func (c *ProductionServiceContainer) GetResourceGroupService(ctx context.Context
 	if subscriptionID == "" {
 		subscriptionID, _ = mergedConfig["subscriptionId"].(string)
 	}
+
 	if subscriptionID == "" {
 		return nil, errors.New("subscription ID is required")
 	}
@@ -1104,6 +1132,7 @@ func (c *ProductionServiceContainer) Initialize(ctx context.Context, l log.Logge
 	if subscriptionID == "" {
 		subscriptionID, _ = c.config["subscriptionId"].(string)
 	}
+
 	if subscriptionID == "" {
 		return errors.New("subscription ID is required")
 	}
@@ -1195,77 +1224,82 @@ func createBlobClient(ctx context.Context, config map[string]interface{}) (*azur
 // createCredentialFromConfig is a shared helper that creates Azure credentials from configuration
 // It supports managed identity, service principal, and default Azure credentials
 func createCredentialFromConfig(tenantID, clientID, clientSecret string, useManagedIdentity bool) (azcore.TokenCredential, error) {
-switch {
-case useManagedIdentity:
-// Use managed identity if specified
-cred, err := azidentity.NewDefaultAzureCredential(nil)
-if err != nil {
-return nil, fmt.Errorf("failed to create default azure credential: %w", err)
-}
-return cred, nil
+	switch {
+	case useManagedIdentity:
+		// Use managed identity if specified
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+		}
 
-case clientID != "" && clientSecret != "" && tenantID != "":
-// Use service principal if credentials are provided
-cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
-if err != nil {
-return nil, fmt.Errorf("failed to create client secret credential: %w", err)
-}
-return cred, nil
+		return cred, nil
 
-case tenantID != "":
-// If tenant ID is provided, try to create a default credential with it
-options := &azidentity.DefaultAzureCredentialOptions{
-TenantID: tenantID,
-}
-cred, err := azidentity.NewDefaultAzureCredential(options)
-if err != nil {
-return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
-}
-return cred, nil
+	case clientID != "" && clientSecret != "" && tenantID != "":
+		// Use service principal if credentials are provided
+		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
+		}
 
-default:
-// Fall back to default credential
-cred, err := azidentity.NewDefaultAzureCredential(nil)
-if err != nil {
-return nil, fmt.Errorf("failed to create default azure credential: %w", err)
-}
-return cred, nil
-}
+		return cred, nil
+
+	case tenantID != "":
+		// If tenant ID is provided, try to create a default credential with it
+		options := &azidentity.DefaultAzureCredentialOptions{
+			TenantID: tenantID,
+		}
+
+		cred, err := azidentity.NewDefaultAzureCredential(options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
+		}
+
+		return cred, nil
+
+	default:
+		// Fall back to default credential
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+		}
+
+		return cred, nil
+	}
 }
 
 func createRBACClient(config map[string]interface{}) (azcore.TokenCredential, error) {
-// Extract auth configuration with snake_case/camelCase normalization
-tenantID, _ := config["tenant_id"].(string)
-if tenantID == "" {
-tenantID, _ = config["tenantId"].(string)
-}
+	// Extract auth configuration with snake_case/camelCase normalization
+	tenantID, _ := config["tenant_id"].(string)
+	if tenantID == "" {
+		tenantID, _ = config["tenantId"].(string)
+	}
 
-clientID, _ := config["client_id"].(string)
-if clientID == "" {
-clientID, _ = config["clientId"].(string)
-}
+	clientID, _ := config["client_id"].(string)
+	if clientID == "" {
+		clientID, _ = config["clientId"].(string)
+	}
 
-clientSecret, _ := config["client_secret"].(string)
-if clientSecret == "" {
-clientSecret, _ = config["clientSecret"].(string)
-}
+	clientSecret, _ := config["client_secret"].(string)
+	if clientSecret == "" {
+		clientSecret, _ = config["clientSecret"].(string)
+	}
 
-// Check for use_managed_identity with both naming conventions
-var useManagedIdentity bool
-if v, ok := config["use_managed_identity"].(bool); ok {
-useManagedIdentity = v
-} else if v, ok := config["useManagedIdentity"].(bool); ok {
-useManagedIdentity = v
-}
+	// Check for use_managed_identity with both naming conventions
+	var useManagedIdentity bool
+	if v, ok := config["use_managed_identity"].(bool); ok {
+		useManagedIdentity = v
+	} else if v, ok := config["useManagedIdentity"].(bool); ok {
+		useManagedIdentity = v
+	}
 
-// Use the shared credential helper
-return createCredentialFromConfig(tenantID, clientID, clientSecret, useManagedIdentity)
+	// Use the shared credential helper
+	return createCredentialFromConfig(tenantID, clientID, clientSecret, useManagedIdentity)
 }
 
 // Helper function to create an authentication credential
 func createAuthenticationCredential(config interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
-// Use the shared credential helper
-return createCredentialFromConfig(config.TenantID, config.ClientID, config.ClientSecret, config.UseManagedIdentity)
+	// Use the shared credential helper
+	return createCredentialFromConfig(config.TenantID, config.ClientID, config.ClientSecret, config.UseManagedIdentity)
 }
 
 // Helper method to merge config maps

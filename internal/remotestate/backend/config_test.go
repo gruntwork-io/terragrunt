@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConfig_IsEqual(t *testing.T) {
+func TestConfigIsEqual(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct { //nolint: govet
@@ -148,7 +148,7 @@ func TestConfig_IsEqual(t *testing.T) {
 	}
 }
 
-func TestConfig_AzureBackendComparison(t *testing.T) {
+func TestConfigAzureBackendComparison(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

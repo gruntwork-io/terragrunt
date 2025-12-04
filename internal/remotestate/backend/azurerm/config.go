@@ -7,6 +7,10 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+// servicePrincipalRequiredFields is the number of required fields for service principal authentication
+// (client_id, client_secret, tenant_id).
+const servicePrincipalRequiredFields = 3
+
 // BackendName is the name of the Azure RM backend.
 
 // StorageAccountBootstrapConfig represents the configuration for Azure Storage account bootstrapping.
@@ -428,8 +432,8 @@ func (cfg Config) ExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, erro
 	return extConfig, nil
 }
 
-// Validate checks if all required fields are set and validates auth methods.
-func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
+// validateRequiredFields checks that all required fields are present.
+func (cfg *ExtendedRemoteStateConfigAzurerm) validateRequiredFields() error {
 	if cfg.RemoteStateConfigAzurerm.StorageAccountName == "" {
 		return MissingRequiredAzureRemoteStateConfig("storage_account_name")
 	}
@@ -442,72 +446,45 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 		return MissingRequiredAzureRemoteStateConfig("key")
 	}
 
-	// Validate auth method combinations
+	return nil
+}
+
+// countServicePrincipalFields counts how many service principal fields are provided.
+func (cfg *ExtendedRemoteStateConfigAzurerm) countServicePrincipalFields() int {
+	count := 0
+	if cfg.RemoteStateConfigAzurerm.ClientID != "" {
+		count++
+	}
+
+	if cfg.RemoteStateConfigAzurerm.ClientSecret != "" {
+		count++
+	}
+
+	if cfg.RemoteStateConfigAzurerm.TenantID != "" {
+		count++
+	}
+
+	return count
+}
+
+// validateAuthMethods validates that authentication methods are properly configured.
+func (cfg *ExtendedRemoteStateConfigAzurerm) validateAuthMethods() error {
 	hasSasToken := cfg.RemoteStateConfigAzurerm.SasToken != ""
 	hasAzureAD := cfg.RemoteStateConfigAzurerm.UseAzureADAuth
 	hasMSI := cfg.RemoteStateConfigAzurerm.UseMsi
 
-	// Count how many service principal fields are provided
-	servicePrincipalFieldCount := 0
-	if cfg.RemoteStateConfigAzurerm.ClientID != "" {
-		servicePrincipalFieldCount++
-	}
-	if cfg.RemoteStateConfigAzurerm.ClientSecret != "" {
-		servicePrincipalFieldCount++
-	}
-	if cfg.RemoteStateConfigAzurerm.TenantID != "" {
-		servicePrincipalFieldCount++
+	spFieldCount := cfg.countServicePrincipalFields()
+	hasCompleteServicePrincipal := spFieldCount == servicePrincipalRequiredFields
+	hasPartialServicePrincipal := spFieldCount > 0 && spFieldCount < servicePrincipalRequiredFields
+
+	authCount := cfg.countAuthMethods(hasSasToken, hasCompleteServicePrincipal, hasAzureAD, hasMSI)
+
+	if hasCompleteServicePrincipal && cfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
+		return NewServicePrincipalMissingSubscriptionIDError()
 	}
 
-	// Service principal is only considered an auth method if ALL three fields are present
-	// OR if some fields are present AND no other auth method is explicitly selected
-	hasCompleteServicePrincipal := servicePrincipalFieldCount == 3
-	hasPartialServicePrincipal := servicePrincipalFieldCount > 0 && servicePrincipalFieldCount < 3
-
-	// Check for multiple auth methods
-	var authCount int
-
-	if hasSasToken {
-		authCount++
-	}
-
-	if hasCompleteServicePrincipal {
-		authCount++
-
-		// Validate required fields for service principal auth
-		if cfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-			return NewServicePrincipalMissingSubscriptionIDError()
-		}
-	}
-
-	if hasAzureAD {
-		authCount++
-	}
-
-	if hasMSI {
-		authCount++
-	}
-
-	// Only treat partial service principal as an error if:
-	// 1. No other auth method is explicitly selected, AND
-	// 2. Some service principal fields are provided
-	// This allows users to have environment variables set without forcing service principal auth
-	if hasPartialServicePrincipal && !hasAzureAD && !hasMSI && !hasSasToken {
-		missing := []string{}
-
-		if cfg.RemoteStateConfigAzurerm.ClientID == "" {
-			missing = append(missing, "client_id")
-		}
-
-		if cfg.RemoteStateConfigAzurerm.ClientSecret == "" {
-			missing = append(missing, "client_secret")
-		}
-
-		if cfg.RemoteStateConfigAzurerm.TenantID == "" {
-			missing = append(missing, "tenant_id")
-		}
-
-		return WrapIncompleteServicePrincipalError(missing)
+	if err := cfg.validatePartialServicePrincipal(hasPartialServicePrincipal, hasAzureAD, hasMSI, hasSasToken); err != nil {
+		return err
 	}
 
 	if authCount > 1 {
@@ -515,6 +492,59 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	}
 
 	return nil
+}
+
+// countAuthMethods counts the number of authentication methods specified.
+func (cfg *ExtendedRemoteStateConfigAzurerm) countAuthMethods(hasSasToken, hasServicePrincipal, hasAzureAD, hasMSI bool) int {
+	count := 0
+	if hasSasToken {
+		count++
+	}
+
+	if hasServicePrincipal {
+		count++
+	}
+
+	if hasAzureAD {
+		count++
+	}
+
+	if hasMSI {
+		count++
+	}
+
+	return count
+}
+
+// validatePartialServicePrincipal checks if partial service principal credentials are properly handled.
+func (cfg *ExtendedRemoteStateConfigAzurerm) validatePartialServicePrincipal(hasPartial, hasAzureAD, hasMSI, hasSasToken bool) error {
+	if !hasPartial || hasAzureAD || hasMSI || hasSasToken {
+		return nil
+	}
+
+	missing := []string{}
+	if cfg.RemoteStateConfigAzurerm.ClientID == "" {
+		missing = append(missing, "client_id")
+	}
+
+	if cfg.RemoteStateConfigAzurerm.ClientSecret == "" {
+		missing = append(missing, "client_secret")
+	}
+
+	if cfg.RemoteStateConfigAzurerm.TenantID == "" {
+		missing = append(missing, "tenant_id")
+	}
+
+	return WrapIncompleteServicePrincipalError(missing)
+}
+
+// Validate checks if all required fields are set and validates auth methods.
+func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
+	if err := cfg.validateRequiredFields(); err != nil {
+		return err
+	}
+
+	return cfg.validateAuthMethods()
 }
 
 // CacheKey returns a key that uniquely identifies this config.

@@ -3,11 +3,12 @@ package factory
 
 import (
 	"context"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"fmt"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
@@ -77,14 +78,8 @@ func NewAzureServiceFactoryWithOptions(options *interfaces.FactoryOptions) inter
 			// Store options for later use
 			factoryImpl.options = options
 
-			// Apply retry configuration if provided
-			if options.RetryConfig != nil {
-				// Retry config will be used by individual service implementations
-				// when making Azure API calls through the factory's options
-			}
-
-			// DefaultConfig map can be accessed via factoryImpl.options.DefaultConfig
-			// by service implementations when they need default values
+			// Note: RetryConfig and DefaultConfig are accessed via factoryImpl.options
+			// by service implementations when they need retry settings or default values
 		}
 	}
 
@@ -413,6 +408,7 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 		// Try alternate key format
 		subscriptionID, _ = config["subscriptionId"].(string)
 	}
+
 	if subscriptionID == "" {
 		return nil, errors.Errorf("subscription_id is required for RBAC operations")
 	}

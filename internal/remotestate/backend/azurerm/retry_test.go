@@ -33,7 +33,7 @@ func TestDefaultRetryConfig(t *testing.T) {
 	assert.True(t, config.Jitter)
 }
 
-func TestWithRetry_SuccessOnFirstAttempt(t *testing.T) {
+func TestWithRetrySuccessOnFirstAttempt(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -59,7 +59,7 @@ func TestWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	assert.Equal(t, 1, callCount)
 }
 
-func TestWithRetry_SuccessAfterRetries(t *testing.T) {
+func TestWithRetrySuccessAfterRetries(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -97,7 +97,7 @@ func TestWithRetry_SuccessAfterRetries(t *testing.T) {
 	assert.Less(t, elapsed, 1*time.Second)                 // But not too long
 }
 
-func TestWithRetry_MaxRetriesExceeded(t *testing.T) {
+func TestWithRetryMaxRetriesExceeded(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -133,7 +133,7 @@ func TestWithRetry_MaxRetriesExceeded(t *testing.T) {
 	assert.Contains(t, maxRetriesErr.Error(), "failed after 2 retries")
 }
 
-func TestWithRetry_NonRetryableError(t *testing.T) {
+func TestWithRetryNonRetryableError(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -160,7 +160,7 @@ func TestWithRetry_NonRetryableError(t *testing.T) {
 	assert.Equal(t, nonRetryableErr, err)
 }
 
-func TestWithRetry_ContextCancellation(t *testing.T) {
+func TestWithRetryContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -370,7 +370,7 @@ func TestWrapTransientError(t *testing.T) {
 	})
 }
 
-func TestTransientAzureError_IsRetryable(t *testing.T) {
+func TestTransientAzureErrorIsRetryable(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

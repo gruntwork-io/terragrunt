@@ -179,108 +179,145 @@ type AzureErrorMetrics struct { // nolint: govet
 	IsRetryable    bool                   `json:"is_retryable"`              // 1-byte aligned (bool)
 }
 
-// ClassifyError determines the classification of an Azure error for telemetry purposes
-func ClassifyError(err error) ErrorClassification {
-	if err == nil {
-		return ""
-	}
-
-	errStr := strings.ToLower(err.Error())
-
-	if errStr == "" {
-		return ErrorClassUnknown
-	}
-
+// classifyConfigurationError checks if the error is a configuration error.
+func classifyConfigurationError(errStr string) ErrorClassification {
 	if strings.Contains(errStr, "missing") &&
 		(strings.Contains(errStr, "subscription") || strings.Contains(errStr, "location") || strings.Contains(errStr, "resource group")) {
 		return ErrorClassConfiguration
 	}
 
-	if strings.Contains(errStr, "validation") ||
-		strings.Contains(errStr, "parameter must") ||
-		strings.Contains(errStr, "name validation") ||
-		strings.Contains(errStr, "invalid parameter") ||
-		strings.Contains(errStr, "must be between") {
-		return ErrorClassValidation
+	return ""
+}
+
+// classifyValidationError checks if the error is a validation error.
+func classifyValidationError(errStr string) ErrorClassification {
+	validationPatterns := []string{"validation", "parameter must", "name validation", "invalid parameter", "must be between"}
+	for _, pattern := range validationPatterns {
+		if strings.Contains(errStr, pattern) {
+			return ErrorClassValidation
+		}
 	}
 
-	azureErr := azurehelper.ConvertAzureError(err)
-	if azureErr != nil {
-		status := azureErr.StatusCode
-		code := strings.ToLower(azureErr.ErrorCode)
-		message := strings.ToLower(azureErr.Message)
+	return ""
+}
 
-		switch status {
-		case http.StatusUnauthorized, http.StatusForbidden:
-			if strings.Contains(message, "permission") || strings.Contains(message, "access denied") {
-				return ErrorClassPermissions
-			}
-
-			return ErrorClassAuthentication
-		case http.StatusNotFound:
-			return ErrorClassResourceNotFound
-		case http.StatusTooManyRequests:
-			if strings.Contains(code, "quota") || strings.Contains(message, "quota") || strings.Contains(message, "limit") {
-				return ErrorClassQuotaLimits
-			}
-
-			return ErrorClassTransient
-		case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			return ErrorClassTransient
+// classifyAzureStatusCode classifies an error based on HTTP status code.
+func classifyAzureStatusCode(status int, code, message string) ErrorClassification {
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		if strings.Contains(message, "permission") || strings.Contains(message, "access denied") {
+			return ErrorClassPermissions
 		}
 
-		switch code {
-		case "storageaccountnotfound", "accountnotfound", "blobnotfound", "resourcegroupnotfound":
+		return ErrorClassAuthentication
+	case http.StatusNotFound:
+		return ErrorClassResourceNotFound
+	case http.StatusTooManyRequests:
+		if strings.Contains(code, "quota") || strings.Contains(message, "quota") || strings.Contains(message, "limit") {
+			return ErrorClassQuotaLimits
+		}
+
+		return ErrorClassTransient
+	case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return ErrorClassTransient
+	}
+
+	return ""
+}
+
+// classifyAzureErrorCode classifies an error based on Azure error code.
+func classifyAzureErrorCode(code string) ErrorClassification {
+	notFoundCodes := []string{"storageaccountnotfound", "accountnotfound", "blobnotfound", "resourcegroupnotfound", "containernotfound"}
+	for _, c := range notFoundCodes {
+		if code == c {
 			return ErrorClassResourceNotFound
-		case "containernotfound":
-			return ErrorClassResourceNotFound
-		case "authorizationfailed", "forbidden", "unauthorized", "insufficientaccountpermissions", "accessdenied":
+		}
+	}
+
+	permissionCodes := []string{"authorizationfailed", "forbidden", "unauthorized", "insufficientaccountpermissions", "accessdenied"}
+	for _, c := range permissionCodes {
+		if code == c {
 			return ErrorClassPermissions
-		case "quotaexceeded", "capacitylimitexceeded", "requestrateperhourlimitexceeded":
+		}
+	}
+
+	quotaCodes := []string{"quotaexceeded", "capacitylimitexceeded", "requestrateperhourlimitexceeded"}
+	for _, c := range quotaCodes {
+		if code == c {
 			return ErrorClassQuotaLimits
 		}
 	}
 
-	if strings.Contains(errStr, "permission denied") ||
-		strings.Contains(errStr, "access denied") ||
-		strings.Contains(errStr, "insufficient access") ||
-		strings.Contains(errStr, "insufficient permission") ||
-		strings.Contains(errStr, "insufficient privileges") ||
-		strings.Contains(errStr, "rbac") ||
-		strings.Contains(errStr, "role assignment") {
-		return ErrorClassPermissions
+	return ""
+}
+
+// classifyAzureResponseError classifies an Azure response error.
+func classifyAzureResponseError(err error) ErrorClassification {
+	azureErr := azurehelper.ConvertAzureError(err)
+	if azureErr == nil {
+		return ""
 	}
 
-	if strings.Contains(errStr, "authentication") ||
-		strings.Contains(errStr, "unauthorized") ||
-		strings.Contains(errStr, "invalid credentials") ||
-		strings.Contains(errStr, "invalid token") ||
-		strings.Contains(errStr, "token expired") ||
-		strings.Contains(errStr, "auth failed") ||
-		strings.Contains(errStr, "forbidden") {
-		return ErrorClassAuthentication
+	code := strings.ToLower(azureErr.ErrorCode)
+	message := strings.ToLower(azureErr.Message)
+
+	if class := classifyAzureStatusCode(azureErr.StatusCode, code, message); class != "" {
+		return class
 	}
 
-	if strings.Contains(errStr, "quota") ||
-		strings.Contains(errStr, "limit exceeded") ||
-		strings.Contains(errStr, "maximum number") ||
-		strings.Contains(errStr, "capacity limit") {
-		return ErrorClassQuotaLimits
+	return classifyAzureErrorCode(code)
+}
+
+// classifyPermissionPatterns checks if the error matches permission-related patterns.
+func classifyPermissionPatterns(errStr string) ErrorClassification {
+	patterns := []string{"permission denied", "access denied", "insufficient access", "insufficient permission", "insufficient privileges", "rbac", "role assignment"}
+	for _, pattern := range patterns {
+		if strings.Contains(errStr, pattern) {
+			return ErrorClassPermissions
+		}
 	}
 
-	if strings.Contains(errStr, "http 429") ||
-		strings.Contains(errStr, "too many requests") ||
-		strings.Contains(errStr, "http 500") ||
-		strings.Contains(errStr, "http 503") ||
-		strings.Contains(errStr, "service unavailable") ||
-		strings.Contains(errStr, "internal server error") ||
-		strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "transient") ||
-		strings.Contains(errStr, "temporary failure") ||
-		strings.Contains(errStr, "retry") {
-		return ErrorClassTransient
+	return ""
+}
+
+// classifyAuthenticationPatterns checks if the error matches authentication-related patterns.
+func classifyAuthenticationPatterns(errStr string) ErrorClassification {
+	patterns := []string{"authentication", "unauthorized", "invalid credentials", "invalid token", "token expired", "auth failed", "forbidden"}
+	for _, pattern := range patterns {
+		if strings.Contains(errStr, pattern) {
+			return ErrorClassAuthentication
+		}
 	}
 
+	return ""
+}
+
+// classifyQuotaPatterns checks if the error matches quota-related patterns.
+func classifyQuotaPatterns(errStr string) ErrorClassification {
+	patterns := []string{"quota", "limit exceeded", "maximum number", "capacity limit"}
+	for _, pattern := range patterns {
+		if strings.Contains(errStr, pattern) {
+			return ErrorClassQuotaLimits
+		}
+	}
+
+	return ""
+}
+
+// classifyTransientPatterns checks if the error matches transient error patterns.
+func classifyTransientPatterns(errStr string) ErrorClassification {
+	patterns := []string{"http 429", "too many requests", "http 500", "http 503", "service unavailable", "internal server error", "timeout", "transient", "temporary failure", "retry"}
+	for _, pattern := range patterns {
+		if strings.Contains(errStr, pattern) {
+			return ErrorClassTransient
+		}
+	}
+
+	return ""
+}
+
+// classifyResourcePatterns checks if the error matches resource-related patterns.
+func classifyResourcePatterns(errStr string) ErrorClassification {
 	if strings.Contains(errStr, "not found") || strings.Contains(errStr, "does not exist") {
 		return ErrorClassResourceNotFound
 	}
@@ -293,6 +330,11 @@ func ClassifyError(err error) ErrorClassification {
 		return ErrorClassContainer
 	}
 
+	return ""
+}
+
+// classifyFromErrorUtil maps errorutil classifications to Azure error classifications.
+func classifyFromErrorUtil(err error, errStr string) ErrorClassification {
 	classification := errorutil.ClassifyError(err)
 
 	switch classification {
@@ -325,6 +367,53 @@ func ClassifyError(err error) ErrorClassification {
 	}
 
 	return ErrorClassUserInput
+}
+
+// ClassifyError determines the classification of an Azure error for telemetry purposes
+func ClassifyError(err error) ErrorClassification {
+	if err == nil {
+		return ""
+	}
+
+	errStr := strings.ToLower(err.Error())
+	if errStr == "" {
+		return ErrorClassUnknown
+	}
+
+	// Try classification in order of specificity
+	classifiers := []func(string) ErrorClassification{
+		classifyConfigurationError,
+		classifyValidationError,
+	}
+
+	for _, classifier := range classifiers {
+		if class := classifier(errStr); class != "" {
+			return class
+		}
+	}
+
+	// Check Azure-specific error response
+	if class := classifyAzureResponseError(err); class != "" {
+		return class
+	}
+
+	// Check error string patterns
+	patternClassifiers := []func(string) ErrorClassification{
+		classifyPermissionPatterns,
+		classifyAuthenticationPatterns,
+		classifyQuotaPatterns,
+		classifyTransientPatterns,
+		classifyResourcePatterns,
+	}
+
+	for _, classifier := range patternClassifiers {
+		if class := classifier(errStr); class != "" {
+			return class
+		}
+	}
+
+	// Fall back to errorutil classification
+	return classifyFromErrorUtil(err, errStr)
 }
 
 // LogError provides structured logging for Azure errors with telemetry collection

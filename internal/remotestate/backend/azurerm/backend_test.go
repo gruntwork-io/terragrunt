@@ -235,7 +235,7 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 				"create_storage_account_if_not_exists": true,
 				"use_azuread_auth":                     true,
 			},
-			expectError: true, // Will fail in unit test because it actually tries to connect to Azure
+			expectError: true,                   // Will fail in unit test because it actually tries to connect to Azure
 			errorMsg:    "SubscriptionNotFound", // Expected error when using dummy subscription ID in unit test
 		},
 		{
@@ -735,55 +735,47 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, azureCfg)
 
-			// Check if basic options are set correctly
-			if v, exists := tc.expectedSAConfig["EnableVersioning"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.EnableVersioning)
+			if tc.skipExtendedChecks {
+				return
 			}
 
-			if v, exists := tc.expectedSAConfig["AllowBlobPublicAccess"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.AllowBlobPublicAccess)
-			}
-
-			// if v, exists := tc.expectedSAConfig["EnableHierarchicalNS"]; exists && !tc.skipExtendedChecks {
-			//     assert.Equal(t, v, azureCfg.StorageAccountConfig.EnableHierarchicalNS)
-			// }
-
-			// Check storage account kind and tier if specified
-			if v, exists := tc.expectedSAConfig["AccountKind"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.AccountKind)
-			}
-
-			if v, exists := tc.expectedSAConfig["AccountTier"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.AccountTier)
-			}
-
-			if v, exists := tc.expectedSAConfig["AccessTier"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.AccessTier)
-			}
-
-			if v, exists := tc.expectedSAConfig["ReplicationType"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.ReplicationType)
-			}
-
-			if v, exists := tc.expectedSAConfig["Location"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.Location)
-			}
-
-			if v, exists := tc.expectedSAConfig["ResourceGroupName"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.ResourceGroupName)
-			}
-
-			// Check storage account tags if specified
-			if tags, exists := tc.expectedSAConfig["StorageAccountTags"].(map[string]string); exists && !tc.skipExtendedChecks {
-				require.Len(t, azureCfg.StorageAccountConfig.StorageAccountTags, len(tags))
-
-				for k, v := range tags {
-					actualValue, ok := azureCfg.StorageAccountConfig.StorageAccountTags[k]
-					assert.True(t, ok, "Tag %s not found", k)
-					assert.Equal(t, v, actualValue, "Tag %s value mismatch", k)
-				}
-			}
+			assertStorageAccountConfigFields(t, tc.expectedSAConfig, azureCfg.StorageAccountConfig)
 		})
+	}
+}
+
+// assertStorageAccountConfigFields validates storage account config fields against expected values.
+func assertStorageAccountConfigFields(t *testing.T, expected map[string]interface{}, actual azurerm.StorageAccountBootstrapConfig) {
+	t.Helper()
+
+	// Map of field names to their actual values
+	fieldValues := map[string]interface{}{
+		"EnableVersioning":      actual.EnableVersioning,
+		"AllowBlobPublicAccess": actual.AllowBlobPublicAccess,
+		"AccountKind":           actual.AccountKind,
+		"AccountTier":           actual.AccountTier,
+		"AccessTier":            actual.AccessTier,
+		"ReplicationType":       actual.ReplicationType,
+		"Location":              actual.Location,
+		"ResourceGroupName":     actual.ResourceGroupName,
+	}
+
+	// Check scalar fields
+	for fieldName, actualValue := range fieldValues {
+		if expectedValue, exists := expected[fieldName]; exists {
+			assert.Equal(t, expectedValue, actualValue, "Field %s mismatch", fieldName)
+		}
+	}
+
+	// Check storage account tags if specified
+	if expectedTags, exists := expected["StorageAccountTags"].(map[string]string); exists {
+		require.Len(t, actual.StorageAccountTags, len(expectedTags))
+
+		for k, v := range expectedTags {
+			actualValue, ok := actual.StorageAccountTags[k]
+			assert.True(t, ok, "Tag %s not found", k)
+			assert.Equal(t, v, actualValue, "Tag %s value mismatch", k)
+		}
 	}
 }
 
@@ -881,7 +873,7 @@ func TestContainerNameValidation(t *testing.T) {
 }
 
 // Additional comprehensive error path tests for container name validation edge cases
-func TestContainerNameValidation_AdditionalEdgeCases(t *testing.T) {
+func TestContainerNameValidationAdditionalEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	//nolint: govet
@@ -996,7 +988,7 @@ func TestContainerNameValidation_AdditionalEdgeCases(t *testing.T) {
 }
 
 // Test configuration dependency validation for Bootstrap method
-func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
+func TestBootstrapConfigurationDependencyValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
@@ -1107,7 +1099,9 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 }
 
 // Test authentication configuration error paths in Bootstrap
-func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
+//
+//nolint:paralleltest // Cannot use t.Parallel() here because we use t.Setenv()
+func TestBootstrapAuthenticationConfigurationErrors(t *testing.T) {
 	// Note: Cannot use t.Parallel() here because we use t.Setenv()
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
@@ -1188,38 +1182,51 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 
+		//nolint:paralleltest // Cannot use t.Parallel() here because we use t.Setenv()
 		t.Run(tc.name, func(t *testing.T) {
-			// Note: Cannot use t.Parallel() here because we use t.Setenv()
-
 			// Set environment variables for the test
-			if tc.envVars != nil {
-				for key, value := range tc.envVars {
-					if value == "" {
-						t.Setenv(key, "")
-					} else {
-						t.Setenv(key, value)
-					}
-				}
-			}
+			setTestEnvVars(t, tc.envVars)
 
 			err := b.Bootstrap(t.Context(), l, tc.config, opts)
-			if tc.expectError {
-				require.Error(t, err)
-
-				if tc.expectedErrorType != nil {
-					require.ErrorAs(t, err, tc.expectedErrorType)
-				}
-
-				if tc.expectedErrorString != "" {
-					require.Contains(t, err.Error(), tc.expectedErrorString)
-				}
-			}
+			assertAuthConfigError(t, err, tc.expectError, tc.expectedErrorType, tc.expectedErrorString)
 		})
 	}
 }
 
+// setTestEnvVars sets environment variables for a test.
+func setTestEnvVars(t *testing.T, envVars map[string]string) {
+	t.Helper()
+
+	if envVars == nil {
+		return
+	}
+
+	for key, value := range envVars {
+		t.Setenv(key, value)
+	}
+}
+
+// assertAuthConfigError validates authentication configuration errors.
+func assertAuthConfigError(t *testing.T, err error, expectError bool, expectedErrorType interface{}, expectedErrorString string) {
+	t.Helper()
+
+	if !expectError {
+		return
+	}
+
+	require.Error(t, err)
+
+	if expectedErrorType != nil {
+		require.ErrorAs(t, err, expectedErrorType)
+	}
+
+	if expectedErrorString != "" {
+		require.Contains(t, err.Error(), expectedErrorString)
+	}
+}
+
 // Test error paths for Delete method
-func TestDelete_ErrorPathsDetailed(t *testing.T) {
+func TestDeleteErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
@@ -1312,7 +1319,7 @@ func TestDelete_ErrorPathsDetailed(t *testing.T) {
 }
 
 // Test error paths for DeleteContainer method
-func TestDeleteContainer_ErrorPathsDetailed(t *testing.T) {
+func TestDeleteContainerErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
@@ -1381,7 +1388,7 @@ func TestDeleteContainer_ErrorPathsDetailed(t *testing.T) {
 }
 
 // Test error paths for Migrate method
-func TestMigrate_ErrorPathsDetailed(t *testing.T) {
+func TestMigrateErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
@@ -1464,7 +1471,7 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 
 // TestNeedsBootstrap_ConfigValidation tests configuration validation in NeedsBootstrap
 // This test focuses only on config parsing errors that happen before Azure API calls
-func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
+func TestNeedsBootstrapConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
@@ -1563,7 +1570,7 @@ func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
 }
 
 // TestDeleteStorageAccount_ConfigValidation tests additional configuration validation for delete operations
-func TestDeleteStorageAccount_ConfigValidation(t *testing.T) {
+func TestDeleteStorageAccountConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()

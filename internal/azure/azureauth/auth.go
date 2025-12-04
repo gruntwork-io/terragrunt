@@ -529,13 +529,16 @@ func ValidateAuthConfig(config *AuthConfig) error {
 
 	if len(errs) > 0 {
 		// Combine all errors into a single error message
-		errorMsg := "Azure authentication config validation failed:"
+		var builder strings.Builder
+
+		builder.WriteString("Azure authentication config validation failed:")
 
 		for _, err := range errs {
-			errorMsg += "\n- " + err.Error()
+			builder.WriteString("\n- ")
+			builder.WriteString(err.Error())
 		}
 
-		return errors.Errorf("%s", errorMsg)
+		return errors.Errorf("%s", builder.String())
 	}
 
 	return nil

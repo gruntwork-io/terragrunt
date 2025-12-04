@@ -39,6 +39,9 @@ const (
 	defaultMaxCacheSize         = 100
 	defaultAuthCacheTimeoutSecs = 3600
 	defaultRetryMaxAttempts     = 3
+
+	// operationContainerExistenceCheck is the operation name for container existence checks.
+	operationContainerExistenceCheck = "container existence check"
 )
 
 var _ backend.Backend = new(Backend)
@@ -213,7 +216,7 @@ func NewBackendFromRemoteStateConfig(remoteStateConfig backend.Config, opts *opt
 }
 
 // extractBackendConfigFromRemoteState extracts backend configuration from remote state config
-func extractBackendConfigFromRemoteState(remoteStateConfig backend.Config, cfg *BackendConfig, opts *options.TerragruntOptions) {
+func extractBackendConfigFromRemoteState(remoteStateConfig backend.Config, cfg *BackendConfig, _ *options.TerragruntOptions) {
 	// Set retry configuration based on defaults
 	cfg.RetryConfig = &interfaces.RetryConfig{
 		MaxRetries: options.DefaultRetryMaxAttempts,
@@ -286,81 +289,28 @@ func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
 	return Config(config).FilterOutTerragruntKeys()
 }
 
-// Bootstrap creates the Azure Storage container if it doesn't exist.
-func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
-	startTime := time.Now()
-	tel := backend.getTelemetry(l)
-	// Also get the error handler - this will initialize telemetry as well
-	errorHandler := backend.getErrorHandler(l)
-
-	// Parse and validate the Azure config
-	var azureCfg *ExtendedRemoteStateConfigAzurerm
-
-	err := errorHandler.WithErrorHandling(
-		ctx,
-		azureutil.OperationBootstrap,
-		"config",
-		"azurerm",
-		func() error {
-			var configErr error
-
-			azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
-
-			return configErr
-		},
-	)
-	if err != nil {
-		return err
+// validateStorageAccountCreationConfig validates required fields for storage account creation.
+func validateStorageAccountCreationConfig(backendConfig backend.Config) error {
+	createIfNotExists, ok := backendConfig["create_storage_account_if_not_exists"].(bool)
+	if !ok || !createIfNotExists {
+		return nil
 	}
 
-	// Validate container name before any Azure operations
-	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
-
-	err = errorHandler.WithErrorHandling(
-		ctx,
-		azureutil.OperationValidation,
-		"container",
-		containerName,
-		func() error {
-			return ValidateContainerName(containerName)
-		},
-	)
-	if err != nil {
-		return err
+	subscriptionID, hasSubscription := backendConfig["subscription_id"].(string)
+	if !hasSubscription || subscriptionID == "" {
+		return NewMissingSubscriptionIDError()
 	}
 
-	// Check upfront if storage account creation is requested and validate required fields
-	if createIfNotExists, ok := backendConfig["create_storage_account_if_not_exists"].(bool); ok && createIfNotExists {
-		subscriptionID, hasSubscription := backendConfig["subscription_id"].(string)
-		if !hasSubscription || subscriptionID == "" {
-			return NewMissingSubscriptionIDError()
-		}
-
-		location, hasLocation := backendConfig["location"].(string)
-		if !hasLocation || location == "" {
-			return NewMissingLocationError()
-		}
+	location, hasLocation := backendConfig["location"].(string)
+	if !hasLocation || location == "" {
+		return NewMissingLocationError()
 	}
 
-	// Use the new centralized authentication package to handle auth configuration
-	authConfig, err := azureauth.GetAuthConfig(ctx, l, backendConfig)
-	if err != nil {
-		return err
-	}
-	// Validate the authentication configuration
-	if err := azureauth.ValidateAuthConfig(authConfig); err != nil {
-		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
-			ErrorType:      "AuthValidationError",
-			Classification: ErrorClassAuthentication,
-			Operation:      OperationBootstrap,
-			AuthMethod:     string(authConfig.Method),
-		})
+	return nil
+}
 
-		return err
-	}
-
-	// Update the Azure config with the normalized authentication values
-	// This ensures consistency between our new auth package and the existing config
+// syncAuthConfigWithAzureConfig updates the Azure config with normalized authentication values.
+func syncAuthConfigWithAzureConfig(l log.Logger, authConfig *azureauth.AuthConfig, azureCfg *ExtendedRemoteStateConfigAzurerm, backendConfig backend.Config) {
 	if authConfig.UseAzureAD && !azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth {
 		azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth = true
 		backendConfig["use_azuread_auth"] = true
@@ -368,109 +318,81 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		l.Info("Azure AD authentication is now the default and required authentication method")
 	}
 
-	// If using the new auth package detected credentials from environment variables,
-	// update the config to reflect this
-	if authConfig.UseEnvironment {
-		azureCfg.RemoteStateConfigAzurerm.SubscriptionID = authConfig.SubscriptionID
-		azureCfg.RemoteStateConfigAzurerm.TenantID = authConfig.TenantID
-		azureCfg.RemoteStateConfigAzurerm.ClientID = authConfig.ClientID
-		azureCfg.RemoteStateConfigAzurerm.ClientSecret = authConfig.ClientSecret
-		azureCfg.RemoteStateConfigAzurerm.SasToken = authConfig.SasToken
-
-		// Update the backend config as well for consistency
-		if authConfig.SubscriptionID != "" {
-			backendConfig["subscription_id"] = authConfig.SubscriptionID
-		}
+	if !authConfig.UseEnvironment {
+		return
 	}
 
-	// ensure that only one goroutine can initialize storage
-	mu := backend.GetBucketMutex(azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+	azureCfg.RemoteStateConfigAzurerm.SubscriptionID = authConfig.SubscriptionID
+	azureCfg.RemoteStateConfigAzurerm.TenantID = authConfig.TenantID
+	azureCfg.RemoteStateConfigAzurerm.ClientID = authConfig.ClientID
+	azureCfg.RemoteStateConfigAzurerm.ClientSecret = authConfig.ClientSecret
+	azureCfg.RemoteStateConfigAzurerm.SasToken = authConfig.SasToken
 
-	mu.Lock()
-	defer mu.Unlock()
+	if authConfig.SubscriptionID != "" {
+		backendConfig["subscription_id"] = authConfig.SubscriptionID
+	}
+}
 
-	if backend.IsConfigInited(azureCfg) {
-		l.Debugf("%s storage account %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-
-		// Log successful completion (already initialized)
-		tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
-			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
-			"status":          "already_initialized",
-		})
-
+// bootstrapStorageAccountIfNeeded handles storage account creation if configured.
+func (backend *Backend) bootstrapStorageAccountIfNeeded(ctx context.Context, l log.Logger, tel *AzureTelemetryCollector, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
+	if !azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
 		return nil
 	}
 
-	// Check if we need to handle storage account creation first
-	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
-		// Validate required fields before attempting any Azure operations
-		if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-			err := NewMissingSubscriptionIDError()
-			tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
-				ErrorType:      "ConfigurationError",
-				Classification: ErrorClassConfiguration,
-				Operation:      OperationBootstrap,
-				ResourceType:   "subscription",
-			})
-
-			return err
-		}
-
-		if azureCfg.StorageAccountConfig.Location == "" {
-			err := NewMissingLocationError()
-			tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
-				ErrorType:      "ConfigurationError",
-				Classification: ErrorClassConfiguration,
-				Operation:      OperationBootstrap,
-				ResourceType:   "location",
-			})
-
-			return err
-		}
-
-		// Use retry logic for storage account creation
-		retryConfig := DefaultRetryConfig()
-
-		err = WithRetry(ctx, l, "storage account bootstrap", retryConfig, func() error {
-			return backend.bootstrapStorageAccount(ctx, l, azureCfg)
-		})
-		if err != nil {
-			wrappedErr := WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-			tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
-				ErrorType:      "StorageAccountError",
-				Classification: ClassifyError(err),
-				Operation:      OperationBootstrap,
-				ResourceType:   "storage_account",
-				ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-				Location:       azureCfg.StorageAccountConfig.Location,
-			})
-
-			return wrappedErr
-		}
-	}
-
-	// Get the blob service using our helper - do this after storage account is created
-	client, err := backend.getBlobService(ctx, l, azureCfg, opts)
-	if err != nil {
+	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
+		err := NewMissingSubscriptionIDError()
 		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
-			ErrorType:      "ServiceCreationError",
-			Classification: ErrorClassAuthentication,
+			ErrorType:      "ConfigurationError",
+			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
-			ResourceType:   "blob_service",
+			ResourceType:   "subscription",
 		})
 
 		return err
 	}
 
-	// Create the container if necessary with retry logic
+	if azureCfg.StorageAccountConfig.Location == "" {
+		err := NewMissingLocationError()
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ConfigurationError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationBootstrap,
+			ResourceType:   "location",
+		})
+
+		return err
+	}
+
 	retryConfig := DefaultRetryConfig()
 
-	err = WithRetry(ctx, l, "container creation", retryConfig, func() error {
+	err := WithRetry(ctx, l, "storage account bootstrap", retryConfig, func() error {
+		return backend.bootstrapStorageAccount(ctx, l, azureCfg)
+	})
+	if err != nil {
+		wrappedErr := WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+		tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "StorageAccountError",
+			Classification: ClassifyError(err),
+			Operation:      OperationBootstrap,
+			ResourceType:   "storage_account",
+			ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+			Location:       azureCfg.StorageAccountConfig.Location,
+		})
+
+		return wrappedErr
+	}
+
+	return nil
+}
+
+// createContainerIfNeeded creates the container with retry logic.
+func (backend *Backend) createContainerIfNeeded(ctx context.Context, l log.Logger, tel *AzureTelemetryCollector, azureCfg *ExtendedRemoteStateConfigAzurerm, client interfaces.BlobService) error {
+	retryConfig := DefaultRetryConfig()
+
+	err := WithRetry(ctx, l, "container creation", retryConfig, func() error {
 		createErr := client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 		if createErr != nil {
-			// Wrap as transient error if it matches patterns
 			return WrapTransientError(createErr, "container creation")
 		}
 
@@ -490,9 +412,105 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return wrappedErr
 	}
 
+	return nil
+}
+
+// Bootstrap creates the Azure Storage container if it doesn't exist.
+func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	startTime := time.Now()
+	tel := backend.getTelemetry(l)
+	errorHandler := backend.getErrorHandler(l)
+
+	// Parse and validate the Azure config
+	var azureCfg *ExtendedRemoteStateConfigAzurerm
+
+	err := errorHandler.WithErrorHandling(ctx, azureutil.OperationBootstrap, "config", "azurerm", func() error {
+		var configErr error
+
+		azureCfg, configErr = Config(backendConfig).ExtendedAzureConfig()
+
+		return configErr
+	})
+	if err != nil {
+		return err
+	}
+
+	// Validate container name
+	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
+
+	err = errorHandler.WithErrorHandling(ctx, azureutil.OperationValidation, "container", containerName, func() error {
+		return ValidateContainerName(containerName)
+	})
+	if err != nil {
+		return err
+	}
+
+	// Validate storage account creation config upfront
+	if err := validateStorageAccountCreationConfig(backendConfig); err != nil {
+		return err
+	}
+
+	// Get and validate authentication config
+	authConfig, err := azureauth.GetAuthConfig(ctx, l, backendConfig)
+	if err != nil {
+		return err
+	}
+
+	if err := azureauth.ValidateAuthConfig(authConfig); err != nil {
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "AuthValidationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationBootstrap,
+			AuthMethod:     string(authConfig.Method),
+		})
+
+		return err
+	}
+
+	syncAuthConfigWithAzureConfig(l, authConfig, azureCfg, backendConfig)
+
+	// Ensure single goroutine initialization
+	mu := backend.GetBucketMutex(azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if backend.IsConfigInited(azureCfg) {
+		l.Debugf("%s storage account %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+		tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
+			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"status":          "already_initialized",
+		})
+
+		return nil
+	}
+
+	// Bootstrap storage account if needed
+	if err := backend.bootstrapStorageAccountIfNeeded(ctx, l, tel, azureCfg); err != nil {
+		return err
+	}
+
+	// Get blob service
+	client, err := backend.getBlobService(ctx, l, azureCfg, opts)
+	if err != nil {
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ServiceCreationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationBootstrap,
+			ResourceType:   "blob_service",
+		})
+
+		return err
+	}
+
+	// Create container if needed
+	if err := backend.createContainerIfNeeded(ctx, l, tel, azureCfg, client); err != nil {
+		return err
+	}
+
 	backend.MarkConfigInited(azureCfg)
 
-	// Log successful completion
 	tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
 		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
@@ -504,10 +522,54 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	return nil
 }
 
+// checkContainerExistence checks if a container exists with retry logic.
+func (backend *Backend) checkContainerExistence(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm, opts *options.TerragruntOptions) (bool, error) {
+	var containerExists bool
+
+	retryConfig := DefaultRetryConfig()
+
+	err := WithRetry(ctx, l, operationContainerExistenceCheck, retryConfig, func() error {
+		blobService, serviceErr := backend.getBlobService(ctx, l, azureCfg, opts)
+		if serviceErr != nil {
+			return fmt.Errorf("failed to get blob service: %w", serviceErr)
+		}
+
+		exists, existsErr := blobService.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+		if existsErr != nil {
+			return backend.handleContainerExistenceError(existsErr, &containerExists)
+		}
+
+		containerExists = exists
+
+		return nil
+	})
+
+	return containerExists, err
+}
+
+// handleContainerExistenceError processes errors from container existence check.
+func (backend *Backend) handleContainerExistenceError(err error, containerExists *bool) error {
+	azureErr := azurehelper.ConvertAzureError(err)
+	if azureErr == nil {
+		return WrapTransientError(err, operationContainerExistenceCheck)
+	}
+
+	if azureutil.IsPermissionError(err) {
+		return err
+	}
+
+	if azureErr.StatusCode == 404 || azureErr.ErrorCode == "StorageAccountNotFound" {
+		*containerExists = false
+
+		return nil
+	}
+
+	return WrapTransientError(err, operationContainerExistenceCheck)
+}
+
 // NeedsBootstrap checks if Azure Storage container needs initialization.
 func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	startTime := time.Now()
-
 	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
@@ -521,9 +583,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return false, err
 	}
 
-	// Skip initialization if marked as already initialized
 	if backend.IsConfigInited(azureCfg) {
-		// Log completion - already initialized
 		tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
 			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
@@ -546,10 +606,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return false, err
 	}
 
-	// Check if storage account bootstrap is requested
 	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
-		// We will always return true if CreateStorageAccountIfNotExists is true
-		// The actual check will be done in Bootstrap() to reduce duplicate API calls
 		tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
 			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
@@ -560,45 +617,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return true, nil
 	}
 
-	// Check if container exists with retry logic
-	var containerExists bool
-
-	retryConfig := DefaultRetryConfig()
-
-	err = WithRetry(ctx, l, "container existence check", retryConfig, func() error {
-		// Get the blob service from the container
-		blobService, err := backend.getBlobService(ctx, l, azureCfg, opts)
-		if err != nil {
-			return fmt.Errorf("failed to get blob service: %w", err)
-		}
-
-		exists, existsErr := blobService.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
-		if existsErr != nil {
-			// Try to convert to Azure error
-			azureErr := azurehelper.ConvertAzureError(existsErr)
-
-			// Check for permission errors first - these should not be retried
-			if azureErr != nil {
-				if azureutil.IsPermissionError(existsErr) {
-					// Permission errors should bubble up, not be retried
-					return existsErr
-				}
-			}
-
-			// If the storage account doesn't exist, we need bootstrap - not a transient error
-			if azureErr != nil && (azureErr.StatusCode == 404 || azureErr.ErrorCode == "StorageAccountNotFound") {
-				containerExists = false
-				return nil // Not an error, just doesn't exist
-			}
-
-			// Wrap as transient error if it matches patterns
-			return WrapTransientError(existsErr, "container existence check")
-		}
-
-		containerExists = exists
-
-		return nil
-	})
+	containerExists, err := backend.checkContainerExistence(ctx, l, azureCfg, opts)
 	if err != nil {
 		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
 			ErrorType:      "ContainerExistenceCheckError",
@@ -613,19 +632,19 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 	needsBootstrap := !containerExists
 
-	// Log completion
+	reason := "container_exists"
+	if needsBootstrap {
+		reason = "container_not_exists"
+	}
+
 	tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
 		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
 		"needs_bootstrap": needsBootstrap,
-		"reason":          map[bool]string{true: "container_not_exists", false: "container_exists"}[needsBootstrap],
+		"reason":          reason,
 	})
 
-	if !containerExists {
-		return true, nil
-	}
-
-	return false, nil
+	return needsBootstrap, nil
 }
 
 // Delete deletes the remote state file from Azure Storage.
@@ -1158,8 +1177,6 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 // bootstrapStorageAccount handles creating or checking a storage account
 func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
 	errorHandler := backend.getErrorHandler(l)
-	tel := backend.getTelemetry(l)
-	startTime := time.Now()
 
 	// Use error handler for telemetry and context
 	return errorHandler.WithErrorHandling(
@@ -1168,137 +1185,176 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		"storage_account",
 		azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		func() error {
-			// Step 1: Validate storage configuration
-			if err := backend.validateStorageConfig(azureCfg); err != nil {
-				tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-					ErrorType:      "ConfigValidationError",
-					Classification: ErrorClassConfiguration,
-					Operation:      OperationBootstrap,
-					ResourceType:   "storage_account",
-					ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				})
-
-				return err
-			}
-
-			// Step 2: Initialize required services from container
-			storageConfig := map[string]interface{}{
-				"subscription_id":      azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-				"resource_group_name":  azureCfg.StorageAccountConfig.ResourceGroupName,
-				"storage_account_name": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				"location":             azureCfg.StorageAccountConfig.Location,
-				"use_azuread_auth":     azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth,
-				"enable_versioning":    azureCfg.StorageAccountConfig.EnableVersioning,
-				"account_kind":         azureCfg.StorageAccountConfig.AccountKind,
-				"account_tier":         azureCfg.StorageAccountConfig.AccountTier,
-				"access_tier":          azureCfg.StorageAccountConfig.AccessTier,
-				"replication_type":     azureCfg.StorageAccountConfig.ReplicationType,
-				"tags":                 azureCfg.StorageAccountConfig.StorageAccountTags,
-				// Skip storage account existence check during bootstrap when creating storage account
-				"skip_storage_account_existence_check": true,
-			}
-
-			// Get storage account service
-			storageService, err := backend.serviceContainer.GetStorageAccountService(ctx, l, storageConfig)
-			if err != nil {
-				tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-					ErrorType:      "ServiceCreationError",
-					Classification: ErrorClassConfiguration,
-					Operation:      OperationBootstrap,
-					ResourceType:   "storage_account",
-					ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				})
-
-				return err
-			}
-
-			// Get blob service for access verification
-			// Skip existence check since we're about to create the storage account if needed
-			blobService, err := backend.serviceContainer.GetBlobService(ctx, l, storageConfig)
-			if err != nil {
-				tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-					ErrorType:      "ServiceCreationError",
-					Classification: ErrorClassConfiguration,
-					Operation:      OperationBootstrap,
-					ResourceType:   "blob_service",
-					ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				})
-
-				return err
-			}
-
-			// Step 3: Ensure storage account exists (creates if needed)
-			if err := backend.ensureStorageAccountExists(ctx, l, storageService, azureCfg); err != nil {
-				tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-					ErrorType:      "StorageAccountCreationError",
-					Classification: ClassifyError(err),
-					Operation:      OperationBootstrap,
-					ResourceType:   "storage_account",
-					ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-					Location:       azureCfg.StorageAccountConfig.Location,
-				})
-
-				return err
-			}
-
-			// Step 4: Configure RBAC roles if using Azure AD auth
-			if azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth {
-				// Get the RBAC service from the container with the subscription ID
-				rbacService, err := backend.serviceContainer.GetRBACService(ctx, l, map[string]interface{}{
-					"subscriptionId": azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-				})
-				if err != nil {
-					l.Warnf("Failed to get RBAC service: %v", err)
-					// Log telemetry for RBAC service creation failure
-					tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-						ErrorType:      "RBACServiceError",
-						Classification: ErrorClassConfiguration,
-						Operation:      OperationBootstrap,
-						ResourceType:   "rbac",
-						ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-					})
-				} else {
-					// Try to assign roles but don't fail if it doesn't work
-					if err := backend.assignRBACRolesWithService(ctx, l, rbacService, storageService, azureCfg); err != nil {
-						l.Warnf("Failed to assign RBAC roles: %v", err)
-						// Don't fail the bootstrap process for RBAC errors
-						tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-							ErrorType:      "RBACAssignmentError",
-							Classification: ErrorClassPermissions,
-							Operation:      OperationBootstrap,
-							ResourceType:   "rbac",
-							ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-						})
-					}
-				}
-			}
-
-			l.Infof("Storage account %s exists and is configured", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-
-			// Step 5: Verify we can access the storage account
-			if err := backend.verifyStorageAccess(ctx, l, blobService, azureCfg); err != nil {
-				tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
-					ErrorType:      "AccessVerificationError",
-					Classification: ClassifyError(err),
-					Operation:      OperationBootstrap,
-					ResourceType:   "storage_account",
-					ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				})
-
-				return err
-			}
-
-			// Log successful completion
-			tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
-				"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				"resource_group":  azureCfg.StorageAccountConfig.ResourceGroupName,
-				"location":        azureCfg.StorageAccountConfig.Location,
-				"status":          "completed",
-			})
-
-			return nil
+			return backend.executeStorageBootstrap(ctx, l, azureCfg)
 		},
 	)
+}
+
+// executeStorageBootstrap performs the actual storage account bootstrap steps.
+func (backend *Backend) executeStorageBootstrap(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
+	tel := backend.getTelemetry(l)
+	startTime := time.Now()
+	storageAccountName := azureCfg.RemoteStateConfigAzurerm.StorageAccountName
+
+	// Step 1: Validate storage configuration
+	if err := backend.validateStorageConfig(azureCfg); err != nil {
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "ConfigValidationError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationBootstrap,
+			ResourceType:   "storage_account",
+			ResourceName:   storageAccountName,
+		})
+
+		return err
+	}
+
+	// Step 2: Initialize required services from container
+	storageService, blobService, err := backend.initBootstrapServices(ctx, l, tel, azureCfg)
+	if err != nil {
+		return err
+	}
+
+	// Step 3: Ensure storage account exists (creates if needed)
+	if err := backend.ensureStorageAccountExists(ctx, l, storageService, azureCfg); err != nil {
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "StorageAccountCreationError",
+			Classification: ClassifyError(err),
+			Operation:      OperationBootstrap,
+			ResourceType:   "storage_account",
+			ResourceName:   storageAccountName,
+			Location:       azureCfg.StorageAccountConfig.Location,
+		})
+
+		return err
+	}
+
+	// Step 4: Configure RBAC roles if using Azure AD auth
+	backend.configureRBACIfNeeded(ctx, l, tel, storageService, azureCfg)
+
+	l.Infof("Storage account %s exists and is configured", storageAccountName)
+
+	// Step 5: Verify we can access the storage account
+	if err := backend.verifyStorageAccess(ctx, l, blobService, azureCfg); err != nil {
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "AccessVerificationError",
+			Classification: ClassifyError(err),
+			Operation:      OperationBootstrap,
+			ResourceType:   "storage_account",
+			ResourceName:   storageAccountName,
+		})
+
+		return err
+	}
+
+	// Log successful completion
+	tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
+		"storage_account": storageAccountName,
+		"resource_group":  azureCfg.StorageAccountConfig.ResourceGroupName,
+		"location":        azureCfg.StorageAccountConfig.Location,
+		"status":          "completed",
+	})
+
+	return nil
+}
+
+// initBootstrapServices initializes storage and blob services for bootstrap.
+func (backend *Backend) initBootstrapServices(ctx context.Context, l log.Logger, tel *AzureTelemetryCollector, azureCfg *ExtendedRemoteStateConfigAzurerm) (interfaces.StorageAccountService, interfaces.BlobService, error) {
+	storageConfig := backend.buildBootstrapStorageConfig(azureCfg)
+	storageAccountName := azureCfg.RemoteStateConfigAzurerm.StorageAccountName
+
+	// Get storage account service
+	storageService, err := backend.serviceContainer.GetStorageAccountService(ctx, l, storageConfig)
+	if err != nil {
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "ServiceCreationError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationBootstrap,
+			ResourceType:   "storage_account",
+			ResourceName:   storageAccountName,
+		})
+
+		return nil, nil, err
+	}
+
+	// Get blob service for access verification
+	blobService, err := backend.serviceContainer.GetBlobService(ctx, l, storageConfig)
+	if err != nil {
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "ServiceCreationError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationBootstrap,
+			ResourceType:   "blob_service",
+			ResourceName:   storageAccountName,
+		})
+
+		return nil, nil, err
+	}
+
+	return storageService, blobService, nil
+}
+
+// buildBootstrapStorageConfig creates the configuration map for storage services during bootstrap.
+func (backend *Backend) buildBootstrapStorageConfig(azureCfg *ExtendedRemoteStateConfigAzurerm) map[string]interface{} {
+	return map[string]interface{}{
+		"subscription_id":      azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		"resource_group_name":  azureCfg.StorageAccountConfig.ResourceGroupName,
+		"storage_account_name": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"location":             azureCfg.StorageAccountConfig.Location,
+		"use_azuread_auth":     azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth,
+		"enable_versioning":    azureCfg.StorageAccountConfig.EnableVersioning,
+		"account_kind":         azureCfg.StorageAccountConfig.AccountKind,
+		"account_tier":         azureCfg.StorageAccountConfig.AccountTier,
+		"access_tier":          azureCfg.StorageAccountConfig.AccessTier,
+		"replication_type":     azureCfg.StorageAccountConfig.ReplicationType,
+		"tags":                 azureCfg.StorageAccountConfig.StorageAccountTags,
+		// Skip storage account existence check during bootstrap when creating storage account
+		"skip_storage_account_existence_check": true,
+	}
+}
+
+// configureRBACIfNeeded configures RBAC roles when using Azure AD authentication.
+func (backend *Backend) configureRBACIfNeeded(ctx context.Context, l log.Logger, tel *AzureTelemetryCollector, storageService interfaces.StorageAccountService, azureCfg *ExtendedRemoteStateConfigAzurerm) {
+	if !azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth {
+		return
+	}
+
+	storageAccountName := azureCfg.RemoteStateConfigAzurerm.StorageAccountName
+
+	// Get the RBAC service from the container with the subscription ID
+	rbacService, err := backend.serviceContainer.GetRBACService(ctx, l, map[string]interface{}{
+		"subscriptionId": azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+	})
+	if err != nil {
+		l.Warnf("Failed to get RBAC service: %v", err)
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "RBACServiceError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationBootstrap,
+			ResourceType:   "rbac",
+			ResourceName:   storageAccountName,
+		})
+
+		return
+	}
+
+	// Try to assign roles but don't fail if it doesn't work
+	if err := backend.assignRBACRolesWithService(ctx, l, rbacService, storageService, azureCfg); err != nil {
+		l.Warnf("Failed to assign RBAC roles: %v", err)
+		// Don't fail the bootstrap process for RBAC errors
+		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+			ErrorType:      "RBACAssignmentError",
+			Classification: ErrorClassPermissions,
+			Operation:      OperationBootstrap,
+			ResourceType:   "rbac",
+			ResourceName:   storageAccountName,
+		})
+	}
+}
+
+// logBootstrapError logs an error during bootstrap with telemetry metrics.
+func (backend *Backend) logBootstrapError(ctx context.Context, tel *AzureTelemetryCollector, err error, metrics AzureErrorMetrics) {
+	tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, metrics)
 }
 
 // convertToStorageAccountConfig converts an ExtendedRemoteStateConfigAzurerm to a StorageAccountConfig.
@@ -1781,6 +1837,7 @@ func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Lo
 	}
 
 	l.Debugf("Verifying storage account exists for RBAC role assignment")
+
 	storageAccount, err := storageService.GetStorageAccount(ctx, resourceGroupName, storageAccountName)
 	if err != nil {
 		return fmt.Errorf("failed to get storage account details: %w", err)
@@ -1849,55 +1906,68 @@ func (backend *Backend) GetFactoryConfiguration() map[string]interface{} {
 	return make(map[string]interface{})
 }
 
-// UpdateFactoryConfiguration updates the factory configuration at runtime
-func (backend *Backend) UpdateFactoryConfiguration(updates map[string]interface{}) error {
-	if factory, ok := backend.serviceFactory.(*enhancedServiceFactory); ok {
-		// Update telemetry settings
-		if telemetryUpdates, exists := updates["telemetry"].(map[string]interface{}); exists {
-			if factory.telemetrySettings != nil {
-				if enableMetrics, ok := telemetryUpdates["enable_detailed_metrics"].(bool); ok {
-					factory.telemetrySettings.EnableDetailedMetrics = enableMetrics
-				}
-
-				if enableTracking, ok := telemetryUpdates["enable_error_tracking"].(bool); ok {
-					factory.telemetrySettings.EnableErrorTracking = enableTracking
-				}
-
-				if bufferSize, ok := telemetryUpdates["metrics_buffer_size"].(int); ok {
-					factory.telemetrySettings.MetricsBufferSize = bufferSize
-				}
-
-				if flushInterval, ok := telemetryUpdates["flush_interval"].(int); ok {
-					factory.telemetrySettings.FlushInterval = flushInterval
-				}
-			}
-		}
-
-		// Update auth settings
-		if authUpdates, exists := updates["auth"].(map[string]interface{}); exists {
-			if factory.authSettings != nil {
-				if authMethod, ok := authUpdates["preferred_auth_method"].(string); ok {
-					factory.authSettings.PreferredAuthMethod = authMethod
-				}
-
-				if enableCaching, ok := authUpdates["enable_auth_caching"].(bool); ok {
-					factory.authSettings.EnableAuthCaching = enableCaching
-				}
-
-				if cacheTimeout, ok := authUpdates["auth_cache_timeout"].(int); ok {
-					factory.authSettings.AuthCacheTimeout = cacheTimeout
-				}
-
-				if enableRetry, ok := authUpdates["enable_auth_retry"].(bool); ok {
-					factory.authSettings.EnableAuthRetry = enableRetry
-				}
-			}
-		}
-
-		return nil
+// applyTelemetryUpdates updates telemetry settings from the provided configuration map.
+func applyTelemetryUpdates(settings *TelemetrySettings, updates map[string]interface{}) {
+	if settings == nil {
+		return
 	}
 
-	return errors.New("backend does not use enhanced service factory")
+	if enableMetrics, ok := updates["enable_detailed_metrics"].(bool); ok {
+		settings.EnableDetailedMetrics = enableMetrics
+	}
+
+	if enableTracking, ok := updates["enable_error_tracking"].(bool); ok {
+		settings.EnableErrorTracking = enableTracking
+	}
+
+	if bufferSize, ok := updates["metrics_buffer_size"].(int); ok {
+		settings.MetricsBufferSize = bufferSize
+	}
+
+	if flushInterval, ok := updates["flush_interval"].(int); ok {
+		settings.FlushInterval = flushInterval
+	}
+}
+
+// applyAuthUpdates updates authentication settings from the provided configuration map.
+func applyAuthUpdates(settings *AuthSettings, updates map[string]interface{}) {
+	if settings == nil {
+		return
+	}
+
+	if authMethod, ok := updates["preferred_auth_method"].(string); ok {
+		settings.PreferredAuthMethod = authMethod
+	}
+
+	if enableCaching, ok := updates["enable_auth_caching"].(bool); ok {
+		settings.EnableAuthCaching = enableCaching
+	}
+
+	if cacheTimeout, ok := updates["auth_cache_timeout"].(int); ok {
+		settings.AuthCacheTimeout = cacheTimeout
+	}
+
+	if enableRetry, ok := updates["enable_auth_retry"].(bool); ok {
+		settings.EnableAuthRetry = enableRetry
+	}
+}
+
+// UpdateFactoryConfiguration updates the factory configuration at runtime
+func (backend *Backend) UpdateFactoryConfiguration(updates map[string]interface{}) error {
+	factory, ok := backend.serviceFactory.(*enhancedServiceFactory)
+	if !ok {
+		return errors.New("backend does not use enhanced service factory")
+	}
+
+	if telemetryUpdates, exists := updates["telemetry"].(map[string]interface{}); exists {
+		applyTelemetryUpdates(factory.telemetrySettings, telemetryUpdates)
+	}
+
+	if authUpdates, exists := updates["auth"].(map[string]interface{}); exists {
+		applyAuthUpdates(factory.authSettings, authUpdates)
+	}
+
+	return nil
 }
 
 // IsVersionControlEnabled returns true if blob versioning is enabled for the Azure storage account.

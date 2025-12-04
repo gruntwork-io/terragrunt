@@ -67,6 +67,142 @@ func (e *AzureResponseError) Error() string {
 	return fmt.Sprintf("Azure API error (StatusCode=%d, ErrorCode=%s): %s", e.StatusCode, e.ErrorCode, e.Message)
 }
 
+// verifyStorageAccountExists checks if the storage account exists using the Management API.
+func verifyStorageAccountExists(ctx context.Context, l log.Logger, config map[string]interface{}, storageAccountName, resourceGroupName string) error {
+	saClient, err := CreateStorageAccountClient(ctx, l, config)
+	if err != nil {
+		return errors.Errorf("error creating storage account client: %w", err)
+	}
+
+	exists, _, err := saClient.StorageAccountExists(ctx)
+	if err != nil {
+		return errors.Errorf("error checking if storage account exists: %w", err)
+	}
+
+	if !exists {
+		return errors.Errorf("storage account %s does not exist in resource group %s",
+			storageAccountName, resourceGroupName)
+	}
+
+	l.Infof("Verified storage account %s exists", storageAccountName)
+
+	return nil
+}
+
+// getEndpointSuffix returns the endpoint suffix from config or derives it from cloud environment.
+func getEndpointSuffix(config map[string]interface{}) string {
+	if endpointSuffix, ok := config["endpoint_suffix"].(string); ok && endpointSuffix != "" {
+		return endpointSuffix
+	}
+
+	if cloudEnv, ok := config["cloud_environment"].(string); ok && cloudEnv != "" {
+		return azureauth.GetEndpointSuffix(cloudEnv)
+	}
+
+	return "core.windows.net" // Default to public cloud
+}
+
+// createBlobClientWithAuth creates an Azure blob client using the provided authentication result.
+func createBlobClientWithAuth(url string, authResult *azureauth.AuthResult) (*azblob.Client, error) {
+	if authResult.Method == azureauth.AuthMethodSasToken {
+		sas := strings.TrimPrefix(authResult.SasToken, "?")
+
+		return azblob.NewClientWithNoCredential(url+"?"+sas, nil)
+	}
+
+	return azblob.NewClient(url, authResult.Credential, nil)
+}
+
+// handleClientCreationError wraps client creation errors with appropriate context.
+func handleClientCreationError(err error, storageAccountName string) error {
+	if strings.Contains(err.Error(), "not exist") ||
+		strings.Contains(err.Error(), "no such host") ||
+		strings.Contains(err.Error(), "dial tcp") {
+		return errors.Errorf("storage account %s does not exist or is not accessible: %w",
+			storageAccountName, err)
+	}
+
+	return errors.Errorf("error creating blob client with default credential: %w", err)
+}
+
+// handleConnectivityTestError processes errors from the connectivity test and returns appropriate error messages.
+func handleConnectivityTestError(err error, l log.Logger, storageAccountName string) error {
+	var respErr *azcore.ResponseError
+
+	if !errors.As(err, &respErr) {
+		return handleNonAzureConnectivityError(err, storageAccountName)
+	}
+
+	return handleAzureResponseError(respErr, l, storageAccountName)
+}
+
+// handleAzureResponseError processes Azure-specific response errors.
+func handleAzureResponseError(respErr *azcore.ResponseError, l log.Logger, storageAccountName string) error {
+	switch {
+	case respErr.ErrorCode == "ContainerNotFound":
+		l.Infof("Successfully verified storage account %s exists and is accessible", storageAccountName)
+
+		return nil
+	case respErr.StatusCode == http.StatusNotFound:
+		return handleNotFoundError(respErr, l, storageAccountName)
+	case respErr.StatusCode == http.StatusForbidden:
+		return errors.Errorf("access denied to storage account %s: insufficient permissions (HTTP %d: %s). "+
+			"Ensure you have 'Storage Blob Data Reader' or higher role assigned",
+			storageAccountName, respErr.StatusCode, respErr.ErrorCode)
+	case respErr.StatusCode == http.StatusUnauthorized:
+		return errors.Errorf("authentication failed for storage account %s (HTTP %d: %s). "+
+			"Check your Azure credentials and ensure they are valid",
+			storageAccountName, respErr.StatusCode, respErr.ErrorCode)
+	case respErr.StatusCode >= http.StatusInternalServerError:
+		return errors.Errorf("Azure service error when accessing storage account %s (HTTP %d: %s). "+
+			"This may be a temporary issue, please try again",
+			storageAccountName, respErr.StatusCode, respErr.ErrorCode)
+	default:
+		return errors.Errorf("unexpected Azure API error when verifying storage account %s "+
+			"(HTTP %d: %s)", storageAccountName, respErr.StatusCode, respErr.ErrorCode)
+	}
+}
+
+// handleNotFoundError processes 404 errors to differentiate between storage account and container not found.
+func handleNotFoundError(respErr *azcore.ResponseError, l log.Logger, storageAccountName string) error {
+	if respErr.ErrorCode == "StorageAccountNotFound" || respErr.ErrorCode == "AccountNotFound" {
+		return errors.Errorf("storage account %s does not exist (HTTP %d: %s)",
+			storageAccountName, respErr.StatusCode, respErr.ErrorCode)
+	}
+
+	l.Infof("Successfully verified storage account %s exists (container not found as expected)", storageAccountName)
+
+	return nil
+}
+
+// handleNonAzureConnectivityError processes non-Azure connectivity errors.
+func handleNonAzureConnectivityError(err error, storageAccountName string) error {
+	errMsg := err.Error()
+	if strings.Contains(errMsg, "no such host") ||
+		strings.Contains(errMsg, "dial tcp") ||
+		strings.Contains(errMsg, "connection refused") ||
+		strings.Contains(errMsg, "connection timeout") {
+		return errors.Errorf("storage account %s does not exist or is not accessible "+
+			"(network error): %w", storageAccountName, err)
+	}
+
+	return errors.Errorf("unexpected error verifying access to storage account %s: %w",
+		storageAccountName, err)
+}
+
+// verifyStorageAccountConnectivity tests connectivity to the storage account by attempting to access a test container.
+func verifyStorageAccountConnectivity(ctx context.Context, l log.Logger, client *azblob.Client, storageAccountName string) error {
+	testContainerName := "terragrunt-connectivity-test"
+	testContainer := client.ServiceClient().NewContainerClient(testContainerName)
+
+	_, err := testContainer.GetProperties(ctx, nil)
+	if err != nil {
+		return handleConnectivityTestError(err, l, storageAccountName)
+	}
+
+	return nil
+}
+
 // CreateBlobServiceClient creates a new Azure Blob Service client using the configuration from the backend.
 func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config map[string]interface{}) (*BlobServiceClient, error) {
 	storageAccountName, okStorageAccountName := config["storage_account_name"].(string)
@@ -74,56 +210,26 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		return nil, errors.Errorf("storage_account_name is required")
 	}
 
-	// Extract resource group and subscription ID if provided
 	resourceGroupName, _ := config["resource_group_name"].(string)
 	subscriptionID, _ := config["subscription_id"].(string)
 
-	// Check if we should skip the existence check (used during bootstrap when creating storage account)
-	// Default to false (perform check) if not specified or not a bool - this is intentional for safety
 	skipExistenceCheck := false
 	if v, ok := config["skip_storage_account_existence_check"].(bool); ok {
 		skipExistenceCheck = v
 	}
 
-	var err error
-
-	// If we have subscription ID and resource group, verify storage account exists using Management API
-	// Skip this check if explicitly requested (e.g., during bootstrap with create_storage_account_if_not_exists)
+	// Verify storage account exists via Management API if we have the required info
 	if subscriptionID != "" && resourceGroupName != "" && !skipExistenceCheck {
-		// Create storage account client to verify the storage account exists
-		saClient, err := CreateStorageAccountClient(ctx, l, config)
-		if err != nil {
-			return nil, errors.Errorf("error creating storage account client: %w", err)
-		}
-
-		// Check if the storage account exists
-		exists, _, err := saClient.StorageAccountExists(ctx)
-		if err != nil {
-			return nil, errors.Errorf("error checking if storage account exists: %w", err)
-		}
-
-		if !exists {
-			return nil, errors.Errorf("storage account %s does not exist in resource group %s",
-				storageAccountName, resourceGroupName)
-		}
-
-		l.Infof("Verified storage account %s exists", storageAccountName)
-	}
-
-	// Support custom endpoints from config, default to public cloud
-	endpointSuffix, ok := config["endpoint_suffix"].(string)
-	if !ok || endpointSuffix == "" {
-		// Try to get cloud environment and derive endpoint suffix
-		if cloudEnv, ok := config["cloud_environment"].(string); ok && cloudEnv != "" {
-			endpointSuffix = azureauth.GetEndpointSuffix(cloudEnv)
-		} else {
-			endpointSuffix = "core.windows.net" // Default to public cloud
+		if err := verifyStorageAccountExists(ctx, l, config, storageAccountName, resourceGroupName); err != nil {
+			return nil, err
 		}
 	}
 
+	// Build the blob service URL
+	endpointSuffix := getEndpointSuffix(config)
 	url := fmt.Sprintf("https://%s.blob.%s", storageAccountName, endpointSuffix)
 
-	// Use the centralized auth package to get credentials
+	// Get authentication credentials
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
 		return nil, errors.Errorf("error getting azure auth config: %w", err)
@@ -134,84 +240,18 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		return nil, errors.Errorf("error getting azure credentials: %w", err)
 	}
 
-	var client *azblob.Client
-	if authResult.Method == azureauth.AuthMethodSasToken {
-		// For SAS token authentication, use a different client initialization
-		// Handle SAS tokens with or without leading '?'
-		sas := strings.TrimPrefix(authResult.SasToken, "?")
-		client, err = azblob.NewClientWithNoCredential(url+"?"+sas, nil)
-	} else {
-		// For credential-based authentication methods
-		client, err = azblob.NewClient(url, authResult.Credential, nil)
-	}
-
+	// Create the blob client
+	client, err := createBlobClientWithAuth(url, authResult)
 	if err != nil {
-		// Check if error is due to storage account not existing
-		if strings.Contains(err.Error(), "not exist") ||
-			strings.Contains(err.Error(), "no such host") ||
-			strings.Contains(err.Error(), "dial tcp") {
-			return nil, errors.Errorf("storage account %s does not exist or is not accessible: %w",
-				storageAccountName, err)
-		}
-
-		return nil, errors.Errorf("error creating blob client with default credential: %w", err)
+		return nil, handleClientCreationError(err, storageAccountName)
 	}
-	
-	// Check if we can access the service endpoint to verify the storage account exists and is accessible
-	// Skip this connectivity test if explicitly requested (e.g., during bootstrap when creating storage account)
+
+	// Verify connectivity unless explicitly skipped
 	if !skipExistenceCheck {
-		// Try to get properties of a non-existent container to test connectivity
-		testContainerName := "terragrunt-connectivity-test"
-		testContainer := client.ServiceClient().NewContainerClient(testContainerName)
-
-		_, err = testContainer.GetProperties(ctx, nil)
-		if err != nil {
-			var respErr *azcore.ResponseError
-			switch {
-			case errors.As(err, &respErr) && respErr.ErrorCode == "ContainerNotFound":
-			// This is actually good - it means we reached the storage account but the container doesn't exist
-			l.Infof("Successfully verified storage account %s exists and is accessible", storageAccountName)
-		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound:
-			// 404 can mean either the storage account doesn't exist or the container doesn't exist
-			// Check the error code to differentiate
-			if respErr.ErrorCode == "StorageAccountNotFound" || respErr.ErrorCode == "AccountNotFound" {
-				return nil, errors.Errorf("storage account %s does not exist (HTTP %d: %s)",
-					storageAccountName, respErr.StatusCode, respErr.ErrorCode)
-			}
-			// If it's just ContainerNotFound, that's actually expected and good
-			l.Infof("Successfully verified storage account %s exists (container not found as expected)", storageAccountName)
-		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusForbidden:
-			return nil, errors.Errorf("access denied to storage account %s: insufficient permissions (HTTP %d: %s). "+
-				"Ensure you have 'Storage Blob Data Reader' or higher role assigned",
-				storageAccountName, respErr.StatusCode, respErr.ErrorCode)
-		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusUnauthorized:
-			return nil, errors.Errorf("authentication failed for storage account %s (HTTP %d: %s). "+
-				"Check your Azure credentials and ensure they are valid",
-				storageAccountName, respErr.StatusCode, respErr.ErrorCode)
-		case errors.As(err, &respErr) && respErr.StatusCode >= 500:
-			return nil, errors.Errorf("Azure service error when accessing storage account %s (HTTP %d: %s). "+
-				"This may be a temporary issue, please try again",
-				storageAccountName, respErr.StatusCode, respErr.ErrorCode)
-		case errors.As(err, &respErr):
-			// Other Azure response errors
-			return nil, errors.Errorf("unexpected Azure API error when verifying storage account %s "+
-				"(HTTP %d: %s): %w", storageAccountName, respErr.StatusCode, respErr.ErrorCode, err)
-		default:
-			// For non-Azure errors, check if it's a connectivity issue which suggests the storage account doesn't exist
-			errMsg := err.Error()
-			if strings.Contains(errMsg, "no such host") ||
-				strings.Contains(errMsg, "dial tcp") ||
-				strings.Contains(errMsg, "connection refused") ||
-				strings.Contains(errMsg, "connection timeout") {
-				return nil, errors.Errorf("storage account %s does not exist or is not accessible "+
-					"(network error): %w", storageAccountName, err)
-			}
-			// For other errors, return a specific error message with context
-			return nil, errors.Errorf("unexpected error verifying access to storage account %s: %w",
-				storageAccountName, err)
+		if err := verifyStorageAccountConnectivity(ctx, l, client, storageAccountName); err != nil {
+			return nil, err
 		}
 	}
-	} // End of skipExistenceCheck if block
 
 	return &BlobServiceClient{
 		client: client,

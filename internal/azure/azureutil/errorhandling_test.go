@@ -34,7 +34,7 @@ func (m *MockTelemetryCollector) LogOperation(ctx context.Context, operation Ope
 	m.LastOperation = operation
 }
 
-func TestWithErrorHandling_Success(t *testing.T) {
+func TestWithErrorHandlingSuccess(t *testing.T) {
 	t.Parallel()
 
 	// Set up
@@ -63,7 +63,7 @@ func TestWithErrorHandling_Success(t *testing.T) {
 	assert.Equal(t, OperationBootstrap, collector.LastOperation)
 }
 
-func TestWithErrorHandling_Error(t *testing.T) {
+func TestWithErrorHandlingError(t *testing.T) {
 	t.Parallel()
 
 	// Set up
