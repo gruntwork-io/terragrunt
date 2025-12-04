@@ -221,6 +221,8 @@ func (u *Unit) Dependents() Components {
 func (u *Unit) String() string {
 	// Snapshot values under read lock to avoid data races
 	u.rLock()
+	defer u.rUnlock()
+
 	path := u.path
 	deps := make([]string, 0, len(u.dependencies))
 
@@ -235,8 +237,6 @@ func (u *Unit) String() string {
 		excluded = u.Execution.FlagExcluded
 		assumeApplied = u.Execution.AssumeAlreadyApplied
 	}
-
-	u.rUnlock()
 
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",

@@ -1,6 +1,7 @@
 package component_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -136,4 +137,31 @@ func TestComponentsCycleCheck(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnitStringConcurrent(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/path")
+	dep := component.NewUnit("/test/dep")
+	unit.AddDependency(dep)
+
+	var wg sync.WaitGroup
+
+	const goroutines = 10
+
+	for range goroutines {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for range 100 {
+				s := unit.String()
+				assert.Contains(t, s, "/test/path")
+			}
+		}()
+	}
+
+	wg.Wait()
 }
