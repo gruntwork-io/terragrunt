@@ -78,32 +78,51 @@ try {
 
 <div class="navbar header-dark-theme fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
   <div class="flex flex-row justify-between px-5 py-2.5 md:py-6 lg:h-full lg:mt-1">
+
     <!-- Logo -->
     <a href="/" class="flex flex-row items-center hover:cursor-pointer">
       <Image
         alt="Terragrunt Logo"
-        class="h-auto w-[145px] md:w-[180px] xl:w-[200px]"
+        class="shrink h-auto max-w-[145px] md:max-w-[180px] xl:max-w-[200px]"
         loading="eager"
         src={TerragruntLogo}
       />
     </a>
+
     <!-- Right Menu -->
     <div class="flex items-center lg:gap-4 xl:gap-6">
-      <div class="flex items-center">
+      <div class="flex items-center gap-2 lg:gap-4 pr-4">
+
         <!-- Docs -->
-        <div class="pr-4 lg:px-4">
-          <a href="/docs" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]" aria-label="Terragrunt Documentation">
-            <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-              <path opacity="0.1" d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" fill="currentColor"/>
-              <path d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-              <path d="M9 12H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M9 15H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>Docs</span>
-          </a>
-        </div>
+        <a href="/docs" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]" aria-label="Terragrunt Documentation">
+          <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+            <path opacity="0.1" d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" fill="currentColor"/>
+            <path d="M17.8284 6.82843C18.4065 7.40649 18.6955 7.69552 18.8478 8.06306C19 8.4306 19 8.83935 19 9.65685L19 17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17L5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12.3431C13.1606 3 13.5694 3 13.9369 3.15224C14.3045 3.30448 14.5935 3.59351 15.1716 4.17157L17.8284 6.82843Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M9 12H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 15H15" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Docs</span>
+        </a>
+
+        <!-- Ambassadors -->
+        <a href="/terragrunt-ambassador" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]" aria-label="Learn more about the Terragrunt Ambassador Program">
+          <svg class="hidden sm:block" width="24" height="24" viewBox="0 0 2460 2460" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1516.51 160.72L1845 164.789L2012.77 447.232L2295.21 615L2299.28 943.487L2460 1230L2299.28 1516.51L2295.21 1845L2012.77 2012.77L1845 2295.21L1516.51 2299.28L1230 2460L943.487 2299.28L615 2295.21L447.232 2012.77L164.789 1845L160.72 1516.51L0 1230L160.72 943.487L164.789 615L447.232 447.232L615 164.789L943.487 160.72L1230 0L1516.51 160.72ZM265.703 675V1785L1229.67 2340L2193.63 1785V675L1229.67 120L265.703 675Z" fill="currentColor"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M1233.46 2218.06V1722.98V1227.89L803.51 980.348L373.559 732.805V1227.89V1722.98L1233.46 2218.06Z" fill="currentColor"/>
+            <path d="M1663.41 1970.52L2093.36 1722.98L1663.41 1475.43L1233.46 1722.98V2218.06L1663.41 1970.52Z" fill="currentColor" fill-opacity="0.4"/>
+            <path d="M1233.46 1227.89V1722.98L1663.41 1475.43L1233.46 1227.89Z" fill="currentColor" fill-opacity="0.8"/>
+            <path d="M1663.41 980.348L1233.46 1227.89L1663.41 1475.43L2093.36 1227.89L1663.41 980.348Z" fill="currentColor" fill-opacity="0.6"/>
+            <path d="M1663.41 485.262L1233.46 237.719L803.51 485.262L373.559 732.805L803.51 980.348L1233.46 732.805L1663.41 980.348L2093.36 732.805L1663.41 485.262Z" fill="currentColor" fill-opacity="0.4"/>
+            <path d="M1233.46 1227.89L1663.41 980.348L1233.46 732.805L803.51 980.348L1233.46 1227.89Z" fill="currentColor" fill-opacity="0.8"/>
+          </svg>
+
+          <span>Ambassadors</span>
+        </a>
+
         <!-- Socials -->
         <div class="hidden border-r border-stroke-dark lg:flex items-center pr-6 gap-4">
+
+          <!-- Github -->
           <a
             aria-label="Visit the Terragrunt GitHub Repository"
             class="social-icon flex items-center gap-2 transition duration-[250ms] ease-in-out no-underline"
@@ -116,6 +135,8 @@ try {
             </svg>
             <span class="text-sm font-sans">{starCountDisplay}</span>
           </a>
+
+          <!-- Discord -->
           <a
             aria-label="Join the Terragrunt Discord"
             class="social-icon flex items-center gap-2 transition duration-[250ms] ease-in-out"
@@ -126,19 +147,6 @@ try {
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
             </svg>
-          </a>
-          <!-- Ambassador -->
-          <a href="/terragrunt-ambassador" class="flex items-center gap-2 text-gray-1 text-sm font-sans no-underline hover:underline hover:decoration-[var(--sl-color-gray-1)] hover:text-[var(--sl-color-gray-1)]" aria-label="Learn more about the Terragrunt Ambassador Program">
-            <svg viewBox="0 0 512 513" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6" aria-hidden="true">
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M256.867 0L479.187 128V384L256.867 512L34.5469 384V128L256.867 0ZM455.187 141.818L256.867 27.6359L58.5469 141.818V370.182L256.867 484.364L455.187 370.182V141.818Z" fill="white"/>
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M256.867 484.365V370.183V256.001L157.707 198.91L58.5469 141.819V256.001V370.183L256.867 484.365Z" fill="white"/>
-              <path d="M356.027 427.274L455.187 370.183L356.027 313.092L256.867 370.183V484.365L356.027 427.274Z" fill="white" fill-opacity="0.4"/>
-              <path d="M256.867 256.001V370.183L356.027 313.092L256.867 256.001Z" fill="white" fill-opacity="0.8"/>
-              <path d="M356.027 198.91L256.867 256.001L356.027 313.092L455.187 256.001L356.027 198.91Z" fill="white" fill-opacity="0.6"/>
-              <path d="M356.027 84.7278L256.867 27.6367L157.707 84.7278L58.5469 141.819L157.707 198.91L256.867 141.819L356.027 198.91L455.187 141.819L356.027 84.7278Z" fill="white" fill-opacity="0.4"/>
-              <path d="M256.867 256.001L356.027 198.91L256.867 141.819L157.707 198.91L256.867 256.001Z" fill="white" fill-opacity="0.8"/>
-            </svg>
-            <span>Ambassador</span>
           </a>
         </div>
         <!-- SearchBar -->
@@ -153,7 +161,7 @@ try {
         <ButtonLink
           href="/terragrunt-scale"
           variant="secondary"
-          className="hidden md:flex"
+          className="hidden md:flex whitespace-nowrap"
         >
           Automate Deployments
         </ButtonLink>
@@ -173,7 +181,7 @@ try {
         <ButtonLink
           href="https://www.gruntwork.io/services/terragrunt"
           variant="primary"
-          className="hidden md:flex"
+          className="hidden md:flex whitespace-nowrap"
           isExternalLink={true}
         >
           Enterprise Support
