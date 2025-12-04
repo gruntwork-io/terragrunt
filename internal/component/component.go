@@ -183,20 +183,42 @@ func (c Components) CycleCheck() (Component, error) {
 
 // ThreadSafeComponents provides thread-safe access to a Components slice.
 // It uses an RWMutex to allow concurrent reads and serialized writes.
+// Resolved paths are cached to avoid repeated filepath.EvalSymlinks syscalls
+// and ensure consistent symlink-aware comparisons across all methods.
 type ThreadSafeComponents struct {
-	components Components
-	mu         sync.RWMutex
+	resolvedPaths map[string]string
+	components    Components
+	mu            sync.RWMutex
 }
 
 // NewThreadSafeComponents creates a new ThreadSafeComponents instance with the given components.
 func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
-	return &ThreadSafeComponents{
-		components: components,
+	tsc := &ThreadSafeComponents{
+		components:    components,
+		resolvedPaths: make(map[string]string, len(components)),
 	}
+
+	// Pre-populate resolved paths cache for initial components
+	for _, c := range components {
+		tsc.resolvedPaths[c.Path()] = resolvePath(c.Path())
+	}
+
+	return tsc
+}
+
+// getResolvedPath returns the cached resolved path for a component path.
+// If not cached, it resolves and caches the path. Caller must hold at least a read lock.
+func (tsc *ThreadSafeComponents) getResolvedPath(path string) string {
+	if resolved, ok := tsc.resolvedPaths[path]; ok {
+		return resolved
+	}
+
+	return resolvePath(path)
 }
 
 // EnsureComponent adds a component to the components list if it's not already present.
 // This method is TOCTOU-safe (Time-Of-Check-Time-Of-Use) by using a double-check pattern.
+// Path comparison uses resolved symlink paths for consistency.
 //
 // It returns the component if it was added, and a boolean indicating if it was added.
 func (tsc *ThreadSafeComponents) EnsureComponent(c Component) (Component, bool) {
@@ -208,15 +230,17 @@ func (tsc *ThreadSafeComponents) EnsureComponent(c Component) (Component, bool) 
 	return found, false
 }
 
-// findComponent checks if a component is in the components slice.
+// findComponent checks if a component is in the components slice using resolved paths.
 // If it is, it returns the component and true.
 // If it is not, it returns nil and false.
 func (tsc *ThreadSafeComponents) findComponent(c Component) (Component, bool) {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
 
+	searchResolved := resolvePath(c.Path())
+
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
-		return cc.Path() == c.Path()
+		return tsc.getResolvedPath(cc.Path()) == searchResolved
 	})
 
 	if idx == -1 {
@@ -228,20 +252,25 @@ func (tsc *ThreadSafeComponents) findComponent(c Component) (Component, bool) {
 
 // addComponent adds a component to the components list, acquiring a write lock.
 // Uses a double-check pattern to avoid TOCTOU race conditions.
+// Caches the resolved path for the new component.
 func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 	tsc.mu.Lock()
 	defer tsc.mu.Unlock()
 
+	searchResolved := resolvePath(c.Path())
+
 	// Do one last check to see if the component is already in the components list
-	// to avoid a TOCTOU race condition.
+	// to avoid a TOCTOU race condition. Uses resolved paths for comparison.
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
-		return cc.Path() == c.Path()
+		return tsc.getResolvedPath(cc.Path()) == searchResolved
 	})
 
 	if idx != -1 {
 		return tsc.components[idx], false
 	}
 
+	// Cache resolved path and add component
+	tsc.resolvedPaths[c.Path()] = searchResolved
 	tsc.components = append(tsc.components, c)
 
 	return c, true
@@ -249,6 +278,7 @@ func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 
 // FindByPath searches for a component by its path and returns it if found, otherwise returns nil.
 // Paths are resolved to handle symlinks consistently across platforms (e.g., macOS /var -> /private/var).
+// Uses cached resolved paths to avoid repeated syscalls.
 func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
@@ -256,7 +286,7 @@ func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
 	resolvedSearchPath := resolvePath(path)
 
 	for _, c := range tsc.components {
-		if resolvePath(c.Path()) == resolvedSearchPath {
+		if tsc.getResolvedPath(c.Path()) == resolvedSearchPath {
 			return c
 		}
 	}
