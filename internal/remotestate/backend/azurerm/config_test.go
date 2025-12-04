@@ -536,6 +536,52 @@ func TestBackendConfigValidation(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "with-partial-service-principal-and-azuread-should-succeed",
+			config: backend.Config{
+				"storage_account_name": uniqueStorageAcct + "7",
+				"container_name":       "terraform-state",
+				"key":                  "terraform.tfstate",
+				"client_id":            "some-client-id", // Partial service principal fields
+				"use_azuread_auth":     true,             // But explicit Azure AD auth
+			},
+			expectError: false, // Should allow Azure AD when explicitly specified
+		},
+		{
+			name: "with-partial-service-principal-and-msi-should-succeed",
+			config: backend.Config{
+				"storage_account_name": uniqueStorageAcct + "8",
+				"container_name":       "terraform-state",
+				"key":                  "terraform.tfstate",
+				"tenant_id":            "some-tenant-id", // Partial service principal fields
+				"use_msi":              true,             // But explicit MSI auth
+			},
+			expectError: false, // Should allow MSI when explicitly specified
+		},
+		{
+			name: "with-partial-service-principal-no-explicit-auth-should-default-to-azuread",
+			config: backend.Config{
+				"storage_account_name": uniqueStorageAcct + "9",
+				"container_name":       "terraform-state",
+				"key":                  "terraform.tfstate",
+				"client_id":            "some-client-id", // Partial service principal fields
+				"tenant_id":            "some-tenant-id", // But no client_secret
+			},
+			expectError: false, // Should default to Azure AD auth when service principal is incomplete
+		},
+		{
+			name: "with-complete-service-principal-should-succeed",
+			config: backend.Config{
+				"storage_account_name": uniqueStorageAcct + "10",
+				"container_name":       "terraform-state",
+				"key":                  "terraform.tfstate",
+				"subscription_id":      "00000000-0000-0000-0000-000000000000",
+				"client_id":            "some-client-id",
+				"client_secret":        "some-client-secret",
+				"tenant_id":            "some-tenant-id",
+			},
+			expectError: false,
+		},
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")

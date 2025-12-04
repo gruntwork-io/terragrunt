@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 
@@ -430,17 +430,17 @@ func (r *RBACServiceImpl) ListRoleAssignments(ctx context.Context, scope string)
 	return result, nil
 }
 
-// AssignStorageBlobDataOwnerRole assigns the Storage Blob Data Owner role to the current principal
+// AssignStorageBlobDataOwnerRole assigns the Storage Account Contributor role to the current principal
 func (r *RBACServiceImpl) AssignStorageBlobDataOwnerRole(ctx context.Context, l log.Logger, storageAccountScope string) error {
-	// Storage Blob Data Owner role definition ID
-	roleDefinitionID := "/subscriptions/" + r.subscriptionID + "/providers/Microsoft.Authorization/roleDefinitions/b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
+	// Use the role name - AssignRole will resolve it to the proper role definition ID
+	roleName := "Storage Account Contributor"
 
 	principalID, err := r.GetPrincipalID(ctx)
 	if err != nil {
 		return err
 	}
 
-	return r.AssignRole(ctx, l, roleDefinitionID, principalID, storageAccountScope)
+	return r.AssignRole(ctx, l, roleName, principalID, storageAccountScope)
 }
 
 // GetCurrentPrincipal gets the current principal's information

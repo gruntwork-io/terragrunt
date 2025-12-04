@@ -436,7 +436,7 @@ func (atc *AzureTelemetryCollector) LogOperation(ctx context.Context, operation 
 		logFields[k] = v
 	}
 
-	atc.logger.Infof("Azure operation completed: %s", FormatSuccessMessage(operation, logFields))
+	atc.logger.Debugf("Azure operation completed: %s", FormatSuccessMessage(operation, logFields))
 
 	// Collect success telemetry
 	if atc.telemeter != nil {

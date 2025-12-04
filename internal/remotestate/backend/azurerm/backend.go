@@ -402,20 +402,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return nil
 	}
 
-	// Get the blob service using our helper
-	client, err := backend.getBlobService(ctx, l, azureCfg, opts)
-	if err != nil {
-		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
-			ErrorType:      "ServiceCreationError",
-			Classification: ErrorClassAuthentication,
-			Operation:      OperationBootstrap,
-			ResourceType:   "blob_service",
-		})
-
-		return err
-	}
-
-	// Check if we need to handle storage account creation/validation
+	// Check if we need to handle storage account creation first
 	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
 		// Validate required fields before attempting any Azure operations
 		if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
@@ -462,6 +449,19 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 			return wrappedErr
 		}
+	}
+
+	// Get the blob service using our helper - do this after storage account is created
+	client, err := backend.getBlobService(ctx, l, azureCfg, opts)
+	if err != nil {
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ServiceCreationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationBootstrap,
+			ResourceType:   "blob_service",
+		})
+
+		return err
 	}
 
 	// Create the container if necessary with retry logic
@@ -1164,17 +1164,19 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 
 			// Step 2: Initialize required services from container
 			storageConfig := map[string]interface{}{
-				"subscriptionId":     azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-				"resourceGroupName":  azureCfg.StorageAccountConfig.ResourceGroupName,
-				"storageAccountName": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-				"location":           azureCfg.StorageAccountConfig.Location,
-				"useAzureADAuth":     azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth,
-				"enableVersioning":   azureCfg.StorageAccountConfig.EnableVersioning,
-				"accountKind":        azureCfg.StorageAccountConfig.AccountKind,
-				"accountTier":        azureCfg.StorageAccountConfig.AccountTier,
-				"accessTier":         azureCfg.StorageAccountConfig.AccessTier,
-				"replicationType":    azureCfg.StorageAccountConfig.ReplicationType,
-				"tags":               azureCfg.StorageAccountConfig.StorageAccountTags,
+				"subscription_id":      azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+				"resource_group_name":  azureCfg.StorageAccountConfig.ResourceGroupName,
+				"storage_account_name": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+				"location":             azureCfg.StorageAccountConfig.Location,
+				"use_azuread_auth":     azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth,
+				"enable_versioning":    azureCfg.StorageAccountConfig.EnableVersioning,
+				"account_kind":         azureCfg.StorageAccountConfig.AccountKind,
+				"account_tier":         azureCfg.StorageAccountConfig.AccountTier,
+				"access_tier":          azureCfg.StorageAccountConfig.AccessTier,
+				"replication_type":     azureCfg.StorageAccountConfig.ReplicationType,
+				"tags":                 azureCfg.StorageAccountConfig.StorageAccountTags,
+				// Skip storage account existence check during bootstrap when creating storage account
+				"skip_storage_account_existence_check": true,
 			}
 
 			// Get storage account service
@@ -1192,6 +1194,7 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 			}
 
 			// Get blob service for access verification
+			// Skip existence check since we're about to create the storage account if needed
 			blobService, err := backend.serviceContainer.GetBlobService(ctx, l, storageConfig)
 			if err != nil {
 				tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
@@ -1237,7 +1240,7 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 					})
 				} else {
 					// Try to assign roles but don't fail if it doesn't work
-					if err := backend.assignRBACRolesWithService(ctx, l, rbacService, storageService); err != nil {
+					if err := backend.assignRBACRolesWithService(ctx, l, rbacService, storageService, azureCfg); err != nil {
 						l.Warnf("Failed to assign RBAC roles: %v", err)
 						// Don't fail the bootstrap process for RBAC errors
 						tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, AzureErrorMetrics{
@@ -1411,13 +1414,6 @@ func (backend *Backend) ensureStorageAccountExists(ctx context.Context, l log.Lo
 		if err := storageService.CreateStorageAccount(ctx, storageConfig); err != nil {
 			return backend.wrapStorageAccountError(err, storageConfig.Name)
 		}
-	}
-
-	// Note: Versioning configuration is handled at the storage account level and is
-	// typically configured outside of Terragrunt through ARM templates or Azure CLI.
-	// For now, we'll log a warning if versioning is requested.
-	if azureCfg.StorageAccountConfig.EnableVersioning {
-		l.Warnf("Blob versioning is requested but must be configured at the storage account level through Azure Portal, CLI, or ARM templates")
 	}
 
 	return nil
@@ -1755,9 +1751,54 @@ func (backend *Backend) GetObject(ctx context.Context, l log.Logger, containerNa
 }
 
 // assignRBACRolesWithService assigns RBAC roles using the provided services
-func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Logger, rbacService interfaces.RBACService, storageService interfaces.StorageAccountService) error {
-	// TODO: Implement RBAC role assignment logic
-	return errors.New("RBAC role assignment not yet implemented")
+func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Logger, rbacService interfaces.RBACService, storageService interfaces.StorageAccountService, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
+	// Get the storage account details to verify it exists
+	resourceGroupName := azureCfg.StorageAccountConfig.ResourceGroupName
+	storageAccountName := azureCfg.RemoteStateConfigAzurerm.StorageAccountName
+
+	if resourceGroupName == "" {
+		l.Debugf("Resource group name not available, skipping RBAC role assignment")
+		return nil
+	}
+
+	l.Debugf("Verifying storage account exists for RBAC role assignment")
+	storageAccount, err := storageService.GetStorageAccount(ctx, resourceGroupName, storageAccountName)
+	if err != nil {
+		return fmt.Errorf("failed to get storage account details: %w", err)
+	}
+
+	if storageAccount == nil {
+		return errors.New("storage account is nil")
+	}
+
+	// Construct Azure resource ID for the storage account
+	// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Storage/storageAccounts/{accountName}
+	subscriptionID := azureCfg.RemoteStateConfigAzurerm.SubscriptionID
+	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s",
+		subscriptionID, resourceGroupName, storageAccountName)
+
+	l.Debugf("Assigning Storage Account Contributor role at scope: %s", scope)
+
+	// Assign Storage Account Contributor role to the current principal
+	if err := rbacService.AssignStorageBlobDataOwnerRole(ctx, l, scope); err != nil {
+		// Check if it's a permission error (user doesn't have rights to assign roles)
+		if rbacService.IsPermissionError(err) {
+			l.Warnf("Insufficient permissions to assign RBAC roles. You may need to manually assign 'Storage Account Contributor' role.")
+			return nil // Don't fail bootstrap for permission errors
+		}
+
+		// Check if role is already assigned (not an error)
+		if strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "RoleAssignmentExists") {
+			l.Infof("Storage Account Contributor role is already assigned to current principal")
+			return nil
+		}
+
+		return fmt.Errorf("failed to assign Storage Account Contributor role: %w", err)
+	}
+
+	l.Infof("Successfully assigned Storage Account Contributor role to current principal")
+
+	return nil
 }
 
 // GetFactoryConfiguration returns the current factory configuration

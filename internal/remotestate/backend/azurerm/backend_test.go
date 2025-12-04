@@ -235,8 +235,8 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 				"create_storage_account_if_not_exists": true,
 				"use_azuread_auth":                     true,
 			},
-			expectError: true,                               // Will fail in unit test because it actually tries to connect to Azure
-			errorMsg:    "does not exist in resource group", // Actual error message when trying to check storage account
+			expectError: true, // Will fail in unit test because it actually tries to connect to Azure
+			errorMsg:    "SubscriptionNotFound", // Expected error when using dummy subscription ID in unit test
 		},
 		{
 			name: "missing-location-with-create",

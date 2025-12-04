@@ -78,10 +78,14 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	resourceGroupName, _ := config["resource_group_name"].(string)
 	subscriptionID, _ := config["subscription_id"].(string)
 
+	// Check if we should skip the existence check (used during bootstrap when creating storage account)
+	skipExistenceCheck, _ := config["skip_storage_account_existence_check"].(bool)
+
 	var err error
 
 	// If we have subscription ID and resource group, verify storage account exists using Management API
-	if subscriptionID != "" && resourceGroupName != "" {
+	// Skip this check if explicitly requested (e.g., during bootstrap with create_storage_account_if_not_exists)
+	if subscriptionID != "" && resourceGroupName != "" && !skipExistenceCheck {
 		// Create storage account client to verify the storage account exists
 		saClient, err := CreateStorageAccountClient(ctx, l, config)
 		if err != nil {
@@ -146,16 +150,19 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 
 		return nil, errors.Errorf("error creating blob client with default credential: %w", err)
 	}
+	
 	// Check if we can access the service endpoint to verify the storage account exists and is accessible
-	// Try to get properties of a non-existent container to test connectivity
-	testContainerName := "terragrunt-connectivity-test"
-	testContainer := client.ServiceClient().NewContainerClient(testContainerName)
+	// Skip this connectivity test if explicitly requested (e.g., during bootstrap when creating storage account)
+	if !skipExistenceCheck {
+		// Try to get properties of a non-existent container to test connectivity
+		testContainerName := "terragrunt-connectivity-test"
+		testContainer := client.ServiceClient().NewContainerClient(testContainerName)
 
-	_, err = testContainer.GetProperties(ctx, nil)
-	if err != nil {
-		var respErr *azcore.ResponseError
-		switch {
-		case errors.As(err, &respErr) && respErr.ErrorCode == "ContainerNotFound":
+		_, err = testContainer.GetProperties(ctx, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			switch {
+			case errors.As(err, &respErr) && respErr.ErrorCode == "ContainerNotFound":
 			// This is actually good - it means we reached the storage account but the container doesn't exist
 			l.Infof("Successfully verified storage account %s exists and is accessible", storageAccountName)
 		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound:
@@ -198,6 +205,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 				storageAccountName, err)
 		}
 	}
+	} // End of skipExistenceCheck if block
 
 	return &BlobServiceClient{
 		client: client,
