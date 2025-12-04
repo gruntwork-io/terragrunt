@@ -7,7 +7,6 @@ import EmployeeCard from '@components/EmployeeCard.astro';
 import Axel from '@assets/ambassadors/axel-mendoza.jpg';
 import Juan from '@assets/ambassadors/juan-reyes.jpg';
 import Steven from '@assets/ambassadors/steven-tseng.jpg';
-import Brian from '@assets/grunty/grunty-2.svg';
 
 const includesLink = '/docs/features/includes';
 const stacksLink = '/docs/features/stacks';
@@ -50,12 +49,7 @@ const stacksLink = '/docs/features/stacks';
         linkedin="https://www.linkedin.com/in/tsengy/"
         bio="Steven Tseng is currently a leading DevOps engineer at Easygo. As part of day to day activities, Steven maintains a large number of cloud platforms & services to support a global fast-growing platform serving millions of customers, and generating thousands of transactions per second. Daily Terragrunt user, and a firm believer of IaC."
       />
-      <EmployeeCard
-        name="You"
-        image={Brian}
-        title="Terragrunt Champion"
-        youCard={true}
-      />
+      <EmployeeCard youCard={true} />
     </div>
   </div>
 </section>
