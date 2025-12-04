@@ -15,20 +15,8 @@ func Build(
 	terragruntOptions *options.TerragruntOptions,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
-	// Prepare discovery
-	d, err := prepareDiscovery(terragruntOptions, terragruntOptions.ExcludeByDefault, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Run discovery
-	discovered, err := runDiscovery(ctx, l, d, terragruntOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	// Optional retry path
-	discovered, err = maybeRetryDiscovery(ctx, l, terragruntOptions, discovered, opts...)
+	// Run discovery (with automatic retry if needed)
+	discovered, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
 	if err != nil {
 		return nil, err
 	}
