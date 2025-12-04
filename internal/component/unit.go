@@ -251,10 +251,6 @@ func (u *Unit) String() string {
 // AbsolutePath returns the absolute path of the unit.
 // If path conversion fails, returns the original path and logs a warning if a logger is available.
 func (u *Unit) AbsolutePath() string {
-	if filepath.IsAbs(u.path) {
-		return u.path
-	}
-
 	absPath, err := filepath.Abs(u.path)
 	if err != nil {
 		if u.Execution != nil && u.Execution.Logger != nil {
