@@ -122,18 +122,20 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	// Use the centralized auth package to get credentials
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, errors.Errorf("error getting azure auth config: %v", err)
+		return nil, errors.Errorf("error getting azure auth config: %w", err)
 	}
 
 	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
-		return nil, errors.Errorf("error getting azure credentials: %v", err)
+		return nil, errors.Errorf("error getting azure credentials: %w", err)
 	}
 
 	var client *azblob.Client
 	if authResult.Method == azureauth.AuthMethodSasToken {
 		// For SAS token authentication, use a different client initialization
-		client, err = azblob.NewClientWithNoCredential(url+"?"+authResult.SasToken, nil)
+		// Handle SAS tokens with or without leading '?'
+		sas := strings.TrimPrefix(authResult.SasToken, "?")
+		client, err = azblob.NewClientWithNoCredential(url+"?"+sas, nil)
 	} else {
 		// For credential-based authentication methods
 		client, err = azblob.NewClient(url, authResult.Credential, nil)

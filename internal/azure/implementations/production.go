@@ -52,7 +52,7 @@ func (s *StorageAccountServiceImpl) CreateStorageAccount(ctx context.Context, cf
 		Tags:                  cfg.Tags,
 	}
 
-	return s.client.CreateStorageAccountIfNecessary(ctx, nil, helperConfig)
+	return s.client.CreateStorageAccountIfNecessary(ctx, log.Default(), helperConfig)
 }
 
 // DeleteStorageAccount deletes a storage account by resource group and account name
@@ -135,6 +135,9 @@ func (s *StorageAccountServiceImpl) mapAzureAccountToInternalType(account *armst
 
 	// Map account kind from the top-level Kind field
 	if account.Kind != nil {
+		if storageAccount.Properties == nil {
+			storageAccount.Properties = &types.StorageAccountProperties{}
+		}
 		storageAccount.Properties.Kind = types.AccountKind(string(*account.Kind))
 	}
 
