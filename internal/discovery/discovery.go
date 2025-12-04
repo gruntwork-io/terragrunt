@@ -289,9 +289,7 @@ func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
 
 	for _, opt := range opts {
 		if p, ok := opt.(interface{ GetParseOptions() []hclparse.Option }); ok {
-			if po := p.GetParseOptions(); len(po) > 0 {
-				parserOptions = append(parserOptions, po...)
-			}
+			parserOptions = append(parserOptions, p.GetParseOptions()...)
 		}
 
 		if g, ok := opt.(interface{ GraphTarget() string }); ok {
