@@ -206,9 +206,10 @@ func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
 	return tsc
 }
 
-// getResolvedPath returns the cached resolved path for a component path.
-// If not cached, it resolves and caches the path. Caller must hold at least a read lock.
-func (tsc *ThreadSafeComponents) getResolvedPath(path string) string {
+// resolvedPathFor returns the cached resolved path for a component path if present,
+// otherwise resolves the path on the fly without mutating the cache.
+// Caller must hold at least a read lock.
+func (tsc *ThreadSafeComponents) resolvedPathFor(path string) string {
 	if resolved, ok := tsc.resolvedPaths[path]; ok {
 		return resolved
 	}
@@ -240,7 +241,7 @@ func (tsc *ThreadSafeComponents) findComponent(c Component) (Component, bool) {
 	searchResolved := resolvePath(c.Path())
 
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
-		return tsc.getResolvedPath(cc.Path()) == searchResolved
+		return tsc.resolvedPathFor(cc.Path()) == searchResolved
 	})
 
 	if idx == -1 {
@@ -262,7 +263,7 @@ func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 	// Do one last check to see if the component is already in the components list
 	// to avoid a TOCTOU race condition. Uses resolved paths for comparison.
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
-		return tsc.getResolvedPath(cc.Path()) == searchResolved
+		return tsc.resolvedPathFor(cc.Path()) == searchResolved
 	})
 
 	if idx != -1 {
@@ -286,7 +287,7 @@ func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
 	resolvedSearchPath := resolvePath(path)
 
 	for _, c := range tsc.components {
-		if tsc.getResolvedPath(c.Path()) == resolvedSearchPath {
+		if tsc.resolvedPathFor(c.Path()) == resolvedSearchPath {
 			return c
 		}
 	}
