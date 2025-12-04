@@ -57,6 +57,15 @@ func (s *StorageAccountServiceImpl) CreateStorageAccount(ctx context.Context, cf
 
 // DeleteStorageAccount deletes a storage account by resource group and account name
 func (s *StorageAccountServiceImpl) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
+	// Validate that the requested account matches the client's configuration
+	if s.client.GetResourceGroupName() != resourceGroupName {
+		return fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+			s.client.GetResourceGroupName(), resourceGroupName)
+	}
+	if s.client.GetStorageAccountName() != accountName {
+		return fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+			s.client.GetStorageAccountName(), accountName)
+	}
 	return s.client.DeleteStorageAccount(ctx, log.Default())
 }
 
@@ -163,6 +172,16 @@ func getBoolValue(ptr *bool) bool {
 
 // GetStorageAccount retrieves storage account information
 func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
+	// Validate that the requested account matches the client's configuration
+	if s.client.GetResourceGroupName() != resourceGroupName {
+		return nil, fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+			s.client.GetResourceGroupName(), resourceGroupName)
+	}
+	if s.client.GetStorageAccountName() != accountName {
+		return nil, fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+			s.client.GetStorageAccountName(), accountName)
+	}
+
 	exists, account, err := s.client.StorageAccountExists(ctx)
 	if err != nil {
 		return nil, err
@@ -177,11 +196,31 @@ func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resou
 
 // GetStorageAccountKeys retrieves storage account keys
 func (s *StorageAccountServiceImpl) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
+	// Validate that the requested account matches the client's configuration
+	if s.client.GetResourceGroupName() != resourceGroupName {
+		return nil, fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+			s.client.GetResourceGroupName(), resourceGroupName)
+	}
+	if s.client.GetStorageAccountName() != accountName {
+		return nil, fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+			s.client.GetStorageAccountName(), accountName)
+	}
 	return s.client.GetStorageAccountKeys(ctx)
 }
 
 // GetStorageAccountSAS generates a SAS token for the storage account
+// Note: Passes empty string and nil to GetStorageAccountSAS, which triggers safe defaults
+// in the helper (24-hour expiry with read/write/list permissions)
 func (s *StorageAccountServiceImpl) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
+	// Validate that the requested account matches the client's configuration
+	if s.client.GetResourceGroupName() != resourceGroupName {
+		return "", fmt.Errorf("resource group mismatch: client configured for %s, requested %s",
+			s.client.GetResourceGroupName(), resourceGroupName)
+	}
+	if s.client.GetStorageAccountName() != accountName {
+		return "", fmt.Errorf("storage account mismatch: client configured for %s, requested %s",
+			s.client.GetStorageAccountName(), accountName)
+	}
 	return s.client.GetStorageAccountSAS(ctx, "", nil)
 }
 
@@ -433,10 +472,12 @@ func (r *RBACServiceImpl) ListRoleAssignments(ctx context.Context, scope string)
 	return result, nil
 }
 
-// AssignStorageBlobDataOwnerRole assigns the Storage Account Contributor role to the current principal
+// AssignStorageBlobDataOwnerRole assigns the Storage Blob Data Owner role to the current principal
+// This data-plane role provides full access to blob data (read, write, delete, manage ACLs)
 func (r *RBACServiceImpl) AssignStorageBlobDataOwnerRole(ctx context.Context, l log.Logger, storageAccountScope string) error {
-	// Use the role name - AssignRole will resolve it to the proper role definition ID
-	roleName := "Storage Account Contributor"
+	// Use the blob data role name - AssignRole will resolve it to the proper role definition ID
+	// Storage Blob Data Owner grants full blob data permissions (unlike Storage Account Contributor which is management-only)
+	roleName := "Storage Blob Data Owner"
 
 	principalID, err := r.GetPrincipalID(ctx)
 	if err != nil {
@@ -883,20 +924,25 @@ func (c *ProductionServiceContainer) GetBlobService(ctx context.Context, l log.L
 
 // GetRBACService returns a production RBAC service
 func (c *ProductionServiceContainer) GetRBACService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.RBACService, error) {
+	// Check if a custom service is registered first
+	if svc, ok := c.cache["rbac"].(interfaces.RBACService); ok {
+		return svc, nil
+	}
+
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
-	// Create Azure RBAC client
+	// Create Azure RBAC client using merged config
 	client, err := createRBACClient(mergedConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	// Extract configuration (empty string is valid - may come from environment)
+	// Extract subscription ID from merged config (empty string is valid - may come from environment)
 	// Try snake_case first, then camelCase
-	subscriptionID, _ := config["subscription_id"].(string)
+	subscriptionID, _ := mergedConfig["subscription_id"].(string)
 	if subscriptionID == "" {
-		subscriptionID, _ = config["subscriptionId"].(string)
+		subscriptionID, _ = mergedConfig["subscriptionId"].(string)
 	}
 
 	rbacConfig := interfaces.DefaultRBACConfig()
@@ -906,6 +952,11 @@ func (c *ProductionServiceContainer) GetRBACService(ctx context.Context, l log.L
 
 // GetAuthenticationService returns a production authentication service
 func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.AuthenticationService, error) {
+	// Check if a custom service is registered first
+	if svc, ok := c.cache["authentication"].(interfaces.AuthenticationService); ok {
+		return svc, nil
+	}
+
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
@@ -957,6 +1008,11 @@ func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Contex
 
 // GetResourceGroupService returns a production resource group service
 func (c *ProductionServiceContainer) GetResourceGroupService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.ResourceGroupService, error) {
+	// Check if a custom service is registered first
+	if svc, ok := c.cache["resourcegroup"].(interfaces.ResourceGroupService); ok {
+		return svc, nil
+	}
+
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
@@ -1043,8 +1099,12 @@ func (c *ProductionServiceContainer) Initialize(ctx context.Context, l log.Logge
 	// Log initialization
 	l.Debugf("Initializing Azure service container with configuration")
 
-	// Validate required configuration
-	if subscriptionID, ok := c.config["subscriptionId"].(string); !ok || subscriptionID == "" {
+	// Validate required configuration - check both naming conventions
+	subscriptionID, _ := c.config["subscription_id"].(string)
+	if subscriptionID == "" {
+		subscriptionID, _ = c.config["subscriptionId"].(string)
+	}
+	if subscriptionID == "" {
 		return errors.New("subscription ID is required")
 	}
 
@@ -1132,104 +1192,80 @@ func createBlobClient(ctx context.Context, config map[string]interface{}) (*azur
 	return azurehelper.CreateBlobServiceClient(ctx, log.Default(), nil, config)
 }
 
+// createCredentialFromConfig is a shared helper that creates Azure credentials from configuration
+// It supports managed identity, service principal, and default Azure credentials
+func createCredentialFromConfig(tenantID, clientID, clientSecret string, useManagedIdentity bool) (azcore.TokenCredential, error) {
+switch {
+case useManagedIdentity:
+// Use managed identity if specified
+cred, err := azidentity.NewDefaultAzureCredential(nil)
+if err != nil {
+return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+}
+return cred, nil
+
+case clientID != "" && clientSecret != "" && tenantID != "":
+// Use service principal if credentials are provided
+cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+if err != nil {
+return nil, fmt.Errorf("failed to create client secret credential: %w", err)
+}
+return cred, nil
+
+case tenantID != "":
+// If tenant ID is provided, try to create a default credential with it
+options := &azidentity.DefaultAzureCredentialOptions{
+TenantID: tenantID,
+}
+cred, err := azidentity.NewDefaultAzureCredential(options)
+if err != nil {
+return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
+}
+return cred, nil
+
+default:
+// Fall back to default credential
+cred, err := azidentity.NewDefaultAzureCredential(nil)
+if err != nil {
+return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+}
+return cred, nil
+}
+}
+
 func createRBACClient(config map[string]interface{}) (azcore.TokenCredential, error) {
-	// Extract subscription ID from config
-	subscriptionID, ok := config["subscriptionId"].(string)
-	if !ok || subscriptionID == "" {
-		return nil, errors.New("subscription ID is required for RBAC operations")
-	}
+// Extract auth configuration with snake_case/camelCase normalization
+tenantID, _ := config["tenant_id"].(string)
+if tenantID == "" {
+tenantID, _ = config["tenantId"].(string)
+}
 
-	// Create credentials based on config (empty values are valid defaults)
-	var tenantID, clientID, clientSecret string
+clientID, _ := config["client_id"].(string)
+if clientID == "" {
+clientID, _ = config["clientId"].(string)
+}
 
-	var useManagedIdentity bool
+clientSecret, _ := config["client_secret"].(string)
+if clientSecret == "" {
+clientSecret, _ = config["clientSecret"].(string)
+}
 
-	if v, ok := config["tenantId"].(string); ok {
-		tenantID = v
-	}
+// Check for use_managed_identity with both naming conventions
+var useManagedIdentity bool
+if v, ok := config["use_managed_identity"].(bool); ok {
+useManagedIdentity = v
+} else if v, ok := config["useManagedIdentity"].(bool); ok {
+useManagedIdentity = v
+}
 
-	if v, ok := config["clientId"].(string); ok {
-		clientID = v
-	}
-
-	if v, ok := config["clientSecret"].(string); ok {
-		clientSecret = v
-	}
-
-	if v, ok := config["useManagedIdentity"].(bool); ok {
-		useManagedIdentity = v
-	}
-
-	// Create the credential based on available authentication methods
-	switch {
-	case useManagedIdentity:
-		// Use managed identity if specified
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
-		}
-
-		return cred, nil
-	case clientID != "" && clientSecret != "" && tenantID != "":
-		// Use service principal if credentials are provided
-		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
-		}
-
-		return cred, nil
-	default:
-		// Fall back to default credential
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
-		}
-
-		return cred, nil
-	}
+// Use the shared credential helper
+return createCredentialFromConfig(tenantID, clientID, clientSecret, useManagedIdentity)
 }
 
 // Helper function to create an authentication credential
 func createAuthenticationCredential(config interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
-	// Check which authentication method to use
-	switch {
-	case config.UseManagedIdentity:
-		// Use managed identity if specified
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
-		}
-
-		return cred, nil
-	case config.ClientID != "" && config.ClientSecret != "" && config.TenantID != "":
-		// Use service principal if credentials are provided
-		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID, config.ClientSecret, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
-		}
-
-		return cred, nil
-	case config.TenantID != "":
-		// If tenant ID is provided, try to create a default credential
-		options := &azidentity.DefaultAzureCredentialOptions{
-			TenantID: config.TenantID,
-		}
-
-		cred, err := azidentity.NewDefaultAzureCredential(options)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
-		}
-
-		return cred, nil
-	default:
-		// Fall back to default credential
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
-		}
-
-		return cred, nil
-	}
+// Use the shared credential helper
+return createCredentialFromConfig(config.TenantID, config.ClientID, config.ClientSecret, config.UseManagedIdentity)
 }
 
 // Helper method to merge config maps

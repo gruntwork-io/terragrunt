@@ -3,7 +3,7 @@ package factory
 
 import (
 	"context"
-	"errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"fmt"
 	"net/url"
 	"sync"
@@ -92,6 +92,7 @@ func NewAzureServiceFactoryWithOptions(options *interfaces.FactoryOptions) inter
 }
 
 // CreateContainer creates a new AzureServiceContainer instance
+// ctx is reserved for future use; required by interface
 func (f *AzureServiceFactory) CreateContainer(ctx context.Context) interfaces.AzureServiceContainer {
 	// In this implementation, the factory itself is the container
 	return f
@@ -150,6 +151,7 @@ func (f *AzureServiceFactory) Cleanup(ctx context.Context, l log.Logger) error {
 }
 
 // Health checks the health of all services in the container
+// ctx is reserved for future use; required by interface
 func (f *AzureServiceFactory) Health(ctx context.Context, l log.Logger) error {
 	// For now just return success
 	return nil
@@ -236,7 +238,7 @@ func (f *AzureServiceFactory) GetStorageAccountService(ctx context.Context, l lo
 	// Create a new storage account client
 	storageAccountClient, err := azurehelper.CreateStorageAccountClient(ctx, l, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create storage account client: %w", err)
+		return nil, errors.Errorf("failed to create storage account client: %w", err)
 	}
 
 	// Create the adapter service implementation
@@ -295,7 +297,7 @@ func (f *AzureServiceFactory) GetBlobService(ctx context.Context, l log.Logger, 
 	// Create a new blob service client
 	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, l, terragruntOpts, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create blob service client: %w", err)
+		return nil, errors.Errorf("failed to create blob service client: %w", err)
 	}
 
 	// Create the adapter service implementation
@@ -348,13 +350,13 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 	// Extract the subscription ID from config
 	subscriptionID, ok := config["subscription_id"].(string)
 	if !ok || subscriptionID == "" {
-		return nil, errors.New("subscription_id is required in the configuration")
+		return nil, errors.Errorf("subscription_id is required in the configuration")
 	}
 
 	// Create a new resource group client
 	resourceGroupClient, err := azurehelper.CreateResourceGroupClient(ctx, l, subscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource group client: %w", err)
+		return nil, errors.Errorf("failed to create resource group client: %w", err)
 	}
 
 	// Create the adapter service implementation
@@ -412,18 +414,18 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 		subscriptionID, _ = config["subscriptionId"].(string)
 	}
 	if subscriptionID == "" {
-		return nil, errors.New("subscription_id is required for RBAC operations")
+		return nil, errors.Errorf("subscription_id is required for RBAC operations")
 	}
 
 	// Create credential using azureauth
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get auth config: %w", err)
+		return nil, errors.Errorf("failed to get auth config: %w", err)
 	}
 
 	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get token credential: %w", err)
+		return nil, errors.Errorf("failed to get token credential: %w", err)
 	}
 
 	// Create RBAC service
@@ -442,7 +444,7 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 // GetAuthenticationService creates and returns an AuthenticationService instance
 func (f *AzureServiceFactory) GetAuthenticationService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.AuthenticationService, error) {
 	// For now, we'll return a not implemented error
-	return nil, errors.New("AuthenticationService not implemented")
+	return nil, errors.Errorf("AuthenticationService not implemented")
 }
 
 // RegisterStorageAccountService registers a custom StorageAccountService implementation
@@ -537,7 +539,7 @@ func (f *AzureServiceFactory) GetServiceInfo(serviceType string) (map[string]int
 	}
 
 	if !f.HasService(serviceType) {
-		return info, fmt.Errorf("service type '%s' not registered", serviceType)
+		return info, errors.Errorf("service type '%s' not registered", serviceType)
 	}
 
 	return info, nil

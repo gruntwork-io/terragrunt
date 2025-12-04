@@ -1327,3 +1327,13 @@ func (c *StorageAccountClient) GetStorageAccountProperties(ctx context.Context) 
 
 	return resp.Account.Properties, nil
 }
+
+// GetResourceGroupName returns the resource group name configured for this client
+func (c *StorageAccountClient) GetResourceGroupName() string {
+return c.resourceGroupName
+}
+
+// GetStorageAccountName returns the storage account name configured for this client
+func (c *StorageAccountClient) GetStorageAccountName() string {
+return c.storageAccountName
+}

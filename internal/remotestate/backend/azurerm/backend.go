@@ -878,10 +878,19 @@ func (backend *Backend) uploadBlobFromReader(
 		}
 	}
 
-	// Read all data from the reader
-	blobData, err := io.ReadAll(data)
+	// Enforce max size even if Size() is not available using LimitReader
+	// This prevents reading unbounded data into memory
+	limitedReader := io.LimitReader(data, maxStateFileSize+1)
+
+	// Read all data from the limited reader
+	blobData, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return fmt.Errorf("error reading blob data: %w", err)
+	}
+
+	// Check if we hit the limit (read more than maxStateFileSize)
+	if int64(len(blobData)) > maxStateFileSize {
+		return fmt.Errorf("state file too large: exceeds limit of %d bytes", maxStateFileSize)
 	}
 
 	defer func() {

@@ -79,7 +79,11 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	subscriptionID, _ := config["subscription_id"].(string)
 
 	// Check if we should skip the existence check (used during bootstrap when creating storage account)
-	skipExistenceCheck, _ := config["skip_storage_account_existence_check"].(bool)
+	// Default to false (perform check) if not specified or not a bool - this is intentional for safety
+	skipExistenceCheck := false
+	if v, ok := config["skip_storage_account_existence_check"].(bool); ok {
+		skipExistenceCheck = v
+	}
 
 	var err error
 
