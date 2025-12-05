@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	testFixtureDestroyOrder           = "fixtures/destroy-order"
-	testFixturePreventDestroyOverride = "fixtures/prevent-destroy-override/child"
-	testFixturePreventDestroyNotSet   = "fixtures/prevent-destroy-not-set/child"
-	testFixtureDestroyWarning         = "fixtures/destroy-warning"
-	testFixtureDestroyDependentModule = "fixtures/destroy-dependent-module"
+	testFixtureDestroyOrder                 = "fixtures/destroy-order"
+	testFixturePreventDestroyOverride       = "fixtures/prevent-destroy-override/child"
+	testFixturePreventDestroyNotSet         = "fixtures/prevent-destroy-not-set/child"
+	testFixtureDestroyWarning               = "fixtures/destroy-warning"
+	testFixtureDestroyDependentModule       = "fixtures/destroy-dependent-module"
+	testFixtureDestroyDependentModuleErrors = "fixtures/destroy-dependent-module-errors"
 )
 
 func TestTerragruntDestroyOrder(t *testing.T) {
@@ -498,4 +499,25 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 		),
 	)
 	require.NoError(t, err)
+}
+
+func TestDestroyDependentModuleParseErrors(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModuleErrors)
+	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModuleErrors))
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyDependentModuleErrors)
+
+	helpers.CreateGitRepo(t, rootPath)
+
+	// apply dev
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run -all apply --non-interactive --working-dir "+util.JoinPath(rootPath, "dev"))
+	require.NoError(t, err)
+
+	// try to destroy app1 to trigger dependent units scanning
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+util.JoinPath(rootPath, "dev", "app1"))
+	require.NoError(t, err)
+
+	// shouldn't contain SOPS errors which are printed during dependent units discovery
+	assert.NotContains(t, stderr, "sops metadata not found")
 }

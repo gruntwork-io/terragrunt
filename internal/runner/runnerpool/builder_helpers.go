@@ -139,16 +139,23 @@ func prepareDiscovery(
 	return d, nil
 }
 
-// runDiscovery executes discovery with telemetry and returns discovered components.
-func runDiscovery(
+// discoverWithRetry runs discovery and retries without exclude-by-default if zero results
+// are found and modules-that-include / units-reading flags are set.
+func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
-	d *discovery.Discovery,
 	tgOpts *options.TerragruntOptions,
+	opts ...common.Option,
 ) (component.Components, error) {
+	// Initial discovery with current excludeByDefault setting
+	d, err := prepareDiscovery(tgOpts, tgOpts.ExcludeByDefault, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	var discovered component.Components
 
-	err := doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
+	err = doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
 		"working_dir":       tgOpts.WorkingDir,
 		"terraform_command": tgOpts.TerraformCommand,
 	}, func(childCtx context.Context) error {
@@ -165,47 +172,30 @@ func runDiscovery(
 		return nil, err
 	}
 
-	return discovered, nil
-}
+	// Retry without exclude-by-default if no results and relevant flags are set
+	if len(discovered) == 0 && (len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0) {
+		l.Debugf("Runner pool discovery returned 0 configs; retrying without exclude-by-default")
 
-// maybeRetryDiscovery retries discovery without exclude-by-default if none were discovered
-// and modules-that-include / units-reading flags are set.
-func maybeRetryDiscovery(
-	ctx context.Context,
-	l log.Logger,
-	tgOpts *options.TerragruntOptions,
-	discovered component.Components,
-	opts ...common.Option,
-) (component.Components, error) {
-	if len(discovered) > 0 {
-		return discovered, nil
-	}
-
-	if len(tgOpts.ModulesThatInclude) == 0 && len(tgOpts.UnitsReading) == 0 {
-		return discovered, nil
-	}
-
-	l.Debugf("Runner pool discovery returned 0 configs with modules-that-include; retrying without exclude-by-default")
-
-	disc, err := prepareDiscovery(tgOpts, false, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	var retryErr error
-
-	err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
-		"working_dir": tgOpts.WorkingDir,
-	}, func(childCtx context.Context) error {
-		discovered, retryErr = disc.Discover(childCtx, l, tgOpts)
-		if retryErr == nil {
-			l.Debugf("Runner pool retry discovery found %d configs", len(discovered))
+		d, err = prepareDiscovery(tgOpts, false, opts...)
+		if err != nil {
+			return nil, err
 		}
 
-		return retryErr
-	})
-	if err != nil {
-		return nil, err
+		err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
+			"working_dir": tgOpts.WorkingDir,
+		}, func(childCtx context.Context) error {
+			var retryErr error
+
+			discovered, retryErr = d.Discover(childCtx, l, tgOpts)
+			if retryErr == nil {
+				l.Debugf("Runner pool retry discovery found %d configs", len(discovered))
+			}
+
+			return retryErr
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return discovered, nil

@@ -225,9 +225,15 @@ func (u *Unit) Dependents() Components {
 }
 
 // String renders this unit as a human-readable string for debugging.
+//
+// Example output:
+//
+//	Unit /path/to/unit (excluded: false, assume applied: false, dependencies: [/dep1, /dep2])
 func (u *Unit) String() string {
 	// Snapshot values under read lock to avoid data races
 	u.rLock()
+	defer u.rUnlock()
+
 	path := u.path
 	deps := make([]string, 0, len(u.dependencies))
 
@@ -243,8 +249,6 @@ func (u *Unit) String() string {
 		assumeApplied = u.Execution.AssumeAlreadyApplied
 	}
 
-	u.rUnlock()
-
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
 		path, excluded, assumeApplied, strings.Join(deps, ", "),
@@ -254,10 +258,6 @@ func (u *Unit) String() string {
 // AbsolutePath returns the absolute path of the unit.
 // If path conversion fails, returns the original path and logs a warning if a logger is available.
 func (u *Unit) AbsolutePath() string {
-	if filepath.IsAbs(u.path) {
-		return u.path
-	}
-
 	absPath, err := filepath.Abs(u.path)
 	if err != nil {
 		if u.Execution != nil && u.Execution.Logger != nil {

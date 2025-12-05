@@ -6,7 +6,8 @@ import (
 	"sync"
 )
 
-// UnitWriter represents a Writer with data buffering.
+// UnitWriter buffers output for a single unit and flushes atomically on completion.
+// This prevents interleaved output when multiple units run in parallel.
 type UnitWriter struct {
 	out    io.Writer
 	buffer bytes.Buffer
