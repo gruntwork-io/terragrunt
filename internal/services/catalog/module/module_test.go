@@ -46,6 +46,12 @@ func TestTerraformSourcePath(t *testing.T) {
 			moduleDir: "modules/bar",
 			expected:  "git::ssh://git@github.com/org/repo.git//modules/bar?ref=v1.0.0",
 		},
+		{
+			name:      "multiple query params",
+			cloneURL:  "git::https://github.com/org/repo.git?ref=v1.0.0&depth=1",
+			moduleDir: "modules/foo",
+			expected:  "git::https://github.com/org/repo.git//modules/foo?ref=v1.0.0&depth=1",
+		},
 	}
 
 	for _, tc := range testCases {
