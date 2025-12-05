@@ -101,7 +101,7 @@ func (module *Module) TerraformSourcePath() string {
 	if module.moduleDir == "" {
 		return module.cloneURL
 	}
-	
+
 	// Split on ? to separate base URL from query string
 	base, query, _ := strings.Cut(module.cloneURL, "?")
 
@@ -139,4 +139,12 @@ func (module *Module) isValid() (bool, error) {
 
 func (module *Module) ModuleDir() string {
 	return module.moduleDir
+}
+
+// NewModuleForTest creates a Module for testing purposes.
+func NewModuleForTest(cloneURL, moduleDir string) *Module {
+	return &Module{
+		cloneURL:  cloneURL,
+		moduleDir: moduleDir,
+	}
 }

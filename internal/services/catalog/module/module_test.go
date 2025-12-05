@@ -1,8 +1,9 @@
-package module
+package module_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -51,10 +52,7 @@ func TestTerraformSourcePath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := &Module{
-				cloneURL:  tc.cloneURL,
-				moduleDir: tc.moduleDir,
-			}
+			m := module.NewModuleForTest(tc.cloneURL, tc.moduleDir)
 			assert.Equal(t, tc.expected, m.TerraformSourcePath())
 		})
 	}
