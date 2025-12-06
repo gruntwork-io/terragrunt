@@ -674,42 +674,8 @@ func (atc *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err
 		return
 	}
 
-	// Convert telemetry types if needed
-	var operation OperationType
-
-	switch opType {
-	case OperationBootstrap,
-		OperationNeedsBootstrap,
-		OperationDelete,
-		OperationDeleteContainer,
-		OperationDeleteAccount,
-		OperationMigrate,
-		OperationContainerOp,
-		OperationStorageOp,
-		OperationValidation,
-		OperationAuthentication,
-		OperationBlobGet,
-		OperationBlobPut,
-		OperationBlobDelete,
-		OperationBlobExists,
-		OperationBlobList,
-		OperationContainerCreate,
-		OperationContainerDelete,
-		OperationContainerExists,
-		OperationStorageCreate,
-		OperationStorageDelete,
-		OperationStorageExists,
-		OperationStorageUpdate,
-		OperationVersionCheck,
-		OperationRoleAssign,
-		OperationRoleRevoke,
-		OperationRoleList,
-		OperationAuthRefresh,
-		OperationAuthValidate:
-		operation = opType
-	default:
-		operation = opType
-	}
+	// opType is already the correct OperationType, no conversion needed
+	operation := opType
 
 	// Convert ErrorMetrics to AzureErrorMetrics
 	azureMetrics := AzureErrorMetrics{

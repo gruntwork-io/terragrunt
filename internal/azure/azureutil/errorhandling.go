@@ -20,15 +20,16 @@ type TelemetryCollector interface {
 	LogOperation(ctx context.Context, operation OperationType, duration time.Duration, attrs map[string]interface{})
 }
 
-// ErrorHandler represents a function that can handle errors with telemetry and context
-type ErrorHandler struct {
+// OperationHandler wraps operations with telemetry, error tracking, and retry logic.
+// It collects metrics about operation duration, success/failure, and error types.
+type OperationHandler struct {
 	telemetry TelemetryCollector
 	logger    log.Logger
 }
 
-// NewErrorHandler creates a new error handler
-func NewErrorHandler(telemetry TelemetryCollector, logger log.Logger) *ErrorHandler {
-	return &ErrorHandler{
+// NewOperationHandler creates a new operation handler
+func NewOperationHandler(telemetry TelemetryCollector, logger log.Logger) *OperationHandler {
+	return &OperationHandler{
 		telemetry: telemetry,
 		logger:    logger,
 	}
@@ -37,7 +38,7 @@ func NewErrorHandler(telemetry TelemetryCollector, logger log.Logger) *ErrorHand
 // WithErrorHandling wraps a function with error handling logic
 // It takes an operation name, context, and a function to execute
 // If the function returns an error, it will be logged with telemetry and wrapped with context
-func (h *ErrorHandler) WithErrorHandling(
+func (h *OperationHandler) WithErrorHandling(
 	ctx context.Context,
 	operation OperationType,
 	resourceType string,
@@ -92,7 +93,7 @@ func (h *ErrorHandler) WithErrorHandling(
 }
 
 // WithRetryableErrorHandling is similar to WithErrorHandling but returns a boolean indicating if the error is retryable
-func (h *ErrorHandler) WithRetryableErrorHandling(
+func (h *OperationHandler) WithRetryableErrorHandling(
 	ctx context.Context,
 	operation OperationType,
 	resourceType string,
@@ -110,7 +111,7 @@ func (h *ErrorHandler) WithRetryableErrorHandling(
 // WithAuthErrorHandling wraps an authentication operation with proper error handling
 // It uses the provided AuthConfig to provide context for authentication errors
 // This is specifically designed for Azure authentication operations
-func (h *ErrorHandler) WithAuthErrorHandling(
+func (h *OperationHandler) WithAuthErrorHandling(
 	ctx context.Context,
 	authConfig *azureauth.AuthConfig,
 	fn func() error,
@@ -167,7 +168,7 @@ func (h *ErrorHandler) WithAuthErrorHandling(
 }
 
 // Helper function to determine error type based on error content
-func (h *ErrorHandler) determineErrorType(err error) string {
+func (h *OperationHandler) determineErrorType(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -271,7 +272,7 @@ func (h *ErrorHandler) determineErrorType(err error) string {
 }
 
 // Helper function to determine if an error is retryable
-func (h *ErrorHandler) isRetryableError(err error) bool {
+func (h *OperationHandler) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -333,7 +334,7 @@ func (h *ErrorHandler) isRetryableError(err error) bool {
 }
 
 // Helper function to wrap an error with context
-func (h *ErrorHandler) wrapError(err error, operation OperationType, resourceType, resourceName string) error {
+func (h *OperationHandler) wrapError(err error, operation OperationType, resourceType, resourceName string) error {
 	if err == nil {
 		return nil
 	}
@@ -353,7 +354,7 @@ func (h *ErrorHandler) wrapError(err error, operation OperationType, resourceTyp
 }
 
 // Helper function to wrap an authentication error with context
-func (h *ErrorHandler) wrapAuthError(err error, authConfig *azureauth.AuthConfig) error {
+func (h *OperationHandler) wrapAuthError(err error, authConfig *azureauth.AuthConfig) error {
 	if err == nil {
 		return nil
 	}

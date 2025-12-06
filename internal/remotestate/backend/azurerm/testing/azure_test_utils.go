@@ -147,6 +147,19 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...
 		retryLimit = maxRetries[0]
 	}
 
+	client := createAzureBlobClient(t, config)
+
+	for i := 0; i < retryLimit; i++ {
+		if cleanupContainerAttempt(t, client, config.ContainerName, i, retryLimit) {
+			return
+		}
+	}
+}
+
+// createAzureBlobClient creates a blob service client for testing
+func createAzureBlobClient(t *testing.T, config *AzureTestConfig) *azurehelper.BlobServiceClient {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
@@ -167,52 +180,63 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...
 	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
 	require.NoError(t, err)
 
-	for i := 0; i < retryLimit; i++ {
-		// Check if container exists first
-		exists, err := client.ContainerExists(ctx, config.ContainerName)
-		if err != nil {
-			t.Logf("Error checking container existence (attempt %d): %v", i+1, err)
-			time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+	return client
+}
 
-			continue
-		}
+// cleanupContainerAttempt attempts to clean up a container, returns true if successful
+func cleanupContainerAttempt(t *testing.T, client *azurehelper.BlobServiceClient, containerName string, attempt, retryLimit int) bool {
+	t.Helper()
 
-		if !exists {
-			t.Logf("Container %s already cleaned up or doesn't exist", config.ContainerName)
-			return // Already cleaned up
-		}
+	ctx := t.Context()
+	logger := log.Default()
 
-		// Try to clean up
-		err = client.DeleteContainer(ctx, logger, config.ContainerName)
-		if err != nil {
-			t.Logf("Cleanup attempt %d failed: %v", i+1, err)
-		}
+	// Check if container exists first
+	exists, err := client.ContainerExists(ctx, containerName)
+	if err != nil {
+		t.Logf("Error checking container existence (attempt %d): %v", attempt+1, err)
+		time.Sleep(time.Duration(attempt+1) * time.Second) // Exponential backoff
 
-		// Wait a bit for Azure to process the deletion
-		time.Sleep(defaultCleanupSleepSeconds * time.Second)
-
-		// Verify deletion
-		exists, err = client.ContainerExists(ctx, config.ContainerName)
-		if err != nil {
-			t.Logf("Error verifying container deletion (attempt %d): %v", i+1, err)
-			time.Sleep(time.Duration(i+1) * defaultCleanupSleepSeconds * time.Second) // Exponential backoff
-
-			continue
-		}
-
-		if !exists {
-			t.Logf("Successfully cleaned up container %s", config.ContainerName)
-			return // Successfully cleaned up
-		}
-
-		if i == retryLimit-1 {
-			// On the last attempt, we fail the test if cleanup doesn't succeed
-			require.Fail(t, fmt.Sprintf("Failed to cleanup container %s after %d attempts", config.ContainerName, retryLimit))
-		} else {
-			t.Logf("Cleanup attempt %d failed, retrying...", i+1)
-			time.Sleep(time.Duration(i+1) * defaultCleanupSleepSeconds * time.Second) // Exponential backoff
-		}
+		return false
 	}
+
+	if !exists {
+		t.Logf("Container %s already cleaned up or doesn't exist", containerName)
+
+		return true // Already cleaned up
+	}
+
+	// Try to clean up
+	if err = client.DeleteContainer(ctx, logger, containerName); err != nil {
+		t.Logf("Cleanup attempt %d failed: %v", attempt+1, err)
+	}
+
+	// Wait a bit for Azure to process the deletion
+	time.Sleep(defaultCleanupSleepSeconds * time.Second)
+
+	// Verify deletion
+	exists, err = client.ContainerExists(ctx, containerName)
+	if err != nil {
+		t.Logf("Error verifying container deletion (attempt %d): %v", attempt+1, err)
+		time.Sleep(time.Duration(attempt+1) * defaultCleanupSleepSeconds * time.Second) // Exponential backoff
+
+		return false
+	}
+
+	if !exists {
+		t.Logf("Successfully cleaned up container %s", containerName)
+
+		return true // Successfully cleaned up
+	}
+
+	if attempt == retryLimit-1 {
+		// On the last attempt, we fail the test if cleanup doesn't succeed
+		require.Fail(t, fmt.Sprintf("Failed to cleanup container %s after %d attempts", containerName, retryLimit))
+	} else {
+		t.Logf("Cleanup attempt %d failed, retrying...", attempt+1)
+		time.Sleep(time.Duration(attempt+1) * defaultCleanupSleepSeconds * time.Second) // Exponential backoff
+	}
+
+	return false
 }
 
 // AssertContainerExists checks if an Azure storage container exists

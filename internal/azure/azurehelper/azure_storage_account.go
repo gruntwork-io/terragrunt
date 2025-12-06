@@ -228,19 +228,21 @@ func DefaultStorageAccountConfig() StorageAccountConfig {
 	}
 }
 
-// CreateStorageAccountClient creates a new StorageAccount client
-func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*StorageAccountClient, error) {
-	if config == nil {
-		return nil, errors.Errorf("config is required")
-	}
+// storageAccountClientConfig holds the extracted configuration for creating a storage account client.
+type storageAccountClientConfig struct {
+	storageAccountName string
+	resourceGroupName  string
+	subscriptionID     string
+	location           string
+}
 
-	// Extract configuration values
+// extractStorageClientConfig extracts configuration values from the config map.
+func extractStorageClientConfig(l log.Logger, config map[string]interface{}) (*storageAccountClientConfig, error) {
 	storageAccountName, ok := config["storage_account_name"].(string)
 	if !ok || storageAccountName == "" {
 		return nil, errors.Errorf("storage_account_name is required")
 	}
 
-	// Check if resource group is specified
 	resourceGroupName, ok := config["resource_group_name"].(string)
 	if !ok || resourceGroupName == "" {
 		l.Warn("No resource_group_name specified in config, using storage account name as resource group")
@@ -248,7 +250,6 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 		resourceGroupName = storageAccountName + "-rg"
 	}
 
-	// Extract subscription ID if provided in config (empty string is valid default)
 	var subscriptionID, location string
 
 	if v, ok := config["subscription_id"].(string); ok {
@@ -257,6 +258,25 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 
 	if v, ok := config["location"].(string); ok {
 		location = v
+	}
+
+	return &storageAccountClientConfig{
+		storageAccountName: storageAccountName,
+		resourceGroupName:  resourceGroupName,
+		subscriptionID:     subscriptionID,
+		location:           location,
+	}, nil
+}
+
+// CreateStorageAccountClient creates a new StorageAccount client
+func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*StorageAccountClient, error) {
+	if config == nil {
+		return nil, errors.Errorf("config is required")
+	}
+
+	clientCfg, err := extractStorageClientConfig(l, config)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use centralized authentication logic
@@ -270,13 +290,13 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 		return nil, fmt.Errorf("error getting azure credentials: %w", err)
 	}
 
-	// Use subscription ID from auth config if not provided in config
-	if subscriptionID == "" && authConfig.SubscriptionID != "" {
-		subscriptionID = authConfig.SubscriptionID
-		l.Infof("Using subscription ID from auth config: %s", subscriptionID)
+	// Reject SAS token authentication for management-plane operations
+	if authResult.Method == azureauth.AuthMethodSasToken {
+		return nil, errors.Errorf("sas_token authentication is only supported for data-plane (blob) operations, " +
+			"not storage account management; use Azure AD or a service principal instead")
 	}
 
-	// Still need a subscription ID at this point
+	subscriptionID := resolveSubscriptionID(l, clientCfg.subscriptionID, authConfig.SubscriptionID)
 	if subscriptionID == "" {
 		return nil, errors.Errorf("subscription_id is required either:\n" +
 			"  1. In the configuration as 'subscription_id'\n" +
@@ -284,26 +304,39 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 			"Please provide at least one of these values to continue")
 	}
 
-	// Get the credential from the auth result
-	cred := authResult.Credential
+	return createStorageAccountClientWithCred(subscriptionID, clientCfg, authResult.Credential, config)
+}
 
-	// Create storage accounts client
+// resolveSubscriptionID returns the subscription ID from config or auth config.
+func resolveSubscriptionID(l log.Logger, configSubscriptionID, authSubscriptionID string) string {
+	if configSubscriptionID != "" {
+		return configSubscriptionID
+	}
+
+	if authSubscriptionID != "" {
+		logInfo(l, "Using subscription ID from auth config: %s", authSubscriptionID)
+
+		return authSubscriptionID
+	}
+
+	return ""
+}
+
+// createStorageAccountClientWithCred creates the storage account client with the given credential.
+func createStorageAccountClientWithCred(subscriptionID string, cfg *storageAccountClientConfig, cred azcore.TokenCredential, config map[string]interface{}) (*StorageAccountClient, error) {
 	accountsClient, err := armstorage.NewAccountsClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, errors.Errorf("error creating storage accounts client: %w", err)
 	}
 
-	// Create blob services client
 	blobClient, err := armstorage.NewBlobServicesClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, errors.Errorf("error creating blob services client: %w", err)
 	}
 
-	// Create role assignments client with the latest API version
-	// Azure requires at least API version 2018-01-01-preview for roles with data actions
 	clientOptions := &arm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
-			APIVersion: defaultRoleAssignmentAPIVersion, // Use the latest API version for role assignments
+			APIVersion: defaultRoleAssignmentAPIVersion,
 		},
 	}
 
@@ -317,9 +350,9 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 		blobClient:             blobClient,
 		roleAssignmentClient:   roleAssignmentClient,
 		subscriptionID:         subscriptionID,
-		resourceGroupName:      resourceGroupName,
-		storageAccountName:     storageAccountName,
-		location:               location,
+		resourceGroupName:      cfg.resourceGroupName,
+		storageAccountName:     cfg.storageAccountName,
+		location:               cfg.location,
 		config:                 config,
 		defaultAccountKind:     "StorageV2",
 		defaultAccountTier:     "Standard",
@@ -395,25 +428,25 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 }
 
 func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
-	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
+	logInfo(l, "Enabling versioning on storage account %s", c.storageAccountName)
 
 	if err := c.listAndUpdateVersioning(ctx, true); err != nil {
 		return err
 	}
 
-	l.Infof("Successfully enabled versioning on storage account %s", c.storageAccountName)
+	logInfo(l, "Successfully enabled versioning on storage account %s", c.storageAccountName)
 
 	return nil
 }
 
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
-	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
+	logInfo(l, "Disabling versioning on storage account %s", c.storageAccountName)
 
 	if err := c.listAndUpdateVersioning(ctx, false); err != nil {
 		return err
 	}
 
-	l.Infof("Successfully disabled versioning on storage account %s", c.storageAccountName)
+	logInfo(l, "Successfully disabled versioning on storage account %s", c.storageAccountName)
 
 	return nil
 }
@@ -426,7 +459,7 @@ func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Conte
 		location = c.location
 		if location == "" {
 			location = defaultLocation // Default location
-			l.Warnf("No location specified, using default location: %s", location)
+			logWarn(l, "No location specified, using default location: %s", location)
 		}
 	}
 
@@ -469,7 +502,7 @@ func mapReplicationType(replicationType string, l log.Logger) armstorage.SKUName
 		return sku
 	}
 
-	l.Warnf("Unsupported replication type %s, using Standard_LRS", replicationType)
+	logWarn(l, "Unsupported replication type %s, using Standard_LRS", replicationType)
 
 	return armstorage.SKUNameStandardLRS
 }
@@ -492,7 +525,7 @@ func mapAccountKind(accountKind string, l log.Logger) armstorage.Kind {
 		return kind
 	}
 
-	l.Warnf("Unsupported account kind %s, using StorageV2", accountKind)
+	logWarn(l, "Unsupported account kind %s, using StorageV2", accountKind)
 
 	return armstorage.KindStorageV2
 }
@@ -513,7 +546,7 @@ func validateAccessTier(accessTier string, l log.Logger) string {
 		return accessTier
 	}
 
-	l.Warnf("Unsupported access tier %s, using Hot", accessTier)
+	logWarn(l, "Unsupported access tier %s, using Hot", accessTier)
 
 	return AccessTierHot
 }
@@ -545,7 +578,7 @@ func (c *StorageAccountClient) resolveLocation(configLocation string, l log.Logg
 		return c.location
 	}
 
-	l.Warnf("No location specified, using default location: %s", defaultLocation)
+	logWarn(l, "No location specified, using default location: %s", defaultLocation)
 
 	return defaultLocation
 }
@@ -558,7 +591,7 @@ func (c *StorageAccountClient) buildStorageAccountParameters(config StorageAccou
 	tags := buildStorageAccountTags(config.Tags)
 	location := c.resolveLocation(config.Location, l)
 
-	l.Infof("Using access tier: %s", accessTierStr)
+	logInfo(l, "Using access tier: %s", accessTierStr)
 
 	parameters := armstorage.AccountCreateParameters{
 		SKU:      &armstorage.SKU{Name: &sku},
@@ -578,11 +611,11 @@ func (c *StorageAccountClient) buildStorageAccountParameters(config StorageAccou
 
 // createStorageAccount creates a new storage account
 func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.Logger, config StorageAccountConfig) error {
-	l.Infof("Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
+	logInfo(l, "Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
 	parameters := c.buildStorageAccountParameters(config, l)
 
-	l.Infof("Creating storage account %s in %s (Kind: %s, SKU: %s)",
+	logInfo(l, "Creating storage account %s in %s (Kind: %s, SKU: %s)",
 		c.storageAccountName, *parameters.Location, *parameters.Kind, *parameters.SKU.Name)
 
 	pollerResp, err := c.client.BeginCreate(ctx, c.resourceGroupName, c.storageAccountName, parameters, nil)
@@ -595,10 +628,10 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 		return errors.Errorf("error waiting for storage account creation: %w", err)
 	}
 
-	l.Infof("Successfully created storage account %s", c.storageAccountName)
+	logInfo(l, "Successfully created storage account %s", c.storageAccountName)
 
 	if err := c.AssignStorageBlobDataOwnerRole(ctx, l); err != nil {
-		l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
+		logWarn(l, "Failed to assign Storage Blob Data Owner role: %v", err)
 	}
 
 	if config.EnableVersioning {
@@ -621,7 +654,7 @@ func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config 
 	}
 
 	updateParams.Properties.AllowBlobPublicAccess = to.Ptr(config.AllowBlobPublicAccess)
-	l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s",
+	logInfo(l, "Updating AllowBlobPublicAccess from %t to %t on storage account %s",
 		*account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
 
 	return true
@@ -635,7 +668,7 @@ func (c *StorageAccountClient) checkAccessTierUpdate(l log.Logger, config Storag
 
 	accessTier := convertAccessTierToARM(config.AccessTier)
 	if accessTier == nil {
-		l.Warnf("Unsupported access tier %s, skipping update", config.AccessTier)
+		logWarn(l, "Unsupported access tier %s, skipping update", config.AccessTier)
 
 		return false
 	}
@@ -647,7 +680,7 @@ func (c *StorageAccountClient) checkAccessTierUpdate(l log.Logger, config Storag
 		currentTier = string(*account.Properties.AccessTier)
 	}
 
-	l.Infof("Updating AccessTier from %s to %s on storage account %s", currentTier, config.AccessTier, c.storageAccountName)
+	logInfo(l, "Updating AccessTier from %s to %s on storage account %s", currentTier, config.AccessTier, c.storageAccountName)
 
 	return true
 }
@@ -674,7 +707,7 @@ func (c *StorageAccountClient) checkTagsUpdate(l log.Logger, config StorageAccou
 
 	updateParams.Tags = ConvertToPointerMap(config.Tags)
 
-	l.Infof("Updating tags on storage account %s", c.storageAccountName)
+	logInfo(l, "Updating tags on storage account %s", c.storageAccountName)
 
 	return true
 }
@@ -696,13 +729,13 @@ func (c *StorageAccountClient) warnSKUDiff(l log.Logger, config StorageAccountCo
 	expectedSKU, valid := GetStorageAccountSKU(config.AccountTier, config.ReplicationType)
 
 	if !valid {
-		l.Warnf("Could not determine expected SKU for tier %s and replication %s", config.AccountTier, config.ReplicationType)
+		logWarn(l, "Could not determine expected SKU for tier %s and replication %s", config.AccountTier, config.ReplicationType)
 
 		return
 	}
 
 	if currentSKU != expectedSKU {
-		l.Warnf("Storage account SKU cannot be changed after creation. Current: %s, Desired: %s",
+		logWarn(l, "Storage account SKU cannot be changed after creation. Current: %s, Desired: %s",
 			currentSKU, expectedSKU)
 	}
 }
@@ -715,7 +748,7 @@ func (c *StorageAccountClient) warnAccountKindDiff(l log.Logger, config StorageA
 
 	currentKind := string(*account.Kind)
 	if currentKind != config.AccountKind {
-		l.Warnf("Storage account kind cannot be changed after creation. Current: %s, Desired: %s",
+		logWarn(l, "Storage account kind cannot be changed after creation. Current: %s, Desired: %s",
 			currentKind, config.AccountKind)
 	}
 }
@@ -727,7 +760,7 @@ func (c *StorageAccountClient) warnLocationDiff(l log.Logger, config StorageAcco
 	}
 
 	if *account.Location != config.Location {
-		l.Warnf("Storage account location cannot be changed after creation. Current: %s, Desired: %s",
+		logWarn(l, "Storage account location cannot be changed after creation. Current: %s, Desired: %s",
 			*account.Location, config.Location)
 	}
 }
@@ -740,13 +773,13 @@ func (c *StorageAccountClient) syncVersioningState(ctx context.Context, l log.Lo
 	}
 
 	if enableVersioning && !isVersioningEnabled {
-		l.Infof("Enabling versioning on existing storage account %s", c.storageAccountName)
+		logInfo(l, "Enabling versioning on existing storage account %s", c.storageAccountName)
 
 		return c.EnableStorageAccountVersioning(ctx, l)
 	}
 
 	if !enableVersioning && isVersioningEnabled {
-		l.Infof("Disabling versioning on existing storage account %s", c.storageAccountName)
+		logInfo(l, "Disabling versioning on existing storage account %s", c.storageAccountName)
 
 		return c.DisableStorageAccountVersioning(ctx, l)
 	}
@@ -770,16 +803,16 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 
 	// Apply updates if needed
 	if needsUpdate {
-		l.Infof("Updating storage account %s with new properties", c.storageAccountName)
+		logInfo(l, "Updating storage account %s with new properties", c.storageAccountName)
 
 		_, err := c.client.Update(ctx, c.resourceGroupName, c.storageAccountName, updateParams, nil)
 		if err != nil {
 			return errors.Errorf("error updating storage account properties: %w", err)
 		}
 
-		l.Infof("Successfully updated storage account %s", c.storageAccountName)
+		logInfo(l, "Successfully updated storage account %s", c.storageAccountName)
 	} else {
-		l.Infof("Storage account %s properties are already up to date", c.storageAccountName)
+		logInfo(l, "Storage account %s properties are already up to date", c.storageAccountName)
 	}
 
 	// Handle versioning separately (as it's a blob service property, not account property)
@@ -788,14 +821,14 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 
 // DeleteStorageAccount deletes a storage account
 func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
-	l.Infof("Deleting storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
+	logInfo(l, "Deleting storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
 	// First check if the storage account exists
 	if _, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil); err != nil {
 		// If 404, it's already deleted
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == httpStatusNotFound {
-			l.Infof("Storage account %s does not exist or is already deleted", c.storageAccountName)
+			logInfo(l, "Storage account %s does not exist or is already deleted", c.storageAccountName)
 			return nil
 		}
 
@@ -807,14 +840,14 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 		return errors.Errorf("error deleting storage account: %w", err)
 	}
 
-	l.Infof("Successfully deleted storage account %s", c.storageAccountName)
+	logInfo(l, "Successfully deleted storage account %s", c.storageAccountName)
 
 	return nil
 }
 
 // EnsureResourceGroup creates a resource group if it doesn't exist
 func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error {
-	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
+	logInfo(l, "Ensuring resource group %s exists in %s", c.resourceGroupName, location)
 
 	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
 	if err != nil {
@@ -954,7 +987,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 	// Wait for RBAC permissions to propagate with retry logic
 	err = c.waitForRBACPermissions(ctx, l)
 	if err != nil {
-		l.Warnf("RBAC permissions may not have fully propagated: %v", err)
+		logWarn(l, "RBAC permissions may not have fully propagated: %v", err)
 		l.Info("If you encounter permission errors, please wait a few minutes and try again")
 	}
 
@@ -963,7 +996,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 
 // handleMissingUserObjectID logs and handles the case where the user object ID could not be retrieved.
 func (c *StorageAccountClient) handleMissingUserObjectID(l log.Logger, err error) {
-	l.Warnf("Could not get current user object ID: %v. Skipping role assignment.", err)
+	logWarn(l, "Could not get current user object ID: %v. Skipping role assignment.", err)
 	l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <your-user-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
 }
 
@@ -973,9 +1006,9 @@ func (c *StorageAccountClient) isServicePrincipalAndLog(l log.Logger, userObject
 	if os.Getenv("AZURE_CLIENT_ID") != "" || os.Getenv("ARM_CLIENT_ID") != "" {
 		isServicePrincipal = true
 
-		l.Infof("Detected service principal authentication. Assigning role to service principal with object ID: %s", userObjectID)
+		logInfo(l, "Detected service principal authentication. Assigning role to service principal with object ID: %s", userObjectID)
 	} else {
-		l.Infof("Assigning Storage Blob Data Owner role to user with object ID: %s", userObjectID)
+		logInfo(l, "Assigning Storage Blob Data Owner role to user with object ID: %s", userObjectID)
 	}
 
 	return isServicePrincipal
@@ -984,9 +1017,9 @@ func (c *StorageAccountClient) isServicePrincipalAndLog(l log.Logger, userObject
 // logPrincipalAssignment logs the assignment action based on principal type.
 func (c *StorageAccountClient) logPrincipalAssignment(l log.Logger, isServicePrincipal bool, userObjectID string) {
 	if isServicePrincipal {
-		l.Infof("Assigning Storage Blob Data Owner role to service principal %s for storage account %s", userObjectID, c.storageAccountName)
+		logInfo(l, "Assigning Storage Blob Data Owner role to service principal %s for storage account %s", userObjectID, c.storageAccountName)
 	} else {
-		l.Infof("Assigning Storage Blob Data Owner role to user %s for storage account %s", userObjectID, c.storageAccountName)
+		logInfo(l, "Assigning Storage Blob Data Owner role to user %s for storage account %s", userObjectID, c.storageAccountName)
 	}
 }
 
@@ -1002,9 +1035,9 @@ func (c *StorageAccountClient) createRoleAssignmentParams(roleDefinitionID, user
 
 // logRoleAssignmentDebug logs debug information for the role assignment.
 func (c *StorageAccountClient) logRoleAssignmentDebug(l log.Logger, roleAssignmentID, roleDefinitionID, storageAccountResourceID string) {
-	l.Debugf("Creating role assignment with ID: %s", roleAssignmentID)
-	l.Debugf("Role definition ID: %s", roleDefinitionID)
-	l.Debugf("Storage account resource ID: %s", storageAccountResourceID)
+	logDebug(l, "Creating role assignment with ID: %s", roleAssignmentID)
+	logDebug(l, "Role definition ID: %s", roleDefinitionID)
+	logDebug(l, "Storage account resource ID: %s", storageAccountResourceID)
 }
 
 // createRoleAssignmentWithRetry handles the creation of the role assignment with retry logic for known errors.
@@ -1024,30 +1057,30 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) && respErr.StatusCode == httpStatusConflict {
 		if isServicePrincipal {
-			l.Infof("Storage Blob Data Owner role already assigned to service principal %s", userObjectID)
+			logInfo(l, "Storage Blob Data Owner role already assigned to service principal %s", userObjectID)
 		} else {
-			l.Infof("Storage Blob Data Owner role already assigned to user %s", userObjectID)
+			logInfo(l, "Storage Blob Data Owner role already assigned to user %s", userObjectID)
 		}
 
 		return nil
 	}
 
 	if errors.As(err, &respErr) && (respErr.StatusCode == httpStatusForbidden || respErr.StatusCode == httpStatusUnauthorized) {
-		l.Warnf("Permission denied when assigning Storage Blob Data Owner role. Principal %s doesn't have sufficient permissions.", userObjectID)
+		logWarn(l, "Permission denied when assigning Storage Blob Data Owner role. Principal %s doesn't have sufficient permissions.", userObjectID)
 		l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <principal-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
 
 		return nil
 	}
 
 	if errors.As(err, &respErr) && respErr.ErrorCode == "InvalidRoleAssignmentId" {
-		l.Warnf("Invalid role assignment ID format. Status: %d, Error code: %s", respErr.StatusCode, respErr.ErrorCode)
-		l.Debugf("Full error: %+v", respErr)
+		logWarn(l, "Invalid role assignment ID format. Status: %d, Error code: %s", respErr.StatusCode, respErr.ErrorCode)
+		logDebug(l, "Full error: %+v", respErr)
 		// Try with a different format for the role assignment ID
 		roleAssignmentID := fmt.Sprintf("%s-%s-4000-8000-%s",
 			GenerateUUID()[0:8],
 			GenerateUUID()[0:4],
 			GenerateUUID()[0:12])
-		l.Infof("Retrying with alternative role assignment ID format: %s", roleAssignmentID)
+		logInfo(l, "Retrying with alternative role assignment ID format: %s", roleAssignmentID)
 
 		_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
 		if retryErr == nil {
@@ -1056,7 +1089,7 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 			return nil
 		}
 
-		l.Warnf("Retry also failed. Consider creating the role assignment manually: az role assignment create --role 'Storage Blob Data Owner' --assignee %s --scope %s",
+		logWarn(l, "Retry also failed. Consider creating the role assignment manually: az role assignment create --role 'Storage Blob Data Owner' --assignee %s --scope %s",
 			userObjectID, storageAccountResourceID)
 
 		return nil
@@ -1090,39 +1123,39 @@ func (c *StorageAccountClient) testRBACPermissions(ctx context.Context) error {
 func (c *StorageAccountClient) processPermissionError(ctx context.Context, l log.Logger, err error, attempt int) error {
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
-		l.Debugf("Unknown error during RBAC test (attempt %d): %v", attempt, err)
+		logDebug(l, "Unknown error during RBAC test (attempt %d): %v", attempt, err)
 
 		return c.handleRBACRetry(ctx, l, attempt)
 	}
 
 	if isPermissionError(respErr) {
 		if attempt < RbacRetryAttempts {
-			l.Debugf("Permission denied on attempt %d, waiting %v before retry (Error: %s)",
+			logDebug(l, "Permission denied on attempt %d, waiting %v before retry (Error: %s)",
 				attempt, RbacRetryDelay, respErr.Error())
 
 			return c.handleRBACRetry(ctx, l, attempt)
 		}
 
-		l.Warnf("Permission still denied after %d attempts. RBAC may need more time to propagate", RbacRetryAttempts)
+		logWarn(l, "Permission still denied after %d attempts. RBAC may need more time to propagate", RbacRetryAttempts)
 
 		return fmt.Errorf("RBAC permissions not available after %d attempts: %w", RbacRetryAttempts, err)
 	}
 
-	l.Debugf("Non-permission error during RBAC test (attempt %d): %v", attempt, err)
+	logDebug(l, "Non-permission error during RBAC test (attempt %d): %v", attempt, err)
 
 	return c.handleRBACRetry(ctx, l, attempt)
 }
 
 // waitForRBACPermissions waits for RBAC permissions to propagate by testing storage account access
 func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log.Logger) error {
-	l.Infof("Waiting for RBAC permissions to propagate (up to %d attempts with %v delays)", RbacRetryAttempts, RbacRetryDelay)
+	logInfo(l, "Waiting for RBAC permissions to propagate (up to %d attempts with %v delays)", RbacRetryAttempts, RbacRetryDelay)
 
 	for attempt := 1; attempt <= RbacRetryAttempts; attempt++ {
-		l.Debugf("RBAC permission test attempt %d/%d", attempt, RbacRetryAttempts)
+		logDebug(l, "RBAC permission test attempt %d/%d", attempt, RbacRetryAttempts)
 
 		err := c.testRBACPermissions(ctx)
 		if err == nil {
-			l.Infof("RBAC permissions verified successfully on attempt %d", attempt)
+			logInfo(l, "RBAC permissions verified successfully on attempt %d", attempt)
 
 			return nil
 		}
@@ -1196,9 +1229,9 @@ func isPermissionError(err error) bool {
 // logRoleAssignmentSuccess logs a success message after role assignment.
 func (c *StorageAccountClient) logRoleAssignmentSuccess(l log.Logger, isServicePrincipal bool, userObjectID string) {
 	if isServicePrincipal {
-		l.Infof("Successfully assigned Storage Blob Data Owner role to service principal %s", userObjectID)
+		logInfo(l, "Successfully assigned Storage Blob Data Owner role to service principal %s", userObjectID)
 	} else {
-		l.Infof("Successfully assigned Storage Blob Data Owner role to user %s", userObjectID)
+		logInfo(l, "Successfully assigned Storage Blob Data Owner role to user %s", userObjectID)
 	}
 }
 
@@ -1229,7 +1262,7 @@ func GetAzureCredentials(ctx context.Context, l log.Logger) (*azidentity.Default
 	}
 
 	// Log the authentication method being used
-	l.Infof("Using authentication method: %s", authConfig.Method)
+	logInfo(l, "Using authentication method: %s", authConfig.Method)
 
 	return defaultCred, authConfig.SubscriptionID, nil
 }

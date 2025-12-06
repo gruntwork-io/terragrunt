@@ -134,7 +134,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 	if subscriptionID == "" {
 		if authConfig.SubscriptionID != "" {
 			subscriptionID = authConfig.SubscriptionID
-			l.Infof("Using subscription ID from auth config: %s", subscriptionID)
+			logInfo(l, "Using subscription ID from auth config: %s", subscriptionID)
 		} else {
 			return nil, errors.Errorf("subscription_id is required either in configuration or as an environment variable")
 		}
@@ -170,17 +170,17 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 
 // EnsureResourceGroup creates a resource group if it doesn't exist
 func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Logger, resourceGroupName, location string, tags map[string]string) error {
-	l.Infof("Ensuring resource group %s exists in %s", resourceGroupName, location)
+	logInfo(l, "Ensuring resource group %s exists in %s", resourceGroupName, location)
 
 	// Check if resource group exists
 	_, err := c.client.Get(ctx, resourceGroupName, nil)
 	if err == nil {
-		l.Infof("Resource group %s already exists", resourceGroupName)
+		logInfo(l, "Resource group %s already exists", resourceGroupName)
 		return nil
 	}
 
 	// If it doesn't exist, create it
-	l.Infof("Creating resource group %s in %s", resourceGroupName, location)
+	logInfo(l, "Creating resource group %s in %s", resourceGroupName, location)
 
 	// Convert tags to Azure SDK format
 	azureTags := make(map[string]*string)
@@ -205,14 +205,14 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 		return fmt.Errorf("error creating resource group: %w", err)
 	}
 
-	l.Infof("Successfully created resource group %s", resourceGroupName)
+	logInfo(l, "Successfully created resource group %s", resourceGroupName)
 
 	return nil
 }
 
 // DeleteResourceGroup deletes a resource group
 func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Logger, resourceGroupName string) error {
-	l.Infof("Deleting resource group %s", resourceGroupName)
+	logInfo(l, "Deleting resource group %s", resourceGroupName)
 
 	// Check if it exists before deleting
 	_, err := c.client.Get(ctx, resourceGroupName, nil)
@@ -220,7 +220,7 @@ func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Log
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == 404 {
 			// Resource group doesn't exist, nothing to delete
-			l.Infof("Resource group %s doesn't exist, nothing to delete", resourceGroupName)
+			logInfo(l, "Resource group %s doesn't exist, nothing to delete", resourceGroupName)
 			return nil
 		}
 		// Return any other error
@@ -239,7 +239,7 @@ func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Log
 		return fmt.Errorf("error deleting resource group: %w", err)
 	}
 
-	l.Infof("Successfully deleted resource group %s", resourceGroupName)
+	logInfo(l, "Successfully deleted resource group %s", resourceGroupName)
 
 	return nil
 }

@@ -54,7 +54,7 @@ func (s *storageAccountServiceAdapter) CreateStorageAccount(ctx context.Context,
 }
 
 // DeleteStorageAccount deletes a storage account by resource group and account name
-func (s *storageAccountServiceAdapter) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
+func (s *storageAccountServiceAdapter) DeleteStorageAccount(ctx context.Context, _, _ string) error {
 	logger := log.Default()
 	return s.client.DeleteStorageAccount(ctx, logger)
 }
@@ -72,6 +72,8 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 	}
 
 	// Convert ARM storage account to our types
+	// Note: resourceGroupName and accountName are passed for interface compatibility
+	// but we use the values from the client configuration
 	result := &types.StorageAccount{
 		Name:              accountName,
 		ResourceGroupName: resourceGroupName,
@@ -100,14 +102,14 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 }
 
 // GetStorageAccountKeys retrieves storage account keys
-func (s *storageAccountServiceAdapter) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
+func (s *storageAccountServiceAdapter) GetStorageAccountKeys(_ context.Context, _, _ string) ([]string, error) {
 	// The azurehelper client doesn't expose this method yet
 	// This would need to be implemented in the azurehelper client
 	return nil, errors.New("GetStorageAccountKeys not implemented")
 }
 
 // GetStorageAccountSAS generates a SAS token for the storage account
-func (s *storageAccountServiceAdapter) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
+func (s *storageAccountServiceAdapter) GetStorageAccountSAS(_ context.Context, _, _ string) (string, error) {
 	// This would need to be implemented in the azurehelper client
 	return "", errors.New("GetStorageAccountSAS not implemented")
 }

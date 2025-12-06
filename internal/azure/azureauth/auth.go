@@ -354,19 +354,19 @@ func GetAuthConfig(
 	case authConfig.UseAzureAD:
 		authConfig.Method = AuthMethodAzureAD
 
-		l.Debugf("Using Azure AD authentication based on configuration")
+		logDebug(l, "Using Azure AD authentication based on configuration")
 	case authConfig.UseMSI:
 		authConfig.Method = AuthMethodMSI
 
-		l.Debugf("Using MSI authentication based on configuration")
+		logDebug(l, "Using MSI authentication based on configuration")
 	case authConfig.SasToken != "":
 		authConfig.Method = AuthMethodSasToken
 
-		l.Debugf("Using SAS token authentication based on configuration")
+		logDebug(l, "Using SAS token authentication based on configuration")
 	case authConfig.ClientID != "" && authConfig.ClientSecret != "" && authConfig.TenantID != "":
 		authConfig.Method = AuthMethodServicePrincipal
 
-		l.Debugf("Using Service Principal authentication based on configuration")
+		logDebug(l, "Using Service Principal authentication based on configuration")
 	default:
 		// Check environment variables if no explicit credentials in config
 		envClientID := getFirstEnvValue("AZURE_CLIENT_ID", "ARM_CLIENT_ID", "")
@@ -383,7 +383,7 @@ func GetAuthConfig(
 			authConfig.TenantID = envTenantID
 			authConfig.UseEnvironment = true
 
-			l.Debugf("Using Service Principal authentication from environment variables")
+			logDebug(l, "Using Service Principal authentication from environment variables")
 
 			if envSubID != "" {
 				authConfig.SubscriptionID = envSubID
@@ -393,13 +393,13 @@ func GetAuthConfig(
 			authConfig.SasToken = envSas
 			authConfig.UseEnvironment = true
 
-			l.Debugf("Using SAS token authentication from environment variables")
+			logDebug(l, "Using SAS token authentication from environment variables")
 		default:
 			// Default to Azure AD authentication if nothing else specified
 			authConfig.Method = AuthMethodAzureAD
 			authConfig.UseAzureAD = true
 
-			l.Debugf("No explicit authentication method configured, defaulting to Azure AD authentication")
+			logDebug(l, "No explicit authentication method configured, defaulting to Azure AD authentication")
 		}
 	}
 
@@ -434,12 +434,12 @@ func GetTokenCredential(
 
 	switch config.Method {
 	case AuthMethodAzureAD:
-		l.Debugf("Creating Azure AD credential")
+		logDebug(l, "Creating Azure AD credential")
 
 		credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 
 	case AuthMethodMSI:
-		l.Debugf("Creating MSI credential")
+		logDebug(l, "Creating MSI credential")
 
 		opts := &azidentity.ManagedIdentityCredentialOptions{}
 
@@ -450,7 +450,7 @@ func GetTokenCredential(
 		credential, err = azidentity.NewManagedIdentityCredential(opts)
 
 	case AuthMethodServicePrincipal:
-		l.Debugf("Creating Service Principal credential")
+		logDebug(l, "Creating Service Principal credential")
 
 		credential, err = azidentity.NewClientSecretCredential(
 			config.TenantID,
@@ -460,18 +460,18 @@ func GetTokenCredential(
 		)
 
 	case AuthMethodEnvironment:
-		l.Debugf("Creating credential from environment variables")
+		logDebug(l, "Creating credential from environment variables")
 
 		credential, err = azidentity.NewEnvironmentCredential(nil)
 
 	case AuthMethodCLI:
-		l.Debugf("Creating Azure CLI credential")
+		logDebug(l, "Creating Azure CLI credential")
 
 		credential, err = azidentity.NewAzureCLICredential(nil)
 
 	case AuthMethodSasToken:
 		// For SAS token, we return no credential but include the token in the result
-		l.Debugf("Using SAS token authentication")
+		logDebug(l, "Using SAS token authentication")
 
 		return &AuthResult{
 			Credential:     nil,

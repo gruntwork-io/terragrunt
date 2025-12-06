@@ -42,7 +42,7 @@ func TestWithErrorHandlingSuccess(t *testing.T) {
 
 	var logger log.Logger // Using a nil logger for tests
 
-	handler := NewErrorHandler(collector, logger)
+	handler := NewOperationHandler(collector, logger)
 	ctx := context.Background()
 
 	// Test with a successful operation
@@ -71,7 +71,7 @@ func TestWithErrorHandlingError(t *testing.T) {
 
 	var logger log.Logger // Using a nil logger for tests
 
-	handler := NewErrorHandler(collector, logger)
+	handler := NewOperationHandler(collector, logger)
 	ctx := context.Background()
 	testError := errors.New("test error")
 
@@ -98,7 +98,7 @@ func TestWithErrorHandlingError(t *testing.T) {
 func TestErrorTypeDetection(t *testing.T) {
 	t.Parallel()
 
-	handler := NewErrorHandler(nil, nil)
+	handler := NewOperationHandler(nil, nil)
 
 	testCases := []struct { //nolint:govet // test table structure simplicity prioritized
 		errMsg       string
@@ -132,7 +132,7 @@ func TestErrorTypeDetection(t *testing.T) {
 func TestRetryableErrorDetection(t *testing.T) {
 	t.Parallel()
 
-	handler := NewErrorHandler(nil, nil)
+	handler := NewOperationHandler(nil, nil)
 
 	testCases := []struct { //nolint:govet // prioritizing readability in table layout
 		errMsg      string
@@ -169,7 +169,7 @@ func TestWithAuthErrorHandling(t *testing.T) {
 
 	logger := log.New()
 	collector := &MockTelemetryCollector{}
-	handler := NewErrorHandler(collector, logger)
+	handler := NewOperationHandler(collector, logger)
 	ctx := context.Background()
 
 	// Create a mock auth config
@@ -308,7 +308,7 @@ func TestErrorHandlerWithNilComponents(t *testing.T) {
 
 			// Should not panic when creating handler with nil components
 			assert.NotPanics(t, func() {
-				handler := NewErrorHandler(tc.telemetry, tc.logger)
+				handler := NewOperationHandler(tc.telemetry, tc.logger)
 				assert.NotNil(t, handler)
 			})
 		})
@@ -463,7 +463,7 @@ func TestErrorHandlerContextPropagation(t *testing.T) {
 	t.Parallel()
 
 	collector := &MockTelemetryCollector{}
-	handler := NewErrorHandler(collector, nil)
+	handler := NewOperationHandler(collector, nil)
 
 	tests := []struct { //nolint:govet // structured for readability in test coverage
 		name string
@@ -513,7 +513,7 @@ func TestErrorHandlerLargeErrorMessage(t *testing.T) {
 	t.Parallel()
 
 	collector := &MockTelemetryCollector{}
-	handler := NewErrorHandler(collector, nil)
+	handler := NewOperationHandler(collector, nil)
 	ctx := context.Background()
 
 	// Create a large error message

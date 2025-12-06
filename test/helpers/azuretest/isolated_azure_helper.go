@@ -69,46 +69,64 @@ type IsolatedAzureConfig struct {
 	CleanupAfterTest       bool
 }
 
+// isolatedAzureEnvConfig holds environment-based configuration for Azure tests
+type isolatedAzureEnvConfig struct {
+	storageAccount        string
+	accessKey             string
+	resourceGroup         string
+	subscriptionID        string
+	location              string
+	isolationMode         string
+	isolateStorageAccount bool
+	isolateResourceGroup  bool
+	cleanupAfter          bool
+}
+
+// readIsolatedAzureEnvConfig reads Azure test configuration from environment variables
+func readIsolatedAzureEnvConfig() *isolatedAzureEnvConfig {
+	return &isolatedAzureEnvConfig{
+		storageAccount:        os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT"),
+		accessKey:             os.Getenv("TERRAGRUNT_AZURE_TEST_ACCESS_KEY"),
+		resourceGroup:         os.Getenv("TERRAGRUNT_AZURE_TEST_RESOURCE_GROUP"),
+		subscriptionID:        os.Getenv("TERRAGRUNT_AZURE_TEST_SUBSCRIPTION_ID"),
+		location:              os.Getenv("TERRAGRUNT_AZURE_TEST_LOCATION"),
+		isolationMode:         os.Getenv("TERRAGRUNT_AZURE_TEST_ISOLATION"),
+		isolateStorageAccount: os.Getenv("TERRAGRUNT_AZURE_TEST_ISOLATE_STORAGE") == "true",
+		isolateResourceGroup:  os.Getenv("TERRAGRUNT_AZURE_TEST_ISOLATE_RESOURCE_GROUP") == "true",
+		cleanupAfter:          os.Getenv("TERRAGRUNT_AZURE_TEST_CLEANUP") != "false", // Default to true
+	}
+}
+
 // GetIsolatedAzureConfig returns an Azure configuration with proper test isolation
 func GetIsolatedAzureConfig(t *testing.T) *IsolatedAzureConfig {
 	t.Helper()
 
 	// Get test credentials from environment
-	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
-	accessKey := os.Getenv("TERRAGRUNT_AZURE_TEST_ACCESS_KEY")
-	resourceGroup := os.Getenv("TERRAGRUNT_AZURE_TEST_RESOURCE_GROUP")
-	subscriptionID := os.Getenv("TERRAGRUNT_AZURE_TEST_SUBSCRIPTION_ID")
-	location := os.Getenv("TERRAGRUNT_AZURE_TEST_LOCATION")
-	isolationMode := os.Getenv("TERRAGRUNT_AZURE_TEST_ISOLATION")
-
-	// Get advanced isolation options
-	isolateStorageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_ISOLATE_STORAGE") == "true"
-	isolateResourceGroup := os.Getenv("TERRAGRUNT_AZURE_TEST_ISOLATE_RESOURCE_GROUP") == "true"
-	cleanupAfter := os.Getenv("TERRAGRUNT_AZURE_TEST_CLEANUP") != "false" // Default to true
+	env := readIsolatedAzureEnvConfig()
 
 	// Check requirements
-	if storageAccount == "" && !isolateStorageAccount {
+	if env.storageAccount == "" && !env.isolateStorageAccount {
 		t.Skip("Skipping Azure test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set and isolated storage not enabled")
 	}
 
 	// Use ARM_ variables as fallbacks
-	if subscriptionID == "" {
-		subscriptionID = os.Getenv("ARM_SUBSCRIPTION_ID")
-		if subscriptionID == "" {
+	if env.subscriptionID == "" {
+		env.subscriptionID = os.Getenv("ARM_SUBSCRIPTION_ID")
+		if env.subscriptionID == "" {
 			t.Skip("Skipping Azure test: No subscription ID provided")
 		}
 	}
 
-	if resourceGroup == "" && !isolateResourceGroup {
-		resourceGroup = "terragrunt-test"
+	if env.resourceGroup == "" && !env.isolateResourceGroup {
+		env.resourceGroup = "terragrunt-test"
 	}
 
-	if location == "" {
-		location = "eastus"
+	if env.location == "" {
+		env.location = "eastus"
 	}
 
-	if isolationMode == "" {
-		isolationMode = "full" // Options: "full", "container", "none"
+	if env.isolationMode == "" {
+		env.isolationMode = "full" // Options: "full", "container", "none"
 	}
 
 	// Generate unique test ID
@@ -118,21 +136,21 @@ func GetIsolatedAzureConfig(t *testing.T) *IsolatedAzureConfig {
 	containerName := generateIsolatedContainerName(t.Name(), testID)
 
 	// Create isolated storage account and resource group if needed
-	finalStorageAccount := storageAccount
-	finalResourceGroup := resourceGroup
+	finalStorageAccount := env.storageAccount
+	finalResourceGroup := env.resourceGroup
 
-	if isolateStorageAccount {
+	if env.isolateStorageAccount {
 		finalStorageAccount = generateIsolatedStorageAccountName(t.Name(), testID)
 		t.Logf("[%s] Using isolated storage account: %s", t.Name(), finalStorageAccount)
 	}
 
-	if isolateResourceGroup {
+	if env.isolateResourceGroup {
 		finalResourceGroup = generateIsolatedResourceGroupName(t.Name(), testID)
 		t.Logf("[%s] Using isolated resource group: %s", t.Name(), finalResourceGroup)
 	}
 
 	t.Logf("[%s] Created isolated Azure config with container %s (isolation: %s)",
-		t.Name(), containerName, isolationMode)
+		t.Name(), containerName, env.isolationMode)
 
 	// Generate test tags for resource tracking
 	testTags := map[string]string{
@@ -145,17 +163,17 @@ func GetIsolatedAzureConfig(t *testing.T) *IsolatedAzureConfig {
 	return &IsolatedAzureConfig{
 		StorageAccountName:     finalStorageAccount,
 		ContainerName:          containerName,
-		Location:               location,
+		Location:               env.location,
 		ResourceGroup:          finalResourceGroup,
-		SubscriptionID:         subscriptionID,
-		UseAzureAD:             accessKey == "",
-		AccessKey:              accessKey,
+		SubscriptionID:         env.subscriptionID,
+		UseAzureAD:             env.accessKey == "",
+		AccessKey:              env.accessKey,
 		TestName:               t.Name(),
 		TestID:                 testID,
-		IsolationMode:          isolationMode,
-		IsolatedStorageAccount: isolateStorageAccount,
-		IsolatedResourceGroup:  isolateResourceGroup,
-		CleanupAfterTest:       cleanupAfter,
+		IsolationMode:          env.isolationMode,
+		IsolatedStorageAccount: env.isolateStorageAccount,
+		IsolatedResourceGroup:  env.isolateResourceGroup,
+		CleanupAfterTest:       env.cleanupAfter,
 		TestTags:               testTags,
 	}
 }
@@ -584,16 +602,16 @@ func generateIsolatedResourceGroupName(testName, testID string) string {
 	cleanName = strings.Trim(cleanName, "-")
 
 	// Format: terragrunt-test-<clean-name>-<test-id>
-	rgName := "terragrunt-test-" + cleanName + "-" + testID
+	rgName := resourceGroupNamePrefix + cleanName + "-" + testID
 
 	// Resource group names must be 1-90 characters
 	if len(rgName) > AzureResourceGroupMaxLength {
 		// Keep as much of the test name as possible for readability
 		maxTestNameLen := AzureResourceGroupMaxLength - len(testID) - len(resourceGroupNamePrefix) - 1 // extra hyphen between name and testID
 		if maxTestNameLen > 0 {
-			rgName = "terragrunt-test-" + cleanName[:maxTestNameLen] + "-" + testID
+			rgName = resourceGroupNamePrefix + cleanName[:maxTestNameLen] + "-" + testID
 		} else {
-			rgName = "terragrunt-test-" + testID
+			rgName = resourceGroupNamePrefix + testID
 		}
 	}
 

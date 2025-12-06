@@ -93,7 +93,7 @@ func ValidateContainerName(containerName string) error {
 type Backend struct {
 	*backend.CommonBackend
 	telemetry        *AzureTelemetryCollector
-	errorHandler     *azureutil.ErrorHandler
+	errorHandler     *azureutil.OperationHandler
 	serviceContainer interfaces.AzureServiceContainer
 	serviceFactory   interfaces.ServiceFactory
 }
@@ -105,7 +105,7 @@ type BackendConfig struct {
 	// Telemetry collector for Azure operations
 	Telemetry *AzureTelemetryCollector
 	// ErrorHandler for Azure operations
-	ErrorHandler *azureutil.ErrorHandler
+	ErrorHandler *azureutil.OperationHandler
 	// RetryConfig contains retry configuration settings
 	RetryConfig *interfaces.RetryConfig
 	// TelemetrySettings configures telemetry collection behavior
@@ -594,6 +594,19 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return false, nil
 	}
 
+	// Check if storage account auto-creation is requested before trying to access the blob service
+	// This prevents errors when the storage account doesn't exist yet but should be created
+	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
+		tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
+			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"needs_bootstrap": true,
+			"reason":          "create_storage_account_requested",
+		})
+
+		return true, nil
+	}
+
 	_, err = backend.getBlobService(ctx, l, azureCfg, opts)
 	if err != nil {
 		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
@@ -604,17 +617,6 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		})
 
 		return false, err
-	}
-
-	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
-		tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
-			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
-			"needs_bootstrap": true,
-			"reason":          "create_storage_account_requested",
-		})
-
-		return true, nil
 	}
 
 	containerExists, err := backend.checkContainerExistence(ctx, l, azureCfg, opts)
@@ -1025,7 +1027,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 // parseMigrateConfigs parses the source and destination Azure configurations.
 func (backend *Backend) parseMigrateConfigs(
 	ctx context.Context,
-	errorHandler *azureutil.ErrorHandler,
+	errorHandler *azureutil.OperationHandler,
 	srcBackendConfig, dstBackendConfig backend.Config,
 ) (*ExtendedRemoteStateConfigAzurerm, *ExtendedRemoteStateConfigAzurerm, error) {
 	var (
@@ -1591,11 +1593,11 @@ func (backend *Backend) getTelemetry(l log.Logger) *AzureTelemetryCollector {
 }
 
 // getErrorHandler returns the error handler, initializing it if needed
-func (backend *Backend) getErrorHandler(l log.Logger) *azureutil.ErrorHandler {
+func (backend *Backend) getErrorHandler(l log.Logger) *azureutil.OperationHandler {
 	if backend.errorHandler == nil {
 		tel := backend.getTelemetry(l)
 		telemetryAdapter := NewTelemetryAdapter(tel, l)
-		backend.errorHandler = azureutil.NewErrorHandler(telemetryAdapter, l)
+		backend.errorHandler = azureutil.NewOperationHandler(telemetryAdapter, l)
 	}
 
 	return backend.errorHandler
@@ -1853,26 +1855,27 @@ func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Lo
 	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s",
 		subscriptionID, resourceGroupName, storageAccountName)
 
-	l.Debugf("Assigning Storage Account Contributor role at scope: %s", scope)
+	l.Debugf("Assigning Storage Blob Data Owner role at scope: %s", scope)
 
-	// Assign Storage Account Contributor role to the current principal
+	// Assign Storage Blob Data Owner role to the current principal
+	// This data-plane role provides full access to blob data (read, write, delete, manage ACLs)
 	if err := rbacService.AssignStorageBlobDataOwnerRole(ctx, l, scope); err != nil {
 		// Check if it's a permission error (user doesn't have rights to assign roles)
 		if rbacService.IsPermissionError(err) {
-			l.Warnf("Insufficient permissions to assign RBAC roles. You may need to manually assign 'Storage Account Contributor' role.")
+			l.Warnf("Insufficient permissions to assign RBAC roles. You may need to manually assign 'Storage Blob Data Owner' role.")
 			return nil // Don't fail bootstrap for permission errors
 		}
 
 		// Check if role is already assigned (not an error)
 		if strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "RoleAssignmentExists") {
-			l.Infof("Storage Account Contributor role is already assigned to current principal")
+			l.Infof("Storage Blob Data Owner role is already assigned to current principal")
 			return nil
 		}
 
-		return fmt.Errorf("failed to assign Storage Account Contributor role: %w", err)
+		return fmt.Errorf("failed to assign Storage Blob Data Owner role: %w", err)
 	}
 
-	l.Infof("Successfully assigned Storage Account Contributor role to current principal")
+	l.Infof("Successfully assigned Storage Blob Data Owner role to current principal")
 
 	return nil
 }

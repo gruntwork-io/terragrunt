@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -84,7 +85,7 @@ func verifyStorageAccountExists(ctx context.Context, l log.Logger, config map[st
 			storageAccountName, resourceGroupName)
 	}
 
-	l.Infof("Verified storage account %s exists", storageAccountName)
+	logInfo(l, "Verified storage account %s exists", storageAccountName)
 
 	return nil
 }
@@ -140,7 +141,7 @@ func handleConnectivityTestError(err error, l log.Logger, storageAccountName str
 func handleAzureResponseError(respErr *azcore.ResponseError, l log.Logger, storageAccountName string) error {
 	switch {
 	case respErr.ErrorCode == "ContainerNotFound":
-		l.Infof("Successfully verified storage account %s exists and is accessible", storageAccountName)
+		logInfo(l, "Successfully verified storage account %s exists and is accessible", storageAccountName)
 
 		return nil
 	case respErr.StatusCode == http.StatusNotFound:
@@ -170,7 +171,7 @@ func handleNotFoundError(respErr *azcore.ResponseError, l log.Logger, storageAcc
 			storageAccountName, respErr.StatusCode, respErr.ErrorCode)
 	}
 
-	l.Infof("Successfully verified storage account %s exists (container not found as expected)", storageAccountName)
+	logInfo(l, "Successfully verified storage account %s exists (container not found as expected)", storageAccountName)
 
 	return nil
 }
@@ -296,7 +297,9 @@ func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName s
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) {
-			if respErr.ErrorCode == "ContainerNotFound" {
+			// Handle both ContainerNotFound and ResourceNotFound error codes
+			// ResourceNotFound can occur when the container doesn't exist
+			if respErr.ErrorCode == "ContainerNotFound" || respErr.ErrorCode == "ResourceNotFound" {
 				return false, nil
 			}
 
@@ -319,12 +322,46 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 	}
 
 	if !exists {
-		l.Infof("Creating Azure Storage container %s", containerName)
+		logInfo(l, "Creating Azure Storage container %s", containerName)
 
-		_, err = c.client.CreateContainer(ctx, containerName, nil)
-		if err != nil {
-			return NewContainerCreationError(err, containerName)
+		// Retry logic for ResourceNotFound errors which can occur when storage account
+		// data plane is not yet fully provisioned after creation
+		maxRetries := 3
+		retryDelay := 5 * time.Second
+
+		var lastErr error
+
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			_, err = c.client.CreateContainer(ctx, containerName, nil)
+			if err == nil {
+				return nil
+			}
+
+			lastErr = err
+
+			// Check if this is a ResourceNotFound error (storage account data plane not ready)
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.ErrorCode == "ResourceNotFound" {
+				if attempt < maxRetries {
+					logInfo(l, "Storage account data plane not yet ready (attempt %d/%d), retrying in %v...",
+						attempt, maxRetries, retryDelay)
+
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(retryDelay):
+						// Continue to next attempt
+					}
+
+					continue
+				}
+			}
+
+			// Non-retryable error or max retries reached
+			break
 		}
+
+		return NewContainerCreationError(lastErr, containerName)
 	}
 
 	return nil
@@ -433,10 +470,10 @@ type ContainerCreationError struct {
 	ContainerName string // 16 bytes (string)
 }
 
-// NewContainerCreationError creates a new ContainerCreationError using the errors package for consistent error handling.
+// NewContainerCreationError creates a new ContainerCreationError preserving the original error chain.
 func NewContainerCreationError(underlying error, containerName string) ContainerCreationError {
 	return ContainerCreationError{
-		Underlying:    errors.New(underlying),
+		Underlying:    underlying,
 		ContainerName: containerName,
 	}
 }

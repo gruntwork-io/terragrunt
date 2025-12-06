@@ -1,4 +1,7 @@
-# Configure Terragrunt to automatically store tfstate files in Azure Storage
+terraform {
+  source = "tfr://registry.terraform.io/yorinasub17/terragrunt-registry-test/null//modules/one?version=0.0.2"
+}
+
 remote_state {
   backend = "azurerm"
 
@@ -8,11 +11,11 @@ remote_state {
   }
 
   config = {
+    key                  = "unit1/terraform.tfstate"
     storage_account_name = "__FILL_IN_STORAGE_ACCOUNT_NAME__"
     container_name       = "__FILL_IN_CONTAINER_NAME__"
-    subscription_id      = "__FILL_IN_SUBSCRIPTION_ID__"
     resource_group_name  = "__FILL_IN_RESOURCE_GROUP_NAME__"
-    key                  = "${path_relative_to_include()}/terraform.tfstate"
+    subscription_id      = "__FILL_IN_SUBSCRIPTION_ID__"
     use_azuread_auth     = true
   }
 }

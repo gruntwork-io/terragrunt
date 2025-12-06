@@ -88,7 +88,7 @@ func NewAzureServiceFactoryWithOptions(options *interfaces.FactoryOptions) inter
 
 // CreateContainer creates a new AzureServiceContainer instance
 // ctx is reserved for future use; required by interface
-func (f *AzureServiceFactory) CreateContainer(ctx context.Context) interfaces.AzureServiceContainer {
+func (f *AzureServiceFactory) CreateContainer(_ context.Context) interfaces.AzureServiceContainer {
 	// In this implementation, the factory itself is the container
 	return f
 }
@@ -147,7 +147,7 @@ func (f *AzureServiceFactory) Cleanup(ctx context.Context, l log.Logger) error {
 
 // Health checks the health of all services in the container
 // ctx is reserved for future use; required by interface
-func (f *AzureServiceFactory) Health(ctx context.Context, l log.Logger) error {
+func (f *AzureServiceFactory) Health(_ context.Context, _ log.Logger) error {
 	// For now just return success
 	return nil
 }

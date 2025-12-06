@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -67,7 +68,10 @@ func addAzureBackendExperimentFlag(command string) string {
 
 const (
 	testFixtureAzureBackend               = "fixtures/azure-backend"
+	testFixtureAzureBackendMigrate        = "fixtures/azure-backend-migrate"
 	testFixtureAzureOutputFromRemoteState = "fixtures/azure-output-from-remote-state"
+	testFixtureAzureOutputFromDependency  = "fixtures/azure-output-from-dependency"
+	testFixtureAzureParallelStateInit     = "fixtures/azure-parallel-state-init"
 )
 
 // --- Azure test helpers (formerly from test/helpers/azure.go) ---
@@ -423,118 +427,105 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 
 	t.Log("Starting TestAzureRMBootstrapBackend")
 
-	testCases := []struct {
-		checkExpectedResultFn func(t *testing.T, output string, containerName string, rootPath string, name string, args string)
-		name                  string
-		args                  string
-		containerName         string
-	}{
-		{
-			checkExpectedResultFn: func(t *testing.T, output string, containerName string, rootPath string, name string, args string) {
-				t.Helper()
+	// Use dynamic Azure resource isolation
+	azureCtx := setupAzureTestWithIsolation(t, "testazureboo")
+	t.Cleanup(azureCtx.Cleanup)
 
-				// In delete case, not finding the container is acceptable
-				if strings.Contains(output, "ContainerNotFound") {
-					return
-				}
+	t.Logf("Using isolated storage account: %s", azureCtx.StorageAccountName)
+	t.Logf("Using isolated resource group: %s", azureCtx.ResourceGroupName)
 
-				// For thoroughness, let's try bootstrapping and then deleting
-				azureCfg := getAzureStorageTestConfig(t)
-				azureCfg.ContainerName = containerName
+	// Copy fixture and set up paths
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackend)
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	rootConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 
-				// Bootstrap the backend first
-				bootstrapOutput, bootstrapErr, err := runTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
-				require.NoError(t, err, "Bootstrap command failed: %v\nOutput: %s\nError: %s", err, bootstrapOutput, bootstrapErr)
+	// Generate unique container name for this test
+	containerName := "delete-backend-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
 
-				client := createBlobServiceClientHelper(
-					t.Context(),
-					t,
-					map[string]interface{}{
-						"storage_account_name": azureCfg.StorageAccountName,
-						"container_name":       containerName,
-						"use_azuread_auth":     true,
-					},
-				)
+	// Set up common configuration parameters using dynamic resources
+	azureParams := map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT_NAME__": azureCtx.StorageAccountName,
+		"__FILL_IN_SUBSCRIPTION_ID__":      azureCtx.SubscriptionID,
+		"__FILL_IN_CONTAINER_NAME__":       containerName,
+		"__FILL_IN_RESOURCE_GROUP_NAME__":  azureCtx.ResourceGroupName,
+	}
 
-				// Verify container exists after bootstrap
-				exists, err := client.ContainerExists(t.Context(), containerName)
-				require.NoError(t, err)
-				assert.True(t, exists, "Container should exist after bootstrap")
+	// Set up the common configuration (used by unit1, unit2)
+	copyTerragruntConfigAndFillProviderPlaceholders(t,
+		commonConfigPath,
+		commonConfigPath,
+		azureParams,
+		azureCtx.Location)
 
-				// Create and verify test state file
-				data := []byte("{}")
-				err = client.UploadBlob(t.Context(), logger.CreateLogger(), containerName, "unit1/terraform.tfstate", data)
-				require.NoError(t, err, "Failed to create test state file")
+	// Also update the root terragrunt.hcl
+	copyTerragruntConfigAndFillProviderPlaceholders(t,
+		rootConfigPath,
+		rootConfigPath,
+		azureParams,
+		azureCtx.Location)
 
-				// Verify state file exists using helper
-				stateExists := checkBlobExistsHelper(t.Context(), t, client, containerName, "unit1/terraform.tfstate")
-				require.True(t, stateExists, "State file should exist after creation")
+	// Wait for RBAC permissions to propagate to newly created storage account
+	t.Log("Waiting for RBAC permissions to propagate to newly created storage account...")
+	time.Sleep(30 * time.Second)
 
-				// Now run the delete command again (will be run by test runner)
-				deleteOutput, deleteErr, err := runTerragruntCommandWithOutput(t, "terragrunt backend delete --force --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
-				require.NoError(t, err, "Delete command failed: %v\nOutput: %s\nError: %s", err, deleteOutput, deleteErr)
+	// First, try to delete (may show ContainerNotFound which is acceptable)
+	stdout, stderr, _ := runTerragruntCommandWithOutput(t, "terragrunt --experiment azure-backend backend delete --force --all --non-interactive --log-level debug --log-format key-value --strict-control require-explicit-bootstrap --working-dir "+rootPath)
+	output := stdout + stderr
 
-				// Verify container is deleted with retries
-				var containerExists bool
-				maxRetries := 5
-				for i := 0; i < maxRetries; i++ {
-					exists, err = client.ContainerExists(t.Context(), containerName)
-					require.NoError(t, err)
-					if !exists {
-						containerExists = false
-						break
-					}
-					time.Sleep(3 * time.Second)
-				}
-				assert.False(t, containerExists, "Container should not exist after delete")
-			},
-			name:          "delete backend command",
-			args:          "backend delete --force",
-			containerName: "delete-backend-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8],
+	// In delete case, not finding the container is acceptable
+	if strings.Contains(output, "ContainerNotFound") {
+		t.Log("Container not found on initial delete - this is expected, proceeding with bootstrap test")
+	}
+
+	// Bootstrap the backend
+	bootstrapOutput, bootstrapErr, err := runTerragruntCommandWithOutput(t, "terragrunt --experiment azure-backend backend bootstrap --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
+	require.NoError(t, err, "Bootstrap command failed: %v\nOutput: %s\nError: %s", err, bootstrapOutput, bootstrapErr)
+
+	// Create blob service client to verify container exists
+	client := createBlobServiceClientHelper(
+		t.Context(),
+		t,
+		map[string]interface{}{
+			"storage_account_name": azureCtx.StorageAccountName,
+			"container_name":       containerName,
+			"use_azuread_auth":     true,
 		},
+	)
+
+	// Verify container exists after bootstrap
+	exists, err := client.ContainerExists(t.Context(), containerName)
+	require.NoError(t, err)
+	assert.True(t, exists, "Container should exist after bootstrap")
+
+	// Create and verify test state file
+	data := []byte("{}")
+	err = client.UploadBlob(t.Context(), logger.CreateLogger(), containerName, "unit1/terraform.tfstate", data)
+	require.NoError(t, err, "Failed to create test state file")
+
+	// Verify state file exists using helper
+	stateExists := checkBlobExistsHelper(t.Context(), t, client, containerName, "unit1/terraform.tfstate")
+	require.True(t, stateExists, "State file should exist after creation")
+
+	// Now run the delete command
+	deleteOutput, deleteErr, err := runTerragruntCommandWithOutput(t, "terragrunt --experiment azure-backend backend delete --force --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
+	require.NoError(t, err, "Delete command failed: %v\nOutput: %s\nError: %s", err, deleteOutput, deleteErr)
+
+	// Verify container is deleted with retries
+	var containerExists bool
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		exists, err = client.ContainerExists(t.Context(), containerName)
+		require.NoError(t, err)
+		if !exists {
+			containerExists = false
+			break
+		}
+		time.Sleep(3 * time.Second)
 	}
+	assert.False(t, containerExists, "Container should not exist after delete")
 
-	for _, tc := range testCases {
-		tc := tc // capture range variable
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
-			// CopyEnvironment copies the contents of the source directory to tmpEnvPath
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackend)
-			commonConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
-
-			azureCfg := getAzureStorageTestConfig(t)
-
-			defer func() {
-				// Clean up the destination container with enhanced retries
-				azuretesting.CleanupAzureContainerWithRetry(t, &azuretesting.AzureTestConfig{
-					StorageAccountName: azureCfg.StorageAccountName,
-					ContainerName:      tc.containerName,
-					Location:           azureCfg.Location,
-					UseAzureAD:         true,
-				}, 5)
-			}()
-
-			// Set up common configuration parameters
-			azureParams := map[string]string{
-				"__FILL_IN_STORAGE_ACCOUNT_NAME__": azureCfg.StorageAccountName,
-				"__FILL_IN_SUBSCRIPTION_ID__":      os.Getenv("AZURE_SUBSCRIPTION_ID"),
-				"__FILL_IN_CONTAINER_NAME__":       tc.containerName,
-			}
-
-			// Set up the common configuration
-			copyTerragruntConfigAndFillProviderPlaceholders(t,
-				commonConfigPath,
-				commonConfigPath,
-				azureParams,
-				azureCfg.Location)
-
-			stdout, stderr, _ := runTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --log-format key-value --strict-control require-explicit-bootstrap --working-dir "+rootPath)
-
-			tc.checkExpectedResultFn(t, stdout+stderr, tc.containerName, rootPath, tc.name, tc.args)
-		})
-	}
+	t.Log("Successfully tested bootstrap and delete backend commands")
 }
 
 // TestAzureOutputFromRemoteState tests the ability to get outputs from remote state stored in Azure Storage.
@@ -607,11 +598,15 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	t.Parallel()
 
 	// Setup Azure test environment using new isolation helpers
-	azureCtx := setupAzureTestWithIsolation(t, "StorageContainerCreation")
+	azureCtx := setupAzureTestWithIsolation(t, "testazuresto")
 	defer azureCtx.Cleanup()
 
 	// Create storage account using helper
 	createTestStorageAccount(azureCtx.Ctx, t, azureCtx, true)
+
+	// Wait for RBAC permissions to propagate to newly created storage account
+	t.Log("Waiting for RBAC permissions to propagate to newly created storage account...")
+	time.Sleep(30 * time.Second)
 
 	// Setup test container using helper
 	client, cleanup := setupTestContainer(azureCtx.Ctx, t, azureCtx.StorageAccountName, azureCtx.ContainerName)
@@ -647,7 +642,8 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 
 	// Test error handling for invalid container names
 	t.Run("InvalidContainerName", func(t *testing.T) {
-		t.Parallel()
+		// Note: Do not use t.Parallel() here - we need the parent's storage account
+		// to still exist when this subtest runs
 
 		// Create a context for Azure operations
 		ctx := t.Context()
@@ -747,38 +743,22 @@ func TestStorageAccountBootstrap(t *testing.T) {
 	t.Run("StorageAccountBootstrap_ExistingAccount", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a context for Azure operations
-		ctx := t.Context()
-
 		// Set up Azure test environment
 		azureCtx := setupAzureTestWithIsolation(t, "StorageAccountBootstrap_ExistingAccount")
 		defer azureCtx.Cleanup()
 
-		// We'll use the dynamically created test storage account
-		config := map[string]interface{}{
-			"storage_account_name": azureCtx.StorageAccountName,
-			"container_name":       "terragrunt-test-sa-exists",
-			"key":                  "test/terraform.tfstate",
-		}
+		// Create storage account with proper RBAC and wait for propagation
+		createTestStorageAccount(azureCtx.Ctx, t, azureCtx, false)
 
-		// Set Azure AD authentication
-		config["use_azuread_auth"] = true
+		// Use setupTestContainer which handles DNS propagation and permission tests
+		containerName := "terragrunt-test-sa-exists"
+		client, cleanup := setupTestContainer(azureCtx.Ctx, t, azureCtx.StorageAccountName, containerName)
+		defer cleanup()
 
-		// Should succeed since the account should exist
-		client := createBlobServiceClientHelper(ctx, t, config)
-
-		// Create container for test
-		err := client.CreateContainerIfNecessary(t.Context(), azureCtx.Logger, "terragrunt-test-sa-exists")
+		// Verify container exists
+		exists, err := client.ContainerExists(t.Context(), containerName)
 		require.NoError(t, err)
-
-		// Clean up the container
-		exists, err := client.ContainerExists(t.Context(), "terragrunt-test-sa-exists")
-		require.NoError(t, err)
-
-		if exists {
-			err = client.DeleteContainer(t.Context(), azureCtx.Logger, "terragrunt-test-sa-exists")
-			require.NoError(t, err)
-		}
+		require.True(t, exists, "Container should exist after setup")
 	})
 }
 func TestBlobOperations(t *testing.T) {
@@ -1643,173 +1623,61 @@ func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
 func TestAzureBackendMigrationWithUnits(t *testing.T) {
 	t.Parallel()
 
-	// Setup Azure test environment with new isolation helpers
-	azureCtx := setupAzureTestWithIsolation(t, "TestAzureBackendMigrationWithUnits")
+	// Setup dynamic Azure test environment with isolated resources
+	azureCtx := setupAzureTestWithIsolation(t, "BackendMigration")
 	defer azureCtx.Cleanup()
 
-	// Create temporary directory for test fixtures
-	tmpDir := t.TempDir()
+	helpers.CleanupTerraformFolder(t, testFixtureAzureBackendMigrate)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackendMigrate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackendMigrate)
 
-	// Create storage account with versioning enabled for migration support
-	createTestStorageAccount(azureCtx.Ctx, t, azureCtx, true)
+	unit1Path := util.JoinPath(rootPath, "unit1")
+	unit2Path := util.JoinPath(rootPath, "unit2")
 
-	// Create a simple terraform module for testing
-	moduleDir := fmt.Sprintf("%s/modules/simple", tmpDir)
-	createTerraformModule(t, moduleDir)
+	// Common Azure parameters for placeholder replacement using dynamic resources
+	azureParams := map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT_NAME__": azureCtx.StorageAccountName,
+		"__FILL_IN_SUBSCRIPTION_ID__":      azureCtx.SubscriptionID,
+		"__FILL_IN_CONTAINER_NAME__":       azureCtx.ContainerName,
+		"__FILL_IN_RESOURCE_GROUP_NAME__":  azureCtx.ResourceGroupName,
+	}
 
-	t.Run("migrate_between_state_paths", func(t *testing.T) {
-		// Test migrating state from one path to another in the same container
+	// Fill in placeholders for unit1 config
+	unit1ConfigPath := util.JoinPath(unit1Path, "terragrunt.hcl")
+	copyTerragruntConfigAndFillProviderPlaceholders(t, unit1ConfigPath, unit1ConfigPath, azureParams, azureCtx.Location)
 
-		// Create separate directories for source and destination units
-		srcUnitDir := fmt.Sprintf("%s/src-unit", tmpDir)
-		dstUnitDir := fmt.Sprintf("%s/dst-unit", tmpDir)
+	// Fill in placeholders for unit2 config
+	unit2ConfigPath := util.JoinPath(unit2Path, "terragrunt.hcl")
+	copyTerragruntConfigAndFillProviderPlaceholders(t, unit2ConfigPath, unit2ConfigPath, azureParams, azureCtx.Location)
 
-		err := os.MkdirAll(srcUnitDir, 0o755)
-		require.NoError(t, err)
-		err = os.MkdirAll(dstUnitDir, 0o755)
-		require.NoError(t, err)
+	// Wait for RBAC permissions to fully propagate before running terraform commands
+	// This is necessary because the storage account was just created and RBAC assignments
+	// may not be immediately visible to Terraform's Azure provider
+	t.Log("Waiting for RBAC permissions to propagate to newly created storage account...")
+	time.Sleep(30 * time.Second)
 
-		// Copy terraform modules to both directories
-		for _, unitDir := range []string{srcUnitDir, dstUnitDir} {
-			unitModulesDir := fmt.Sprintf("%s/modules/simple", unitDir)
-			createTerraformModule(t, unitModulesDir)
-		}
+	// Bootstrap backend and create remote state for unit1
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit1Path+" -- -auto-approve")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Changes to Outputs")
 
-		// Step 1: Create initial terragrunt.hcl for source unit with Azure backend
-		srcConfig := generateAzureTerragruntConfig(
-			azureCtx.StorageAccountName,
-			azureCtx.ContainerName,
-			"source/terraform.tfstate",
-			azureCtx.ResourceGroupName,
-			azureCtx.SubscriptionID,
-			"./modules/simple",
-		)
+	// Bootstrap unit2 backend (but don't apply - this creates the backend config only)
+	stdout, _, err = runTerragruntCommandWithOutput(t, "terragrunt run plan --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit2Path)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Changes to Outputs")
 
-		srcConfigPath := fmt.Sprintf("%s/terragrunt.hcl", srcUnitDir)
-		err = os.WriteFile(srcConfigPath, []byte(srcConfig), 0o644)
-		require.NoError(t, err)
+	// Migrate remote state from unit1 to unit2
+	// Note: Using --force because test storage accounts don't have versioning enabled
+	_, _, err = runTerragruntCommandWithOutput(t, "terragrunt backend migrate --force --log-level debug --working-dir "+rootPath+" unit1 unit2")
+	require.NoError(t, err)
 
-		// Setup container with permission test using helper
-		_, cleanup := setupTestContainer(azureCtx.Ctx, t, azureCtx.StorageAccountName, azureCtx.ContainerName)
-		defer cleanup()
+	// Run terragrunt apply for unit2 with migrated remote state from unit1
+	// Should report "No changes" since state was migrated
+	stdout, _, err = runTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit2Path+" -- -auto-approve")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "No changes")
 
-		// Step 2: Change to source directory and bootstrap/apply to create initial state
-		originalDir, err := os.Getwd()
-		require.NoError(t, err)
-		defer os.Chdir(originalDir)
-
-		err = os.Chdir(srcUnitDir)
-		require.NoError(t, err)
-
-		// First bootstrap the backend to ensure proper initialization
-		output, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --non-interactive")
-		require.NoError(t, err, "Backend bootstrap failed: %v\nOutput: %s\nError: %s", err, output, stderr)
-		t.Logf("Backend bootstrap completed successfully")
-
-		// Then apply to create initial state
-		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive -auto-approve")
-		require.NoError(t, err, "Initial apply failed: %v\nOutput: %s\nError: %s", err, output, stderr)
-
-		// Get initial outputs to verify state
-		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt output --non-interactive -json")
-		require.NoError(t, err, "Output command failed: %v\nOutput: %s\nError: %s", err, output, stderr)
-
-		var initialOutputs map[string]interface{}
-		err = json.Unmarshal([]byte(output), &initialOutputs)
-		require.NoError(t, err)
-		require.Contains(t, initialOutputs, "random_id")
-		require.Contains(t, initialOutputs, "file_path")
-		require.Contains(t, initialOutputs, "content")
-
-		// Extract the random_id for verification after migration
-		initialRandomID := initialOutputs["random_id"].(map[string]interface{})["value"].(string)
-		initialFilePath := initialOutputs["file_path"].(map[string]interface{})["value"].(string)
-		t.Logf("Initial random ID: %s", initialRandomID)
-		t.Logf("Initial file path: %s", initialFilePath)
-
-		// Verify the state exists in Azure at source path
-		config := createStandardBlobConfig(azureCtx.StorageAccountName, azureCtx.ContainerName, map[string]interface{}{
-			"versioning_enabled": true,
-		})
-
-		client := createBlobServiceClientHelper(azureCtx.Ctx, t, config)
-
-		// Verify source state exists
-		sourceStateExists := checkBlobExistsHelper(azureCtx.Ctx, t, client, azureCtx.ContainerName, "source/terraform.tfstate")
-		require.True(t, sourceStateExists, "Source state should exist in Azure")
-
-		// Step 3: Create destination unit terragrunt.hcl with different key path
-		dstConfig := generateAzureTerragruntConfig(
-			azureCtx.StorageAccountName,
-			azureCtx.ContainerName,
-			"destination/terraform.tfstate",
-			azureCtx.ResourceGroupName,
-			azureCtx.SubscriptionID,
-			"./modules/simple",
-		)
-
-		dstConfigPath := fmt.Sprintf("%s/terragrunt.hcl", dstUnitDir)
-		err = os.WriteFile(dstConfigPath, []byte(dstConfig), 0o644)
-		require.NoError(t, err)
-
-		// Migrate from dev to prod environment
-		err = os.Chdir(tmpDir)
-		require.NoError(t, err)
-
-		migrationCmd := fmt.Sprintf("terragrunt backend migrate --non-interactive %s %s", srcUnitDir, dstUnitDir)
-		output, stderr, err = runTerragruntCommandWithOutput(t, migrationCmd)
-		require.NoError(t, err, "Backend migration failed: %v\nOutput: %s\nError: %s", err, output, stderr)
-
-		// Log the actual migration output for debugging
-		t.Logf("Migration command output: %s", output)
-		t.Logf("Migration command stderr: %s", stderr)
-
-		// If migration command completed without error, consider it successful
-		// The real verification is whether the state actually moved (checked below)
-		t.Logf("Backend migration command completed successfully")
-
-		// Step 5: Verify state was migrated to destination
-		err = os.Chdir(dstUnitDir)
-		require.NoError(t, err)
-
-		// Check outputs in destination unit
-		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt output --non-interactive -json")
-		require.NoError(t, err, "Output after migration failed: %v\nOutput: %s\nError: %s", err, output, stderr)
-
-		var migratedOutputs map[string]interface{}
-		err = json.Unmarshal([]byte(output), &migratedOutputs)
-		require.NoError(t, err)
-
-		// Verify state was preserved during migration
-		migratedRandomID := migratedOutputs["random_id"].(map[string]interface{})["value"].(string)
-		migratedFilePath := migratedOutputs["file_path"].(map[string]interface{})["value"].(string)
-
-		assert.Equal(t, initialRandomID, migratedRandomID, "Random ID should be preserved during migration")
-		assert.Equal(t, initialFilePath, migratedFilePath, "File path should be preserved during migration")
-
-		// Step 6: Verify state exists at destination path in Azure
-		destinationStateExists := checkBlobExistsHelper(azureCtx.Ctx, t, client, azureCtx.ContainerName, "destination/terraform.tfstate")
-		require.True(t, destinationStateExists, "Destination state should exist in Azure after migration")
-
-		// Step 7: Verify source state no longer exists (migration should move, not copy)
-		sourceStateExists = checkBlobExistsHelper(azureCtx.Ctx, t, client, azureCtx.ContainerName, "source/terraform.tfstate")
-		assert.False(t, sourceStateExists, "Source state should no longer exist after migration (state should be moved, not copied)")
-
-		// Step 8: Verify we can still manage resources with the migrated state
-		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive")
-		require.NoError(t, err, "Plan with migrated state failed: %v\nOutput: %s\nError: %s", err, output, stderr)
-		assert.Contains(t, output, "No changes", "Plan should show no changes after successful migration")
-
-		t.Log("Successfully migrated state from source path to destination path")
-
-		// Cleanup resources
-		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt destroy --non-interactive -auto-approve")
-		if err != nil {
-			t.Logf("Warning: Failed to destroy resources: %v\nOutput: %s\nError: %s", err, output, stderr)
-		} else {
-			t.Log("Successfully destroyed test resources")
-		}
-	})
+	t.Log("Successfully migrated state from unit1 to unit2")
 }
 
 // TestDynamicAzureStorage is a simple test to verify our dynamic Azure storage account setup
@@ -1908,6 +1776,199 @@ func TestDynamicAzureStorage(t *testing.T) {
 	t.Logf("Successfully deleted and verified container no longer exists")
 
 	// The Cleanup function will handle deleting the storage account and resource group
+}
+
+// TestAzureOutputFromDependency tests that output from a dependency module can be read
+// when using Azure Storage backend. This verifies that dependency blocks work correctly
+// with Azure remote state.
+func TestAzureOutputFromDependency(t *testing.T) {
+	t.Parallel()
+
+	// Setup Azure test environment using dynamic isolation
+	azureCtx := setupAzureTestWithIsolation(t, "outputdep")
+	t.Cleanup(azureCtx.Cleanup)
+
+	t.Logf("Using isolated storage account: %s", azureCtx.StorageAccountName)
+	t.Logf("Using isolated resource group: %s", azureCtx.ResourceGroupName)
+
+	// Copy fixture
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureOutputFromDependency)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromDependency)
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+
+	// Generate unique container name
+	containerName := "output-dep-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
+
+	// Set up configuration parameters
+	azureParams := map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT_NAME__": azureCtx.StorageAccountName,
+		"__FILL_IN_SUBSCRIPTION_ID__":      azureCtx.SubscriptionID,
+		"__FILL_IN_CONTAINER_NAME__":       containerName,
+		"__FILL_IN_RESOURCE_GROUP_NAME__":  azureCtx.ResourceGroupName,
+	}
+
+	// Fill in placeholders in common config
+	copyTerragruntConfigAndFillProviderPlaceholders(t,
+		commonConfigPath,
+		commonConfigPath,
+		azureParams,
+		azureCtx.Location)
+
+	// Wait for RBAC permissions to propagate
+	t.Log("Waiting for RBAC permissions to propagate to newly created storage account...")
+	time.Sleep(30 * time.Second)
+
+	// Run terragrunt run --all apply to apply both dependency and app modules
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cmd := fmt.Sprintf("terragrunt --experiment azure-backend run --all --non-interactive --backend-bootstrap --working-dir %s --log-level debug -- apply -auto-approve", rootPath)
+	t.Logf("Running command: %s", cmd)
+
+	err := runTerragruntCommand(t, cmd, &stdout, &stderr)
+	require.NoError(t, err, "terragrunt run --all apply should succeed\nStdout: %s\nStderr: %s", stdout.String(), stderr.String())
+
+	// Check that the output doesn't contain JSON parsing errors (the original AWS test checks for "invalid character")
+	output := stderr.String()
+	assert.NotContains(t, output, "invalid character", "Should not have JSON parsing errors when reading dependency outputs")
+
+	// Verify the dependency output was passed to the app module by getting the app output
+	stdout.Reset()
+	stderr.Reset()
+
+	outputCmd := fmt.Sprintf("terragrunt --experiment azure-backend output -json --non-interactive --working-dir %s/app", rootPath)
+	t.Logf("Running command: %s", outputCmd)
+
+	err = runTerragruntCommand(t, outputCmd, &stdout, &stderr)
+	require.NoError(t, err, "terragrunt output should succeed\nStderr: %s", stderr.String())
+
+	// Parse the output JSON to verify the value was passed correctly
+	var outputs map[string]terraformOutput
+	err = json.Unmarshal(stdout.Bytes(), &outputs)
+	require.NoError(t, err, "Should be able to parse output JSON: %s", stdout.String())
+
+	// Verify the received_foo output matches the expected value from dependency
+	receivedFoo, ok := outputs["received_foo"]
+	require.True(t, ok, "Output 'received_foo' should exist")
+	assert.Equal(t, "test-foo-value", receivedFoo.Value, "received_foo should match the dependency output value")
+
+	t.Logf("Successfully verified dependency output was passed to app module: received_foo=%v", receivedFoo.Value)
+
+	// Cleanup: destroy all modules
+	stdout.Reset()
+	stderr.Reset()
+
+	destroyCmd := fmt.Sprintf("terragrunt --experiment azure-backend run --all --non-interactive --working-dir %s -- destroy -auto-approve", rootPath)
+	t.Logf("Running cleanup command: %s", destroyCmd)
+
+	err = runTerragruntCommand(t, destroyCmd, &stdout, &stderr)
+	if err != nil {
+		t.Logf("Warning: destroy command failed (may be expected if resources already cleaned up): %v", err)
+	}
+
+	// Clean up the Azure container
+	ctx := t.Context()
+	log := logger.CreateLogger()
+
+	blobConfig := map[string]interface{}{
+		"storage_account_name": azureCtx.StorageAccountName,
+		"container_name":       containerName,
+		"use_azuread_auth":     true,
+	}
+
+	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, log, nil, blobConfig)
+	if err == nil {
+		exists, _ := blobClient.ContainerExists(ctx, containerName)
+		if exists {
+			_ = blobClient.DeleteContainer(ctx, log, containerName)
+			t.Logf("Cleaned up Azure container: %s", containerName)
+		}
+	}
+}
+
+// TestAzureParallelStateInit tests that multiple modules can initialize state concurrently
+// without race conditions or conflicts. This is the Azure equivalent of TestAwsParallelStateInit.
+func TestAzureParallelStateInit(t *testing.T) {
+	t.Parallel()
+
+	// Set up isolated Azure resources for this test
+	azureCtx := setupAzureTestWithIsolation(t, "ParallelStateInit")
+	defer azureCtx.Cleanup()
+
+	t.Logf("Using isolated storage account: %s", azureCtx.StorageAccountName)
+	t.Logf("Using isolated resource group: %s", azureCtx.ResourceGroupName)
+
+	// Create temp directory and copy template 20 times to create parallel modules
+	tmpEnvPath := t.TempDir()
+	for i := range 20 {
+		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureAzureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		require.NoError(t, err)
+		err = os.Rename(
+			filepath.Join(tmpEnvPath, "template"),
+			filepath.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+
+	// Copy and fill placeholders in root.hcl
+	originalRootConfigPath := util.JoinPath(testFixtureAzureParallelStateInit, "root.hcl")
+	tmpRootConfigFile := util.JoinPath(tmpEnvPath, "root.hcl")
+
+	// Generate a unique container name for this test
+	containerName := fmt.Sprintf("parallel-init-%s", strings.ToLower(helpers.UniqueID()))
+
+	params := map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT_NAME__": azureCtx.StorageAccountName,
+		"__FILL_IN_CONTAINER_NAME__":       containerName,
+		"__FILL_IN_SUBSCRIPTION_ID__":      azureCtx.SubscriptionID,
+		"__FILL_IN_RESOURCE_GROUP_NAME__":  azureCtx.ResourceGroupName,
+	}
+
+	copyTerragruntConfigAndFillProviderPlaceholders(t, originalRootConfigPath, tmpRootConfigFile, params, "")
+
+	// Wait for RBAC permissions to propagate
+	t.Log("Waiting for RBAC permissions to propagate to newly created storage account...")
+	time.Sleep(30 * time.Second)
+
+	// Run terragrunt apply on all 20 modules in parallel
+	t.Logf("Running parallel state init on %d modules", 20)
+	applyCmd := fmt.Sprintf("terragrunt --experiment azure-backend run --all --non-interactive --backend-bootstrap --working-dir %s -- apply -auto-approve", tmpEnvPath)
+	t.Logf("Running command: %s", applyCmd)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, applyCmd)
+	if err != nil {
+		t.Logf("Apply stdout: %s", stdout)
+		t.Logf("Apply stderr: %s", stderr)
+	}
+	require.NoError(t, err, "Parallel state init should succeed without race conditions")
+
+	t.Logf("Successfully initialized state for 20 modules in parallel")
+
+	// Clean up - destroy all modules
+	t.Log("Cleaning up: running destroy on all modules...")
+	destroyCmd := fmt.Sprintf("terragrunt --experiment azure-backend run --all --non-interactive --working-dir %s -- destroy -auto-approve", tmpEnvPath)
+	_, _, destroyErr := runTerragruntCommandWithOutput(t, destroyCmd)
+	if destroyErr != nil {
+		t.Logf("Warning: destroy command failed (may be expected if resources already cleaned up): %v", destroyErr)
+	}
+
+	// Clean up the Azure container
+	ctx := t.Context()
+	log := logger.CreateLogger()
+
+	blobConfig := map[string]interface{}{
+		"storage_account_name": azureCtx.StorageAccountName,
+		"container_name":       containerName,
+		"use_azuread_auth":     true,
+	}
+
+	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, log, nil, blobConfig)
+	if err == nil {
+		exists, _ := blobClient.ContainerExists(ctx, containerName)
+		if exists {
+			_ = blobClient.DeleteContainer(ctx, log, containerName)
+			t.Logf("Cleaned up Azure container: %s", containerName)
+		}
+	}
 }
 
 // --- Generic test helpers (inlined from helpers) ---

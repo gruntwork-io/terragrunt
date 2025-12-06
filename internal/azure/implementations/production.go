@@ -30,6 +30,9 @@ type StorageAccountServiceImpl struct {
 const (
 	jwtExpectedPartCount = 3 // JWT has 3 parts: header, payload, signature
 
+	// azureManagementScope is the default scope for Azure Resource Manager operations
+	azureManagementScope = "https://management.azure.com/.default"
+
 	// Error message formats for configuration mismatch errors
 	errResourceGroupMismatchFmt  = "resource group mismatch: client configured for %s, requested %s"
 	errStorageAccountMismatchFmt = "storage account mismatch: client configured for %s, requested %s"
@@ -386,8 +389,8 @@ func (r *RBACServiceImpl) AssignRole(ctx context.Context, l log.Logger, roleName
 	return nil
 }
 
-// matchesRoleAssignment checks if an assignment matches the target principal and role.
-func matchesRoleAssignment(assignment *armauthorization.RoleAssignment, principalID, roleName string) bool {
+// matchesRoleAssignment checks if an assignment matches the target principal and role definition ID.
+func matchesRoleAssignment(assignment *armauthorization.RoleAssignment, principalID, roleDefinitionID string) bool {
 	props := assignment.Properties
 	if props == nil || props.PrincipalID == nil || props.RoleDefinitionID == nil {
 		return false
@@ -397,13 +400,11 @@ func matchesRoleAssignment(assignment *armauthorization.RoleAssignment, principa
 		return false
 	}
 
-	if roleName == "" {
+	if roleDefinitionID == "" {
 		return true
 	}
 
-	roleDefID := *props.RoleDefinitionID
-
-	return strings.Contains(strings.ToLower(roleDefID), strings.ToLower(roleName))
+	return *props.RoleDefinitionID == roleDefinitionID
 }
 
 // RemoveRole removes a role assignment from a principal at the specified scope
@@ -413,13 +414,22 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 		return err
 	}
 
+	// Resolve role definition ID once so we can match assignments reliably
+	var roleDefinitionID string
+	if roleName != "" {
+		roleDefinitionID, err = r.getRoleDefinitionID(ctx, roleName)
+		if err != nil {
+			return fmt.Errorf("failed to get role definition for %s: %w", roleName, err)
+		}
+	}
+
 	assignments, err := r.listRoleAssignments(ctx, scope)
 	if err != nil {
 		return err
 	}
 
 	for _, assignment := range assignments {
-		if !matchesRoleAssignment(assignment, principalID, roleName) {
+		if !matchesRoleAssignment(assignment, principalID, roleDefinitionID) {
 			continue
 		}
 
@@ -512,7 +522,7 @@ func (r *RBACServiceImpl) AssignStorageBlobDataOwnerRole(ctx context.Context, l 
 // GetCurrentPrincipal gets the current principal's information
 func (r *RBACServiceImpl) GetCurrentPrincipal(ctx context.Context) (*interfaces.Principal, error) {
 	token, err := r.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/.default"},
+		Scopes: []string{azureManagementScope},
 	})
 	if err != nil {
 		return nil, err
@@ -654,7 +664,7 @@ func (a *AuthenticationServiceImpl) GetCredential(ctx context.Context, config ma
 func (a *AuthenticationServiceImpl) ValidateCredentials(ctx context.Context) error {
 	// Try to get a token to validate credentials
 	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/.default"},
+		Scopes: []string{azureManagementScope},
 	})
 	if err != nil {
 		return err
@@ -692,7 +702,7 @@ func (a *AuthenticationServiceImpl) IsManagedIdentity(ctx context.Context) (bool
 // GetCurrentPrincipal retrieves information about the currently authenticated principal
 func (a *AuthenticationServiceImpl) GetCurrentPrincipal(ctx context.Context) (interface{}, error) {
 	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/.default"},
+		Scopes: []string{azureManagementScope},
 	})
 	if err != nil {
 		return nil, err
@@ -750,7 +760,7 @@ func (a *AuthenticationServiceImpl) GetAccessToken(ctx context.Context, scopes [
 // GetTokenClaims extracts claims from the current token
 func (a *AuthenticationServiceImpl) GetTokenClaims(ctx context.Context) (map[string]interface{}, error) {
 	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/.default"},
+		Scopes: []string{azureManagementScope},
 	})
 	if err != nil {
 		return nil, err
