@@ -1456,6 +1456,7 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 	const (
 		valuesFileName  = "terragrunt.values.hcl"
 		dotStackDirName = ".terragrunt-stack"
+		nestedUnitDirs  = "unit_dirs"
 	)
 
 	err := filepath.WalkDir(rootPath, func(path string, d os.DirEntry, err error) error {
@@ -1484,7 +1485,7 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 			continue
 		}
 
-		expected := filepath.ToSlash(valuesPath[:idx])
+		expected := valuesPath[:idx]
 
 		isNoLocals := strings.Contains(valuesPath, "no-locals")
 		isNestedReadConfig := strings.Contains(valuesPath, "read-config-nested")
@@ -1496,8 +1497,10 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 			// of evaluation this scenario will resolve to the generated child stack directory rather than the parent
 			// stack root. If users intend to acquire the parent stack directory at generate time they must do it from
 			// the locals block either directly or in another config evaluated via read_terragrunt_config().
-			expected += string(os.PathSeparator) + dotStackDirName + string(os.PathSeparator) + "unit_dirs"
+			expected = filepath.Join(expected, dotStackDirName, nestedUnitDirs)
 		}
+
+		expected = filepath.ToSlash(expected)
 
 		assert.Contains(t, string(content), `stack_dir = "`+expected+`"`, "wrong stack_dir in %s", valuesPath)
 	}
