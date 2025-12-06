@@ -122,7 +122,6 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
 	otherPath := util.JoinPath(rootPath, "other")
-	testingPath := util.JoinPath(rootPath, "testing")
 
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -143,7 +142,8 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 		"Should not fail with 'Unsuitable value type' error")
 
 	// Verify the generate block was created successfully
-	generatedFile := util.JoinPath(testingPath, ".terragrunt-cache")
+	// During run --all, the cache is created at the root working directory level
+	generatedFile := util.JoinPath(rootPath, ".terragrunt-cache")
 	assert.DirExists(t, generatedFile, "Terragrunt cache should exist")
 }
 

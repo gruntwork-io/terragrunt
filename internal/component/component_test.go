@@ -1,6 +1,7 @@
 package component_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -136,4 +137,107 @@ func TestComponentsCycleCheck(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnitStringConcurrent(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/path")
+	dep := component.NewUnit("/test/dep")
+	unit.AddDependency(dep)
+
+	var wg sync.WaitGroup
+
+	const goroutines = 10
+
+	for range goroutines {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for range 100 {
+				s := unit.String()
+				assert.Contains(t, s, "/test/path")
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestThreadSafeComponentsEnsureNoDuplicates(t *testing.T) {
+	t.Parallel()
+
+	tsc := component.NewThreadSafeComponents(component.Components{})
+
+	// Add same path twice - should not duplicate
+	unit1 := component.NewUnit("/test/path")
+	unit2 := component.NewUnit("/test/path")
+
+	added1, wasAdded1 := tsc.EnsureComponent(unit1)
+	added2, wasAdded2 := tsc.EnsureComponent(unit2)
+
+	assert.True(t, wasAdded1, "first component should be added")
+	assert.False(t, wasAdded2, "second component should not be added (duplicate)")
+	assert.Same(t, added1, added2, "should return same component instance")
+	assert.Equal(t, 1, tsc.Len(), "should have exactly one component")
+}
+
+func TestThreadSafeComponentsFindByPath(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/path")
+	tsc := component.NewThreadSafeComponents(component.Components{unit})
+
+	// Find by exact path
+	found := tsc.FindByPath("/test/path")
+	assert.NotNil(t, found, "should find component by exact path")
+	assert.Equal(t, "/test/path", found.Path())
+
+	// Find non-existent path
+	notFound := tsc.FindByPath("/nonexistent")
+	assert.Nil(t, notFound, "should not find non-existent path")
+}
+
+func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	tsc := component.NewThreadSafeComponents(component.Components{})
+
+	var wg sync.WaitGroup
+
+	const goroutines = 10
+
+	// Concurrent writes
+	for i := range goroutines {
+		wg.Add(1)
+
+		go func(idx int) {
+			defer wg.Done()
+
+			unit := component.NewUnit("/test/path")
+			tsc.EnsureComponent(unit)
+		}(i)
+	}
+
+	// Concurrent reads
+	for range goroutines {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for range 100 {
+				_ = tsc.FindByPath("/test/path")
+				_ = tsc.Len()
+				_ = tsc.ToComponents()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Should have exactly one component despite concurrent adds
+	assert.Equal(t, 1, tsc.Len(), "should have exactly one component after concurrent adds")
 }
