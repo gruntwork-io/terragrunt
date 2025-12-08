@@ -401,7 +401,7 @@
   }
 }
 
-@media (1024px > width >= 768px) {
+@media (1280px > width >= 768px) {
   :root {
     --sl-nav-height: 148px;
   }

@@ -11,7 +11,9 @@ site-search button {
   border: 1px solid var(--color-opacity-10);
   border-radius: 6px;
   color: var(--color-gray-2);
+  height: 100%;
   max-width: none;
+  min-height: 44px;
   padding: 6px 12px;
 }
 
