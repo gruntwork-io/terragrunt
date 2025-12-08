@@ -1308,7 +1308,9 @@ func (d *Discovery) Discover(
 			errs = append(errs, errors.New(evaluateErr))
 		}
 
-		components = filtered
+		if evaluateErr == nil {
+			components = filtered
+		}
 	}
 
 	if len(errs) > 0 {

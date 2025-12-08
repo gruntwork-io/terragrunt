@@ -46,7 +46,7 @@ func NewStack(path string) *Stack {
 	}
 }
 
-// WithDiscoveryContext sets the discovery context for this unit.
+// WithDiscoveryContext sets the discovery context for this stack.
 func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
 	s.discoveryContext = ctx
 

@@ -1135,11 +1135,6 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// FIXME: Remove
-			if tt.name != "Git filter - changes between commits" {
-				t.Skip("Skipping test: " + tt.name)
-			}
-
 			tmpDir := t.TempDir()
 			tmpDir, err := filepath.EvalSymlinks(tmpDir)
 			require.NoError(t, err)
