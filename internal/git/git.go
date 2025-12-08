@@ -209,7 +209,7 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 		}
 	}
 
-	g.WithWorkDir(tempDir)
+	g.WorkDir = tempDir
 
 	cleanup := func() error {
 		if err := os.RemoveAll(tempDir); err != nil {

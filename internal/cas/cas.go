@@ -117,7 +117,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 
 		if c.store.NeedsWrite(hash) {
 			// Create a temporary directory for git operations
-			tempDir, cleanup, createTempDirErr := c.git.CreateTempDir()
+			_, cleanup, createTempDirErr := c.git.CreateTempDir()
 			if createTempDirErr != nil {
 				return createTempDirErr
 			}
@@ -127,8 +127,6 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 					l.Warnf("cleanup error: %v", cleanupErr)
 				}
 			}()
-
-			c.git.WithWorkDir(tempDir)
 
 			if cloneAndStoreErr := c.cloneAndStoreContent(childCtx, l, opts, url, hash); cloneAndStoreErr != nil {
 				return cloneAndStoreErr
