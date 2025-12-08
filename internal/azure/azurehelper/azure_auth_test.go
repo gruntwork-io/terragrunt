@@ -413,38 +413,11 @@ func TestAzureSafeConfiguration(t *testing.T) {
 
 			var logBuffer strings.Builder
 
+			// Use the production redaction helper instead of duplicating logic
 			for k := range tc.envVars {
 				value := os.Getenv(k)
-				shouldRedact := k == "AZURE_CLIENT_SECRET" ||
-					k == "AZURE_CLIENT_CERTIFICATE_PASSWORD" ||
-					strings.Contains(k, "_KEY") ||
-					strings.Contains(k, "PASSWORD") ||
-					strings.Contains(k, "SECRET") ||
-					strings.Contains(value, "AccountKey=")
-
-				if shouldRedact {
-					fmt.Fprintf(&logBuffer, "%s=***REDACTED***\n", k)
-				} else {
-					// For connection strings, redact sensitive parts
-					if strings.Contains(value, ";") {
-						parts := strings.Split(value, ";")
-
-						var safeParts []string
-
-						for _, part := range parts {
-							if strings.Contains(part, "AccountKey=") ||
-								strings.Contains(part, "SharedAccessKey=") {
-								safeParts = append(safeParts, "AccountKey=***REDACTED***")
-							} else {
-								safeParts = append(safeParts, part)
-							}
-						}
-
-						fmt.Fprintf(&logBuffer, "%s=%s\n", k, strings.Join(safeParts, ";"))
-					} else {
-						fmt.Fprintf(&logBuffer, "%s=%s\n", k, value)
-					}
-				}
+				redactedValue := azurehelper.RedactSensitiveValue(k, value)
+				fmt.Fprintf(&logBuffer, "%s=%s\n", k, redactedValue)
 			}
 
 			logStr := logBuffer.String()
@@ -464,4 +437,76 @@ func TestAzureSafeConfiguration(t *testing.T) {
 // Helper function to create a mock logger for testing
 func createMockLogger() log.Logger {
 	return log.Default().WithOptions(log.WithOutput(io.Discard))
+}
+
+func TestRedactSensitiveValue(t *testing.T) {
+	t.Parallel()
+
+	const redacted = "***REDACTED***"
+
+	testCases := []struct {
+		name     string
+		key      string
+		value    string
+		expected string
+	}{
+		{
+			name:     "Redact client secret",
+			key:      "AZURE_CLIENT_SECRET",
+			value:    "super-secret-value",
+			expected: redacted,
+		},
+		{
+			name:     "Redact certificate password",
+			key:      "AZURE_CLIENT_CERTIFICATE_PASSWORD",
+			value:    "cert-password",
+			expected: redacted,
+		},
+		{
+			name:     "Redact key containing _KEY",
+			key:      "AZURE_STORAGE_KEY",
+			value:    "storage-key-value",
+			expected: redacted,
+		},
+		{
+			name:     "Preserve non-sensitive value",
+			key:      "AZURE_CLIENT_ID",
+			value:    "client-id-value",
+			expected: "client-id-value",
+		},
+		{
+			name:     "Partially redact connection string with AccountKey",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "AccountName=myaccount;AccountKey=secret-key-123;EndpointSuffix=core.windows.net",
+			expected: "AccountName=myaccount;AccountKey=" + redacted + ";EndpointSuffix=core.windows.net",
+		},
+		{
+			name:     "Partially redact connection string with SharedAccessKey",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "AccountName=myaccount;SharedAccessKey=sas-token-456;",
+			expected: "AccountName=myaccount;SharedAccessKey=" + redacted + ";",
+		},
+		{
+			name:     "Partially redact connection string with both keys",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "AccountName=myaccount;AccountKey=key1;SharedAccessKey=key2;BlobEndpoint=https://myaccount.blob.core.windows.net/",
+			expected: "AccountName=myaccount;AccountKey=" + redacted + ";SharedAccessKey=" + redacted + ";BlobEndpoint=https://myaccount.blob.core.windows.net/",
+		},
+		{
+			name:     "Preserve connection string without sensitive keys",
+			key:      "SOME_CONNECTION_STRING",
+			value:    "Server=myserver;Database=mydb;",
+			expected: "Server=myserver;Database=mydb;",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := azurehelper.RedactSensitiveValue(tc.key, tc.value)
+			assert.Equal(t, tc.expected, actual, "Redaction result should match expected value")
+		})
+	}
 }
