@@ -75,6 +75,9 @@ type Discovery struct {
 	// This is set up by callers before calling Discover().
 	worktrees *worktrees.Worktrees
 
+	// workingDir is the directory to search for Terragrunt configurations.
+	workingDir string
+
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
@@ -109,6 +112,9 @@ type Discovery struct {
 
 	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
 	compiledIncludePatterns []CompiledPattern
+
+	// hiddenDirMemo is a memoization of hidden directories.
+	hiddenDirMemo hiddenDirMemo
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
@@ -892,7 +898,7 @@ func (d *Discovery) skipParsing(comp component.Component) bool {
 		return false
 	}
 
-	canonicalPath, err := util.CanonicalPath(comp.Path(), d.discoveryContext.WorkingDir)
+	canonicalPath, err := util.CanonicalPath(comp.Path(), d.workingDir)
 	if err != nil {
 		return false
 	}
@@ -1219,7 +1225,7 @@ func (d *Discovery) Discover(
 						} else if opts.RootWorkingDir != "" {
 							dependentDiscovery = dependentDiscovery.WithGitRoot(opts.RootWorkingDir)
 						} else {
-							dependentDiscovery = dependentDiscovery.WithGitRoot(d.discoveryContext.WorkingDir)
+							dependentDiscovery = dependentDiscovery.WithGitRoot(d.workingDir)
 						}
 					}
 
@@ -1332,7 +1338,7 @@ func (d *Discovery) filterGraphTarget(components component.Components) (componen
 		return components, nil
 	}
 
-	targetPath, err := canonicalizeGraphTarget(d.discoveryContext.WorkingDir, d.graphTarget)
+	targetPath, err := canonicalizeGraphTarget(d.workingDir, d.graphTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -1787,7 +1793,7 @@ func (d *Discovery) filterByStrictInclude(l log.Logger, components component.Com
 		componentPath := c.Path()
 
 		// Canonicalize the path for matching
-		canonicalPath, err := util.CanonicalPath(componentPath, d.discoveryContext.WorkingDir)
+		canonicalPath, err := util.CanonicalPath(componentPath, d.workingDir)
 		if err != nil {
 			// If we can't canonicalize, try matching the raw path
 			canonicalPath = componentPath
