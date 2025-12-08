@@ -30,7 +30,9 @@ const (
 	AccessTierPremium = "Premium"
 
 	// RBAC propagation retry configuration
-	RbacRetryDelay    = 3 * time.Second
-	RbacMaxRetries    = 5
-	RbacRetryAttempts = RbacMaxRetries + 1 // Total attempts including first try
+	// Azure RBAC can take up to 5 minutes to propagate, so we use longer timeouts
+	RbacRetryDelay         = 10 * time.Second // Wait between retry attempts
+	RbacMaxRetries         = 30               // 30 retries * 10 seconds = 5 minutes max
+	RbacRetryAttempts      = RbacMaxRetries   // Total attempts
+	RbacPropagationTimeout = 5 * time.Minute  // Maximum time to wait for RBAC propagation
 )

@@ -16,11 +16,11 @@ func TestGetAuthConfig(t *testing.T) {
 	logger := log.New()
 
 	tests := []struct {
-		name           string
 		config         map[string]interface{}
 		envVars        map[string]string
-		expectedMethod azureauth.AuthMethod
 		expectedAuth   func(*azureauth.AuthConfig) bool
+		name           string
+		expectedMethod azureauth.AuthMethod
 	}{
 		{
 			name: "service principal from config",
@@ -131,10 +131,11 @@ func TestGetAuthConfig(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // This test uses t.Setenv which is incompatible with t.Parallel
 func TestValidateAuthConfig(t *testing.T) {
 	tests := []struct {
-		name      string
 		config    *azureauth.AuthConfig
+		name      string
 		expectErr bool
 	}{
 		{
@@ -189,6 +190,7 @@ func TestValidateAuthConfig(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Simple test with no parallelizable subtests
 func TestGetAzureStorageURL(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -218,6 +220,7 @@ func TestGetAzureStorageURL(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Simple integration test
 func TestIsAzureError(t *testing.T) {
 	// This is more of an integration test and would require real Azure errors
 	// We'll just test the function signature here

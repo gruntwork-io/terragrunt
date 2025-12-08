@@ -25,6 +25,7 @@ import (
 // StorageAccountServiceImpl is the production implementation of StorageAccountService
 type StorageAccountServiceImpl struct {
 	client *azurehelper.StorageAccountClient
+	logger log.Logger
 }
 
 const (
@@ -32,16 +33,17 @@ const (
 
 	// azureManagementScope is the default scope for Azure Resource Manager operations
 	azureManagementScope = "https://management.azure.com/.default"
-
-	// Error message formats for configuration mismatch errors
-	errResourceGroupMismatchFmt  = "resource group mismatch: client configured for %s, requested %s"
-	errStorageAccountMismatchFmt = "storage account mismatch: client configured for %s, requested %s"
 )
 
 // NewStorageAccountService creates a new StorageAccountService implementation
-func NewStorageAccountService(client *azurehelper.StorageAccountClient) interfaces.StorageAccountService {
+func NewStorageAccountService(client *azurehelper.StorageAccountClient, logger log.Logger) interfaces.StorageAccountService {
+	if logger == nil {
+		logger = log.Default()
+	}
+
 	return &StorageAccountServiceImpl{
 		client: client,
+		logger: logger,
 	}
 }
 
@@ -61,23 +63,28 @@ func (s *StorageAccountServiceImpl) CreateStorageAccount(ctx context.Context, cf
 		Tags:                  cfg.Tags,
 	}
 
-	return s.client.CreateStorageAccountIfNecessary(ctx, log.Default(), helperConfig)
+	return s.client.CreateStorageAccountIfNecessary(ctx, s.logger, helperConfig)
 }
 
-// DeleteStorageAccount deletes a storage account by resource group and account name
-func (s *StorageAccountServiceImpl) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
-	// Validate that the requested account matches the client's configuration
-	if s.client.GetResourceGroupName() != resourceGroupName {
-		return fmt.Errorf(errResourceGroupMismatchFmt,
-			s.client.GetResourceGroupName(), resourceGroupName)
-	}
+// GetResourceGroupName returns the resource group name this service operates on
+func (s *StorageAccountServiceImpl) GetResourceGroupName() string {
+	return s.client.GetResourceGroupName()
+}
 
-	if s.client.GetStorageAccountName() != accountName {
-		return fmt.Errorf(errStorageAccountMismatchFmt,
-			s.client.GetStorageAccountName(), accountName)
-	}
+// GetStorageAccountName returns the storage account name this service operates on
+func (s *StorageAccountServiceImpl) GetStorageAccountName() string {
+	return s.client.GetStorageAccountName()
+}
 
-	return s.client.DeleteStorageAccount(ctx, log.Default())
+// DeleteStorageAccount deletes the configured storage account
+func (s *StorageAccountServiceImpl) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
+	return s.client.DeleteStorageAccount(ctx, l)
+}
+
+// Exists checks if the configured storage account exists
+func (s *StorageAccountServiceImpl) Exists(ctx context.Context) (bool, error) {
+	exists, _, err := s.client.StorageAccountExists(ctx)
+	return exists, err
 }
 
 // GetResourceID gets the resource ID of the storage account
@@ -183,19 +190,8 @@ func getBoolValue(ptr *bool) bool {
 	return *ptr
 }
 
-// GetStorageAccount retrieves storage account information
-func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
-	// Validate that the requested account matches the client's configuration
-	if s.client.GetResourceGroupName() != resourceGroupName {
-		return nil, fmt.Errorf(errResourceGroupMismatchFmt,
-			s.client.GetResourceGroupName(), resourceGroupName)
-	}
-
-	if s.client.GetStorageAccountName() != accountName {
-		return nil, fmt.Errorf(errStorageAccountMismatchFmt,
-			s.client.GetStorageAccountName(), accountName)
-	}
-
+// GetStorageAccount retrieves information about the configured storage account
+func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context) (*types.StorageAccount, error) {
 	exists, account, err := s.client.StorageAccountExists(ctx)
 	if err != nil {
 		return nil, err
@@ -205,45 +201,23 @@ func (s *StorageAccountServiceImpl) GetStorageAccount(ctx context.Context, resou
 		return nil, nil
 	}
 
-	return s.mapAzureAccountToInternalType(account, resourceGroupName), nil
+	return s.mapAzureAccountToInternalType(account, s.client.GetResourceGroupName()), nil
 }
 
-// GetStorageAccountKeys retrieves storage account keys
-func (s *StorageAccountServiceImpl) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
-	// Validate that the requested account matches the client's configuration
-	if s.client.GetResourceGroupName() != resourceGroupName {
-		return nil, fmt.Errorf(errResourceGroupMismatchFmt,
-			s.client.GetResourceGroupName(), resourceGroupName)
-	}
-
-	if s.client.GetStorageAccountName() != accountName {
-		return nil, fmt.Errorf(errStorageAccountMismatchFmt,
-			s.client.GetStorageAccountName(), accountName)
-	}
-
+// GetStorageAccountKeys retrieves storage account keys for the configured account
+func (s *StorageAccountServiceImpl) GetStorageAccountKeys(ctx context.Context) ([]string, error) {
 	return s.client.GetStorageAccountKeys(ctx)
 }
 
-// GetStorageAccountSAS generates a SAS token for the storage account
+// GetStorageAccountSAS generates a SAS token for the configured storage account
 // Note: Passes empty string and nil to GetStorageAccountSAS, which triggers safe defaults
 // in the helper (24-hour expiry with read/write/list permissions)
-func (s *StorageAccountServiceImpl) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
-	// Validate that the requested account matches the client's configuration
-	if s.client.GetResourceGroupName() != resourceGroupName {
-		return "", fmt.Errorf(errResourceGroupMismatchFmt,
-			s.client.GetResourceGroupName(), resourceGroupName)
-	}
-
-	if s.client.GetStorageAccountName() != accountName {
-		return "", fmt.Errorf(errStorageAccountMismatchFmt,
-			s.client.GetStorageAccountName(), accountName)
-	}
-
+func (s *StorageAccountServiceImpl) GetStorageAccountSAS(ctx context.Context) (string, error) {
 	return s.client.GetStorageAccountSAS(ctx, "", nil)
 }
 
-// GetStorageAccountProperties retrieves properties of a storage account
-func (s *StorageAccountServiceImpl) GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error) {
+// GetStorageAccountProperties retrieves properties of the configured storage account
+func (s *StorageAccountServiceImpl) GetStorageAccountProperties(ctx context.Context) (*types.StorageAccountProperties, error) {
 	// Get the properties from the Azure client
 	azureProps, err := s.client.GetStorageAccountProperties(ctx)
 	if err != nil {
@@ -808,64 +782,11 @@ func (a *AuthenticationServiceImpl) GetConfiguration(ctx context.Context) (map[s
 	}, nil
 }
 
-// UpdateConfiguration updates the current authentication configuration with new values
-func (a *AuthenticationServiceImpl) UpdateConfiguration(ctx context.Context, updates map[string]interface{}) error {
-	if updates == nil {
-		return nil
-	}
-
-	// Update subscription ID if provided (try snake_case first, then camelCase)
-	subscriptionID, _ := updates["subscription_id"].(string)
-	if subscriptionID == "" {
-		subscriptionID, _ = updates["subscriptionId"].(string)
-	}
-
-	if subscriptionID != "" {
-		a.config.SubscriptionID = subscriptionID
-	}
-
-	// Update tenant ID if provided (try snake_case first, then camelCase)
-	tenantID, _ := updates["tenant_id"].(string)
-	if tenantID == "" {
-		tenantID, _ = updates["tenantId"].(string)
-	}
-
-	if tenantID != "" {
-		a.config.TenantID = tenantID
-	}
-
-	// Update client ID if provided (try snake_case first, then camelCase)
-	clientID, _ := updates["client_id"].(string)
-	if clientID == "" {
-		clientID, _ = updates["clientId"].(string)
-	}
-
-	if clientID != "" {
-		a.config.ClientID = clientID
-	}
-
-	// Update client secret if provided (try snake_case first, then camelCase)
-	clientSecret, _ := updates["client_secret"].(string)
-	if clientSecret == "" {
-		clientSecret, _ = updates["clientSecret"].(string)
-	}
-
-	if clientSecret != "" {
-		a.config.ClientSecret = clientSecret
-	}
-
-	// Update managed identity flag if provided (try snake_case first, then camelCase)
-	useManagedIdentity, ok := updates["use_managed_identity"].(bool)
-	if !ok {
-		useManagedIdentity, ok = updates["useManagedIdentity"].(bool)
-	}
-
-	if ok {
-		a.config.UseManagedIdentity = useManagedIdentity
-	}
-
-	// Validate the updated configuration
-	return a.ValidateCredentials(ctx)
+// UpdateConfiguration is not supported - authentication services are immutable.
+// To change configuration, create a new service instance with the desired settings.
+// This design ensures credential objects remain consistent with their configuration.
+func (a *AuthenticationServiceImpl) UpdateConfiguration(_ context.Context, _ map[string]interface{}) error {
+	return interfaces.ErrImmutableService
 }
 
 // IsAuthenticationError checks if an error is related to authentication
@@ -937,12 +858,12 @@ func (c *ProductionServiceContainer) GetStorageAccountService(ctx context.Contex
 	mergedConfig := mergeConfig(c.config, config)
 
 	// Create Azure storage client
-	client, err := createStorageClient(ctx, mergedConfig)
+	client, err := createStorageClient(ctx, l, mergedConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewStorageAccountService(client), nil
+	return NewStorageAccountService(client, l), nil
 }
 
 // GetBlobService returns a production blob service
@@ -951,7 +872,7 @@ func (c *ProductionServiceContainer) GetBlobService(ctx context.Context, l log.L
 	mergedConfig := mergeConfig(c.config, config)
 
 	// Create Azure blob client
-	client, err := createBlobClient(ctx, mergedConfig)
+	client, err := createBlobClient(ctx, l, mergedConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -1223,12 +1144,12 @@ func extractRoleNameFromDefinitionID(roleDefinitionID string) string {
 
 // Helper functions for client creation
 
-func createStorageClient(ctx context.Context, config map[string]interface{}) (*azurehelper.StorageAccountClient, error) {
-	return azurehelper.CreateStorageAccountClient(ctx, log.Default(), config)
+func createStorageClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*azurehelper.StorageAccountClient, error) {
+	return azurehelper.CreateStorageAccountClient(ctx, l, config)
 }
 
-func createBlobClient(ctx context.Context, config map[string]interface{}) (*azurehelper.BlobServiceClient, error) {
-	return azurehelper.CreateBlobServiceClient(ctx, log.Default(), nil, config)
+func createBlobClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*azurehelper.BlobServiceClient, error) {
+	return azurehelper.CreateBlobServiceClient(ctx, l, nil, config)
 }
 
 // createCredentialFromConfig is a shared helper that creates Azure credentials from configuration

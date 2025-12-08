@@ -13,41 +13,30 @@ import (
 )
 
 // TestRBACRetryConstants ensures the RBAC retry constants have the expected values
-// and that the retry attempts is correctly calculated from max retries
+// for proper RBAC propagation handling (up to 5 minutes)
 func TestRBACRetryConstants(t *testing.T) {
 	t.Parallel()
-	// Test RBAC delay is 3 seconds
-	assert.Equal(t, 3*time.Second, azurehelper.RbacRetryDelay, "RBAC retry delay should be 3 seconds")
+	// Test RBAC delay is 10 seconds (longer delays for RBAC propagation)
+	assert.Equal(t, 10*time.Second, azurehelper.RbacRetryDelay, "RBAC retry delay should be 10 seconds")
 
-	// Test RBAC max retries is 5
-	assert.Equal(t, 5, azurehelper.RbacMaxRetries, "RBAC max retries should be 5")
+	// Test RBAC max retries is 30 (30 * 10s = 5 minutes max)
+	assert.Equal(t, 30, azurehelper.RbacMaxRetries, "RBAC max retries should be 30")
 
-	// Test that retry attempts equals max retries + 1 (for the initial attempt)
-	assert.Equal(t, azurehelper.RbacMaxRetries+1, azurehelper.RbacRetryAttempts,
-		"RBAC retry attempts should equal RbacMaxRetries+1")
+	// Test that retry attempts equals max retries (simplified)
+	assert.Equal(t, azurehelper.RbacMaxRetries, azurehelper.RbacRetryAttempts,
+		"RBAC retry attempts should equal RbacMaxRetries")
 
 	// Test the specific expected values
-	assert.Equal(t, 6, azurehelper.RbacRetryAttempts, "RBAC retry attempts should be 6 (5 retries + initial attempt)")
+	assert.Equal(t, 30, azurehelper.RbacRetryAttempts, "RBAC retry attempts should be 30")
 
-	// The constants are defined in the package, so we can't modify them for testing
-	// Instead, we'll just verify the current values match our expectations
+	// Test propagation timeout is 5 minutes
+	assert.Equal(t, 5*time.Minute, azurehelper.RbacPropagationTimeout,
+		"RBAC propagation timeout should be 5 minutes")
 
-	// Test different values of the relationship
-	testCases := []struct {
-		maxRetries       int
-		expectedAttempts int
-	}{
-		{3, 4},
-		{5, 6}, // Current value
-		{10, 11},
-		{0, 1}, // Edge case: no retries means 1 attempt
-	}
-
-	for _, tc := range testCases {
-		calculatedAttempts := tc.maxRetries + 1
-		assert.Equal(t, tc.expectedAttempts, calculatedAttempts,
-			"When max retries is %d, attempts should be %d", tc.maxRetries, tc.expectedAttempts)
-	}
+	// Verify the math: 30 attempts * 10s delay = 5 minutes max wait
+	maxWaitTime := time.Duration(azurehelper.RbacRetryAttempts) * azurehelper.RbacRetryDelay
+	assert.Equal(t, 5*time.Minute, maxWaitTime,
+		"Max wait time should be 5 minutes (30 * 10s)")
 }
 
 // TestIsPermissionError tests the isPermissionError function with various error types
@@ -124,6 +113,7 @@ func TestIsPermissionError(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			result := client.IsPermissionError(tc.input)
 			assert.Equal(t, tc.expected, result,
 				"IsPermissionError should return %v for error: %v", tc.expected, tc.input)
@@ -133,6 +123,7 @@ func TestIsPermissionError(t *testing.T) {
 	// Test with wrapped errors
 	t.Run("WrappedPermissionError", func(t *testing.T) {
 		t.Parallel()
+
 		innerErr := errors.New("permission denied for storage account")
 		wrappedErr := fmt.Errorf("operation failed: %w", innerErr)
 
@@ -143,6 +134,7 @@ func TestIsPermissionError(t *testing.T) {
 	// Test with non-permission wrapped errors
 	t.Run("WrappedNonPermissionError", func(t *testing.T) {
 		t.Parallel()
+
 		innerErr := errors.New("resource not found")
 		wrappedErr2 := fmt.Errorf("operation failed: %w", innerErr)
 

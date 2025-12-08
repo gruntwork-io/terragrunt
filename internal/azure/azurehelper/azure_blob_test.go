@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestAzureResponseError tests the Error method of AzureResponseError
@@ -58,6 +59,7 @@ func TestAzureResponseError(t *testing.T) {
 		tc := tc // Capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			azureErr := &azurehelper.AzureResponseError{
 				StatusCode: tc.statusCode,
 				ErrorCode:  tc.errorCode,
@@ -133,6 +135,7 @@ func TestGetObjectInputValidation(t *testing.T) {
 			// We can't actually call GetObject since it requires a real client
 			// but we can verify the validation logic separately
 			var err error
+
 			switch {
 			case tc.input == nil:
 				err = errors.New("input cannot be nil")
@@ -145,7 +148,7 @@ func TestGetObjectInputValidation(t *testing.T) {
 			if tc.expectedError == "" {
 				assert.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedError)
 			}
 		})

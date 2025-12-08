@@ -1152,8 +1152,8 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 		return err
 	}
 
-	// Delete the storage account
-	err = backend.deleteStorageAccountWithRetry(ctx, l, storageService, resourceGroupName, storageAccountName)
+	// Delete the storage account (service is already configured for the target account)
+	err = backend.deleteStorageAccountWithRetry(ctx, l, storageService)
 	if err != nil {
 		tel.LogError(ctx, err, OperationDeleteAccount, AzureErrorMetrics{
 			ErrorType:      "StorageAccountDeletionError",
@@ -1474,8 +1474,8 @@ func (backend *Backend) ensureStorageAccountExists(ctx context.Context, l log.Lo
 	// Convert the backend config to a storage account config
 	storageConfig := backend.convertToStorageAccountConfig(azureCfg)
 
-	// Check if the storage account exists
-	account, err := storageService.GetStorageAccount(ctx, storageConfig.ResourceGroupName, storageConfig.Name)
+	// Check if the storage account exists (service is already configured for the target account)
+	account, err := storageService.GetStorageAccount(ctx)
 	if err != nil {
 		return backend.wrapStorageAccountError(err, storageConfig.Name)
 	}
@@ -1499,7 +1499,7 @@ func (backend *Backend) ensureStorageAccountExists(ctx context.Context, l log.Lo
 // verifyStorageAccess verifies access to the storage account by attempting to perform basic operations.
 func (backend *Backend) verifyStorageAccess(ctx context.Context, l log.Logger, blobService interfaces.BlobService, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
 	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
-	testBlobName := ".terragrunt-test-blob"
+	testBlobName := fmt.Sprintf(".terragrunt-test-%d", time.Now().UnixNano())
 
 	// Try to create the container if it doesn't exist
 	if err := blobService.CreateContainerIfNecessary(ctx, l, containerName); err != nil {
@@ -1521,11 +1521,11 @@ func (backend *Backend) verifyStorageAccess(ctx context.Context, l log.Logger, b
 }
 
 // deleteStorageAccountWithRetry attempts to delete a storage account with retry logic.
-func (backend *Backend) deleteStorageAccountWithRetry(ctx context.Context, l log.Logger, storageService interfaces.StorageAccountService, resourceGroupName, storageAccountName string) error {
+func (backend *Backend) deleteStorageAccountWithRetry(ctx context.Context, l log.Logger, storageService interfaces.StorageAccountService) error {
 	retryConfig := DefaultRetryConfig()
 
 	return WithRetry(ctx, l, "storage account deletion", retryConfig, func() error {
-		err := storageService.DeleteStorageAccount(ctx, resourceGroupName, storageAccountName)
+		err := storageService.DeleteStorageAccount(ctx, l)
 		if err != nil {
 			return WrapTransientError(err, "storage account deletion")
 		}
@@ -1830,8 +1830,9 @@ func (backend *Backend) GetObject(ctx context.Context, l log.Logger, containerNa
 // assignRBACRolesWithService assigns RBAC roles using the provided services
 func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Logger, rbacService interfaces.RBACService, storageService interfaces.StorageAccountService, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
 	// Get the storage account details to verify it exists
-	resourceGroupName := azureCfg.StorageAccountConfig.ResourceGroupName
-	storageAccountName := azureCfg.RemoteStateConfigAzurerm.StorageAccountName
+	// Note: The storageService is already configured for the target account
+	resourceGroupName := storageService.GetResourceGroupName()
+	storageAccountName := storageService.GetStorageAccountName()
 
 	if resourceGroupName == "" {
 		l.Debugf("Resource group name not available, skipping RBAC role assignment")
@@ -1840,7 +1841,7 @@ func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Lo
 
 	l.Debugf("Verifying storage account exists for RBAC role assignment")
 
-	storageAccount, err := storageService.GetStorageAccount(ctx, resourceGroupName, storageAccountName)
+	storageAccount, err := storageService.GetStorageAccount(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get storage account details: %w", err)
 	}

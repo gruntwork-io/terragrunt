@@ -102,6 +102,7 @@ exists, account, err := backend.storageAccountService.GetStorageAccount(ctx, res
 factory := factory.NewAzureServiceFactory()
 
 // Get services through factory interface
+// Note: Services are stateful - they are configured for a specific storage account
 storageService, err := factory.GetStorageAccountService(ctx, logger, config)
 if err != nil {
     return err
@@ -112,8 +113,19 @@ if err != nil {
     return err
 }
 
-// Use the services
-exists, account, err := storageService.GetStorageAccount(ctx, resourceGroup, accountName)
+// Use the services - they operate on the configured storage account
+// You can query which account the service is configured for:
+resourceGroupName := storageService.GetResourceGroupName()
+accountName := storageService.GetStorageAccountName()
+
+// Get account details (operates on the configured account)
+account, err := storageService.GetStorageAccount(ctx)
+if err != nil {
+    return err
+}
+
+// Check if the configured account exists
+exists, err := storageService.Exists(ctx)
 if err != nil {
     return err
 }
@@ -156,10 +168,16 @@ func NewBackend(
 // In test files, use mock implementations
 func TestSomeFunction(t *testing.T) {
     // Create mock services (see testing/mock_services.go)
+    // Mock services are also stateful - configure which account they represent
     mockStorage := &MockStorageAccountService{
-        GetStorageAccountFunc: func(ctx context.Context, resourceGroup, accountName string) (*armstorage.Account, error) {
+        ResourceGroupName:  "test-rg",
+        StorageAccountName: "teststorageaccount",
+        GetStorageAccountFunc: func(ctx context.Context) (*types.StorageAccount, error) {
             // Return test data
-            return &armstorage.Account{Name: &accountName}, nil
+            return &types.StorageAccount{Name: "teststorageaccount"}, nil
+        },
+        ExistsFunc: func(ctx context.Context) (bool, error) {
+            return true, nil
         },
         IsVersioningEnabledFunc: func(ctx context.Context) (bool, error) {
             return true, nil
@@ -171,7 +189,6 @@ func TestSomeFunction(t *testing.T) {
     
     // Verify behavior
     assert.NoError(t, err)
-    assert.Equal(t, 1, len(mockStorage.GetStorageAccountCalls))
 }
 ```
 
@@ -179,17 +196,27 @@ func TestSomeFunction(t *testing.T) {
 
 ### StorageAccountService
 
+The StorageAccountService follows a stateful client pattern - each service instance is configured
+for a specific storage account and resource group at creation time. All operations target that
+configured account.
+
 ```go
 type StorageAccountService interface {
-    GetStorageAccount(ctx context.Context, resourceGroup, accountName string) (*armstorage.Account, error)
-    CreateStorageAccountIfNecessary(ctx context.Context, l log.Logger, config azurehelper.StorageAccountConfig) error
+    // Configuration accessors - return the target account this service operates on
+    GetResourceGroupName() string
+    GetStorageAccountName() string
+
+    // Storage Account lifecycle
+    CreateStorageAccount(ctx context.Context, cfg *types.StorageAccountConfig) error
     DeleteStorageAccount(ctx context.Context, l log.Logger) error
+    Exists(ctx context.Context) (bool, error)
+
+    // Storage Account information - all operations target the configured account
+    GetStorageAccount(ctx context.Context) (*types.StorageAccount, error)
+    GetStorageAccountKeys(ctx context.Context) ([]string, error)
+    GetStorageAccountSAS(ctx context.Context) (string, error)
+    GetStorageAccountProperties(ctx context.Context) (*types.StorageAccountProperties, error)
     IsVersioningEnabled(ctx context.Context) (bool, error)
-    EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error
-    DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error
-    EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error
-    AssignStorageBlobDataOwnerRole(ctx context.Context, l log.Logger) error
-    IsPermissionError(err error) bool
 }
 ```
 
@@ -278,18 +305,22 @@ exists, account, err := client.StorageAccountExists(ctx)
 ### After (Interface-Based)
 
 ```go
-// Interface-based usage
+// Interface-based usage with stateful services
 factory := factory.NewAzureServiceFactory()
+// Service is configured for a specific storage account at creation
 service, err := factory.GetStorageAccountService(ctx, logger, config)
-account, err := service.GetStorageAccount(ctx, resourceGroup, accountName)
+// Query the configured account
+account, err := service.GetStorageAccount(ctx)
 ```
 
 ### Key Changes
 
-1. **Versioning moved to StorageAccountService**: `IsVersioningEnabled` is now on StorageAccountService instead of BlobService
-2. **Method signature changes**: `GetStorageAccount` replaces `StorageAccountExists` with clearer semantics
-3. **Factory pattern**: Services are created through factory interface
-4. **Dependency injection**: Backend accepts service interfaces instead of creating clients directly
+1. **Stateful client pattern**: Services are configured for a specific storage account at creation time
+2. **Configuration accessors**: `GetResourceGroupName()` and `GetStorageAccountName()` let callers query the target
+3. **Simplified method signatures**: No need to pass `resourceGroupName` and `accountName` to each method
+4. **Versioning moved to StorageAccountService**: `IsVersioningEnabled` is now on StorageAccountService instead of BlobService
+5. **Factory pattern**: Services are created through factory interface
+6. **Dependency injection**: Backend accepts service interfaces instead of creating clients directly
 
 ## Testing
 

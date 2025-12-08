@@ -88,12 +88,29 @@ func (m *mockServiceFactory) Options() *interfaces.FactoryOptions {
 
 // MockStorageAccountService implements interfaces.StorageAccountService for testing
 type MockStorageAccountService struct {
+	// Function hooks for customizing behavior (pointers first for alignment)
 	CreateStorageAccountFunc        func(ctx context.Context, cfg *types.StorageAccountConfig) error
-	DeleteStorageAccountFunc        func(ctx context.Context, resourceGroupName, accountName string) error
-	GetStorageAccountFunc           func(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error)
-	GetStorageAccountKeysFunc       func(ctx context.Context, resourceGroupName, accountName string) ([]string, error)
-	GetStorageAccountSASFunc        func(ctx context.Context, resourceGroupName, accountName string) (string, error)
-	GetStorageAccountPropertiesFunc func(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error)
+	DeleteStorageAccountFunc        func(ctx context.Context, l log.Logger) error
+	ExistsFunc                      func(ctx context.Context) (bool, error)
+	GetStorageAccountFunc           func(ctx context.Context) (*types.StorageAccount, error)
+	GetStorageAccountKeysFunc       func(ctx context.Context) ([]string, error)
+	GetStorageAccountSASFunc        func(ctx context.Context) (string, error)
+	GetStorageAccountPropertiesFunc func(ctx context.Context) (*types.StorageAccountProperties, error)
+	IsVersioningEnabledFunc         func(ctx context.Context) (bool, error)
+
+	// Configuration for the mock - which account this service "operates on"
+	ResourceGroupName  string
+	StorageAccountName string
+}
+
+// GetResourceGroupName returns the resource group name this mock service operates on
+func (m *MockStorageAccountService) GetResourceGroupName() string {
+	return m.ResourceGroupName
+}
+
+// GetStorageAccountName returns the storage account name this mock service operates on
+func (m *MockStorageAccountService) GetStorageAccountName() string {
+	return m.StorageAccountName
 }
 
 func (m *MockStorageAccountService) CreateStorageAccount(ctx context.Context, cfg *types.StorageAccountConfig) error {
@@ -104,47 +121,58 @@ func (m *MockStorageAccountService) CreateStorageAccount(ctx context.Context, cf
 	return nil
 }
 
-func (m *MockStorageAccountService) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
+func (m *MockStorageAccountService) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
 	if m.DeleteStorageAccountFunc != nil {
-		return m.DeleteStorageAccountFunc(ctx, resourceGroupName, accountName)
+		return m.DeleteStorageAccountFunc(ctx, l)
 	}
 
 	return nil
 }
 
-func (m *MockStorageAccountService) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
+func (m *MockStorageAccountService) Exists(ctx context.Context) (bool, error) {
+	if m.ExistsFunc != nil {
+		return m.ExistsFunc(ctx)
+	}
+
+	return true, nil
+}
+
+func (m *MockStorageAccountService) GetStorageAccount(ctx context.Context) (*types.StorageAccount, error) {
 	if m.GetStorageAccountFunc != nil {
-		return m.GetStorageAccountFunc(ctx, resourceGroupName, accountName)
+		return m.GetStorageAccountFunc(ctx)
 	}
 
 	return nil, nil
 }
 
-func (m *MockStorageAccountService) GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error) {
+func (m *MockStorageAccountService) GetStorageAccountKeys(ctx context.Context) ([]string, error) {
 	if m.GetStorageAccountKeysFunc != nil {
-		return m.GetStorageAccountKeysFunc(ctx, resourceGroupName, accountName)
+		return m.GetStorageAccountKeysFunc(ctx)
 	}
 
 	return []string{}, nil
 }
 
-func (m *MockStorageAccountService) GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error) {
+func (m *MockStorageAccountService) GetStorageAccountSAS(ctx context.Context) (string, error) {
 	if m.GetStorageAccountSASFunc != nil {
-		return m.GetStorageAccountSASFunc(ctx, resourceGroupName, accountName)
+		return m.GetStorageAccountSASFunc(ctx)
 	}
 
 	return "", nil
 }
 
-func (m *MockStorageAccountService) GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error) {
+func (m *MockStorageAccountService) GetStorageAccountProperties(ctx context.Context) (*types.StorageAccountProperties, error) {
 	if m.GetStorageAccountPropertiesFunc != nil {
-		return m.GetStorageAccountPropertiesFunc(ctx, resourceGroupName, accountName)
+		return m.GetStorageAccountPropertiesFunc(ctx)
 	}
 
 	return nil, nil
 }
 
 func (m *MockStorageAccountService) IsVersioningEnabled(ctx context.Context) (bool, error) {
+	if m.IsVersioningEnabledFunc != nil {
+		return m.IsVersioningEnabledFunc(ctx)
+	}
 	// For testing, default to versioning enabled unless explicitly configured
 	return true, nil
 }

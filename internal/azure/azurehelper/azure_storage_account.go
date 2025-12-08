@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -26,14 +27,21 @@ import (
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
 type StorageAccountClient struct {
+	// Management plane clients
 	client               *armstorage.AccountsClient
 	blobClient           *armstorage.BlobServicesClient
 	roleAssignmentClient *armauthorization.RoleAssignmentsClient
-	subscriptionID       string
-	resourceGroupName    string
-	storageAccountName   string
-	location             string
-	config               map[string]interface{}
+
+	// Data plane client for blob operations
+	dataPlaneBlobClient *azblob.Client
+
+	// Configuration
+	subscriptionID     string
+	resourceGroupName  string
+	storageAccountName string
+	location           string
+	config             map[string]interface{}
+	credential         azcore.TokenCredential // Store credential for lazy data plane client creation
 
 	defaultAccountKind     string
 	defaultAccountTier     string
@@ -41,7 +49,11 @@ type StorageAccountClient struct {
 	defaultReplicationType string
 }
 
-const defaultSASExpiryHours = 24
+const (
+	defaultSASExpiryHours = 24
+	// tagKeyCreatedBy is the tag key used to identify resources created by terragrunt.
+	tagKeyCreatedBy = "created-by"
+)
 
 // StorageAccountConfig represents the configuration for an Azure Storage Account.
 //
@@ -224,7 +236,7 @@ func DefaultStorageAccountConfig() StorageAccountConfig {
 		AccountTier:           "Standard",
 		AccessTier:            AccessTierHot,
 		ReplicationType:       "LRS",
-		Tags:                  map[string]string{"created-by": "terragrunt"},
+		Tags:                  map[string]string{tagKeyCreatedBy: "terragrunt"},
 	}
 }
 
@@ -349,6 +361,7 @@ func createStorageAccountClientWithCred(subscriptionID string, cfg *storageAccou
 		client:                 accountsClient,
 		blobClient:             blobClient,
 		roleAssignmentClient:   roleAssignmentClient,
+		credential:             cred, // Store credential for lazy data plane client creation
 		subscriptionID:         subscriptionID,
 		resourceGroupName:      cfg.resourceGroupName,
 		storageAccountName:     cfg.storageAccountName,
@@ -562,7 +575,7 @@ func buildStorageAccountTags(configTags map[string]string) map[string]*string {
 		}
 	} else {
 		defaultTag := "terragrunt"
-		tags["created-by"] = &defaultTag
+		tags[tagKeyCreatedBy] = &defaultTag
 	}
 
 	return tags
@@ -856,7 +869,7 @@ func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Lo
 
 	// Default tags to use if not specified
 	tags := map[string]string{
-		"created-by": "terragrunt",
+		tagKeyCreatedBy: "terragrunt",
 	}
 
 	// Ensure the resource group exists
@@ -934,7 +947,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 
 	// Check response status code
 	if resp.StatusCode != httpStatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort read for error message, failure is acceptable
 		return "", fmt.Errorf("error from Microsoft Graph API: %s - %s", resp.Status, string(bodyBytes))
 	}
 
@@ -1098,12 +1111,124 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 	return err
 }
 
-// handleRBACRetry handles the retry logic for RBAC permission checks.
-func (c *StorageAccountClient) handleRBACRetry(ctx context.Context, _ log.Logger, attempt int) error {
-	if attempt >= RbacRetryAttempts {
-		return nil // No more retries
+// RBACTestResult represents the result of an RBAC permission test
+type RBACTestResult struct {
+	ManagementError   error
+	DataPlaneError    error
+	ManagementPlaneOK bool
+	DataPlaneOK       bool
+}
+
+// testManagementPlanePermissions tests if management plane RBAC permissions are available
+// by checking storage account properties via Azure Resource Manager API.
+func (c *StorageAccountClient) testManagementPlanePermissions(ctx context.Context) error {
+	_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	return err
+}
+
+// getOrCreateDataPlaneBlobClient lazily creates the data plane blob client if needed
+func (c *StorageAccountClient) getOrCreateDataPlaneBlobClient() (*azblob.Client, error) {
+	if c.dataPlaneBlobClient != nil {
+		return c.dataPlaneBlobClient, nil
 	}
 
+	if c.credential == nil {
+		return nil, errors.Errorf("no credential available for data plane client creation")
+	}
+
+	// Get endpoint suffix from config or use default
+	endpointSuffix := "blob.core.windows.net"
+	if suffix, ok := c.config["endpoint_suffix"].(string); ok && suffix != "" {
+		endpointSuffix = "blob." + suffix
+	} else if cloudEnv, ok := c.config["cloud_environment"].(string); ok && cloudEnv != "" {
+		suffix := azureauth.GetEndpointSuffix(cloudEnv)
+		if suffix != "" {
+			endpointSuffix = "blob." + suffix
+		}
+	}
+
+	blobURL := fmt.Sprintf("https://%s.%s", c.storageAccountName, endpointSuffix)
+
+	client, err := azblob.NewClient(blobURL, c.credential, nil)
+	if err != nil {
+		return nil, errors.Errorf("error creating data plane blob client: %w", err)
+	}
+
+	c.dataPlaneBlobClient = client
+
+	return client, nil
+}
+
+// testDataPlanePermissions tests if data plane RBAC permissions are available
+// by attempting to list containers in the storage account.
+// This validates the "Storage Blob Data Owner" role assignment has propagated.
+func (c *StorageAccountClient) testDataPlanePermissions(ctx context.Context) error {
+	client, err := c.getOrCreateDataPlaneBlobClient()
+	if err != nil {
+		return err
+	}
+
+	// Try to list containers - this requires data plane permissions
+	pager := client.NewListContainersPager(&azblob.ListContainersOptions{
+		MaxResults: to.Ptr(int32(1)), // We only need to verify access, not list everything
+	})
+
+	// Try to get the first page
+	_, err = pager.NextPage(ctx)
+
+	return err
+}
+
+// testRBACPermissions tests both management and data plane permissions
+func (c *StorageAccountClient) testRBACPermissions(ctx context.Context, _ log.Logger) *RBACTestResult {
+	result := &RBACTestResult{}
+
+	// Test management plane (Azure Resource Manager API)
+	result.ManagementError = c.testManagementPlanePermissions(ctx)
+	result.ManagementPlaneOK = result.ManagementError == nil
+
+	// Test data plane (Blob Storage API)
+	result.DataPlaneError = c.testDataPlanePermissions(ctx)
+	result.DataPlaneOK = result.DataPlaneError == nil
+
+	return result
+}
+
+// logRBACTestResult logs the result of an RBAC permission test
+func (c *StorageAccountClient) logRBACTestResult(l log.Logger, result *RBACTestResult, isDebug bool) {
+	logFn := logInfo
+	if isDebug {
+		logFn = logDebug
+	}
+
+	if result.ManagementPlaneOK {
+		logFn(l, "  ✓ Management plane access: OK")
+	} else {
+		logFn(l, "  ✗ Management plane access: %v", result.ManagementError)
+	}
+
+	if result.DataPlaneOK {
+		logFn(l, "  ✓ Data plane access: OK")
+	} else {
+		logFn(l, "  ✗ Data plane access: %v", result.DataPlaneError)
+	}
+}
+
+// analyzeRBACErrors logs warnings for non-permission errors
+func (c *StorageAccountClient) analyzeRBACErrors(l log.Logger, result *RBACTestResult) {
+	if result.ManagementError != nil && !isPermissionError(result.ManagementError) {
+		logWarn(l, "Management plane error is not permission-related: %v", result.ManagementError)
+	}
+
+	if result.DataPlaneError != nil && !isPermissionError(result.DataPlaneError) {
+		// Data plane errors during RBAC propagation are often permission errors
+		// even if they don't look like it (e.g., "ResourceNotFound" can occur)
+		logDebug(l, "Data plane error (may still be RBAC propagation): %v", result.DataPlaneError)
+	}
+}
+
+// waitForRetryDelay waits for the retry delay or context cancellation
+func (c *StorageAccountClient) waitForRetryDelay(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -1112,60 +1237,42 @@ func (c *StorageAccountClient) handleRBACRetry(ctx context.Context, _ log.Logger
 	}
 }
 
-// testRBACPermissions tests if RBAC permissions are available by checking storage account properties.
-func (c *StorageAccountClient) testRBACPermissions(ctx context.Context) error {
-	_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+// waitForRBACPermissions waits for RBAC permissions to propagate by testing both
+// management plane and data plane access. This ensures the "Storage Blob Data Owner"
+// role has fully propagated before returning.
+func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log.Logger) error {
+	maxDuration := RbacPropagationTimeout
+	startTime := time.Now()
 
-	return err
-}
+	logInfo(l, "Waiting for RBAC permissions to propagate (up to %v)", maxDuration)
+	logInfo(l, "Testing both management plane (ARM API) and data plane (Blob Storage API) access...")
 
-// processPermissionError handles permission-related errors during RBAC testing.
-func (c *StorageAccountClient) processPermissionError(ctx context.Context, l log.Logger, err error, attempt int) error {
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
-		logDebug(l, "Unknown error during RBAC test (attempt %d): %v", attempt, err)
+	for attempt := 1; ; attempt++ {
+		elapsed := time.Since(startTime)
 
-		return c.handleRBACRetry(ctx, l, attempt)
-	}
-
-	if isPermissionError(respErr) {
-		if attempt < RbacRetryAttempts {
-			logDebug(l, "Permission denied on attempt %d, waiting %v before retry (Error: %s)",
-				attempt, RbacRetryDelay, respErr.Error())
-
-			return c.handleRBACRetry(ctx, l, attempt)
+		if elapsed >= maxDuration {
+			return fmt.Errorf("RBAC permissions did not propagate within %v", maxDuration)
 		}
 
-		logWarn(l, "Permission still denied after %d attempts. RBAC may need more time to propagate", RbacRetryAttempts)
+		logDebug(l, "RBAC permission test attempt %d (elapsed: %v)", attempt, elapsed.Round(time.Second))
 
-		return fmt.Errorf("RBAC permissions not available after %d attempts: %w", RbacRetryAttempts, err)
-	}
+		result := c.testRBACPermissions(ctx, l)
+		c.logRBACTestResult(l, result, true) // Log as debug during retries
 
-	logDebug(l, "Non-permission error during RBAC test (attempt %d): %v", attempt, err)
-
-	return c.handleRBACRetry(ctx, l, attempt)
-}
-
-// waitForRBACPermissions waits for RBAC permissions to propagate by testing storage account access
-func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log.Logger) error {
-	logInfo(l, "Waiting for RBAC permissions to propagate (up to %d attempts with %v delays)", RbacRetryAttempts, RbacRetryDelay)
-
-	for attempt := 1; attempt <= RbacRetryAttempts; attempt++ {
-		logDebug(l, "RBAC permission test attempt %d/%d", attempt, RbacRetryAttempts)
-
-		err := c.testRBACPermissions(ctx)
-		if err == nil {
-			logInfo(l, "RBAC permissions verified successfully on attempt %d", attempt)
+		// Both must succeed
+		if result.ManagementPlaneOK && result.DataPlaneOK {
+			logInfo(l, "RBAC permissions verified successfully after %v (attempt %d)", elapsed.Round(time.Second), attempt)
+			c.logRBACTestResult(l, result, false) // Log as info on success
 
 			return nil
 		}
 
-		if retryErr := c.processPermissionError(ctx, l, err, attempt); retryErr != nil {
-			return retryErr
+		c.analyzeRBACErrors(l, result)
+
+		if err := c.waitForRetryDelay(ctx); err != nil {
+			return err
 		}
 	}
-
-	return fmt.Errorf("RBAC permissions verification failed after %d attempts", RbacRetryAttempts)
 }
 
 // isPermissionError checks if an error is related to insufficient permissions

@@ -369,11 +369,11 @@ func GetAuthConfig(
 		logDebug(l, "Using Service Principal authentication based on configuration")
 	default:
 		// Check environment variables if no explicit credentials in config
-		envClientID := getFirstEnvValue("AZURE_CLIENT_ID", "ARM_CLIENT_ID", "")
-		envClientSecret := getFirstEnvValue("AZURE_CLIENT_SECRET", "ARM_CLIENT_SECRET", "")
-		envTenantID := getFirstEnvValue("AZURE_TENANT_ID", "ARM_TENANT_ID", "")
-		envSubID := getFirstEnvValue("AZURE_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID", "")
-		envSas := getFirstEnvValue("AZURE_STORAGE_SAS_TOKEN", "ARM_SAS_TOKEN", "")
+		envClientID := getFirstEnvValue("", "AZURE_CLIENT_ID", "ARM_CLIENT_ID")
+		envClientSecret := getFirstEnvValue("", "AZURE_CLIENT_SECRET", "ARM_CLIENT_SECRET")
+		envTenantID := getFirstEnvValue("", "AZURE_TENANT_ID", "ARM_TENANT_ID")
+		envSubID := getFirstEnvValue("", "AZURE_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID")
+		envSas := getFirstEnvValue("", "AZURE_STORAGE_SAS_TOKEN", "ARM_SAS_TOKEN")
 
 		switch {
 		case envClientID != "" && envClientSecret != "" && envTenantID != "":
@@ -405,7 +405,7 @@ func GetAuthConfig(
 
 	// If no subscription ID was provided in config, try to get it from environment
 	if authConfig.SubscriptionID == "" {
-		authConfig.SubscriptionID = getFirstEnvValue("AZURE_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID", "")
+		authConfig.SubscriptionID = getFirstEnvValue("", "AZURE_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID")
 	}
 
 	return authConfig, nil
@@ -595,15 +595,16 @@ func getBoolValue(config map[string]interface{}, key string, defaultValue bool) 
 	return defaultValue
 }
 
-// Helper function to get the first non-empty value from environment variables
-func getFirstEnvValue(keys ...string) string {
-	for _, key := range keys[:len(keys)-1] { // Last element is default value
+// Helper function to get the first non-empty value from environment variables.
+// The defaultValue is returned if none of the environment variables are set.
+func getFirstEnvValue(defaultValue string, keys ...string) string {
+	for _, key := range keys {
 		if val := os.Getenv(key); val != "" {
 			return val
 		}
 	}
 
-	return keys[len(keys)-1] // Default value
+	return defaultValue
 }
 
 // GetAzureStorageURL generates the storage account URL based on the configuration

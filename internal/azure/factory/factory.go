@@ -437,9 +437,10 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 	return service, nil
 }
 
-// GetAuthenticationService creates and returns an AuthenticationService instance
+// GetAuthenticationService creates and returns an AuthenticationService instance.
+// TODO: Implement AuthenticationService to support runtime credential management.
+// See: https://github.com/gruntwork-io/terragrunt/issues/XXXX
 func (f *AzureServiceFactory) GetAuthenticationService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.AuthenticationService, error) {
-	// For now, we'll return a not implemented error
 	return nil, errors.Errorf("AuthenticationService not implemented")
 }
 

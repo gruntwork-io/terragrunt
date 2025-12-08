@@ -12,6 +12,7 @@ import (
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrNotImplemented     = errors.New("not implemented")
+	ErrImmutableService   = errors.New("authentication service is immutable; create a new service instance with the desired configuration")
 )
 
 const (
@@ -127,8 +128,11 @@ type AuthenticationService interface {
 	// This includes sanitized configuration (secrets are masked).
 	GetConfiguration(ctx context.Context) (map[string]interface{}, error)
 
-	// UpdateConfiguration updates the authentication configuration.
-	// config: New configuration parameters to apply
+	// UpdateConfiguration is not supported - authentication services are immutable.
+	// To change configuration, create a new service instance with the desired settings.
+	// This method always returns ErrImmutableService.
+	//
+	// Deprecated: This method exists for interface compatibility but should not be used.
 	UpdateConfiguration(ctx context.Context, config map[string]interface{}) error
 
 	// Error Handling and Utilities

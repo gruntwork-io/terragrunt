@@ -14,7 +14,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// clearAzureEnvVars clears all Azure-related environment variables for clean test state.
+// Using t.Setenv("VAR", "") ensures the variable is restored after the test.
+func clearAzureEnvVars(t *testing.T) {
+	t.Helper()
+
+	azureEnvVars := []string{
+		"AZURE_CLIENT_ID",
+		"AZURE_CLIENT_SECRET",
+		"AZURE_TENANT_ID",
+		"AZURE_SUBSCRIPTION_ID",
+		"AZURE_MANAGED_IDENTITY_CLIENT_ID",
+		"AZURE_MANAGED_IDENTITY_CLIENT_SECRET",
+		"AZURE_STORAGE_CONNECTION_STRING",
+		"AZURE_CLIENT_CERTIFICATE_PASSWORD",
+		"ARM_CLIENT_ID",
+		"ARM_CLIENT_SECRET",
+		"ARM_TENANT_ID",
+		"ARM_SUBSCRIPTION_ID",
+	}
+	for _, envVar := range azureEnvVars {
+		t.Setenv(envVar, "")
+	}
+}
+
 func TestAzureEnvironmentVariables(t *testing.T) {
+	// Clear all Azure-related env vars to ensure clean test state
+	clearAzureEnvVars(t)
+
 	t.Setenv("AZURE_CLIENT_ID", "test-client-id")
 	t.Setenv("AZURE_CLIENT_SECRET", "test-client-secret")
 	t.Setenv("AZURE_TENANT_ID", "test-tenant-id")
@@ -32,8 +59,8 @@ func TestAzureEnvironmentVariables(t *testing.T) {
 	t.Setenv("ARM_CLIENT_ID", "arm-client-id")
 	t.Setenv("ARM_SUBSCRIPTION_ID", "arm-subscription-id")
 
-	assert.Equal(t, "", os.Getenv("AZURE_CLIENT_ID"))
-	assert.Equal(t, "", os.Getenv("AZURE_SUBSCRIPTION_ID"))
+	assert.Empty(t, os.Getenv("AZURE_CLIENT_ID"))
+	assert.Empty(t, os.Getenv("AZURE_SUBSCRIPTION_ID"))
 	assert.Equal(t, "arm-client-id", os.Getenv("ARM_CLIENT_ID"))
 	assert.Equal(t, "arm-subscription-id", os.Getenv("ARM_SUBSCRIPTION_ID"))
 }
@@ -98,20 +125,25 @@ func TestAzureCredentialPriority(t *testing.T) {
 				if clientID := os.Getenv("AZURE_CLIENT_ID"); clientID != "" {
 					return clientID
 				}
+
 				if clientID := os.Getenv("ARM_CLIENT_ID"); clientID != "" {
 					return clientID
 				}
+
 				return ""
 			}
 			resolveSubscriptionID := func() string {
 				if subID := os.Getenv("AZURE_SUBSCRIPTION_ID"); subID != "" {
 					return subID
 				}
+
 				if subID := os.Getenv("ARM_SUBSCRIPTION_ID"); subID != "" {
 					return subID
 				}
+
 				return ""
 			}
+
 			assert.Equal(t, tc.expectedClientID, resolveClientID())
 			assert.Equal(t, tc.expectedSubscriptionID, resolveSubscriptionID())
 		})
@@ -202,30 +234,42 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			// Clear all Azure env vars first to ensure clean test state
+			clearAzureEnvVars(t)
+
+			// Now set only the test-specified values
 			if tc.azureSubscriptionID != "" {
 				t.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
 			}
+
 			if tc.azureTenantID != "" {
 				t.Setenv("AZURE_TENANT_ID", tc.azureTenantID)
 			}
+
 			if tc.azureClientID != "" {
 				t.Setenv("AZURE_CLIENT_ID", tc.azureClientID)
 			}
+
 			if tc.azureClientSecret != "" {
 				t.Setenv("AZURE_CLIENT_SECRET", tc.azureClientSecret)
 			}
+
 			if tc.armSubscriptionID != "" {
 				t.Setenv("ARM_SUBSCRIPTION_ID", tc.armSubscriptionID)
 			}
+
 			if tc.armTenantID != "" {
 				t.Setenv("ARM_TENANT_ID", tc.armTenantID)
 			}
+
 			if tc.armClientID != "" {
 				t.Setenv("ARM_CLIENT_ID", tc.armClientID)
 			}
+
 			if tc.armClientSecret != "" {
 				t.Setenv("ARM_CLIENT_SECRET", tc.armClientSecret)
 			}
+
 			_, subscriptionID, _ := azurehelper.GetAzureCredentials(t.Context(), createMockLogger())
 			assert.Equal(t, tc.expectedSubscriptionID, subscriptionID)
 		})
@@ -306,17 +350,24 @@ func TestAzureCredentialEnvironmentVariables(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			// Clear all Azure env vars first to ensure clean test state
+			clearAzureEnvVars(t)
+
+			// Now set only the test-specified values
 			for key, val := range tc.setupEnvVars {
 				t.Setenv(key, val)
 			}
+
 			azureSubID := os.Getenv("AZURE_SUBSCRIPTION_ID")
 			armSubID := os.Getenv("ARM_SUBSCRIPTION_ID")
+
 			var expectedSubID string
 			if azureSubID != "" {
 				expectedSubID = azureSubID
 			} else if armSubID != "" {
 				expectedSubID = armSubID
 			}
+
 			assert.Equal(t, tc.expectedSubscriptionID, expectedSubID)
 		})
 	}
@@ -357,7 +408,6 @@ func TestAzureSafeConfiguration(t *testing.T) {
 
 			var logBuffer strings.Builder
 
-			var logOutput string
 			for k := range tc.envVars {
 				value := os.Getenv(k)
 				shouldRedact := k == "AZURE_CLIENT_SECRET" ||
@@ -368,12 +418,14 @@ func TestAzureSafeConfiguration(t *testing.T) {
 					strings.Contains(value, "AccountKey=")
 
 				if shouldRedact {
-					logOutput += fmt.Sprintf("%s=***REDACTED***\n", k)
+					fmt.Fprintf(&logBuffer, "%s=***REDACTED***\n", k)
 				} else {
 					// For connection strings, redact sensitive parts
 					if strings.Contains(value, ";") {
 						parts := strings.Split(value, ";")
+
 						var safeParts []string
+
 						for _, part := range parts {
 							if strings.Contains(part, "AccountKey=") ||
 								strings.Contains(part, "SharedAccessKey=") {
@@ -382,14 +434,14 @@ func TestAzureSafeConfiguration(t *testing.T) {
 								safeParts = append(safeParts, part)
 							}
 						}
-						logOutput += fmt.Sprintf("%s=%s\n", k, strings.Join(safeParts, ";"))
+
+						fmt.Fprintf(&logBuffer, "%s=%s\n", k, strings.Join(safeParts, ";"))
 					} else {
-						logOutput += fmt.Sprintf("%s=%s\n", k, value)
+						fmt.Fprintf(&logBuffer, "%s=%s\n", k, value)
 					}
 				}
 			}
 
-			logBuffer.WriteString(logOutput)
 			logStr := logBuffer.String()
 
 			// Check that sensitive values are not logged

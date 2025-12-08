@@ -10,16 +10,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	// "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResourceGroupConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name           string
 		config         azurehelper.ResourceGroupConfig
-		isValid        bool
+		name           string
 		expectedErrMsg string
+		isValid        bool
 	}{
 		{
 			name: "Valid config",
@@ -114,6 +115,7 @@ func TestResourceGroupConfigValidation(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.expectedErrMsg != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrMsg)
 				}
@@ -187,11 +189,13 @@ func TestResourceGroupNameValidation(t *testing.T) {
 				ResourceGroupName: tc.rgName,
 				Location:          "eastus",
 			}
+
 			err := config.Validate()
 			if tc.isValid {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.errorText != "" {
 					assert.Contains(t, err.Error(), tc.errorText)
 				}
@@ -249,16 +253,20 @@ func TestResourceGroupClientCreation(t *testing.T) {
 			if tc.envSubscriptionID != "" {
 				t.Setenv("AZURE_SUBSCRIPTION_ID", tc.envSubscriptionID)
 			}
+
 			testLogger := log.New()
+
 			client, err := azurehelper.CreateResourceGroupClient(t.Context(), testLogger, tc.subscriptionID)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.expectedErrorPrefix != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorPrefix)
 				}
+
 				assert.Nil(t, client)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, client)
 			}
 		})
@@ -270,9 +278,9 @@ func TestResourceGroupTagsHandling(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
 		tags          map[string]string
 		expectedTags  map[string]string
+		name          string
 		validateField bool
 	}{
 		{
@@ -324,7 +332,8 @@ func TestResourceGroupTagsHandling(t *testing.T) {
 			if tc.tags == nil {
 				assert.Nil(t, config.Tags)
 			} else {
-				assert.Equal(t, len(tc.tags), len(config.Tags))
+				assert.Len(t, config.Tags, len(tc.tags))
+
 				for k, v := range tc.tags {
 					assert.Equal(t, v, config.Tags[k])
 				}
@@ -338,10 +347,10 @@ func TestResourceGroupTagManagement(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name               string
-		description        string
 		inputTags          map[string]string
 		expectedOutputTags map[string]string
+		name               string
+		description        string
 	}{
 		{
 			name:      "Nil tags",
@@ -491,6 +500,7 @@ func TestResourceGroupLocation(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.errorText != "" {
 					assert.Contains(t, err.Error(), tc.errorText)
 				}

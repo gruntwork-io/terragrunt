@@ -29,6 +29,18 @@ type storageAccountServiceAdapter struct {
 	client *azurehelper.StorageAccountClient
 }
 
+// Configuration accessors
+
+// GetResourceGroupName returns the resource group name this service operates on
+func (s *storageAccountServiceAdapter) GetResourceGroupName() string {
+	return s.client.GetResourceGroupName()
+}
+
+// GetStorageAccountName returns the storage account name this service operates on
+func (s *storageAccountServiceAdapter) GetStorageAccountName() string {
+	return s.client.GetStorageAccountName()
+}
+
 // Storage Account Management
 
 // CreateStorageAccount creates a new storage account using the new types config
@@ -53,14 +65,19 @@ func (s *storageAccountServiceAdapter) CreateStorageAccount(ctx context.Context,
 	return s.client.CreateStorageAccountIfNecessary(ctx, logger, azureConfig)
 }
 
-// DeleteStorageAccount deletes a storage account by resource group and account name
-func (s *storageAccountServiceAdapter) DeleteStorageAccount(ctx context.Context, _, _ string) error {
-	logger := log.Default()
-	return s.client.DeleteStorageAccount(ctx, logger)
+// DeleteStorageAccount deletes the configured storage account
+func (s *storageAccountServiceAdapter) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
+	return s.client.DeleteStorageAccount(ctx, l)
 }
 
-// GetStorageAccount retrieves storage account information
-func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error) {
+// Exists checks if the configured storage account exists
+func (s *storageAccountServiceAdapter) Exists(ctx context.Context) (bool, error) {
+	exists, _, err := s.client.StorageAccountExists(ctx)
+	return exists, err
+}
+
+// GetStorageAccount retrieves information about the configured storage account
+func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context) (*types.StorageAccount, error) {
 	// Use StorageAccountExists as it returns the account object
 	_, account, err := s.client.StorageAccountExists(ctx)
 	if err != nil {
@@ -71,12 +88,10 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 		return nil, nil
 	}
 
-	// Convert ARM storage account to our types
-	// Note: resourceGroupName and accountName are passed for interface compatibility
-	// but we use the values from the client configuration
+	// Convert ARM storage account to our types using the configured values
 	result := &types.StorageAccount{
-		Name:              accountName,
-		ResourceGroupName: resourceGroupName,
+		Name:              s.client.GetStorageAccountName(),
+		ResourceGroupName: s.client.GetResourceGroupName(),
 		Location:          safeString(account.Location),
 	}
 
@@ -101,22 +116,19 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context, re
 	return result, nil
 }
 
-// GetStorageAccountKeys retrieves storage account keys
-func (s *storageAccountServiceAdapter) GetStorageAccountKeys(_ context.Context, _, _ string) ([]string, error) {
-	// The azurehelper client doesn't expose this method yet
-	// This would need to be implemented in the azurehelper client
-	return nil, errors.New("GetStorageAccountKeys not implemented")
+// GetStorageAccountKeys retrieves storage account keys for the configured account
+func (s *storageAccountServiceAdapter) GetStorageAccountKeys(ctx context.Context) ([]string, error) {
+	return s.client.GetStorageAccountKeys(ctx)
 }
 
-// GetStorageAccountSAS generates a SAS token for the storage account
-func (s *storageAccountServiceAdapter) GetStorageAccountSAS(_ context.Context, _, _ string) (string, error) {
-	// This would need to be implemented in the azurehelper client
-	return "", errors.New("GetStorageAccountSAS not implemented")
+// GetStorageAccountSAS generates a SAS token for the configured storage account
+func (s *storageAccountServiceAdapter) GetStorageAccountSAS(ctx context.Context) (string, error) {
+	return s.client.GetStorageAccountSAS(ctx, "", nil)
 }
 
-// GetStorageAccountProperties retrieves properties of a storage account
-func (s *storageAccountServiceAdapter) GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error) {
-	account, err := s.GetStorageAccount(ctx, resourceGroupName, accountName)
+// GetStorageAccountProperties retrieves properties of the configured storage account
+func (s *storageAccountServiceAdapter) GetStorageAccountProperties(ctx context.Context) (*types.StorageAccountProperties, error) {
+	account, err := s.GetStorageAccount(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -126,22 +138,6 @@ func (s *storageAccountServiceAdapter) GetStorageAccountProperties(ctx context.C
 	}
 
 	return account.Properties, nil
-}
-
-// Exists checks if a storage account exists
-func (s *storageAccountServiceAdapter) Exists(ctx context.Context, config types.StorageAccountConfig) (bool, error) {
-	exists, _, err := s.client.StorageAccountExists(ctx)
-	return exists, err
-}
-
-// Create creates a new storage account
-func (s *storageAccountServiceAdapter) Create(ctx context.Context, config types.StorageAccountConfig) error {
-	return s.CreateStorageAccount(ctx, &config)
-}
-
-// Delete deletes a storage account
-func (s *storageAccountServiceAdapter) Delete(ctx context.Context, l log.Logger) error {
-	return s.client.DeleteStorageAccount(ctx, l)
 }
 
 // Versioning Management

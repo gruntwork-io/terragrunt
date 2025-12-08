@@ -89,6 +89,7 @@ func TestCreateBlobServiceClientConfig(t *testing.T) {
 
 			if tc.expectedError {
 				require.Error(t, err)
+
 				if tc.errorMessage != "" {
 					assert.Contains(t, err.Error(), tc.errorMessage)
 				}
@@ -177,6 +178,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 
 			if tc.expectedError {
 				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
@@ -264,6 +266,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 
 			// Validate the input without creating an actual client
 			var err error
+
 			switch {
 			case tc.input == nil:
 				err = errors.New("input cannot be nil")

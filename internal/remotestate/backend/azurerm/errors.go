@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -109,21 +110,9 @@ func (err StorageAccountCreationError) Unwrap() error {
 	return err.Underlying
 }
 
-// ContainerCreationError wraps errors that occur during Azure container operations.
-type ContainerCreationError struct {
-	Underlying    error  // 16 bytes (interface)
-	ContainerName string // 16 bytes (string)
-}
-
-// Error returns a string indicating that container operation failed.
-func (err ContainerCreationError) Error() string {
-	return fmt.Sprintf("error with container %s: %v", err.ContainerName, err.Underlying)
-}
-
-// Unwrap returns the underlying error that caused the container operation to fail.
-func (err ContainerCreationError) Unwrap() error {
-	return err.Underlying
-}
+// ContainerCreationError is re-exported from azurehelper for convenience.
+// Use azurehelper.ContainerCreationError directly when possible.
+type ContainerCreationError = azurehelper.ContainerCreationError
 
 // AuthenticationError wraps Azure authentication failures with context about the attempted auth method.
 type AuthenticationError struct {
@@ -354,10 +343,7 @@ func WrapContainerError(err error, containerName string) error {
 		return nil
 	}
 
-	return errors.New(ContainerCreationError{
-		Underlying:    err,
-		ContainerName: containerName,
-	})
+	return errors.New(azurehelper.NewContainerCreationError(err, containerName))
 }
 
 // WrapAuthenticationError wraps an error as an AuthenticationError with context

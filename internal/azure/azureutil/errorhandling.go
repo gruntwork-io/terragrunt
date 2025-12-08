@@ -350,7 +350,7 @@ func (h *OperationHandler) wrapError(err error, operation OperationType, resourc
 		message = fmt.Sprintf("Azure %s operation failed", operation)
 	}
 
-	return fmt.Errorf("%s: %w", message, err)
+	return tgerrors.Errorf("%s: %w", message, err)
 }
 
 // Helper function to wrap an authentication error with context

@@ -17,6 +17,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+const (
+	// errContainerNameRequired is the error message for missing container name.
+	errContainerNameRequired = "container name is required"
+)
+
 // BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs.
 type BlobServiceClient struct {
 	client *azblob.Client
@@ -211,8 +216,8 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		return nil, errors.Errorf("storage_account_name is required")
 	}
 
-	resourceGroupName, _ := config["resource_group_name"].(string)
-	subscriptionID, _ := config["subscription_id"].(string)
+	resourceGroupName, _ := config["resource_group_name"].(string) //nolint:errcheck // type assertion failure is acceptable, empty string is valid default
+	subscriptionID, _ := config["subscription_id"].(string)        //nolint:errcheck // type assertion failure is acceptable, empty string is valid default
 
 	skipExistenceCheck := false
 	if v, ok := config["skip_storage_account_existence_check"].(bool); ok {
@@ -263,7 +268,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 // GetObject downloads a blob from Azure Storage.
 func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput) (*GetObjectOutput, error) {
 	if input.Container == nil || *input.Container == "" {
-		return nil, errors.Errorf("container name is required")
+		return nil, errors.Errorf(errContainerNameRequired)
 	}
 
 	if input.Key == nil || *input.Key == "" {
@@ -288,7 +293,7 @@ func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput
 // ContainerExists checks if a container exists.
 func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
 	if containerName == "" {
-		return false, errors.Errorf("container name is required")
+		return false, errors.Errorf(errContainerNameRequired)
 	}
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
@@ -326,8 +331,12 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 
 		// Retry logic for ResourceNotFound errors which can occur when storage account
 		// data plane is not yet fully provisioned after creation
-		maxRetries := 3
-		retryDelay := 5 * time.Second
+		const (
+			maxRetries   = 3
+			retrySeconds = 5
+		)
+
+		retryDelay := retrySeconds * time.Second
 
 		var lastErr error
 
@@ -384,7 +393,7 @@ func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Log
 // DeleteContainer deletes a container and all its contents.
 func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, containerName string) error {
 	if containerName == "" {
-		return errors.Errorf("container name is required")
+		return errors.Errorf(errContainerNameRequired)
 	}
 
 	container := c.client.ServiceClient().NewContainerClient(containerName)
@@ -466,7 +475,7 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 
 // ContainerCreationError wraps errors that occur during Azure container operations.
 type ContainerCreationError struct {
-	Underlying    error  // 8 bytes (interface)
+	Underlying    error  // 16 bytes (interface: pointer + type descriptor)
 	ContainerName string // 16 bytes (string)
 }
 

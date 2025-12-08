@@ -34,14 +34,25 @@ const (
 	ZRS   types.ReplicationType = "ZRS"
 )
 
-// StorageAccountService defines the interface for Azure Storage Account operations
+// StorageAccountService defines the interface for Azure Storage Account operations.
+// This interface follows a stateful client pattern - the service is configured with
+// a specific storage account and resource group at creation time, and all operations
+// target that configured account.
 type StorageAccountService interface {
+	// Configuration accessors - return the target account this service operates on
+	GetResourceGroupName() string
+	GetStorageAccountName() string
+
+	// Storage Account lifecycle
 	CreateStorageAccount(ctx context.Context, cfg *types.StorageAccountConfig) error
-	DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error
-	GetStorageAccount(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccount, error)
-	GetStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]string, error)
-	GetStorageAccountSAS(ctx context.Context, resourceGroupName, accountName string) (string, error)
-	GetStorageAccountProperties(ctx context.Context, resourceGroupName, accountName string) (*types.StorageAccountProperties, error)
+	DeleteStorageAccount(ctx context.Context, l log.Logger) error
+	Exists(ctx context.Context) (bool, error)
+
+	// Storage Account information - all operations target the configured account
+	GetStorageAccount(ctx context.Context) (*types.StorageAccount, error)
+	GetStorageAccountKeys(ctx context.Context) ([]string, error)
+	GetStorageAccountSAS(ctx context.Context) (string, error)
+	GetStorageAccountProperties(ctx context.Context) (*types.StorageAccountProperties, error)
 	IsVersioningEnabled(ctx context.Context) (bool, error)
 }
 

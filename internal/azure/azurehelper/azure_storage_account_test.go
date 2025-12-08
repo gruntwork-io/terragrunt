@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStorageAccountConfigValidation(t *testing.T) {
@@ -19,8 +20,8 @@ func TestStorageAccountConfigValidation(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		config         azurehelper.StorageAccountConfig
 		expectedErrMsg string
+		config         azurehelper.StorageAccountConfig
 		isValid        bool
 	}{
 		{
@@ -149,6 +150,7 @@ func TestStorageAccountConfigValidation(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.expectedErrMsg != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrMsg)
 				}
@@ -200,6 +202,7 @@ func TestGetStorageAccountDefaultSKU(t *testing.T) {
 
 	for i, tc := range testCases {
 		tc := tc // capture range variable
+
 		t.Run(fmt.Sprintf("TestCase_%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -284,6 +287,7 @@ func TestStorageAccountNameValidation(t *testing.T) {
 			// Implement a basic validation function similar to what Azure might use
 			// This doesn't call the actual Azure helper but mimics what validation logic would do
 			var err error
+
 			switch {
 			case tc.saName == "":
 				err = errors.New("name cannot be empty")
@@ -303,6 +307,7 @@ func TestStorageAccountNameValidation(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.errorText != "" {
 					assert.Contains(t, err.Error(), tc.errorText)
 				}
@@ -436,6 +441,7 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 			// Additional validation of the SKUs
 			// This is separate from the GetStorageAccountSKU function but shows how we would validate SKUs
 			isValid := true
+
 			var reason string
 
 			validTiers := []string{"Standard", "Premium"}
@@ -473,6 +479,7 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 
 			// Assert our validation matches the test case's expectations
 			assert.Equal(t, tc.isValidSKU, isValid)
+
 			if !tc.isValidSKU {
 				assert.Equal(t, tc.invalidSKUReason, reason)
 			}
@@ -543,7 +550,7 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 
 			// Validate the config
 			err := config.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// In actual implementation, these properties would be used to configure
 			// the storage account. Since we can't test that without real Azure resources,
@@ -613,7 +620,7 @@ func TestStorageAccountEncryptionSettings(t *testing.T) {
 
 			// Validate the config
 			err := tc.config.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Simulate encryption configuration
 			// In a real implementation, this would be part of the storage account creation/update
@@ -624,7 +631,7 @@ func TestStorageAccountEncryptionSettings(t *testing.T) {
 
 			// Check if all requested services are encrypted
 			for _, svc := range tc.keysToEncrypt {
-				assert.True(t, encryptionConfig[svc], fmt.Sprintf("Service %s should be encrypted", svc))
+				assert.True(t, encryptionConfig[svc], "Service %s should be encrypted", svc)
 			}
 		})
 	}
@@ -738,7 +745,8 @@ func TestStorageAccountNetworkRules(t *testing.T) {
 			}
 
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorMessage != "" {
 					assert.Contains(t, err.Error(), tc.errorMessage)
 				}
@@ -804,6 +812,7 @@ func TestStorageAccountURLParsing(t *testing.T) {
 
 			// Validate URL
 			var err error
+
 			switch {
 			case tc.inputURL == "":
 				err = errors.Errorf("URL cannot be empty")
@@ -817,6 +826,7 @@ func TestStorageAccountURLParsing(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.expectedErr != "" {
 					assert.Contains(t, err.Error(), tc.expectedErr)
 				}
@@ -886,8 +896,10 @@ func TestStorageAccountConnectionStrings(t *testing.T) {
 			t.Parallel()
 
 			// Parse connection string
-			var accountName string
-			var err error
+			var (
+				accountName string
+				err         error
+			)
 
 			if tc.connectionString == "" {
 				err = errors.Errorf("connection string cannot be empty")
@@ -923,11 +935,13 @@ func TestStorageAccountConnectionStrings(t *testing.T) {
 
 				// Validate required properties
 				_, hasAccountName := props["AccountName"]
+
 				_, hasBlobEndpoint := props["BlobEndpoint"]
 				if !hasAccountName && !hasBlobEndpoint {
 					err = errors.Errorf("connection string missing AccountName")
 				} else {
 					_, hasAccountKey := props["AccountKey"]
+
 					_, hasSAS := props["SharedAccessSignature"]
 					if !hasAccountKey && !hasSAS {
 						err = errors.Errorf("connection string missing AccountKey")
@@ -936,12 +950,14 @@ func TestStorageAccountConnectionStrings(t *testing.T) {
 			}
 
 			if tc.isValid {
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 				if tc.expectedAccount != "" {
 					assert.Equal(t, tc.expectedAccount, accountName)
 				}
 			} else {
 				assert.Error(t, err)
+
 				if tc.expectedErr != "" {
 					assert.Contains(t, err.Error(), tc.expectedErr)
 				}
@@ -957,6 +973,7 @@ func contains(slice []string, str string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -966,8 +983,8 @@ func TestStorageAccountConfigEdgeCases(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		config         azurehelper.StorageAccountConfig
 		expectedErrMsg string
+		config         azurehelper.StorageAccountConfig
 		isValid        bool
 	}{
 		{
@@ -996,7 +1013,7 @@ func TestStorageAccountConfigEdgeCases(t *testing.T) {
 				SubscriptionID:     "subscription-id",
 				ResourceGroupName:  "resource-group",
 				StorageAccountName: "storageaccount",
-				Location:           "eastus中文", // Unicode characters
+				Location:           "eastus中文", //nolint:gosmopolitan // Intentional Unicode test data
 			},
 			isValid: true, // Location validation is handled by Azure API
 		},
@@ -1105,6 +1122,7 @@ func TestStorageAccountConfigEdgeCases(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+
 				if tc.expectedErrMsg != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrMsg)
 				}
@@ -1122,8 +1140,8 @@ func TestGetStorageAccountSKUErrorHandling(t *testing.T) {
 		tier             string
 		replication      string
 		expectedSKU      string
-		shouldUseDefault bool
 		description      string
+		shouldUseDefault bool
 	}{
 		{
 			name:             "Whitespace only tier",
@@ -1183,9 +1201,9 @@ func TestGetStorageAccountSKUErrorHandling(t *testing.T) {
 		},
 		{
 			name:             "Unicode characters in tier",
-			tier:             "Standard中文",
+			tier:             "Standard中文", //nolint:gosmopolitan // Intentional Unicode test data
 			replication:      "LRS",
-			expectedSKU:      "Standard中文_LRS",
+			expectedSKU:      "Standard中文_LRS", //nolint:gosmopolitan // Intentional Unicode test data
 			shouldUseDefault: false,
 			description:      "Unicode characters should be preserved",
 		},
@@ -1244,18 +1262,19 @@ func TestRBACConfiguration(t *testing.T) {
 		t.Parallel()
 
 		// These should match the values defined in azure_constants.go
-		assert.Equal(t, 3*time.Second, azurehelper.RbacRetryDelay, "RbacRetryDelay should be 3 seconds")
-		assert.Equal(t, 5, azurehelper.RbacMaxRetries, "RbacMaxRetries should be 5")
-		assert.Equal(t, 6, azurehelper.RbacRetryAttempts, "RbacRetryAttempts should be 6")
+		// Updated for 5-minute RBAC propagation timeout
+		assert.Equal(t, 10*time.Second, azurehelper.RbacRetryDelay, "RbacRetryDelay should be 10 seconds")
+		assert.Equal(t, 30, azurehelper.RbacMaxRetries, "RbacMaxRetries should be 30")
+		assert.Equal(t, 30, azurehelper.RbacRetryAttempts, "RbacRetryAttempts should be 30")
 	})
 
 	// Test mathematical relationships between constants
 	t.Run("Constant_relationships", func(t *testing.T) {
 		t.Parallel()
 
-		// Core relationship: attempts = retries + 1 (initial attempt)
-		assert.Equal(t, azurehelper.RbacMaxRetries+1, azurehelper.RbacRetryAttempts,
-			"RbacRetryAttempts should equal RbacMaxRetries + 1 (initial attempt + retries)")
+		// Core relationship: attempts = max retries (simplified)
+		assert.Equal(t, azurehelper.RbacMaxRetries, azurehelper.RbacRetryAttempts,
+			"RbacRetryAttempts should equal RbacMaxRetries")
 	})
 
 	// Test timing boundaries for practical use
@@ -1267,8 +1286,8 @@ func TestRBACConfiguration(t *testing.T) {
 		assert.GreaterOrEqual(t, azurehelper.RbacRetryDelay, minDelay,
 			"Retry delay should be at least %v to avoid overwhelming Azure APIs", minDelay)
 
-		// Maximum delay for good user experience
-		maxDelay := 10 * time.Second
+		// Maximum delay for good user experience (increased for RBAC propagation)
+		maxDelay := 30 * time.Second
 		assert.LessOrEqual(t, azurehelper.RbacRetryDelay, maxDelay,
 			"Retry delay should not exceed %v for reasonable user experience", maxDelay)
 
@@ -1276,9 +1295,9 @@ func TestRBACConfiguration(t *testing.T) {
 		assert.GreaterOrEqual(t, azurehelper.RbacMaxRetries, 3,
 			"Should have at least 3 retries for RBAC propagation delays")
 
-		// Maximum retries to avoid excessive wait times
-		assert.LessOrEqual(t, azurehelper.RbacMaxRetries, 10,
-			"Should not exceed 10 retries to avoid excessive wait times")
+		// Maximum retries - increased to allow up to 5 minutes for RBAC
+		assert.LessOrEqual(t, azurehelper.RbacMaxRetries, 60,
+			"Should not exceed 60 retries to avoid excessive wait times")
 	})
 
 	// Test total operation time boundaries
@@ -1355,8 +1374,8 @@ func TestPermissionErrorDetectionComprehensive(t *testing.T) {
 	edgeCaseTestCases := []struct {
 		name           string
 		errorMessage   string
-		expectedResult bool
 		reason         string
+		expectedResult bool
 	}{
 		{
 			name:           "Permission in non-error context",
@@ -1411,8 +1430,8 @@ func TestStorageAccountClientPermissionInterface(t *testing.T) {
 
 	// Test with various error types
 	testCases := []struct {
-		name     string
 		input    error
+		name     string
 		expected bool
 	}{
 		{
@@ -1500,8 +1519,8 @@ func TestPermissionErrorBoundaryConditions(t *testing.T) {
 			{"forbidden\n\r\t with newlines", true},
 			{"forbidden\x00with null bytes", true},
 			{"access denied with émojis 🚫", true},
-			{"网络超时 timeout occurred", false}, // Chinese characters
-			{"forbidden操作被禁止", true},         // Mixed languages
+			{"网络超时 timeout occurred", false}, //nolint:gosmopolitan // Intentional Unicode test data
+			{"forbidden操作被禁止", true},         //nolint:gosmopolitan // Intentional Unicode test data
 		}
 
 		for i, tc := range specialCharErrors {

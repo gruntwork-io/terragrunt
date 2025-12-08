@@ -4,7 +4,6 @@ package azurerm_test
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -21,6 +20,7 @@ import (
 func createBackendTestLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
+
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
@@ -46,9 +46,9 @@ func TestBackendGetTFInitArgs(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 
 	testCases := []struct {
-		name     string
 		config   azurerm.Config
 		expected map[string]interface{}
+		name     string
 	}{
 		{
 			name: "basic-config",
@@ -120,6 +120,7 @@ func TestBackendBootstrapValidation(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -175,6 +176,7 @@ func TestBackendNeedsBootstrapValidation(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -229,8 +231,8 @@ func TestBackendContainerNameValidation(t *testing.T) {
 	testCases := []struct {
 		name          string
 		containerName string
-		expectError   bool
 		errorMsg      string
+		expectError   bool
 	}{
 		{
 			name:          "valid-container-name",
@@ -291,6 +293,7 @@ func TestBackendContainerNameValidation(t *testing.T) {
 
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.errorMsg != "" {
 					assert.Contains(t, err.Error(), tc.errorMsg)
 				}
@@ -323,7 +326,9 @@ func TestBackendPathValidation(t *testing.T) {
 	}
 
 	for _, test := range testPaths {
-		t.Run(fmt.Sprintf("path-%s", strings.ReplaceAll(test.path, "/", "-")), func(t *testing.T) {
+		t.Run("path-"+strings.ReplaceAll(test.path, "/", "-"), func(t *testing.T) {
+			t.Parallel()
+
 			// Test GetTFInitArgs with different key paths
 			config := azurerm.Config{
 				"storage_account_name": "testaccount",
@@ -349,6 +354,7 @@ func TestBackendIsVersionControlEnabled(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -430,6 +436,7 @@ func TestBackendDeleteValidation(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -485,6 +492,7 @@ func TestBackendDeleteContainerValidation(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -531,6 +539,7 @@ func TestBackendMigrateValidation(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -619,8 +628,8 @@ func TestBackendConfigurationParsing(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 
 	testCases := []struct {
-		name   string
 		config azurerm.Config
+		name   string
 		valid  bool
 	}{
 		{
@@ -700,6 +709,7 @@ func TestBackendDeleteStorageAccountValidation(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	opts.NonInteractive = true
 
 	ctx := context.Background()
@@ -745,8 +755,8 @@ func TestBackendAdvancedConfigurationOptions(t *testing.T) {
 	azureBackend := azurerm.NewBackend(nil)
 
 	testCases := []struct {
-		name   string
 		config azurerm.Config
+		name   string
 	}{
 		{
 			name: "oidc-authentication",
