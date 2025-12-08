@@ -203,13 +203,13 @@
   }
 
   starlight-menu-button button {
-    top: 100px;
+    top: 92px;
     position: fixed;
   }
 
   @media (max-width: 767px) {
     starlight-menu-button button {
-      top: 80px;
+      top: 70px;
     }
   }
 
