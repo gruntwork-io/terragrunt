@@ -61,8 +61,10 @@ func isSensitiveKey(key string) bool {
 
 // isConnectionString checks if a value looks like an Azure connection string with sensitive data.
 func isConnectionString(value string) bool {
+	valueLower := strings.ToLower(value)
 	return strings.Contains(value, ";") &&
-		(strings.Contains(value, accountKeyPrefix) || strings.Contains(value, sharedAccessKeyPrefix))
+		(strings.Contains(valueLower, strings.ToLower(accountKeyPrefix)) ||
+			strings.Contains(valueLower, strings.ToLower(sharedAccessKeyPrefix)))
 }
 
 // redactConnectionString redacts sensitive parts of a connection string while preserving structure.
@@ -72,11 +74,22 @@ func redactConnectionString(value string) string {
 	var safeParts []string
 
 	for _, part := range parts {
+		partLower := strings.ToLower(part)
 		switch {
-		case strings.HasPrefix(part, accountKeyPrefix):
-			safeParts = append(safeParts, accountKeyPrefix+redactedText)
-		case strings.HasPrefix(part, sharedAccessKeyPrefix):
-			safeParts = append(safeParts, sharedAccessKeyPrefix+redactedText)
+		case strings.HasPrefix(partLower, strings.ToLower(accountKeyPrefix)):
+			// Preserve original key casing, only redact the value
+			if idx := strings.Index(part, "="); idx != -1 {
+				safeParts = append(safeParts, part[:idx+1]+redactedText)
+			} else {
+				safeParts = append(safeParts, accountKeyPrefix+redactedText)
+			}
+		case strings.HasPrefix(partLower, strings.ToLower(sharedAccessKeyPrefix)):
+			// Preserve original key casing, only redact the value
+			if idx := strings.Index(part, "="); idx != -1 {
+				safeParts = append(safeParts, part[:idx+1]+redactedText)
+			} else {
+				safeParts = append(safeParts, sharedAccessKeyPrefix+redactedText)
+			}
 		default:
 			safeParts = append(safeParts, part)
 		}
