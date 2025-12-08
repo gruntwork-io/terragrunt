@@ -39,6 +39,24 @@ const (
 	JitterDivisorFloat64 = 1000.0 // Float64 version for division
 )
 
+// Retryable error patterns - more specific patterns to avoid false positives
+// These patterns are checked against lowercase error messages
+var retryableErrorPatterns = []string{
+	// HTTP status codes - with context to avoid false positives
+	"status 429", "status code 429", "http 429", "too many requests", "rate limit",
+	"status 500", "status code 500", "http 500", "internal server error",
+	"status 502", "status code 502", "http 502", "bad gateway",
+	"status 503", "status code 503", "http 503", "service unavailable", "temporarily unavailable",
+	"status 504", "status code 504", "http 504", "gateway timeout", "request timeout",
+
+	// Network-related errors
+	"connection reset", "connection refused", "network is unreachable",
+	"timeout", "temporary failure",
+
+	// Azure-specific transient errors
+	"throttled", "server busy", "operation timeout", "request rate is large",
+}
+
 // RetryConfig holds configuration for retry behavior when interacting with Azure services.
 // This configuration controls how Terragrunt retries operations that fail due to
 // transient errors such as network timeouts, service throttling, or temporary
@@ -204,52 +222,13 @@ func IsRetryableError(err error) bool {
 		return transientErr.IsRetryable()
 	}
 
-	// Check for HTTP status codes in error messages (common pattern from Azure SDK)
+	// Check for retryable error patterns in error message
 	errorStr := strings.ToLower(err.Error())
 
-	// HTTP 429 - Too Many Requests
-	if strings.Contains(errorStr, "429") || strings.Contains(errorStr, "too many requests") ||
-		strings.Contains(errorStr, "rate limit") {
-		return true
-	}
-
-	// HTTP 500 - Internal Server Error
-	if strings.Contains(errorStr, "500") || strings.Contains(errorStr, "internal server error") {
-		return true
-	}
-
-	// HTTP 502 - Bad Gateway
-	if strings.Contains(errorStr, "502") || strings.Contains(errorStr, "bad gateway") {
-		return true
-	}
-
-	// HTTP 503 - Service Unavailable
-	if strings.Contains(errorStr, "503") || strings.Contains(errorStr, "service unavailable") ||
-		strings.Contains(errorStr, "temporarily unavailable") {
-		return true
-	}
-
-	// HTTP 504 - Gateway Timeout
-	if strings.Contains(errorStr, "504") || strings.Contains(errorStr, "gateway timeout") ||
-		strings.Contains(errorStr, "request timeout") {
-		return true
-	}
-
-	// Network-related errors
-	if strings.Contains(errorStr, "connection reset") ||
-		strings.Contains(errorStr, "connection refused") ||
-		strings.Contains(errorStr, "network is unreachable") ||
-		strings.Contains(errorStr, "timeout") ||
-		strings.Contains(errorStr, "temporary failure") {
-		return true
-	}
-
-	// Azure-specific transient errors
-	if strings.Contains(errorStr, "throttled") ||
-		strings.Contains(errorStr, "server busy") ||
-		strings.Contains(errorStr, "operation timeout") ||
-		strings.Contains(errorStr, "request rate is large") {
-		return true
+	for _, pattern := range retryableErrorPatterns {
+		if strings.Contains(errorStr, pattern) {
+			return true
+		}
 	}
 
 	return false
