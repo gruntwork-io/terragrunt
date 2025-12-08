@@ -270,7 +270,12 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 				t.Setenv("ARM_CLIENT_SECRET", tc.armClientSecret)
 			}
 
-			_, subscriptionID, _ := azurehelper.GetAzureCredentials(t.Context(), createMockLogger())
+			_, subscriptionID, err := azurehelper.GetAzureCredentials(t.Context(), createMockLogger())
+			if tc.shouldHaveError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 			assert.Equal(t, tc.expectedSubscriptionID, subscriptionID)
 		})
 	}

@@ -497,11 +497,30 @@ func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Conte
 }
 
 // mapReplicationType maps a replication type string to the ARM storage SKU.
-func mapReplicationType(replicationType string, l log.Logger) armstorage.SKUName {
+// If accountTier is "Premium", it maps to Premium SKUs (only LRS and ZRS are supported).
+// Otherwise, it maps to Standard SKUs.
+func mapReplicationType(accountTier, replicationType string, l log.Logger) armstorage.SKUName {
 	if replicationType == "" {
-		return armstorage.SKUNameStandardLRS
+		replicationType = "LRS"
 	}
 
+	// Premium tier only supports LRS and ZRS
+	if accountTier == "Premium" {
+		premiumSkuMapping := map[string]armstorage.SKUName{
+			"LRS": armstorage.SKUNamePremiumLRS,
+			"ZRS": armstorage.SKUNamePremiumZRS,
+		}
+
+		if sku, ok := premiumSkuMapping[replicationType]; ok {
+			return sku
+		}
+
+		logWarn(l, "Premium tier only supports LRS and ZRS replication. Requested %s, using Premium_LRS", replicationType)
+
+		return armstorage.SKUNamePremiumLRS
+	}
+
+	// Standard tier (default)
 	skuMapping := map[string]armstorage.SKUName{
 		"LRS":    armstorage.SKUNameStandardLRS,
 		"GRS":    armstorage.SKUNameStandardGRS,
@@ -598,7 +617,7 @@ func (c *StorageAccountClient) resolveLocation(configLocation string, l log.Logg
 
 // buildStorageAccountParameters builds the parameters for storage account creation.
 func (c *StorageAccountClient) buildStorageAccountParameters(config StorageAccountConfig, l log.Logger) armstorage.AccountCreateParameters {
-	sku := mapReplicationType(config.ReplicationType, l)
+	sku := mapReplicationType(config.AccountTier, config.ReplicationType, l)
 	kind := mapAccountKind(config.AccountKind, l)
 	accessTierStr := validateAccessTier(config.AccessTier, l)
 	tags := buildStorageAccountTags(config.Tags)
@@ -658,7 +677,7 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 
 // checkBlobPublicAccessUpdate checks and prepares AllowBlobPublicAccess update if needed.
 func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
-	if account.Properties.AllowBlobPublicAccess == nil {
+	if account == nil || account.Properties == nil || account.Properties.AllowBlobPublicAccess == nil {
 		return false
 	}
 
@@ -675,7 +694,8 @@ func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config 
 
 // checkAccessTierUpdate checks and prepares AccessTier update if needed.
 func (c *StorageAccountClient) checkAccessTierUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
-	if config.AccessTier == "" || CompareAccessTier(account.Properties.AccessTier, config.AccessTier) {
+	if account == nil || account.Properties == nil ||
+		config.AccessTier == "" || CompareAccessTier(account.Properties.AccessTier, config.AccessTier) {
 		return false
 	}
 

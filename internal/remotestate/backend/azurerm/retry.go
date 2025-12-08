@@ -4,14 +4,25 @@ package azurerm
 import (
 	"context"
 	"math"
+	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+var (
+	jitterRand *rand.Rand
+	jitterMu   sync.Mutex
+)
+
+func init() {
+	jitterRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+}
 
 // Constants for retry configuration defaults
 const (
@@ -259,9 +270,10 @@ func CalculateDelay(attempt int, config RetryConfig) time.Duration {
 	// Add jitter to avoid thundering herd
 	if config.Jitter {
 		jitterRange := duration / JitterDivisor // 25% jitter
-		// Generate random jitter between 0 and jitterRange
-		nanoTime := time.Now().UnixNano()
-		jitterMultiplier := float64(nanoTime%JitterModulo) / JitterDivisorFloat64 // 0.0 to 1.0
+		// Generate random jitter between 0 and jitterRange using proper random number generator
+		jitterMu.Lock()
+		jitterMultiplier := jitterRand.Float64() // 0.0 to 1.0
+		jitterMu.Unlock()
 		jitter := time.Duration(float64(jitterRange) * jitterMultiplier)
 		duration += jitter
 	}

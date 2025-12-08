@@ -361,7 +361,7 @@ func (h *OperationHandler) wrapAuthError(err error, authConfig *azureauth.AuthCo
 
 	message := fmt.Sprintf("Azure authentication failed using %s", authConfig.Method)
 
-	return tgerrors.Errorf("%s: %v", message, err)
+	return tgerrors.Errorf("%s: %w", message, err)
 }
 
 // Helper methods are now defined in types.go

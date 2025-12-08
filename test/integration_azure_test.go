@@ -1403,7 +1403,8 @@ func TestAzureErrorUnwrappingAndPropagation(t *testing.T) {
 
 // TestStorageAccountConfigurationAndUpdate tests storage account configuration options and updates
 func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
-	t.Parallel()
+	// Not running in parallel because subtests share resources and create/delete storage accounts
+	// Running in parallel could cause resource conflicts
 
 	log := logger.CreateLogger()
 	ctx := t.Context()

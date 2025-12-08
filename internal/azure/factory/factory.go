@@ -424,6 +424,11 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 		return nil, errors.Errorf("failed to get token credential: %w", err)
 	}
 
+	// SAS token authentication is not supported for RBAC operations (management plane)
+	if authResult.Method == azureauth.AuthMethodSasToken || authResult.Credential == nil {
+		return nil, errors.Errorf("sas_token authentication is not supported for RBAC operations; use Azure AD, MSI, or a service principal instead")
+	}
+
 	// Create RBAC service
 	rbacConfig := interfaces.DefaultRBACConfig()
 	service := implementations.NewRBACService(authResult.Credential, rbacConfig, subscriptionID)
@@ -486,6 +491,9 @@ func (f *AzureServiceFactory) RegisterAuthenticationService(service interfaces.A
 
 // GetRegisteredServices returns a list of all registered service types
 func (f *AzureServiceFactory) GetRegisteredServices() []string {
+	f.cacheMutex.RLock()
+	defer f.cacheMutex.RUnlock()
+
 	services := []string{}
 
 	if f.customStorageAccountService != nil {
@@ -513,6 +521,9 @@ func (f *AzureServiceFactory) GetRegisteredServices() []string {
 
 // HasService checks if a specific service type is registered
 func (f *AzureServiceFactory) HasService(serviceType string) bool {
+	f.cacheMutex.RLock()
+	defer f.cacheMutex.RUnlock()
+
 	switch serviceType {
 	case "storage":
 		return f.customStorageAccountService != nil

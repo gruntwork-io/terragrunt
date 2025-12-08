@@ -96,21 +96,25 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context) (*
 	}
 
 	if account.Properties != nil {
-		result.Properties = &types.StorageAccountProperties{
-			ProvisioningState: string(*account.Properties.ProvisioningState),
+		props := &types.StorageAccountProperties{}
+
+		if account.Properties.ProvisioningState != nil {
+			props.ProvisioningState = string(*account.Properties.ProvisioningState)
 		}
 
 		if account.Properties.EnableHTTPSTrafficOnly != nil {
-			result.Properties.SupportsHTTPSOnly = *account.Properties.EnableHTTPSTrafficOnly
+			props.SupportsHTTPSOnly = *account.Properties.EnableHTTPSTrafficOnly
 		}
 
 		if account.Properties.AccessTier != nil {
-			result.Properties.AccessTier = types.AccessTier(*account.Properties.AccessTier)
+			props.AccessTier = types.AccessTier(*account.Properties.AccessTier)
 		}
 
 		if account.Properties.IsHnsEnabled != nil {
-			result.Properties.IsHnsEnabled = *account.Properties.IsHnsEnabled
+			props.IsHnsEnabled = *account.Properties.IsHnsEnabled
 		}
+
+		result.Properties = props
 	}
 
 	return result, nil

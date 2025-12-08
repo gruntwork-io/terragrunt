@@ -137,7 +137,7 @@ The backend supports configuration options for:
 
 #### `azure-backend` - How to provide feedback
 
-If you use the Azure backend, please share your experience in the [Azure Backend for Remote State](https://github.com/gruntwork-io/terragrunt/discussions) GitHub Discussions. Your feedback will help improve the stability and features of this backend.
+If you use the Azure backend, please share your experience in the [Azure Backend for Remote State](https://github.com/gruntwork-io/terragrunt/discussions/4487) GitHub Discussions. Your feedback will help improve the stability and features of this backend.
 
 #### `azure-backend` - Criteria for stabilization
 
