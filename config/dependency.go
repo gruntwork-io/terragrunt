@@ -981,22 +981,22 @@ func getTerragruntOutputJSONFromRemoteState(
 
 			return jsonBytes, nil
 
-	case azurerm.BackendName:
-		l.Debugf("Fetching dependency outputs directly from Azure Storage backend for %s", targetTGOptions.TerragruntConfigPath)
-		jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(
-			ctx,
-			l,
-			targetTGOptions,
-			remoteState,
-		)
+		case azurerm.BackendName:
+			l.Debugf("Fetching dependency outputs directly from Azure Storage backend for %s", targetTGOptions.TerragruntConfigPath)
+			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(
+				ctx,
+				l,
+				targetTGOptions,
+				remoteState,
+			)
 
-		if err != nil {
-			return nil, err
-		}
+			if err != nil {
+				return nil, err
+			}
 
-		l.Debugf("Successfully retrieved outputs from Azure Storage state for %s", targetTGOptions.TerragruntConfigPath)
+			l.Debugf("Successfully retrieved outputs from Azure Storage state for %s", targetTGOptions.TerragruntConfigPath)
 
-		return jsonBytes, nil
+			return jsonBytes, nil
 
 		default:
 			// For unsupported backends, we want to continue with the regular output path

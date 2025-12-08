@@ -1362,8 +1362,6 @@ func (c *StorageAccountClient) logRoleAssignmentSuccess(l log.Logger, isServiceP
 	}
 }
 
-
-
 // GetAzureCredentials checks for Azure environment variables and returns appropriate credentials.
 // If no environment variables are set, it attempts to use default authentication methods.
 // This function is now implemented using the centralized authentication package.
