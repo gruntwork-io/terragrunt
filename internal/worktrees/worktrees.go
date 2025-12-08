@@ -56,7 +56,25 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 
 			seen[worktree.Path] = struct{}{}
 
+			// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
+			if _, err := os.Stat(worktree.Path); os.IsNotExist(err) {
+				l.Debugf("Worktree path %s already removed, skipping cleanup", worktree.Path)
+
+				continue
+			}
+
 			if err := w.gitRunner.RemoveWorktree(ctx, worktree.Path); err != nil {
+				// If the error is due to the worktree not existing, log and continue
+				// This can happen during parallel test execution or if cleanup runs twice
+				errStr := err.Error()
+				if strings.Contains(errStr, "No such file or directory") ||
+					strings.Contains(errStr, "does not exist") ||
+					strings.Contains(errStr, "not a valid directory") {
+					l.Debugf("Worktree for reference %s already cleaned up: %v", worktree.Ref, err)
+
+					continue
+				}
+
 				return fmt.Errorf(
 					"failed to remove Git worktree for reference %s (%s): %w",
 					worktree.Ref,
