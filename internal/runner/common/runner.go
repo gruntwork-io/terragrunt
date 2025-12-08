@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -26,6 +25,4 @@ type StackRunner interface {
 	GetStack() *component.Stack
 	// SetReport attaches a report object to the stack for collecting run data and summaries.
 	SetReport(r *report.Report)
-	// SetWorktrees sets the worktrees for the stack.
-	SetWorktrees(worktrees *worktrees.Worktrees)
 }

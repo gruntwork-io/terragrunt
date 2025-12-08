@@ -407,7 +407,7 @@ func worktreeStacksToGenerate(
 		fromFilters, toFilters := pair.Expand()
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
-			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
 				WorkingDir:    pair.FromWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
@@ -416,11 +416,11 @@ func worktreeStacksToGenerate(
 				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.FromWorktree.Ref, err)
 			}
 
-			fullDiscoveries[pair.FromWorktree.Ref] = discovery
+			fullDiscoveries[pair.FromWorktree.Ref] = disc
 		}
 
 		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
-			discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
 				WorkingDir:    pair.ToWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
@@ -429,7 +429,7 @@ func worktreeStacksToGenerate(
 				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.ToWorktree.Ref, err)
 			}
 
-			fullDiscoveries[pair.ToWorktree.Ref] = discovery
+			fullDiscoveries[pair.ToWorktree.Ref] = disc
 		}
 	}
 
@@ -441,9 +441,9 @@ func worktreeStacksToGenerate(
 		errs []error
 	)
 
-	for ref, discovery := range fullDiscoveries {
+	for ref, disc := range fullDiscoveries {
 		g.Go(func() error {
-			components, err := discovery.Discover(ctx, l, opts)
+			components, err := disc.Discover(ctx, l, opts)
 			if err != nil {
 				mu.Lock()
 

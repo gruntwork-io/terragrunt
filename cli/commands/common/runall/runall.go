@@ -106,8 +106,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}()
 
-	stackOpts = append(stackOpts, common.WithWorktrees(worktrees))
-
 	if !opts.NoStackGenerate {
 		// Set the stack config path to the default location in the working directory
 		opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)

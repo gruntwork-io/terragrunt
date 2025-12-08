@@ -210,7 +210,7 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 
 				mu.Unlock()
 
-				return nil
+				return err
 			}
 
 			for _, component := range components {
@@ -223,6 +223,10 @@ func (wd *WorktreeDiscovery) discoverChangesInWorktreeStacks(
 
 	if err := w.Wait(); err != nil {
 		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 
 	return discoveredComponents.ToComponents(), nil

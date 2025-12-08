@@ -17,12 +17,6 @@ type Diffs struct {
 	Changed []string
 }
 
-// DiffEntry represents a single entry in a diff.
-type DiffEntry struct {
-	Status string
-	Path   string
-}
-
 // ParseDiff parses the stdout of a `git diff --name-status --no-renames` into a Diffs object.
 func ParseDiff(output []byte) (*Diffs, error) {
 	maxCount := bytes.Count(output, []byte("\n")) + 1

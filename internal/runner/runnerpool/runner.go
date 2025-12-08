@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -35,9 +34,8 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack     *component.Stack
-	queue     *queue.Queue
-	worktrees *worktrees.Worktrees
+	Stack *component.Stack
+	queue *queue.Queue
 }
 
 // buildCanonicalConfigPath computes the canonical config path for a unit.
@@ -884,11 +882,6 @@ func (r *Runner) SetReport(rpt *report.Report) {
 	}
 
 	r.Stack.Execution.Report = rpt
-}
-
-// SetWorktrees sets the worktrees for the runner.
-func (r *Runner) SetWorktrees(wt *worktrees.Worktrees) {
-	r.worktrees = wt
 }
 
 // isDestroyCommand checks if the current command is a destroy operation

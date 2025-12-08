@@ -79,6 +79,10 @@ func (g *GitRunner) GoOpenRepo() error {
 
 // GoCloseStorage closes the storage for a Git repository.
 func (g *GitRunner) GoCloseStorage() error {
+	if g.goStorage == nil {
+		return nil
+	}
+
 	if err := g.goStorage.Close(); err != nil {
 		return err
 	}
@@ -113,7 +117,7 @@ func (g *GitRunner) GoLsTreeRecursive(ref string) ([]TreeEntry, error) {
 		return nil, err
 	}
 
-	entries, err := g.goLsTreeOnTree(tree, ".")
+	entries, err := g.goLsTreeOnTree(tree, "")
 	if err != nil {
 		return nil, err
 	}
@@ -202,12 +206,19 @@ func (g *GitRunner) goLsTreeOnTree(tree *object.Tree, path string) ([]TreeEntry,
 	entries := make([]TreeEntry, 0, len(tree.Entries))
 
 	for _, entry := range tree.Entries {
+		var entryPath string
+		if path == "" {
+			entryPath = entry.Name
+		} else {
+			entryPath = filepath.Join(path, entry.Name)
+		}
+
 		if entry.Mode.IsFile() {
 			entries = append(entries, TreeEntry{
 				Mode: entry.Mode.String(),
 				Type: "blob",
 				Hash: entry.Hash.String(),
-				Path: filepath.Join(path, entry.Name),
+				Path: entryPath,
 			})
 		} else {
 			mode, err := entry.Mode.ToOSFileMode()
@@ -221,9 +232,7 @@ func (g *GitRunner) goLsTreeOnTree(tree *object.Tree, path string) ([]TreeEntry,
 					return nil, err
 				}
 
-				subTreePath := filepath.Join(path, entry.Name)
-
-				subTreeEntries, err := g.goLsTreeOnTree(subTree, subTreePath)
+				subTreeEntries, err := g.goLsTreeOnTree(subTree, entryPath)
 				if err != nil {
 					return nil, err
 				}

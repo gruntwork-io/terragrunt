@@ -3,7 +3,6 @@ package common
 import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 )
 
 // Option applies configuration to a StackRunner.
@@ -52,15 +51,6 @@ func WithReport(r *report.Report) Option {
 	return optionImpl{
 		apply: func(stack StackRunner) {
 			stack.SetReport(r)
-		},
-	}
-}
-
-// WithWorktrees sets the worktrees for the stack.
-func WithWorktrees(worktrees *worktrees.Worktrees) Option {
-	return optionImpl{
-		apply: func(stack StackRunner) {
-			stack.SetWorktrees(worktrees)
 		},
 	}
 }

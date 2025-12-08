@@ -59,9 +59,14 @@ func NewGitRunner() (*GitRunner, error) {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	g.WorkDir = workDir
+	if g == nil {
+		return &GitRunner{WorkDir: workDir}
+	}
 
-	return g
+	newRunner := *g
+	newRunner.WorkDir = workDir
+
+	return &newRunner
 }
 
 // RequiresWorkDir returns an error if no working directory is set
