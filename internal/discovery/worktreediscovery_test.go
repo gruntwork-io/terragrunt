@@ -984,3 +984,234 @@ unit "unit_to_be_untouched" {
 		),
 	})
 }
+
+// TestWorktreeDiscoveryDetectsFileRename verifies that renaming a file within a unit
+// (without changing its content) is detected as a change by the worktree discovery.
+// This tests that the SHA256 computation includes file paths, not just content.
+func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	// Create a unit with a file
+	unitDir := filepath.Join(tmpDir, "unit")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit config`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "original.tf"), []byte(`# Same content before and after rename`), 0644)
+	require.NoError(t, err)
+
+	// Commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit with original.tf", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Rename the file (same content, different name)
+	err = os.Rename(
+		filepath.Join(unitDir, "original.tf"),
+		filepath.Join(unitDir, "renamed.tf"),
+	)
+	require.NoError(t, err)
+
+	// Commit the rename
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Rename original.tf to renamed.tf", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Set up worktree discovery
+	l := logger.CreateLogger()
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+
+	gitExpressions := filter.GitExpressions{
+		&filter.GitExpression{
+			FromRef: "HEAD~1",
+			ToRef:   "HEAD",
+		},
+	}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	defer w.Cleanup(t.Context(), l)
+
+	originalDiscovery := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+			Cmd:        "plan",
+		}).
+		WithWorktrees(w)
+
+	worktreeDiscovery := discovery.NewWorktreeDiscovery(gitExpressions).
+		WithOriginalDiscovery(originalDiscovery)
+
+	components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// The unit should be detected as changed because the file was renamed
+	// (even though content is identical)
+	assert.NotEmpty(t, components, "unit with renamed file should be detected as changed")
+
+	// Verify we have the unit from HEAD (the version with renamed.tf)
+	foundUnit := false
+
+	for _, c := range components {
+		if _, ok := c.(*component.Unit); ok {
+			foundUnit = true
+			break
+		}
+	}
+
+	assert.True(t, foundUnit, "should discover the unit with renamed file")
+}
+
+// TestWorktreeDiscoveryDetectsFileMove verifies that moving a file to a subdirectory
+// within a unit (without changing its content) is detected as a change.
+func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	// Create a unit with a file in root
+	unitDir := filepath.Join(tmpDir, "unit")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit config`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "module.tf"), []byte(`# Module content`), 0644)
+	require.NoError(t, err)
+
+	// Commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit with module.tf in root", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Move file to subdirectory (same content, different path)
+	subDir := filepath.Join(unitDir, "modules")
+	err = os.MkdirAll(subDir, 0755)
+	require.NoError(t, err)
+
+	err = os.Rename(
+		filepath.Join(unitDir, "module.tf"),
+		filepath.Join(subDir, "module.tf"),
+	)
+	require.NoError(t, err)
+
+	// Commit the move
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Move module.tf to modules/ subdirectory", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Set up worktree discovery
+	l := logger.CreateLogger()
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+
+	gitExpressions := filter.GitExpressions{
+		&filter.GitExpression{
+			FromRef: "HEAD~1",
+			ToRef:   "HEAD",
+		},
+	}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	defer w.Cleanup(t.Context(), l)
+
+	originalDiscovery := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+			Cmd:        "plan",
+		}).
+		WithWorktrees(w)
+
+	worktreeDiscovery := discovery.NewWorktreeDiscovery(gitExpressions).
+		WithOriginalDiscovery(originalDiscovery)
+
+	components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// The unit should be detected as changed because the file was moved
+	// (even though content is identical)
+	assert.NotEmpty(t, components, "unit with moved file should be detected as changed")
+
+	// Verify we have the unit from HEAD
+	foundUnit := false
+
+	for _, c := range components {
+		if _, ok := c.(*component.Unit); ok {
+			foundUnit = true
+			break
+		}
+	}
+
+	assert.True(t, foundUnit, "should discover the unit with moved file")
+}

@@ -510,6 +510,19 @@ func generateDirSHA256(rootDir string) (string, error) {
 	hash := sha256.New()
 
 	for _, path := range filePaths {
+		// Include the relative path in the hash so renames/moves are detected
+		relPath, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			return "", fmt.Errorf("could not compute relative path for %s: %w", path, err)
+		}
+
+		// Normalize path separators for cross-platform consistency
+		normalizedPath := filepath.ToSlash(relPath)
+
+		// Write path with null separator before content
+		_, _ = hash.Write([]byte(normalizedPath))
+		_, _ = hash.Write([]byte{0})
+
 		f, err := os.Open(path)
 		if err != nil {
 			return "", fmt.Errorf("could not open file %s: %w", path, err)
