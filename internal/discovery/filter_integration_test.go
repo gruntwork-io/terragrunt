@@ -1244,6 +1244,12 @@ locals {
 			)
 			require.NoError(t, err)
 
+			// Cleanup worktrees after test completes
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+				require.NoError(t, cleanupErr)
+			})
+
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
 
@@ -1254,12 +1260,6 @@ locals {
 			}
 
 			require.NoError(t, err)
-
-			// Cleanup worktrees after discovery
-			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
-				require.NoError(t, cleanupErr)
-			})
 
 			// Filter results by type
 			units := configs.Filter(component.UnitKind).Paths()

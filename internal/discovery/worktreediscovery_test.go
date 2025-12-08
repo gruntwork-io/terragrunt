@@ -393,10 +393,6 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tt.name != "empty_command_allowed" {
-				t.Skip("Empty command and args are allowed for discovery commands like find/list")
-			}
-
 			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 			require.NoError(t, err)
 
