@@ -4,7 +4,6 @@ package worktrees
 
 import (
 	"context"
-	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -376,7 +375,7 @@ func NewWorktrees(
 	}
 
 	if len(errs) > 0 {
-		return worktrees, errors.Join(errs...)
+		return worktrees, tgerrors.Join(errs...)
 	}
 
 	return worktrees, nil
@@ -453,7 +452,7 @@ func createGitWorktrees(
 	}
 
 	if len(errs) > 0 {
-		return refsToPaths, errors.Join(errs...)
+		return refsToPaths, tgerrors.Join(errs...)
 	}
 
 	return refsToPaths, nil
