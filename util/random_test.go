@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRandomTime(t *testing.T) {
@@ -48,4 +51,58 @@ func TestGetRandomTime(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateUUID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidUUIDFormat", func(t *testing.T) {
+		t.Parallel()
+
+		generatedUUID := util.GenerateUUID()
+		require.NotEmpty(t, generatedUUID, "Generated UUID should not be empty")
+
+		// Verify it's a valid UUID by parsing it
+		parsedUUID, err := uuid.Parse(generatedUUID)
+		require.NoError(t, err, "Generated UUID should be parseable")
+		assert.NotEqual(t, uuid.Nil, parsedUUID, "Generated UUID should not be nil UUID")
+	})
+
+	t.Run("Uniqueness", func(t *testing.T) {
+		t.Parallel()
+
+		uuid1 := util.GenerateUUID()
+		uuid2 := util.GenerateUUID()
+		assert.NotEqual(t, uuid1, uuid2, "Two generated UUIDs should be different")
+	})
+
+	t.Run("RFC4122Compliance", func(t *testing.T) {
+		t.Parallel()
+
+		generatedUUID := util.GenerateUUID()
+
+		// RFC 4122 UUID format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+		// Where y is one of [8, 9, A, B]
+		assert.Len(t, generatedUUID, 36, "UUID should be 36 characters long")
+		assert.Equal(t, '-', rune(generatedUUID[8]), "Character at position 8 should be hyphen")
+		assert.Equal(t, '-', rune(generatedUUID[13]), "Character at position 13 should be hyphen")
+		assert.Equal(t, '-', rune(generatedUUID[18]), "Character at position 18 should be hyphen")
+		assert.Equal(t, '-', rune(generatedUUID[23]), "Character at position 23 should be hyphen")
+	})
+
+	t.Run("StressTest", func(t *testing.T) {
+		t.Parallel()
+
+		// Generate multiple UUIDs and ensure they're all unique
+		const numUUIDs = 1000
+		uuidMap := make(map[string]bool, numUUIDs)
+
+		for range numUUIDs {
+			generatedUUID := util.GenerateUUID()
+			assert.False(t, uuidMap[generatedUUID], "UUID collision detected: %s", generatedUUID)
+			uuidMap[generatedUUID] = true
+		}
+
+		assert.Len(t, uuidMap, numUUIDs, "All generated UUIDs should be unique")
+	})
 }

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"math/rand"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -63,4 +65,9 @@ func UniqueID() string {
 	}
 
 	return out.String()
+}
+
+// GenerateUUID generates a random RFC 4122 UUID using github.com/google/uuid.
+func GenerateUUID() string {
+	return uuid.NewString()
 }

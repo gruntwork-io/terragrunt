@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // StorageAccountServiceImpl is the production implementation of StorageAccountService
@@ -343,7 +344,7 @@ func (r *RBACServiceImpl) AssignRole(ctx context.Context, l log.Logger, roleName
 	}
 
 	// Generate a unique role assignment name
-	roleAssignmentName := azurehelper.GenerateUUID()
+	roleAssignmentName := util.GenerateUUID()
 
 	assignment := armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{

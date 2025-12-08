@@ -19,10 +19,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
@@ -1002,7 +1002,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 		c.subscriptionID, c.resourceGroupName, c.storageAccountName)
 	roleDefinitionID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
 		c.subscriptionID, storageBlobDataOwnerRoleID)
-	roleAssignmentID := GenerateUUID()
+	roleAssignmentID := util.GenerateUUID()
 
 	c.logPrincipalAssignment(l, isServicePrincipal, userObjectID)
 
@@ -1110,9 +1110,9 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 		logDebug(l, "Full error: %+v", respErr)
 		// Try with a different format for the role assignment ID
 		roleAssignmentID := fmt.Sprintf("%s-%s-4000-8000-%s",
-			GenerateUUID()[0:8],
-			GenerateUUID()[0:4],
-			GenerateUUID()[0:12])
+			util.GenerateUUID()[0:8],
+			util.GenerateUUID()[0:4],
+			util.GenerateUUID()[0:12])
 		logInfo(l, "Retrying with alternative role assignment ID format: %s", roleAssignmentID)
 
 		_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
@@ -1362,10 +1362,7 @@ func (c *StorageAccountClient) logRoleAssignmentSuccess(l log.Logger, isServiceP
 	}
 }
 
-// GenerateUUID generates a random RFC 4122 UUID using github.com/google/uuid.
-func GenerateUUID() string {
-	return uuid.NewString()
-}
+
 
 // GetAzureCredentials checks for Azure environment variables and returns appropriate credentials.
 // If no environment variables are set, it attempts to use default authentication methods.

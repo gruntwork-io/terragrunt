@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -521,14 +522,14 @@ func TestGenerateUUID(t *testing.T) {
 	t.Run("generates non-empty UUID", func(t *testing.T) {
 		t.Parallel()
 
-		uuid := azurehelper.GenerateUUID()
+		uuid := util.GenerateUUID()
 		assert.NotEmpty(t, uuid)
 	})
 
 	t.Run("generates UUID with correct format", func(t *testing.T) {
 		t.Parallel()
 
-		uuid := azurehelper.GenerateUUID()
+		uuid := util.GenerateUUID()
 		// UUID format: 8-4-4-4-12 characters
 		assert.Len(t, uuid, 36) // 8+4+4+4+12+4 hyphens = 36
 		assert.Equal(t, "-", string(uuid[8]))
@@ -540,15 +541,15 @@ func TestGenerateUUID(t *testing.T) {
 	t.Run("generates different UUIDs on subsequent calls", func(t *testing.T) {
 		t.Parallel()
 
-		uuid1 := azurehelper.GenerateUUID()
-		uuid2 := azurehelper.GenerateUUID()
+		uuid1 := util.GenerateUUID()
+		uuid2 := util.GenerateUUID()
 		assert.NotEqual(t, uuid1, uuid2)
 	})
 
 	t.Run("generates UUID with only hex characters and hyphens", func(t *testing.T) {
 		t.Parallel()
 
-		uuid := azurehelper.GenerateUUID()
+		uuid := util.GenerateUUID()
 		for i, char := range uuid {
 			if i == 8 || i == 13 || i == 18 || i == 23 {
 				assert.Equal(t, '-', char, "Character at position %d should be hyphen", i)
@@ -567,7 +568,7 @@ func TestGenerateUUID(t *testing.T) {
 		uuids := make(map[string]bool)
 
 		for i := 0; i < numUUIDs; i++ {
-			uuid := azurehelper.GenerateUUID()
+			uuid := util.GenerateUUID()
 			assert.False(t, uuids[uuid], "UUID %s was generated more than once", uuid)
 			uuids[uuid] = true
 		}
