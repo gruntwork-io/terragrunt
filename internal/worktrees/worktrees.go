@@ -5,7 +5,6 @@ package worktrees
 import (
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -75,7 +75,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 					continue
 				}
 
-				return fmt.Errorf(
+				return tgerrors.Errorf(
 					"failed to remove Git worktree for reference %s (%s): %w",
 					worktree.Ref,
 					worktree.Path,
@@ -302,7 +302,7 @@ func NewWorktrees(
 
 	gitRunner, err := git.NewGitRunner()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Git runner for worktree creation: %w", err)
+		return nil, tgerrors.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}
 
 	gitRunner = gitRunner.WithWorkDir(workingDir)
@@ -406,7 +406,7 @@ func createGitWorktrees(
 			if err != nil {
 				mu.Lock()
 
-				errs = append(errs, fmt.Errorf("failed to create temporary directory for worktree: %w", err))
+				errs = append(errs, tgerrors.Errorf("failed to create temporary directory for worktree: %w", err))
 
 				mu.Unlock()
 
@@ -418,7 +418,7 @@ func createGitWorktrees(
 			if err != nil {
 				mu.Lock()
 
-				errs = append(errs, fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
+				errs = append(errs, tgerrors.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
 
 				mu.Unlock()
 
@@ -429,7 +429,7 @@ func createGitWorktrees(
 			if err != nil {
 				mu.Lock()
 
-				errs = append(errs, fmt.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
+				errs = append(errs, tgerrors.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
 
 				mu.Unlock()
 
@@ -449,7 +449,7 @@ func createGitWorktrees(
 	}
 
 	if err := g.Wait(); err != nil {
-		return refsToPaths, fmt.Errorf("failed to create Git worktrees: %w", err)
+		return refsToPaths, tgerrors.Errorf("failed to create Git worktrees: %w", err)
 	}
 
 	if len(errs) > 0 {
