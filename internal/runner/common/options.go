@@ -3,6 +3,7 @@ package common
 import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 )
 
 // Option applies configuration to a StackRunner.
@@ -53,4 +54,17 @@ func WithReport(r *report.Report) Option {
 			stack.SetReport(r)
 		},
 	}
+}
+
+// WorktreeOption carries worktrees through the runner pipeline for git filter expressions.
+type WorktreeOption struct {
+	Worktrees *worktrees.Worktrees
+}
+
+// Apply is a no-op for runner (worktrees are used in discovery, not runner execution).
+func (o WorktreeOption) Apply(stack StackRunner) {}
+
+// WithWorktrees provides git worktrees to discovery for git filter expressions.
+func WithWorktrees(w *worktrees.Worktrees) Option {
+	return WorktreeOption{Worktrees: w}
 }

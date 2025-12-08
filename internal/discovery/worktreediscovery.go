@@ -56,6 +56,30 @@ func (wd *WorktreeDiscovery) WithOriginalDiscovery(originalDiscovery *Discovery)
 	return wd
 }
 
+// translateComponentPath translates a component's path from a worktree temp path to the original working directory.
+// This is necessary because components are discovered in worktree temp directories, but should be resolved
+// in the original working directory for the runner to find terraform files.
+func translateComponentPath(c component.Component, worktreePath, originalWorkingDir string) {
+	if originalWorkingDir == "" {
+		return
+	}
+
+	componentPath := c.Path()
+	if strings.HasPrefix(componentPath, worktreePath) {
+		relativePath := strings.TrimPrefix(componentPath, worktreePath)
+		newPath := filepath.Join(originalWorkingDir, relativePath)
+		c.SetPath(newPath)
+
+		// Also update the discovery context's working directory
+		discoveryCtx := c.DiscoveryContext()
+		if discoveryCtx != nil {
+			newDiscoveryCtx := *discoveryCtx
+			newDiscoveryCtx.WorkingDir = originalWorkingDir
+			c.SetDiscoveryContext(&newDiscoveryCtx)
+		}
+	}
+}
+
 // Discover discovers components in all worktrees.
 func (wd *WorktreeDiscovery) Discover(
 	ctx context.Context,
@@ -69,6 +93,7 @@ func (wd *WorktreeDiscovery) Discover(
 		return component.Components{}, nil
 	}
 
+	originalWorkingDir := w.OriginalWorkingDir
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
 	// Run from and to discovery concurrently for each expression
@@ -109,8 +134,10 @@ func (wd *WorktreeDiscovery) Discover(
 						return err
 					}
 
-					for _, component := range components {
-						discoveredComponents.EnsureComponent(component)
+					// Do NOT translate fromWorktree paths - removed units only exist in the worktree
+					// They need to run terraform destroy from the worktree where they still exist
+					for _, c := range components {
+						discoveredComponents.EnsureComponent(c)
 					}
 
 					return nil
@@ -141,8 +168,10 @@ func (wd *WorktreeDiscovery) Discover(
 						return err
 					}
 
-					for _, component := range toComponents {
-						discoveredComponents.EnsureComponent(component)
+					// Translate component paths from worktree to original working dir
+					for _, c := range toComponents {
+						translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir)
+						discoveredComponents.EnsureComponent(c)
 					}
 
 					return nil
@@ -159,8 +188,14 @@ func (wd *WorktreeDiscovery) Discover(
 			return err
 		}
 
-		for _, component := range components {
-			discoveredComponents.EnsureComponent(component)
+		// Only translate toWorktree paths - fromWorktree paths should stay as worktree paths
+		// because removed units only exist in the worktree
+		for _, c := range components {
+			for _, pair := range w.WorktreePairs {
+				translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir)
+			}
+
+			discoveredComponents.EnsureComponent(c)
 		}
 
 		return nil

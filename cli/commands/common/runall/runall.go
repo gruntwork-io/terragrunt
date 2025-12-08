@@ -94,17 +94,21 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	gitFilters := filters.UniqueGitFilters()
 
-	worktrees, err := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
-	if err != nil {
-		return errors.Errorf("failed to create worktrees: %w", err)
-	}
-
-	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
-		if cleanupErr != nil {
-			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+	// Only create worktrees when git filter expressions are present
+	var wts *worktrees.Worktrees
+	if len(gitFilters) > 0 {
+		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if err != nil {
+			return errors.Errorf("failed to create worktrees: %w", err)
 		}
-	}()
+
+		defer func() {
+			cleanupErr := wts.Cleanup(ctx, l)
+			if cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+	}
 
 	if !opts.NoStackGenerate {
 		// Set the stack config path to the default location in the working directory
@@ -129,7 +133,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return generate.GenerateStacks(ctx, l, opts, worktrees)
+			return generate.GenerateStacks(ctx, l, opts, wts)
 		})
 
 		// Handle any errors during stack generation
@@ -138,6 +142,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
+	}
+
+	// Pass worktrees to runner for git filter expressions
+	if wts != nil && len(wts.WorktreePairs) > 0 {
+		stackOpts = append(stackOpts, common.WithWorktrees(wts))
 	}
 
 	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)

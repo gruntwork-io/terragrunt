@@ -23,6 +23,24 @@ const (
 	testFixtureFilterSource = "fixtures/filter-source"
 )
 
+// createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
+// Returns the path to the terragrunt.hcl file for later modification.
+func createTestUnit(t *testing.T, dir, comment string) string {
+	t.Helper()
+
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err)
+
+	hclPath := filepath.Join(dir, "terragrunt.hcl")
+	err = os.WriteFile(hclPath, []byte(comment), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`# Minimal terraform config`), 0644)
+	require.NoError(t, err)
+
+	return hclPath
+}
+
 func TestFilterFlagWithFind(t *testing.T) {
 	t.Parallel()
 
@@ -733,8 +751,6 @@ func TestFilterFlagWithSource(t *testing.T) {
 func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("This test won't pass until we fix the integration between discovery and runnerpool.")
-
 	// Skip if filter-flag experiment is not enabled
 	if !helpers.IsExperimentMode(t) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
@@ -760,32 +776,14 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// Create three units initially
+	// Create three units initially using helper
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
 	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
 	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
 
-	err = os.MkdirAll(unitToBeModifiedDir, 0755)
-	require.NoError(t, err)
-
-	err = os.MkdirAll(unitToBeRemovedDir, 0755)
-	require.NoError(t, err)
-
-	err = os.MkdirAll(unitToBeUntouchedDir, 0755)
-	require.NoError(t, err)
-
-	// Create minimal terragrunt.hcl files for each unit
-	unitToBeModifiedHCLPath := filepath.Join(unitToBeModifiedDir, "terragrunt.hcl")
-	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit to be modified`), 0644)
-	require.NoError(t, err)
-
-	unitToBeRemovedHCLPath := filepath.Join(unitToBeRemovedDir, "terragrunt.hcl")
-	err = os.WriteFile(unitToBeRemovedHCLPath, []byte(`# Unit to be removed`), 0644)
-	require.NoError(t, err)
-
-	unitToBeUntouchedHCLPath := filepath.Join(unitToBeUntouchedDir, "terragrunt.hcl")
-	err = os.WriteFile(unitToBeUntouchedHCLPath, []byte(`# Unit to be untouched`), 0644)
-	require.NoError(t, err)
+	unitToBeModifiedHCLPath := createTestUnit(t, unitToBeModifiedDir, `# Unit to be modified`)
+	_ = createTestUnit(t, unitToBeRemovedDir, `# Unit to be removed`)
+	_ = createTestUnit(t, unitToBeUntouchedDir, `# Unit to be untouched`)
 
 	// Initial commit
 	err = runner.GoAdd(".")
@@ -810,11 +808,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 	// Add a unit to be created
 	unitToBeCreatedDir := filepath.Join(tmpDir, "unit-to-be-created")
-	err = os.MkdirAll(unitToBeCreatedDir, 0755)
-	require.NoError(t, err)
-
-	err = os.WriteFile(filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"), []byte(`# Unit created`), 0644)
-	require.NoError(t, err)
+	_ = createTestUnit(t, unitToBeCreatedDir, `# Unit created`)
 
 	// Do nothing to the unit to be untouched
 
@@ -860,7 +854,8 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 			// Run terragrunt run --all --filter with git filter
 			// Note: We use 'plan' command which should work even without terraform init
-			cmd := "terragrunt run --all --no-color --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' -- plan"
+			// Note: --experiment-mode enables the filter-flag experiment required for --filter
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' -- plan"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {

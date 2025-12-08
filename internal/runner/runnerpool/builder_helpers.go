@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -62,6 +63,17 @@ func parseFilters(queries []string) (filter.Filters, error) {
 	}
 
 	return filter.ParseFilterQueries(queries)
+}
+
+// extractWorktrees finds WorktreeOption in options and returns worktrees.
+func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
+	for _, opt := range opts {
+		if wo, ok := opt.(common.WorktreeOption); ok {
+			return wo.Worktrees
+		}
+	}
+
+	return nil
 }
 
 // newBaseDiscovery constructs the base discovery with common immutable options.
@@ -134,6 +146,11 @@ func prepareDiscovery(
 		}
 
 		d = d.WithFilters(filters)
+	}
+
+	// Apply worktrees for git filter expressions
+	if w := extractWorktrees(opts); w != nil {
+		d = d.WithWorktrees(w)
 	}
 
 	return d, nil

@@ -23,9 +23,9 @@ import (
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
 // The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
-	WorktreePairs map[string]WorktreePair
-
-	gitRunner *git.GitRunner
+	WorktreePairs      map[string]WorktreePair
+	gitRunner          *git.GitRunner
+	OriginalWorkingDir string
 }
 
 // WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
@@ -281,7 +281,8 @@ func NewWorktrees(
 ) (*Worktrees, error) {
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
-			WorktreePairs: make(map[string]WorktreePair),
+			WorktreePairs:      make(map[string]WorktreePair),
+			OriginalWorkingDir: workingDir,
 		}, nil
 	}
 
@@ -354,8 +355,9 @@ func NewWorktrees(
 
 	if err := gitCmdGroup.Wait(); err != nil {
 		return &Worktrees{
-			WorktreePairs: make(map[string]WorktreePair),
-			gitRunner:     gitRunner,
+			WorktreePairs:      make(map[string]WorktreePair),
+			OriginalWorkingDir: workingDir,
+			gitRunner:          gitRunner,
 		}, err
 	}
 
@@ -370,8 +372,9 @@ func NewWorktrees(
 	}
 
 	worktrees := &Worktrees{
-		WorktreePairs: worktreePairs,
-		gitRunner:     gitRunner,
+		WorktreePairs:      worktreePairs,
+		OriginalWorkingDir: workingDir,
+		gitRunner:          gitRunner,
 	}
 
 	if len(errs) > 0 {
