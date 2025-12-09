@@ -1268,7 +1268,8 @@ locals {
 			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
 			require.NotEmpty(t, worktreePair)
 
-			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, worktreePair.ToWorktree.Path)
+			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
+			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, tmpDir)
 
 			// Verify results
 			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)

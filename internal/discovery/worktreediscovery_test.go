@@ -158,12 +158,12 @@ func TestWorktreeDiscovery(t *testing.T) {
 	require.NotEmpty(t, worktreePair)
 
 	fromWorktree := worktreePair.FromWorktree.Path
-	toWorktree := worktreePair.ToWorktree.Path
 
-	expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
-	expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
+	// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
+	expectedUnitToBeCreated := filepath.Join(tmpDir, "unit-to-be-created")
+	expectedUnitToBeModified := filepath.Join(tmpDir, "unit-to-be-modified")
 	expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
-	expectedUnitToBeUntouched := filepath.Join(toWorktree, "unit-to-be-untouched")
+	expectedUnitToBeUntouched := filepath.Join(tmpDir, "unit-to-be-untouched")
 
 	assert.Contains(t, unitPaths, expectedUnitToBeCreated, "Unit should be discovered as it was created between commits")
 	assert.DirExists(t, expectedUnitToBeCreated)
@@ -434,14 +434,14 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 			require.NotEmpty(t, worktreePair)
 
 			fromWorktree := worktreePair.FromWorktree.Path
-			toWorktree := worktreePair.ToWorktree.Path
 
 			// Verify units were discovered
 			units := components.Filter(component.UnitKind)
 			unitPaths := units.Paths()
 
-			expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
-			expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
+			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
+			expectedUnitToBeCreated := filepath.Join(tmpDir, "unit-to-be-created")
+			expectedUnitToBeModified := filepath.Join(tmpDir, "unit-to-be-modified")
 			expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
 
 			// Find components by path and verify their discovery context args
@@ -881,20 +881,20 @@ unit "unit_to_be_untouched" {
 	require.NotEmpty(t, worktreePair)
 
 	fromWorktree := worktreePair.FromWorktree.Path
-	toWorktree := worktreePair.ToWorktree.Path
 
+	// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
 	assert.ElementsMatch(t, components, component.Components{
 		// Stacks
-		component.NewStack(filepath.Join(toWorktree, stackToBeAddedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(tmpDir, stackToBeAddedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewStack(filepath.Join(toWorktree, stackToBeModifiedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(tmpDir, stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
@@ -907,47 +907,47 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-		// Units from stack-to-be-added (HEAD)
-		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		// Units from stack-to-be-added (HEAD) - paths translated to tmpDir
+		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		// Units from stack-to-be-modified (HEAD)
+		// Units from stack-to-be-modified (HEAD) - paths translated to tmpDir
 		// For changed stacks, we only discover units that are added, removed, or changed (different SHA)
 		// unit_to_be_added: only in HEAD (added)
-		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(tmpDir, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
-		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(tmpDir, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: toWorktree,
+				WorkingDir: tmpDir,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		// Units from stack-to-be-modified (HEAD~1)
+		// Units from stack-to-be-modified (HEAD~1) - fromWorktree paths NOT translated
 		// unit_to_be_removed: only in HEAD~1 (removed)
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
@@ -957,7 +957,7 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-		// Units from stack-to-be-removed (HEAD~1)
+		// Units from stack-to-be-removed (HEAD~1) - fromWorktree paths NOT translated
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
