@@ -271,9 +271,11 @@ func (u *Unit) AbsolutePath() string {
 }
 
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
-// Falls back to the absolute path if no discovery context is available or relative path calculation fails.
+// Only computes relative path for worktree-discovered units (those with a Ref set).
+// Falls back to the original path for regular units or if relative path calculation fails.
 func (u *Unit) DisplayPath() string {
-	if u.discoveryContext != nil && u.discoveryContext.WorkingDir != "" {
+	// Only compute relative path for worktree-discovered units (identified by having a Ref)
+	if u.discoveryContext != nil && u.discoveryContext.Ref != "" && u.discoveryContext.WorkingDir != "" {
 		if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
 			return rel
 		}

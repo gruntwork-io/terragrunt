@@ -80,9 +80,11 @@ func (s *Stack) SetPath(path string) {
 }
 
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
-// Falls back to the absolute path if no discovery context is available or relative path calculation fails.
+// Only computes relative path for worktree-discovered stacks (those with a Ref set).
+// Falls back to the original path for regular stacks or if relative path calculation fails.
 func (s *Stack) DisplayPath() string {
-	if s.discoveryContext != nil && s.discoveryContext.WorkingDir != "" {
+	// Only compute relative path for worktree-discovered stacks (identified by having a Ref)
+	if s.discoveryContext != nil && s.discoveryContext.Ref != "" && s.discoveryContext.WorkingDir != "" {
 		if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
 			return rel
 		}

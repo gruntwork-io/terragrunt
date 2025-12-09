@@ -87,7 +87,10 @@ func cloneUnitOptions(
 	}
 
 	// Override logger prefix with display path (relative to discovery context) for cleaner logs
-	clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
+	// unless --log-show-abs-paths is set
+	if !stack.Execution.TerragruntOptions.LogShowAbsPaths {
+		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
+	}
 
 	// Use a per-unit default download directory when the stack is using its own default
 	// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
@@ -605,8 +608,17 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 		slices.Reverse(entries)
 	}
 
+	// Use absolute paths if --log-show-abs-paths is set
+	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
+		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
+
 	for _, unit := range entries {
-		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.DisplayPath())
+		unitPath := unit.Component.DisplayPath()
+		if showAbsPaths {
+			unitPath = unit.Component.Path()
+		}
+
+		outStr += fmt.Sprintf("- Unit %s\n", unitPath)
 	}
 
 	l.Info(outStr)
@@ -616,9 +628,18 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
 func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
+	// Use absolute paths if --log-show-abs-paths is set
+	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
+		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
+
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
-		orderedUnits = append(orderedUnits, unit.Component.DisplayPath())
+		unitPath := unit.Component.DisplayPath()
+		if showAbsPaths {
+			unitPath = unit.Component.Path()
+		}
+
+		orderedUnits = append(orderedUnits, unitPath)
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")
