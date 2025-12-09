@@ -17,6 +17,7 @@ package git
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -121,7 +122,7 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 		return nil, &WrappedError{
 			Op:      "git_ls_remote",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
@@ -186,7 +187,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 		return &WrappedError{
 			Op:      "git_clone",
 			Context: stderr.String(),
-			Err:     ErrGitClone,
+			Err:     errors.Join(ErrGitClone, err),
 		}
 	}
 
@@ -226,8 +227,8 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	return tempDir, cleanup, nil
 }
 
-// GetRepoName extracts the repository name from a git URL
-func GetRepoName(repo string) string {
+// ExtractRepoName extracts the repository name from a git URL
+func ExtractRepoName(repo string) string {
 	name := filepath.Base(repo)
 	return strings.TrimSuffix(name, ".git")
 }
@@ -251,7 +252,7 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 		return nil, &WrappedError{
 			Op:      "git_ls_tree_recursive",
 			Context: stderr.String(),
-			Err:     ErrReadTree,
+			Err:     errors.Join(ErrReadTree, err),
 		}
 	}
 
@@ -277,14 +278,11 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 	cmd.Stdout = out
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
-	if err != nil {
-		context := stderr.String()
-
+	if err := cmd.Run(); err != nil {
 		return &WrappedError{
 			Op:      "git_cat_file",
-			Context: context,
-			Err:     ErrCommandSpawn,
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
@@ -309,7 +307,7 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 		return &WrappedError{
 			Op:      "git_create_detached_worktree",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
@@ -333,7 +331,7 @@ func (g *GitRunner) RemoveWorktree(ctx context.Context, path string) error {
 		return &WrappedError{
 			Op:      "git_remove_worktree",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
@@ -357,7 +355,7 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 		return nil, &WrappedError{
 			Op:      "git_diff",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
@@ -380,7 +378,7 @@ func (g *GitRunner) Init(ctx context.Context) error {
 		return &WrappedError{
 			Op:      "git_init",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 

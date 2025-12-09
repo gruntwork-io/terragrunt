@@ -121,7 +121,7 @@ func TestCreateTempDir(t *testing.T) {
 	assert.Empty(t, entries)
 }
 
-func TestGetRepoName(t *testing.T) {
+func TestExtractRepoName(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -149,7 +149,7 @@ func TestGetRepoName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, git.GetRepoName(tt.repo))
+			assert.Equal(t, tt.want, git.ExtractRepoName(tt.repo))
 		})
 	}
 }

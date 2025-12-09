@@ -152,7 +152,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 func (c *CAS) prepareTargetDirectory(dir, url string) string {
 	targetDir := dir
 	if targetDir == "" {
-		targetDir = git.GetRepoName(url)
+		targetDir = git.ExtractRepoName(url)
 	}
 
 	return filepath.Clean(targetDir)
