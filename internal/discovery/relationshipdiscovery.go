@@ -75,7 +75,7 @@ func (rd *RelationshipDiscovery) Discover(
 			// For that reason, the list is all components that are not the component undergoing relationship discovery.
 			terminalComponents := slices.Collect(func(yield func(component.Component) bool) {
 				for _, rc := range *rd.components {
-					if rc != c {
+					if rc != nil && rc != c {
 						if !yield(rc) {
 							return
 						}
@@ -154,8 +154,8 @@ func (rd *RelationshipDiscovery) discoverRelationships(
 		dep, created := rd.dependencyToDiscover(c, path)
 
 		// Delete the entry from terminal components if it's found.
-		terminalComponents = slices.DeleteFunc(terminalComponents, func(c component.Component) bool {
-			return c.Path() == dep.Path()
+		terminalComponents = slices.DeleteFunc(terminalComponents, func(tc component.Component) bool {
+			return tc != nil && tc.Path() == dep.Path()
 		})
 
 		// We only want to recursively discover dependencies if we ended up creating a new component.
