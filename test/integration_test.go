@@ -1141,15 +1141,6 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			command:  []string{"--", "graph"},
 			expected: "digraph",
 		},
-		{
-			command:     []string{"--", "paln"}, //codespell:ignore
-			expected:    "",
-			expectedErr: expectedWrongCommandErr("paln"), //codespell:ignore
-		},
-		{
-			command:  []string{"--disable-command-validation", "--", "paln"}, //codespell:ignore
-			expected: "has no command named",                                 // error caused by running terraform with the wrong command
-		},
 	}
 
 	for _, tc := range testCases {

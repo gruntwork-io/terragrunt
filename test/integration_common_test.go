@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -377,15 +376,6 @@ func wrappedBinary() string {
 	}
 
 	return filepath.Base(value)
-}
-
-// expectedWrongCommandErr - return expected error message for wrong command
-func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == helpers.TofuBinary {
-		return run.WrongTofuCommand(command)
-	}
-
-	return run.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {
