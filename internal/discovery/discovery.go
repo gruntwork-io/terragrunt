@@ -480,41 +480,22 @@ func Parse(
 	// Determine working directory and config filename, supporting file paths and stack kind
 	componentPath := c.Path()
 
-	var workingDir, configFilename string
+	workingDir := componentPath
 
-	// Use the component's DiscoveryContext.WorkingDir if available.
-	discoveryCtx := c.DiscoveryContext()
-
-	switch {
-	case discoveryCtx != nil && discoveryCtx.WorkingDir != "":
-		// For worktree-discovered components, componentPath is already absolute under WorkingDir
-		workingDir = componentPath
-		configFilename = config.DefaultTerragruntConfigPath
-
-		// Allow user-specified config filename when provided as a file path
-		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
-			configFilename = filepath.Base(p)
-		}
-
-		if _, ok := c.(*component.Stack); ok {
-			configFilename = config.DefaultStackFile
-		}
-	case util.FileExists(componentPath) && !util.IsDir(componentPath):
-		// If the path points directly to a file, split dir and filename
+	// If path points to a file, use its directory
+	if util.FileExists(componentPath) && !util.IsDir(componentPath) {
 		workingDir = filepath.Dir(componentPath)
-		configFilename = filepath.Base(componentPath)
-	default:
-		// Defaults assume a directory path
-		workingDir = componentPath
-		configFilename = config.DefaultTerragruntConfigPath
+	}
 
-		// Allow user-specified config filename when provided as a file path
-		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
-			configFilename = filepath.Base(p)
-		}
-		// Stacks always use the default stack filename
-		if _, ok := c.(*component.Stack); ok {
-			configFilename = config.DefaultStackFile
+	// Determine config filename based on component type
+	configFilename := config.DefaultTerragruntConfigPath
+
+	switch c.(type) {
+	case *component.Stack:
+		configFilename = config.DefaultStackFile
+	default:
+		if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
 		}
 	}
 
