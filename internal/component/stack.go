@@ -2,6 +2,7 @@ package component
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -76,6 +77,18 @@ func (s *Stack) Path() string {
 // SetPath sets the path to the component.
 func (s *Stack) SetPath(path string) {
 	s.path = path
+}
+
+// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
+// Falls back to the absolute path if no discovery context is available or relative path calculation fails.
+func (s *Stack) DisplayPath() string {
+	if s.discoveryContext != nil && s.discoveryContext.WorkingDir != "" {
+		if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
+			return rel
+		}
+	}
+
+	return s.path
 }
 
 // External returns whether the component is external.

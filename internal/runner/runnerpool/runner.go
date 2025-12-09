@@ -28,6 +28,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/hashicorp/hcl/v2"
 )
@@ -71,6 +72,7 @@ func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalC
 // Returns the cloned options and logger, or the original logger if stack has no options.
 func cloneUnitOptions(
 	stack *component.Stack,
+	unit *component.Unit,
 	canonicalConfigPath string,
 	stackDefaultDownloadDir string,
 	l log.Logger,
@@ -83,6 +85,9 @@ func cloneUnitOptions(
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Override logger prefix with display path (relative to discovery context) for cleaner logs
+	clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 
 	// Use a per-unit default download directory when the stack is using its own default
 	// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
@@ -158,7 +163,7 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Clone options for this unit
-		unitOpts, unitLogger, err := cloneUnitOptions(stack, canonicalConfigPath, stackDefaultDownloadDir, l)
+		unitOpts, unitLogger, err := cloneUnitOptions(stack, unit, canonicalConfigPath, stackDefaultDownloadDir, l)
 		if err != nil {
 			return nil, err
 		}
@@ -187,14 +192,14 @@ func resolveUnitsFromDiscovery(
 				stack.Execution.TerragruntOptions.IgnoreExternalDependencies {
 				unit.Execution.AssumeAlreadyApplied = true
 				unit.Execution.FlagExcluded = true
-				l.Infof("Excluded external dependency: %s", unit.Path())
+				l.Infof("Excluded external dependency: %s", unit.DisplayPath())
 			}
 		}
 
 		// Store config from discovery context if available
 		if unit.DiscoveryContext() != nil && unit.Config() == nil {
 			// Config should already be set during discovery
-			l.Debugf("Unit %s has no config from discovery", unit.Path())
+			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
 		}
 
 		units = append(units, unit)
@@ -601,7 +606,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	}
 
 	for _, unit := range entries {
-		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.Path())
+		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.DisplayPath())
 	}
 
 	l.Info(outStr)
@@ -613,7 +618,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
-		orderedUnits = append(orderedUnits, unit.Component.Path())
+		orderedUnits = append(orderedUnits, unit.Component.DisplayPath())
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")

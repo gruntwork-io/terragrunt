@@ -234,11 +234,11 @@ func (u *Unit) String() string {
 	u.rLock()
 	defer u.rUnlock()
 
-	path := u.path
+	path := u.DisplayPath()
 	deps := make([]string, 0, len(u.dependencies))
 
 	for _, dep := range u.dependencies {
-		deps = append(deps, dep.Path())
+		deps = append(deps, dep.DisplayPath())
 	}
 
 	excluded := false
@@ -268,6 +268,18 @@ func (u *Unit) AbsolutePath() string {
 	}
 
 	return absPath
+}
+
+// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
+// Falls back to the absolute path if no discovery context is available or relative path calculation fails.
+func (u *Unit) DisplayPath() string {
+	if u.discoveryContext != nil && u.discoveryContext.WorkingDir != "" {
+		if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
+			return rel
+		}
+	}
+
+	return u.path
 }
 
 // FindInPaths returns true if the unit is located in one of the target directories.
