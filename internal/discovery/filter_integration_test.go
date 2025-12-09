@@ -1591,9 +1591,7 @@ locals {
 }
 
 // TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits tests git filter discovery
-// from a subdirectory when comparing against multiple commits back (HEAD~2, HEAD~3).
-// This ensures that changes spanning multiple commits are correctly detected and
-// changes outside the subdirectory are properly filtered out.
+// initiated from a subdirectory when comparing against multiple commits back (HEAD~2, HEAD~3).
 func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) {
 	t.Parallel()
 
