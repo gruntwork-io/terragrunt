@@ -13,8 +13,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -28,6 +31,20 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	opts.StackAction = "generate"
+
+	// Build worktrees if filter-flag experiment is enabled and git filters are present
+	wts, err := buildWorktrees(ctx, l, opts)
+	if err != nil {
+		return errors.Errorf("failed to create worktrees: %w", err)
+	}
+
+	if wts != nil {
+		defer func() {
+			if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+	}
 
 	// Clean stack folders before calling `generate` when the `--source-update` flag is passed
 	if opts.SourceUpdate {
@@ -47,7 +64,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return generate.GenerateStacks(ctx, l, opts, nil) // TODO: Update
+		return generate.GenerateStacks(ctx, l, opts, wts)
 	})
 }
 
@@ -72,14 +89,28 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
 
+	// Build worktrees if filter-flag experiment is enabled and git filters are present
+	wts, err := buildWorktrees(ctx, l, opts)
+	if err != nil {
+		return errors.Errorf("failed to create worktrees: %w", err)
+	}
+
+	if wts != nil {
+		defer func() {
+			if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+	}
+
 	var outputs cty.Value
 
 	// collect outputs
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_output", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_output", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := output.StackOutput(ctx, l, opts, nil) // TODO: Update
+		stackOutputs, err := output.StackOutput(ctx, l, opts, wts)
 		outputs = stackOutputs
 
 		return err
@@ -167,4 +198,24 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	}
 
 	return nil
+}
+
+// buildWorktrees creates worktrees if filter-flag experiment is enabled and git filters exist.
+// Returns nil worktrees if the experiment is not enabled or no git filters are present.
+func buildWorktrees(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*worktrees.Worktrees, error) {
+	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
+		return nil, nil
+	}
+
+	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse filters: %w", err)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+	if len(gitFilters) == 0 {
+		return nil, nil
+	}
+
+	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 }

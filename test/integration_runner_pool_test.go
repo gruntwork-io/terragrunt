@@ -64,7 +64,8 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// run destroy with runner pool and check the order of the modules
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	// Use --parallelism 1 to ensure deterministic output order for assertions
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --parallelism 1 --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// Parse the destruction order from stdout
@@ -82,6 +83,13 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	index := make(map[string]int)
 	for i, mod := range destroyOrder {
 		index[mod] = i
+	}
+
+	// Verify all expected modules are present in the destroy order
+	expectedModules := []string{"module-a", "module-b", "module-c", "module-d", "module-e"}
+	for _, mod := range expectedModules {
+		_, ok := index[mod]
+		assert.True(t, ok, "expected module %q to be present in destroy order, got: %v", mod, destroyOrder)
 	}
 
 	// Assert destroy order based on actual dependencies:
