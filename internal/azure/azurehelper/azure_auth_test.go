@@ -492,36 +492,36 @@ func TestRedactSensitiveValue(t *testing.T) {
 			value:    "AccountName=myaccount;AccountKey=key1;SharedAccessKey=key2;BlobEndpoint=https://myaccount.blob.core.windows.net/",
 			expected: "AccountName=myaccount;AccountKey=" + redacted + ";SharedAccessKey=" + redacted + ";BlobEndpoint=https://myaccount.blob.core.windows.net/",
 		},
-	{
-		name:     "Preserve connection string without sensitive keys",
-		key:      "SOME_CONNECTION_STRING",
-		value:    "Server=myserver;Database=mydb;",
-		expected: "Server=myserver;Database=mydb;",
-	},
-	{
-		name:     "Case-insensitive: lowercase accountkey",
-		key:      "AZURE_STORAGE_CONNECTION_STRING",
-		value:    "accountname=myaccount;accountkey=secret-key-123;endpointsuffix=core.windows.net",
-		expected: "accountname=myaccount;accountkey=" + redacted + ";endpointsuffix=core.windows.net",
-	},
-	{
-		name:     "Case-insensitive: UPPERCASE ACCOUNTKEY",
-		key:      "AZURE_STORAGE_CONNECTION_STRING",
-		value:    "ACCOUNTNAME=myaccount;ACCOUNTKEY=secret-key-123;ENDPOINTSUFFIX=core.windows.net",
-		expected: "ACCOUNTNAME=myaccount;ACCOUNTKEY=" + redacted + ";ENDPOINTSUFFIX=core.windows.net",
-	},
-	{
-		name:     "Case-insensitive: Mixed case SharedAccessKey",
-		key:      "AZURE_STORAGE_CONNECTION_STRING",
-		value:    "AccountName=myaccount;sharedaccesskey=sas-token-456;",
-		expected: "AccountName=myaccount;sharedaccesskey=" + redacted + ";",
-	},
-	{
-		name:     "Case-insensitive: Mixed case both keys",
-		key:      "AZURE_STORAGE_CONNECTION_STRING",
-		value:    "AccountName=myaccount;AccountKey=key1;SharedAccessKey=key2;",
-		expected: "AccountName=myaccount;AccountKey=" + redacted + ";SharedAccessKey=" + redacted + ";",
-	},
+		{
+			name:     "Preserve connection string without sensitive keys",
+			key:      "SOME_CONNECTION_STRING",
+			value:    "Server=myserver;Database=mydb;",
+			expected: "Server=myserver;Database=mydb;",
+		},
+		{
+			name:     "Case-insensitive: lowercase accountkey",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "accountname=myaccount;accountkey=secret-key-123;endpointsuffix=core.windows.net",
+			expected: "accountname=myaccount;accountkey=" + redacted + ";endpointsuffix=core.windows.net",
+		},
+		{
+			name:     "Case-insensitive: UPPERCASE ACCOUNTKEY",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "ACCOUNTNAME=myaccount;ACCOUNTKEY=secret-key-123;ENDPOINTSUFFIX=core.windows.net",
+			expected: "ACCOUNTNAME=myaccount;ACCOUNTKEY=" + redacted + ";ENDPOINTSUFFIX=core.windows.net",
+		},
+		{
+			name:     "Case-insensitive: Mixed case SharedAccessKey",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "AccountName=myaccount;sharedaccesskey=sas-token-456;",
+			expected: "AccountName=myaccount;sharedaccesskey=" + redacted + ";",
+		},
+		{
+			name:     "Case-insensitive: Mixed case both keys",
+			key:      "AZURE_STORAGE_CONNECTION_STRING",
+			value:    "AccountName=myaccount;AccountKey=key1;SharedAccessKey=key2;",
+			expected: "AccountName=myaccount;AccountKey=" + redacted + ";SharedAccessKey=" + redacted + ";",
+		},
 	}
 
 	for _, tc := range testCases {
