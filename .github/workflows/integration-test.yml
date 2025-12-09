@@ -151,7 +151,7 @@ jobs:
               - .github/scripts/setup/experiment-mode.sh
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: "Setup Docker"
         if: runner.os == 'Linux'
