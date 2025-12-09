@@ -483,8 +483,6 @@ func Parse(
 	var workingDir, configFilename string
 
 	// Use the component's DiscoveryContext.WorkingDir if available.
-	// This is important for components discovered in Git worktrees, where the component path
-	// might be under a temporary worktree directory that differs from opts.WorkingDir.
 	discoveryCtx := c.DiscoveryContext()
 
 	switch {
