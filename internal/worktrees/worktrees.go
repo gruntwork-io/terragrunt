@@ -43,24 +43,27 @@ type Worktree struct {
 	Path string
 }
 
-// GitRootOffset returns the relative path from the git root to OriginalWorkingDir.
-// Returns empty string if OriginalWorkingDir is at the git root or on error.
-func (w *Worktrees) GitRootOffset(ctx context.Context) string {
-	if w.gitRunner == nil {
-		return ""
+// DisplayPath translates a worktree path to the equivalent path in the original repository
+// for user-facing output. This is useful for logging and reporting where users expect to see
+// paths relative to their working directory, not temporary worktree paths.
+// If the path is not within a worktree, it returns the path unchanged.
+func (w *Worktrees) DisplayPath(worktreePath string) string {
+	for _, pair := range w.WorktreePairs {
+		for _, wt := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if strings.HasPrefix(worktreePath, wt.Path) {
+				// Get the relative path within the worktree
+				relPath, err := filepath.Rel(wt.Path, worktreePath)
+				if err != nil {
+					return worktreePath
+				}
+
+				// Join with original working dir
+				return filepath.Join(w.OriginalWorkingDir, relPath)
+			}
+		}
 	}
 
-	gitRoot, err := w.gitRunner.GetRepoRoot(ctx)
-	if err != nil || gitRoot == w.OriginalWorkingDir {
-		return ""
-	}
-
-	offset, err := filepath.Rel(gitRoot, w.OriginalWorkingDir)
-	if err != nil || strings.HasPrefix(offset, "..") || offset == "." {
-		return ""
-	}
-
-	return offset
+	return worktreePath
 }
 
 // Cleanup removes all created Git worktrees and their temporary directories.

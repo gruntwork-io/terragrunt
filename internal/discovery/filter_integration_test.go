@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -1269,8 +1268,8 @@ locals {
 			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
 			require.NotEmpty(t, worktreePair)
 
-			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, tmpDir)
+			// Both from and to worktree paths are used directly - no translation to original working dir
+			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, worktreePair.ToWorktree.Path)
 
 			// Verify results
 			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -1572,9 +1571,12 @@ locals {
 	// Filter results by type
 	units := configs.Filter(component.UnitKind).Paths()
 
-	// The discovered component should be basic-2 relative to the subdirectory
-	// NOT "basic/basic-2" (which would be the bug we're testing for)
-	expectedPath := basic2Dir
+	// With worktree-based execution, discovery runs directly in the worktree path
+	// The discovered component should be in the worktree, not translated back to original path
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	expectedPath := filepath.Join(worktreePair.ToWorktree.Path, "basic", "basic-2")
 	assert.ElementsMatch(t, []string{expectedPath}, units,
 		"Should discover basic-2 with correct path when running from subdirectory")
 
@@ -1732,24 +1734,43 @@ locals {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name          string
-		gitRef        string
-		expectedUnits []string
+		name   string
+		gitRef string
+		// expectedUnitsFunc returns expected paths using worktree paths
+		expectedUnitsFunc func(toWorktreePath string) []string
 	}{
 		{
-			name:          "HEAD~1 from subdirectory - only basic-3",
-			gitRef:        "HEAD~1",
-			expectedUnits: []string{basic3Dir},
+			name:   "HEAD~1 from subdirectory - only basic-3",
+			gitRef: "HEAD~1",
+			expectedUnitsFunc: func(toWorktreePath string) []string {
+				return []string{filepath.Join(toWorktreePath, "basic", "basic-3")}
+			},
 		},
 		{
-			name:          "HEAD~2 from subdirectory - basic-2 and basic-3",
-			gitRef:        "HEAD~2",
-			expectedUnits: []string{basic2Dir, basic3Dir},
+			name:   "HEAD~2 from subdirectory - basic-2 and basic-3, plus another",
+			gitRef: "HEAD~2",
+			expectedUnitsFunc: func(toWorktreePath string) []string {
+				// With worktree-root discovery, we find all changed units including 'another'
+				return []string{
+					filepath.Join(toWorktreePath, "another"),
+					filepath.Join(toWorktreePath, "basic", "basic-2"),
+					filepath.Join(toWorktreePath, "basic", "basic-3"),
+				}
+			},
 		},
 		{
-			name:          "HEAD~3 from subdirectory - basic-1, basic-2, and basic-3",
-			gitRef:        "HEAD~3",
-			expectedUnits: []string{basic1Dir, basic2Dir, basic3Dir},
+			name:   "HEAD~3 from subdirectory - basic-1, basic-2, basic-3, plus other and another",
+			gitRef: "HEAD~3",
+			expectedUnitsFunc: func(toWorktreePath string) []string {
+				// With worktree-root discovery, we find all changed units
+				return []string{
+					filepath.Join(toWorktreePath, "other"),
+					filepath.Join(toWorktreePath, "another"),
+					filepath.Join(toWorktreePath, "basic", "basic-1"),
+					filepath.Join(toWorktreePath, "basic", "basic-2"),
+					filepath.Join(toWorktreePath, "basic", "basic-3"),
+				}
+			},
 		},
 	}
 
@@ -1790,15 +1811,16 @@ locals {
 			// Filter results by type
 			units := configs.Filter(component.UnitKind).Paths()
 
-			// Verify correct units are discovered
-			assert.ElementsMatch(t, tt.expectedUnits, units,
-				"Should discover correct units when running from subdirectory with %s", tt.gitRef)
+			// Get worktree pair for expected path calculation
+			worktreePair := w.WorktreePairs["["+tt.gitRef+"...HEAD]"]
+			require.NotEmpty(t, worktreePair)
 
-			// Verify no paths from outside subdirectory are included
-			for _, unitPath := range units {
-				assert.True(t, strings.HasPrefix(unitPath, basicDir),
-					"All discovered paths should be within the basic/ subdirectory, got: %s", unitPath)
-			}
+			// Verify correct units are discovered
+			// With worktree-based execution, discovery runs from worktree root
+			// and returns worktree paths directly (no translation to original paths)
+			expectedUnits := tt.expectedUnitsFunc(worktreePair.ToWorktree.Path)
+			assert.ElementsMatch(t, expectedUnits, units,
+				"Should discover correct units when running from subdirectory with %s", tt.gitRef)
 
 			// Verify no path duplication
 			for _, unitPath := range units {
