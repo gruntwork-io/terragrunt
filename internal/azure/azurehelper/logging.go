@@ -2,6 +2,7 @@
 package azurehelper
 
 import (
+	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -96,4 +97,34 @@ func redactConnectionString(value string) string {
 	}
 
 	return strings.Join(safeParts, ";")
+}
+
+// ResolveClientID returns the first non-empty Azure client ID from environment variables.
+// It checks AZURE_CLIENT_ID first, then falls back to ARM_CLIENT_ID.
+// Returns empty string if neither is set.
+func ResolveClientID() string {
+	if clientID := os.Getenv("AZURE_CLIENT_ID"); clientID != "" {
+		return clientID
+	}
+
+	if clientID := os.Getenv("ARM_CLIENT_ID"); clientID != "" {
+		return clientID
+	}
+
+	return ""
+}
+
+// ResolveSubscriptionID returns the first non-empty Azure subscription ID from environment variables.
+// It checks AZURE_SUBSCRIPTION_ID first, then falls back to ARM_SUBSCRIPTION_ID.
+// Returns empty string if neither is set.
+func ResolveSubscriptionID() string {
+	if subID := os.Getenv("AZURE_SUBSCRIPTION_ID"); subID != "" {
+		return subID
+	}
+
+	if subID := os.Getenv("ARM_SUBSCRIPTION_ID"); subID != "" {
+		return subID
+	}
+
+	return ""
 }

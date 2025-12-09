@@ -121,31 +121,12 @@ func TestAzureCredentialPriority(t *testing.T) {
 			t.Setenv("ARM_CLIENT_ID", tc.armClientID)
 			t.Setenv("ARM_SUBSCRIPTION_ID", tc.armSubscriptionID)
 
-			resolveClientID := func() string {
-				if clientID := os.Getenv("AZURE_CLIENT_ID"); clientID != "" {
-					return clientID
-				}
+			// Call production code to verify credential resolution
+			actualClientID := azurehelper.ResolveClientID()
+			actualSubscriptionID := azurehelper.ResolveSubscriptionID()
 
-				if clientID := os.Getenv("ARM_CLIENT_ID"); clientID != "" {
-					return clientID
-				}
-
-				return ""
-			}
-			resolveSubscriptionID := func() string {
-				if subID := os.Getenv("AZURE_SUBSCRIPTION_ID"); subID != "" {
-					return subID
-				}
-
-				if subID := os.Getenv("ARM_SUBSCRIPTION_ID"); subID != "" {
-					return subID
-				}
-
-				return ""
-			}
-
-			assert.Equal(t, tc.expectedClientID, resolveClientID())
-			assert.Equal(t, tc.expectedSubscriptionID, resolveSubscriptionID())
+			assert.Equal(t, tc.expectedClientID, actualClientID)
+			assert.Equal(t, tc.expectedSubscriptionID, actualSubscriptionID)
 		})
 	}
 }
@@ -275,8 +256,8 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedSubscriptionID, subscriptionID)
 			}
-			assert.Equal(t, tc.expectedSubscriptionID, subscriptionID)
 		})
 	}
 }
@@ -363,17 +344,10 @@ func TestAzureCredentialEnvironmentVariables(t *testing.T) {
 				t.Setenv(key, val)
 			}
 
-			azureSubID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-			armSubID := os.Getenv("ARM_SUBSCRIPTION_ID")
+			// Call production code to verify subscription ID resolution
+			actualSubID := azurehelper.ResolveSubscriptionID()
 
-			var expectedSubID string
-			if azureSubID != "" {
-				expectedSubID = azureSubID
-			} else if armSubID != "" {
-				expectedSubID = armSubID
-			}
-
-			assert.Equal(t, tc.expectedSubscriptionID, expectedSubID)
+			assert.Equal(t, tc.expectedSubscriptionID, actualSubID)
 		})
 	}
 }
