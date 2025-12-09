@@ -1734,10 +1734,9 @@ locals {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name   string
-		gitRef string
-		// expectedUnitsFunc returns expected paths using worktree paths
 		expectedUnitsFunc func(toWorktreePath string) []string
+		name              string
+		gitRef            string
 	}{
 		{
 			name:   "HEAD~1 from subdirectory - only basic-3",
