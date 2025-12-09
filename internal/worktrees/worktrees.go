@@ -236,7 +236,7 @@ func (wp *WorktreePair) Expand(gitRootOffset string) (filter.Filters, filter.Fil
 				// Check to see if the file is in the same directory as a unit in the to worktree.
 				// If so, we'll consider the unit modified.
 				if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-					*targetExpressions = append(*targetExpressions, filter.NewPathFilter(dir))
+					toExpressions = append(toExpressions, filter.NewPathFilter(dir))
 				}
 			}
 		}
