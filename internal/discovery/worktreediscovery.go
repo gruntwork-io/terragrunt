@@ -155,6 +155,13 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 	discoveryContext.Ref = wt.Ref
 	discoveryContext.WorkingDir = wt.Path
 
+	// Deep copy Args slice to avoid race conditions across goroutines
+	if discoveryContext.Args != nil {
+		argsCopy := make([]string, len(discoveryContext.Args))
+		copy(argsCopy, discoveryContext.Args)
+		discoveryContext.Args = argsCopy
+	}
+
 	discoveryContext, err := translateDiscoveryContextArgsForWorktree(discoveryContext, kind)
 	if err != nil {
 		return nil, err
