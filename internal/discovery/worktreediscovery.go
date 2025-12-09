@@ -87,21 +87,31 @@ func (wd *WorktreeDiscovery) Discover(
 
 			if len(fromFilters) > 0 {
 				fromToG.Go(func() error {
-					return wd.discoverInWorktree(
-						fromToCtx, l, opts, w,
-						pair.FromWorktree, fromFilters, fromWorktreeKind,
-						discoveredComponents,
-					)
+					components, err := wd.discoverInWorktree(fromToCtx, l, opts, w, pair.FromWorktree, fromFilters, fromWorktreeKind)
+					if err != nil {
+						return err
+					}
+
+					for _, c := range components {
+						discoveredComponents.EnsureComponent(c)
+					}
+
+					return nil
 				})
 			}
 
 			if len(toFilters) > 0 {
 				fromToG.Go(func() error {
-					return wd.discoverInWorktree(
-						fromToCtx, l, opts, w,
-						pair.ToWorktree, toFilters, toWorktreeKind,
-						discoveredComponents,
-					)
+					components, err := wd.discoverInWorktree(fromToCtx, l, opts, w, pair.ToWorktree, toFilters, toWorktreeKind)
+					if err != nil {
+						return err
+					}
+
+					for _, c := range components {
+						discoveredComponents.EnsureComponent(c)
+					}
+
+					return nil
 				})
 			}
 
@@ -130,7 +140,7 @@ func (wd *WorktreeDiscovery) Discover(
 	return discoveredComponents.ToComponents(), nil
 }
 
-// discoverInWorktree discovers components in a single worktree and adds them to the result.
+// discoverInWorktree discovers components in a single worktree.
 func (wd *WorktreeDiscovery) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
@@ -138,19 +148,16 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 	w *worktrees.Worktrees,
 	wt worktrees.Worktree,
 	filters filter.Filters,
-	worktreeKind worktreeKind,
-	result *component.ThreadSafeComponents,
-) error {
+	kind worktreeKind,
+) (component.Components, error) {
 	discovery := *wd.originalDiscovery
-
 	discoveryContext := *discovery.discoveryContext
 	discoveryContext.Ref = wt.Ref
-	// Set WorkingDir to worktree path - run directly in worktree
 	discoveryContext.WorkingDir = wt.Path
 
-	discoveryContext, err := translateDiscoveryContextArgsForWorktree(discoveryContext, worktreeKind)
+	discoveryContext, err := translateDiscoveryContextArgsForWorktree(discoveryContext, kind)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	components, err := discovery.
@@ -158,23 +165,19 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 		WithDiscoveryContext(&discoveryContext).
 		Discover(ctx, l, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Adjust WorkingDir to user's subdirectory for display purposes
 	adjustedWorkingDir := w.WorkingDir(ctx, wt.Path)
 
-	// Run directly in worktree paths - no filtering or translation needed
 	for _, c := range components {
-		// Update DiscoveryContext.WorkingDir for proper display paths
 		if dctx := c.DiscoveryContext(); dctx != nil {
 			dctx.WorkingDir = adjustedWorkingDir
 		}
-
-		result.EnsureComponent(c)
 	}
 
-	return nil
+	return components, nil
 }
 
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.
