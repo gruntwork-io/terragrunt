@@ -70,7 +70,8 @@ func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string 
 func (w *Worktrees) DisplayPath(worktreePath string) string {
 	for _, pair := range w.WorktreePairs {
 		for _, wt := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
-			if strings.HasPrefix(worktreePath, wt.Path) {
+			// Use boundary-aware check to avoid false matches (e.g., "/tmp/work" vs "/tmp/work-other")
+			if worktreePath == wt.Path || strings.HasPrefix(worktreePath, wt.Path+string(os.PathSeparator)) {
 				// Get the relative path within the worktree
 				relPath, err := filepath.Rel(wt.Path, worktreePath)
 				if err != nil {
