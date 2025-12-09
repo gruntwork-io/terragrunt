@@ -26,6 +26,9 @@ type Worktrees struct {
 	WorktreePairs      map[string]WorktreePair
 	gitRunner          *git.GitRunner
 	OriginalWorkingDir string
+	// GitRootOffset is the relative path from the git root to the OriginalWorkingDir.
+	// This is needed to correctly translate paths when running from a subdirectory.
+	GitRootOffset string
 }
 
 // WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
@@ -175,63 +178,82 @@ func (w *Worktrees) Stacks() StackDiff {
 	return stackDiff
 }
 
+// stripGitRootOffset filters a path based on gitRootOffset.
+// Returns the stripped path and true if the path should be processed,
+// or empty string and false if the path should be skipped.
+func stripGitRootOffset(path, gitRootOffset string) (string, bool) {
+	if gitRootOffset == "" {
+		return path, true
+	}
+
+	if !strings.HasPrefix(path, gitRootOffset+string(filepath.Separator)) && path != gitRootOffset {
+		return "", false
+	}
+
+	return strings.TrimPrefix(path, gitRootOffset+string(filepath.Separator)), true
+}
+
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
 // expressions based on the provided diffs for the worktree pair.
-func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
+// The gitRootOffset parameter is used when running from a subdirectory - paths that don't start with
+// this prefix are skipped, and paths that do have the prefix stripped.
+func (wp *WorktreePair) Expand(gitRootOffset string) (filter.Filters, filter.Filters) {
 	diffs := wp.Diffs
 
 	toPath := wp.ToWorktree.Path
 
+	// When there's a git root offset, we need to adjust toPath to include the offset
+	// for the os.Stat checks below
+	if gitRootOffset != "" {
+		toPath = filepath.Join(toPath, gitRootOffset)
+	}
+
 	fromExpressions := make(filter.Expressions, 0, len(diffs.Removed))
 	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 
+	// processAddedOrRemoved handles both added and removed paths with the same logic
+	// but different target expression slices
+	processAddedOrRemoved := func(paths []string, targetExpressions *filter.Expressions) {
+		for _, path := range paths {
+			strippedPath, ok := stripGitRootOffset(path, gitRootOffset)
+			if !ok {
+				continue
+			}
+
+			dir := filepath.Dir(strippedPath)
+
+			switch filepath.Base(strippedPath) {
+			case config.DefaultTerragruntConfigPath:
+				*targetExpressions = append(*targetExpressions, filter.NewPathFilter(dir))
+			case config.DefaultStackFile:
+				*targetExpressions = append(
+					*targetExpressions,
+					filter.NewPathFilter(dir),
+					filter.NewPathFilter(filepath.Join(dir, "**")),
+				)
+			default:
+				// Check to see if the file is in the same directory as a unit in the to worktree.
+				// If so, we'll consider the unit modified.
+				if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
+					toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+				}
+			}
+		}
+	}
+
 	// Build simple expressions that can be determined simply from the diffs.
-	for _, path := range diffs.Removed {
-		dir := filepath.Dir(path)
-
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			fromExpressions = append(fromExpressions, filter.NewPathFilter(dir))
-		case config.DefaultStackFile:
-			fromExpressions = append(
-				fromExpressions,
-				filter.NewPathFilter(dir),
-				filter.NewPathFilter(filepath.Join(dir, "**")),
-			)
-		default:
-			// Check to see if the removed file is in the same directory as a unit in the to worktree.
-			// If so, we'll consider the unit modified.
-			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-			}
-		}
-	}
-
-	for _, path := range diffs.Added {
-		dir := filepath.Dir(path)
-
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-		case config.DefaultStackFile:
-			toExpressions = append(
-				toExpressions,
-				filter.NewPathFilter(dir),
-				filter.NewPathFilter(filepath.Join(dir, "**")),
-			)
-		default:
-			// Check to see if the added file is in the same directory as a unit in the to worktree.
-			// If so, we'll consider the unit modified.
-			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-			}
-		}
-	}
+	processAddedOrRemoved(diffs.Removed, &fromExpressions)
+	processAddedOrRemoved(diffs.Added, &toExpressions)
 
 	for _, path := range diffs.Changed {
-		dir := filepath.Dir(path)
+		strippedPath, ok := stripGitRootOffset(path, gitRootOffset)
+		if !ok {
+			continue
+		}
 
-		switch filepath.Base(path) {
+		dir := filepath.Dir(strippedPath)
+
+		switch filepath.Base(strippedPath) {
 		case config.DefaultTerragruntConfigPath:
 			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
 		case config.DefaultStackFile:
@@ -247,7 +269,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 
 			// Otherwise, we'll consider it a file that could potentially be read by other units, and needs to be
 			// tracked using a reading filter.
-			toExpressions = append(toExpressions, filter.NewAttributeExpression(filter.AttributeReading, path))
+			toExpressions = append(toExpressions, filter.NewAttributeExpression(filter.AttributeReading, strippedPath))
 		}
 	}
 
@@ -283,6 +305,7 @@ func NewWorktrees(
 		return &Worktrees{
 			WorktreePairs:      make(map[string]WorktreePair),
 			OriginalWorkingDir: workingDir,
+			GitRootOffset:      "", // No offset needed when no git expressions
 		}, nil
 	}
 
@@ -306,6 +329,23 @@ func NewWorktrees(
 	}
 
 	gitRunner = gitRunner.WithWorkDir(workingDir)
+
+	// Get git root and compute the offset from git root to working directory.
+	// This is needed to correctly translate paths when running from a subdirectory.
+	gitRoot, err := gitRunner.TopLevel(ctx)
+	if err != nil {
+		return nil, tgerrors.Errorf("failed to get git root: %w", err)
+	}
+
+	gitRootOffset, err := filepath.Rel(gitRoot, workingDir)
+	if err != nil {
+		return nil, tgerrors.Errorf("failed to compute relative path from git root to working dir: %w", err)
+	}
+
+	// Normalize the offset - if we're at git root, offset should be empty
+	if gitRootOffset == "." {
+		gitRootOffset = ""
+	}
 
 	if len(gitRefs) > 0 {
 		gitCmdGroup.Go(func() error {
@@ -357,6 +397,7 @@ func NewWorktrees(
 		return &Worktrees{
 			WorktreePairs:      make(map[string]WorktreePair),
 			OriginalWorkingDir: workingDir,
+			GitRootOffset:      gitRootOffset,
 			gitRunner:          gitRunner,
 		}, err
 	}
@@ -374,6 +415,7 @@ func NewWorktrees(
 	worktrees := &Worktrees{
 		WorktreePairs:      worktreePairs,
 		OriginalWorkingDir: workingDir,
+		GitRootOffset:      gitRootOffset,
 		gitRunner:          gitRunner,
 	}
 

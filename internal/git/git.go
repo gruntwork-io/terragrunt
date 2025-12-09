@@ -362,6 +362,30 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 	return ParseDiff(stdout.Bytes())
 }
 
+// TopLevel returns the absolute path of the top-level directory of the git repository.
+func (g *GitRunner) TopLevel(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_top_level",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 // Init initializes a Git repository
 func (g *GitRunner) Init(ctx context.Context) error {
 	if err := g.RequiresWorkDir(); err != nil {

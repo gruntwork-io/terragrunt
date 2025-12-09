@@ -102,7 +102,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := pair.Expand()
+			fromFilters, toFilters := pair.Expand(w.GitRootOffset)
 
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
@@ -116,7 +116,8 @@ func (wd *WorktreeDiscovery) Discover(
 
 					fromDiscoveryContext := *fromDiscovery.discoveryContext
 					fromDiscoveryContext.Ref = pair.FromWorktree.Ref
-					fromDiscoveryContext.WorkingDir = pair.FromWorktree.Path
+					// Use the worktree path + git root offset to discover from the equivalent subdirectory
+					fromDiscoveryContext.WorkingDir = filepath.Join(pair.FromWorktree.Path, w.GitRootOffset)
 
 					fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						fromDiscoveryContext,
@@ -150,7 +151,8 @@ func (wd *WorktreeDiscovery) Discover(
 
 					toDiscoveryContext := *toDiscovery.discoveryContext
 					toDiscoveryContext.Ref = pair.ToWorktree.Ref
-					toDiscoveryContext.WorkingDir = pair.ToWorktree.Path
+					// Use the worktree path + git root offset to discover from the equivalent subdirectory
+					toDiscoveryContext.WorkingDir = filepath.Join(pair.ToWorktree.Path, w.GitRootOffset)
 
 					toDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						toDiscoveryContext,
@@ -169,8 +171,10 @@ func (wd *WorktreeDiscovery) Discover(
 					}
 
 					// Translate component paths from worktree to original working dir
+					// Use the worktree path + offset to match the discovery working directory
+					worktreeSubdir := filepath.Join(pair.ToWorktree.Path, w.GitRootOffset)
 					for _, c := range toComponents {
-						translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir)
+						translateComponentPath(c, worktreeSubdir, originalWorkingDir)
 						discoveredComponents.EnsureComponent(c)
 					}
 
@@ -192,7 +196,9 @@ func (wd *WorktreeDiscovery) Discover(
 		// because removed units only exist in the worktree
 		for _, c := range components {
 			for _, pair := range w.WorktreePairs {
-				translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir)
+				// Use the worktree path + offset to match the discovery working directory
+				worktreeSubdir := filepath.Join(pair.ToWorktree.Path, w.GitRootOffset)
+				translateComponentPath(c, worktreeSubdir, originalWorkingDir)
 			}
 
 			discoveredComponents.EnsureComponent(c)
