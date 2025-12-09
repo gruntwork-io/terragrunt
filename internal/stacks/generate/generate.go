@@ -468,16 +468,12 @@ func worktreeStacksToGenerate(
 	)
 
 	for ref, disc := range fullDiscoveries {
-		// Create per-iteration local copies to avoid closure capture bug
-		refCopy := ref
-		discCopy := disc
-
 		g.Go(func() error {
-			components, err := discCopy.Discover(ctx, l, opts)
+			components, err := disc.Discover(ctx, l, opts)
 			if err != nil {
 				mu.Lock()
 
-				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", refCopy, err))
+				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", ref, err))
 
 				mu.Unlock()
 

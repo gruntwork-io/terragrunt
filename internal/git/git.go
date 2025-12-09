@@ -58,10 +58,22 @@ func NewGitRunner() (*GitRunner, error) {
 	}, nil
 }
 
-// WithWorkDir returns a new GitRunner with the specified working directory
+// WithWorkDir returns a new GitRunner with the specified working directory.
+// This method always returns a fully initialized runner with GitPath set.
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		return &GitRunner{WorkDir: workDir}
+		// Create a fully initialized runner when called on nil receiver.
+		// We ignore the error here since git not being available will be
+		// caught when actually running commands.
+		newRunner, err := NewGitRunner()
+		if err != nil {
+			// Fall back to empty GitPath; commands will fail with clear error
+			return &GitRunner{WorkDir: workDir}
+		}
+
+		newRunner.WorkDir = workDir
+
+		return newRunner
 	}
 
 	newRunner := *g

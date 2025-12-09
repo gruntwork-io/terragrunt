@@ -1067,7 +1067,9 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 	require.NoError(t, err)
 
-	defer w.Cleanup(t.Context(), l)
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(t.Context(), l))
+	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
@@ -1184,7 +1186,9 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 	require.NoError(t, err)
 
-	defer w.Cleanup(t.Context(), l)
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(t.Context(), l))
+	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
