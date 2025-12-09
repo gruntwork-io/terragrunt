@@ -58,22 +58,10 @@ func NewGitRunner() (*GitRunner, error) {
 	}, nil
 }
 
-// WithWorkDir returns a new GitRunner with the specified working directory.
-// This method always returns a fully initialized runner with GitPath set.
+// WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		// Create a fully initialized runner when called on nil receiver.
-		// We ignore the error here since git not being available will be
-		// caught when actually running commands.
-		newRunner, err := NewGitRunner()
-		if err != nil {
-			// Fall back to empty GitPath; commands will fail with clear error
-			return &GitRunner{WorkDir: workDir}
-		}
-
-		newRunner.WorkDir = workDir
-
-		return newRunner
+		return &GitRunner{WorkDir: workDir}
 	}
 
 	newRunner := *g
@@ -106,6 +94,30 @@ func (g *GitRunner) RequiresGoRepo() error {
 	}
 
 	return nil
+}
+
+// GetRepoRoot returns the root directory of the git repository.
+func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -372,30 +384,6 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 	}
 
 	return ParseDiff(stdout.Bytes())
-}
-
-// TopLevel returns the absolute path of the top-level directory of the git repository.
-func (g *GitRunner) TopLevel(ctx context.Context) (string, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return "", err
-	}
-
-	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
-			Op:      "git_top_level",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
 }
 
 // Init initializes a Git repository

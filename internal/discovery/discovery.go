@@ -482,21 +482,35 @@ func Parse(
 
 	var workingDir, configFilename string
 
-	// Defaults assume a directory path
-	workingDir = componentPath
-	configFilename = config.DefaultTerragruntConfigPath
+	// Use the component's DiscoveryContext.WorkingDir if available.
+	// This is important for components discovered in Git worktrees, where the component path
+	// might be under a temporary worktree directory that differs from opts.WorkingDir.
+	discoveryCtx := c.DiscoveryContext()
 
-	// If the path points directly to a file, split dir and filename
-	if util.FileExists(componentPath) && !util.IsDir(componentPath) {
+	switch {
+	case discoveryCtx != nil && discoveryCtx.WorkingDir != "":
+		// For worktree-discovered components, componentPath is already absolute under WorkingDir
+		workingDir = componentPath
+		configFilename = config.DefaultTerragruntConfigPath
+
+		if _, ok := c.(*component.Stack); ok {
+			configFilename = config.DefaultStackFile
+		}
+	case util.FileExists(componentPath) && !util.IsDir(componentPath):
+		// If the path points directly to a file, split dir and filename
 		workingDir = filepath.Dir(componentPath)
 		configFilename = filepath.Base(componentPath)
-	} else {
+	default:
+		// Defaults assume a directory path
+		workingDir = componentPath
+		configFilename = config.DefaultTerragruntConfigPath
+
 		// Allow user-specified config filename when provided as a file path
 		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
 			configFilename = filepath.Base(p)
 		}
 		// Stacks always use the default stack filename
-		if c.Kind() == component.StackKind {
+		if _, ok := c.(*component.Stack); ok {
 			configFilename = config.DefaultStackFile
 		}
 	}

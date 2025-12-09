@@ -1563,9 +1563,6 @@ locals {
 		require.NoError(t, cleanupErr)
 	})
 
-	// Verify GitRootOffset is correctly computed
-	assert.Equal(t, "basic", w.GitRootOffset, "GitRootOffset should be 'basic' when running from basic/ subdirectory")
-
 	// Create discovery with filters from the subdirectory
 	discovery := discovery.NewDiscovery(basicDir).WithFilters(filters).WithWorktrees(w)
 
@@ -1783,10 +1780,6 @@ locals {
 				cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
 				require.NoError(t, cleanupErr)
 			})
-
-			// Verify GitRootOffset is correctly computed
-			assert.Equal(t, "basic", w.GitRootOffset,
-				"GitRootOffset should be 'basic' when running from basic/ subdirectory")
 
 			// Create discovery with filters from the subdirectory
 			disc := discovery.NewDiscovery(basicDir).WithFilters(filters).WithWorktrees(w)

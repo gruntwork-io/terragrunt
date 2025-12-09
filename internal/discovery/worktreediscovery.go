@@ -59,24 +59,46 @@ func (wd *WorktreeDiscovery) WithOriginalDiscovery(originalDiscovery *Discovery)
 // translateComponentPath translates a component's path from a worktree temp path to the original working directory.
 // This is necessary because components are discovered in worktree temp directories, but should be resolved
 // in the original working directory for the runner to find terraform files.
-func translateComponentPath(c component.Component, worktreePath, originalWorkingDir string) {
+//
+// When running from a subdirectory, we need to account for the offset between the git root and the
+// working directory. The worktree represents the git repo root, so we compute the equivalent path
+// in the worktree for the original working directory and use that as the base for relative path computation.
+func translateComponentPath(c component.Component, worktreePath, originalWorkingDir, gitRootOffset string) {
 	if originalWorkingDir == "" {
 		return
 	}
 
 	componentPath := c.Path()
-	if strings.HasPrefix(componentPath, worktreePath) {
-		relativePath := strings.TrimPrefix(componentPath, worktreePath)
-		newPath := filepath.Join(originalWorkingDir, relativePath)
-		c.SetPath(newPath)
 
-		// Also update the discovery context's working directory
-		discoveryCtx := c.DiscoveryContext()
-		if discoveryCtx != nil {
-			newDiscoveryCtx := *discoveryCtx
-			newDiscoveryCtx.WorkingDir = originalWorkingDir
-			c.SetDiscoveryContext(&newDiscoveryCtx)
-		}
+	// Compute the equivalent worktree path for the original working directory.
+	// This handles the case where the user is running from a subdirectory of the repo.
+	// gitRootOffset is the relative path from git root to originalWorkingDir.
+	equivalentWorktreePath := worktreePath
+	if gitRootOffset != "" {
+		equivalentWorktreePath = filepath.Join(worktreePath, gitRootOffset)
+	}
+
+	// Compute relative path from the equivalent worktree path to the component
+	relativePath, err := filepath.Rel(equivalentWorktreePath, componentPath)
+	if err != nil {
+		// If we can't compute relative path, the component is not under the equivalent path
+		return
+	}
+
+	// Check if the path is outside the equivalent worktree path (starts with "..")
+	if strings.HasPrefix(relativePath, "..") {
+		return
+	}
+
+	newPath := filepath.Join(originalWorkingDir, relativePath)
+	c.SetPath(newPath)
+
+	// Also update the discovery context's working directory
+	discoveryCtx := c.DiscoveryContext()
+	if discoveryCtx != nil {
+		newDiscoveryCtx := *discoveryCtx
+		newDiscoveryCtx.WorkingDir = originalWorkingDir
+		c.SetDiscoveryContext(&newDiscoveryCtx)
 	}
 }
 
@@ -94,6 +116,7 @@ func (wd *WorktreeDiscovery) Discover(
 	}
 
 	originalWorkingDir := w.OriginalWorkingDir
+	gitRootOffset := w.GitRootOffset(ctx)
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
 	// Run from and to discovery concurrently for each expression
@@ -102,7 +125,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := pair.Expand(w.GitRootOffset)
+			fromFilters, toFilters := pair.Expand()
 
 			// Run from and to discovery concurrently
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
@@ -116,8 +139,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 					fromDiscoveryContext := *fromDiscovery.discoveryContext
 					fromDiscoveryContext.Ref = pair.FromWorktree.Ref
-					// Use the worktree path + git root offset to discover from the equivalent subdirectory
-					fromDiscoveryContext.WorkingDir = filepath.Join(pair.FromWorktree.Path, w.GitRootOffset)
+					fromDiscoveryContext.WorkingDir = pair.FromWorktree.Path
 
 					fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						fromDiscoveryContext,
@@ -137,8 +159,12 @@ func (wd *WorktreeDiscovery) Discover(
 
 					// Do NOT translate fromWorktree paths - removed units only exist in the worktree
 					// They need to run terraform destroy from the worktree where they still exist
+					// Filter to only include components under the equivalent subdirectory
+					equivalentPath := pathInWorktree(pair.FromWorktree.Path, gitRootOffset)
 					for _, c := range components {
-						discoveredComponents.EnsureComponent(c)
+						if strings.HasPrefix(c.Path(), equivalentPath) {
+							discoveredComponents.EnsureComponent(c)
+						}
 					}
 
 					return nil
@@ -151,8 +177,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 					toDiscoveryContext := *toDiscovery.discoveryContext
 					toDiscoveryContext.Ref = pair.ToWorktree.Ref
-					// Use the worktree path + git root offset to discover from the equivalent subdirectory
-					toDiscoveryContext.WorkingDir = filepath.Join(pair.ToWorktree.Path, w.GitRootOffset)
+					toDiscoveryContext.WorkingDir = pair.ToWorktree.Path
 
 					toDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
 						toDiscoveryContext,
@@ -171,11 +196,13 @@ func (wd *WorktreeDiscovery) Discover(
 					}
 
 					// Translate component paths from worktree to original working dir
-					// Use the worktree path + offset to match the discovery working directory
-					worktreeSubdir := filepath.Join(pair.ToWorktree.Path, w.GitRootOffset)
+					// Filter to only include components under the equivalent subdirectory
+					equivalentPath := pathInWorktree(pair.ToWorktree.Path, gitRootOffset)
 					for _, c := range toComponents {
-						translateComponentPath(c, worktreeSubdir, originalWorkingDir)
-						discoveredComponents.EnsureComponent(c)
+						if strings.HasPrefix(c.Path(), equivalentPath) {
+							translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir, gitRootOffset)
+							discoveredComponents.EnsureComponent(c)
+						}
 					}
 
 					return nil
@@ -196,9 +223,7 @@ func (wd *WorktreeDiscovery) Discover(
 		// because removed units only exist in the worktree
 		for _, c := range components {
 			for _, pair := range w.WorktreePairs {
-				// Use the worktree path + offset to match the discovery working directory
-				worktreeSubdir := filepath.Join(pair.ToWorktree.Path, w.GitRootOffset)
-				translateComponentPath(c, worktreeSubdir, originalWorkingDir)
+				translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir, gitRootOffset)
 			}
 
 			discoveredComponents.EnsureComponent(c)
@@ -589,4 +614,15 @@ func generateDirSHA256(rootDir string) (string, error) {
 	hashBytes := hash.Sum(nil)
 
 	return hex.EncodeToString(hashBytes), nil
+}
+
+// pathInWorktree computes the equivalent path in the worktree for the original working directory.
+// When running from a subdirectory of the git repo, this returns the equivalent subdirectory in the worktree.
+// gitRootOffset is the relative path from git root to the original working directory.
+func pathInWorktree(worktreePath, gitRootOffset string) string {
+	if gitRootOffset == "" {
+		return worktreePath
+	}
+
+	return filepath.Join(worktreePath, gitRootOffset)
 }
