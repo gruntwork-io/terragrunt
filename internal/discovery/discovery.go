@@ -491,6 +491,11 @@ func Parse(
 		workingDir = componentPath
 		configFilename = config.DefaultTerragruntConfigPath
 
+		// Allow user-specified config filename when provided as a file path
+		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
+			configFilename = filepath.Base(p)
+		}
+
 		if _, ok := c.(*component.Stack); ok {
 			configFilename = config.DefaultStackFile
 		}
