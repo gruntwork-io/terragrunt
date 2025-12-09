@@ -186,11 +186,12 @@ func stripGitRootOffset(path, gitRootOffset string) (string, bool) {
 		return path, true
 	}
 
-	if !strings.HasPrefix(path, gitRootOffset+string(filepath.Separator)) && path != gitRootOffset {
+	// Git diffs always use forward slashes, even on Windows
+	if !strings.HasPrefix(path, gitRootOffset+"/") && path != gitRootOffset {
 		return "", false
 	}
 
-	return strings.TrimPrefix(path, gitRootOffset+string(filepath.Separator)), true
+	return strings.TrimPrefix(path, gitRootOffset+"/"), true
 }
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
