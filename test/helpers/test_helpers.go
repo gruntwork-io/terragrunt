@@ -61,6 +61,42 @@ func CreateFile(t *testing.T, paths ...string) {
 	require.NoError(t, err)
 }
 
+// CreateGitRepo initializes a git repository at the given path and creates an initial commit.
+func CreateGitRepo(t *testing.T, path string) {
+	t.Helper()
+
+	ctx := t.Context()
+
+	// Initialize git repo
+	cmd := exec.CommandContext(ctx, "git", "init")
+	cmd.Dir = path
+
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git init failed: %s", string(output))
+
+	// Configure user for the repo
+	cmd = exec.CommandContext(ctx, "git", "config", "user.email", "test@test.com")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git config user.email failed")
+
+	cmd = exec.CommandContext(ctx, "git", "config", "user.name", "Test User")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git config user.name failed")
+
+	// Add all files and commit
+	cmd = exec.CommandContext(ctx, "git", "add", "-A")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git add failed")
+
+	cmd = exec.CommandContext(ctx, "git", "commit", "-m", "initial commit", "--allow-empty")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git commit failed")
+}
+
 // IsExperimentMode returns true if the TG_EXPERIMENT_MODE environment variable is set.
 func IsExperimentMode(t *testing.T) bool {
 	t.Helper()

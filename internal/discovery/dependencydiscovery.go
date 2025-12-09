@@ -20,7 +20,6 @@ type DependencyDiscovery struct {
 	externalDependencies *component.ThreadSafeComponents
 	mu                   *sync.RWMutex
 	seenComponents       map[string]struct{}
-	workingDir           string
 	parserOptions        []hclparse.Option
 	maxDepth             int
 	numWorkers           int
@@ -77,13 +76,7 @@ func (dd *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.
 	return dd
 }
 
-// WithWorkingDir sets the working directory for determining if dependencies are external.
-func (dd *DependencyDiscovery) WithWorkingDir(workingDir string) *DependencyDiscovery {
-	dd.workingDir = workingDir
-	return dd
-}
-
-func (dd *DependencyDiscovery) DiscoverAllDependencies(
+func (dd *DependencyDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -105,7 +98,7 @@ func (dd *DependencyDiscovery) DiscoverAllDependencies(
 		}
 
 		g.Go(func() error {
-			err := dd.DiscoverDependencies(ctx, l, opts, c, dd.maxDepth)
+			err := dd.discoverDependencies(ctx, l, opts, c, dd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -129,7 +122,30 @@ func (dd *DependencyDiscovery) DiscoverAllDependencies(
 	return nil
 }
 
-func (dd *DependencyDiscovery) DiscoverDependencies(
+// ExternalDependencies returns the external dependencies discovered during dependency discovery.
+func (dd *DependencyDiscovery) ExternalDependencies() component.Components {
+	return dd.externalDependencies.ToComponents()
+}
+
+// markSeen marks a component path as seen.
+func (dd *DependencyDiscovery) markSeen(path string) {
+	dd.mu.Lock()
+	defer dd.mu.Unlock()
+
+	dd.seenComponents[path] = struct{}{}
+}
+
+// isSeen checks if a component path has been seen.
+func (dd *DependencyDiscovery) isSeen(path string) bool {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
+	_, seen := dd.seenComponents[path]
+
+	return seen
+}
+
+func (dd *DependencyDiscovery) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -185,7 +201,7 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 				return nil
 			}
 
-			err := dd.DiscoverDependencies(ctx, l, opts, depComponent, depthRemaining-1)
+			err := dd.discoverDependencies(ctx, l, opts, depComponent, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
@@ -235,7 +251,7 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		return c
 	}
 
-	isExternal := isExternal(dd.workingDir, depPath)
+	isExternal := isExternal(dd.discoveryContext.WorkingDir, depPath)
 
 	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
 	// set, ensure that we link it to the correct component, and mark it as seen.
@@ -283,38 +299,4 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 	dd.markSeen(depPath)
 
 	return dependencyToDiscover
-}
-
-// FindComponentByPath searches for a component by path in both main components
-// and external dependencies. Returns the component if found, nil otherwise.
-func (dd *DependencyDiscovery) FindComponentByPath(path string) component.Component {
-	c := dd.components.FindByPath(path)
-	if c != nil {
-		return c
-	}
-
-	return dd.externalDependencies.FindByPath(path)
-}
-
-// ExternalDependencies returns the external dependencies discovered during dependency discovery.
-func (dd *DependencyDiscovery) ExternalDependencies() component.Components {
-	return dd.externalDependencies.ToComponents()
-}
-
-// markSeen marks a component path as seen.
-func (dd *DependencyDiscovery) markSeen(path string) {
-	dd.mu.Lock()
-	defer dd.mu.Unlock()
-
-	dd.seenComponents[path] = struct{}{}
-}
-
-// isSeen checks if a component path has been seen.
-func (dd *DependencyDiscovery) isSeen(path string) bool {
-	dd.mu.RLock()
-	defer dd.mu.RUnlock()
-
-	_, seen := dd.seenComponents[path]
-
-	return seen
 }

@@ -65,6 +65,13 @@ func (u *Unit) WithConfig(cfg *config.TerragruntConfig) *Unit {
 	return u
 }
 
+// WithDiscoveryContext sets the discovery context for this unit.
+func (u *Unit) WithDiscoveryContext(ctx *DiscoveryContext) *Unit {
+	u.discoveryContext = ctx
+
+	return u
+}
+
 // Config returns the parsed Terragrunt configuration for this unit.
 func (u *Unit) Config() *config.TerragruntConfig {
 	return u.cfg

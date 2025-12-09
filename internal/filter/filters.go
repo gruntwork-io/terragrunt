@@ -18,7 +18,7 @@ type Filters []*Filter
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
-func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, error) {
+func ParseFilterQueries(filterStrings []string) (Filters, error) {
 	if len(filterStrings) == 0 {
 		return Filters{}, nil
 	}
@@ -28,7 +28,7 @@ func ParseFilterQueries(filterStrings []string, workingDir string) (Filters, err
 	var parseErrors []error
 
 	for i, filterString := range filterStrings {
-		filter, err := Parse(filterString, workingDir)
+		filter, err := Parse(filterString)
 		if err != nil {
 			parseErrors = append(parseErrors, fmt.Errorf("filter %d (%q): %w", i, filterString, err))
 
@@ -72,7 +72,7 @@ func (f Filters) RequiresDiscovery() (Expression, bool) {
 // RequiresParse returns the first expression that requires parsing of Terragrunt HCL configurations if any do.
 func (f Filters) RequiresParse() (Expression, bool) {
 	for _, filter := range f {
-		if e, ok := filter.expr.RequiresParse(); ok {
+		if e, ok := filter.RequiresParse(); ok {
 			return e, true
 		}
 	}
@@ -80,8 +80,8 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 
-// RequiresDependencyDiscovery returns all target expressions from graph expressions that require dependency traversal.
-func (f Filters) RequiresDependencyDiscovery() []Expression {
+// DependencyGraphExpressions returns all target expressions from graph expressions that require dependency traversal.
+func (f Filters) DependencyGraphExpressions() []Expression {
 	var targets []Expression
 
 	for _, filter := range f {
@@ -91,12 +91,34 @@ func (f Filters) RequiresDependencyDiscovery() []Expression {
 	return targets
 }
 
-// RequiresDependentDiscovery returns all target expressions from graph expressions that require dependent traversal.
-func (f Filters) RequiresDependentDiscovery() []Expression {
+// DependentGraphExpressions returns all target expressions from graph expressions that require dependent traversal.
+func (f Filters) DependentGraphExpressions() []Expression {
 	var targets []Expression
 
 	for _, filter := range f {
 		targets = append(targets, collectGraphExpressionTargetsWithDependents(filter.expr)...)
+	}
+
+	return targets
+}
+
+// UniqueGitFilters returns all unique Git filters that require worktree discovery.
+func (f Filters) UniqueGitFilters() GitExpressions {
+	var targets GitExpressions
+
+	seen := make(map[string]struct{})
+
+	for _, filter := range f {
+		filterWorktreeExpressions := collectWorktreeExpressions(filter.expr)
+
+		for _, filterWorktreeExpression := range filterWorktreeExpressions {
+			if _, ok := seen[filterWorktreeExpression.String()]; ok {
+				continue
+			}
+
+			seen[filterWorktreeExpression.String()] = struct{}{}
+			targets = append(targets, filterWorktreeExpression)
+		}
 	}
 
 	return targets
@@ -181,6 +203,57 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	return targets
 }
 
+// collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
+func collectWorktreeExpressions(expr Expression) []*GitExpression {
+	var targets []*GitExpression
+
+	if gitFilter, ok := expr.(*GitExpression); ok {
+		targets = append(targets, gitFilter)
+	}
+
+	// Check nested expressions
+	switch node := expr.(type) {
+	case *PrefixExpression:
+		return collectWorktreeExpressions(node.Right)
+	case *InfixExpression:
+		leftTargets := collectWorktreeExpressions(node.Left)
+		rightTargets := collectWorktreeExpressions(node.Right)
+
+		return append(leftTargets, rightTargets...)
+	case *GraphExpression:
+		targets = append(targets, collectWorktreeExpressions(node.Target)...)
+	}
+
+	return targets
+}
+
+// collectGitReferences recursively collects Git references from GitFilter nodes.
+func collectGitReferences(expr Expression) []string {
+	var refs []string
+
+	if gitFilter, ok := expr.(*GitExpression); ok {
+		refs = append(refs, gitFilter.FromRef, gitFilter.ToRef)
+
+		return refs
+	}
+
+	// Check nested expressions
+	switch node := expr.(type) {
+	case *PrefixExpression:
+		return collectGitReferences(node.Right)
+	case *InfixExpression:
+		leftRefs := collectGitReferences(node.Left)
+		rightRefs := collectGitReferences(node.Right)
+
+		return append(leftRefs, rightRefs...)
+	case *GraphExpression:
+		// Git filters can be nested inside graph expressions
+		return collectGitReferences(node.Target)
+	}
+
+	return refs
+}
+
 // Evaluate applies all filters with union (OR) semantics in two phases:
 //  1. Positive filters (non-negated) are evaluated and their results are unioned
 //  2. Negative filters (starting with negation) are evaluated against the combined
@@ -215,7 +288,9 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 
 	// Phase 2: Apply negative filters to remove components
 	for _, filter := range negativeFilters {
-		result, err := filter.Evaluate(l, combined)
+		var result component.Components
+
+		result, err = filter.Evaluate(l, combined)
 		if err != nil {
 			return nil, err
 		}
@@ -229,14 +304,21 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 // EvaluateOnFiles evaluates the filters on a list of files and returns the filtered result.
 // This is useful for the hcl format command, where we want to evaluate filters on files
 // rather than directories, like we do with components.
-func (f Filters) EvaluateOnFiles(l log.Logger, files []string) (component.Components, error) {
+func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string) (component.Components, error) {
 	if e, ok := f.RequiresDiscovery(); ok {
 		return nil, FilterQueryRequiresDiscoveryError{Query: e.String()}
 	}
 
 	comps := make(component.Components, 0, len(files))
 	for _, file := range files {
-		comps = append(comps, component.NewUnit(file))
+		unit := component.NewUnit(file)
+		if workingDir != "" {
+			unit = unit.WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: workingDir,
+			})
+		}
+
+		comps = append(comps, unit)
 	}
 
 	if len(f) == 0 {
@@ -254,7 +336,12 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(l, components)
+		var (
+			result component.Components
+			err    error
+		)
+
+		result, err = filter.Evaluate(l, components)
 		if err != nil {
 			return nil, err
 		}

@@ -46,14 +46,11 @@ func NewStack(path string) *Stack {
 	}
 }
 
-// NewStackWithConfig creates a new Stack component with the given path and config.
-func NewStackWithConfig(path string, cfg *config.StackConfig) *Stack {
-	return &Stack{
-		cfg:          cfg,
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
-	}
+// WithDiscoveryContext sets the discovery context for this stack.
+func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
+	s.discoveryContext = ctx
+
+	return s
 }
 
 // Config returns the parsed Stack configuration for this stack.

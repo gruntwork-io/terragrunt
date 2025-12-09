@@ -1,18 +1,24 @@
 package discovery_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 func TestDiscoveryWithFilters(t *testing.T) {
@@ -222,7 +228,7 @@ dependency "db" {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -234,7 +240,9 @@ dependency "db" {
 			discovery := discovery.NewDiscovery(tmpDir, tt.discoveryOpts...).WithFilters(filters)
 
 			// Discover components with dependencies to test external filtering
-			discovery = discovery.WithDiscoverDependencies().WithDiscoverExternalDependencies()
+			discovery = discovery.
+				WithDiscoverDependencies().
+				WithDiscoverExternalDependencies()
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
@@ -254,6 +262,9 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
@@ -299,7 +310,7 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 
 			// Some errors occur during parsing (like empty filter), others during evaluation
 			if tt.errorExpected && err != nil {
@@ -327,10 +338,12 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create a single component for edge case testing
 	unitDir := filepath.Join(tmpDir, "unit #1")
-	err := os.MkdirAll(unitDir, 0755)
+	err = os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644)
@@ -394,11 +407,13 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters
-			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
+			discovery := discovery.NewDiscovery(tmpDir).
+				WithFilters(filters).
+				WithDiscoverExternalDependencies()
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
@@ -418,6 +433,8 @@ func TestDiscoveryWithReadingFilters(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 
 	// Create shared configuration files
 	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
@@ -596,7 +613,7 @@ locals {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters and ReadFiles enabled
@@ -650,7 +667,7 @@ locals {
 
 	// Test with absolute path filter
 	filterQueries := []string{"reading=" + sharedFile}
-	filters, err := filter.ParseFilterQueries(filterQueries, tmpDir)
+	filters, err := filter.ParseFilterQueries(filterQueries)
 	require.NoError(t, err)
 
 	discovery := discovery.NewDiscovery(tmpDir).
@@ -700,7 +717,7 @@ func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 
 			// Some errors occur during parsing
 			if tt.errorExpected && err != nil {
@@ -734,7 +751,13 @@ func TestDiscoveryWithGraphExpressionFilters(t *testing.T) {
 
 	// To speed up this test, we'll make the temporary directory a git repository.
 	// This creates a lower upper bound for dependent discovery.
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Create dependency graph: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -803,17 +826,17 @@ dependency "vpc" {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
 
-			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			components, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
-			units := configs.Filter(component.UnitKind).Paths()
+			units := components.Filter(component.UnitKind).Paths()
 
 			// Verify results
 			assert.ElementsMatch(t, tt.wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -829,7 +852,13 @@ func TestDiscoveryWithGraphExpressionFilters_ComplexGraph(t *testing.T) {
 	require.NoError(t, err)
 
 	// To speed up this test, we'll make the temporary directory a git repository.
-	helpers.CreateGitRepo(t, tmpDir)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Create complex graph: vpc -> [db, cache] -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -879,7 +908,7 @@ dependency "vpc" {
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app..."}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -893,7 +922,7 @@ dependency "vpc" {
 	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...vpc"}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -946,7 +975,7 @@ dependency "db" {
 		t.Parallel()
 
 		// Filter for app and its dependencies - unrelated should not be included
-		filters, err := filter.ParseFilterQueries([]string{"app..."}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -1005,7 +1034,7 @@ dependency "vpc" {
 		t.Parallel()
 
 		// Graph expression discovers app and its dependencies, then additional filter excludes vpc
-		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"}, tmpDir)
+		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -1017,4 +1046,410 @@ dependency "vpc" {
 		assert.ElementsMatch(t, []string{appDir, dbDir}, units)
 		assert.NotContains(t, units, vpcDir)
 	})
+}
+
+func TestDiscoveryWithGitFilters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		filterQueries func(string, string) []string
+		wantUnits     func(string, string) []string
+		wantStacks    []string
+		errorExpected bool
+	}{
+		{
+			name: "Git filter - changes between commits",
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "]"}
+			},
+			wantUnits: func(fromDir string, toDir string) []string {
+				return []string{
+					filepath.Join(fromDir, "cache"),
+					filepath.Join(toDir, "app"),
+					filepath.Join(toDir, "new"),
+				}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter - single reference (compared to HEAD)",
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "]"}
+			},
+			wantUnits: func(fromDir string, toDir string) []string {
+				return []string{
+					filepath.Join(fromDir, "cache"),
+					filepath.Join(toDir, "app"),
+					filepath.Join(toDir, "new"),
+				}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter combined with path filter",
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "] | ./app"}
+			},
+			wantUnits: func(_ string, toDir string) []string {
+				return []string{filepath.Join(toDir, "app")}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter combined with name filter",
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "] | name=new"}
+			},
+			wantUnits: func(_ string, toDir string) []string {
+				return []string{filepath.Join(toDir, "new")}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Multiple Git filters - union",
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "] | ./app", "[" + fromRef + "] | ./db"}
+			},
+			wantUnits: func(_ string, toDir string) []string {
+				return []string{filepath.Join(toDir, "app")}
+			},
+			wantStacks: []string{},
+		},
+		{
+			name: "Git filter with negation",
+			filterQueries: func(fromRef, toRef string) []string {
+				return []string{"[" + fromRef + "..." + toRef + "] | !name=new"}
+			},
+			wantUnits: func(fromDir string, toDir string) []string {
+				return []string{
+					filepath.Join(fromDir, "cache"),
+					filepath.Join(toDir, "app"),
+				}
+			},
+			wantStacks: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			tmpDir, err := filepath.EvalSymlinks(tmpDir)
+			require.NoError(t, err)
+
+			// Initialize Git repository
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			err = runner.GoOpenRepo()
+			require.NoError(t, err)
+
+			defer runner.GoCloseStorage()
+
+			// Create initial components
+			appDir := filepath.Join(tmpDir, "app")
+			dbDir := filepath.Join(tmpDir, "db")
+			cacheDir := filepath.Join(tmpDir, "cache")
+
+			testDirs := []string{appDir, dbDir, cacheDir}
+			for _, dir := range testDirs {
+				err = os.MkdirAll(dir, 0755)
+				require.NoError(t, err)
+			}
+
+			// Create initial files
+			initialFiles := map[string]string{
+				filepath.Join(appDir, "terragrunt.hcl"):   ``,
+				filepath.Join(dbDir, "terragrunt.hcl"):    ``,
+				filepath.Join(cacheDir, "terragrunt.hcl"): ``,
+			}
+
+			for path, content := range initialFiles {
+				err = os.WriteFile(path, []byte(content), 0644)
+				require.NoError(t, err)
+			}
+
+			// Commit initial state
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Create new components and modify existing ones
+			newDir := filepath.Join(tmpDir, "new")
+			err = os.MkdirAll(newDir, 0755)
+			require.NoError(t, err)
+
+			// Modify app component
+			err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+locals {
+	modified = true
+}
+`), 0644)
+			require.NoError(t, err)
+
+			// Add new component
+			err = os.WriteFile(filepath.Join(newDir, "terragrunt.hcl"), []byte(``), 0644)
+			require.NoError(t, err)
+
+			// Remove cache component
+			err = os.RemoveAll(cacheDir)
+			require.NoError(t, err)
+
+			// Commit changes
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Changes: modified app, added new, removed cache", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = tmpDir
+			opts.RootWorkingDir = tmpDir
+
+			// Parse filter queries
+			filters, err := filter.ParseFilterQueries(tt.filterQueries("HEAD~1", "HEAD"))
+			if tt.errorExpected {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			w, err := worktrees.NewWorktrees(
+				t.Context(),
+				logger.CreateLogger(),
+				tmpDir,
+				filters.UniqueGitFilters(),
+			)
+			require.NoError(t, err)
+
+			// Cleanup worktrees after test completes
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+				require.NoError(t, cleanupErr)
+			})
+
+			// Create discovery with filters
+			discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
+
+			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+			if tt.errorExpected {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Filter results by type
+			units := configs.Filter(component.UnitKind).Paths()
+			stacks := configs.Filter(component.StackKind).Paths()
+
+			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+			require.NotEmpty(t, worktreePair)
+
+			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
+			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, tmpDir)
+
+			// Verify results
+			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)
+			assert.ElementsMatch(t, tt.wantStacks, stacks, "Stacks mismatch for test: %s", tt.name)
+		})
+	}
+}
+
+func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	// Create a component
+	appDir := filepath.Join(tmpDir, "app")
+	err = os.MkdirAll(appDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(``), 0644)
+	require.NoError(t, err)
+
+	// Commit initial state
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Make a change
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`modified`), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modified app", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Parse filter with Git references
+	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		tmpDir,
+		filters.UniqueGitFilters(),
+	)
+	require.NoError(t, err)
+
+	// Cleanup worktrees - should succeed if worktrees exist
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
+
+	// Create discovery with filters
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
+
+	// Discover components - this should create worktrees
+	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+	require.NotEmpty(t, configs)
+}
+
+func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	// Create a component
+	appDir := filepath.Join(tmpDir, "app")
+	err = os.MkdirAll(appDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(``), 0644)
+	require.NoError(t, err)
+
+	// Commit initial state
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Commit again with no changes (empty commit)
+	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
+		AllowEmptyCommits: true,
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Parse filter with Git references (no changes between commits)
+	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		tmpDir,
+		filters.UniqueGitFilters(),
+	)
+	require.NoError(t, err)
+
+	// Create discovery with filters
+	discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters).WithWorktrees(w)
+
+	// Discover components
+	components, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Cleanup worktrees
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
+
+	// Should return no components since nothing changed
+	units := components.Filter(component.UnitKind).Paths()
+	assert.Empty(t, units, "No components should be returned when there are no changes")
 }

@@ -209,31 +209,23 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 
 	const goroutines = 10
 
-	// Concurrent writes
-	for i := range goroutines {
-		wg.Add(1)
-
-		go func(idx int) {
-			defer wg.Done()
-
+	// Concurrent writes tests
+	for range goroutines {
+		wg.Go(func() {
 			unit := component.NewUnit("/test/path")
 			tsc.EnsureComponent(unit)
-		}(i)
+		})
 	}
 
 	// Concurrent reads
 	for range goroutines {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			for range 100 {
 				_ = tsc.FindByPath("/test/path")
 				_ = tsc.Len()
 				_ = tsc.ToComponents()
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -64,6 +64,9 @@ type Component interface {
 // because it can help us determine how the
 // Component should be run or enqueued later.
 type DiscoveryContext struct {
+	WorkingDir string
+	Ref        string
+
 	Cmd  string
 	Args []string
 }

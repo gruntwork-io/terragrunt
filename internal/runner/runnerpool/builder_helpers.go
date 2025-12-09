@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -56,12 +57,23 @@ func buildConfigFilenames(tgOpts *options.TerragruntOptions) []string {
 }
 
 // parseFilters wraps filter parsing for readability.
-func parseFilters(queries []string, workingDir string) (filter.Filters, error) {
+func parseFilters(queries []string) (filter.Filters, error) {
 	if len(queries) == 0 {
 		return filter.Filters{}, nil
 	}
 
-	return filter.ParseFilterQueries(queries, workingDir)
+	return filter.ParseFilterQueries(queries)
+}
+
+// extractWorktrees finds WorktreeOption in options and returns worktrees.
+func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
+	for _, opt := range opts {
+		if wo, ok := opt.(common.WorktreeOption); ok {
+			return wo.Worktrees
+		}
+	}
+
+	return nil
 }
 
 // newBaseDiscovery constructs the base discovery with common immutable options.
@@ -86,8 +98,9 @@ func newBaseDiscovery(
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  tgOpts.TerraformCliArgs.First(),
-			Args: tgOpts.TerraformCliArgs.Tail(),
+			WorkingDir: workingDir,
+			Cmd:        tgOpts.TerraformCliArgs.First(),
+			Args:       tgOpts.TerraformCliArgs.Tail(),
 		})
 }
 
@@ -127,12 +140,17 @@ func prepareDiscovery(
 
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
-		filters, err := parseFilters(tgOpts.FilterQueries, workingDir)
+		filters, err := parseFilters(tgOpts.FilterQueries)
 		if err != nil {
 			return nil, errors.Errorf("failed to parse filter queries in %s: %w", workingDir, err)
 		}
 
 		d = d.WithFilters(filters)
+	}
+
+	// Apply worktrees for git filter expressions
+	if w := extractWorktrees(opts); w != nil {
+		d = d.WithWorktrees(w)
 	}
 
 	return d, nil
