@@ -348,6 +348,9 @@ func NewWorktrees(
 		gitRootOffset = ""
 	}
 
+	// Normalize path separators for git path comparison (git always uses forward slashes)
+	gitRootOffset = filepath.ToSlash(gitRootOffset)
+
 	if len(gitRefs) > 0 {
 		gitCmdGroup.Go(func() error {
 			paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs)
