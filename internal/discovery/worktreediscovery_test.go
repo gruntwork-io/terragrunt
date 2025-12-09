@@ -1068,7 +1068,7 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(t.Context(), l))
+		require.NoError(t, w.Cleanup(context.Background(), l))
 	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
@@ -1187,7 +1187,7 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(t.Context(), l))
+		require.NoError(t, w.Cleanup(context.Background(), l))
 	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
