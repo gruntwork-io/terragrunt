@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -48,13 +49,38 @@ func NewStackNode(filePath string) *StackNode {
 
 // GenerateStacks generates the stack files using topological ordering to prevent race conditions.
 // Stack files are generated level by level, ensuring parent stacks complete before their children.
+// If externalWorktrees is provided, it will be used instead of creating new worktrees.
 func GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
+	externalWorktrees ...*worktrees.Worktrees,
 ) error {
-	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
+	var wts *worktrees.Worktrees
+
+	// Use external worktrees if provided, otherwise create internally
+	if len(externalWorktrees) > 0 && externalWorktrees[0] != nil {
+		wts = externalWorktrees[0]
+	} else {
+		// Create worktrees internally if filter-flag experiment is enabled and git filters are present
+		var err error
+
+		wts, err = buildWorktreesIfNeeded(ctx, l, opts)
+		if err != nil {
+			return errors.Errorf("failed to create worktrees: %w", err)
+		}
+
+		// Only cleanup worktrees we created internally
+		if wts != nil {
+			defer func() {
+				if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+					l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+				}
+			}()
+		}
+	}
+
+	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -86,7 +112,7 @@ func GenerateStacks(
 			return err
 		}
 
-		if err := discoverAndAddNewNodes(ctx, l, opts, worktrees, stackTrees, generatedFiles, level+1); err != nil {
+		if err := discoverAndAddNewNodes(ctx, l, opts, wts, stackTrees, generatedFiles, level+1); err != nil {
 			return err
 		}
 	}
@@ -471,4 +497,28 @@ func worktreeStacksToGenerate(
 	}
 
 	return stacksToGenerate.ToComponents(), nil
+}
+
+// buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
+// Returns nil worktrees if the experiment is not enabled or no git filters are present.
+func buildWorktreesIfNeeded(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*worktrees.Worktrees, error) {
+	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
+		return nil, nil
+	}
+
+	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse filters: %w", err)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+	if len(gitFilters) == 0 {
+		return nil, nil
+	}
+
+	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 }

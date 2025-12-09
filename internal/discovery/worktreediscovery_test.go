@@ -843,7 +843,7 @@ unit "unit_to_be_untouched" {
 		require.NoError(t, cleanupErr)
 	})
 
-	// Generate stacks
+	// Generate stacks using the test's worktrees
 	err = generate.GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 

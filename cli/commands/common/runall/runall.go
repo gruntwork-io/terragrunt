@@ -133,7 +133,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return generate.GenerateStacks(ctx, l, opts, wts)
+			return generate.GenerateStacks(ctx, l, opts)
 		})
 
 		// Handle any errors during stack generation

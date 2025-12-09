@@ -9,6 +9,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -54,11 +56,24 @@ func StackOutput(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
 ) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
 
-	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
+	// Create worktrees internally if filter-flag experiment is enabled and git filters are present
+	wts, err := buildWorktreesIfNeeded(ctx, l, opts)
+	if err != nil {
+		return cty.NilVal, errors.Errorf("failed to create worktrees: %w", err)
+	}
+
+	if wts != nil {
+		defer func() {
+			if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+	}
+
+	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -243,4 +258,28 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	}
 
 	return nested, nil
+}
+
+// buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
+// Returns nil worktrees if the experiment is not enabled or no git filters are present.
+func buildWorktreesIfNeeded(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*worktrees.Worktrees, error) {
+	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
+		return nil, nil
+	}
+
+	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse filters: %w", err)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+	if len(gitFilters) == 0 {
+		return nil, nil
+	}
+
+	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 }
