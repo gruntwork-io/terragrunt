@@ -343,12 +343,11 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	assert.NotContains(t, stderr, "Unrecoverable parse error")
 	assert.NotContains(t, stderr, "%!w(")
 
-	// Verify the current unit ran successfully
-	// Note: External dependencies are now excluded by default (not discovered at all),
-	// so there's no "Excluded" message - they simply aren't in the queue
+	// Verify the current unit ran successfully and external dependency was excluded
 	combinedOutput := stdout + stderr
 	assert.NotContains(t, combinedOutput, "service1")
 	assert.Contains(t, combinedOutput, "null_resource.services_info")
+	assert.Contains(t, combinedOutput, "Excluded")
 }
 
 // TestSensitiveValues tests that sensitive values can be properly handled
@@ -589,14 +588,13 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 //	    ├── terragrunt.hcl
 //	    └── main.tf
 //
-// Expected behavior (v0.93.13):
-//   - Unit queue shows only "Unit ."
-//   - External dependency (module2) is excluded from execution
-//   - Summary shows "Excluded 1"
+// Expected behavior (v0.93.13 and after fix):
+//   - External dependency (module2) is discovered but EXCLUDED from execution
+//   - Summary shows "Excluded 1" for the external dep
+//   - Only bastion (Unit .) is actually executed
 //
 // Bug behavior (v0.94.0):
-//   - Unit queue shows "Unit ../module2" AND "Unit ."
-//   - External dependency is included and executed
+//   - External dependency is included and EXECUTED (not excluded)
 //   - This causes unintended operations on external modules
 //
 // See: https://github.com/gruntwork-io/terragrunt/issues/5195
@@ -620,21 +618,25 @@ func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
 	// The command should succeed
 	require.NoError(t, err)
 
-	// The unit queue should only contain the current directory, NOT external dependencies
-	// Bug behavior: queue contains "Unit ../module2" which is an external dependency
-	assert.NotContains(t, stderr, "Unit ../module2",
-		"External dependency module2 should NOT be in the unit queue")
-	assert.NotContains(t, stderr, "Unit ../module1",
-		"External module1 should NOT be in the unit queue")
+	// External dependencies should be excluded (not executed)
+	// The log should show they were excluded
+	assert.Contains(t, stderr, "Excluded external dependency",
+		"External dependencies should be excluded from execution")
 
 	// Should see bastion (displayed as "." since it's the current directory)
 	assert.Contains(t, stderr, "Unit .",
 		"Should discover the current directory (bastion) as '.'")
 
-	// With the fix, external dependencies are simply not discovered, so only 1 unit should be processed
-	// The run summary is in stdout
-	assert.Contains(t, stdout, "1 units",
-		"Only one unit (bastion) should be in the queue")
+	// With the fix, external dependencies are excluded, so:
+	// - 2 units total (bastion + external dep module2)
+	// - 1 succeeded (bastion)
+	// - 1 excluded (module2)
+	assert.Contains(t, stdout, "2 units",
+		"Should have 2 units total (bastion + excluded external dep)")
+	assert.Contains(t, stdout, "Succeeded    1",
+		"Only one unit (bastion) should succeed")
+	assert.Contains(t, stdout, "Excluded     1",
+		"External dependency should be excluded")
 }
 
 // TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory

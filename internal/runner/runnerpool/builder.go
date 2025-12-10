@@ -16,11 +16,11 @@ func Build(
 	opts ...common.Option,
 ) (common.StackRunner, error) {
 	// Run discovery (with automatic retry if needed)
-	discovered, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
+	discovered, externalDeps, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create the runner
-	return createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	// Create the runner with external dependencies for reporting
+	return createRunner(ctx, l, terragruntOptions, discovered, externalDeps, opts...)
 }

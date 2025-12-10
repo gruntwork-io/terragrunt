@@ -104,6 +104,8 @@ func newBaseDiscovery(
 
 	// Only include external dependencies in the run queue if explicitly requested via --queue-include-external.
 	// This restores the pre-v0.94.0 behavior where external dependencies were excluded by default.
+	// External dependencies are still detected and tracked for reporting purposes, but not fully discovered
+	// unless this flag is set.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5195
 	if tgOpts.IncludeExternalDependencies {
 		d = d.WithDiscoverExternalDependencies()
@@ -166,16 +168,17 @@ func prepareDiscovery(
 
 // discoverWithRetry runs discovery and retries without exclude-by-default if zero results
 // are found and modules-that-include / units-reading flags are set.
+// Returns discovered components and external dependencies (for reporting).
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
 	opts ...common.Option,
-) (component.Components, error) {
+) (component.Components, component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
 	d, err := prepareDiscovery(tgOpts, tgOpts.ExcludeByDefault, opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var discovered component.Components
@@ -194,7 +197,7 @@ func discoverWithRetry(
 		return discoveryErr
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Retry without exclude-by-default if no results and relevant flags are set
@@ -203,7 +206,7 @@ func discoverWithRetry(
 
 		d, err = prepareDiscovery(tgOpts, false, opts...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
@@ -219,11 +222,12 @@ func discoverWithRetry(
 			return retryErr
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	return discovered, nil
+	// Return discovered components and external dependencies (for reporting)
+	return discovered, d.ExternalDependencies(), nil
 }
 
 // createRunner wraps runner creation with telemetry and returns the stack runner.
@@ -232,17 +236,19 @@ func createRunner(
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
 	comps component.Components,
+	externalDeps component.Components,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
 	var runner common.StackRunner
 
 	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
+		"external_deps":      len(externalDeps),
 		"terraform_command":  tgOpts.TerraformCommand,
 	}, func(childCtx context.Context) error {
 		var err2 error
 
-		runner, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, opts...)
+		runner, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, externalDeps, opts...)
 
 		return err2
 	})
