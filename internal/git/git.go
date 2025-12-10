@@ -24,11 +24,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/storage/filesystem"
-	internalExec "github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -646,7 +646,10 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cmd := internalExec.GracefulCommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
 
 	if g.WorkDir != "" {
 		cmd.Dir = g.WorkDir
