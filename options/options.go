@@ -248,8 +248,6 @@ type TerragruntOptions struct {
 	ProviderCache bool
 	// If set to true, exclude all directories by default when running *-all commands
 	ExcludeByDefault bool
-	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
-	FetchDependencyOutputFromState bool
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 	// True if is required not to show dependent modules and confirm action
@@ -318,6 +316,8 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
+	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
+	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
@@ -385,57 +385,57 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                         DefaultWrappedPath,
-		ExcludesFile:                   defaultExcludesFile,
-		OriginalTerraformCommand:       "",
-		TerraformCommand:               "",
-		AutoInit:                       true,
-		RunAllAutoApprove:              true,
-		NonInteractive:                 false,
-		TerraformCliArgs:               []string{},
-		Env:                            map[string]string{},
-		Source:                         "",
-		SourceMap:                      map[string]string{},
-		SourceUpdate:                   false,
-		IgnoreDependencyErrors:         false,
-		IgnoreDependencyOrder:          false,
-		IgnoreExternalDependencies:     false,
-		IncludeExternalDependencies:    false,
-		Writer:                         stdout,
-		ErrWriter:                      stderr,
-		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
-		AutoRetry:                      true,
-		ExcludeDirs:                    []string{},
-		IncludeDirs:                    []string{},
-		ModulesThatInclude:             []string{},
-		StrictInclude:                  false,
-		Parallelism:                    DefaultParallelism,
-		Check:                          false,
-		Diff:                           false,
-		FetchDependencyOutputFromState: false,
-		UsePartialParseConfigCache:     false,
-		ForwardTFStdout:                false,
-		JSONOut:                        DefaultJSONOutName,
-		TerraformImplementation:        UnknownImpl,
-		JSONDisableDependentModules:    false,
+		TFPath:                      DefaultWrappedPath,
+		ExcludesFile:                defaultExcludesFile,
+		OriginalTerraformCommand:    "",
+		TerraformCommand:            "",
+		AutoInit:                    true,
+		RunAllAutoApprove:           true,
+		NonInteractive:              false,
+		TerraformCliArgs:            []string{},
+		Env:                         map[string]string{},
+		Source:                      "",
+		SourceMap:                   map[string]string{},
+		SourceUpdate:                false,
+		IgnoreDependencyErrors:      false,
+		IgnoreDependencyOrder:       false,
+		IgnoreExternalDependencies:  false,
+		IncludeExternalDependencies: false,
+		Writer:                      stdout,
+		ErrWriter:                   stderr,
+		MaxFoldersToCheck:           DefaultMaxFoldersToCheck,
+		AutoRetry:                   true,
+		ExcludeDirs:                 []string{},
+		IncludeDirs:                 []string{},
+		ModulesThatInclude:          []string{},
+		StrictInclude:               false,
+		Parallelism:                 DefaultParallelism,
+		Check:                       false,
+		Diff:                        false,
+		UsePartialParseConfigCache:  false,
+		ForwardTFStdout:             false,
+		JSONOut:                     DefaultJSONOutName,
+		TerraformImplementation:     UnknownImpl,
+		JSONDisableDependentModules: false,
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
-		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		OutputFolder:               "",
-		JSONOutputFolder:           "",
-		FeatureFlags:               xsync.NewMapOf[string, string](),
-		Errors:                     defaultErrorsConfig(),
-		StrictControls:             controls.New(),
-		Experiments:                experiment.NewExperiments(),
-		Telemetry:                  new(telemetry.Options),
-		NoStackValidate:            false,
-		NoStackGenerate:            false,
-		VersionManagerFileName:     defaultVersionManagerFileName,
-		NoAutoProviderCacheDir:     false,
-		NoDependencyPrompt:         false,
-		NoShell:                    false,
-		NoHooks:                    false,
+		ProviderCacheRegistryNames:       defaultProviderCacheRegistryNames,
+		OutputFolder:                     "",
+		JSONOutputFolder:                 "",
+		FeatureFlags:                     xsync.NewMapOf[string, string](),
+		Errors:                           defaultErrorsConfig(),
+		StrictControls:                   controls.New(),
+		Experiments:                      experiment.NewExperiments(),
+		Telemetry:                        new(telemetry.Options),
+		NoStackValidate:                  false,
+		NoStackGenerate:                  false,
+		VersionManagerFileName:           defaultVersionManagerFileName,
+		NoAutoProviderCacheDir:           false,
+		NoDependencyFetchOutputFromState: false,
+		NoDependencyPrompt:               false,
+		NoShell:                          false,
+		NoHooks:                          false,
 	}
 }
 
