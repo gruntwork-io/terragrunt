@@ -132,6 +132,8 @@ func attemptEvaluateLocals(
 	errs := &errors.MultiError{}
 
 	for _, attr := range attrs {
+		l.Tracef("evaluating local %q...", attr.Name)
+
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
 			evaluatedVal, err := attr.Value(evalCtx)
 			if err != nil {

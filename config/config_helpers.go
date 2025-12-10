@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/getsops/sops/v3/cmd/sops/formats"
@@ -651,17 +652,26 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
+	l.Tracef("Invoking get_aws_account_id()...")
+
 	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
 	if err != nil {
+		l.Errorf("get_aws_account_id(): failed to create AWS config: %v", err)
 		return "", err
 	}
 
+	start := time.Now()
 	accountID, err := awshelper.GetAWSAccountID(ctx.Context, awsConfig)
-	if err == nil {
-		return accountID, nil
+	duration := time.Since(start)
+
+	if err != nil {
+		l.Errorf("get_aws_account_id(): error retriving accound ID: %v", err)
+		return "", err
 	}
 
-	return "", err
+	l.Tracef("get_aws_account_id(): resolved account ID %q in %s", accountID, duration)
+
+	return accountID, nil
 }
 
 // Return the ARN of the AWS identity associated with the current set of credentials
