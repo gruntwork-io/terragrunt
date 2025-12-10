@@ -256,8 +256,6 @@ type TerragruntOptions struct {
 	RenderJSONWithMetadata bool
 	// Whether we should automatically retry errored Terraform commands
 	AutoRetry bool
-	// Flag to enable engine for running IaC operations.
-	EngineEnabled bool
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
 	// Allows to skip the output of all dependencies.
@@ -316,6 +314,8 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
+	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
+	NoEngine bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
