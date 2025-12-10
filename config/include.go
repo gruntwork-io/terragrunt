@@ -305,6 +305,9 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
 			}
 
+			mergeListArgPreserveEmpty(sourceConfig.Terraform.IncludeInCopy, &cfg.Terraform.IncludeInCopy)
+			mergeListArgPreserveEmpty(sourceConfig.Terraform.ExcludeFromCopy, &cfg.Terraform.ExcludeFromCopy)
+
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
 			mergeHooks(l, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
@@ -657,6 +660,26 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 	}
 
 	return combinedDeps, nil
+}
+
+// Merge list argument preserving empty lists.
+//
+// If child provides an explicit empty list, we store a non-nil empty slice
+// to represent "clear the list", instead of a nil slice.
+func mergeListArgPreserveEmpty(childListArg *[]string, parentListArg **[]string) {
+	if childListArg == nil {
+		return
+	}
+
+	if len(*childListArg) == 0 {
+		empty := make([]string, 0)
+		*parentListArg = &empty
+
+		return
+	}
+
+	copied := append([]string(nil), *childListArg...)
+	*parentListArg = &copied
 }
 
 // Merge the extra arguments.

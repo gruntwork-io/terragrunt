@@ -448,3 +448,82 @@ func TestMultipleStacksDetection(t *testing.T) {
 	assert.NotContains(t, stderr, "unit4")
 	assert.NotContains(t, stderr, "unit3")
 }
+
+// Test case for shallow merge copy filters bug: https://github.com/gruntwork-io/terragrunt/issues/4757
+// When using shallow merge (default), child's include_in_copy/exclude_from_copy values were being dropped
+// if parent had a terraform block but no copy filters defined.
+func TestShallowMergeCopyFilters(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
+	fixturePath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "shallow-merge-copy-filters-4757")
+
+	t.Run("parent_nil_child_set", func(t *testing.T) {
+		t.Parallel()
+
+		rootPath := util.JoinPath(fixturePath, "app")
+
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		err := helpers.RunTerragruntCommand(t, "terragrunt render --json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+		require.NoError(t, err)
+
+		var rendered map[string]any
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &rendered))
+
+		terraformBlock, hasTerraform := rendered["terraform"]
+		require.True(t, hasTerraform, "terraform block should be present")
+
+		tfMap := terraformBlock.(map[string]any)
+
+		// Verify source from parent is preserved
+		source, hasSource := tfMap["source"]
+		assert.True(t, hasSource, "terraform.source should be present")
+		assert.Equal(t, "./modules/example", source)
+
+		// Verify child's exclude_from_copy is preserved (this was the bug)
+		excludeFromCopy, hasExclude := tfMap["exclude_from_copy"]
+		assert.True(t, hasExclude, "terraform.exclude_from_copy should be present")
+		assert.Equal(t, []any{"**/_*"}, excludeFromCopy)
+
+		// Verify child's include_in_copy is preserved
+		includeInCopy, hasInclude := tfMap["include_in_copy"]
+		assert.True(t, hasInclude, "terraform.include_in_copy should be present")
+		assert.Equal(t, []any{"special-file.txt"}, includeInCopy)
+	})
+
+	t.Run("both_set_child_wins", func(t *testing.T) {
+		t.Parallel()
+		// Scenario: both parent and child define copy filters
+		// Expected: child values should completely override parent (no concatenation in shallow merge)
+		rootPath := util.JoinPath(fixturePath, "both-set")
+
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		err := helpers.RunTerragruntCommand(t, "terragrunt render --json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+		require.NoError(t, err)
+
+		var rendered map[string]any
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &rendered))
+
+		terraformBlock, hasTerraform := rendered["terraform"]
+		require.True(t, hasTerraform, "terraform block should be present")
+
+		tfMap := terraformBlock.(map[string]any)
+
+		// Verify source from parent is preserved
+		source, hasSource := tfMap["source"]
+		assert.True(t, hasSource, "terraform.source should be present")
+		assert.Equal(t, "./modules/example", source)
+
+		// In shallow merge, child values should completely override parent (not concatenate)
+		excludeFromCopy, hasExclude := tfMap["exclude_from_copy"]
+		assert.True(t, hasExclude, "terraform.exclude_from_copy should be present")
+		assert.Equal(t, []any{"child-exclude/**"}, excludeFromCopy, "child should override parent, not concatenate")
+
+		includeInCopy, hasInclude := tfMap["include_in_copy"]
+		assert.True(t, hasInclude, "terraform.include_in_copy should be present")
+		assert.Equal(t, []any{"child-include.txt"}, includeInCopy, "child should override parent, not concatenate")
+	})
+}
