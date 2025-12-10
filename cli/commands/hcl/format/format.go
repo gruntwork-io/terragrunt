@@ -69,7 +69,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	)
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, err = filter.ParseFilterQueries(opts.FilterQueries, workingDir)
+		filters, err = filter.ParseFilterQueries(opts.FilterQueries)
 		if err != nil {
 			return errors.New(err)
 		}
@@ -114,7 +114,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	var components component.Components
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		components, err = filters.EvaluateOnFiles(l, files)
+		components, err = filters.EvaluateOnFiles(l, files, workingDir)
 		if err != nil {
 			return errors.New(err)
 		}

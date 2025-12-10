@@ -1,13 +1,19 @@
 package test_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 const (
@@ -16,6 +22,24 @@ const (
 	testFixtureFilterList   = "fixtures/list/basic"
 	testFixtureFilterSource = "fixtures/filter-source"
 )
+
+// createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
+// Returns the path to the terragrunt.hcl file for later modification.
+func createTestUnit(t *testing.T, dir, comment string) string {
+	t.Helper()
+
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err)
+
+	hclPath := filepath.Join(dir, "terragrunt.hcl")
+	err = os.WriteFile(hclPath, []byte(comment), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`# Minimal terraform config`), 0644)
+	require.NoError(t, err)
+
+	return hclPath
+}
 
 func TestFilterFlagWithFind(t *testing.T) {
 	t.Parallel()
@@ -719,6 +743,153 @@ func TestFilterFlagWithSource(t *testing.T) {
 				expectedLines := strings.Fields(tc.expectedOutput)
 				actualLines := strings.Fields(stdout)
 				assert.ElementsMatch(t, expectedLines, actualLines, "Output mismatch for filter query: %s", tc.filterQuery)
+			}
+		})
+	}
+}
+
+func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
+
+	// Create three units initially using helper
+	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
+	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
+	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
+
+	unitToBeModifiedHCLPath := createTestUnit(t, unitToBeModifiedDir, `# Unit to be modified`)
+	_ = createTestUnit(t, unitToBeRemovedDir, `# Unit to be removed`)
+	_ = createTestUnit(t, unitToBeUntouchedDir, `# Unit to be untouched`)
+
+	// Initial commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Modify the unit to be modified
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
+	require.NoError(t, err)
+
+	// Remove the unit to be removed (delete the directory)
+	err = os.RemoveAll(unitToBeRemovedDir)
+	require.NoError(t, err)
+
+	// Add a unit to be created
+	unitToBeCreatedDir := filepath.Join(tmpDir, "unit-to-be-created")
+	_ = createTestUnit(t, unitToBeCreatedDir, `# Unit created`)
+
+	// Do nothing to the unit to be untouched
+
+	// Commit the modification and removal in a single commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Clean up terraform folders before running
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	testCases := []struct {
+		name          string
+		filterQuery   string
+		description   string
+		expectedUnits []string
+		excludedUnits []string
+		expectError   bool
+	}{
+		{
+			name:          "git filter discovers modified, created, and removed units and excludes untouched",
+			filterQuery:   "[HEAD~1...HEAD]",
+			expectedUnits: []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
+			excludedUnits: []string{"unit-to-be-untouched"},
+			expectError:   false,
+			description:   "Git filter should discover units that were created, modified, or removed between commits, and exclude untouched units",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			// Run terragrunt run --all --filter with git filter
+			// Note: We use 'plan' command which should work even without terraform init
+			// Note: --experiment-mode enables the filter-flag experiment required for --filter
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' -- plan"
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
+				assert.NotEmpty(t, stderr, "Expected error message in stderr")
+			} else {
+				// For run commands, we expect some output even if terraform isn't fully initialized
+				// The key is that the command should execute and process the filtered units
+				// We check that the output contains references to the expected units
+				if err != nil {
+					// If there's an error, it might be because terraform isn't initialized
+					// but we should still see that the filter worked (units were discovered)
+					// Let's check if the error is about terraform init or similar
+					if !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
+						// Unexpected error
+						require.NoError(t, err, "Unexpected error for filter query: %s\nstdout: %s\nstderr: %s", tc.filterQuery, stdout, stderr)
+					}
+				}
+
+				// Verify that the expected units are mentioned in the output
+				// The exact format may vary, but we should see references to these units
+				output := stdout + stderr
+				for _, expectedUnit := range tc.expectedUnits {
+					// Check if the unit name appears in the output
+					// This could be in paths, log messages, or error messages
+					assert.Contains(t, output, expectedUnit,
+						"Output should contain reference to unit '%s' for filter query: %s\nFull output:\n%s", expectedUnit, tc.filterQuery, output)
+				}
+
+				// Verify that excluded units are NOT in the output
+				for _, excludedUnit := range tc.excludedUnits {
+					assert.NotContains(t, output, excludedUnit,
+						"Output should NOT contain reference to excluded unit '%s' for filter query: %s\nFull output:\n%s", excludedUnit, tc.filterQuery, output)
+				}
 			}
 		})
 	}

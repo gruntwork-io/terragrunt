@@ -542,6 +542,11 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	// Verify that the report file contains the expected content
 	assert.Len(t, report, 2)
 
+	depPath := dep
+	if resolved, err := filepath.EvalSymlinks(dep); err == nil {
+		depPath = resolved
+	}
+
 	expected := []struct {
 		name   string
 		result string
@@ -549,7 +554,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	}{
 		// The first run is always going to be the external dependency,
 		// as it has an instant runtime.
-		{name: dep, result: "excluded", reason: "--queue-exclude-external"},
+		{name: depPath, result: "excluded", reason: "--queue-exclude-external"},
 		{name: "external-dependency", result: "succeeded"},
 	}
 

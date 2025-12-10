@@ -230,7 +230,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 			for i, c := range components {
 				want := wantDiscovery[i]
-				assert.Equal(t, want.Path(), c.Path(), "Component path mismatch at index %d", i)
+				assert.Equal(t, evalPath(want.Path()), evalPath(c.Path()), "Component path mismatch at index %d", i)
 				assert.Equal(t, want.Kind(), c.Kind(), "Component kind mismatch at index %d", i)
 				assert.Equal(t, want.External(), c.External(), "Component external flag mismatch at index %d", i)
 
@@ -241,7 +241,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 				for j, dep := range cfgDeps {
 					wantDep := wantDeps[j]
-					assert.Equal(t, wantDep.Path(), dep.Path(), "Dependency path mismatch at component %d, dependency %d", i, j)
+					assert.Equal(t, evalPath(wantDep.Path()), evalPath(dep.Path()), "Dependency path mismatch at component %d, dependency %d", i, j)
 					assert.Equal(t, wantDep.Kind(), dep.Kind(), "Dependency kind mismatch at component %d, dependency %d", i, j)
 					assert.Equal(t, wantDep.External(), dep.External(), "Dependency external flag mismatch at component %d, dependency %d", i, j)
 
@@ -252,7 +252,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 					for k, nestedDep := range depDeps {
 						wantNestedDep := wantDepDeps[k]
-						assert.Equal(t, wantNestedDep.Path(), nestedDep.Path(), "Nested dependency path mismatch")
+						assert.Equal(t, evalPath(wantNestedDep.Path()), evalPath(nestedDep.Path()), "Nested dependency path mismatch")
 					}
 				}
 			}
@@ -536,6 +536,9 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
 	internalDir := filepath.Join(tmpDir, "internal")
 	externalDir := filepath.Join(tmpDir, "external")
 	appDir := filepath.Join(internalDir, "app")
@@ -704,7 +707,7 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(tt.filters, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -784,7 +787,7 @@ func TestDependentDiscovery_WithStartingComponents(t *testing.T) {
 	}
 
 	dd := discovery.NewDependentDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(10)
-	err := dd.DiscoverAllDependents(t.Context(), logger.CreateLogger(), startingComponents)
+	err := dd.Discover(t.Context(), logger.CreateLogger(), startingComponents)
 	require.NoError(t, err)
 }
 
@@ -824,7 +827,7 @@ func TestDependencyDiscovery_DiscoverAllDependencies(t *testing.T) {
 
 	require.NotNil(t, dd)
 	// Verify the method accepts startingComponents as a parameter and doesn't panic
-	err := dd.DiscoverAllDependencies(t.Context(), logger.CreateLogger(), opts, startingComponents)
+	err := dd.Discover(t.Context(), logger.CreateLogger(), opts, startingComponents)
 	require.NoError(t, err)
 }
 
@@ -890,7 +893,7 @@ dependency "vpc" {
 	dependencyDiscovery := discovery.NewDependencyDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(100)
 
 	// Discover dependencies starting from app only
-	err = dependencyDiscovery.DiscoverAllDependencies(t.Context(), logger.CreateLogger(), opts, component.Components{startingComponent})
+	err = dependencyDiscovery.Discover(t.Context(), logger.CreateLogger(), opts, component.Components{startingComponent})
 	require.NoError(t, err)
 
 	// Verify that app component now has its dependencies
@@ -983,6 +986,30 @@ dependency "foo" {
 	assert.Contains(t, componentPaths, barDir, "Bar should be discovered")
 }
 
+func TestDiscoverWithModulesThatIncludeDoesNotDropConfigs(t *testing.T) {
+	t.Parallel()
+
+	workingDir := filepath.Join("..", "..", "test", "fixtures", "include-runall")
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workingDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.ModulesThatInclude = []string{"alpha.hcl"}
+	opts.ExcludeByDefault = true
+
+	d := discovery.NewDiscovery(workingDir).
+		WithDiscoverDependencies().
+		WithParseInclude().
+		WithParseExclude().
+		WithDiscoverExternalDependencies().
+		WithReadFiles()
+
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, configs, "discovery should return configs even when exclude-by-default is set via modules-that-include")
+}
+
 func TestDiscoveryDoesntDetectCycleWhenDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -1037,4 +1064,13 @@ dependency "foo" {
 	componentPaths := components.Paths()
 	assert.Contains(t, componentPaths, fooDir, "Foo should be discovered")
 	assert.Contains(t, componentPaths, barDir, "Bar should be discovered")
+}
+
+func evalPath(p string) string {
+	resolved, _ := filepath.EvalSymlinks(p)
+	if resolved == "" {
+		return p
+	}
+
+	return resolved
 }

@@ -151,7 +151,7 @@ jobs:
               - .github/scripts/setup/experiment-mode.sh
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: "Setup Docker"
         if: runner.os == 'Linux'
@@ -258,7 +258,7 @@ jobs:
             result.xml
 
       - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: result.xml

@@ -49,6 +49,12 @@ func (l *Lexer) NextToken() Token {
 	case '}':
 		tok = NewToken(RBRACE, string(l.ch), startPosition)
 		l.readChar()
+	case '[':
+		tok = NewToken(LBRACKET, string(l.ch), startPosition)
+		l.readChar()
+	case ']':
+		tok = NewToken(RBRACKET, string(l.ch), startPosition)
+		l.readChar()
 	case '^':
 		tok = NewToken(CARET, string(l.ch), startPosition)
 		l.readChar()
@@ -209,7 +215,7 @@ func (l *Lexer) readPath(startPosition int) Token {
 
 // isSpecialChar returns true if the character is a special operator or delimiter.
 func isSpecialChar(ch byte) bool {
-	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == '^' || ch == 0
+	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == '^' || ch == 0
 }
 
 // isPathSeparator returns true if the character is a path separator.

@@ -52,8 +52,8 @@ func (rd *RelationshipDiscovery) WithParserOptions(parserOptions []hclparse.Opti
 	return rd
 }
 
-// DiscoverAllRelationships discovers any potential relationships between all components.
-func (rd *RelationshipDiscovery) DiscoverAllRelationships(
+// Discover discovers any potential relationships between all components.
+func (rd *RelationshipDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -75,7 +75,7 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 			// For that reason, the list is all components that are not the component undergoing relationship discovery.
 			terminalComponents := slices.Collect(func(yield func(component.Component) bool) {
 				for _, rc := range *rd.components {
-					if rc != c {
+					if rc != nil && rc != c {
 						if !yield(rc) {
 							return
 						}
@@ -83,7 +83,7 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 				}
 			})
 
-			err := rd.DiscoverRelationships(ctx, l, opts, c, terminalComponents, rd.maxDepth)
+			err := rd.discoverRelationships(ctx, l, opts, c, terminalComponents, rd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -107,8 +107,8 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 	return nil
 }
 
-// DiscoverRelationships discovers any potential relationships between a single component and all other components.
-func (rd *RelationshipDiscovery) DiscoverRelationships(
+// discoverRelationships discovers any potential relationships between a single component and all other components.
+func (rd *RelationshipDiscovery) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -154,8 +154,8 @@ func (rd *RelationshipDiscovery) DiscoverRelationships(
 		dep, created := rd.dependencyToDiscover(c, path)
 
 		// Delete the entry from terminal components if it's found.
-		terminalComponents = slices.DeleteFunc(terminalComponents, func(c component.Component) bool {
-			return c.Path() == dep.Path()
+		terminalComponents = slices.DeleteFunc(terminalComponents, func(tc component.Component) bool {
+			return tc != nil && tc.Path() == dep.Path()
 		})
 
 		// We only want to recursively discover dependencies if we ended up creating a new component.
@@ -189,7 +189,7 @@ func (rd *RelationshipDiscovery) DiscoverRelationships(
 
 	for _, dep := range depsToDiscover {
 		g.Go(func() error {
-			err := rd.DiscoverRelationships(ctx, l, opts, dep, terminalComponents, depthRemaining-1)
+			err := rd.discoverRelationships(ctx, l, opts, dep, terminalComponents, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
