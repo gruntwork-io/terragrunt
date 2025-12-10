@@ -272,9 +272,9 @@ func (u *Unit) AbsolutePath() string {
 }
 
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
-// Falls back to the original path if relative path calculation fails.
+// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
 func (u *Unit) DisplayPath() string {
-	if u.discoveryContext == nil {
+	if u.discoveryContext == nil || u.discoveryContext.WorkingDir == "" {
 		return u.path
 	}
 

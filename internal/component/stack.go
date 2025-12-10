@@ -81,9 +81,9 @@ func (s *Stack) SetPath(path string) {
 }
 
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
-// Falls back to the original path if relative path calculation fails.
+// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
 func (s *Stack) DisplayPath() string {
-	if s.discoveryContext == nil {
+	if s.discoveryContext == nil || s.discoveryContext.WorkingDir == "" {
 		return s.path
 	}
 
