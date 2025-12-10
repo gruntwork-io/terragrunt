@@ -274,6 +274,10 @@ func (u *Unit) AbsolutePath() string {
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails.
 func (u *Unit) DisplayPath() string {
+	if u.discoveryContext == nil {
+		return u.path
+	}
+
 	if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
 		return rel
 	}

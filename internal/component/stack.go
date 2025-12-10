@@ -83,6 +83,10 @@ func (s *Stack) SetPath(path string) {
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails.
 func (s *Stack) DisplayPath() string {
+	if s.discoveryContext == nil {
+		return s.path
+	}
+
 	if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
 		return rel
 	}
