@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -444,27 +445,44 @@ func TestMultipleStacksDetection(t *testing.T) {
 	assert.NotContains(t, stderr, "unit3")
 }
 
-// signalWriter wraps a writer and signals on first write
-type signalWriter struct {
+// flushTrackingWriter wraps a writer and tracks writes and output size changes (which indicate flushes)
+type flushTrackingWriter struct {
 	w      io.Writer
 	signal chan<- struct{}
+	mu     sync.Mutex
+	writes int
 	once   bool
 }
 
-func (sw *signalWriter) Write(p []byte) (int, error) {
-	if !sw.once && sw.signal != nil {
-		select {
-		case sw.signal <- struct{}{}:
-		default:
-		}
+func (ftw *flushTrackingWriter) Write(p []byte) (int, error) {
+	ftw.mu.Lock()
+	ftw.writes++
 
-		sw.once = true
+	shouldSignal := !ftw.once && ftw.signal != nil
+	if shouldSignal {
+		ftw.once = true
 	}
 
-	return sw.w.Write(p)
+	ftw.mu.Unlock()
+
+	if shouldSignal {
+		select {
+		case ftw.signal <- struct{}{}:
+		default:
+		}
+	}
+
+	return ftw.w.Write(p)
 }
 
-// TestOutputFlushOnInterrupt reproduces the issue where output stops appearing during terragrunt run --all apply.
+func (ftw *flushTrackingWriter) getWriteCount() int {
+	ftw.mu.Lock()
+	defer ftw.mu.Unlock()
+
+	return ftw.writes
+}
+
+// TestOutputFlushOnInterrupt verifies that buffered output is flushed when context is cancelled.
 func TestOutputFlushOnInterrupt(t *testing.T) {
 	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows - signal handling differs")
@@ -480,127 +498,62 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 	// Initialize and apply dependency first so outputs are available
 	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+dependencyPath)
 	helpers.RunTerragrunt(t, "terragrunt apply --auto-approve --non-interactive --working-dir "+dependencyPath)
-
-	// Initialize app to avoid init output interfering with the test
 	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+testPath)
 
-	// Start terragrunt run --all apply with a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Use a signal channel to detect first write
 	firstWrite := make(chan struct{}, 1)
-
-	var stdout, stderr signalWriter
-
-	stdout.signal = firstWrite
-	stderr.signal = firstWrite
 
 	var stdoutBuf, stderrBuf strings.Builder
 
-	stdout.w = &stdoutBuf
-	stderr.w = &stderrBuf
-
-	// Start terragrunt command in a goroutine so we can monitor output
+	stdout := &flushTrackingWriter{w: &stdoutBuf, signal: firstWrite}
+	stderr := &flushTrackingWriter{w: &stderrBuf, signal: firstWrite}
 	cmdErr := make(chan error, 1)
 
 	go func() {
-		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, "terragrunt run --all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
+		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
 	}()
 
-	// Wait for first write signal, then cancel immediately
-	// This simulates interrupting a long-running command with buffered output
+	// Wait for first write, then cancel to test flush on interrupt
+	var outputBeforeCancel string
+
+	var writesBeforeCancel int
+
 	select {
 	case <-firstWrite:
-		// First write detected - capture output and cancel immediately
-		outputBeforeCancel := stdoutBuf.String() + stderrBuf.String()
-		t.Logf("First write detected (%d bytes), cancelling immediately while command is still running", len(outputBeforeCancel))
+		outputBeforeCancel = stdoutBuf.String() + stderrBuf.String()
+		writesBeforeCancel = stdout.getWriteCount() + stderr.getWriteCount()
+		t.Logf("First write detected (%d bytes, %d writes), cancelling context", len(outputBeforeCancel), writesBeforeCancel)
 		cancel()
 	case <-cmdErr:
 		t.Fatal("Command finished before we could interrupt it")
 	case <-time.After(3 * time.Second):
-		t.Fatal("No output appeared before timeout - cannot test interrupt scenario")
+		t.Fatal("No output appeared before timeout")
 	}
 
 	// Wait briefly for flush to occur after cancellation
-	// The fix ensures output is flushed immediately when context is cancelled
-	select {
-	case <-time.After(100 * time.Millisecond):
-		// Give time for flush to complete
-	case <-cmdErr:
-		// Command finished, that's fine
-	}
+	time.Sleep(200 * time.Millisecond)
 
 	outputAfterCancel := stdoutBuf.String() + stderrBuf.String()
+	writesAfterCancel := stdout.getWriteCount() + stderr.getWriteCount()
 
-	// Wait for the command to finish (with timeout)
-	// After cancellation, the command should exit soon
+	// Wait for command to finish or timeout
 	select {
-	case err := <-cmdErr:
-		_ = err // We may get an error due to cancellation
+	case <-cmdErr:
+		// Command finished
 	case <-time.After(5 * time.Second):
-		// Command may still be running, but we've tested the flush behavior
-		t.Logf("Command still running after cancellation, but flush test is complete")
+		t.Logf("Command still running after cancellation")
 	}
 
-	// Collect final output
 	output := stdoutBuf.String() + stderrBuf.String()
+	totalWrites := stdout.getWriteCount() + stderr.getWriteCount()
 
-	t.Logf("Captured output length: %d", len(output))
-	t.Logf("Output:\n%s", output)
+	t.Logf("Output length: before cancel=%d, after cancel=%d, final=%d", len(outputBeforeCancel), len(outputAfterCancel), len(output))
+	t.Logf("Total writes: before cancel=%d, after cancel=%d, final=%d", writesBeforeCancel, writesAfterCancel, totalWrites)
 
-	// The bug: Output should appear incrementally as the process runs.
-	// However, with the buggy implementation, output is buffered in UnitWriter
-	// and only flushed when the unit completes. This causes output to "stop"
-	// appearing even though the process is still running.
-	//
-	// We should see output from the modules that was produced during execution.
-	// This includes:
-	// 1. Module prefixes like prefix=../dependency or prefix=.
-	// 2. Terraform output like "Refreshing state...", "Reading...", "Apply complete!", etc.
-
-	hasModulePrefix := strings.Contains(output, "prefix=../dependency") || strings.Contains(output, "prefix=.")
-	hasTerraformOutput := strings.Contains(output, "Refreshing") || strings.Contains(output, "Reading...") || strings.Contains(output, "Plan:") || strings.Contains(output, "Apply complete!") || strings.Contains(output, "No changes")
-
-	// The key test: if output stopped growing while the process was still running,
-	// that indicates the buffering bug. When we cancel the context, the buffered
-	// output should be flushed and appear.
-	//
-	// Without the fix: Output stops appearing mid-execution, and when cancelled,
-	// the buffered output may be lost (defer may not execute properly or may be too late)
-	// With the fix: Output stops appearing mid-execution (buffering), but when
-	// cancelled, the buffered output is flushed immediately via monitorContext()
-
-	// The key test: output should appear immediately after cancellation
-	// With the fix: monitorContext() flushes immediately when context is cancelled
-	// Without the fix: output is NOT flushed on cancellation, so length stays the same
-	//
-	// The test will FAIL without the fix because:
-	// - Output is buffered and not flushed on context cancellation
-	// - Output length remains the same immediately after cancellation
-	// - Output only appears later via defer (if it executes), or may be lost
-
-	t.Logf("Output length after cancellation: %d", len(outputAfterCancel))
-	t.Logf("Output length after command finishes: %d", len(output))
-
-	// The key test: output should increase after cancellation
-	// With the fix: flushOnCancel() flushes immediately when context is cancelled
-	// Without the fix: output is NOT flushed on cancellation, so length stays the same
-	// The defer may flush later, but the fix ensures immediate flush on cancellation
-	outputIncreasedAfterCancel := len(outputAfterCancel) > 0
-
-	// This assertion will FAIL without the fix because buffered output is not flushed on cancellation
-	// With the fix, flushOnCancel() flushes immediately when context is cancelled
-	require.True(t, outputIncreasedAfterCancel, "Output should increase after context cancellation. Without fix, buffered output is not flushed on cancellation. With fix, flushOnCancel() flushes immediately when context is cancelled.")
-
-	// Verify we got some output
-	if len(output) > 0 {
-		t.Logf("SUCCESS: Output appeared after cancellation - fix is working!")
-	}
-
-	// If we have enough output, verify we got expected content
-	if len(output) > 500 {
-		require.True(t, hasModulePrefix, "Should see module prefix output (e.g., prefix=../dependency)")
-		require.True(t, hasTerraformOutput, "Should see terraform output (e.g., Apply complete!)")
-	}
+	// Verify that output increased after cancellation (indicating flush occurred)
+	require.Greater(t, len(outputAfterCancel), len(outputBeforeCancel), "Output should increase after cancellation due to flush")
+	require.Greater(t, totalWrites, writesBeforeCancel, "Additional writes should occur after cancellation (flush writes)")
+	require.NotEmpty(t, output, "Expected output to be flushed after cancellation")
 }
