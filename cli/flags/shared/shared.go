@@ -111,7 +111,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				Name:        QueueExcludeExternalFlagName,
 				EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
 				Destination: &opts.IgnoreExternalDependencies,
-				Usage:       "Ignore external dependencies for --all commands.",
+				Usage:       "DEPRECATED: External dependencies are now excluded by default. Use --queue-include-external to include them.",
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), terragruntPrefixControl),
 		),

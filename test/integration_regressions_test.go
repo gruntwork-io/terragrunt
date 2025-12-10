@@ -26,6 +26,7 @@ const (
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
+	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -317,6 +318,8 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 // TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
 // to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
 // excluding external dependencies.
+// Note: As of #5195 fix, external dependencies are excluded by default, so --queue-exclude-external
+// is now deprecated and acts as a no-op. This test verifies the behavior still works correctly.
 func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
 	t.Parallel()
 
@@ -325,7 +328,8 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
 	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
 
-	// Set TG_PROVIDER_CACHE=1 and use --queue-exclude-external as in the repro steps
+	// Use --queue-exclude-external as in the repro steps (now deprecated, acts as no-op since
+	// external dependencies are excluded by default after #5195 fix)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
@@ -339,11 +343,12 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	assert.NotContains(t, stderr, "Unrecoverable parse error")
 	assert.NotContains(t, stderr, "%!w(")
 
-	// Verify the current unit ran successfully and external dependency was excluded
+	// Verify the current unit ran successfully
+	// Note: External dependencies are now excluded by default (not discovered at all),
+	// so there's no "Excluded" message - they simply aren't in the queue
 	combinedOutput := stdout + stderr
 	assert.NotContains(t, combinedOutput, "service1")
 	assert.Contains(t, combinedOutput, "null_resource.services_info")
-	assert.Contains(t, combinedOutput, "Excluded")
 }
 
 // TestSensitiveValues tests that sensitive values can be properly handled
@@ -564,4 +569,101 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 	require.Greater(t, len(outputAfterCancel), len(outputBeforeCancel), "Output should increase after cancellation due to flush")
 	require.Greater(t, totalWrites, writesBeforeCancel, "Additional writes should occur after cancellation (flush writes)")
 	require.NotEmpty(t, output, "Expected output to be flushed after cancellation")
+}
+
+// TestRunAllDoesNotIncludeExternalDepsInQueue tests that running `terragrunt run --all` from a subdirectory
+// does NOT include external dependencies in the execution queue.
+// This is a regression test for issue #5195 where v0.94.0 incorrectly included external dependencies
+// in the run queue, causing dangerous operations like destroy to execute against unintended modules.
+//
+// The test structure is:
+//
+//	fixtures/regressions/5195-scope-escape/
+//	├── bastion/           <- Run from here, has dependency on module2
+//	│   ├── terragrunt.hcl (depends on ../module2 with mock_outputs)
+//	│   └── main.tf
+//	├── module1/           <- Has dependency on bastion
+//	│   ├── terragrunt.hcl
+//	│   └── main.tf
+//	└── module2/           <- External dependency of bastion
+//	    ├── terragrunt.hcl
+//	    └── main.tf
+//
+// Expected behavior (v0.93.13):
+//   - Unit queue shows only "Unit ."
+//   - External dependency (module2) is excluded from execution
+//   - Summary shows "Excluded 1"
+//
+// Bug behavior (v0.94.0):
+//   - Unit queue shows "Unit ../module2" AND "Unit ."
+//   - External dependency is included and executed
+//   - This causes unintended operations on external modules
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureScopeEscape)
+	bastionPath := util.JoinPath(rootPath, "bastion")
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the bastion directory
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+bastionPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err)
+
+	// The unit queue should only contain the current directory, NOT external dependencies
+	// Bug behavior: queue contains "Unit ../module2" which is an external dependency
+	assert.NotContains(t, stderr, "Unit ../module2",
+		"External dependency module2 should NOT be in the unit queue")
+	assert.NotContains(t, stderr, "Unit ../module1",
+		"External module1 should NOT be in the unit queue")
+
+	// Should see bastion (displayed as "." since it's the current directory)
+	assert.Contains(t, stderr, "Unit .",
+		"Should discover the current directory (bastion) as '.'")
+
+	// With the fix, external dependencies are simply not discovered, so only 1 unit should be processed
+	// The run summary is in stdout
+	assert.Contains(t, stdout, "1 units",
+		"Only one unit (bastion) should be in the queue")
+}
+
+// TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory
+// correctly discovers all modules in the hierarchy. This is the control test for
+// TestRunAllDoesNotEscapeWorkingDir.
+func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureScopeEscape)
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the parent directory (live/)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed in terms of discovery
+	_ = err
+
+	// Should see all three modules when running from parent directory
+	assert.Contains(t, stderr, "bastion",
+		"Should discover bastion when running from parent directory")
+	assert.Contains(t, stderr, "module1",
+		"Should discover module1 when running from parent directory")
+	assert.Contains(t, stderr, "module2",
+		"Should discover module2 when running from parent directory")
 }

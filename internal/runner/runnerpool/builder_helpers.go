@@ -88,10 +88,9 @@ func newBaseDiscovery(
 		anyOpts[i] = v
 	}
 
-	return discovery.
+	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anyOpts...).
-		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
@@ -102,6 +101,15 @@ func newBaseDiscovery(
 			Cmd:        tgOpts.TerraformCliArgs.First(),
 			Args:       tgOpts.TerraformCliArgs.Tail(),
 		})
+
+	// Only include external dependencies in the run queue if explicitly requested via --queue-include-external.
+	// This restores the pre-v0.94.0 behavior where external dependencies were excluded by default.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+	if tgOpts.IncludeExternalDependencies {
+		d = d.WithDiscoverExternalDependencies()
+	}
+
+	return d
 }
 
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
