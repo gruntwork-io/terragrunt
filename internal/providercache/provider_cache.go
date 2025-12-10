@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -306,9 +307,15 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
-	var providerInstallationIncludes = make([]string, 0, len(opts.ProviderCacheRegistryNames))
+	// Filter registries based on OpenTofu or Terraform implementation to avoid contacting unnecessary registries
+	filteredRegistryNames := filterRegistriesByImplementation(
+		opts.ProviderCacheRegistryNames,
+		opts.TerraformImplementation,
+	)
 
-	for _, registryName := range opts.ProviderCacheRegistryNames {
+	var providerInstallationIncludes = make([]string, 0, len(filteredRegistryNames))
+
+	for _, registryName := range filteredRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
 		apiURLs, err := cache.DiscoveryURL(ctx, registryName)
@@ -384,7 +391,13 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	envs := make(map[string]string, len(opts.Env))
 	maps.Copy(envs, opts.Env)
 
-	for _, registryName := range opts.ProviderCacheRegistryNames {
+	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
+	filteredRegistryNames := filterRegistriesByImplementation(
+		opts.ProviderCacheRegistryNames,
+		opts.TerraformImplementation,
+	)
+
+	for _, registryName := range filteredRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
 
 		// delete existing key case insensitive
@@ -444,4 +457,51 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	}
 
 	return commandsArgs
+}
+
+// filterRegistriesByImplementation filters registry names based on the Terraform implementation being used.
+// If the registry names match the default registries (both registry.terraform.io and registry.opentofu.org),
+// it filters them based on the implementation:
+//   - OpenTofuImpl: returns only registry.opentofu.org
+//   - TerraformImpl: returns only registry.terraform.io
+//   - UnknownImpl: returns both (backward compatibility)
+//
+// If the user has explicitly set registry names (don't match defaults), returns them as-is.
+func filterRegistriesByImplementation(registryNames []string, implementation options.TerraformImplementationType) []string {
+	// Default registries in the same order as defined in options/options.go
+	defaultRegistries := []string{
+		"registry.terraform.io",
+		"registry.opentofu.org",
+	}
+
+	// Check if registry names match defaults exactly (order-independent)
+	if len(registryNames) == len(defaultRegistries) {
+		matchesDefault := true
+
+		for _, defaultReg := range defaultRegistries {
+			if !slices.Contains(registryNames, defaultReg) {
+				matchesDefault = false
+				break
+			}
+		}
+
+		// If matches defaults, filter based on implementation
+		if matchesDefault {
+			switch implementation {
+			case options.OpenTofuImpl:
+				return []string{"registry.opentofu.org"}
+			case options.TerraformImpl:
+				return []string{"registry.terraform.io"}
+			case options.UnknownImpl:
+				// Backward compatibility: use both registries if implementation is unknown
+				return registryNames
+			default:
+				// Unknown implementation type, return as-is
+				return registryNames
+			}
+		}
+	}
+
+	// User explicitly set registry names, return as-is
+	return registryNames
 }
