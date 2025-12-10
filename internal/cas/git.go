@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
-
-	internalExec "github.com/gruntwork-io/terragrunt/internal/os/exec"
 )
 
 const (
@@ -264,11 +263,11 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 
 	err := cmd.Run()
 	if err != nil {
-		context := stderr.String()
+		errContext := stderr.String()
 
 		return &WrappedError{
 			Op:      "git_cat_file",
-			Context: context,
+			Context: errContext,
 			Err:     ErrCommandSpawn,
 		}
 	}
@@ -282,5 +281,10 @@ func (g *GitRunner) SetWorkDir(dir string) {
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return internalExec.GracefulCommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
+
+	return cmd
 }

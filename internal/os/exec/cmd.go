@@ -31,7 +31,7 @@ type Cmd struct {
 // the given arguments.
 func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd := &Cmd{
-		Cmd:             exec.Command(name, args...),
+		Cmd:             exec.CommandContext(ctx, name, args...),
 		logger:          log.Default(),
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
@@ -40,6 +40,9 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
 
 	return cmd
 }
@@ -128,22 +131,4 @@ func (cmd *Cmd) SendSignal(sig os.Signal) {
 	if err := cmd.Process.Signal(sig); err != nil {
 		cmd.logger.Errorf("Failed to forwarding signal %s to %s: %v", sig, cmd.filename, err)
 	}
-}
-
-func GracefulCommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cmd := exec.Command(name, args...)
-
-	// Put subprocess in its own process group
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	go func() {
-		<-ctx.Done()
-
-		if cmd.Process != nil {
-			// Send the provided signal to the process group
-			_ = syscall.Kill(-cmd.Process.Pid, signal.InterruptSignal)
-		}
-	}()
-
-	return cmd
 }

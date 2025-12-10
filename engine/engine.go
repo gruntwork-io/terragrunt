@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 
-	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -499,7 +500,10 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 		Output: l.Writer(),
 	})
 
-	cmd := exec.GracefulCommandContext(ctx, localEnginePath)
+	cmd := exec.CommandContext(ctx, localEnginePath)
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
