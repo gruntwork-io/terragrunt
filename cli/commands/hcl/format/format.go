@@ -292,6 +292,10 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 
 	cmd := exec.CommandContext(ctx, "diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name())
 	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
 		return cmd.Process.Signal(syscall.SIGINT)
 	}
 

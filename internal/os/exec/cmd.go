@@ -41,6 +41,10 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
 		return cmd.Process.Signal(syscall.SIGINT)
 	}
 

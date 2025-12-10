@@ -511,6 +511,10 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 
 	cmd := exec.CommandContext(ctx, localEnginePath)
 	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
 		return cmd.Process.Signal(syscall.SIGINT)
 	}
 	// pass log level to engine

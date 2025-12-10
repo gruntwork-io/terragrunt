@@ -150,6 +150,10 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = dir
 	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
 		return cmd.Process.Signal(syscall.SIGINT)
 	}
 
