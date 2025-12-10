@@ -12,9 +12,23 @@ Normally, it's best practice to start by measuring performance before making any
 
 However, given the nature of the problems that Terragrunt solves, there are some obvious wins that you can make without measuring performance, if you're aware of the tradeoffs.
 
-### Provider Cache
+### Provider Cache Dir
 
 One of the most expensive things that OpenTofu/Terraform does, from a bandwidth and disk utilization perspective, is download and install providers. These are large binary files that are downloaded from the internet, and not cached across units by default.
+
+If you're using OpenTofu >= 1.10 and the latest version of Terragrunt, you'll use the [Automatic Provider Cache Dir](/docs/features/auto-provider-cache-dir) feature by default.
+
+This feature automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable to a central location on the filesystem, allowing reuse of downloaded providers across multiple Terragrunt runs.
+
+For most users at sensible scales, this is an automatic performance win that you don't need to do anything to enable.
+
+### Provider Cache Dir - Gotchas
+
+At very large scales, you might find that the filesystem lock contention between OpenTofu processes to synchronize access to the provider cache directory is a bottleneck. You might also find that you can't use the provider cache directory because you are storing your provider cache in a shared NFS mount or are using Terraform or an older version of OpenTofu.
+
+In these scenarios, you can use the [Provider Cache Server](/docs/features/provider-cache-server) feature to improve performance.
+
+### Provider Cache Server
 
 You can significantly reduce the amount of time taken by Terragrunt runs by enabling the provider cache server, like this:
 
@@ -29,10 +43,6 @@ The provider cache server is a single server that is used by all Terragrunt runs
 When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers. Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
 
 When in doubt, [measure the performance](#measuring-performance) before and after enabling the provider cache server to see if it's a net win for your use case.
-
-We are coordinating with the OpenTofu team to improve the behavior of concurrent access to provider cache, so that this flag will be unnecessary for most users in the future.
-
-See [#1939](https://github.com/opentofu/opentofu/issues/1483) for more details.
 
 ### Fetching Output From State
 
@@ -57,22 +67,6 @@ Next, you should be aware that there is no guarantee that OpenTofu/Terraform wil
 We are coordinating with the OpenTofu team to improve the performance of the `output` command, and we hope that this flag will be unnecessary for most users in the future.
 
 See [#1549](https://github.com/opentofu/opentofu/issues/1549) for more details.
-
-### Skip Dependency Inputs
-
-Terragrunt dependency blocks allow reading inputs directly from other dependencies. However, the mechanism required to support this capability introduces performance overhead during Terragrunt operations. Due to this performance impact, using this feature is heavily discouraged.
-
-The reason for this is that Terragrunt needs to recursively read inputs from dependencies, and their dependencies, all the way down to the ancestral Terragrunt unit they all have in common to be able to expose the inputs to the dependent unit from its direct dependency (as the inputs from the direct dependency might be derived from a dependency of the direct dependency).
-
-You can mitigate this performance penalty by using the `skip-dependencies-inputs` strict control.
-
-Enabling this strict control will activate a breaking change in Terragrunt behavior, making it so that dependency blocks no longer parse dependencies of dependencies, which is required to read inputs from direct dependencies.
-
-In the future, we will be removing this capability from Terragrunt, so you won't need to use this strict control.
-
-### Skip Dependency Inputs - Gotchas
-
-In general, you should use this strict control. The only reason not to use it is if you are using dependency blocks to read inputs from dependencies, which you should stop doing as soon as possible.
 
 ## Measuring Performance
 
