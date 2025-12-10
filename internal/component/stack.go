@@ -41,9 +41,10 @@ type Stack struct {
 // NewStack creates a new Stack component with the given path.
 func NewStack(path string) *Stack {
 	return &Stack{
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
+		path:             path,
+		discoveryContext: &DiscoveryContext{},
+		dependencies:     make(Components, 0),
+		dependents:       make(Components, 0),
 	}
 }
 
@@ -82,10 +83,6 @@ func (s *Stack) SetPath(path string) {
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails.
 func (s *Stack) DisplayPath() string {
-	if s.discoveryContext == nil {
-		return s.path
-	}
-
 	if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
 		return rel
 	}
