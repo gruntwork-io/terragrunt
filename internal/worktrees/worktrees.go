@@ -43,6 +43,50 @@ type Worktree struct {
 	Path string
 }
 
+// WorkingDir returns the path within a worktree that corresponds to the user's
+// original working directory. This is used for display purposes after discovery completes.
+func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string {
+	if w.gitRunner == nil {
+		return worktreePath
+	}
+
+	repoRoot, err := w.gitRunner.GetRepoRoot(ctx)
+	if err != nil {
+		return worktreePath
+	}
+
+	relPath, err := filepath.Rel(repoRoot, w.OriginalWorkingDir)
+	if err != nil || relPath == "." {
+		return worktreePath
+	}
+
+	return filepath.Join(worktreePath, relPath)
+}
+
+// DisplayPath translates a worktree path to the equivalent path in the original repository
+// for user-facing output. This is useful for logging and reporting where users expect to see
+// paths relative to their working directory, not temporary worktree paths.
+// If the path is not within a worktree, it returns the path unchanged.
+func (w *Worktrees) DisplayPath(worktreePath string) string {
+	for _, pair := range w.WorktreePairs {
+		for _, wt := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
+			// Use boundary-aware check to avoid false matches (e.g., "/tmp/work" vs "/tmp/work-other")
+			if worktreePath == wt.Path || strings.HasPrefix(worktreePath, wt.Path+string(os.PathSeparator)) {
+				// Get the relative path within the worktree
+				relPath, err := filepath.Rel(wt.Path, worktreePath)
+				if err != nil {
+					return worktreePath
+				}
+
+				// Join with original working dir
+				return filepath.Join(w.OriginalWorkingDir, relPath)
+			}
+		}
+	}
+
+	return worktreePath
+}
+
 // Cleanup removes all created Git worktrees and their temporary directories.
 func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 	seen := make(map[string]struct{})

@@ -532,10 +532,14 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 
 	workingDir := filepath.Dir(configPath)
 
+	// Only update logger field if the working directory actually changed
+	// This preserves any custom display path (e.g., relative path) set on the logger
+	if workingDir != opts.WorkingDir {
+		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+	}
+
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
-
-	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
 	return l, newOpts, nil
 }

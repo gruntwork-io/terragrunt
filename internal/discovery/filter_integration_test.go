@@ -1268,8 +1268,8 @@ locals {
 			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
 			require.NotEmpty(t, worktreePair)
 
-			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, tmpDir)
+			// Both from and to worktree paths are used directly - no translation to original working dir
+			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, worktreePair.ToWorktree.Path)
 
 			// Verify results
 			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s", tt.name)
@@ -1452,4 +1452,379 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	// Should return no components since nothing changed
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Empty(t, units, "No components should be returned when there are no changes")
+}
+
+// TestDiscoveryWithGitFilters_FromSubdirectory tests that git filter discovery works correctly
+// when running from a subdirectory of the git root. This is a regression test for the bug where
+// paths were incorrectly duplicated (e.g., "basic/basic/basic-2" instead of "basic/basic-2").
+func TestDiscoveryWithGitFilters_FromSubdirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository at the root
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	// Create subdirectory structure: basic/basic-1, basic/basic-2
+	basicDir := filepath.Join(tmpDir, "basic")
+	basic1Dir := filepath.Join(basicDir, "basic-1")
+	basic2Dir := filepath.Join(basicDir, "basic-2")
+
+	// Also create a component outside the subdirectory
+	otherDir := filepath.Join(tmpDir, "other")
+
+	testDirs := []string{basic1Dir, basic2Dir, otherDir}
+	for _, dir := range testDirs {
+		err = os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create initial files
+	initialFiles := map[string]string{
+		filepath.Join(basic1Dir, "terragrunt.hcl"): ``,
+		filepath.Join(basic2Dir, "terragrunt.hcl"): ``,
+		filepath.Join(otherDir, "terragrunt.hcl"):  ``,
+	}
+
+	for path, content := range initialFiles {
+		err = os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	// Commit initial state
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Modify basic-2 component
+	err = os.WriteFile(filepath.Join(basic2Dir, "terragrunt.hcl"), []byte(`
+locals {
+	modified = true
+}
+`), 0644)
+	require.NoError(t, err)
+
+	// Commit changes
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modified basic-2", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Now run discovery FROM THE SUBDIRECTORY (basic)
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = basicDir     // Running from subdirectory
+	opts.RootWorkingDir = basicDir // Also subdirectory
+
+	// Parse filter with Git reference
+	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1]"})
+	require.NoError(t, err)
+
+	// Create worktrees from the subdirectory
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		basicDir, // Working dir is the subdirectory
+		filters.UniqueGitFilters(),
+	)
+	require.NoError(t, err)
+
+	// Cleanup worktrees after test
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+		require.NoError(t, cleanupErr)
+	})
+
+	// Create discovery with filters from the subdirectory
+	discovery := discovery.NewDiscovery(basicDir).WithFilters(filters).WithWorktrees(w)
+
+	configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	// Filter results by type
+	units := configs.Filter(component.UnitKind).Paths()
+
+	// With worktree-based execution, discovery runs directly in the worktree path
+	// The discovered component should be in the worktree, not translated back to original path
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	expectedPath := filepath.Join(worktreePair.ToWorktree.Path, "basic", "basic-2")
+	assert.ElementsMatch(t, []string{expectedPath}, units,
+		"Should discover basic-2 with correct path when running from subdirectory")
+
+	// Verify the path doesn't have duplicated directory names
+	// The bug was that paths like "basic/basic-2" became "basic/basic/basic-2"
+	// (the "basic" prefix was duplicated before the component name)
+	for _, unitPath := range units {
+		// The path should not contain "basic/basic/basic-" which would indicate path duplication
+		assert.NotContains(t, unitPath, "basic"+string(filepath.Separator)+"basic"+string(filepath.Separator)+"basic-",
+			"Path should not have duplicated directory names")
+	}
+}
+
+// TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits tests git filter discovery
+// initiated from a subdirectory when comparing against multiple commits back (HEAD~2, HEAD~3).
+func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository at the root
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		runner.GoCloseStorage()
+	})
+
+	// Create subdirectory structure: basic/basic-1, basic/basic-2, basic/basic-3
+	basicDir := filepath.Join(tmpDir, "basic")
+	basic1Dir := filepath.Join(basicDir, "basic-1")
+	basic2Dir := filepath.Join(basicDir, "basic-2")
+	basic3Dir := filepath.Join(basicDir, "basic-3")
+
+	// Also create components outside the subdirectory
+	otherDir := filepath.Join(tmpDir, "other")
+	anotherDir := filepath.Join(tmpDir, "another")
+
+	testDirs := []string{basic1Dir, basic2Dir, basic3Dir, otherDir, anotherDir}
+	for _, dir := range testDirs {
+		err = os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Commit 1: Initial state with all components
+	initialFiles := map[string]string{
+		filepath.Join(basic1Dir, "terragrunt.hcl"):  ``,
+		filepath.Join(basic2Dir, "terragrunt.hcl"):  ``,
+		filepath.Join(basic3Dir, "terragrunt.hcl"):  ``,
+		filepath.Join(otherDir, "terragrunt.hcl"):   ``,
+		filepath.Join(anotherDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range initialFiles {
+		err = os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Commit 2: Modify basic-1 and other (outside subdirectory)
+	err = os.WriteFile(filepath.Join(basic1Dir, "terragrunt.hcl"), []byte(`
+locals {
+	version = "v1"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(otherDir, "terragrunt.hcl"), []byte(`
+locals {
+	modified = true
+}
+`), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Commit 2: modify basic-1 and other", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Commit 3: Modify basic-2 and another (outside subdirectory)
+	err = os.WriteFile(filepath.Join(basic2Dir, "terragrunt.hcl"), []byte(`
+locals {
+	version = "v2"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(anotherDir, "terragrunt.hcl"), []byte(`
+locals {
+	modified = true
+}
+`), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Commit 3: modify basic-2 and another", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Commit 4: Modify basic-3
+	err = os.WriteFile(filepath.Join(basic3Dir, "terragrunt.hcl"), []byte(`
+locals {
+	version = "v3"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Commit 4: modify basic-3", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		expectedUnitsFunc func(toWorktreePath string) []string
+		name              string
+		gitRef            string
+	}{
+		{
+			name:   "HEAD~1 from subdirectory - only basic-3",
+			gitRef: "HEAD~1",
+			expectedUnitsFunc: func(toWorktreePath string) []string {
+				return []string{filepath.Join(toWorktreePath, "basic", "basic-3")}
+			},
+		},
+		{
+			name:   "HEAD~2 from subdirectory - basic-2 and basic-3, plus another",
+			gitRef: "HEAD~2",
+			expectedUnitsFunc: func(toWorktreePath string) []string {
+				// With worktree-root discovery, we find all changed units including 'another'
+				return []string{
+					filepath.Join(toWorktreePath, "another"),
+					filepath.Join(toWorktreePath, "basic", "basic-2"),
+					filepath.Join(toWorktreePath, "basic", "basic-3"),
+				}
+			},
+		},
+		{
+			name:   "HEAD~3 from subdirectory - basic-1, basic-2, basic-3, plus other and another",
+			gitRef: "HEAD~3",
+			expectedUnitsFunc: func(toWorktreePath string) []string {
+				// With worktree-root discovery, we find all changed units
+				return []string{
+					filepath.Join(toWorktreePath, "other"),
+					filepath.Join(toWorktreePath, "another"),
+					filepath.Join(toWorktreePath, "basic", "basic-1"),
+					filepath.Join(toWorktreePath, "basic", "basic-2"),
+					filepath.Join(toWorktreePath, "basic", "basic-3"),
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Run discovery FROM THE SUBDIRECTORY (basic)
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = basicDir
+			opts.RootWorkingDir = basicDir
+
+			// Parse filter with Git reference
+			filters, err := filter.ParseFilterQueries([]string{"[" + tt.gitRef + "]"})
+			require.NoError(t, err)
+
+			// Create worktrees from the subdirectory
+			w, err := worktrees.NewWorktrees(
+				t.Context(),
+				logger.CreateLogger(),
+				basicDir,
+				filters.UniqueGitFilters(),
+			)
+			require.NoError(t, err)
+
+			// Cleanup worktrees after test
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+				require.NoError(t, cleanupErr)
+			})
+
+			// Create discovery with filters from the subdirectory
+			disc := discovery.NewDiscovery(basicDir).WithFilters(filters).WithWorktrees(w)
+
+			configs, err := disc.Discover(t.Context(), logger.CreateLogger(), opts)
+			require.NoError(t, err)
+
+			// Filter results by type
+			units := configs.Filter(component.UnitKind).Paths()
+
+			// Get worktree pair for expected path calculation
+			worktreePair := w.WorktreePairs["["+tt.gitRef+"...HEAD]"]
+			require.NotEmpty(t, worktreePair)
+
+			// Verify correct units are discovered
+			// With worktree-based execution, discovery runs from worktree root
+			// and returns worktree paths directly (no translation to original paths)
+			expectedUnits := tt.expectedUnitsFunc(worktreePair.ToWorktree.Path)
+			assert.ElementsMatch(t, expectedUnits, units,
+				"Should discover correct units when running from subdirectory with %s", tt.gitRef)
+
+			// Verify no path duplication
+			for _, unitPath := range units {
+				assert.NotContains(t, unitPath,
+					"basic"+string(filepath.Separator)+"basic"+string(filepath.Separator)+"basic-",
+					"Path should not have duplicated directory names")
+			}
+		})
+	}
 }

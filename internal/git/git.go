@@ -96,6 +96,30 @@ func (g *GitRunner) RequiresGoRepo() error {
 	return nil
 }
 
+// GetRepoRoot returns the root directory of the git repository.
+func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 // LsRemoteResult represents the output of git ls-remote
 type LsRemoteResult struct {
 	Hash string

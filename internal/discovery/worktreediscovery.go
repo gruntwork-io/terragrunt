@@ -56,30 +56,6 @@ func (wd *WorktreeDiscovery) WithOriginalDiscovery(originalDiscovery *Discovery)
 	return wd
 }
 
-// translateComponentPath translates a component's path from a worktree temp path to the original working directory.
-// This is necessary because components are discovered in worktree temp directories, but should be resolved
-// in the original working directory for the runner to find terraform files.
-func translateComponentPath(c component.Component, worktreePath, originalWorkingDir string) {
-	if originalWorkingDir == "" {
-		return
-	}
-
-	componentPath := c.Path()
-	if strings.HasPrefix(componentPath, worktreePath) {
-		relativePath := strings.TrimPrefix(componentPath, worktreePath)
-		newPath := filepath.Join(originalWorkingDir, relativePath)
-		c.SetPath(newPath)
-
-		// Also update the discovery context's working directory
-		discoveryCtx := c.DiscoveryContext()
-		if discoveryCtx != nil {
-			newDiscoveryCtx := *discoveryCtx
-			newDiscoveryCtx.WorkingDir = originalWorkingDir
-			c.SetDiscoveryContext(&newDiscoveryCtx)
-		}
-	}
-}
-
 // Discover discovers components in all worktrees.
 func (wd *WorktreeDiscovery) Discover(
 	ctx context.Context,
@@ -93,7 +69,6 @@ func (wd *WorktreeDiscovery) Discover(
 		return component.Components{}, nil
 	}
 
-	originalWorkingDir := w.OriginalWorkingDir
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
 	// Run from and to discovery concurrently for each expression
@@ -112,30 +87,11 @@ func (wd *WorktreeDiscovery) Discover(
 
 			if len(fromFilters) > 0 {
 				fromToG.Go(func() error {
-					fromDiscovery := *wd.originalDiscovery
-
-					fromDiscoveryContext := *fromDiscovery.discoveryContext
-					fromDiscoveryContext.Ref = pair.FromWorktree.Ref
-					fromDiscoveryContext.WorkingDir = pair.FromWorktree.Path
-
-					fromDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
-						fromDiscoveryContext,
-						fromWorktreeKind,
-					)
+					components, err := wd.discoverInWorktree(fromToCtx, l, opts, w, pair.FromWorktree, fromFilters, fromWorktreeKind)
 					if err != nil {
 						return err
 					}
 
-					components, err := fromDiscovery.
-						WithFilters(fromFilters).
-						WithDiscoveryContext(&fromDiscoveryContext).
-						Discover(fromToCtx, l, opts)
-					if err != nil {
-						return err
-					}
-
-					// Do NOT translate fromWorktree paths - removed units only exist in the worktree
-					// They need to run terraform destroy from the worktree where they still exist
 					for _, c := range components {
 						discoveredComponents.EnsureComponent(c)
 					}
@@ -146,31 +102,12 @@ func (wd *WorktreeDiscovery) Discover(
 
 			if len(toFilters) > 0 {
 				fromToG.Go(func() error {
-					toDiscovery := *wd.originalDiscovery
-
-					toDiscoveryContext := *toDiscovery.discoveryContext
-					toDiscoveryContext.Ref = pair.ToWorktree.Ref
-					toDiscoveryContext.WorkingDir = pair.ToWorktree.Path
-
-					toDiscoveryContext, err := translateDiscoveryContextArgsForWorktree(
-						toDiscoveryContext,
-						toWorktreeKind,
-					)
+					components, err := wd.discoverInWorktree(fromToCtx, l, opts, w, pair.ToWorktree, toFilters, toWorktreeKind)
 					if err != nil {
 						return err
 					}
 
-					toComponents, err := toDiscovery.
-						WithFilters(toFilters).
-						WithDiscoveryContext(&toDiscoveryContext).
-						Discover(fromToCtx, l, opts)
-					if err != nil {
-						return err
-					}
-
-					// Translate component paths from worktree to original working dir
-					for _, c := range toComponents {
-						translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir)
+					for _, c := range components {
 						discoveredComponents.EnsureComponent(c)
 					}
 
@@ -188,13 +125,8 @@ func (wd *WorktreeDiscovery) Discover(
 			return err
 		}
 
-		// Only translate toWorktree paths - fromWorktree paths should stay as worktree paths
-		// because removed units only exist in the worktree
+		// Run directly in worktree paths - no translation needed
 		for _, c := range components {
-			for _, pair := range w.WorktreePairs {
-				translateComponentPath(c, pair.ToWorktree.Path, originalWorkingDir)
-			}
-
 			discoveredComponents.EnsureComponent(c)
 		}
 
@@ -206,6 +138,53 @@ func (wd *WorktreeDiscovery) Discover(
 	}
 
 	return discoveredComponents.ToComponents(), nil
+}
+
+// discoverInWorktree discovers components in a single worktree.
+func (wd *WorktreeDiscovery) discoverInWorktree(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	w *worktrees.Worktrees,
+	wt worktrees.Worktree,
+	filters filter.Filters,
+	kind worktreeKind,
+) (component.Components, error) {
+	discovery := *wd.originalDiscovery
+	discoveryContext := *discovery.discoveryContext
+	discoveryContext.Ref = wt.Ref
+	discoveryContext.WorkingDir = wt.Path
+
+	// Deep copy Args slice to avoid race conditions across goroutines
+	if discoveryContext.Args != nil {
+		argsCopy := make([]string, len(discoveryContext.Args))
+		copy(argsCopy, discoveryContext.Args)
+		discoveryContext.Args = argsCopy
+	}
+
+	discoveryContext, err := translateDiscoveryContextArgsForWorktree(discoveryContext, kind)
+	if err != nil {
+		return nil, err
+	}
+
+	components, err := discovery.
+		WithFilters(filters).
+		WithDiscoveryContext(&discoveryContext).
+		Discover(ctx, l, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Adjust WorkingDir to user's subdirectory for display purposes
+	adjustedWorkingDir := w.WorkingDir(ctx, wt.Path)
+
+	for _, c := range components {
+		if dctx := c.DiscoveryContext(); dctx != nil {
+			dctx.WorkingDir = adjustedWorkingDir
+		}
+	}
+
+	return components, nil
 }
 
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.

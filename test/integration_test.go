@@ -479,8 +479,8 @@ func TestLogWithRelPath(t *testing.T) {
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
 
-				assert.Contains(t, stderr, "Unit ./bbb/ccc/workspace")
-				assert.Contains(t, stderr, "Unit ./bbb/ccc/module-b")
+				assert.Contains(t, stderr, "Unit bbb/ccc/workspace")
+				assert.Contains(t, stderr, "Unit bbb/ccc/module-b")
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -1062,9 +1062,9 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	// validate the modules
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit ./a")
-	assert.Contains(t, stderr, "Unit ./b")
-	assert.Contains(t, stderr, "Unit ./c")
+	assert.Contains(t, stderr, "Unit a")
+	assert.Contains(t, stderr, "Unit b")
+	assert.Contains(t, stderr, "Unit c")
 
 	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
 	require.NoError(t, os.Chtimes(util.JoinPath(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
@@ -3413,7 +3413,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
 	// catch "Run failed" message printed in case of error in apply of units
 	assert.Contains(t, output, "Run failed")
-	assert.Contains(t, output, "Unit ./d1", output)
+	assert.Contains(t, output, "Unit d1", output)
 }
 
 func TestHclFmtDiff(t *testing.T) {
