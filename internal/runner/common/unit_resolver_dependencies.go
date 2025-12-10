@@ -9,7 +9,7 @@ import (
 )
 
 // flagExternalDependencies processes units that were marked as external by discovery,
-// prompting the user whether to install them and setting appropriate flags.
+// prompting the user whether to run them and setting appropriate flags.
 // Discovery has already found, parsed, and marked external dependencies.
 // This function only handles the user-facing logic for deciding whether to run them.
 func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logger, unitsMap UnitsMap) error {
@@ -20,7 +20,7 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 			continue
 		}
 
-		shouldInstall := false
+		shouldRun := false
 
 		if !r.Stack.TerragruntOptions.IgnoreExternalDependencies {
 			// Find a unit that depends on this external dependency for context
@@ -43,17 +43,17 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 			if dependentUnit != nil {
 				var err error
 
-				shouldInstall, err = r.confirmShouldInstallExternalDependency(ctx, dependentUnit, l, unit, unit.TerragruntOptions)
+				shouldRun, err = r.confirmShouldRunExternalDependency(ctx, dependentUnit, l, unit, unit.TerragruntOptions)
 				if err != nil {
 					return err
 				}
 			}
 		}
 
-		unit.AssumeAlreadyApplied = !shouldInstall
-		// Mark external dependencies as excluded if they shouldn't be installed
+		unit.AssumeAlreadyApplied = !shouldRun
+		// Mark external dependencies as excluded if they shouldn't be run
 		// This ensures they are tracked in the report but not executed
-		if !shouldInstall {
+		if !shouldRun {
 			unit.FlagExcluded = true
 		}
 	}
@@ -62,11 +62,11 @@ func (r *UnitResolver) flagExternalDependencies(ctx context.Context, l log.Logge
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given unit is already
-// installed. If the user selects "yes", then Terragrunt will install that unit as well.
+// run. If the user selects "yes", then Terragrunt will run that unit as well.
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --queue-include-external or --queue-include-dir flags.
-func (r *UnitResolver) confirmShouldInstallExternalDependency(ctx context.Context, unit *Unit, l log.Logger, dependency *Unit, opts *options.TerragruntOptions) (bool, error) {
+func (r *UnitResolver) confirmShouldRunExternalDependency(ctx context.Context, unit *Unit, l log.Logger, dependency *Unit, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
 		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against unit %s, which is a dependency of unit %s.", dependency.Path, unit.Path)
 		return true, nil
@@ -85,5 +85,5 @@ func (r *UnitResolver) confirmShouldInstallExternalDependency(ctx context.Contex
 
 	l.Infof("Unit %s has external dependency %s", unit.Path, dependency.Path)
 
-	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt install the external dependency?", opts)
+	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt run the external dependency?", opts)
 }
