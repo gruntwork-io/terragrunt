@@ -26,7 +26,8 @@ const (
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 
 	// Filter related flags.
-	FilterFlagName = "filter"
+	FilterFlagName             = "filter"
+	FilterAllowDestroyFlagName = "filter-allow-destroy"
 
 	// Scaffolding related flags.
 	RootFileNameFlagName  = "root-file-name"
@@ -178,25 +179,42 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 	}
 }
 
-// NewFilterFlag creates a flag for specifying filter queries.
-func NewFilterFlag(opts *options.TerragruntOptions) *flags.Flag {
+// NewFilterFlags creates flags for filter functionality.
+func NewFilterFlags(opts *options.TerragruntOptions) cli.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 
-	return flags.NewFlag(
-		&cli.SliceFlag[string]{
-			Name:        FilterFlagName,
-			EnvVars:     tgPrefix.EnvVars(FilterFlagName),
-			Destination: &opts.FilterQueries,
-			Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
-			Action: func(_ *cli.Context, val []string) error {
-				// Check if the filter-flag experiment is enabled
-				if !opts.Experiments.Evaluate("filter-flag") {
-					return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-				}
-				return nil
+	return cli.Flags{
+		flags.NewFlag(
+			&cli.SliceFlag[string]{
+				Name:        FilterFlagName,
+				EnvVars:     tgPrefix.EnvVars(FilterFlagName),
+				Destination: &opts.FilterQueries,
+				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
+				Action: func(_ *cli.Context, val []string) error {
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+					return nil
+				},
 			},
-		},
-	)
+		),
+		flags.NewFlag(
+			&cli.BoolFlag{
+				Name:        FilterAllowDestroyFlagName,
+				EnvVars:     tgPrefix.EnvVars(FilterAllowDestroyFlagName),
+				Destination: &opts.FilterAllowDestroy,
+				Usage:       "Allow destroy runs when using Git-based filters. Requires the 'filter-flag' experiment.",
+				Action: func(_ *cli.Context, val bool) error {
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filter-allow-destroy flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+					return nil
+				},
+			},
+		),
+	}
 }
 
 // NewScaffoldingFlags creates the flags shared between catalog and scaffold commands.
