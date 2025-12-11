@@ -65,11 +65,13 @@ type Sort string
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
+	//
 	// This is passed into objects created during discovery, like Components, and might be adjusted if discovery is
 	// performed in a worktree.
 	discoveryContext *component.DiscoveryContext
 
 	// worktrees is the worktrees created for Git-based filters.
+	//
 	// This is set up by callers before calling Discover().
 	worktrees *worktrees.Worktrees
 
@@ -79,11 +81,10 @@ type Discovery struct {
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
 
-	// graphTarget is the target for graph-based filtering.
 	graphTarget string
 
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
+	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
+	includeDirs []string
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
@@ -94,33 +95,36 @@ type Discovery struct {
 	// excludeDirs is a list of directory patterns to exclude from discovery.
 	excludeDirs []string
 
-	// parserOptions are custom HCL parser options to use when parsing during discovery.
+	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
 
-	// filters contains filter queries for component selection.
+	// filters contains filter queries for component selection
 	filters filter.Filters
 
-	// dependencyTargetExpressions contains target expressions from graph filters that require dependency discovery.
+	// dependencyTargetExpressions contains target expressions from graph filters that require dependency discovery
 	dependencyTargetExpressions []filter.Expression
 
-	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery.
+	// dependentTargetExpressions contains target expressions from graph filters that require dependent discovery
 	dependentTargetExpressions []filter.Expression
 
-	// gitExpressions contains Git filter expressions that require worktree discovery.
+	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitExpressions
-
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
 
 	// externalDependencies stores external dependencies detected during discovery.
 	// These are tracked separately for reporting purposes when discoverExternalDependencies is false.
 	externalDependencies component.Components
+
+	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
+	compiledIncludePatterns []CompiledPattern
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
 	// numWorkers determines the number of concurrent workers for discovery operations.
 	numWorkers int
+
+	// parseInclude determines whether to parse include configurations.
+	parseInclude bool
 
 	// noHidden determines whether to detect configurations in noHidden directories.
 	noHidden bool
@@ -149,7 +153,7 @@ type Discovery struct {
 	// useDefaultExcludes determines whether to use default exclude patterns.
 	useDefaultExcludes bool
 
-	// filterFlagEnabled determines whether the filter flag experiment is active.
+	// filterFlagEnabled determines whether the filter flag experiment is active
 	filterFlagEnabled bool
 
 	// breakCycles determines whether to break cycles in the dependency graph if any exist.
@@ -157,9 +161,6 @@ type Discovery struct {
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
-
-	// parseInclude determines whether to parse include configurations.
-	parseInclude bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -1180,7 +1181,6 @@ func (d *Discovery) Discover(
 					}
 
 					// Store external dependencies detected during discovery for reporting purposes.
-					// These are dependencies outside the working directory that were not fully discovered.
 					d.externalDependencies = dependencyDiscovery.ExternalDependencies()
 
 					return nil
