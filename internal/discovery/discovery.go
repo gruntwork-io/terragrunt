@@ -111,10 +111,6 @@ type Discovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitExpressions
 
-	// externalDependencies stores external dependencies detected during discovery.
-	// These are tracked separately for reporting purposes when discoverExternalDependencies is false.
-	externalDependencies component.Components
-
 	// report is used for recording excluded external dependencies during discovery.
 	report *report.Report
 
@@ -259,13 +255,6 @@ func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
 	d.discoverExternalDependencies = true
 
 	return d
-}
-
-// ExternalDependencies returns the external dependencies detected during discovery.
-// These are dependencies outside the working directory that were detected but not fully discovered
-// (when discoverExternalDependencies is false). They are tracked for reporting purposes.
-func (d *Discovery) ExternalDependencies() component.Components {
-	return d.externalDependencies
 }
 
 // WithReport sets the report for recording excluded external dependencies.
@@ -1195,9 +1184,6 @@ func (d *Discovery) Discover(
 
 						l.Debugf("Errors: %v", discoveryErr)
 					}
-
-					// Store external dependencies detected during discovery for reporting purposes.
-					d.externalDependencies = dependencyDiscovery.ExternalDependencies()
 
 					return nil
 				})
