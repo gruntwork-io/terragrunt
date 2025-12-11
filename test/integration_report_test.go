@@ -512,7 +512,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --queue-exclude-external --feature dep=%s --working-dir %s --report-file %s",
+			"terragrunt run --all plan --queue-exclude-external --log-level debug --feature dep=%s --working-dir %s --report-file %s",
 			dep,
 			rootPath,
 			reportFile,

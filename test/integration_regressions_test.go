@@ -612,7 +612,7 @@ func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
 	// Run terragrunt run --all plan from the bastion directory
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --working-dir "+bastionPath,
+		"terragrunt run --all plan --log-level debug --non-interactive --working-dir "+bastionPath,
 	)
 
 	// The command should succeed
