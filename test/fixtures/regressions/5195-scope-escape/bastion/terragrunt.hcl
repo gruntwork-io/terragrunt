@@ -1,6 +1,3 @@
-# Simple unit with a dependency on a shared module (module2)
-# When running run --all from here, only bastion should be in the RUN queue
-# The external dependency (module2) should be resolved for outputs but NOT executed
 dependency "shared" {
   config_path = "../module2"
 

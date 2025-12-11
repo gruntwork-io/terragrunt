@@ -266,7 +266,6 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 
 	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
 	// set, ensure that we link it to the correct component, and mark it as seen.
-	// Log and track these as excluded dependencies (issue #5195).
 	if isExternal && !dd.discoverExternal {
 		existingDep := dd.externalDependencies.FindByPath(depPath)
 		if existingDep != nil {
