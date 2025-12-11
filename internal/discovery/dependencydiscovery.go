@@ -8,8 +8,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -18,6 +20,7 @@ type DependencyDiscovery struct {
 	discoveryContext     *component.DiscoveryContext
 	components           *component.ThreadSafeComponents
 	externalDependencies *component.ThreadSafeComponents
+	report               *report.Report
 	mu                   *sync.RWMutex
 	seenComponents       map[string]struct{}
 	parserOptions        []hclparse.Option
@@ -72,6 +75,13 @@ func (dd *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *Dep
 
 func (dd *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependencyDiscovery {
 	dd.discoveryContext = discoveryContext
+
+	return dd
+}
+
+// WithReport sets the report for recording excluded external dependencies.
+func (dd *DependencyDiscovery) WithReport(r *report.Report) *DependencyDiscovery {
+	dd.report = r
 
 	return dd
 }
@@ -196,7 +206,7 @@ func (dd *DependencyDiscovery) discoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
-			depComponent := dd.dependencyToDiscover(dComponent, depPath)
+			depComponent := dd.dependencyToDiscover(l, dComponent, depPath)
 			if depComponent == nil {
 				return nil
 			}
@@ -231,6 +241,7 @@ func (dd *DependencyDiscovery) discoverDependencies(
 // marking as external if it's outside the working directory of discovery, and linking dependencies.
 // Returns nil if the dependency shouldn't be involved in discovery any further (e.g., already processed or ignored).
 func (dd *DependencyDiscovery) dependencyToDiscover(
+	l log.Logger,
 	dComponent component.Component,
 	depPath string,
 ) component.Component {
@@ -255,6 +266,7 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 
 	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
 	// set, ensure that we link it to the correct component, and mark it as seen.
+	// Log and track these as excluded dependencies (issue #5195).
 	if isExternal && !dd.discoverExternal {
 		existingDep := dd.externalDependencies.FindByPath(depPath)
 		if existingDep != nil {
@@ -273,6 +285,15 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 
 		existingDep, _ = dd.externalDependencies.EnsureComponent(depComponent)
 		dComponent.AddDependency(existingDep)
+
+		l.Infof("Excluded external dependency: %s", depComponent.DisplayPath())
+
+		// Record in report as excluded external dependency
+		if dd.report != nil {
+			absPath := util.CleanPath(depPath)
+			run, _ := dd.report.EnsureRun(absPath)
+			_ = dd.report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeExternal))
+		}
 
 		dd.markSeen(depPath)
 

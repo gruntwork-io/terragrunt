@@ -47,13 +47,27 @@ func WithParseOptions(parserOptions []hclparse.Option) Option {
 	}
 }
 
+// ReportProvider exposes the report attached to an Option.
+type ReportProvider interface {
+	GetReport() *report.Report
+}
+
+// reportOption wraps a report and implements both Option and ReportProvider.
+type reportOption struct {
+	report *report.Report
+}
+
+func (o reportOption) Apply(stack StackRunner) {
+	stack.SetReport(o.report)
+}
+
+func (o reportOption) GetReport() *report.Report {
+	return o.report
+}
+
 // WithReport attaches a report collector to the stack, enabling run summaries and metrics.
 func WithReport(r *report.Report) Option {
-	return optionImpl{
-		apply: func(stack StackRunner) {
-			stack.SetReport(r)
-		},
-	}
+	return reportOption{report: r}
 }
 
 // WorktreeOption carries worktrees through the runner pipeline for git filter expressions.

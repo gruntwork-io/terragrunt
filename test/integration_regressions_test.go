@@ -619,24 +619,21 @@ func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
 	require.NoError(t, err)
 
 	// External dependencies should be excluded (not executed)
-	// The log should show they were excluded
+	// The log should show they were excluded during discovery
 	assert.Contains(t, stderr, "Excluded external dependency",
-		"External dependencies should be excluded from execution")
+		"External dependencies should be logged as excluded")
 
 	// Should see bastion (displayed as "." since it's the current directory)
 	assert.Contains(t, stderr, "Unit .",
 		"Should discover the current directory (bastion) as '.'")
 
-	// With the fix, external dependencies are excluded, so:
-	// - 2 units total (bastion + external dep module2)
-	// - 1 succeeded (bastion)
-	// - 1 excluded (module2)
+	// Report shows 2 units (bastion + excluded external dep)
 	assert.Contains(t, stdout, "2 units",
 		"Should have 2 units total (bastion + excluded external dep)")
 	assert.Contains(t, stdout, "Succeeded    1",
-		"Only one unit (bastion) should succeed")
+		"Only bastion should succeed")
 	assert.Contains(t, stdout, "Excluded     1",
-		"External dependency should be excluded")
+		"External dependency should be excluded in report")
 }
 
 // TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory

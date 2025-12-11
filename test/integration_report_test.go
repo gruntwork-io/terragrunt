@@ -526,6 +526,10 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	assert.NotContains(t, stderr, "run not found in report")
 	assert.Contains(t, stdout, "Run Summary")
 
+	// External dependencies should be logged as excluded during discovery
+	assert.Contains(t, stderr, "Excluded external dependency",
+		"External dependencies should be logged as excluded")
+
 	// Verify that the report file exists
 	assert.FileExists(t, reportFile)
 

@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -70,6 +71,17 @@ func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
 	for _, opt := range opts {
 		if wo, ok := opt.(common.WorktreeOption); ok {
 			return wo.Worktrees
+		}
+	}
+
+	return nil
+}
+
+// extractReport finds ReportProvider in options and returns the report.
+func extractReport(opts []common.Option) *report.Report {
+	for _, opt := range opts {
+		if rp, ok := opt.(common.ReportProvider); ok {
+			return rp.GetReport()
 		}
 	}
 
@@ -163,22 +175,26 @@ func prepareDiscovery(
 		d = d.WithWorktrees(w)
 	}
 
+	// Apply report for recording excluded external dependencies
+	if r := extractReport(opts); r != nil {
+		d = d.WithReport(r)
+	}
+
 	return d, nil
 }
 
 // discoverWithRetry runs discovery and retries without exclude-by-default if zero results
 // are found and modules-that-include / units-reading flags are set.
-// Returns discovered components and external dependencies (for reporting).
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
 	opts ...common.Option,
-) (component.Components, component.Components, error) {
+) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
 	d, err := prepareDiscovery(tgOpts, tgOpts.ExcludeByDefault, opts...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var discovered component.Components
@@ -197,7 +213,7 @@ func discoverWithRetry(
 		return discoveryErr
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Retry without exclude-by-default if no results and relevant flags are set
@@ -206,7 +222,7 @@ func discoverWithRetry(
 
 		d, err = prepareDiscovery(tgOpts, false, opts...)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
@@ -222,12 +238,11 @@ func discoverWithRetry(
 			return retryErr
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
-	// Return discovered components and external dependencies (for reporting)
-	return discovered, d.ExternalDependencies(), nil
+	return discovered, nil
 }
 
 // createRunner wraps runner creation with telemetry and returns the stack runner.
@@ -236,19 +251,17 @@ func createRunner(
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
 	comps component.Components,
-	externalDeps component.Components,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
 	var runner common.StackRunner
 
 	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
-		"external_deps":      len(externalDeps),
 		"terraform_command":  tgOpts.TerraformCommand,
 	}, func(childCtx context.Context) error {
 		var err2 error
 
-		runner, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, externalDeps, opts...)
+		runner, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, opts...)
 
 		return err2
 	})

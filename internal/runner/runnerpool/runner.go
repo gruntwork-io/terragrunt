@@ -208,14 +208,11 @@ func resolveUnitsFromDiscovery(
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-// externalDeps contains external dependencies detected during discovery but not fully discovered.
-// These are added to the report as excluded.
 func NewRunnerPoolStack(
 	ctx context.Context,
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
 	discovered component.Components,
-	externalDeps component.Components,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
 	// Filter out Stack components - we only want Unit components
@@ -297,30 +294,6 @@ func NewRunnerPoolStack(
 					_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
 				}
 			}
-		}
-	}
-
-	// Record external dependencies in report as excluded.
-	// These are dependencies detected during discovery but not fully discovered (excluded by default).
-	// See: https://github.com/gruntwork-io/terragrunt/issues/5195
-	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(externalDeps) > 0 {
-		for _, dep := range externalDeps {
-			absPath := util.CleanPath(dep.Path())
-			if !filepath.IsAbs(absPath) {
-				if abs, err := filepath.Abs(absPath); err == nil {
-					absPath = util.CleanPath(abs)
-				}
-			}
-
-			run, err := runner.Stack.Execution.Report.EnsureRun(absPath)
-			if err != nil {
-				l.Debugf("Failed to ensure run for external dependency %s: %v", absPath, err)
-				continue
-			}
-
-			_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeExternal))
-
-			l.Infof("Excluded external dependency: %s", dep.DisplayPath())
 		}
 	}
 

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -113,6 +114,9 @@ type Discovery struct {
 	// externalDependencies stores external dependencies detected during discovery.
 	// These are tracked separately for reporting purposes when discoverExternalDependencies is false.
 	externalDependencies component.Components
+
+	// report is used for recording excluded external dependencies during discovery.
+	report *report.Report
 
 	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
 	compiledIncludePatterns []CompiledPattern
@@ -262,6 +266,13 @@ func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
 // (when discoverExternalDependencies is false). They are tracked for reporting purposes.
 func (d *Discovery) ExternalDependencies() component.Components {
 	return d.externalDependencies
+}
+
+// WithReport sets the report for recording excluded external dependencies.
+func (d *Discovery) WithReport(r *report.Report) *Discovery {
+	d.report = r
+
+	return d
 }
 
 // WithSuppressParseErrors sets the SuppressParseErrors flag to true.
@@ -1167,6 +1178,11 @@ func (d *Discovery) Discover(
 					// pass parser options
 					if len(d.parserOptions) > 0 {
 						dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
+					}
+
+					// pass report for recording excluded external dependencies
+					if d.report != nil {
+						dependencyDiscovery = dependencyDiscovery.WithReport(d.report)
 					}
 
 					discoveryErr := dependencyDiscovery.Discover(discoveryCtx, l, opts, dependencyStartingComponents)
