@@ -31,6 +31,7 @@ const (
 
 	DisableCommandValidationFlagName   = "disable-command-validation"
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
+	DestroyDependenciesCheckFlagName   = "destroy-dependencies-check"
 
 	SourceFlagName       = "source"
 	SourceMapFlagName    = "source-map"
@@ -266,12 +267,24 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-command-validation"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        NoDestroyDependenciesCheckFlagName,
-			EnvVars:     tgPrefix.EnvVars(NoDestroyDependenciesCheckFlagName),
-			Destination: &opts.NoDestroyDependenciesCheck,
-			Usage:       "When this flag is set, Terragrunt will not check for dependent units when destroying.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("no-destroy-dependencies-check"), terragruntPrefixControl)),
+			Name:    NoDestroyDependenciesCheckFlagName,
+			EnvVars: tgPrefix.EnvVars(NoDestroyDependenciesCheckFlagName),
+			Usage:   "When this flag is set, Terragrunt will not check for dependent units when destroying.",
+			Hidden:  true,
+			Action: func(ctx *cli.Context, value bool) error {
+				if value {
+					return opts.StrictControls.FilterByNames(controls.NoDestroyDependenciesCheck).Evaluate(ctx.Context)
+				}
+				return nil
+			},
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        DestroyDependenciesCheckFlagName,
+			EnvVars:     tgPrefix.EnvVars(DestroyDependenciesCheckFlagName),
+			Destination: &opts.DestroyDependenciesCheck,
+			Usage:       "When this flag is set, Terragrunt will check for dependent units when destroying.",
+		}),
 
 		// Terragrunt Provider Cache flags.
 

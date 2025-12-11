@@ -255,8 +255,8 @@ type TerragruntOptions struct {
 	FetchDependencyOutputFromState bool
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
-	// True if is required not to show dependent modules and confirm action
-	NoDestroyDependenciesCheck bool
+	// True if is required to check for dependent modules during destroy operations
+	DestroyDependenciesCheck bool
 	// Include fields metadata in render-json
 	RenderJSONWithMetadata bool
 	// Whether we should automatically retry errored Terraform commands
