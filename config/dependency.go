@@ -250,7 +250,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
 	for _, dep := range decodedDependency.Dependencies {
-		if !IsValidConfigPath(dep.ConfigPath) {
+		if dep.isEnabled() && !IsValidConfigPath(dep.ConfigPath) {
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
@@ -1225,6 +1225,11 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.
 func IsValidConfigPath(v cty.Value) bool {
 	if v.IsNull() || !v.IsWhollyKnown() || !v.Type().Equals(cty.String) {
+		return false
+	}
+
+	// Empty string is not a valid config path
+	if v.AsString() == "" {
 		return false
 	}
 

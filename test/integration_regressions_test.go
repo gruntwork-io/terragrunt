@@ -227,8 +227,8 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+consumerPath)
 	require.Error(t, runErr)
 	// Accept match in either stderr or the returned error string
-	if !strings.Contains(stderr, "has empty config_path") && !strings.Contains(runErr.Error(), "has empty config_path") {
-		t.Fatalf("unexpected error; want empty config_path message, got: %v\nstderr: %s", runErr, stderr)
+	if !strings.Contains(stderr, "has invalid config_path") && !strings.Contains(runErr.Error(), "has invalid config_path") {
+		t.Fatalf("unexpected error; want invalid config_path message, got: %v\nstderr: %s", runErr, stderr)
 	}
 }
 
@@ -422,8 +422,8 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 	assert.NotContains(t, combinedOutput, "Cycle detected",
 		"Should not see 'Cycle detected' error")
 
-	assert.NotContains(t, combinedOutput, "has empty config_path",
-		"Should not see empty config_path error for disabled dependency")
+	assert.NotContains(t, combinedOutput, "has invalid config_path",
+		"Should not see invalid config_path error for disabled dependency")
 
 	_, runAllStderr, runAllErr := helpers.RunTerragruntCommandWithOutput(
 		t,
