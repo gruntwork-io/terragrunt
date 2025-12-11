@@ -215,7 +215,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 			continue
 		}
 
-		if valid := ValidateConfigPath(dep.ConfigPath); !valid {
+		if !IsValidConfigPath(dep.ConfigPath) {
 			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
@@ -250,7 +250,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
 	for _, dep := range decodedDependency.Dependencies {
-		if valid := ValidateConfigPath(dep.ConfigPath); !valid {
+		if !IsValidConfigPath(dep.ConfigPath) {
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
@@ -335,7 +335,7 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, l log.Logger, configPath
 			continue
 		}
 
-		if valid := ValidateConfigPath(dependency.ConfigPath); !valid {
+		if !IsValidConfigPath(dependency.ConfigPath) {
 			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
@@ -1222,8 +1222,8 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	return filteredDeps
 }
 
-// ValidateConfigPath checks if a cty.Value is a valid, usable config path.
-func ValidateConfigPath(v cty.Value) bool {
+// IsValidConfigPath checks if a cty.Value is a valid, usable config path.
+func IsValidConfigPath(v cty.Value) bool {
 	if v.IsNull() || !v.IsWhollyKnown() || !v.Type().Equals(cty.String) {
 		return false
 	}
