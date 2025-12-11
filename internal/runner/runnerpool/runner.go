@@ -899,10 +899,6 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-
 		opt.Apply(r)
 	}
 

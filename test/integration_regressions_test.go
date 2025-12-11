@@ -27,6 +27,7 @@ const (
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
+	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -665,4 +666,24 @@ func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
 		"Should discover module1 when running from parent directory")
 	assert.Contains(t, stderr, "module2",
 		"Should discover module2 when running from parent directory")
+}
+
+func TestNotExistingDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNotExistingDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingDependency)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingDependency)
+
+	invalidPath := util.JoinPath(rootPath, "invalid-path")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+invalidPath)
+	require.Error(t, err)
+	// should be reported that dependency have invalid path
+	assert.Contains(t, err.Error(), "dependency \"dep_123\" has invalid config_path")
+
+	parentFindFail := util.JoinPath(rootPath, "parent-find-fail")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+parentFindFail)
+	require.Error(t, err)
+	// should be reported that find_in_parent_folders() fail
+	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
 }

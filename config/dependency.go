@@ -215,8 +215,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 			continue
 		}
 
-		if isEmptyKnownString(dep.ConfigPath) {
-			return nil, fmt.Errorf("dependency %q has empty config_path in %s; set a non-empty config_path or disable the dependency", dep.Name, file.ConfigPath)
+		if valid := ValidateConfigPath(dep.ConfigPath); !valid {
+			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
 
@@ -250,6 +250,10 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
 	for _, dep := range decodedDependency.Dependencies {
+		if valid := ValidateConfigPath(dep.ConfigPath); !valid {
+			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+		}
+
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
 			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
@@ -329,6 +333,10 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, l log.Logger, configPath
 	for _, dependency := range decodedDependency.Dependencies {
 		if dependency.isDisabled() {
 			continue
+		}
+
+		if valid := ValidateConfigPath(dependency.ConfigPath); !valid {
+			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
@@ -1214,7 +1222,11 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	return filteredDeps
 }
 
-// isEmptyKnownString returns true when v is a fully-known string whose trimmed value is empty.
-func isEmptyKnownString(v cty.Value) bool {
-	return v.Type().Equals(cty.String) && v.IsWhollyKnown() && strings.TrimSpace(v.AsString()) == ""
+// ValidateConfigPath checks if a cty.Value is a valid, usable config path.
+func ValidateConfigPath(v cty.Value) bool {
+	if v.IsNull() || !v.IsWhollyKnown() || !v.Type().Equals(cty.String) {
+		return false
+	}
+
+	return true
 }
