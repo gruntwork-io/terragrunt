@@ -189,16 +189,6 @@ func resolveUnitsFromDiscovery(
 			AssumeAlreadyApplied: false,
 		}
 
-		// Handle external units - check if they should be excluded
-		if unit.External() {
-			if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
-				stack.Execution.TerragruntOptions.IgnoreExternalDependencies {
-				unit.Execution.AssumeAlreadyApplied = true
-				unit.Execution.FlagExcluded = true
-				l.Infof("Excluded external dependency: %s", unit.DisplayPath())
-			}
-		}
-
 		// Store config from discovery context if available
 		if unit.DiscoveryContext() != nil && unit.Config() == nil {
 			// Config should already be set during discovery
@@ -909,6 +899,10 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		opt.Apply(r)
 	}
 

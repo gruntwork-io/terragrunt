@@ -55,6 +55,9 @@ const (
 	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
 	// and will log a warning when using **/*
 	DoubleStar = "double-star"
+
+	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
+	QueueExcludeExternal = "queue-exclude-external"
 )
 
 //nolint:lll
@@ -208,6 +211,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
 			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
+		},
+		&Control{
+			Name:        QueueExcludeExternal,
+			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag. External dependencies are now excluded by default.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them."),
+			Warning:     "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
 		},
 	}
 

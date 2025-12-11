@@ -7,6 +7,7 @@ package shared
 import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -112,6 +113,13 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
 				Destination: &opts.IgnoreExternalDependencies,
 				Usage:       "Ignore external dependencies for --all commands.",
+				Hidden:      true,
+				Action: func(ctx *cli.Context, value bool) error {
+					if value {
+						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx.Context)
+					}
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), terragruntPrefixControl),
 		),
