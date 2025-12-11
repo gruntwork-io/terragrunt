@@ -16,6 +16,8 @@ import (
 )
 
 func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
+	t.Skip("This test needs to be skipped until we have a new Terragrunt version we can pin in the mise.toml file due to the change to change in unit logging for stacks")
+
 	t.Parallel()
 
 	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
