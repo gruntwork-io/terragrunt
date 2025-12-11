@@ -285,7 +285,7 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		existingDep, _ = dd.externalDependencies.EnsureComponent(depComponent)
 		dComponent.AddDependency(existingDep)
 
-		l.Infof("Excluded external dependency: %s", depComponent.DisplayPath())
+		l.Debugf("Excluded external dependency: %s", depComponent.DisplayPath())
 
 		// Record in report as excluded external dependency
 		if dd.report != nil {
