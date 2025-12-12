@@ -34,6 +34,8 @@ const (
 	AutoProviderCacheDir = "auto-provider-cache-dir"
 	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
 	FilterFlag = "filter-flag"
+	// IacEngine is the experiment that enables usage of Terragrunt IaC engines for running IaC operations.
+	IacEngine = "iac-engine"
 )
 
 const (
@@ -78,6 +80,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: FilterFlag,
+		},
+		{
+			Name: IacEngine,
 		},
 	}
 }

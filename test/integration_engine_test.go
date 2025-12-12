@@ -283,6 +283,76 @@ func TestEngineTelemetry(t *testing.T) {
 	helpers.ValidateHookTraceParent(t, "hook_print_traceparent", str)
 }
 
+//nolint:paralleltest
+func TestNoEngineFlagDisablesEngine(t *testing.T) {
+	t.Setenv(envVarExperimental, "1")
+
+	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuEngine)
+
+	// First, verify engine is used when experiment is enabled
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Tofu Initialization started")
+	assert.Contains(t, stderr, "Tofu Initialization completed")
+	assert.Contains(t, stderr, "Tofu Shutdown completed")
+
+	// Then, verify engine is NOT used when --no-engine flag is set
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --no-engine --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "Tofu Initialization started")
+	assert.NotContains(t, stderr, "Tofu Initialization completed")
+	assert.NotContains(t, stderr, "Tofu Shutdown completed")
+	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
+}
+
+//nolint:paralleltest
+func TestNoEngineFlagWithExperimentFlag(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuEngine)
+
+	// Verify engine is used when --experiment iac-engine is set
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --experiment iac-engine --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Tofu Initialization started")
+	assert.Contains(t, stderr, "Tofu Initialization completed")
+	assert.Contains(t, stderr, "Tofu Shutdown completed")
+
+	// Verify engine is NOT used when both --experiment iac-engine and --no-engine are set
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --experiment iac-engine --no-engine --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "Tofu Initialization started")
+	assert.NotContains(t, stderr, "Tofu Initialization completed")
+	assert.NotContains(t, stderr, "Tofu Shutdown completed")
+	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
+}
+
+//nolint:paralleltest
+func TestNoEngineFlagWithRunAll(t *testing.T) {
+	t.Setenv(envVarExperimental, "1")
+
+	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
+
+	// Verify engine is used in run --all when experiment is enabled
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- plan -no-color", rootPath))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Tofu Initialization started")
+	assert.Contains(t, stderr, "Tofu Initialization completed")
+	assert.Contains(t, stderr, "Tofu Shutdown completed")
+
+	// Verify engine is NOT used in run --all when --no-engine is set
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --no-engine --working-dir %s -- plan -no-color", rootPath))
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "Tofu Initialization started")
+	assert.NotContains(t, stderr, "Tofu Initialization completed")
+	assert.NotContains(t, stderr, "Tofu Shutdown completed")
+	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
+}
+
 func setupEngineCache(t *testing.T) (string, string) {
 	t.Helper()
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -87,7 +88,7 @@ func RunCommandWithOutput(
 
 		if command == opts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if opts.Engine != nil && opts.EngineEnabled {
+			if opts.Engine != nil && opts.Experiments.Evaluate(experiment.IacEngine) && !opts.NoEngine {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
