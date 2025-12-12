@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	testFixtureQueueStrictInclude = "fixtures/queue-strict-include"
+	testFixtureQueueStrictInclude             = "fixtures/queue-strict-include"
+	testFixtureQueueStrictIncludeUnitsReading = "fixtures/queue-strict-include-units-reading"
 )
 
 // TestQueueStrictIncludeWithDependencyNotInQueue tests that when using --queue-strict-include
@@ -136,4 +137,30 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 		assert.Contains(t, output, "found 1 readyEntries tasks",
 			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue")
 	})
+}
+
+// TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir reproduces the bug where
+// --queue-strict-include with --queue-include-units-reading (but no --queue-include-dir)
+// fails to discover units that read the specified file.
+func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictIncludeUnitsReading)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
+
+	// This reproduces the bug: --queue-strict-include + --queue-include-units-reading
+	// without --queue-include-dir should still include units that read the file
+	cmd := fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s --queue-strict-include --queue-include-units-reading=sources/source.hcl -- plan", testPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+	// The command should succeed and discover the unit
+	require.NoError(t, err, "Command should succeed\nstdout: %s\nstderr: %s", stdout, stderr)
+
+	output := stdout + stderr
+
+	// Verify that the unit reading sources/source.hcl is discovered and included
+	// This should pass after the fix, but currently fails due to the bug
+	assert.Contains(t, output, "live/foo", "Unit live/foo that reads sources/source.hcl should be included")
+	assert.NotContains(t, output, "No units discovered", "Should discover units reading sources/source.hcl")
 }

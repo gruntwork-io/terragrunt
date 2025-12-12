@@ -194,6 +194,9 @@ func unexcludeUnitsReading(components component.Components, normalizedReading []
 
 			readPath = util.CleanPath(readPath)
 
+			// Also resolve symlinks for consistent comparison
+			readPath = resolvePath(readPath)
+
 			if _, ok := readingSet[readPath]; ok {
 				unit.SetExcluded(false)
 
@@ -259,9 +262,10 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 		return components
 	}
 
-	// Normalize paths
-	normalizedReading := normalizePaths(opts.WorkingDir, opts.UnitsReading)
-	normalizedIncluding := normalizePaths(opts.WorkingDir, opts.ModulesThatInclude)
+	// Normalize paths using discoveryContext.WorkingDir which is always set correctly
+	workingDir := d.discoveryContext.WorkingDir
+	normalizedReading := normalizePaths(workingDir, opts.UnitsReading)
+	normalizedIncluding := normalizePaths(workingDir, opts.ModulesThatInclude)
 
 	// Capture pre-included units before resetting
 	preIncluded := capturePreIncluded(components)
@@ -270,10 +274,10 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 	resetAllUnitsExcluded(components)
 
 	// Un-exclude units that read the requested files
-	unexcludeUnitsReading(components, normalizedReading, opts.WorkingDir)
+	unexcludeUnitsReading(components, normalizedReading, workingDir)
 
 	// Un-exclude units that include the requested files
-	unexcludeModulesThatInclude(components, normalizedIncluding, opts.WorkingDir)
+	unexcludeModulesThatInclude(components, normalizedIncluding, workingDir)
 
 	// Restore prior inclusions
 	restorePreIncluded(components, preIncluded)
