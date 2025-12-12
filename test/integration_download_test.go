@@ -280,50 +280,48 @@ func TestExcludeDirs(t *testing.T) {
 	}
 
 	testCases := []struct {
-		workingDir            string
+		name                  string
 		excludeArgs           string
 		excludedModuleOutputs []string
 		enableDoubleStar      bool
 	}{
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, false},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, false},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, false},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, true},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, true},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, true},
+		{"exclude gce modules with triple star", "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, false},
+		{"exclude production env and gce c modules with triple star", "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, false},
+		{"exclude integration env gce b and c modules and aws modules with triple star", "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, false},
+		{"exclude gce modules with double star", "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, true},
+		{"exclude production env and gce c modules with double star", "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, true},
+		{"exclude integration env gce b and c modules and aws modules with double star", "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, true},
 	}
 
-	modulePaths := make(map[string]string, len(moduleNames))
-	for _, moduleName := range moduleNames {
-		modulePaths[moduleName] = util.JoinPath(testFixtureLocalWithExcludeDir, moduleName)
-	}
-
-	for _, tc := range testCases {
+	for _, tt := range testCases {
 		opts, err := options.NewTerragruntOptionsForTest("running_module_test")
 		require.NoError(t, err)
 
 		doubleStarDefaultEnabled := opts.StrictControls.FilterByNames("double-star").Evaluate(t.Context()) != nil
-		if doubleStarDefaultEnabled && !tc.enableDoubleStar {
+		if doubleStarDefaultEnabled && !tt.enableDoubleStar {
 			t.Skip("Skipping test because double-star is already enabled by default")
+		}
+
+		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+		workingDir := util.JoinPath(tmpDir, testFixtureLocalWithExcludeDir)
+		workingDir, err = filepath.EvalSymlinks(workingDir)
+		require.NoError(t, err)
+
+		modulePaths := make(map[string]string, len(moduleNames))
+		for _, moduleName := range moduleNames {
+			modulePaths[moduleName] = util.JoinPath(workingDir, moduleName)
 		}
 
 		applyAllStdout := bytes.Buffer{}
 		applyAllStderr := bytes.Buffer{}
 
-		// Cleanup all modules directories.
-		helpers.CleanupTerragruntFolder(t, testFixtureLocalWithExcludeDir)
-
-		for _, modulePath := range modulePaths {
-			helpers.CleanupTerragruntFolder(t, modulePath)
-		}
-
 		// Apply modules according to test cases
 		strictControl := ""
-		if !doubleStarDefaultEnabled && tc.enableDoubleStar {
+		if !doubleStarDefaultEnabled && tt.enableDoubleStar {
 			strictControl = "--strict-control double-star"
 		}
 
-		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", tc.workingDir, tc.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
+		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", workingDir, tt.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
 		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
@@ -341,7 +339,96 @@ func TestExcludeDirs(t *testing.T) {
 			require.NoError(t, err)
 
 			output := showStdout.String()
-			for _, excludedModuleOutput := range tc.excludedModuleOutputs {
+			for _, excludedModuleOutput := range tt.excludedModuleOutputs {
+				assert.NotContains(t, output, excludedModuleOutput)
+			}
+		}
+	}
+}
+
+func TestExcludeDirsWithFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	// Populate module paths.
+	moduleNames := []string{
+		"integration-env/aws/module-aws-a",
+		"integration-env/gce/module-gce-b",
+		"integration-env/gce/module-gce-c",
+		"production-env/aws/module-aws-d",
+		"production-env/gce/module-gce-e",
+	}
+
+	testCases := []struct {
+		name                  string
+		excludeArgs           string
+		excludedModuleOutputs []string
+	}{
+		{
+			name:                  "exclude gce modules",
+			excludeArgs:           "--filter '!./**/gce/**'",
+			excludedModuleOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			name:                  "exclude production env and gce c modules",
+			excludeArgs:           "--filter '!./production-env/**' --filter '!./**/module-gce-c'",
+			excludedModuleOutputs: []string{"Module GCE C", "Module AWS D", "Module GCE E"},
+		},
+		{
+			name:                  "exclude integration env gce b and c modules and aws modules",
+			excludeArgs:           "--filter '!./integration-env/gce/module-gce-b' --filter '!./integration-env/gce/module-gce-c' --filter '!./**/module-aws*'",
+			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
+		},
+		{
+			name:                  "exclude gce modules",
+			excludeArgs:           "--filter '!./**/gce/**'",
+			excludedModuleOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			name:                  "exclude production env and gce c modules",
+			excludeArgs:           "--filter '!./production-env/**' --filter '!./**/module-gce-c'",
+			excludedModuleOutputs: []string{"Module GCE C", "Module AWS D", "Module GCE E"},
+		},
+		{
+			name:                  "exclude integration env gce b and c modules and aws modules",
+			excludeArgs:           "--filter '!./integration-env/gce/module-gce-b' --filter '!./integration-env/gce/module-gce-c' --filter '!./**/module-aws*'",
+			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
+		},
+	}
+
+	for _, tt := range testCases {
+		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+		workingDir := util.JoinPath(tmpDir, testFixtureLocalWithExcludeDir)
+		workingDir, err := filepath.EvalSymlinks(workingDir)
+		require.NoError(t, err)
+
+		modulePaths := make(map[string]string, len(moduleNames))
+		for _, moduleName := range moduleNames {
+			modulePaths[moduleName] = util.JoinPath(workingDir, moduleName)
+		}
+
+		// Apply modules according to test cases
+		_, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s",
+				workingDir,
+				tt.excludeArgs,
+			),
+		)
+		require.NoError(t, err)
+
+		// Check that the excluded module output is not present
+		for _, modulePath := range modulePaths {
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt show --non-interactive --log-level trace --working-dir "+modulePath)
+
+			require.NoError(t, err)
+
+			output := stdout
+			for _, excludedModuleOutput := range tt.excludedModuleOutputs {
 				assert.NotContains(t, output, excludedModuleOutput)
 			}
 		}

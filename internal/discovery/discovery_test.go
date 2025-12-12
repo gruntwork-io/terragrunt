@@ -707,7 +707,7 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(tt.filters, tmpDir)
+			filters, err := filter.ParseFilterQueries(tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -787,7 +787,7 @@ func TestDependentDiscovery_WithStartingComponents(t *testing.T) {
 	}
 
 	dd := discovery.NewDependentDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(10)
-	err := dd.DiscoverAllDependents(t.Context(), logger.CreateLogger(), startingComponents)
+	err := dd.Discover(t.Context(), logger.CreateLogger(), startingComponents)
 	require.NoError(t, err)
 }
 
@@ -827,7 +827,7 @@ func TestDependencyDiscovery_DiscoverAllDependencies(t *testing.T) {
 
 	require.NotNil(t, dd)
 	// Verify the method accepts startingComponents as a parameter and doesn't panic
-	err := dd.DiscoverAllDependencies(t.Context(), logger.CreateLogger(), opts, startingComponents)
+	err := dd.Discover(t.Context(), logger.CreateLogger(), opts, startingComponents)
 	require.NoError(t, err)
 }
 
@@ -893,7 +893,7 @@ dependency "vpc" {
 	dependencyDiscovery := discovery.NewDependencyDiscovery(component.NewThreadSafeComponents(allComponents)).WithMaxDepth(100)
 
 	// Discover dependencies starting from app only
-	err = dependencyDiscovery.DiscoverAllDependencies(t.Context(), logger.CreateLogger(), opts, component.Components{startingComponent})
+	err = dependencyDiscovery.Discover(t.Context(), logger.CreateLogger(), opts, component.Components{startingComponent})
 	require.NoError(t, err)
 
 	// Verify that app component now has its dependencies

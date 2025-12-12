@@ -2,6 +2,7 @@ package component
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -40,20 +41,18 @@ type Stack struct {
 // NewStack creates a new Stack component with the given path.
 func NewStack(path string) *Stack {
 	return &Stack{
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
+		path:             path,
+		discoveryContext: &DiscoveryContext{},
+		dependencies:     make(Components, 0),
+		dependents:       make(Components, 0),
 	}
 }
 
-// NewStackWithConfig creates a new Stack component with the given path and config.
-func NewStackWithConfig(path string, cfg *config.StackConfig) *Stack {
-	return &Stack{
-		cfg:          cfg,
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
-	}
+// WithDiscoveryContext sets the discovery context for this stack.
+func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
+	s.discoveryContext = ctx
+
+	return s
 }
 
 // Config returns the parsed Stack configuration for this stack.
@@ -79,6 +78,20 @@ func (s *Stack) Path() string {
 // SetPath sets the path to the component.
 func (s *Stack) SetPath(path string) {
 	s.path = path
+}
+
+// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
+// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
+func (s *Stack) DisplayPath() string {
+	if s.discoveryContext == nil || s.discoveryContext.WorkingDir == "" {
+		return s.path
+	}
+
+	if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
+		return rel
+	}
+
+	return s.path
 }
 
 // External returns whether the component is external.

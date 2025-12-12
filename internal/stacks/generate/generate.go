@@ -6,17 +6,22 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -44,8 +49,38 @@ func NewStackNode(filePath string) *StackNode {
 
 // GenerateStacks generates the stack files using topological ordering to prevent race conditions.
 // Stack files are generated level by level, ensuring parent stacks complete before their children.
-func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	foundFiles, err := ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+// If externalWorktrees is provided, it will be used instead of creating new worktrees.
+func GenerateStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	externalWorktrees ...*worktrees.Worktrees,
+) error {
+	var wts *worktrees.Worktrees
+
+	// Use external worktrees if provided, otherwise create internally
+	if len(externalWorktrees) > 0 && externalWorktrees[0] != nil {
+		wts = externalWorktrees[0]
+	} else {
+		// Create worktrees internally if filter-flag experiment is enabled and git filters are present
+		var err error
+
+		wts, err = buildWorktreesIfNeeded(ctx, l, opts)
+		if err != nil {
+			return errors.Errorf("failed to create worktrees: %w", err)
+		}
+
+		// Only cleanup worktrees we created internally
+		if wts != nil {
+			defer func() {
+				if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+					l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+				}
+			}()
+		}
+	}
+
+	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -77,7 +112,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 			return err
 		}
 
-		if err := discoverAndAddNewNodes(ctx, l, opts, stackTrees, generatedFiles, level+1); err != nil {
+		if err := discoverAndAddNewNodes(ctx, l, opts, wts, stackTrees, generatedFiles, level+1); err != nil {
 			return err
 		}
 	}
@@ -114,8 +149,16 @@ func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 }
 
 // discoverAndAddNewNodes discovers new stack files and adds them to the dependency graph.
-func discoverAndAddNewNodes(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dependencyGraph map[string]*StackNode, generatedFiles map[string]bool, minLevel int) error {
-	newFiles, listErr := ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+func discoverAndAddNewNodes(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+	dependencyGraph map[string]*StackNode,
+	generatedFiles map[string]bool,
+	minLevel int,
+) error {
+	newFiles, listErr := ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
 	if listErr != nil {
 		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -247,15 +290,16 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFilesMaybeWithDiscovery searches for stack files in the specified directory using the discovery package.
+// ListStackFiles searches for stack files in the specified directory.
 //
 // We only want to use the discovery package when the filter flag experiment is enabled, as we need to filter discovery
 // results to ensure that we get the right files back for generation.
-func ListStackFilesMaybeWithDiscovery(
+func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	dir string,
+	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
 	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
 		return listStackFiles(l, opts, dir)
@@ -270,17 +314,26 @@ func ListStackFilesMaybeWithDiscovery(
 		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
 	}
 
-	components, err := discovery.Discover(ctx, l, opts)
+	discoveredComponents, err := discovery.Discover(ctx, l, opts)
 	if err != nil {
 		return nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
-	foundFiles := make([]string, 0, len(components))
-	for _, c := range components {
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees, opts.Experiments)
+	if err != nil {
+		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+	}
+
+	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
+	for _, c := range discoveredComponents {
 		if _, ok := c.(*component.Stack); !ok {
 			continue
 		}
 
+		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+	}
+
+	for _, c := range worktreeStacks {
 		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 	}
 
@@ -334,4 +387,142 @@ func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) (
 	}
 
 	return stackFiles, nil
+}
+
+// worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
+func worktreeStacksToGenerate(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	w *worktrees.Worktrees,
+	experiments experiment.Experiments,
+) (component.Components, error) {
+	// If worktrees is nil, there are no worktrees to process, return empty components.
+	if w == nil {
+		return component.Components{}, nil
+	}
+
+	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
+
+	// If we edit a stack in a worktree, we need to generate it, at the minimum.
+	stackDiff := w.Stacks()
+
+	editedStacks := append(
+		stackDiff.Added,
+		stackDiff.Removed...,
+	)
+
+	for _, changed := range stackDiff.Changed {
+		editedStacks = append(editedStacks, changed.FromStack, changed.ToStack)
+	}
+
+	for _, stack := range editedStacks {
+		stacksToGenerate.EnsureComponent(stack)
+	}
+
+	// When the expanded filter for a given Git expression requires parsing,
+	// we need to generate all the stacks in the given worktree, as units within the generated stack might be affected.
+	//
+	// Based on business logic, the from branch here should never be used, but we'll check it anyways for completeness.
+	// We only require parsing for reading filters, and those only trigger in expanded Git expressions when
+	// the file is modified (which would result in a toFilter being returned).
+
+	fullDiscoveries := map[string]*discovery.Discovery{}
+
+	for _, pair := range w.WorktreePairs {
+		fromFilters, toFilters := pair.Expand()
+
+		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
+			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+				WorkingDir:    pair.FromWorktree.Path,
+				FilterQueries: []string{"type=stack"},
+				Experiments:   experiments,
+			})
+			if err != nil {
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.FromWorktree.Ref, err)
+			}
+
+			fullDiscoveries[pair.FromWorktree.Ref] = disc
+		}
+
+		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
+			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+				WorkingDir:    pair.ToWorktree.Path,
+				FilterQueries: []string{"type=stack"},
+				Experiments:   experiments,
+			})
+			if err != nil {
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.ToWorktree.Ref, err)
+			}
+
+			fullDiscoveries[pair.ToWorktree.Ref] = disc
+		}
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(min(runtime.NumCPU(), len(fullDiscoveries)))
+
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+
+	for ref, disc := range fullDiscoveries {
+		// Create per-iteration local copies to avoid closure capture bug
+		refCopy := ref
+		discCopy := disc
+
+		g.Go(func() error {
+			components, err := discCopy.Discover(ctx, l, opts)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", refCopy, err))
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			for _, c := range components {
+				stacksToGenerate.EnsureComponent(c)
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return stacksToGenerate.ToComponents(), errors.Join(errs...)
+	}
+
+	return stacksToGenerate.ToComponents(), nil
+}
+
+// buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
+// Returns nil worktrees if the experiment is not enabled or no git filters are present.
+func buildWorktreesIfNeeded(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*worktrees.Worktrees, error) {
+	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
+		return nil, nil
+	}
+
+	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse filters: %w", err)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+	if len(gitFilters) == 0 {
+		return nil, nil
+	}
+
+	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 }

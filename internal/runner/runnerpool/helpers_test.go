@@ -78,9 +78,10 @@ func TestCloneUnitOptions_NilStackExecution(t *testing.T) {
 	t.Parallel()
 
 	stack := component.NewStack(t.TempDir())
+	unit := component.NewUnit("/some/path")
 	l := thlogger.CreateLogger()
 
-	opts, logger, err := cloneUnitOptions(stack, "/some/path/terragrunt.hcl", "", l)
+	opts, logger, err := cloneUnitOptions(stack, unit, "/some/path/terragrunt.hcl", "", l)
 
 	require.NoError(t, err)
 	assert.Nil(t, opts)
@@ -101,9 +102,10 @@ func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
 		TerragruntOptions: stackOpts,
 	}
 
+	unit := component.NewUnit(tmpDir)
 	l := thlogger.CreateLogger()
 
-	opts, logger, err := cloneUnitOptions(stack, configPath, "", l)
+	opts, logger, err := cloneUnitOptions(stack, unit, configPath, "", l)
 
 	require.NoError(t, err)
 	require.NotNil(t, opts)

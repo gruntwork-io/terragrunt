@@ -2,11 +2,16 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +26,7 @@ const (
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
+	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -206,7 +212,14 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyEmptyConfigPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
-	helpers.CreateGitRepo(t, gitPath)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(gitPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Run directly against the consumer unit to force evaluation of dependency outputs
 	consumerPath := util.JoinPath(gitPath, "_source", "units", "consumer")
@@ -305,6 +318,8 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 // TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
 // to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
 // excluding external dependencies.
+// Note: As of #5195 fix, external dependencies are excluded by default, so --queue-exclude-external
+// is now deprecated and acts as a no-op. This test verifies the behavior still works correctly.
 func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
 	t.Parallel()
 
@@ -313,7 +328,8 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
 	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
 
-	// Set TG_PROVIDER_CACHE=1 and use --queue-exclude-external as in the repro steps
+	// Use --queue-exclude-external as in the repro steps (now deprecated, acts as no-op since
+	// external dependencies are excluded by default after #5195 fix)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
@@ -439,4 +455,214 @@ func TestMultipleStacksDetection(t *testing.T) {
 	assert.NotContains(t, stderr, "appv2.terragrunt.stack.hcl")
 	assert.NotContains(t, stderr, "unit4")
 	assert.NotContains(t, stderr, "unit3")
+}
+
+// flushTrackingWriter wraps a writer and tracks writes and output size changes (which indicate flushes)
+type flushTrackingWriter struct {
+	w      io.Writer
+	signal chan<- struct{}
+	mu     sync.Mutex
+	writes int
+	once   bool
+}
+
+func (ftw *flushTrackingWriter) Write(p []byte) (int, error) {
+	ftw.mu.Lock()
+	ftw.writes++
+
+	shouldSignal := !ftw.once && ftw.signal != nil
+	if shouldSignal {
+		ftw.once = true
+	}
+
+	ftw.mu.Unlock()
+
+	if shouldSignal {
+		select {
+		case ftw.signal <- struct{}{}:
+		default:
+		}
+	}
+
+	return ftw.w.Write(p)
+}
+
+func (ftw *flushTrackingWriter) getWriteCount() int {
+	ftw.mu.Lock()
+	defer ftw.mu.Unlock()
+
+	return ftw.writes
+}
+
+// TestOutputFlushOnInterrupt verifies that buffered output is flushed when context is cancelled.
+func TestOutputFlushOnInterrupt(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows - signal handling differs")
+	}
+
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput, "app")
+	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput, "dependency")
+
+	// Initialize and apply dependency first so outputs are available
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+dependencyPath)
+	helpers.RunTerragrunt(t, "terragrunt apply --auto-approve --non-interactive --working-dir "+dependencyPath)
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+testPath)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	firstWrite := make(chan struct{}, 1)
+
+	var stdoutBuf, stderrBuf strings.Builder
+
+	stdout := &flushTrackingWriter{w: &stdoutBuf, signal: firstWrite}
+	stderr := &flushTrackingWriter{w: &stderrBuf, signal: firstWrite}
+	cmdErr := make(chan error, 1)
+
+	go func() {
+		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
+	}()
+
+	// Wait for first write, then cancel to test flush on interrupt
+	var outputBeforeCancel string
+
+	var writesBeforeCancel int
+
+	select {
+	case <-firstWrite:
+		outputBeforeCancel = stdoutBuf.String() + stderrBuf.String()
+		writesBeforeCancel = stdout.getWriteCount() + stderr.getWriteCount()
+		t.Logf("First write detected (%d bytes, %d writes), cancelling context", len(outputBeforeCancel), writesBeforeCancel)
+		cancel()
+	case <-cmdErr:
+		t.Fatal("Command finished before we could interrupt it")
+	case <-time.After(3 * time.Second):
+		t.Fatal("No output appeared before timeout")
+	}
+
+	// Wait briefly for flush to occur after cancellation
+	time.Sleep(200 * time.Millisecond)
+
+	outputAfterCancel := stdoutBuf.String() + stderrBuf.String()
+	writesAfterCancel := stdout.getWriteCount() + stderr.getWriteCount()
+
+	// Wait for command to finish or timeout
+	select {
+	case <-cmdErr:
+		// Command finished
+	case <-time.After(5 * time.Second):
+		t.Logf("Command still running after cancellation")
+	}
+
+	output := stdoutBuf.String() + stderrBuf.String()
+	totalWrites := stdout.getWriteCount() + stderr.getWriteCount()
+
+	t.Logf("Output length: before cancel=%d, after cancel=%d, final=%d", len(outputBeforeCancel), len(outputAfterCancel), len(output))
+	t.Logf("Total writes: before cancel=%d, after cancel=%d, final=%d", writesBeforeCancel, writesAfterCancel, totalWrites)
+
+	// Verify that output increased after cancellation (indicating flush occurred)
+	require.Greater(t, len(outputAfterCancel), len(outputBeforeCancel), "Output should increase after cancellation due to flush")
+	require.Greater(t, totalWrites, writesBeforeCancel, "Additional writes should occur after cancellation (flush writes)")
+	require.NotEmpty(t, output, "Expected output to be flushed after cancellation")
+}
+
+// TestRunAllDoesNotIncludeExternalDepsInQueue tests that running `terragrunt run --all` from a subdirectory
+// does NOT include external dependencies in the execution queue.
+// This is a regression test for issue #5195 where v0.94.0 incorrectly included external dependencies
+// in the run queue, causing dangerous operations like destroy to execute against unintended modules.
+//
+// The test structure is:
+//
+//	fixtures/regressions/5195-scope-escape/
+//	├── bastion/           <- Run from here, has dependency on module2
+//	│   ├── terragrunt.hcl (depends on ../module2 with mock_outputs)
+//	│   └── main.tf
+//	├── module1/           <- Has dependency on bastion
+//	│   ├── terragrunt.hcl
+//	│   └── main.tf
+//	└── module2/           <- External dependency of bastion
+//	    ├── terragrunt.hcl
+//	    └── main.tf
+//
+// Expected behavior (v0.93.13 and after fix):
+//   - External dependency (module2) is discovered but EXCLUDED from execution
+//   - Summary shows "Excluded 1" for the external dep
+//   - Only bastion (Unit .) is actually executed
+//
+// Bug behavior (v0.94.0):
+//   - External dependency is included and EXECUTED (not excluded)
+//   - This causes unintended operations on external modules
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureScopeEscape)
+	bastionPath := util.JoinPath(rootPath, "bastion")
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the bastion directory
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --log-level debug --non-interactive --working-dir "+bastionPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err)
+
+	// External dependencies should be excluded (not executed)
+	// The log should show they were excluded during discovery
+	assert.Contains(t, stderr, "Excluded external dependency",
+		"External dependencies should be logged as excluded")
+
+	// Should see bastion (displayed as "." since it's the current directory)
+	assert.Contains(t, stderr, "Unit .",
+		"Should discover the current directory (bastion) as '.'")
+
+	// Report shows 2 units (bastion + excluded external dep)
+	assert.Contains(t, stdout, "2 units",
+		"Should have 2 units total (bastion + excluded external dep)")
+	assert.Contains(t, stdout, "Succeeded    1",
+		"Only bastion should succeed")
+	assert.Contains(t, stdout, "Excluded     1",
+		"External dependency should be excluded in report")
+}
+
+// TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory
+// correctly discovers all modules in the hierarchy. This is the control test for
+// TestRunAllDoesNotEscapeWorkingDir.
+func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureScopeEscape)
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the parent directory (live/)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed in terms of discovery
+	_ = err
+
+	// Should see all three modules when running from parent directory
+	assert.Contains(t, stderr, "bastion",
+		"Should discover bastion when running from parent directory")
+	assert.Contains(t, stderr, "module1",
+		"Should discover module1 when running from parent directory")
+	assert.Contains(t, stderr, "module2",
+		"Should discover module2 when running from parent directory")
 }

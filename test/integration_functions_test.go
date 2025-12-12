@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -177,9 +178,18 @@ func TestGetRepoRootCaching(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
-	helpers.CreateGitRepo(t, rootPath)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
+	runner = runner.WithWorkDir(rootPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
@@ -195,7 +205,14 @@ func TestGetRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
-	helpers.CreateGitRepo(t, rootPath)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(rootPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -204,7 +221,12 @@ func TestGetRepoRoot(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -224,7 +246,14 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
 
-	helpers.CreateGitRepo(t, rootPath)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(rootPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -245,9 +274,9 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	expectedWorkingDir := filepath.Join(rootPath, util.TerragruntCacheDir)
 	curWalkStep := 0
 
-	err := filepath.Walk(expectedWorkingDir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil || !info.IsDir() {
+	err = filepath.WalkDir(expectedWorkingDir,
+		func(path string, d fs.DirEntry, err error) error {
+			if err != nil || !d.IsDir() {
 				return err
 			}
 
@@ -293,7 +322,14 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	basePath := util.JoinPath(rootPath, "base")
 	clusterPath := util.JoinPath(rootPath, "cluster")
 
-	helpers.CreateGitRepo(t, tmpEnvPath)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpEnvPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -321,7 +357,14 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
-	helpers.CreateGitRepo(t, tmpEnvPath)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpEnvPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -350,7 +393,14 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathToRepoRoot)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	helpers.CreateGitRepo(t, tmpEnvPath)
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpEnvPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty

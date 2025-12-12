@@ -8,7 +8,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -56,12 +58,34 @@ func buildConfigFilenames(tgOpts *options.TerragruntOptions) []string {
 }
 
 // parseFilters wraps filter parsing for readability.
-func parseFilters(queries []string, workingDir string) (filter.Filters, error) {
+func parseFilters(queries []string) (filter.Filters, error) {
 	if len(queries) == 0 {
 		return filter.Filters{}, nil
 	}
 
-	return filter.ParseFilterQueries(queries, workingDir)
+	return filter.ParseFilterQueries(queries)
+}
+
+// extractWorktrees finds WorktreeOption in options and returns worktrees.
+func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
+	for _, opt := range opts {
+		if wo, ok := opt.(common.WorktreeOption); ok {
+			return wo.Worktrees
+		}
+	}
+
+	return nil
+}
+
+// extractReport finds ReportProvider in options and returns the report.
+func extractReport(opts []common.Option) *report.Report {
+	for _, opt := range opts {
+		if rp, ok := opt.(common.ReportProvider); ok {
+			return rp.GetReport()
+		}
+	}
+
+	return nil
 }
 
 // newBaseDiscovery constructs the base discovery with common immutable options.
@@ -76,19 +100,30 @@ func newBaseDiscovery(
 		anyOpts[i] = v
 	}
 
-	return discovery.
+	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anyOpts...).
-		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  tgOpts.TerraformCliArgs.First(),
-			Args: tgOpts.TerraformCliArgs.Tail(),
+			WorkingDir: workingDir,
+			Cmd:        tgOpts.TerraformCliArgs.First(),
+			Args:       tgOpts.TerraformCliArgs.Tail(),
 		})
+
+	// Only include external dependencies in the run queue if explicitly requested via --queue-include-external.
+	// This restores the pre-v0.94.0 behavior where external dependencies were excluded by default.
+	// External dependencies are still detected and tracked for reporting purposes, but not fully discovered
+	// unless this flag is set.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+	if tgOpts.IncludeExternalDependencies {
+		d = d.WithDiscoverExternalDependencies()
+	}
+
+	return d
 }
 
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
@@ -127,12 +162,22 @@ func prepareDiscovery(
 
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
-		filters, err := parseFilters(tgOpts.FilterQueries, workingDir)
+		filters, err := parseFilters(tgOpts.FilterQueries)
 		if err != nil {
 			return nil, errors.Errorf("failed to parse filter queries in %s: %w", workingDir, err)
 		}
 
 		d = d.WithFilters(filters)
+	}
+
+	// Apply worktrees for git filter expressions
+	if w := extractWorktrees(opts); w != nil {
+		d = d.WithWorktrees(w)
+	}
+
+	// Apply report for recording excluded external dependencies
+	if r := extractReport(opts); r != nil {
+		d = d.WithReport(r)
 	}
 
 	return d, nil

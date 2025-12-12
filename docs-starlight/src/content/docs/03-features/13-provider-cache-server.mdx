@@ -6,6 +6,14 @@ sidebar:
   order: 13
 ---
 
+import { Aside } from '@astrojs/starlight/components'
+
+<Aside type="tip">
+If you're using OpenTofu >= 1.10, you'll use the [Automatic Provider Cache Dir](/docs/features/auto-provider-cache-dir) feature by default on the latest version of Terragrunt.
+
+You might not necessarily get any performance benefits when using this feature if so. Only use this feature if you are using an older version of OpenTofu, if you are using Terraform or if you are reaching a performance bottleneck that is not addressed by the Automatic Provider Cache Dir feature.
+</Aside>
+
 Terragrunt has the ability to cache OpenTofu/Terraform providers across all OpenTofu/Terraform runs. The Provider Cache Server feature ensures that each provider is only ever downloaded and stored on disk exactly once by running a local provider cache server while Terragrunt runs OpenTofu/Terraform commands.
 
 The Provider Cache Server is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
@@ -18,12 +26,15 @@ Let's imagine that your project consists of 50 Terragrunt units, and each of the
 
 OpenTofu/Terraform has a provider caching feature, the [Provider Plugin Cache](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), that does the job well... unless you run multiple OpenTofu/Terraform processes simultaneously, such as when you use `terragrunt run --all`. Then the OpenTofu/Terraform processes begin conflict by overwriting each other’s cache, which causes an error such as `Error: Failed to install provider`. As a result, Terragrunt previously had to disable concurrency for `init` steps in `run --all`, which is significantly slower. If you enable Terragrunt Provider Caching, as described in this section, that will no longer be necessary, and you should see significant performance improvements with `init`, as well as significant savings in terms of bandwidth and disk space usage.
 
+<Aside type="note">
+This isn't necessarily true for the latest version of OpenTofu anymore! For more information, see the [Automatic Provider Cache Dir](/docs/features/auto-provider-cache-dir) feature documentation.
+</Aside>
 ## Usage
 
-Terragrunt Provider Cache is currently considered an experimental feature, so it is disabled by default. To enable it, you need to use the flag [`provider-cache`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache):
+The Terragrunt Provider Cache Server is disabled by default. To enable it, you need to use the flag [`provider-cache`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache):
 
 ```shell
-terragrunt run --all apply --provider-cache
+terragrunt run --all --provider-cache apply
 ```
 
 or the environment variable `TG_PROVIDER_CACHE`:

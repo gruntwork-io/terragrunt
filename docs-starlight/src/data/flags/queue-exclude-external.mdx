@@ -6,8 +6,14 @@ env:
   - TG_QUEUE_EXCLUDE_EXTERNAL
 ---
 
-When enabled, Terragrunt will exclude external dependencies (dependencies outside the current working directory) from the queue when running commands with [`all`](/docs/reference/cli/commands/run#all).
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Deprecated">
+This flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default, making this flag unnecessary.
+
+Use [`--queue-include-external`](/docs/reference/cli/commands/run#queue-include-external) if you need to include external dependencies.
+</Aside>
+
+When enabled, Terragrunt will exclude external dependencies (dependencies outside the current working directory) from the queue when running commands with [`--all`](/docs/reference/cli/commands/run#all).
 
 Note that an external dependency is a dependency that is outside the current Terragrunt working directory and is not within any directories specified by [`queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir).
-
-This flag is useful when you want to limit the scope of execution to only units within your current working directory structure.

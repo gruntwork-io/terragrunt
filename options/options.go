@@ -224,6 +224,8 @@ type TerragruntOptions struct {
 	ForwardTFStdout bool
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
+	// FilterAllowDestroy allows destroy runs when using Git-based filters
+	FilterAllowDestroy bool
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
 	// Disables validation terraform command
@@ -532,10 +534,14 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 
 	workingDir := filepath.Dir(configPath)
 
+	// Only update logger field if the working directory actually changed
+	// This preserves any custom display path (e.g., relative path) set on the logger
+	if workingDir != opts.WorkingDir {
+		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+	}
+
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
-
-	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
 	return l, newOpts, nil
 }

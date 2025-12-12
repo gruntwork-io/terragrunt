@@ -3,6 +3,7 @@ package common
 import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 )
 
 // Option applies configuration to a StackRunner.
@@ -46,11 +47,38 @@ func WithParseOptions(parserOptions []hclparse.Option) Option {
 	}
 }
 
+// ReportProvider exposes the report attached to an Option.
+type ReportProvider interface {
+	GetReport() *report.Report
+}
+
+// reportOption wraps a report and implements both Option and ReportProvider.
+type reportOption struct {
+	report *report.Report
+}
+
+func (o reportOption) Apply(stack StackRunner) {
+	stack.SetReport(o.report)
+}
+
+func (o reportOption) GetReport() *report.Report {
+	return o.report
+}
+
 // WithReport attaches a report collector to the stack, enabling run summaries and metrics.
 func WithReport(r *report.Report) Option {
-	return optionImpl{
-		apply: func(stack StackRunner) {
-			stack.SetReport(r)
-		},
-	}
+	return reportOption{report: r}
+}
+
+// WorktreeOption carries worktrees through the runner pipeline for git filter expressions.
+type WorktreeOption struct {
+	Worktrees *worktrees.Worktrees
+}
+
+// Apply is a no-op for runner (worktrees are used in discovery, not runner execution).
+func (o WorktreeOption) Apply(stack StackRunner) {}
+
+// WithWorktrees provides git worktrees to discovery for git filter expressions.
+func WithWorktrees(w *worktrees.Worktrees) Option {
+	return WorktreeOption{Worktrees: w}
 }

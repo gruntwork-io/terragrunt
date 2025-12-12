@@ -104,7 +104,7 @@ dependency "db" {
 	opts.RootWorkingDir = tmpDir
 
 	// Path A: filter queries (experiment ON equivalent)
-	filters, err := filter.ParseFilterQueries([]string{`...{` + vpcDir + `}`}, tmpDir)
+	filters, err := filter.ParseFilterQueries([]string{`...{` + vpcDir + `}`})
 	require.NoError(t, err)
 
 	configsA, err := discovery.NewDiscovery(tmpDir).

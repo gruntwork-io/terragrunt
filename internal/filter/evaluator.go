@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -25,6 +26,15 @@ const (
 	MaxTraversalDepth = 1000000
 )
 
+// EvaluationContext provides additional context for filter evaluation, such as Git worktree directories.
+type EvaluationContext struct {
+	// GitWorktrees maps Git references to temporary worktree directory paths.
+	// This is used by GitFilter expressions to access different Git references.
+	GitWorktrees map[string]string
+	// WorkingDir is the base working directory for resolving relative paths.
+	WorkingDir string
+}
+
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 // If logger is provided, it will be used for logging warnings during evaluation.
 func Evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
@@ -32,15 +42,10 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 		return nil, NewEvaluationError("expression is nil")
 	}
 
-	return evaluate(l, expr, components)
-}
-
-// evaluate is the internal recursive evaluation function.
-func evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
 	switch node := expr.(type) {
-	case *PathFilter:
+	case *PathExpression:
 		return evaluatePathFilter(node, components)
-	case *AttributeFilter:
+	case *AttributeExpression:
 		return evaluateAttributeFilter(node, components)
 	case *PrefixExpression:
 		return evaluatePrefixExpression(l, node, components)
@@ -48,13 +53,15 @@ func evaluate(l log.Logger, expr Expression, components component.Components) (c
 		return evaluateInfixExpression(l, node, components)
 	case *GraphExpression:
 		return evaluateGraphExpression(l, node, components)
+	case *GitExpression:
+		return evaluateGitFilter(node, components)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, components component.Components) (component.Components, error) {
+func evaluatePathFilter(filter *PathExpression, components component.Components) (component.Components, error) {
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
@@ -63,14 +70,12 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 	var result component.Components
 
 	for _, component := range components {
-		normalizedPath := component.Path()
-		if !filepath.IsAbs(normalizedPath) {
-			normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+		matches, err := doesComponentValueMatchGlob(component, component.Path(), filter.Value, g)
+		if err != nil {
+			return nil, err
 		}
 
-		normalizedPath = filepath.ToSlash(normalizedPath)
-
-		if g.Match(normalizedPath) {
+		if matches {
 			result = append(result, component)
 		}
 	}
@@ -79,7 +84,7 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
@@ -136,18 +141,29 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 		}
 
 		for _, c := range components {
-			for _, readFile := range c.Reading() {
-				normalizedPath := readFile
-				if !filepath.IsAbs(normalizedPath) {
-					normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+			if slices.ContainsFunc(c.Reading(), g.Match) {
+				result = append(result, c)
+
+				continue
+			}
+
+			discoveryCtx := c.DiscoveryContext()
+			if discoveryCtx == nil || discoveryCtx.WorkingDir == "" {
+				continue
+			}
+
+			relReading := make([]string, 0, len(c.Reading()))
+			for _, reading := range c.Reading() {
+				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
+				if err != nil {
+					return nil, NewEvaluationErrorWithCause("failed to get relative path: "+reading, err)
 				}
 
-				normalizedPath = filepath.ToSlash(normalizedPath)
+				relReading = append(relReading, filepath.ToSlash(rel))
+			}
 
-				if g.Match(normalizedPath) {
-					result = append(result, c)
-					break
-				}
+			if slices.ContainsFunc(relReading, g.Match) {
+				result = append(result, c)
 			}
 		}
 	case AttributeSource:
@@ -174,7 +190,7 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	toExclude, err := evaluate(l, expr.Right, components)
+	toExclude, err := Evaluate(l, expr.Right, components)
 	if err != nil {
 		return nil, err
 	}
@@ -201,12 +217,12 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
-	leftResult, err := evaluate(l, expr.Left, components)
+	leftResult, err := Evaluate(l, expr.Left, components)
 	if err != nil {
 		return nil, err
 	}
 
-	rightResult, err := evaluate(l, expr.Right, leftResult)
+	rightResult, err := Evaluate(l, expr.Right, leftResult)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +232,7 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
 func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components) (component.Components, error) {
-	targetMatches, err := evaluate(l, expr.Target, components)
+	targetMatches, err := Evaluate(l, expr.Target, components)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +271,25 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	}
 
 	return result, nil
+}
+
+// evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
+// It returns components that were added, removed, or changed between FromRef and ToRef.
+func evaluateGitFilter(filter *GitExpression, components component.Components) (component.Components, error) {
+	results := make(component.Components, 0, len(components))
+
+	for _, c := range components {
+		discoveryCtx := c.DiscoveryContext()
+		if discoveryCtx == nil || discoveryCtx.Ref == "" {
+			continue
+		}
+
+		if discoveryCtx.Ref == filter.FromRef || discoveryCtx.Ref == filter.ToRef {
+			results = append(results, c)
+		}
+	}
+
+	return results, nil
 }
 
 // traverseDependencies recursively traverses the dependency graph downward (from a component to its dependencies).
@@ -325,4 +360,35 @@ func traverseDependents(
 
 		traverseDependents(l, dependent, resultSet, visited, maxDepth-1)
 	}
+}
+
+// doesComponentValueMatchGlob checks if a component matches a glob pattern.
+//
+// It does some logic to assess whether the original value that was compiled into a glob was an absolute path or not,
+// and uses that to determine how to match the component.Path() against the glob.
+//
+// If it's an absolute path, it matches the component.Path() against the glob as is.
+// If it's not an absolute path, it attempts to translate the component.Path() path into a relative path
+// using the discovery context's working directory, and then matches the relative path against the glob.
+//
+// If neither are true, it does a best effort match attempting to match the component.Path() against the value as is.
+func doesComponentValueMatchGlob(c component.Component, val, globVal string, glob glob.Glob) (bool, error) {
+	if filepath.IsAbs(globVal) {
+		return glob.Match(filepath.ToSlash(val)), nil
+	}
+
+	discoveryCtx := c.DiscoveryContext()
+	if discoveryCtx != nil &&
+		discoveryCtx.WorkingDir != "" {
+		relPath, err := filepath.Rel(discoveryCtx.WorkingDir, val)
+		if err != nil {
+			return false, NewEvaluationErrorWithCause("failed to get relative path: "+val, err)
+		}
+
+		relPath = filepath.ToSlash(relPath)
+
+		return glob.Match(relPath), nil
+	}
+
+	return glob.Match(filepath.ToSlash(val)), nil
 }
