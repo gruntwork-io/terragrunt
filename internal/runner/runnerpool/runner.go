@@ -413,7 +413,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	if util.ListContainsElement(config.TerraformCommandsNeedInput, terraformCmd) {
+	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
 		r.syncTerraformCliArgs(l, opts)
 	}

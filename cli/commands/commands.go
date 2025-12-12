@@ -284,7 +284,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
 	// It is important to resolve the alias because the `run --all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
-	if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
+	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
 		args = util.RemoveElementFromList(args, tf.FlagNameDestroy)

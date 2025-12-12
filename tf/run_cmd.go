@@ -65,7 +65,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 
 	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.TFPath, args...)
 
-	if err != nil && util.ListContainsElement(args, FlagNameDetailedExitCode) {
+	if err != nil && slices.Contains(args, FlagNameDetailedExitCode) {
 		code, _ := util.GetExitCode(err)
 		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
 			exitCode.Set(code)
@@ -126,7 +126,7 @@ func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (
 
 // isCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
 func isCommandThatNeedsPty(args []string) (bool, error) {
-	if len(args) == 0 || !util.ListContainsElement(commandsThatNeedPty, args[0]) {
+	if len(args) == 0 || !slices.Contains(commandsThatNeedPty, args[0]) {
 		return false, nil
 	}
 

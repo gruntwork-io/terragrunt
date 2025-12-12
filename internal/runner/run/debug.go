@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -12,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
@@ -81,7 +81,7 @@ func terragruntDebugFileContents(
 	for varName, varValue := range cfg.Inputs {
 		nameAsEnvVar := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
-		varIsDefined := util.ListContainsElement(moduleVariables, varName)
+		varIsDefined := slices.Contains(moduleVariables, varName)
 
 		// Only add to the file if the explicit env var does NOT exist and the variable is defined in the module.
 		// We must do this in order to avoid overriding the env var when the user follows up with a direct invocation to
