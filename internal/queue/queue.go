@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
@@ -297,7 +298,7 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 }
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
-func (q *Queue) GetReadyWithDependencies() []*Entry {
+func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
@@ -321,7 +322,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		}
 
 		if e.IsUp() {
-			if q.areDependenciesReadyUnsafe(e) {
+			if q.areDependenciesReadyUnsafe(l, e) {
 				out = append(out, e)
 			}
 
@@ -340,7 +341,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 // For up commands, all dependencies must be in a succeeded state (or terminal if ignoring errors).
 // If a dependency is not in the queue, it is assumed to have existing state.
 // Should only be called when the caller already holds a read lock.
-func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
+func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 	for _, dep := range e.Component.Dependencies() {
 		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
@@ -348,13 +349,18 @@ func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
 			if q.unitsMap != nil {
 				if unit, ok := q.unitsMap[dep.Path()]; ok {
 					if unit.Execution != nil && unit.Execution.AssumeAlreadyApplied {
-						// Dependency is assumed already applied, consider it ready
+						l.Debugf(
+							"Dependency %s is not in queue, and is assumed to be already applied, considering it ready",
+							dep.Path(),
+						)
+
 						continue
 					}
 				}
 			}
-			// If not in queue and not assumed already applied,
-			// assume it has existing state
+
+			l.Debugf("Dependency %s is not in queue, considering it ready", dep.Path())
+
 			continue
 		}
 
