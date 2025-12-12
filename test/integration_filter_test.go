@@ -21,10 +21,12 @@ import (
 )
 
 const (
-	testFixtureFilterBasic  = "fixtures/find/basic"
-	testFixtureFilterDAG    = "fixtures/find/dag"
-	testFixtureFilterList   = "fixtures/list/basic"
-	testFixtureFilterSource = "fixtures/filter-source"
+	testFixtureFilterBasic            = "fixtures/find/basic"
+	testFixtureFilterDAG              = "fixtures/find/dag"
+	testFixtureFilterList             = "fixtures/list/basic"
+	testFixtureFilterSource           = "fixtures/filter-source"
+	testFixtureMinimizeParsing        = "fixtures/filter/minimize-parsing"
+	testFixtureMinimizeParsingDestroy = "fixtures/filter/minimize-parsing-destroy"
 )
 
 // createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
@@ -1094,8 +1096,8 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 					// Also store by full path for fallback
 					recordsByUnit[fullPath] = record
 					// Store by any part of the path that matches our unit pattern
-					parts := strings.Split(fullPath, string(filepath.Separator))
-					for _, part := range parts {
+					parts := strings.SplitSeq(fullPath, string(filepath.Separator))
+					for part := range parts {
 						if strings.HasPrefix(part, "unit-to-be-") {
 							recordsByUnit[part] = record
 						}
@@ -1471,6 +1473,285 @@ unit "unit-to-be-created-2" {
 			}
 		})
 	}
+}
+
+func TestFilterFlagMinimizesParsing(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	t.Run("single unit filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// Run with filter targeting only target-unit
+		// This will parse target-unit and its dependency (dependency-unit) for outputs,
+		// but only target-unit will be run and appear in the report
+		// The excluded units with land-mine configs should NOT be parsed
+		reportFile := "report.json"
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --report-file " + reportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
+
+		// Verify that dependency-unit is still being parsed
+		assert.Contains(t, stderr, "dependency-unit", "dependency-unit should be parsed")
+
+		// Verify the report file exists and parse it
+		reportFilePath := util.JoinPath(rootPath, reportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected units are in the report
+			found := false
+			for name := range recordsByUnit {
+				if strings.Contains(name, "target-unit") {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "target-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+				found := false
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
+
+	t.Run("multiple units filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// Run with filter targeting both target-unit and dependency-unit (OR semantics)
+		reportFile := "report.json"
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --filter './dependency-unit' --report-file " + reportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed - if land-mines were parsed, we'd get errors
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
+
+		// Verify the report file exists and parse it
+		reportFilePath := util.JoinPath(rootPath, reportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected units are in the report
+			found := false
+			for name := range recordsByUnit {
+				if strings.Contains(name, "target-unit") {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "target-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			found = false
+			for name := range recordsByUnit {
+				if strings.Contains(name, "dependency-unit") {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "dependency-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+				found := false
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
+
+	t.Run("destroy without graph filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
+		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsingDestroy)
+
+		// Run destroy with filter targeting only unit-a
+		// This should only parse unit-a, NOT all units in the repository
+		// The land-mine units should NOT be parsed
+		reportFile := "report.json"
+		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath + " --filter './unit-a' --report-file " + reportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed - if land-mines were parsed, we'd get errors
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "landmine-unit-1", "landmine-unit-1 should not be parsed during destroy")
+		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy")
+
+		// Verify the report file exists and parse it
+		reportFilePath := util.JoinPath(rootPath, reportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected unit is in the report
+			found := false
+			for name := range recordsByUnit {
+				if strings.Contains(name, "unit-a") {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "unit-a should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
+				found := false
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
+
+	t.Run("destroy with graph filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
+		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsingDestroy)
+
+		// Run destroy with graph filter targeting unit-a
+		// Graph filters explicitly request dependency discovery, so this is expected behavior
+		// The land-mine units should still NOT be parsed (they're not dependencies)
+		reportFile := "report.json"
+		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath + " --filter '{./unit-a}...' --report-file " + reportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed - if land-mines were parsed, we'd get errors
+		// Note: destroy might fail for other reasons (e.g., no state), but it shouldn't fail due to parsing land-mines
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "landmine-unit-1", "landmine-unit-1 should not be parsed during destroy with graph filter")
+		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy with graph filter")
+
+		// Verify the report file exists and parse it
+		reportFilePath := util.JoinPath(rootPath, reportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected unit is in the report
+			found := false
+			for name := range recordsByUnit {
+				if strings.Contains(name, "unit-a") {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "unit-a should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
+				found := false
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
 }
 
 // getUnitNames extracts unit names from records map for error messages
