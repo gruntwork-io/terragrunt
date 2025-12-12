@@ -1,0 +1,83 @@
+---
+name: filter-affected
+description: Filter components affected by changes between the default branch and HEAD
+type: bool
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the `--filter-affected` flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --filter-affected
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+</Aside>
+
+The `--filter-affected` flag is a convenient shorthand for filtering components that have been modified, added, or removed between the default branch (typically `main`) and `HEAD`. It is equivalent to using `--filter '[main...HEAD]'` (or `--filter '[<defaultBranch>...HEAD]'` if your repository uses a different default branch).
+
+## Usage
+
+```bash
+# Find all components affected by changes between main and HEAD
+terragrunt find --filter-affected
+
+# List affected components
+terragrunt list --filter-affected
+
+# Run plan on affected components
+terragrunt run --all --filter-affected -- plan
+
+# Run apply on affected components
+terragrunt run --all --filter-affected -- apply
+```
+
+## Default Branch Detection
+
+The flag automatically detects your repository's default branch. It checks:
+
+1. Your Git configuration for `init.defaultBranch`
+2. Falls back to `main` if not configured
+
+To use a different branch for comparison, use the `--filter` flag directly with a Git-based filter expression:
+
+```bash
+# Compare against a specific branch
+terragrunt find --filter '[develop...HEAD]'
+
+# Compare between two specific references
+terragrunt find --filter '[v1.0.0...v2.0.0]'
+```
+
+## Uncommitted Changes Warning
+
+If you have uncommitted changes in your working directory, Terragrunt will display a warning:
+
+```
+Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.
+```
+
+This is because `--filter-affected` compares Git references, not your working directory. To include uncommitted changes, you would need to commit them first or use a different filtering approach.
+
+## Equivalent Filter Expression
+
+The `--filter-affected` flag is equivalent to:
+
+```bash
+terragrunt find --filter '[main...HEAD]'
+```
+
+Or, if your default branch is different:
+
+```bash
+terragrunt find --filter '[<defaultBranch>...HEAD]'
+```
+
+## Learn More
+
+For more information about Git-based filtering and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter#git-based-expressions).
+
