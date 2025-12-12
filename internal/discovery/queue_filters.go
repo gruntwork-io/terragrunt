@@ -127,9 +127,17 @@ func (d *Discovery) propagateIncludedDeps(components component.Components) {
 func normalizePaths(workDir string, paths []string) []string {
 	normalized := make([]string, 0, len(paths))
 
+	// Ensure workDir is absolute for proper path resolution
+	absWorkDir := workDir
+	if !filepath.IsAbs(workDir) {
+		if abs, err := filepath.Abs(workDir); err == nil {
+			absWorkDir = abs
+		}
+	}
+
 	for _, path := range paths {
 		if !filepath.IsAbs(path) {
-			path = util.JoinPath(workDir, path)
+			path = util.JoinPath(absWorkDir, path)
 		}
 
 		path = util.CleanPath(path)
@@ -193,6 +201,9 @@ func unexcludeUnitsReading(components component.Components, normalizedReading []
 			}
 
 			readPath = util.CleanPath(readPath)
+
+			// Also resolve symlinks for consistent comparison
+			readPath = resolvePath(readPath)
 
 			if _, ok := readingSet[readPath]; ok {
 				unit.SetExcluded(false)

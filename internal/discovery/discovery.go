@@ -831,13 +831,12 @@ func (d *Discovery) processFile(
 		// Everything after this point is only relevant when the filter flag is disabled.
 		// It should be removed once the filter flag is generally available.
 
-		// Enforce include patterns only when strictInclude or excludeByDefault are set AND patterns exist.
-		// When excludeByDefault is true without include patterns (e.g., --units-that-include), or when readFiles
-		// filtering is enabled, we keep configs so downstream filtering can mark exclusions based on read files.
-		// Consolidated include enforcement: only apply when we have include patterns and either:
-		// - strictInclude is enabled, or
-		// - excludeByDefault is enabled and readFiles filtering is NOT enabled
-		enforceInclude := (d.strictInclude || (d.excludeByDefault && !d.readFiles)) && len(d.compiledIncludePatterns) > 0
+		// Enforce include patterns early only when patterns exist AND readFiles is NOT enabled.
+		// When readFiles is enabled (--queue-include-units-reading/--modules-that-include),
+		// we must discover all configs first so that flagUnitsThatRead can filter based on
+		// which files each unit reads. Without this bypass, units outside the default include
+		// patterns (.terragrunt-stack/**) would be dropped before flagUnitsThatRead runs.
+		enforceInclude := !d.readFiles && (d.strictInclude || d.excludeByDefault) && len(d.compiledIncludePatterns) > 0
 		if enforceInclude && !d.matchesIncludePath(canonicalDir) {
 			return nil
 		}
@@ -1264,8 +1263,10 @@ func (d *Discovery) Discover(
 
 		// Apply strictInclude filtering: when strictInclude is true, remove dependencies
 		// that don't match the include patterns (they shouldn't be included just because
-		// they are dependencies of included units)
-		if d.strictInclude && len(d.compiledIncludePatterns) > 0 {
+		// they are dependencies of included units).
+		// Skip this filtering when readFiles is enabled, as we need all components
+		// to remain available for flagUnitsThatRead to process in applyQueueFilters.
+		if d.strictInclude && len(d.compiledIncludePatterns) > 0 && !d.readFiles {
 			components = d.filterByStrictInclude(l, components)
 		}
 
