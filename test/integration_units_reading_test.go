@@ -345,3 +345,41 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 		})
 	}
 }
+
+// TestQueueStrictIncludeWithUnitsReading tests that --queue-strict-include works correctly
+// with --queue-include-units-reading when no --queue-include-dir is specified.
+// This reproduces the bug where units reading the specified file were not included.
+func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureUnitsReading)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	// Test the bug scenario: --queue-strict-include + --queue-include-units-reading
+	// without --queue-include-dir. Units reading shared.hcl should be included.
+	cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath +
+		" --queue-strict-include --queue-include-units-reading shared.hcl"
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err, "Command should succeed and include units reading shared.hcl")
+
+	includedLogEntryRegex := regexp.MustCompile(`=> Unit ([^ ]+) \(excluded: false`)
+	includedUnits := []string{}
+	for _, line := range strings.Split(stderr, "\n") {
+		if includedLogEntryRegex.MatchString(line) {
+			includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
+		}
+	}
+
+	// Units that read shared.hcl should be included
+	expectedUnits := []string{
+		"reading-hcl",
+		"reading-hcl-and-tfvars",
+	}
+	assert.ElementsMatch(t, expectedUnits, includedUnits,
+		"Units reading shared.hcl should be included when using --queue-strict-include with --queue-include-units-reading")
+}
