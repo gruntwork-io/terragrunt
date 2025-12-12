@@ -254,6 +254,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(DisableCommandValidationFlagName),
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
+			Action: func(ctx *cli.Context, value bool) error {
+				if value {
+					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx.Context)
+				}
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-command-validation"), terragruntPrefixControl)),
 
