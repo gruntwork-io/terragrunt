@@ -219,12 +219,6 @@ func resolveUnitsFromDiscovery(
 		units = append(units, unit)
 	}
 
-	// Ensure the stack-level default cache directory exists so tests that expect the root cache can find it,
-	// even when per-unit download directories are used.
-	if stackDefaultDownloadDir != "" {
-		_ = os.MkdirAll(stackDefaultDownloadDir, os.ModePerm) // best-effort
-	}
-
 	return units, nil
 }
 
