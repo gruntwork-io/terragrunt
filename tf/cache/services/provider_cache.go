@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -179,7 +180,7 @@ func (cache *ProviderCache) containsRequestID(requestID string) bool {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
-	return util.ListContainsElement(cache.requestIDs, requestID)
+	return slices.Contains(cache.requestIDs, requestID)
 }
 
 func (cache *ProviderCache) getRequestIDs() []string {

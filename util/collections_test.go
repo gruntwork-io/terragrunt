@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestListContainsElement(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListContainsElement(tc.list, tc.element)
+			actual := slices.Contains(tc.list, tc.element)
 			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
 		})
 	}
@@ -91,7 +92,7 @@ func TestListEquals(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListEquals(tc.a, tc.b)
+			actual := slices.Equal(tc.a, tc.b)
 			assert.Equal(t, tc.expected, actual, "For list %v and list %v", tc.a, tc.b)
 		})
 	}

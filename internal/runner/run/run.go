@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -580,7 +581,7 @@ func prepareNonInitCommand(
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
+	if slices.Contains(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -717,7 +718,7 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
+	if remoteState == nil || !slices.Contains(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -737,7 +738,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 		destroyFlag = true
 	}
 
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
+	if slices.Contains(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
 		destroyFlag = true
 	}
 

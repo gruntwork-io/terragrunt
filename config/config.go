@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -804,7 +805,7 @@ func (deps *ModuleDependencies) Merge(source *ModuleDependencies) {
 	}
 
 	for _, path := range source.Paths {
-		if !util.ListContainsElement(deps.Paths, path) {
+		if !slices.Contains(deps.Paths, path) {
 			deps.Paths = append(deps.Paths, path)
 		}
 	}

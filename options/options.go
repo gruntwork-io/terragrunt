@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -577,7 +578,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
-	if util.ListContainsElement(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
+	if slices.Contains(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
 		commandLength = util.Min(minCommandLength, len(opts.TerraformCliArgs))
