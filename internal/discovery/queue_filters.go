@@ -262,18 +262,24 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 		return components
 	}
 
+	// Normalize paths using discoveryContext.WorkingDir which is always set correctly
 	workingDir := d.discoveryContext.WorkingDir
 	normalizedReading := normalizePaths(workingDir, opts.UnitsReading)
 	normalizedIncluding := normalizePaths(workingDir, opts.ModulesThatInclude)
 
+	// Capture pre-included units before resetting
 	preIncluded := capturePreIncluded(components)
 
+	// Reset all units to excluded
 	resetAllUnitsExcluded(components)
 
+	// Un-exclude units that read the requested files
 	unexcludeUnitsReading(components, normalizedReading, workingDir)
 
+	// Un-exclude units that include the requested files
 	unexcludeModulesThatInclude(components, normalizedIncluding, workingDir)
 
+	// Restore prior inclusions
 	restorePreIncluded(components, preIncluded)
 
 	return components
