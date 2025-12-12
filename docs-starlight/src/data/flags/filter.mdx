@@ -31,6 +31,7 @@ terragrunt hcl validate --filter 'type=unit'
 ```
 
 ### Name-Based Filtering
+
 Match configurations by their name using exact matches or glob patterns:
 
 ```bash
@@ -42,6 +43,7 @@ terragrunt find --filter 'app*'
 ```
 
 ### Path-Based Filtering
+
 Match configurations by their file system path:
 
 ```bash
@@ -53,6 +55,7 @@ terragrunt find --filter '/absolute/path/to/envs/dev/apps/*'
 ```
 
 ### Attribute-Based Filtering
+
 Match configurations by their configuration attributes:
 
 ```bash
@@ -79,6 +82,7 @@ See the [mark_as_read function documentation](/docs/reference/hcl/functions/#mar
 </Aside>
 
 ### Negation
+
 Exclude configurations using the `!` prefix:
 
 ```bash
@@ -90,6 +94,7 @@ terragrunt find --filter '!./prod/**'
 ```
 
 ### Intersection (Refinement)
+
 Use the `|` operator to refine results:
 
 ```bash
@@ -125,6 +130,7 @@ terragrunt find --filter '[abc123...def456]'
 For more details and examples, see the [Filters feature documentation](/docs/features/filter#git-based-expressions).
 
 ### Graph-Based Filtering
+
 Filter configurations based on dependency relationships using graph traversal. Use ellipsis (`...`) to traverse the dependency graph and caret (`^`) to exclude the target from results.
 
 **Syntax variants:**
@@ -165,11 +171,38 @@ For more detailed examples and explanations, see the [Filters feature documentat
 </Aside>
 
 ### Union (Multiple Filters)
+
 Specify multiple `--filter` flags to combine results using OR logic:
 
 ```bash
 # Find components named 'unit1' OR 'stack1'
 terragrunt find --filter unit1 --filter stack1
+```
+
+### The filters file
+
+Instead of specifying filters on the command line, you can store filter queries in a file. By default, Terragrunt automatically reads filter queries from `.terragrunt-filters` in the working directory when the `filter-flag` experiment is enabled.
+
+```bash
+# Automatically reads .terragrunt-filters (no flag needed)
+terragrunt find
+
+# Use a custom filters file
+terragrunt find --filters-file custom-filters.txt
+
+# Disable automatic file reading
+terragrunt find --no-filters-file
+```
+
+The filters file should contain one filter query per line. Empty lines and lines starting with `#` are ignored:
+
+```text
+# Production environment filters
+type=unit
+./prod/**
+
+# Exclude test units
+!name=test-*
 ```
 
 ## Supported Commands
