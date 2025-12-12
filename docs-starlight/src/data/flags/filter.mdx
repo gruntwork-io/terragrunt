@@ -100,6 +100,30 @@ terragrunt find --filter './prod/** | type=unit'
 terragrunt find --filter './dev/** | type=unit | !name=unit1'
 ```
 
+### Git-Based Filtering
+
+Filter configurations based on changes between Git references. For the common use case of comparing the default branch with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:
+
+```bash
+# Find components affected by changes between main and HEAD
+terragrunt find --filter-affected
+```
+
+For more control, use Git-based filter expressions directly:
+
+```bash
+# Compare between two references
+terragrunt find --filter '[main...HEAD]'
+
+# Shorthand: compare reference to HEAD
+terragrunt find --filter '[main]'
+
+# Compare between specific commits
+terragrunt find --filter '[abc123...def456]'
+```
+
+For more details and examples, see the [Filters feature documentation](/docs/features/filter#git-based-expressions).
+
 ### Graph-Based Filtering
 Filter configurations based on dependency relationships using graph traversal. Use ellipsis (`...`) to traverse the dependency graph and caret (`^`) to exclude the target from results.
 

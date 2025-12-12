@@ -16,8 +16,6 @@ import (
 )
 
 func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
-	t.Skip("This test needs to be skipped until we have a new Terragrunt version we can pin in the mise.toml file due to the change to change in unit logging for stacks")
-
 	t.Parallel()
 
 	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
@@ -52,7 +50,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 
 		helpers.ExecWithTestLogger(t, repoDir, "git", "init")
 
-		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "terragrunt@0.83.2")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "terragrunt@0.95.0")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "opentofu@1.11.1")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "aws@2.27.63")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "node@22.17.1")
@@ -66,7 +64,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 aws = "2.27.63"
 node = "22.17.1"
 opentofu = "1.11.1"
-terragrunt = "0.83.2"
+terragrunt = "0.95.0"
 `)
 
 		// Run a dummy command to check if the tools are installed

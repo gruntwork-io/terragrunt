@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
@@ -751,6 +752,180 @@ func TestFilterFlagWithSource(t *testing.T) {
 	}
 }
 
+func TestFilterFlagWithFindGitFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
+
+	// Create three units initially
+	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
+	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
+	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
+
+	err = os.MkdirAll(unitToBeModifiedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(unitToBeRemovedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(unitToBeUntouchedDir, 0755)
+	require.NoError(t, err)
+
+	// Create minimal terragrunt.hcl files for each unit
+	unitToBeModifiedHCLPath := filepath.Join(unitToBeModifiedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit to be modified`), 0644)
+	require.NoError(t, err)
+
+	unitToBeRemovedHCLPath := filepath.Join(unitToBeRemovedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeRemovedHCLPath, []byte(`# Unit to be removed`), 0644)
+	require.NoError(t, err)
+
+	unitToBeUntouchedHCLPath := filepath.Join(unitToBeUntouchedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeUntouchedHCLPath, []byte(`# Unit to be untouched`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	head, err := runner.GoOpenRepoHead()
+	require.NoError(t, err)
+
+	// If users don't have a default branch set, we'll make sure that the `main` branch exists
+	b, err := runner.Config(t.Context(), "init.defaultBranch")
+	if err != nil || b != "main" {
+		err = runner.GoCheckout(&gogit.CheckoutOptions{
+			Branch: plumbing.ReferenceName("refs/heads/main"),
+			Create: true,
+			Hash:   head.Hash(),
+		})
+		require.NoError(t, err)
+	}
+
+	// We'll checkout a new branch so that we can compare against main in the filter-affected flag test
+	err = runner.GoCheckout(&gogit.CheckoutOptions{
+		Branch: plumbing.ReferenceName("refs/heads/filter-affected-test"),
+		Create: true,
+		Hash:   head.Hash(),
+	})
+	require.NoError(t, err)
+
+	// Modify the unit to be modified
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
+	require.NoError(t, err)
+
+	// Remove the unit to be removed (delete the directory)
+	err = os.RemoveAll(unitToBeRemovedDir)
+	require.NoError(t, err)
+
+	// Add a unit to be created
+	unitToBeCreatedDir := filepath.Join(tmpDir, "unit-to-be-created")
+	err = os.MkdirAll(unitToBeCreatedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"), []byte(`# Unit created`), 0644)
+	require.NoError(t, err)
+
+	// Do nothing to the unit to be untouched
+
+	// Commit the modification and removal in a single commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Clean up terraform folders before running
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	testCases := []struct {
+		name                  string
+		filterQuery           string
+		expectedUnits         []string
+		useFilterAffectedFlag bool
+		expectError           bool
+	}{
+		{
+			name:          "standard git filter",
+			filterQuery:   "[HEAD~1...HEAD]",
+			expectedUnits: []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
+			expectError:   false,
+		},
+		{
+			name:                  "filter-affected flag",
+			expectedUnits:         []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
+			useFilterAffectedFlag: true,
+			expectError:           false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			cmd := "terragrunt find --no-color --working-dir " + tmpDir
+			if tc.useFilterAffectedFlag {
+				cmd += " --filter-affected"
+			}
+
+			if tc.filterQuery != "" {
+				cmd += " --filter '" + tc.filterQuery + "'"
+			}
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
+				assert.NotEmpty(t, stderr, "Expected error message in stderr")
+
+				return
+			}
+
+			results := strings.Split(strings.TrimSpace(stdout), "\n")
+			assert.ElementsMatch(t, tc.expectedUnits, results)
+		})
+	}
+}
+
 func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	t.Parallel()
 
@@ -921,6 +1096,321 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 					// Store by any part of the path that matches our unit pattern
 					parts := strings.Split(fullPath, string(filepath.Separator))
 					for _, part := range parts {
+						if strings.HasPrefix(part, "unit-to-be-") {
+							recordsByUnit[part] = record
+						}
+					}
+				}
+
+				// Verify expected units are in the report and not excluded
+				for _, expectedUnit := range tc.expectedUnits {
+					record, found := recordsByUnit[expectedUnit]
+					if !found {
+						// Try to find by partial match
+						for name, rec := range recordsByUnit {
+							if strings.Contains(name, expectedUnit) {
+								record = rec
+								found = true
+
+								break
+							}
+						}
+					}
+
+					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getUnitNames(recordsByUnit))
+					assert.NotEqual(t, "excluded", record["Result"], "Expected unit '%s' should not be excluded", expectedUnit)
+				}
+
+				// Verify excluded units are NOT in the report
+				for _, excludedUnit := range tc.ignoredUnits {
+					found := false
+
+					for name := range recordsByUnit {
+						if strings.Contains(name, excludedUnit) {
+							found = true
+							break
+						}
+					}
+
+					assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+				}
+
+				// Verify expected excluded units are in the report but marked as excluded
+				for _, excludedUnit := range tc.expectedExcluded {
+					record, found := recordsByUnit[excludedUnit]
+					if !found {
+						// Try to find by partial match
+						for name, rec := range recordsByUnit {
+							if strings.Contains(name, excludedUnit) {
+								record = rec
+								found = true
+
+								break
+							}
+						}
+					}
+
+					require.True(t, found, "Expected excluded unit '%s' should be in report", excludedUnit)
+					assert.Equal(t, "excluded", record["Result"], "Unit '%s' should be marked as excluded", excludedUnit)
+				}
+			}
+		})
+	}
+}
+
+func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	testCases := []struct {
+		name               string
+		filterQuery        string
+		description        string
+		expectedUnits      []string
+		ignoredUnits       []string
+		expectedExcluded   []string
+		filterAllowDestroy bool
+		expectError        bool
+	}{
+		{
+			name:               "git filter discovers units from modified, created, and removed stacks and excludes untouched",
+			filterQuery:        "[HEAD~1...HEAD]",
+			filterAllowDestroy: false,
+			expectedUnits: []string{
+				"unit-to-be-added",
+				"unit-to-be-modified",
+				"unit-to-be-created-1",
+				"unit-to-be-created-2",
+			},
+			ignoredUnits: []string{
+				"unit-to-be-untouched",
+			},
+			expectedExcluded: []string{
+				"unit-to-be-removed-from-stack",
+			},
+			expectError: false,
+			description: "Git filter should discover units from stacks that were created, modified, or removed between commits, and exclude untouched stacks. Units from removed stack should be excluded without --filter-allow-destroy",
+		},
+		{
+			name:               "git filter with --filter-allow-destroy includes units from removed stack",
+			filterQuery:        "[HEAD~1...HEAD]",
+			filterAllowDestroy: true,
+			expectedUnits: []string{
+				"unit-to-be-added",
+				"unit-to-be-modified",
+				"unit-to-be-created-1",
+				"unit-to-be-created-2",
+				"unit-to-be-removed-from-stack",
+			},
+			ignoredUnits: []string{
+				"unit-to-be-untouched",
+			},
+			expectedExcluded: []string{},
+			expectError:      false,
+			description:      "Git filter with --filter-allow-destroy should include units from removed stack for destroy operations",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			tmpDir, err := filepath.EvalSymlinks(tmpDir)
+			require.NoError(t, err)
+
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			err = runner.GoOpenRepo()
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				err = runner.GoCloseStorage()
+				require.NoError(t, err)
+			})
+
+			// Create a catalog of units that will be referenced by stacks
+			legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+			err = os.MkdirAll(legacyUnitDir, 0755)
+			require.NoError(t, err)
+			_ = createTestUnit(t, legacyUnitDir, `# Legacy unit`)
+
+			modernUnitDir := filepath.Join(tmpDir, "catalog", "units", "modern")
+			err = os.MkdirAll(modernUnitDir, 0755)
+			require.NoError(t, err)
+			_ = createTestUnit(t, modernUnitDir, `# Modern unit`)
+
+			// Create initial stacks
+			stackToBeModifiedDir := filepath.Join(tmpDir, "live", "stack-to-be-modified")
+			err = os.MkdirAll(stackToBeModifiedDir, 0755)
+			require.NoError(t, err)
+
+			stackToBeRemovedDir := filepath.Join(tmpDir, "live", "stack-to-be-removed")
+			err = os.MkdirAll(stackToBeRemovedDir, 0755)
+			require.NoError(t, err)
+
+			stackToBeUntouchedDir := filepath.Join(tmpDir, "live", "stack-to-be-untouched")
+			err = os.MkdirAll(stackToBeUntouchedDir, 0755)
+			require.NoError(t, err)
+
+			// Initial stack file contents
+			initialStackContent := `unit "unit-to-be-modified" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit-to-be-modified"
+}
+
+unit "unit-to-be-removed-from-stack" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit-to-be-removed-from-stack"
+}
+`
+
+			untouchedStackContent := `unit "unit-to-be-untouched" {
+	source = "${get_repo_root()}/catalog/units/legacy"
+	path   = "unit-to-be-untouched"
+}
+`
+
+			// Write initial stack files
+			err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(initialStackContent), 0644)
+			require.NoError(t, err)
+
+			err = os.WriteFile(filepath.Join(stackToBeRemovedDir, "terragrunt.stack.hcl"), []byte(initialStackContent), 0644)
+			require.NoError(t, err)
+
+			err = os.WriteFile(filepath.Join(stackToBeUntouchedDir, "terragrunt.stack.hcl"), []byte(untouchedStackContent), 0644)
+			require.NoError(t, err)
+
+			// Initial commit
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Initial commit with stacks", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Modify the stack-to-be-modified: add a unit, modify a unit, remove a unit
+			modifiedStackContent := `unit "unit-to-be-added" {
+	source = "${get_repo_root()}/catalog/units/modern"
+	path   = "unit-to-be-added"
+}
+
+unit "unit-to-be-modified" {
+	source = "${get_repo_root()}/catalog/units/modern"
+	path   = "unit-to-be-modified"
+}
+`
+			err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(modifiedStackContent), 0644)
+			require.NoError(t, err)
+
+			// Remove the stack-to-be-removed
+			err = os.RemoveAll(stackToBeRemovedDir)
+			require.NoError(t, err)
+
+			// Add a new stack
+			stackToBeCreatedDir := filepath.Join(tmpDir, "live", "stack-to-be-created")
+			err = os.MkdirAll(stackToBeCreatedDir, 0755)
+			require.NoError(t, err)
+
+			newStackContent := `unit "unit-to-be-created-1" {
+	source = "${get_repo_root()}/catalog/units/modern"
+	path   = "unit-to-be-created-1"
+}
+
+unit "unit-to-be-created-2" {
+	source = "${get_repo_root()}/catalog/units/modern"
+	path   = "unit-to-be-created-2"
+}
+`
+			err = os.WriteFile(filepath.Join(stackToBeCreatedDir, "terragrunt.stack.hcl"), []byte(newStackContent), 0644)
+			require.NoError(t, err)
+
+			// Leave stack-to-be-untouched unchanged
+
+			// Commit the changes
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Modify, create, and remove stacks", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Run terragrunt run --all --filter with git filter
+			reportFile := "report.json"
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + reportFile
+
+			if tc.filterAllowDestroy {
+				cmd += " --filter-allow-destroy"
+			}
+
+			cmd += " -- plan"
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
+				assert.NotEmpty(t, stderr, "Expected error message in stderr")
+			} else {
+				// For run commands, we expect some output even if terraform isn't fully initialized
+				// The key is that the command should execute and process the filtered units
+				if err != nil {
+					// If there's an error, it might be because terraform isn't initialized
+					// but we should still see that the filter worked (units were discovered)
+					// Let's check if the error is about terraform init or similar
+					if !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
+						// Unexpected error
+						require.NoError(t, err, "Unexpected error for filter query: %s\nstdout: %s\nstderr: %s", tc.filterQuery, stdout, stderr)
+					}
+				}
+
+				// Verify the report file exists
+				reportFilePath := util.JoinPath(tmpDir, reportFile)
+				assert.FileExists(t, reportFilePath, "Report file should exist")
+
+				// Read and parse the report file
+				content, err := os.ReadFile(reportFilePath)
+				require.NoError(t, err, "Should be able to read report file")
+
+				var records []map[string]string
+
+				err = json.Unmarshal(content, &records)
+				require.NoError(t, err, "Should be able to parse report JSON")
+
+				// Create a map of unit names to records for easier lookup
+				// The report contains full paths, so we extract the unit name from the path
+				recordsByUnit := make(map[string]map[string]string)
+
+				for _, record := range records {
+					fullPath := record["Name"]
+					// Extract unit name from path
+					// Paths might be like: /tmp/.../live/stack-to-be-modified/.terragrunt-stack/unit-to-be-added
+					baseName := filepath.Base(fullPath)
+					recordsByUnit[baseName] = record
+					// Also store by full path for fallback
+					recordsByUnit[fullPath] = record
+					// Store by any part of the path that matches our unit pattern
+					parts := strings.SplitSeq(fullPath, string(filepath.Separator))
+					for part := range parts {
 						if strings.HasPrefix(part, "unit-to-be-") {
 							recordsByUnit[part] = record
 						}

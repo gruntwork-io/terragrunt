@@ -151,3 +151,61 @@ dependency "vpc" {
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Len(t, decoded.Dependencies, 2)
 }
+
+// TestDisabledDependencyWithNullConfigPath verifies that disabled dependencies
+// with null config_path don't panic during parsing (they bypass validation).
+func TestDisabledDependencyWithNullConfigPath(t *testing.T) {
+	t.Parallel()
+
+	// This config has a disabled dependency with config_path that would fail
+	// validation if it were enabled (uses a local that resolves to null)
+	cfg := `
+locals {
+  disabled_path = null
+}
+
+dependency "disabled" {
+  config_path = local.disabled_path
+  enabled     = false
+}
+
+dependency "enabled" {
+  config_path = "../vpc"
+}
+`
+	l := logger.CreateLogger()
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath)).WithDecodeList(config.DependencyBlock)
+
+	// Should not panic - disabled deps bypass config_path validation
+	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	// Only enabled dependency should be in the paths
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+}
+
+// TestDisabledDependencyWithEmptyConfigPath verifies that disabled dependencies
+// with empty config_path don't cause errors.
+func TestDisabledDependencyWithEmptyConfigPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+dependency "disabled" {
+  config_path = ""
+  enabled     = false
+}
+
+dependency "enabled" {
+  config_path = "../vpc"
+}
+`
+	l := logger.CreateLogger()
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath)).WithDecodeList(config.DependencyBlock)
+
+	// Should not error - disabled deps bypass config_path validation
+	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	// Only enabled dependency should be in the paths
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+}
