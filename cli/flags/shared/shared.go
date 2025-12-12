@@ -5,9 +5,14 @@
 package shared
 
 import (
+	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -26,7 +31,9 @@ const (
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 
 	// Filter related flags.
-	FilterFlagName = "filter"
+	FilterFlagName             = "filter"
+	FilterAffectedFlagName     = "filter-affected"
+	FilterAllowDestroyFlagName = "filter-allow-destroy"
 
 	// Scaffolding related flags.
 	RootFileNameFlagName  = "root-file-name"
@@ -112,6 +119,13 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
 				Destination: &opts.IgnoreExternalDependencies,
 				Usage:       "Ignore external dependencies for --all commands.",
+				Hidden:      true,
+				Action: func(ctx *cli.Context, value bool) error {
+					if value {
+						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx.Context)
+					}
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), terragruntPrefixControl),
 		),
@@ -178,25 +192,95 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 	}
 }
 
-// NewFilterFlag creates a flag for specifying filter queries.
-func NewFilterFlag(opts *options.TerragruntOptions) *flags.Flag {
+// NewFilterFlags creates flags for specifying filter queries.
+func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 
-	return flags.NewFlag(
-		&cli.SliceFlag[string]{
-			Name:        FilterFlagName,
-			EnvVars:     tgPrefix.EnvVars(FilterFlagName),
-			Destination: &opts.FilterQueries,
-			Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
-			Action: func(_ *cli.Context, val []string) error {
-				// Check if the filter-flag experiment is enabled
-				if !opts.Experiments.Evaluate("filter-flag") {
-					return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-				}
-				return nil
+	return cli.Flags{
+		flags.NewFlag(
+			&cli.SliceFlag[string]{
+				Name:        FilterFlagName,
+				EnvVars:     tgPrefix.EnvVars(FilterFlagName),
+				Destination: &opts.FilterQueries,
+				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
+				Action: func(_ *cli.Context, val []string) error {
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+					return nil
+				},
 			},
-		},
-	)
+		),
+		flags.NewFlag(
+			&cli.BoolFlag{
+				Name:    FilterAffectedFlagName,
+				EnvVars: tgPrefix.EnvVars(FilterAffectedFlagName),
+				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD]. Requires the 'filter-flag' experiment.",
+				Action: func(ctx *cli.Context, val bool) error {
+					if !val {
+						return nil
+					}
+
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filter-affected flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+
+					// Get working directory
+					workDir := opts.WorkingDir
+					if workDir == "" {
+						workDir = opts.RootWorkingDir
+					}
+					if workDir == "" {
+						// Fallback to current directory if neither is set
+						workDir = "."
+					}
+
+					// Check for uncommitted changes
+					gitRunner, err := git.NewGitRunner()
+					if err != nil {
+						return cli.NewExitError(err, cli.ExitCodeGeneralError)
+					}
+
+					gitRunner = gitRunner.WithWorkDir(workDir)
+
+					if gitRunner.HasUncommittedChanges(ctx.Context) {
+						l.Warnf("Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.")
+					}
+
+					defaultBranch := "main"
+
+					if b, err := gitRunner.Config(ctx.Context, "init.defaultBranch"); err == nil && b != "" {
+						l.Debugf("Using default branch discovered from git config: %s", b)
+
+						defaultBranch = b
+					} else {
+						l.Warnf("Failed to get default branch from `git config init.defaultBranch`, using main.")
+					}
+
+					opts.FilterQueries = append(opts.FilterQueries, fmt.Sprintf("[%s...HEAD]", defaultBranch))
+
+					return nil
+				},
+			},
+		),
+		flags.NewFlag(
+			&cli.BoolFlag{
+				Name:        FilterAllowDestroyFlagName,
+				EnvVars:     tgPrefix.EnvVars(FilterAllowDestroyFlagName),
+				Destination: &opts.FilterAllowDestroy,
+				Usage:       "Allow destroy runs when using Git-based filters. Requires the 'filter-flag' experiment.",
+				Action: func(_ *cli.Context, val bool) error {
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filter-allow-destroy flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+					return nil
+				},
+			},
+		),
+	}
 }
 
 // NewScaffoldingFlags creates the flags shared between catalog and scaffold commands.

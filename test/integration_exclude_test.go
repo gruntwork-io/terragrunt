@@ -83,8 +83,8 @@ func TestExcludeByFeatureFlagDefault(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit ./app1")
-	assert.NotContains(t, stderr, "Unit ./app2")
+	assert.Contains(t, stderr, "Unit app1")
+	assert.NotContains(t, stderr, "Unit app2")
 }
 
 func TestExcludeByFeatureFlag(t *testing.T) {
@@ -134,8 +134,8 @@ func TestExcludeDependencies(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit ./dep")
-	assert.NotContains(t, stderr, "Unit ./app1")
+	assert.Contains(t, stderr, "Unit dep")
+	assert.NotContains(t, stderr, "Unit app1")
 }
 
 func TestExcludeAllExceptOutput(t *testing.T) {
@@ -182,8 +182,8 @@ func TestExcludeNoRunRunAll(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit ./normal-unit")
-	assert.NotContains(t, stderr, "Unit ./no-run-unit")
+	assert.Contains(t, stderr, "Unit normal-unit")
+	assert.NotContains(t, stderr, "Unit no-run-unit")
 }
 
 func TestExcludeNoRunConditional(t *testing.T) {

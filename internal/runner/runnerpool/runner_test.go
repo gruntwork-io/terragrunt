@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/options"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -29,19 +29,16 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 	discUnit := component.NewUnit(tmpDir).WithConfig(&config.TerragruntConfig{})
 	discovered := component.Components{discUnit}
 
-	// Stack and resolver
+	// Build runner stack from discovery and verify units
 	opts, err := options.NewTerragruntOptionsForTest(tgPath)
-	require.NoError(t, err)
-
-	stack := &common.Stack{TerragruntOptions: opts}
-	resolver, err := common.NewUnitResolver(context.Background(), stack)
 	require.NoError(t, err)
 
 	l := thlogger.CreateLogger()
 
-	// Verify discovery-based resolution works correctly
-	fromDiscovery, err := resolver.ResolveFromDiscovery(context.Background(), l, discovered)
+	runner, err := runnerpool.NewRunnerPoolStack(context.Background(), l, opts, discovered)
 	require.NoError(t, err)
-	require.Len(t, fromDiscovery, 1)
-	require.Equal(t, tmpDir, fromDiscovery[0].Path)
+
+	units := runner.GetStack().Units
+	require.Len(t, units, 1)
+	require.Equal(t, tmpDir, units[0].Path())
 }

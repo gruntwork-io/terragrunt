@@ -193,6 +193,19 @@ and unit-b.
 The `**` double wildcard indicates any character including `/`, this allows
 matching multiple directory depths e.g. `units/**` matches unit-a, unit-b, and unit-c.
 
+### queue-exclude-external
+
+Throw an error when using the deprecated `--queue-exclude-external` flag.
+
+**Reason**: External dependencies are now excluded by default. The `--queue-exclude-external` flag is no longer needed and has been deprecated. Use `--queue-include-external` if you need to include external dependencies.
+
+**Example**:
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --queue-exclude-external
+WARN  The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.
+```
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
@@ -217,6 +230,7 @@ Throw an error when using the deprecated flags.
 **Controls**:
 
 - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+- [queue-exclude-external](#queue-exclude-external)
 
 ### deprecated-env-vars
 

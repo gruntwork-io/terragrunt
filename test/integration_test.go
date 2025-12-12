@@ -64,6 +64,7 @@ const (
 	testFixtureFindParentWithDeprecatedRoot   = "fixtures/find-parent-with-deprecated-root"
 	testFixtureGetOutput                      = "fixtures/get-output"
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
+	testFixtureRunAllSource                   = "fixtures/get-output/run-all-source"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
 	testFixtureHclfmtDiff                     = "fixtures/hclfmt-diff"
 	testFixtureHclfmtStdin                    = "fixtures/hclfmt-stdin"
@@ -479,8 +480,8 @@ func TestLogWithRelPath(t *testing.T) {
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
 
-				assert.Contains(t, stderr, "Unit ./bbb/ccc/workspace")
-				assert.Contains(t, stderr, "Unit ./bbb/ccc/module-b")
+				assert.Contains(t, stderr, "Unit bbb/ccc/workspace")
+				assert.Contains(t, stderr, "Unit bbb/ccc/module-b")
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -1062,9 +1063,9 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	// validate the modules
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit ./a")
-	assert.Contains(t, stderr, "Unit ./b")
-	assert.Contains(t, stderr, "Unit ./c")
+	assert.Contains(t, stderr, "Unit a")
+	assert.Contains(t, stderr, "Unit b")
+	assert.Contains(t, stderr, "Unit c")
 
 	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
 	require.NoError(t, os.Chtimes(util.JoinPath(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
@@ -2206,6 +2207,63 @@ func TestDependencyOutputWithTerragruntSource(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)
+}
+
+func TestRunAllWithSourceFlag(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRunAllSource)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunAllSource)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunAllSource, "live")
+	modulePath := util.JoinPath(tmpEnvPath, testFixtureRunAllSource, "modules-marked")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf("terragrunt run --all plan --non-interactive --working-dir %s --source %s", rootPath, modulePath),
+	)
+	require.NoError(t, err)
+
+	// When we fail to update the unit source location to the download dir correctly, we get an error about no configuration
+	// files being present.
+	assert.NotContains(t, stderr, "Error: No configuration files")
+
+	unit1Path := util.JoinPath(rootPath, "unit1")
+	unit2Path := util.JoinPath(rootPath, "unit2")
+
+	// Find the cache directories for each unit
+	unit1CacheDir := util.JoinPath(unit1Path, helpers.TerragruntCache)
+	unit2CacheDir := util.JoinPath(unit2Path, helpers.TerragruntCache)
+
+	var unit1MarkerPath, unit2MarkerPath string
+
+	walkErr := filepath.WalkDir(unit1CacheDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if d.Name() == "MODULE1_MARKER" {
+			unit1MarkerPath = path
+		}
+
+		return nil
+	})
+	require.NoError(t, walkErr)
+
+	walkErr = filepath.WalkDir(unit2CacheDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if d.Name() == "MODULE2_MARKER" {
+			unit2MarkerPath = path
+		}
+
+		return nil
+	})
+	require.NoError(t, walkErr)
+
+	assert.NotEmpty(t, unit1MarkerPath)
+	assert.NotEmpty(t, unit2MarkerPath)
 }
 
 func TestDependencyOutputWithHooks(t *testing.T) {
@@ -3413,7 +3471,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
 	// catch "Run failed" message printed in case of error in apply of units
 	assert.Contains(t, output, "Run failed")
-	assert.Contains(t, output, "Unit ./d1", output)
+	assert.Contains(t, output, "Unit d1", output)
 }
 
 func TestHclFmtDiff(t *testing.T) {

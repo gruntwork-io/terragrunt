@@ -3,11 +3,11 @@ package runner
 
 import (
 	"context"
-	"maps"
 	"path/filepath"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
@@ -21,8 +21,6 @@ import (
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
-	l.Infof("Using runner pool for stack %s", terragruntOptions.WorkingDir)
-
 	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 }
 
@@ -30,15 +28,17 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.Units {
-	matchedModulesMap := make(common.UnitsMap)
+func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []*component.Unit {
+	matchedModulesMap := make(map[string]*component.Unit)
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		maps.Copy(matchedModulesMap, findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig))
+		for k, v := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
+			matchedModulesMap[k] = v
+		}
 	}
 
-	var matchedModules = make(common.Units, 0, len(matchedModulesMap))
+	matchedModules := make([]*component.Unit, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}
@@ -67,8 +67,8 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.UnitsMap {
-	matchedModulesMap := make(common.UnitsMap)
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, _ *config.TerragruntConfig) map[string]*component.Unit {
+	matchedModulesMap := make(map[string]*component.Unit)
 
 	// Construct the full path to terragrunt.hcl in the directory
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
@@ -82,9 +82,13 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.Env = opts.Env
 	cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 	cfgOptions.TerraformCommand = opts.TerraformCommand
+	cfgOptions.TerraformCliArgs = opts.TerraformCliArgs
+	cfgOptions.CheckDependentModules = opts.CheckDependentModules
 	cfgOptions.NonInteractive = true
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
+	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
+
+	runner, err := FindStackInSubfolders(ctx, l, cfgOptions)
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
 		return matchedModulesMap
@@ -96,8 +100,8 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	deps, found := dependentModules[opts.WorkingDir]
 	if found {
 		for _, module := range stack.Units {
-			if slices.Contains(deps, module.Path) {
-				matchedModulesMap[module.Path] = module
+			if slices.Contains(deps, module.Path()) {
+				matchedModulesMap[module.Path()] = module
 			}
 		}
 	}

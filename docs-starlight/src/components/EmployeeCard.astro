@@ -1,0 +1,171 @@
+---
+import { Image } from 'astro:assets';
+import { ArrowRight } from 'lucide-react';
+
+import ButtonLink from '@components/ui/ButtonLink';
+import GithubIcon from '@assets/icons/github-icon-secondary.svg';
+import InfoIcon from '@assets/icons/info.svg';
+import LinkedinIcon from '@assets/icons/linkedin-icon-secondary.svg';
+import YouPlaceholder from '@assets/you-placeholder-2.jpg'
+import WebsiteIcon from '@assets/icons/website-icon-secondary.svg';
+
+import '@styles/global.css';
+
+const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
+
+const {
+  name = 'You',
+  title = 'Terragrunt Champion',
+  year,
+  image,
+  github = null,
+  linkedin = null,
+  website = null,
+  bio = null,
+  youCard = false,
+  class: customClass = ""
+} = Astro.props;
+---
+
+<div class={`p-6 rounded-lg bg-white border-gray-3 border-4 shadow-[0_0_0_2px_white] ${youCard ? `border-dashed` : `border-solid`} ${customClass}`}>
+  <div class="flex flex-col gap-4 text-toc-text">
+    <div class="w-full overflow-hidden aspect-[1.18/1] bg-[#9175FF] flex justify-center flex-col">
+      <Image src={ youCard ? YouPlaceholder : image } alt={`A picture of ${name}`} class="w-full h-auto" />
+    </div>
+    <div class="flex flex-col gap-1.5 mb-4">
+      <p class={`font-sans text-lg text-[#777888] font-medium m-0`}>
+        {name}
+      </p>
+      <p class={`font-sans text-sm text-gray-1 m-0`}>
+        {title}
+      </p>
+      {year && (
+        <p class={`font-sans text-xs font-bold text-gray-1 m-0`}>
+          {year}
+        </p>
+      )}
+      {youCard && (
+        <p class={`font-sans text-xs text-gray-1 m-0`}>
+          Lives and breathes all things Terragrunt.
+        </p>
+      )}
+    </div>
+    <div class="flex flex-row gap-4 justify-between items-center">
+      <div class="flex flex-row gap-2 justify-between items-center">
+        {github && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={github} target="_blank" rel="noopener noreferrer">
+              <Image src={GithubIcon} alt="Github" />
+            </a>
+          </div>
+        )}
+        {linkedin && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={linkedin} target="_blank" rel="noopener noreferrer">
+              <Image src={LinkedinIcon} alt="LinkedIn" />
+            </a>
+          </div>
+        )}
+        {website && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={website} target="_blank" rel="noopener noreferrer">
+              <Image src={WebsiteIcon} alt="Website" />
+            </a>
+          </div>
+        )}
+      </div>
+
+      <div>
+        {bio && (
+          <button class="modal-open bio-link cursor-pointer flex flex-row items-center bg-transparent gap-1 text-gray-1">
+            <p class="text-sm m-0">Bio</p>
+            <Image src={InfoIcon} alt="Info" />
+          </button>
+
+          <div class="hidden bio-modal modal-close fixed flex flex-col justify-center z-70 top-0 left-0 w-full h-[100vh] backdrop-blur-[3px]">
+            <div class="relative bg-surface-3 flex flex-row w-[90%] min-h-[400px] md:w-[80%] md:h-[35%] lg:w-[60%] max-w-[700px] mx-auto rounded-md border border-stroke-dark overflow-hidden p-10 text-white">
+              <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
+                <div>
+                  <div class="rounded-sm flex justify-center align-middle sm:w-[228px] h-[195px] overflow-hidden">
+                    <Image src={image} alt={`A picture of ${name}`} class="min-w-[220px] max-w-[250px] h-auto" />
+                  </div>
+                  <div class="flex flex-col gap-1.5 mt-4">
+                    <p class={`font-sans text-lg text-[#777888] font-medium m-0`}>
+                      {name}
+                    </p>
+                    <p class={`font-sans text-sm text-gray-1 m-0`}>
+                      {title}
+                    </p>
+                    {year && (
+                      <p class={`font-sans text-xs font-bold text-gray-1 m-0`}>
+                        {year}
+                      </p>
+                    )}
+                    <div class="flex flex-row gap-2 mt-4">
+                      {github && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={github} target="_blank" rel="noopener noreferrer">
+                            <Image src={GithubIcon} alt="Github" />
+                          </a>
+                        </div>
+                      )}
+                      {linkedin && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={linkedin} target="_blank" rel="noopener noreferrer">
+                            <Image src={LinkedinIcon} alt="LinkedIn" />
+                          </a>
+                        </div>
+                      )}
+                      {website && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={website} target="_blank" rel="noopener noreferrer">
+                            <Image src={WebsiteIcon} alt="Website" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm m-0">{bio}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+    {youCard && (
+      <ButtonLink href={BecomeAnAmbassador} variant="primary" buttonClassName='w-full'>
+        <span class="text-xs">Become an Ambassador</span>
+        <ArrowRight className="inline-block ml-1 transform translate-y-0.75 -translate-x-0.75 w-4 h-4" aria-hidden="true" />
+      </ButtonLink>
+    )}
+  </div>
+</div>
+
+<script type="text/javascript">
+  document.addEventListener('click', (e) => {
+    // open
+    const openBtn = e.target.closest('.modal-open');
+    if (openBtn) {
+      const modal = openBtn.nextElementSibling; // the matching .bio-modal
+      if (modal) {
+        modal.classList.remove('hidden'); // show the modal
+        document.body.style.overflow = 'hidden'; // prevent background scrolling
+      }
+      return;
+    }
+
+    // close
+    const closeBtn = e.target.closest('.modal-close');
+    if (closeBtn) {
+      const modal = closeBtn.closest('.bio-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+      return;
+    }
+  });
+</script>

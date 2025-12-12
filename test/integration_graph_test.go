@@ -62,7 +62,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
@@ -71,7 +71,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
@@ -119,7 +119,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
@@ -128,7 +128,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)

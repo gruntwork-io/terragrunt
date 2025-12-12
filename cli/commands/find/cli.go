@@ -32,10 +32,10 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return cli.Flags{
+	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -99,15 +99,16 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
-		shared.NewFilterFlag(opts.TerragruntOptions),
 	}
+
+	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
 
 	// Base flags for find plus backend/feature flags
-	flags := NewFlags(cmdOpts, nil)
+	flags := NewFlags(l, cmdOpts, nil)
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
 

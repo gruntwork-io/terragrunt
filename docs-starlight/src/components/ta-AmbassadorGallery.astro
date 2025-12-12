@@ -1,0 +1,81 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+import EmployeeCard from '@components/EmployeeCard.astro';
+
+import Axel from '@assets/ambassadors/axel-mendoza.jpg';
+import Dallas from '@assets/ambassadors/dallas-slaughter.jpg';
+import Joshua from '@assets/ambassadors/joshua-ward.jpg';
+import Juan from '@assets/ambassadors/juan-reyes.jpg';
+import Steven from '@assets/ambassadors/steven-tseng.jpg';
+import Gabor from '@assets/ambassadors/gabor-maghera.jpg'
+---
+
+<section class="flex justify-center items-center px-5 md:px-0">
+  <div class="flex flex-col w-full md:w-[680px] lg:w-[900px]">
+    <!-- Header Section -->
+    <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+      <Eyebrow text="Ambassadors" />
+      <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">
+         Meet the Terragrunt <span class="text-accent">Ambassadors</span>
+      </h2>
+    </div>
+    <!-- Content Wrapper -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+      <EmployeeCard
+        name="Axel Mendoza"
+        image={Axel}
+        title="MLOps Engineer"
+        year="Founding Ambassador"
+        github="https://github.com/ConsciousML"
+        linkedin="https://www.linkedin.com/in/axelmdz/"
+        website="https://www.axelmendoza.com/"
+        bio="I'm a Senior MLOps Engineer with 6+ years of experience building production-ML systems. I write long-form articles on MLOps to help you build too!"
+      />
+      <EmployeeCard
+        name="Juan Reyes"
+        image={Juan}
+        title="Lead Platform Engineer"
+        year="Founding Ambassador"
+        github="https://github.com/jfr992"
+        bio="Currently working in the Platform Engineering / DevOps space, I specialize in AWS, GCP, Infrastructure as Code (Terragrunt/OpenTofu/Terraform <3), and Kubernetes (I’m a proud Kubestronaut). I excel at solving complex infrastructure challenges by designing, building, and integrating scalable, robust, and cloud-native solutions. My passion lies in elevating infrastructure workflows by pushing the boundaries of automation, reusability, and best-practice architectures."
+      />
+      <EmployeeCard
+        name="Steven Tseng"
+        image={Steven}
+        title="Staff DevOps Engineer"
+        year="Founding Ambassador"
+        linkedin="https://www.linkedin.com/in/tsengy/"
+        bio="Steven Tseng is currently a leading DevOps engineer at Easygo. As part of day to day activities, Steven maintains a large number of cloud platforms & services to support a global fast-growing platform serving millions of customers, and generating thousands of transactions per second. Daily Terragrunt user, and a firm believer of IaC."
+      />
+      <EmployeeCard
+        name="Dallas Slaughter"
+        image={Dallas}
+        title="Founding Engineer"
+        year="Founding Ambassador"
+        github="https://github.com/slaughtr"
+        linkedin="https://linkedin.com/dallas-slaughter"
+        bio="Dallas loves to build things almost as much as he loves to break them, and has plenty of experience at both to share. Having spent years as a DevOps engineer, someone got the bright idea to let him write code again and he's having a blast. Always happy to help, or listen, or just be the void that gets screamed into."
+      />
+      <EmployeeCard
+        name="Joshua Ward"
+        image={Joshua}
+        title="DevOps Architect"
+        year="Founding Ambassador"
+        github="https://github.com/j2udev"
+        linkedin="https://www.linkedin.com/in/joshua-ward-78997612a/"
+        bio="I'm a DevOps enthusiast who loves building meaningful, high-impact solutions. I enjoy turning big-picture ideas into reality by choosing the right tools for the job. Terragrunt is often the first tool I reach for. It helps turn IaC chaos into organized, scalable, and maintainable infrastructure."
+      />
+      <EmployeeCard
+        name="Gabor Maghera"
+        image={Gabor}
+        title="Sr. Manager, Platform Engineering"
+        year="Founding Ambassador"
+        linkedin="https://www.linkedin.com/in/gabormaghera/"
+        bio="I am a Senior Platform Engineering Manager with deep roots in hands-on engineering, passionate about architecting and scaling infrastructure-as-code solutions for the enterprise. I champion a DevOps culture where every developer can contribute infrastructure changes, using unobtrusive methods and minimally invasive feedback gates to ensure safety and security."
+      />
+      <EmployeeCard youCard={true} />
+    </div>
+  </div>
+</section>
