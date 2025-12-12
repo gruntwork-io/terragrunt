@@ -261,9 +261,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 
-		// Missing config file - warn and skip
 		if !util.FileExists(depPath) {
-			l.Warnf("Dependency %q config file not found at %s, skipping", dep.Name, depPath)
 			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 
 			continue
