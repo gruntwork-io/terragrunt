@@ -34,6 +34,9 @@ const (
 	AutoProviderCacheDir = "auto-provider-cache-dir"
 	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
 	FilterFlag = "filter-flag"
+	// DependencyFetchOutputFromState is the experiment that enables fetching dependency outputs
+	// directly from state files instead of using terraform/tofu output commands.
+	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
 )
 
 const (
@@ -78,6 +81,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: FilterFlag,
+		},
+		{
+			Name: DependencyFetchOutputFromState,
 		},
 	}
 }

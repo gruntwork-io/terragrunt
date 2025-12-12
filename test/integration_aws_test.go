@@ -1342,6 +1342,60 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
 
+func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: paralleltest
+	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
+	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// t.Parallel()
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, "root.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteState)
+
+	// Apply dependencies first
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app1", environmentPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app3", environmentPath))
+	// Now delete dependencies cached state
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
+	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
+
+	// Apply app2 with experiment enabled but --no-dependency-fetch-output-from-state flag set
+	// This should fall back to using terraform output instead of fetching from state
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --experiment dependency-fetch-output-from-state --no-dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app2", environmentPath))
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	// Clear cache again before running output command
+	config.ClearOutputCache()
+
+	// Run output command with experiment enabled but flag set to disable
+	// When the flag is set, it should use terraform output instead of fetching from S3
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --backend-bootstrap --experiment dependency-fetch-output-from-state --no-dependency-fetch-output-from-state --non-interactive --log-level trace --working-dir "+environmentPath, &stdout, &stderr)
+	output := stdout.String()
+	stderrOutput := stderr.String()
+
+	// Verify outputs are still correct
+	assert.Contains(t, output, "app1 output")
+	assert.Contains(t, output, "app2 output")
+	assert.Contains(t, output, "app3 output")
+
+	// When --no-dependency-fetch-output-from-state is set, it should use terraform output
+	// This means we should see "terraform output -json" or "tofu output -json" in stderr
+	// (The exact command depends on which terraform implementation is being used)
+	// This is the opposite of TestAwsOutputFromRemoteState which asserts this is NOT present
+	assert.True(t, strings.Contains(stderrOutput, "terraform output") || strings.Contains(stderrOutput, "tofu output"), "Expected to see terraform/tofu output command when --no-dependency-fetch-output-from-state flag is set, but stderr was: %s", stderrOutput)
+}
+
 func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
 	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
