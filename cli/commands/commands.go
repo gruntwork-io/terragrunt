@@ -404,6 +404,16 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	slices.Sort(opts.ExcludeDirs)
 	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
 
+	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
+	if opts.Experiments.Evaluate("filter-flag") && !opts.NoFiltersFile {
+		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
+		if filtersFromFileErr != nil {
+			return filtersFromFileErr
+		}
+
+		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
+	}
+
 	if !doubleStarEnabled {
 		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
 		if err != nil {
