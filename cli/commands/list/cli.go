@@ -35,7 +35,7 @@ const (
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return cli.Flags{
+	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -88,8 +88,11 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
-		shared.NewFilterFlag(opts.TerragruntOptions),
 	}
+
+	flags = flags.Add(shared.NewFilterFlags(opts.TerragruntOptions)...)
+
+	return flags
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
