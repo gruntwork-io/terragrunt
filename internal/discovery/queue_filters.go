@@ -127,17 +127,9 @@ func (d *Discovery) propagateIncludedDeps(components component.Components) {
 func normalizePaths(workDir string, paths []string) []string {
 	normalized := make([]string, 0, len(paths))
 
-	// Ensure workDir is absolute for proper path resolution
-	absWorkDir := workDir
-	if !filepath.IsAbs(workDir) {
-		if abs, err := filepath.Abs(workDir); err == nil {
-			absWorkDir = abs
-		}
-	}
-
 	for _, path := range paths {
 		if !filepath.IsAbs(path) {
-			path = util.JoinPath(absWorkDir, path)
+			path = util.JoinPath(workDir, path)
 		}
 
 		path = util.CleanPath(path)
@@ -270,23 +262,17 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 		return components
 	}
 
-	// Normalize paths
-	normalizedReading := normalizePaths(opts.WorkingDir, opts.UnitsReading)
-	normalizedIncluding := normalizePaths(opts.WorkingDir, opts.ModulesThatInclude)
+	normalizedReading := normalizePaths(d.workingDir, opts.UnitsReading)
+	normalizedIncluding := normalizePaths(d.workingDir, opts.ModulesThatInclude)
 
-	// Capture pre-included units before resetting
 	preIncluded := capturePreIncluded(components)
 
-	// Reset all units to excluded
 	resetAllUnitsExcluded(components)
 
-	// Un-exclude units that read the requested files
-	unexcludeUnitsReading(components, normalizedReading, opts.WorkingDir)
+	unexcludeUnitsReading(components, normalizedReading, d.workingDir)
 
-	// Un-exclude units that include the requested files
-	unexcludeModulesThatInclude(components, normalizedIncluding, opts.WorkingDir)
+	unexcludeModulesThatInclude(components, normalizedIncluding, d.workingDir)
 
-	// Restore prior inclusions
 	restorePreIncluded(components, preIncluded)
 
 	return components
