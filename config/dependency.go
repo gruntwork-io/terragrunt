@@ -250,44 +250,64 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
 	for _, dep := range decodedDependency.Dependencies {
-		if dep.isEnabled() && !IsValidConfigPath(dep.ConfigPath) {
+		if !dep.isEnabled() {
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+			continue
+		}
+
+		if !IsValidConfigPath(dep.ConfigPath) {
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
-		if dep.isEnabled() && util.FileExists(depPath) {
-			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
 
-			cachedDependency, found := depCache.Get(ctx, cacheKey)
-			if !found {
-				l, depOpts, err := cloneTerragruntOptionsForDependency(ctx, l, depPath)
-				if err != nil {
-					return nil, err
-				}
+		// Missing config file - warn and skip
+		if !util.FileExists(depPath) {
+			l.Warnf("Dependency %q config file not found at %s, skipping", dep.Name, depPath)
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 
-				depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
-
-				if depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil); err == nil {
-					inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
-					if err != nil {
-						return nil, err
-					}
-
-					cachedValue := dependencyOutputCache{
-						Enabled: dep.Enabled,
-						Inputs:  inputsCty,
-					}
-					depCache.Put(ctx, cacheKey, &cachedValue)
-
-					dep.Inputs = &inputsCty
-				} else {
-					l.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
-				}
-			} else {
-				dep.Enabled = cachedDependency.Enabled
-				dep.Inputs = &cachedDependency.Inputs
-			}
+			continue
 		}
+
+		cacheKey := filepath.Join(ctx.TerragruntOptions.WorkingDir, depPath)
+
+		// Cache hit - reuse cached values
+		if cachedDependency, found := depCache.Get(ctx, cacheKey); found {
+			dep.Enabled = cachedDependency.Enabled
+			dep.Inputs = &cachedDependency.Inputs
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		// Cache miss - parse and cache
+		l, depOpts, err := cloneTerragruntOptionsForDependency(ctx, l, depPath)
+		if err != nil {
+			return nil, err
+		}
+
+		depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
+
+		depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil)
+		if err != nil {
+			l.Warnf("Error reading partial config for dependency %s at %s: %v", dep.Name, depPath, err)
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
+		if err != nil {
+			return nil, errors.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
+		}
+
+		cachedValue := dependencyOutputCache{
+			Enabled: dep.Enabled,
+			Inputs:  inputsCty,
+		}
+		depCache.Put(ctx, cacheKey, &cachedValue)
+
+		dep.Inputs = &inputsCty
 
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
