@@ -171,6 +171,27 @@ func resolveUnitsFromDiscovery(
 			return nil, err
 		}
 
+		// If --source is provided, compute the per-unit source by combining the base source
+		// with the path from the unit's terragrunt.hcl source configuration
+		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
+			stack.Execution.TerragruntOptions.Source != "" {
+			unitConfig := unit.Config()
+			if unitConfig != nil {
+				unitSource, sourceErr := config.GetTerragruntSourceForModule(
+					stack.Execution.TerragruntOptions.Source,
+					canonicalConfigPath,
+					unitConfig,
+				)
+				if sourceErr != nil {
+					return nil, tgerrors.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
+				}
+
+				if unitSource != "" {
+					unitOpts.Source = unitSource
+				}
+			}
+		}
+
 		// Skip units without Terraform configuration
 		skip, err := shouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
 		if err != nil {
@@ -187,16 +208,6 @@ func resolveUnitsFromDiscovery(
 			Logger:               unitLogger,
 			FlagExcluded:         unit.Excluded(),
 			AssumeAlreadyApplied: false,
-		}
-
-		// Handle external units - check if they should be excluded
-		if unit.External() {
-			if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
-				stack.Execution.TerragruntOptions.IgnoreExternalDependencies {
-				unit.Execution.AssumeAlreadyApplied = true
-				unit.Execution.FlagExcluded = true
-				l.Infof("Excluded external dependency: %s", unit.DisplayPath())
-			}
 		}
 
 		// Store config from discovery context if available
@@ -309,8 +320,13 @@ func NewRunnerPoolStack(
 
 	runner.Stack.Units = units
 
-	if isDestroyCommand(terragruntOptions) {
+	if isDestroyCommand(terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs) {
 		applyPreventDestroyExclusions(l, units)
+	}
+
+	// Apply filter-allow-destroy exclusions for plan and apply commands
+	if terragruntOptions.TerraformCommand == tf.CommandNamePlan || terragruntOptions.TerraformCommand == tf.CommandNameApply {
+		applyFilterAllowDestroyExclusions(l, terragruntOptions, units)
 	}
 
 	// Build queue from resolved units (which have canonical absolute paths).
@@ -623,7 +639,10 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
 	entries := slices.Clone(r.queue.Entries)
-	if r.Stack.Execution != nil && isDestroyCommand(r.Stack.Execution.TerragruntOptions) {
+	if r.Stack.Execution != nil && isDestroyCommand(
+		r.Stack.Execution.TerragruntOptions.TerraformCommand,
+		r.Stack.Execution.TerragruntOptions.TerraformCliArgs,
+	) {
 		slices.Reverse(entries)
 	}
 
@@ -930,9 +949,9 @@ func (r *Runner) SetReport(rpt *report.Report) {
 }
 
 // isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(opts *options.TerragruntOptions) bool {
-	return opts.TerraformCommand == tf.CommandNameDestroy ||
-		util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy)
+func isDestroyCommand(cmd string, args []string) bool {
+	return cmd == tf.CommandNameDestroy ||
+		slices.Contains(args, "-"+tf.CommandNameDestroy)
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
@@ -981,6 +1000,30 @@ func applyPreventDestroyExclusions(l log.Logger, units []*component.Unit) {
 
 // maxDependencyTraversalDepth bounds the depth of dependency traversal to prevent excessive recursion.
 const maxDependencyTraversalDepth = 256
+
+// applyFilterAllowDestroyExclusions excludes units with destroy runs from Git-based filters
+// when the --filter-allow-destroy flag is not set. This prevents accidental destruction
+// of infrastructure when using Git-based filters.
+func applyFilterAllowDestroyExclusions(l log.Logger, opts *options.TerragruntOptions, units []*component.Unit) {
+	if opts.FilterAllowDestroy {
+		return
+	}
+
+	for _, unit := range units {
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx == nil {
+			continue
+		}
+
+		if discoveryCtx.Ref != "" && isDestroyCommand(discoveryCtx.Cmd, discoveryCtx.Args) {
+			if unit.Execution != nil {
+				unit.Execution.FlagExcluded = true
+			}
+
+			l.Warnf("The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.", unit.DisplayPath(), discoveryCtx.Ref)
+		}
+	}
+}
 
 // collectDependencies collects dependency paths for a unit with a bounded recursion depth.
 func collectDependencies(unit *component.Unit, paths map[string]bool) {

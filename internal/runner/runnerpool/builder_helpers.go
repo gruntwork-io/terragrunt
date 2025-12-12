@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -76,6 +77,17 @@ func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
 	return nil
 }
 
+// extractReport finds ReportProvider in options and returns the report.
+func extractReport(opts []common.Option) *report.Report {
+	for _, opt := range opts {
+		if rp, ok := opt.(common.ReportProvider); ok {
+			return rp.GetReport()
+		}
+	}
+
+	return nil
+}
+
 // newBaseDiscovery constructs the base discovery with common immutable options.
 func newBaseDiscovery(
 	tgOpts *options.TerragruntOptions,
@@ -88,10 +100,9 @@ func newBaseDiscovery(
 		anyOpts[i] = v
 	}
 
-	return discovery.
+	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anyOpts...).
-		WithDiscoverExternalDependencies().
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
@@ -102,6 +113,17 @@ func newBaseDiscovery(
 			Cmd:        tgOpts.TerraformCliArgs.First(),
 			Args:       tgOpts.TerraformCliArgs.Tail(),
 		})
+
+	// Only include external dependencies in the run queue if explicitly requested via --queue-include-external.
+	// This restores the pre-v0.94.0 behavior where external dependencies were excluded by default.
+	// External dependencies are still detected and tracked for reporting purposes, but not fully discovered
+	// unless this flag is set.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+	if tgOpts.IncludeExternalDependencies {
+		d = d.WithDiscoverExternalDependencies()
+	}
+
+	return d
 }
 
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
@@ -151,6 +173,11 @@ func prepareDiscovery(
 	// Apply worktrees for git filter expressions
 	if w := extractWorktrees(opts); w != nil {
 		d = d.WithWorktrees(w)
+	}
+
+	// Apply report for recording excluded external dependencies
+	if r := extractReport(opts); r != nil {
+		d = d.WithReport(r)
 	}
 
 	return d, nil

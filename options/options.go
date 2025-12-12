@@ -224,6 +224,8 @@ type TerragruntOptions struct {
 	ForwardTFStdout bool
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
+	// FilterAllowDestroy allows destroy runs when using Git-based filters
+	FilterAllowDestroy bool
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
 	// Disables validation terraform command

@@ -21,7 +21,7 @@ const (
 	StdinFlagName      = "stdin"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
@@ -79,7 +79,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	}
 
 	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
-	flagSet = flagSet.Add(shared.NewFilterFlag(opts))
+	flagSet = flagSet.Add(shared.NewFilterFlags(l, opts)...)
 	flagSet = flagSet.Add(shared.NewParallelismFlag(opts))
 
 	return flagSet
@@ -90,7 +90,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:    CommandName,
 		Aliases: []string{CommandNameAlias},
 		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
-		Flags:   NewFlags(opts, nil),
+		Flags:   NewFlags(l, opts, nil),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},

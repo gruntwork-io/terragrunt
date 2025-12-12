@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -109,6 +110,9 @@ type Discovery struct {
 
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitExpressions
+
+	// report is used for recording excluded external dependencies during discovery.
+	report *report.Report
 
 	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
 	compiledIncludePatterns []CompiledPattern
@@ -249,6 +253,13 @@ func (d *Discovery) WithMaxDependencyDepth(depth int) *Discovery {
 // WithDiscoverExternalDependencies sets the DiscoverExternalDependencies flag to true.
 func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
 	d.discoverExternalDependencies = true
+
+	return d
+}
+
+// WithReport sets the report for recording excluded external dependencies.
+func (d *Discovery) WithReport(r *report.Report) *Discovery {
+	d.report = r
 
 	return d
 }
@@ -1156,6 +1167,11 @@ func (d *Discovery) Discover(
 					// pass parser options
 					if len(d.parserOptions) > 0 {
 						dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
+					}
+
+					// pass report for recording excluded external dependencies
+					if d.report != nil {
+						dependencyDiscovery = dependencyDiscovery.WithReport(d.report)
 					}
 
 					discoveryErr := dependencyDiscovery.Discover(discoveryCtx, l, opts, dependencyStartingComponents)

@@ -512,7 +512,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --queue-exclude-external --feature dep=%s --working-dir %s --report-file %s",
+			"terragrunt run --all plan --queue-exclude-external --log-level debug --feature dep=%s --working-dir %s --report-file %s",
 			dep,
 			rootPath,
 			reportFile,
@@ -525,6 +525,10 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	// Verify that no "run not found in report" errors appear in stderr
 	assert.NotContains(t, stderr, "run not found in report")
 	assert.Contains(t, stdout, "Run Summary")
+
+	// External dependencies should be logged as excluded during discovery
+	assert.Contains(t, stderr, "Excluded external dependency",
+		"External dependencies should be logged as excluded")
 
 	// Verify that the report file exists
 	assert.FileExists(t, reportFile)

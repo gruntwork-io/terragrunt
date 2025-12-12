@@ -26,6 +26,8 @@ const (
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
+	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
+	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -225,8 +227,8 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+consumerPath)
 	require.Error(t, runErr)
 	// Accept match in either stderr or the returned error string
-	if !strings.Contains(stderr, "has empty config_path") && !strings.Contains(runErr.Error(), "has empty config_path") {
-		t.Fatalf("unexpected error; want empty config_path message, got: %v\nstderr: %s", runErr, stderr)
+	if !strings.Contains(stderr, "has invalid config_path") && !strings.Contains(runErr.Error(), "has invalid config_path") {
+		t.Fatalf("unexpected error; want invalid config_path message, got: %v\nstderr: %s", runErr, stderr)
 	}
 }
 
@@ -317,6 +319,8 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 // TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
 // to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
 // excluding external dependencies.
+// Note: As of #5195 fix, external dependencies are excluded by default, so --queue-exclude-external
+// is now deprecated and acts as a no-op. This test verifies the behavior still works correctly.
 func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
 	t.Parallel()
 
@@ -325,7 +329,8 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
 	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
 
-	// Set TG_PROVIDER_CACHE=1 and use --queue-exclude-external as in the repro steps
+	// Use --queue-exclude-external as in the repro steps (now deprecated, acts as no-op since
+	// external dependencies are excluded by default after #5195 fix)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
@@ -417,8 +422,8 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 	assert.NotContains(t, combinedOutput, "Cycle detected",
 		"Should not see 'Cycle detected' error")
 
-	assert.NotContains(t, combinedOutput, "has empty config_path",
-		"Should not see empty config_path error for disabled dependency")
+	assert.NotContains(t, combinedOutput, "has invalid config_path",
+		"Should not see invalid config_path error for disabled dependency")
 
 	_, runAllStderr, runAllErr := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -564,4 +569,121 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 	require.Greater(t, len(outputAfterCancel), len(outputBeforeCancel), "Output should increase after cancellation due to flush")
 	require.Greater(t, totalWrites, writesBeforeCancel, "Additional writes should occur after cancellation (flush writes)")
 	require.NotEmpty(t, output, "Expected output to be flushed after cancellation")
+}
+
+// TestRunAllDoesNotIncludeExternalDepsInQueue tests that running `terragrunt run --all` from a subdirectory
+// does NOT include external dependencies in the execution queue.
+// This is a regression test for issue #5195 where v0.94.0 incorrectly included external dependencies
+// in the run queue, causing dangerous operations like destroy to execute against unintended modules.
+//
+// The test structure is:
+//
+//	fixtures/regressions/5195-scope-escape/
+//	├── bastion/           <- Run from here, has dependency on module2
+//	│   ├── terragrunt.hcl (depends on ../module2 with mock_outputs)
+//	│   └── main.tf
+//	├── module1/           <- Has dependency on bastion
+//	│   ├── terragrunt.hcl
+//	│   └── main.tf
+//	└── module2/           <- External dependency of bastion
+//	    ├── terragrunt.hcl
+//	    └── main.tf
+//
+// Expected behavior (v0.93.13 and after fix):
+//   - External dependency (module2) is discovered but EXCLUDED from execution
+//   - Summary shows "Excluded 1" for the external dep
+//   - Only bastion (Unit .) is actually executed
+//
+// Bug behavior (v0.94.0):
+//   - External dependency is included and EXECUTED (not excluded)
+//   - This causes unintended operations on external modules
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureScopeEscape)
+	bastionPath := util.JoinPath(rootPath, "bastion")
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the bastion directory
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --log-level debug --non-interactive --working-dir "+bastionPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err)
+
+	// External dependencies should be excluded (not executed)
+	// The log should show they were excluded during discovery
+	assert.Contains(t, stderr, "Excluded external dependency",
+		"External dependencies should be logged as excluded")
+
+	// Should see bastion (displayed as "." since it's the current directory)
+	assert.Contains(t, stderr, "Unit .",
+		"Should discover the current directory (bastion) as '.'")
+
+	// Report shows 2 units (bastion + excluded external dep)
+	assert.Contains(t, stdout, "2 units",
+		"Should have 2 units total (bastion + excluded external dep)")
+	assert.Contains(t, stdout, "Succeeded    1",
+		"Only bastion should succeed")
+	assert.Contains(t, stdout, "Excluded     1",
+		"External dependency should be excluded in report")
+}
+
+// TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory
+// correctly discovers all modules in the hierarchy. This is the control test for
+// TestRunAllDoesNotEscapeWorkingDir.
+func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureScopeEscape)
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the parent directory (live/)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed in terms of discovery
+	_ = err
+
+	// Should see all three modules when running from parent directory
+	assert.Contains(t, stderr, "bastion",
+		"Should discover bastion when running from parent directory")
+	assert.Contains(t, stderr, "module1",
+		"Should discover module1 when running from parent directory")
+	assert.Contains(t, stderr, "module2",
+		"Should discover module2 when running from parent directory")
+}
+
+func TestNotExistingDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNotExistingDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingDependency)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingDependency)
+
+	invalidPath := util.JoinPath(rootPath, "invalid-path")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+invalidPath)
+	require.Error(t, err)
+	// should be reported that dependency have invalid path
+	assert.Contains(t, err.Error(), "dependency \"dep_123\" has invalid config_path")
+
+	parentFindFail := util.JoinPath(rootPath, "parent-find-fail")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+parentFindFail)
+	require.Error(t, err)
+	// should be reported that find_in_parent_folders() fail
+	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
 }
