@@ -34,7 +34,7 @@ func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithCustomDefaultTemplate)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
+	testPath := filepath.Join(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 		"terragrunt --non-interactive --working-dir %s scaffold %s",

@@ -29,7 +29,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -39,7 +39,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 		helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --log-level trace --inputs-debug --working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	debugFile := util.JoinPath(rootPath, helpers.TerragruntDebugFile)
+	debugFile := filepath.Join(rootPath, helpers.TerragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
 
 	if helpers.IsWindows() {
@@ -89,7 +89,7 @@ func TestTerragruntInputsWithDashes(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --working-dir=%s --log-level=debug", rootPath))
 }
@@ -160,7 +160,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
 	helpers.CleanupTerraformFolder(t, moduleDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, moduleDir))
-	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
+	rootPath := filepath.Join(tmpEnvPath, moduleDir)
 
 	args := []string{"--strict"}
 	helpers.RunTerragruntValidateInputs(t, rootPath, args, false)
@@ -172,7 +172,7 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
 	helpers.CleanupTerraformFolder(t, moduleDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, moduleDir))
-	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
+	rootPath := filepath.Join(tmpEnvPath, moduleDir)
 
 	args := []string{}
 	helpers.RunTerragruntValidateInputs(t, rootPath, args, true)
@@ -183,7 +183,7 @@ func TestRenderJSONConfig(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSON)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSON)
-	rootPath := util.JoinPath(tmpEnvPath, fixtureRenderJSON)
+	rootPath := filepath.Join(tmpEnvPath, fixtureRenderJSON)
 
 	fixtureRenderJSONMainModulePath := filepath.Join(rootPath, "main")
 	fixtureRenderJSONDepModulePath := filepath.Join(rootPath, "dep")
@@ -513,7 +513,7 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, fixtureMultiIncludeDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureMultiIncludeDependency)
-	rootPath := util.JoinPath(tmpEnvPath, fixtureMultiIncludeDependency)
+	rootPath := filepath.Join(tmpEnvPath, fixtureMultiIncludeDependency)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

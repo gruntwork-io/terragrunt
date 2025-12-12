@@ -621,7 +621,7 @@ func (opts *TerragruntOptions) DataDir() string {
 		return tfDataDir
 	}
 
-	return util.JoinPath(opts.WorkingDir, tfDataDir)
+	return filepath.Join(opts.WorkingDir, tfDataDir)
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.

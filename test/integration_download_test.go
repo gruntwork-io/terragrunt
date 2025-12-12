@@ -53,7 +53,7 @@ func TestLocalDownload(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalDownloadPath)
 
 	// As of Terraform 0.14.0 we should be copying the lock file from .terragrunt-cache to the working directory
-	assert.FileExists(t, util.JoinPath(testFixtureLocalDownloadPath, util.TerraformLockFile))
+	assert.FileExists(t, filepath.Join(testFixtureLocalDownloadPath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalDownloadPath)
@@ -67,7 +67,7 @@ func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureDisableCopyLockFilePath)
 
 	// The terraform lock file should not be copied if `copy_terraform_lock_file = false`
-	assert.NoFileExists(t, util.JoinPath(testFixtureDisableCopyLockFilePath, util.TerraformLockFile))
+	assert.NoFileExists(t, filepath.Join(testFixtureDisableCopyLockFilePath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureDisableCopyLockFilePath)
@@ -81,7 +81,7 @@ func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureIncludeDisableCopyLockFilePath)
 
 	// The terraform lock file should not be copied if `copy_terraform_lock_file = false`
-	assert.NoFileExists(t, util.JoinPath(testFixtureIncludeDisableCopyLockFilePath, util.TerraformLockFile))
+	assert.NoFileExists(t, filepath.Join(testFixtureIncludeDisableCopyLockFilePath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureIncludeDisableCopyLockFilePath)
@@ -139,9 +139,9 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	lockTableName := "terragrunt-lock-table-" + strings.ToLower(helpers.UniqueID())
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalMissingBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalMissingBackend)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath, os.Stdout, os.Stderr)
@@ -231,7 +231,7 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteModuleInRoot)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteModuleInRoot)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteModuleInRoot)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -246,16 +246,16 @@ func TestCustomLockFile(t *testing.T) {
 
 	path := fmt.Sprintf("%s-%s", testFixtureCustomLockFile, wrappedBinary())
 	tmpEnvPath := helpers.CopyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
-	rootPath := util.JoinPath(tmpEnvPath, path)
+	rootPath := filepath.Join(tmpEnvPath, path)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
-	downloadDir := util.JoinPath(rootPath, helpers.TerragruntCache)
+	downloadDir := filepath.Join(rootPath, helpers.TerragruntCache)
 	result, err := tf.NewSource(createLogger(), source, downloadDir, rootPath, false)
 	require.NoError(t, err)
 
-	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
+	lockFilePath := filepath.Join(result.WorkingDir, util.TerraformLockFile)
 	assert.FileExists(t, lockFilePath)
 
 	readFile, err := os.ReadFile(lockFilePath)
@@ -303,13 +303,13 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
-		workingDir := util.JoinPath(tmpDir, testFixtureLocalWithExcludeDir)
+		workingDir := filepath.Join(tmpDir, testFixtureLocalWithExcludeDir)
 		workingDir, err = filepath.EvalSymlinks(workingDir)
 		require.NoError(t, err)
 
 		modulePaths := make(map[string]string, len(moduleNames))
 		for _, moduleName := range moduleNames {
-			modulePaths[moduleName] = util.JoinPath(workingDir, moduleName)
+			modulePaths[moduleName] = filepath.Join(workingDir, moduleName)
 		}
 
 		applyAllStdout := bytes.Buffer{}
@@ -401,13 +401,13 @@ func TestExcludeDirsWithFilter(t *testing.T) {
 
 	for _, tt := range testCases {
 		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
-		workingDir := util.JoinPath(tmpDir, testFixtureLocalWithExcludeDir)
+		workingDir := filepath.Join(tmpDir, testFixtureLocalWithExcludeDir)
 		workingDir, err := filepath.EvalSymlinks(workingDir)
 		require.NoError(t, err)
 
 		modulePaths := make(map[string]string, len(moduleNames))
 		for _, moduleName := range moduleNames {
-			modulePaths[moduleName] = util.JoinPath(workingDir, moduleName)
+			modulePaths[moduleName] = filepath.Join(workingDir, moduleName)
 		}
 
 		// Apply modules according to test cases
@@ -487,13 +487,13 @@ func TestIncludeDirs(t *testing.T) {
 			t.Parallel()
 
 			tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
-			workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+			workingDir := filepath.Join(tmpDir, testFixtureLocalWithIncludeDir)
 			workingDir, err := filepath.EvalSymlinks(workingDir)
 			require.NoError(t, err)
 
 			unitPaths := make(map[string]string, len(unitNames))
 			for _, unitName := range unitNames {
-				unitPaths[unitName] = util.JoinPath(workingDir, unitName)
+				unitPaths[unitName] = filepath.Join(workingDir, unitName)
 			}
 
 			applyAllStdout := bytes.Buffer{}
@@ -557,7 +557,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 
 	// Copy the entire download fixture directory to ensure all referenced sources are available
 	tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
-	workingDir := util.JoinPath(tmpDir, testFixtureLocalWithIncludeDir)
+	workingDir := filepath.Join(tmpDir, testFixtureLocalWithIncludeDir)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -594,7 +594,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 
 	unitPaths := make(map[string]string, len(unitNames))
 	for _, unitName := range unitNames {
-		unitPaths[unitName] = util.JoinPath(workingDir, unitName)
+		unitPaths[unitName] = filepath.Join(workingDir, unitName)
 	}
 
 	for _, tc := range testCases {
@@ -711,7 +711,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureExternalDependence)
 
 	for _, module := range modules {
-		helpers.CleanupTerraformFolder(t, util.JoinPath(testFixtureExternalDependence, module))
+		helpers.CleanupTerraformFolder(t, filepath.Join(testFixtureExternalDependence, module))
 	}
 
 	var (
@@ -720,7 +720,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	)
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
-	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, "module-b")
+	modulePath := filepath.Join(rootPath, testFixtureExternalDependence, "module-b")
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --queue-include-external --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
@@ -741,7 +741,7 @@ func TestPreventDestroy(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
-	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
+	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureLocalPreventDestroy)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fixtureRoot)
 
@@ -758,7 +758,7 @@ func TestPreventDestroyApply(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
 
-	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
+	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureLocalPreventDestroy)
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fixtureRoot)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -destroy -auto-approve --non-interactive --working-dir "+fixtureRoot, os.Stdout, os.Stderr)
@@ -783,7 +783,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
-		modulePaths[moduleName] = util.JoinPath(testFixtureLocalPreventDestroyDependencies, moduleName)
+		modulePaths[moduleName] = filepath.Join(testFixtureLocalPreventDestroyDependencies, moduleName)
 	}
 
 	// Cleanup all modules directories.
@@ -857,7 +857,7 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 	fixturePath := "fixtures/download/remote"
 
 	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
-	testPath := util.JoinPath(tmpEnvPath, fixturePath)
+	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
 	// Run with CAS experiment enabled
@@ -882,7 +882,7 @@ func TestCASStorageDirectory(t *testing.T) {
 	expectedCASDir := filepath.Join(homeDir, ".cache", "terragrunt", "cas")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
-	testPath := util.JoinPath(tmpEnvPath, "fixtures/download/local")
+	testPath := filepath.Join(tmpEnvPath, "fixtures/download/local")
 
 	helpers.CleanupTerraformFolder(t, testPath)
 

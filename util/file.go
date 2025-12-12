@@ -87,7 +87,7 @@ func EnsureDirectory(path string) error {
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
-		path = JoinPath(basePath, path)
+		path = filepath.Join(basePath, path)
 	}
 
 	absPath, err := filepath.Abs(path)
@@ -440,6 +440,10 @@ func CopyFolderContents(
 	includeInCopy []string,
 	excludeFromCopy []string,
 ) error {
+	// We use filepath.ToSlash because we end up using globs here, and those expect forward slashes.
+	source = filepath.ToSlash(source)
+	destination = filepath.ToSlash(destination)
+
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
@@ -616,15 +620,6 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	}
 
 	return os.WriteFile(destination, contents, fileInfo.Mode())
-}
-
-// JoinPath is a wrapper around filepath.Join
-//
-// Windows systems use \ as the path separator *nix uses /
-// Use this function when joining paths to force the returned path to use / as the path separator
-// This will improve cross-platform compatibility
-func JoinPath(elem ...string) string {
-	return filepath.ToSlash(filepath.Join(elem...))
 }
 
 // SplitPath splits the given path into a list.

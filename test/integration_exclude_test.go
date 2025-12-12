@@ -1,8 +1,9 @@
 package test_test
 
 import (
+	"path/filepath"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,7 +25,7 @@ func TestExcludeByDefault(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeByDefault)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByDefault)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeByDefault)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeByDefault)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
@@ -39,7 +40,7 @@ func TestExcludeDisabled(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeDisabled)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDisabled)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeDisabled)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeDisabled)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
@@ -54,7 +55,7 @@ func TestExcludeApply(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeByAction)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByAction)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeByAction)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeByAction)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
 
@@ -77,7 +78,7 @@ func TestExcludeByFeatureFlagDefault(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeByFlags)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeByFlags)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -92,7 +93,7 @@ func TestExcludeByFeatureFlag(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeByFlags)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeByFlags)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude2=false --non-interactive --working-dir "+rootPath)
 
@@ -107,7 +108,7 @@ func TestExcludeAllByFeatureFlag(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeByFlags)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeByFlags)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude1=true --feature exclude2=true --non-interactive --working-dir "+rootPath)
 
@@ -122,7 +123,7 @@ func TestExcludeDependencies(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencies)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeDependencies)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeDependencies)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature exclude=false --feature exclude_dependencies=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 	require.NoError(t, err)
@@ -143,7 +144,7 @@ func TestExcludeAllExceptOutput(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeAllExceptOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeAllExceptOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeAllExceptOutput)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeAllExceptOutput)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 	require.NoError(t, err)
@@ -163,7 +164,7 @@ func TestExcludeNoRunSingleUnit(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeNoRun)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeNoRun, "no-run-unit")
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "no-run-unit")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
@@ -177,7 +178,7 @@ func TestExcludeNoRunRunAll(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeNoRun)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeNoRun)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
 
@@ -191,7 +192,7 @@ func TestExcludeNoRunConditional(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeNoRun)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeNoRun, "conditional-no-run-unit")
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "conditional-no-run-unit")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
@@ -210,7 +211,7 @@ func TestExcludeNoRunIndependentOfActions(t *testing.T) {
 
 	cleanupTerraformFolder(t, testExcludeNoRun)
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := util.JoinPath(tmpEnvPath, testExcludeNoRun, "no-run-independent")
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "no-run-independent")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 

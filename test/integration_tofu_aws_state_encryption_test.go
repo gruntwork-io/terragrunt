@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +28,7 @@ func TestTofuStateEncryptionPBKDF2(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionPBKDF2)
-	workDir := util.JoinPath(tmpEnvPath, testFixtureTofuStateEncryptionPBKDF2)
+	workDir := filepath.Join(tmpEnvPath, testFixtureTofuStateEncryptionPBKDF2)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+workDir)
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
@@ -41,8 +40,8 @@ func TestTofuStateEncryptionGCPKMS(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionGCPKMS)
-	workDir := util.JoinPath(tmpEnvPath, testFixtureTofuStateEncryptionGCPKMS)
-	configPath := util.JoinPath(workDir, "terragrunt.hcl")
+	workDir := filepath.Join(tmpEnvPath, testFixtureTofuStateEncryptionGCPKMS)
+	configPath := filepath.Join(workDir, "terragrunt.hcl")
 
 	helpers.CopyAndFillMapPlaceholders(t, configPath, configPath, map[string]string{
 		"__FILL_IN_KMS_KEY_ID__": gcpKMSKeyID,
@@ -57,8 +56,8 @@ func TestTofuStateEncryptionAWSKMS(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionAWSKMS)
-	workDir := util.JoinPath(tmpEnvPath, testFixtureTofuStateEncryptionAWSKMS)
-	configPath := util.JoinPath(workDir, "terragrunt.hcl")
+	workDir := filepath.Join(tmpEnvPath, testFixtureTofuStateEncryptionAWSKMS)
+	configPath := filepath.Join(workDir, "terragrunt.hcl")
 
 	helpers.CopyAndFillMapPlaceholders(t, configPath, configPath, map[string]string{
 		"__FILL_IN_KMS_KEY_ID__": awsKMSKeyID,
@@ -74,8 +73,8 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONWithEncryption)
-	workDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONWithEncryption)
-	mainPath := util.JoinPath(workDir, "main")
+	workDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONWithEncryption)
+	mainPath := filepath.Join(workDir, "main")
 	jsonOut := filepath.Join(mainPath, "terragrunt_rendered.json")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+workDir+" -- apply -auto-approve")
@@ -188,8 +187,8 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONWithEncryption)
-	workDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONWithEncryption)
-	mainPath := util.JoinPath(workDir, "main")
+	workDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONWithEncryption)
+	mainPath := filepath.Join(workDir, "main")
 	jsonOut := filepath.Join(mainPath, "terragrunt.rendered.json")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+workDir+" -- apply -auto-approve")

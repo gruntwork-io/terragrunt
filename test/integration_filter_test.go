@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -895,7 +894,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				}
 
 				// Verify the report file exists
-				reportFilePath := util.JoinPath(tmpDir, reportFile)
+				reportFilePath := filepath.Join(tmpDir, reportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file

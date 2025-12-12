@@ -244,14 +244,14 @@ func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (s
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for range opts.MaxFoldersToCheck {
-		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
+		currentDir := filepath.Dir(previousDir)
 		l.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
 
 		if currentDir == previousDir {
 			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
 		}
 
-		fileToFind := util.JoinPath(previousDir, ".tflint.hcl")
+		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
 		if util.FileExists(fileToFind) {
 			l.Debugf("Found .tflint.hcl in %s", fileToFind)
 			return fileToFind, nil

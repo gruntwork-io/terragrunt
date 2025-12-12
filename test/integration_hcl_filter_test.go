@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +28,7 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 	// Create a temporary directory for this test case
 	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
@@ -256,7 +255,7 @@ func TestHCLValidateWithFilter(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "validate")
+			rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "validate")
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
@@ -290,7 +289,7 @@ func TestHCLFormatFilterIntegration(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --json --filter './needs-formatting/**' --working-dir "+rootPath)
 	require.NoError(t, err)

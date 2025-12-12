@@ -29,7 +29,7 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheWeakConstraint)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheWeakConstraint)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
 	appPath := filepath.Join(rootPath, "app")
 
 	providerCacheDir := t.TempDir()
