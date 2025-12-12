@@ -20,7 +20,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	sharedFlags := shared.NewQueueFlags(opts, nil)
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
-	sharedFlags = append(sharedFlags, shared.NewFilterFlags(opts)...)
+	sharedFlags = append(sharedFlags, shared.NewFilterFlags(l, opts)...)
 
 	return &cli.Command{
 		Name:      CommandName,
