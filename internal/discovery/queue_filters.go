@@ -262,16 +262,17 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 		return components
 	}
 
-	normalizedReading := normalizePaths(d.workingDir, opts.UnitsReading)
-	normalizedIncluding := normalizePaths(d.workingDir, opts.ModulesThatInclude)
+	workingDir := d.discoveryContext.WorkingDir
+	normalizedReading := normalizePaths(workingDir, opts.UnitsReading)
+	normalizedIncluding := normalizePaths(workingDir, opts.ModulesThatInclude)
 
 	preIncluded := capturePreIncluded(components)
 
 	resetAllUnitsExcluded(components)
 
-	unexcludeUnitsReading(components, normalizedReading, d.workingDir)
+	unexcludeUnitsReading(components, normalizedReading, workingDir)
 
-	unexcludeModulesThatInclude(components, normalizedIncluding, d.workingDir)
+	unexcludeModulesThatInclude(components, normalizedIncluding, workingDir)
 
 	restorePreIncluded(components, preIncluded)
 
