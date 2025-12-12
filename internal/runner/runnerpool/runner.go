@@ -171,6 +171,27 @@ func resolveUnitsFromDiscovery(
 			return nil, err
 		}
 
+		// If --source is provided, compute the per-unit source by combining the base source
+		// with the path from the unit's terragrunt.hcl source configuration
+		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
+			stack.Execution.TerragruntOptions.Source != "" {
+			unitConfig := unit.Config()
+			if unitConfig != nil {
+				unitSource, sourceErr := config.GetTerragruntSourceForModule(
+					stack.Execution.TerragruntOptions.Source,
+					canonicalConfigPath,
+					unitConfig,
+				)
+				if sourceErr != nil {
+					return nil, tgerrors.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
+				}
+
+				if unitSource != "" {
+					unitOpts.Source = unitSource
+				}
+			}
+		}
+
 		// Skip units without Terraform configuration
 		skip, err := shouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
 		if err != nil {
@@ -907,10 +928,6 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 // WithOptions updates the stack with the provided options.
 func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-
 		opt.Apply(r)
 	}
 

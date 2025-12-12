@@ -149,7 +149,7 @@ terragrunt find --filter '{./envs/prod/apps/app2}'
 </FileTree>
 
 <Aside type="note">
-Note that globs used in path-based filtering will not recursively match nested directories unless you use the `**` wildcard.
+Note that globs used in path-based expressions will not recursively match nested directories unless you use the `**` wildcard.
 
 (That's why `./envs/stage/**` is used above)
 </Aside>
@@ -183,7 +183,7 @@ terragrunt find --filter 'name=stack*'
         - terragrunt.hcl
 </FileTree>
 
-The following are the attributes supported for attribute-based filtering:
+The following are the attributes supported for attribute-based expressions:
 
 | Attribute | Description |
 |-----------|-------------|
@@ -369,11 +369,11 @@ As a result, you should be able to expect any negative filter to take effect, re
 
 </Aside>
 
-### Graph-Based Filtering
+### Graph-Based Expressions
 
 Filter units and stacks based on their dependency relationships using graph traversal operators. This allows you to find components that depend on a target, or components that a target depends on.
 
-Graph-based filtering uses the ellipsis (`...`) operator to indicate graph traversal direction and the caret (`^`) operator to exclude the target from results.
+Graph-based expressions use the ellipsis (`...`) operator to indicate graph traversal direction and the caret (`^`) operator to exclude the target from results.
 
 #### Include Dependencies
 
@@ -488,9 +488,27 @@ terragrunt find --filter './prod/** | ...vpc'
 Graph expressions require dependency/dependent discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components to enable graph traversal. This may add some overhead compared to simple name or path filters.
 </Aside>
 
-### Git-Based Filtering
+### Git-Based Expressions
 
 Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
+
+#### Shorthand: `--filter-affected`
+
+For the common use case of comparing the default branch (typically `main`) with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:
+
+```bash
+# Find components affected by changes between main and HEAD
+terragrunt find --filter-affected
+
+# Equivalent to:
+terragrunt find --filter '[main...HEAD]'
+```
+
+The `--filter-affected` flag automatically detects your repository's default branch and compares it with `HEAD`.
+
+#### Git Filter Expressions
+
+For more control, you can use Git-based filter expressions directly:
 
 ```bash
 # Compare between two references
@@ -525,11 +543,11 @@ terragrunt find --filter '[feature-branch...main]'
 </FileTree>
 
 <Aside type="note">
-When using Git-based filtering and the `run` command, you are required to use one of the `plan` or `apply` commands, and not the `-destroy` flag.
+When using Git-based expressions and the `run` command, you are required to use one of the `plan` or `apply` commands, and not the `-destroy` flag.
 
 This is because whether or not a unit will be destroyed is determined by logic relevant to inspecting changes in Git.
 
-When units are added or modified between two Git references, they will be be planned or applied. When the units are removed between two Git references, they will be planned for destruction (with `plan -destroy) or destroyed (with `apply -destroy`).
+When units are added or modified between two Git references, they will be planned or applied. When the units are removed between two Git references, they will be planned for destruction (with `plan -destroy`) or destroyed (with `apply -destroy`).
 
 In the scenario above, running the following:
 
@@ -598,10 +616,10 @@ All other commands use `--filter` to filter on units and/or stacks (which are di
 Example:
 
 ```bash
-# Supported: Path-based filtering
+# Supported: Path-based expressions
 terragrunt hcl fmt --filter './prod/**/*.hcl'
 
-# Not supported: Attribute-based filtering
+# Not supported: Attribute-based expressions
 terragrunt hcl fmt --filter 'type=unit'  # This will not work
 ```
 

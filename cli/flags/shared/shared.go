@@ -5,10 +5,14 @@
 package shared
 
 import (
+	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -28,6 +32,7 @@ const (
 
 	// Filter related flags.
 	FilterFlagName             = "filter"
+	FilterAffectedFlagName     = "filter-affected"
 	FilterAllowDestroyFlagName = "filter-allow-destroy"
 
 	// Scaffolding related flags.
@@ -187,8 +192,8 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 	}
 }
 
-// NewFilterFlags creates flags for filter functionality.
-func NewFilterFlags(opts *options.TerragruntOptions) cli.Flags {
+// NewFilterFlags creates flags for specifying filter queries.
+func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 
 	return cli.Flags{
@@ -203,6 +208,59 @@ func NewFilterFlags(opts *options.TerragruntOptions) cli.Flags {
 					if !opts.Experiments.Evaluate("filter-flag") {
 						return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
 					}
+					return nil
+				},
+			},
+		),
+		flags.NewFlag(
+			&cli.BoolFlag{
+				Name:    FilterAffectedFlagName,
+				EnvVars: tgPrefix.EnvVars(FilterAffectedFlagName),
+				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD]. Requires the 'filter-flag' experiment.",
+				Action: func(ctx *cli.Context, val bool) error {
+					if !val {
+						return nil
+					}
+
+					// Check if the filter-flag experiment is enabled
+					if !opts.Experiments.Evaluate("filter-flag") {
+						return cli.NewExitError("the --filter-affected flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
+					}
+
+					// Get working directory
+					workDir := opts.WorkingDir
+					if workDir == "" {
+						workDir = opts.RootWorkingDir
+					}
+					if workDir == "" {
+						// Fallback to current directory if neither is set
+						workDir = "."
+					}
+
+					// Check for uncommitted changes
+					gitRunner, err := git.NewGitRunner()
+					if err != nil {
+						return cli.NewExitError(err, cli.ExitCodeGeneralError)
+					}
+
+					gitRunner = gitRunner.WithWorkDir(workDir)
+
+					if gitRunner.HasUncommittedChanges(ctx.Context) {
+						l.Warnf("Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.")
+					}
+
+					defaultBranch := "main"
+
+					if b, err := gitRunner.Config(ctx.Context, "init.defaultBranch"); err == nil && b != "" {
+						l.Debugf("Using default branch discovered from git config: %s", b)
+
+						defaultBranch = b
+					} else {
+						l.Warnf("Failed to get default branch from `git config init.defaultBranch`, using main.")
+					}
+
+					opts.FilterQueries = append(opts.FilterQueries, fmt.Sprintf("[%s...HEAD]", defaultBranch))
+
 					return nil
 				},
 			},
