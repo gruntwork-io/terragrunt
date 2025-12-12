@@ -409,6 +409,48 @@ func (g *GitRunner) Init(ctx context.Context) error {
 	return nil
 }
 
+// HasUncommittedChanges checks if there are uncommitted changes in the working directory.
+// Returns true if there are uncommitted changes, false otherwise (including if git command fails or not in a git repo).
+func (g *GitRunner) HasUncommittedChanges(ctx context.Context) bool {
+	cmd := g.prepareCommand(ctx, "status", "--porcelain")
+
+	var stdout bytes.Buffer
+
+	cmd.Stdout = &stdout
+
+	// If git command fails (e.g., not in a git repo), return false
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+
+	// Check if there are uncommitted changes (non-empty output)
+	return strings.TrimSpace(stdout.String()) != ""
+}
+
+// Config gets the configuration of the Git repository
+func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "config", name)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_config",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 

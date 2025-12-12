@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -394,26 +395,26 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+			// Clone repo to avoid git worktree race conditions in parallel tests
+			testDir := helpers.CloneGitRepo(t, tmpDir)
+
+			w, err := worktrees.NewWorktrees(t.Context(), l, testDir, gitExpressions)
 			require.NoError(t, err)
-
-			originalDiscovery := discovery.NewDiscovery(tmpDir).
-				WithDiscoveryContext(tt.discoveryContext).
-				WithWorktrees(w)
-
-			// Create worktree discovery with the test discovery context
-			worktreeDiscovery := discovery.NewWorktreeDiscovery(
-				gitExpressions,
-			).
-				WithOriginalDiscovery(originalDiscovery)
 
 			t.Cleanup(func() {
 				cleanupErr := w.Cleanup(context.Background(), l)
 				require.NoError(t, cleanupErr)
 			})
 
+			originalDiscovery := discovery.NewDiscovery(testDir).
+				WithDiscoveryContext(helpers.MakeDiscoveryContext(tt.discoveryContext, testDir)).
+				WithWorktrees(w)
+
+			worktreeDiscovery := discovery.NewWorktreeDiscovery(gitExpressions).
+				WithOriginalDiscovery(originalDiscovery)
+
 			// Perform discovery
-			components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+			components, err := worktreeDiscovery.Discover(t.Context(), l, helpers.MakeOpts(testDir), w)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)

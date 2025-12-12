@@ -27,6 +27,7 @@ const (
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
+	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -226,8 +227,8 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+consumerPath)
 	require.Error(t, runErr)
 	// Accept match in either stderr or the returned error string
-	if !strings.Contains(stderr, "has empty config_path") && !strings.Contains(runErr.Error(), "has empty config_path") {
-		t.Fatalf("unexpected error; want empty config_path message, got: %v\nstderr: %s", runErr, stderr)
+	if !strings.Contains(stderr, "has invalid config_path") && !strings.Contains(runErr.Error(), "has invalid config_path") {
+		t.Fatalf("unexpected error; want invalid config_path message, got: %v\nstderr: %s", runErr, stderr)
 	}
 }
 
@@ -421,8 +422,8 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 	assert.NotContains(t, combinedOutput, "Cycle detected",
 		"Should not see 'Cycle detected' error")
 
-	assert.NotContains(t, combinedOutput, "has empty config_path",
-		"Should not see empty config_path error for disabled dependency")
+	assert.NotContains(t, combinedOutput, "has invalid config_path",
+		"Should not see invalid config_path error for disabled dependency")
 
 	_, runAllStderr, runAllErr := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -665,4 +666,24 @@ func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
 		"Should discover module1 when running from parent directory")
 	assert.Contains(t, stderr, "module2",
 		"Should discover module2 when running from parent directory")
+}
+
+func TestNotExistingDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNotExistingDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingDependency)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingDependency)
+
+	invalidPath := util.JoinPath(rootPath, "invalid-path")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+invalidPath)
+	require.Error(t, err)
+	// should be reported that dependency have invalid path
+	assert.Contains(t, err.Error(), "dependency \"dep_123\" has invalid config_path")
+
+	parentFindFail := util.JoinPath(rootPath, "parent-find-fail")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+parentFindFail)
+	require.Error(t, err)
+	// should be reported that find_in_parent_folders() fail
+	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
 }

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,6 +97,41 @@ func CreateGitRepo(t *testing.T, path string) {
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git commit failed")
+}
+
+// CloneGitRepo creates an isolated git clone for parallel testing.
+// Uses git clone --local --no-hardlinks to preserve file modes, symlinks,
+// and avoid worktree race conditions when multiple tests operate on same repo.
+func CloneGitRepo(t *testing.T, srcDir string) string {
+	t.Helper()
+
+	dstDir := t.TempDir()
+	dstDir, err := filepath.EvalSymlinks(dstDir)
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(t.Context(), "git", "clone", "--local", "--no-hardlinks", srcDir, dstDir)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git clone failed: %s", string(output))
+
+	return dstDir
+}
+
+// MakeDiscoveryContext creates a discovery context copy with an updated WorkingDir.
+func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
+	return &component.DiscoveryContext{
+		WorkingDir: dir,
+		Cmd:        baseCtx.Cmd,
+		Args:       append([]string{}, baseCtx.Args...),
+	}
+}
+
+// MakeOpts creates terragrunt options for a given directory.
+func MakeOpts(dir string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = dir
+	opts.RootWorkingDir = dir
+
+	return opts
 }
 
 // IsExperimentMode returns true if the TG_EXPERIMENT_MODE environment variable is set.

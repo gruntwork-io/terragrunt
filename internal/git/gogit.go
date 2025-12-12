@@ -183,6 +183,29 @@ func (g *GitRunner) GoCommit(message string, opts *git.CommitOptions) error {
 	return nil
 }
 
+// GoCheckout checks out a branch in the Git repository.
+func (g *GitRunner) GoCheckout(opts *git.CheckoutOptions) error {
+	if err := g.RequiresGoRepo(); err != nil {
+		return err
+	}
+
+	if opts == nil {
+		return errors.New("checkout options are required for go checkouts")
+	}
+
+	w, err := g.goRepo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	err = w.Checkout(opts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GoOpenRepoHead gets the head of the Git repository.
 func (g *GitRunner) GoOpenRepoHead() (*plumbing.Reference, error) {
 	if err := g.RequiresGoRepo(); err != nil {
