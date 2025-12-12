@@ -87,7 +87,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 			if len(fromFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := wd.discoverInWorktree(fromToCtx, l, opts, w, pair.FromWorktree, fromFilters, fromWorktreeKind)
+					components, err := wd.discoverInWorktree(fromToCtx, l, opts, pair.FromWorktree, fromFilters, fromWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -102,7 +102,7 @@ func (wd *WorktreeDiscovery) Discover(
 
 			if len(toFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := wd.discoverInWorktree(fromToCtx, l, opts, w, pair.ToWorktree, toFilters, toWorktreeKind)
+					components, err := wd.discoverInWorktree(fromToCtx, l, opts, pair.ToWorktree, toFilters, toWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -145,7 +145,6 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	w *worktrees.Worktrees,
 	wt worktrees.Worktree,
 	filters filter.Filters,
 	kind worktreeKind,
@@ -172,16 +171,7 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 		WithDiscoveryContext(&discoveryContext).
 		Discover(ctx, l, opts)
 	if err != nil {
-		return nil, err
-	}
-
-	// Adjust WorkingDir to user's subdirectory for display purposes
-	adjustedWorkingDir := w.WorkingDir(ctx, wt.Path)
-
-	for _, c := range components {
-		if dctx := c.DiscoveryContext(); dctx != nil {
-			dctx.WorkingDir = adjustedWorkingDir
-		}
+		return components, err
 	}
 
 	return components, nil
