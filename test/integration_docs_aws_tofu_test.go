@@ -53,7 +53,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 		helpers.ExecWithTestLogger(t, repoDir, "git", "init")
 
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "terragrunt@0.83.2")
-		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "opentofu@1.10.3")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "opentofu@1.11.1")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "aws@2.27.63")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "node@22.17.1")
 
@@ -65,7 +65,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 		assert.Equal(t, string(miseToml), `[tools]
 aws = "2.27.63"
 node = "22.17.1"
-opentofu = "1.10.3"
+opentofu = "1.11.1"
 terragrunt = "0.83.2"
 `)
 
