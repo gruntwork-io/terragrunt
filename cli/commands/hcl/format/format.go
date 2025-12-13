@@ -54,7 +54,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if targetFile != "" {
 		if !filepath.IsAbs(targetFile) {
-			targetFile = util.JoinPath(workingDir, targetFile)
+			targetFile = filepath.Join(workingDir, targetFile)
 		}
 
 		l.Debugf("Formatting hcl file at: %s.", targetFile)

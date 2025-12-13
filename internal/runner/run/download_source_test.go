@@ -390,14 +390,14 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig, report.NewReport())
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
-	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
+	expectedFilePath := filepath.Join(downloadDir, "main.tf")
 	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
 		actualFileContents := readFile(t, expectedFilePath)
 		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, run.ModuleInitRequiredFile))
+		existsInitFile := util.FileExists(filepath.Join(terraformSource.WorkingDir, run.ModuleInitRequiredFile))
 		require.True(t, existsInitFile)
 	}
 }
@@ -412,7 +412,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
-		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		VersionFile:        filepath.Join(downloadDir, "version-file.txt"),
 	}
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -444,7 +444,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
-		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		VersionFile:        filepath.Join(downloadDir, "version-file.txt"),
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")

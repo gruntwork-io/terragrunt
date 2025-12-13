@@ -172,7 +172,7 @@ func DownloadTerraformSourceIfNecessary(
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
 		l.Debugf("Requesting re-init, source version has changed from %s to %s recently.", previousVersion, currentVersion)
 
-		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
+		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
 		f, createErr := os.Create(initFile)
 		if createErr != nil {

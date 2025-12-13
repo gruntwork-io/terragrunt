@@ -88,7 +88,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 	// API, so the way we parse/read this modules.json file may break in future Terraform versions. Note that we
 	// can't use the official HashiCorp code to parse this file, as it's marked internal:
 	// https://github.com/hashicorp/terraform/blob/master/internal/modsdir/manifest.go
-	modulesJSONPath := util.JoinPath(opts.DataDir(), "modules", "modules.json")
+	modulesJSONPath := filepath.Join(opts.DataDir(), "modules", "modules.json")
 
 	if !util.FileExists(modulesJSONPath) {
 		return nil, nil
@@ -110,7 +110,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 		if module.Key != "" && module.Dir != "" {
 			moduleAbsPath := module.Dir
 			if !filepath.IsAbs(moduleAbsPath) {
-				moduleAbsPath = util.JoinPath(opts.WorkingDir, moduleAbsPath)
+				moduleAbsPath = filepath.Join(opts.WorkingDir, moduleAbsPath)
 			}
 
 			moduleFiles, err := util.FindTFFiles(moduleAbsPath)

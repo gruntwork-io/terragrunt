@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -76,7 +77,7 @@ func TestGcpBootstrapBackend(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureGCSBackend)
 
 			gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -85,7 +86,7 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			}()
 
 			project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+			commonConfigPath := filepath.Join(rootPath, "common.hcl")
 			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --working-dir "+rootPath)
@@ -101,7 +102,7 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGCSBackend)
 
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -110,7 +111,7 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	}()
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true apply --backend-bootstrap")
@@ -131,8 +132,8 @@ func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
-	unitPath := util.JoinPath(rootPath, "unit1")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGCSBackend)
+	unitPath := filepath.Join(rootPath, "unit1")
 
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -141,7 +142,7 @@ func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
 	}()
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --working-dir "+unitPath+" --feature disable_versioning=true apply --backend-bootstrap -- -auto-approve")
@@ -161,7 +162,7 @@ func TestGcpDeleteBackend(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGCSBackend)
 
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -170,7 +171,7 @@ func TestGcpDeleteBackend(t *testing.T) {
 	}()
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --working-dir "+rootPath)
@@ -198,10 +199,10 @@ func TestGcpMigrateBackend(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGCSBackend)
 
-	unit1Path := util.JoinPath(rootPath, "unit1")
-	unit2Path := util.JoinPath(rootPath, "unit2")
+	unit1Path := filepath.Join(rootPath, "unit1")
+	unit2Path := filepath.Join(rootPath, "unit2")
 
 	unit1BackendKey := "unit1/tofu.tfstate/default.tfstate"
 	unit2BackendKey := "unit2/tofu.tfstate/default.tfstate"
@@ -213,7 +214,7 @@ func TestGcpMigrateBackend(t *testing.T) {
 		deleteGCSBucket(t, gcsBucketName)
 	}()
 
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
 	// Bootstrap backend and create remote state for unit1.
@@ -330,7 +331,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "root.hcl")
+	tmpTerragruntConfigFile := filepath.Join(tmpEnvPath, "root.hcl")
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsParallelStateInit, project, terraformRemoteStateGcpRegion, gcsBucketName, "root.hcl")
@@ -348,8 +349,8 @@ func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project st
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
 	}
 
-	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
-	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
+	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
+	originalTerragruntConfigPath := filepath.Join(templatesPath, configFileName)
 	copyTerragruntGCSConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, project, location, gcsBucketName)
 
 	return tmpTerragruntConfigFile

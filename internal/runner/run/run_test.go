@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -364,7 +363,7 @@ var defaultLogLevel = log.DebugLevel
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
 	t.Helper()
 
-	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
+	o := mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
 
 	return o
 }

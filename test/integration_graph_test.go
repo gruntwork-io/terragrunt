@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,8 +50,8 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
-			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, tc.path)
+			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
+			tmpModulePath := filepath.Join(fixturePath, tc.path)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
@@ -108,8 +107,8 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
-			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, tc.path)
+			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
+			tmpModulePath := filepath.Join(fixturePath, tc.path)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
@@ -141,7 +140,7 @@ func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraph)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureGraph)
+	testPath := filepath.Join(tmpEnvPath, testFixtureGraph)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

@@ -602,9 +602,9 @@ func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.Ter
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
-	pluginsPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
-	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
-	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, tf.TerraformLockFile)
+	pluginsPath := filepath.Join(terragruntOptions.DataDir(), "plugins")
+	providersPath := filepath.Join(terragruntOptions.DataDir(), "providers")
+	terraformLockPath := filepath.Join(terragruntOptions.WorkingDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
@@ -645,7 +645,7 @@ func runTerraformInit(
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(opts.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -685,12 +685,12 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
+	modulesPath := filepath.Join(terragruntOptions.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}

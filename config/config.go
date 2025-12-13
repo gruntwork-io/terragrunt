@@ -1043,7 +1043,7 @@ func GetDefaultConfigPath(workingDir string) string {
 
 	for _, configPath = range DefaultTerragruntConfigPaths {
 		if !filepath.IsAbs(configPath) {
-			configPath = util.JoinPath(workingDir, configPath)
+			configPath = filepath.Join(workingDir, configPath)
 		}
 
 		if files.FileExists(configPath) {
@@ -1082,7 +1082,7 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 
 		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath)) {
 			if !filepath.IsAbs(configFile) {
-				configFile = util.JoinPath(path, configFile)
+				configFile = filepath.Join(path, configFile)
 			}
 
 			if !util.IsDir(configFile) && util.FileExists(configFile) {

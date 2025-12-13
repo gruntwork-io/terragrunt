@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +25,7 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
@@ -42,7 +41,7 @@ func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --parallelism 1 --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
@@ -58,7 +57,7 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyOrder, "app")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyOrder, "app")
 
 	// apply the stack
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
@@ -100,7 +99,7 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
+	testPath := filepath.Join(tmpEnvPath, testFixtureMixedConfig)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --queue-include-external --all --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)
@@ -113,7 +112,7 @@ func TestRunnerPoolFailFast(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
 
 	// create fail.txt in unit-a to trigger a failure
 	helpers.CreateFile(t, testPath, "unit-a", "fail.txt")
@@ -128,7 +127,7 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
 
 	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
@@ -154,7 +153,7 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
@@ -173,7 +172,7 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunnerPoolRemoteSource)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
+	testPath := filepath.Join(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
@@ -186,7 +185,7 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.85.0 --working-dir "+testPath+" -- apply ")
 	require.NoError(t, err)
 	// Verify that source map values are used
@@ -209,7 +208,7 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderParallel)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderParallel)
+	testPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderParallel)
 	// Resolve symlinks to avoid path mismatches on macOS where /var -> /private/var
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)

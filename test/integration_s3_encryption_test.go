@@ -34,7 +34,7 @@ func TestAwsS3SSEAES(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSEAESFixturePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -65,7 +65,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	// aws kms create-alias --alias-name alias/dedicated-test-key --target-key-id KEY_ID
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSECustomKeyFixturePath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSECustomKeyFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSECustomKeyFixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -166,7 +166,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEKMSFixturePath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSEKMSFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSEKMSFixturePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -205,7 +205,7 @@ func TestAwsSkipBackend(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSEAESFixturePath)
 
 	// The bucket and table name here are intentionally invalid.
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSEAESFixturePath, "N/A", "N/A", config.DefaultTerragruntConfigPath)
@@ -213,7 +213,7 @@ func TestAwsSkipBackend(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --backend-bootstrap --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false")
 	require.Error(t, err)
 
-	lockFile := util.JoinPath(testPath, ".terraform.lock.hcl")
+	lockFile := filepath.Join(testPath, ".terraform.lock.hcl")
 	assert.False(t, util.FileExists(lockFile), "Lock file %s exists", lockFile)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" --disable-bucket-update -backend=false")

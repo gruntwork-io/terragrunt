@@ -34,7 +34,7 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
+		includePath = filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
 	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt

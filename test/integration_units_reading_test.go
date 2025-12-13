@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,7 +151,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureUnitsReading)
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
@@ -313,7 +312,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureUnitsReading)
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 

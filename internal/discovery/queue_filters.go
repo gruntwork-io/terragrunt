@@ -129,7 +129,7 @@ func normalizePaths(workDir string, paths []string) []string {
 
 	for _, path := range paths {
 		if !filepath.IsAbs(path) {
-			path = util.JoinPath(workDir, path)
+			path = filepath.Join(workDir, path)
 		}
 
 		path = util.CleanPath(path)
@@ -189,7 +189,7 @@ func unexcludeUnitsReading(components component.Components, normalizedReading []
 
 		for _, readPath := range unit.Reading() {
 			if !filepath.IsAbs(readPath) {
-				readPath = util.JoinPath(workDir, readPath)
+				readPath = filepath.Join(workDir, readPath)
 			}
 
 			readPath = util.CleanPath(readPath)
@@ -226,7 +226,7 @@ func unexcludeModulesThatInclude(components component.Components, normalizedIncl
 		for _, includeConfig := range cfg.ProcessedIncludes {
 			includePath := includeConfig.Path
 			if !filepath.IsAbs(includePath) {
-				includePath = util.JoinPath(workDir, includePath)
+				includePath = filepath.Join(workDir, includePath)
 			}
 
 			includePath = util.CleanPath(includePath)

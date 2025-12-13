@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // PartialDecodeSectionType is an enum that is used to list out which blocks/sections of the terragrunt config should be
@@ -638,7 +637,7 @@ func partialParseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfi
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
+		includePath = filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
 	config, err := PartialParseConfigFile(

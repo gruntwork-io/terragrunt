@@ -281,7 +281,7 @@ func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *optio
 func generateDefaultTemplate(boilerplateDir string) (string, error) {
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(
-		util.JoinPath(
+		filepath.Join(
 			boilerplateDir,
 			config.DefaultTerragruntConfigPath,
 		),
@@ -292,7 +292,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 	}
 
 	if err := os.WriteFile(
-		util.JoinPath(
+		filepath.Join(
 			boilerplateDir,
 			"boilerplate.yml",
 		),
@@ -370,7 +370,7 @@ func prepareBoilerplateFiles(
 	templateURL,
 	tempDir string,
 ) (string, error) {
-	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
+	boilerplateDir := filepath.Join(tempDir, util.DefaultBoilerplateDir)
 
 	// process template url if it was passed. This overrides the .boilerplate folder in the OpenTofu/Terraform module
 	if templateURL != "" {
