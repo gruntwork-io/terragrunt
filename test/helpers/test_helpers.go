@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -150,6 +151,13 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	ctx := t.Context()
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = dir
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
 
 	var stdout, stderr bytes.Buffer
 

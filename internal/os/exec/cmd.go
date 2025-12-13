@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -39,6 +40,13 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
 
 	return cmd
 }
