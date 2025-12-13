@@ -344,7 +344,12 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+basePath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "Detected dependent modules:\n"+clusterPath)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --destroy-dependencies-check --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)

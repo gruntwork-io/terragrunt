@@ -58,6 +58,9 @@ const (
 
 	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
 	QueueExcludeExternal = "queue-exclude-external"
+
+	// NoDestroyDependenciesCheck is the control that prevents the use of the deprecated `--no-destroy-dependencies-check` flag.
+	NoDestroyDependenciesCheck = "no-destroy-dependencies-check"
 )
 
 //nolint:lll
@@ -218,6 +221,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them."),
 			Warning:     "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
+		},
+		&Control{
+			Name:        NoDestroyDependenciesCheck,
+			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations."),
+			Warning:     "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
 		},
 	}
 
