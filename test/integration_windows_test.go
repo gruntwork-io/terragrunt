@@ -136,7 +136,9 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 
-	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", modulePath), errOut.String())
+	// Use forward slashes in regex pattern to match the output (which uses forward slashes)
+	// and to avoid backslashes being interpreted as regex escape sequences
+	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", filepath.ToSlash(modulePath)), errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
 }
