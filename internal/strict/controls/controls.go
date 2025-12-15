@@ -61,6 +61,9 @@ const (
 
 	// DisableCommandValidation is the control that prevents the use of the deprecated `--disable-command-validation` flag.
 	DisableCommandValidation = "disable-command-validation"
+
+	// NoDestroyDependenciesCheck is the control that prevents the use of the deprecated `--no-destroy-dependencies-check` flag.
+	NoDestroyDependenciesCheck = "no-destroy-dependencies-check"
 )
 
 //nolint:lll
@@ -228,6 +231,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`."),
 			Warning:     "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
+		},
+		&Control{
+			Name:        NoDestroyDependenciesCheck,
+			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations."),
+			Warning:     "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
 		},
 	}
 

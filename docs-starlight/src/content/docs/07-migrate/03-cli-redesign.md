@@ -105,7 +105,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-no-auto-init`                       | `--no-auto-init`                                          |
 | `--terragrunt-no-auto-retry`                      | `--no-auto-retry`                                         |
 | `--terragrunt-no-color`                           | `--no-color`                                              |
-| `--terragrunt-no-destroy-dependencies-check`      | `--no-destroy-dependencies-check`                         |
+| `--terragrunt-no-destroy-dependencies-check`      | `--destroy-dependencies-check`                            |
 | `--terragrunt-out-dir`                            | `--out-dir`                                               |
 | `--terragrunt-parallelism`                        | `--parallelism`                                           |
 | `--terragrunt-provider-cache-dir`                 | `--provider-cache-dir`                                    |
