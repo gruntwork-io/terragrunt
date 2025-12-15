@@ -2214,8 +2214,8 @@ func TestRunAllWithSourceFlag(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRunAllSource)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunAllSource)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunAllSource, "live")
-	modulePath := util.JoinPath(tmpEnvPath, testFixtureRunAllSource, "modules-marked")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRunAllSource, "live")
+	modulePath := filepath.Join(tmpEnvPath, testFixtureRunAllSource, "modules-marked")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -2227,12 +2227,12 @@ func TestRunAllWithSourceFlag(t *testing.T) {
 	// files being present.
 	assert.NotContains(t, stderr, "Error: No configuration files")
 
-	unit1Path := util.JoinPath(rootPath, "unit1")
-	unit2Path := util.JoinPath(rootPath, "unit2")
+	unit1Path := filepath.Join(rootPath, "unit1")
+	unit2Path := filepath.Join(rootPath, "unit2")
 
 	// Find the cache directories for each unit
-	unit1CacheDir := util.JoinPath(unit1Path, helpers.TerragruntCache)
-	unit2CacheDir := util.JoinPath(unit2Path, helpers.TerragruntCache)
+	unit1CacheDir := filepath.Join(unit1Path, helpers.TerragruntCache)
+	unit2CacheDir := filepath.Join(unit2Path, helpers.TerragruntCache)
 
 	var unit1MarkerPath, unit2MarkerPath string
 

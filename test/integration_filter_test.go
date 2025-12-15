@@ -1383,7 +1383,7 @@ unit "unit-to-be-created-2" {
 				}
 
 				// Verify the report file exists
-				reportFilePath := util.JoinPath(tmpDir, reportFile)
+				reportFilePath := filepath.Join(tmpDir, reportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file

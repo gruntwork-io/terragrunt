@@ -673,15 +673,15 @@ func TestNotExistingDependency(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureNotExistingDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingDependency)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureNotExistingDependency)
 
-	invalidPath := util.JoinPath(rootPath, "invalid-path")
+	invalidPath := filepath.Join(rootPath, "invalid-path")
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+invalidPath)
 	require.Error(t, err)
 	// should be reported that dependency have invalid path
 	assert.Contains(t, err.Error(), "dependency \"dep_123\" has invalid config_path")
 
-	parentFindFail := util.JoinPath(rootPath, "parent-find-fail")
+	parentFindFail := filepath.Join(rootPath, "parent-find-fail")
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+parentFindFail)
 	require.Error(t, err)
 	// should be reported that find_in_parent_folders() fail

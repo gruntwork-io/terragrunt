@@ -147,7 +147,7 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictIncludeUnitsReading)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
+	testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
 
 	// This reproduces the bug: --queue-strict-include + --queue-include-units-reading
 	// without --queue-include-dir should still include units that read the file
