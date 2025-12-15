@@ -66,18 +66,18 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	vars["RootFileName"] = "root.hcl"
 
 	workDir := t.TempDir()
-	templateDir := util.JoinPath(workDir, "template")
+	templateDir := filepath.Join(workDir, "template")
 	err := os.Mkdir(templateDir, 0755)
 	require.NoError(t, err)
 
-	outputDir := util.JoinPath(workDir, "output")
+	outputDir := filepath.Join(workDir, "output")
 	err = os.Mkdir(outputDir, 0755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(util.JoinPath(templateDir, "terragrunt.hcl"), []byte(scaffold.DefaultTerragruntTemplate), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "terragrunt.hcl"), []byte(scaffold.DefaultTerragruntTemplate), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(scaffold.DefaultBoilerplateConfig), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(scaffold.DefaultBoilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
@@ -295,12 +295,12 @@ catalog {
 			t.Parallel()
 
 			workDir := t.TempDir()
-			configDir := util.JoinPath(workDir, "config")
+			configDir := filepath.Join(workDir, "config")
 
 			err := os.MkdirAll(configDir, 0755)
 			require.NoError(t, err)
 
-			terragruntConfigPath := util.JoinPath(configDir, "terragrunt.hcl")
+			terragruntConfigPath := filepath.Join(configDir, "terragrunt.hcl")
 			err = os.WriteFile(terragruntConfigPath, []byte(tc.terragruntConfig), 0644)
 			require.NoError(t, err)
 
@@ -379,7 +379,7 @@ catalog {
   no_hooks = false
 }
 `
-	terragruntConfigPath := util.JoinPath(workDir, "terragrunt.hcl")
+	terragruntConfigPath := filepath.Join(workDir, "terragrunt.hcl")
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
@@ -417,7 +417,7 @@ catalog {
   urls = ["url1"]
 }
 `
-	terragruntConfigPath := util.JoinPath(workDir, "terragrunt.hcl")
+	terragruntConfigPath := filepath.Join(workDir, "terragrunt.hcl")
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
@@ -445,8 +445,8 @@ func TestBoilerplateShellTemplateFunctionDisabled(t *testing.T) {
 	t.Parallel()
 
 	workDir := t.TempDir()
-	templateDir := util.JoinPath(workDir, "template")
-	outputDir := util.JoinPath(workDir, "output")
+	templateDir := filepath.Join(workDir, "template")
+	outputDir := filepath.Join(workDir, "output")
 
 	// Create template and output directories
 	err := os.MkdirAll(templateDir, 0755)
@@ -462,7 +462,7 @@ variables:
     type: string
     default: "test-value"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	// Create template file with shell template function
@@ -471,7 +471,7 @@ test_var = "{{ .TestVar }}"
 # This shell function should NOT execute when NoShell=true
 shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "test.txt"), []byte(templateContent), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "test.txt"), []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoShell=true
@@ -483,7 +483,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Verify the file was generated
-	generatedFile := util.JoinPath(outputDir, "test.txt")
+	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
 	content, err := util.ReadFileAsString(generatedFile)
@@ -503,8 +503,8 @@ func TestBoilerplateShellTemplateFunctionEnabled(t *testing.T) {
 	t.Parallel()
 
 	workDir := t.TempDir()
-	templateDir := util.JoinPath(workDir, "template")
-	outputDir := util.JoinPath(workDir, "output")
+	templateDir := filepath.Join(workDir, "template")
+	outputDir := filepath.Join(workDir, "output")
 
 	// Create template and output directories
 	err := os.MkdirAll(templateDir, 0755)
@@ -520,7 +520,7 @@ variables:
     type: string
     default: "test-value"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	// Create template file with shell template function
@@ -529,7 +529,7 @@ test_var = "{{ .TestVar }}"
 # This shell function SHOULD execute when NoShell=false
 shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "test.txt"), []byte(templateContent), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "test.txt"), []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoShell=false
@@ -541,7 +541,7 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Verify the file was generated
-	generatedFile := util.JoinPath(outputDir, "test.txt")
+	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
 	content, err := util.ReadFileAsString(generatedFile)
@@ -559,8 +559,8 @@ func TestBoilerplateHooksDisabled(t *testing.T) {
 	t.Parallel()
 
 	workDir := t.TempDir()
-	templateDir := util.JoinPath(workDir, "template")
-	outputDir := util.JoinPath(workDir, "output")
+	templateDir := filepath.Join(workDir, "template")
+	outputDir := filepath.Join(workDir, "output")
 
 	// Create template and output directories
 	err := os.MkdirAll(templateDir, 0755)
@@ -588,14 +588,14 @@ hooks:
         - ` + outputDir + `/after_hook_not_executed.txt
       description: "Test hook that should NOT execute"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	// Create simple template file
 	templateContent := `# Test template
 test_var = "{{ .TestVar }}"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "test.txt"), []byte(templateContent), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "test.txt"), []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoHooks=true
@@ -607,7 +607,7 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 
 	// Verify the template file was generated
-	generatedFile := util.JoinPath(outputDir, "test.txt")
+	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
 	content, err := util.ReadFileAsString(generatedFile)
@@ -615,8 +615,8 @@ test_var = "{{ .TestVar }}"
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
 	// Verify that hooks did NOT execute (hook files should not exist)
-	beforeHookFile := util.JoinPath(outputDir, "before_hook_not_executed.txt")
-	afterHookFile := util.JoinPath(outputDir, "after_hook_not_executed.txt")
+	beforeHookFile := filepath.Join(outputDir, "before_hook_not_executed.txt")
+	afterHookFile := filepath.Join(outputDir, "after_hook_not_executed.txt")
 
 	assert.NoFileExists(t, beforeHookFile, "Before hook file should not exist when NoHooks=true")
 	assert.NoFileExists(t, afterHookFile, "After hook file should not exist when NoHooks=true")
@@ -627,8 +627,8 @@ func TestBoilerplateHooksEnabled(t *testing.T) {
 	t.Parallel()
 
 	workDir := t.TempDir()
-	templateDir := util.JoinPath(workDir, "template")
-	outputDir := util.JoinPath(workDir, "output")
+	templateDir := filepath.Join(workDir, "template")
+	outputDir := filepath.Join(workDir, "output")
 
 	// Create template and output directories
 	err := os.MkdirAll(templateDir, 0755)
@@ -656,14 +656,14 @@ hooks:
         - ` + outputDir + `/after_hook_executed.txt
       description: "Test hook that SHOULD execute"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	// Create simple template file
 	templateContent := `# Test template
 test_var = "{{ .TestVar }}"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "test.txt"), []byte(templateContent), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "test.txt"), []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoHooks=false
@@ -675,7 +675,7 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 
 	// Verify the template file was generated
-	generatedFile := util.JoinPath(outputDir, "test.txt")
+	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
 	content, err := util.ReadFileAsString(generatedFile)
@@ -683,8 +683,8 @@ test_var = "{{ .TestVar }}"
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
 	// Verify that hooks DID execute (before and after hook files should exist)
-	beforeHookFile := util.JoinPath(outputDir, "before_hook_executed.txt")
-	afterHookFile := util.JoinPath(outputDir, "after_hook_executed.txt")
+	beforeHookFile := filepath.Join(outputDir, "before_hook_executed.txt")
+	afterHookFile := filepath.Join(outputDir, "after_hook_executed.txt")
 
 	require.FileExists(t, beforeHookFile, "Before hook file should exist when NoHooks=false")
 	require.FileExists(t, afterHookFile, "After hook file should exist when NoHooks=false")
@@ -695,8 +695,8 @@ func TestBoilerplateBothFlagsDisabled(t *testing.T) {
 	t.Parallel()
 
 	workDir := t.TempDir()
-	templateDir := util.JoinPath(workDir, "template")
-	outputDir := util.JoinPath(workDir, "output")
+	templateDir := filepath.Join(workDir, "template")
+	outputDir := filepath.Join(workDir, "output")
 
 	// Create template and output directories
 	err := os.MkdirAll(templateDir, 0755)
@@ -717,7 +717,7 @@ hooks:
     - command: echo "HOOK_EXECUTED" > ` + outputDir + `/hook_output.txt
       description: "Test hook that should NOT execute"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	// Create template file with shell template function
@@ -725,7 +725,7 @@ hooks:
 test_var = "{{ .TestVar }}"
 shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 `
-	err = os.WriteFile(util.JoinPath(templateDir, "test.txt"), []byte(templateContent), 0644)
+	err = os.WriteFile(filepath.Join(templateDir, "test.txt"), []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with both NoShell=true and NoHooks=true
@@ -737,7 +737,7 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Verify the template file was generated
-	generatedFile := util.JoinPath(outputDir, "test.txt")
+	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
 	content, err := util.ReadFileAsString(generatedFile)
@@ -750,6 +750,6 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	assert.NotContains(t, content, "SHELL_EXECUTED", "Shell function should not execute when NoShell=true")
 
 	// Verify that hooks did NOT execute
-	hookOutputFile := util.JoinPath(outputDir, "hook_output.txt")
+	hookOutputFile := filepath.Join(outputDir, "hook_output.txt")
 	assert.NoFileExists(t, hookOutputFile, "Hook should not execute when NoHooks=true")
 }

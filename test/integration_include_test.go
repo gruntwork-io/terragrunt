@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
-	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
 
 	files, err := os.ReadDir(tmpEnvPath)
 	require.NoError(t, err)
@@ -74,7 +73,7 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
-	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
 
 	files, err := os.ReadDir(tmpEnvPath)
 	require.NoError(t, err)
@@ -111,7 +110,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -135,7 +134,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSetWithFilter(t *testing.T) 
 	}
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -153,7 +152,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	// Retry to handle intermittent failures due to network issues on CICD
@@ -200,7 +199,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := util.JoinPath(includeDeepFixturePath, "child")
+	childPath := filepath.Join(includeDeepFixturePath, "child")
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+childPath)

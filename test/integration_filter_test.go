@@ -1071,7 +1071,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				}
 
 				// Verify the report file exists
-				reportFilePath := util.JoinPath(tmpDir, helpers.ReportFile)
+				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
@@ -1384,7 +1384,7 @@ unit "unit-to-be-created-2" {
 				}
 
 				// Verify the report file exists
-				reportFilePath := util.JoinPath(tmpDir, helpers.ReportFile)
+				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
@@ -1582,7 +1582,7 @@ func TestFiltersFileFlag(t *testing.T) {
 
 				// Copy fixture to temporary directory
 				tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
-				tmpDir := util.JoinPath(tmpEnvPath, testFixtureFilterBasic)
+				tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
 
 				helpers.CleanupTerraformFolder(t, tmpDir)
 
@@ -1688,7 +1688,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				require.NoError(t, os.Unsetenv("TG_EXPERIMENT_MODE"))
 				// Copy fixture to temporary directory
 				tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
-				tmpDir := util.JoinPath(tmpEnvPath, testFixtureFilterBasic)
+				tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
 
 				helpers.CleanupTerraformFolder(t, tmpDir)
 
@@ -1769,7 +1769,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
 
 		// Run with filter targeting only target-unit
 		// This will parse target-unit and its dependency (dependency-unit) for outputs,
@@ -1790,7 +1790,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		assert.Contains(t, stderr, "dependency-unit", "dependency-unit should be parsed")
 
 		// Verify the report file exists and parse it
-		reportFilePath := util.JoinPath(rootPath, helpers.ReportFile)
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
@@ -1843,7 +1843,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
 
 		// Run with filter targeting both target-unit and dependency-unit (OR semantics)
 		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --filter './dependency-unit' --report-file " + helpers.ReportFile
@@ -1858,7 +1858,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
 
 		// Verify the report file exists and parse it
-		reportFilePath := util.JoinPath(rootPath, helpers.ReportFile)
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
@@ -1922,7 +1922,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsingDestroy)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsingDestroy)
 
 		// Run destroy with filter targeting only unit-a
 		// This should only parse unit-a, NOT all units in the repository
@@ -1938,7 +1938,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy")
 
 		// Verify the report file exists and parse it
-		reportFilePath := util.JoinPath(rootPath, helpers.ReportFile)
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
@@ -1991,7 +1991,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureMinimizeParsingDestroy)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsingDestroy)
 
 		// Run destroy with graph filter targeting unit-a
 		// Graph filters explicitly request dependency discovery, so this is expected behavior
@@ -2008,7 +2008,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy with graph filter")
 
 		// Verify the report file exists and parse it
-		reportFilePath := util.JoinPath(rootPath, helpers.ReportFile)
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")

@@ -140,7 +140,7 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCatalogLocalTemplate, ".boilerplate")
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureCatalogLocalTemplate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureCatalogLocalTemplate)
 
 	targetPath := filepath.Join(rootPath, "app")
 	moduleURL := "github.com/gruntwork-io/terragrunt//test/fixtures/inputs"

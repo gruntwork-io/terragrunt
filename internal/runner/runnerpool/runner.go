@@ -288,7 +288,7 @@ func NewRunnerPoolStack(
 			for _, dir := range terragruntOptions.ExcludeDirs {
 				cleanDir := dir
 				if !filepath.IsAbs(cleanDir) {
-					cleanDir = util.JoinPath(terragruntOptions.WorkingDir, cleanDir)
+					cleanDir = filepath.Join(terragruntOptions.WorkingDir, cleanDir)
 				}
 
 				cleanDir = util.CleanPath(cleanDir)

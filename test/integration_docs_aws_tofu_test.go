@@ -55,7 +55,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "aws@2.27.63")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "node@22.17.1")
 
-		miseTomlPath := util.JoinPath(repoDir, "mise.toml")
+		miseTomlPath := filepath.Join(repoDir, "mise.toml")
 		require.FileExists(t, miseTomlPath)
 		miseToml, err := os.ReadFile(miseTomlPath)
 		require.NoError(t, err)

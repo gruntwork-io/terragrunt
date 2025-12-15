@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +78,7 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFilterGraphDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterGraphDAG)
-			workingDir := util.JoinPath(tmpEnvPath, testFixtureFilterGraphDAG)
+			workingDir := filepath.Join(tmpEnvPath, testFixtureFilterGraphDAG)
 
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -154,7 +153,7 @@ func TestFilterFlagWithFindGraphExpressionsJSON(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFilterGraphDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterGraphDAG)
-			workingDir := util.JoinPath(tmpEnvPath, testFixtureFilterGraphDAG)
+			workingDir := filepath.Join(tmpEnvPath, testFixtureFilterGraphDAG)
 
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --json --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -225,7 +224,7 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFilterGraphDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterGraphDAG)
-			workingDir := util.JoinPath(tmpEnvPath, testFixtureFilterGraphDAG)
+			workingDir := filepath.Join(tmpEnvPath, testFixtureFilterGraphDAG)
 
 			// Use a non-destructive command like `plan` to verify the filter works
 			// The actual terraform commands will likely fail due to missing providers/resources,
@@ -338,7 +337,7 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureRunFilter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunFilter)
-			workingDir := util.JoinPath(tmpEnvPath, testFixtureRunFilter)
+			workingDir := filepath.Join(tmpEnvPath, testFixtureRunFilter)
 
 			// Use a non-destructive command like `plan` to verify the filter works
 			// The actual terraform commands will likely fail due to missing providers/resources,
@@ -440,7 +439,7 @@ func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) 
 	// We'll use a simple dependency chain to verify execution order
 	helpers.CleanupTerraformFolder(t, testFixtureRunFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunFilter)
-	workingDir := util.JoinPath(tmpEnvPath, testFixtureRunFilter)
+	workingDir := filepath.Join(tmpEnvPath, testFixtureRunFilter)
 
 	// Test that "service..." executes vpc, db, cache (dependencies) before service
 	reportFile := filepath.Join(workingDir, "report.json")

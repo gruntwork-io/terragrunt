@@ -332,7 +332,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
-		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
+		opts.DownloadDir = filepath.Join(opts.WorkingDir, util.TerragruntCacheDir)
 	}
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
@@ -347,7 +347,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
-		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
+		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)

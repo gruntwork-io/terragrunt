@@ -5,10 +5,10 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func TestAwsSopsDecryptedKMSCorrectly(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureSopsKMS)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsKMS)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsKMS)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSopsKMS)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 

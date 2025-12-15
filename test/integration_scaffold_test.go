@@ -138,7 +138,7 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithRootHCL)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithRootHCL)
+	testPath := filepath.Join(tmpEnvPath, testScaffoldWithRootHCL)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 		"terragrunt --non-interactive --working-dir %s scaffold %s",
