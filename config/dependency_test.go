@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
@@ -122,7 +123,9 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx.TerragruntOptions = opts
-	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
+	err = ctx.TerragruntOptions.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
+	require.NoError(t, err)
+
 	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
 	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
