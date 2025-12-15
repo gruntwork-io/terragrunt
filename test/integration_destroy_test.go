@@ -202,7 +202,7 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --non-interactive --working-dir "+vpcPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --non-interactive --destroy-dependencies-check --working-dir "+vpcPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stderr.String()
@@ -231,11 +231,11 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
-	// try to destroy vpc module and check if warning is not printed in output
+	// try to destroy vpc module and check if warning is not printed in output (default behavior - checks disabled)
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --non-interactive --no-destroy-dependencies-check --working-dir "+vpcPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --non-interactive --working-dir "+vpcPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stderr.String()

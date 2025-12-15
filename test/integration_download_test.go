@@ -737,6 +737,47 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	}
 }
 
+func TestTerragruntExternalDependenciesWithFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	modules := []string{
+		"module-a",
+		"module-b",
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureExternalDependence)
+
+	for _, module := range modules {
+		helpers.CleanupTerraformFolder(t, filepath.Join(testFixtureExternalDependence, module))
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
+	modulePath := filepath.Join(rootPath, testFixtureExternalDependence, "module-b")
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --filter '{./**}...' --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
+	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
+
+	applyAllStdoutString := applyAllStdout.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	for _, module := range modules {
+		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
+	}
+}
+
 func TestPreventDestroy(t *testing.T) {
 	t.Parallel()
 
