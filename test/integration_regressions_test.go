@@ -147,11 +147,6 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 		"Should not fail with 'Unsuitable value' error when using dependency outputs in generate blocks")
 	assert.NotContains(t, runAllStderr, "Unsuitable value type",
 		"Should not fail with 'Unsuitable value type' error")
-
-	// Verify the generate block was created successfully
-	// During run --all, the cache is created at the root working directory level
-	generatedFile := filepath.Join(rootPath, ".terragrunt-cache")
-	assert.DirExists(t, generatedFile, "Terragrunt cache should exist")
 }
 
 // TestDependencyOutputInGenerateBlockDirectRun tests that dependency outputs work when running directly

@@ -58,6 +58,9 @@ const (
 
 	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
 	QueueExcludeExternal = "queue-exclude-external"
+
+	// DisableCommandValidation is the control that prevents the use of the deprecated `--disable-command-validation` flag.
+	DisableCommandValidation = "disable-command-validation"
 )
 
 //nolint:lll
@@ -218,6 +221,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them."),
 			Warning:     "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
+		},
+		&Control{
+			Name:        DisableCommandValidation,
+			Description: "Prevents the use of the deprecated `--disable-command-validation` flag. Command validation has been removed entirely.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`."),
+			Warning:     "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
 		},
 	}
 

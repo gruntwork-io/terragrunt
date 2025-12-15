@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -16,16 +17,18 @@ import (
 )
 
 const (
-	NoAutoInitFlagName                     = "no-auto-init"
-	NoAutoRetryFlagName                    = "no-auto-retry"
-	NoAutoApproveFlagName                  = "no-auto-approve"
-	NoAutoProviderCacheDirFlagName         = "no-auto-provider-cache-dir"
-	TFForwardStdoutFlagName                = "tf-forward-stdout"
-	UnitsThatIncludeFlagName               = "units-that-include"
-	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
-	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
-	SummaryPerUnitFlagName                 = "summary-per-unit"
-	VersionManagerFileNameFlagName         = "version-manager-file-name"
+	NoAutoInitFlagName                       = "no-auto-init"
+	NoAutoRetryFlagName                      = "no-auto-retry"
+	NoAutoApproveFlagName                    = "no-auto-approve"
+	NoAutoProviderCacheDirFlagName           = "no-auto-provider-cache-dir"
+	NoEngineFlagName                         = "no-engine"
+	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
+	TFForwardStdoutFlagName                  = "tf-forward-stdout"
+	UnitsThatIncludeFlagName                 = "units-that-include"
+	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
+	UsePartialParseConfigCacheFlagName       = "use-partial-parse-config-cache"
+	SummaryPerUnitFlagName                   = "summary-per-unit"
+	VersionManagerFileNameFlagName           = "version-manager-file-name"
 
 	DisableCommandValidationFlagName   = "disable-command-validation"
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
@@ -225,12 +228,25 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        DependencyFetchOutputFromStateFlagName,
-			EnvVars:     tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
-			Destination: &opts.FetchDependencyOutputFromState,
-			Usage:       "The option fetches dependency output directly from the state file instead of using tofu/terraform output.",
+			Name:    DependencyFetchOutputFromStateFlagName,
+			EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
+			Usage:   "Enable the dependency-fetch-output-from-state experiment to fetch dependency output directly from the state file instead of using tofu/terraform output.",
+			Action: func(_ *cli.Context, val bool) error {
+				if val {
+					return opts.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
+				}
+
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fetch-dependency-output-from-state"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoDependencyFetchOutputFromStateFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyFetchOutputFromStateFlagName),
+			Destination: &opts.NoDependencyFetchOutputFromState,
+			Usage:       "Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TFForwardStdoutFlagName,
@@ -254,6 +270,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(DisableCommandValidationFlagName),
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
+			Action: func(ctx *cli.Context, value bool) error {
+				if value {
+					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx.Context)
+				}
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-command-validation"), terragruntPrefixControl)),
 
@@ -320,11 +342,17 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		// Terragrunt engine flags.
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        EngineEnableFlagName,
-			EnvVars:     tgPrefix.EnvVars(EngineEnableFlagName),
-			Destination: &opts.EngineEnabled,
-			Usage:       "Enable Terragrunt experimental engine.",
-			Hidden:      true,
+			Name:    EngineEnableFlagName,
+			EnvVars: tgPrefix.EnvVars(EngineEnableFlagName),
+			Usage:   "Enable the iac-engine experiment to use IaC engines.",
+			Hidden:  true,
+			Action: func(_ *cli.Context, val bool) error {
+				if val {
+					return opts.Experiments.EnableExperiment(experiment.IacEngine)
+				}
+
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("experimental-engine"), terragruntPrefixControl)),
 
@@ -354,6 +382,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Hidden:      true,
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-log-level"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoEngineFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoEngineFlagName),
+			Destination: &opts.NoEngine,
+			Usage:       "Disable IaC engines even when the iac-engine experiment is enabled.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        SummaryDisableFlagName,
