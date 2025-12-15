@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download Windows build artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           pattern: ${{ inputs.artifact_pattern }}
           path: artifacts/
