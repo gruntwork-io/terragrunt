@@ -6,7 +6,8 @@ sidebar:
   order: 2
 ---
 
-import { Aside, FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 ## What are Stacks?
 
@@ -22,9 +23,9 @@ Terragrunt supports two approaches to defining stacks:
 1. **Implicit Stacks**: Created by organizing units in a directory structure.
 2. **Explicit Stacks**: Defined using `terragrunt.stack.hcl` files.
 
-## Implicit Stacks: Directory-Based Organization
+## Implicit Stacks
 
-The simplest way to create a stack is to organize your units in a directory structure. When you have multiple units in a directory, Terragrunt automatically treats that directory as a stack.
+The simplest way to create a stack is to organize your units in a directory structure in your repository. When you have multiple units in a directory, Terragrunt automatically treats that directory as a stack for the purposes of commands like `terragrunt run --all apply`.
 
 ### Converting Terraform Modules to Units
 
@@ -99,7 +100,7 @@ terragrunt run --graph apply
 ### Advantages of Implicit Stacks
 
 - **Simple**: Just organize units in directory trees.
-- **Familiar**: Works like recommended best practices for OpenTofu/Terraform module organization.
+- **Familiar**: Organized following best practices for OpenTofu/Terraform repository structures.
 - **Flexible**: Easy to add/remove units by creating/deleting directories.
 - **Version Control Friendly**: Each unit is a separate directory with its own history.
 - **Backwards Compatible**: This has been the default way to work with Terragrunt for over eight years, and the majority of existing Terragrunt configurations use this approach.
@@ -110,40 +111,32 @@ terragrunt run --graph apply
 - **No Reusability**: Patterns can't be easily shared across environments.
 - **Repetitive**: Similar configurations must be duplicated or referenced from [includes](/docs/features/includes).
 
-## Explicit Stacks: Blueprint-Based Generation
+## Explicit Stacks
 
-For a more modern approach, you can define stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units.
+For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
 ### What is a terragrunt.stack.hcl file?
 
-A `terragrunt.stack.hcl` file is a blueprint that defines how to generate Terragrunt configuration programmatically. It tells Terragrunt:
+A `terragrunt.stack.hcl` file is a blueprint that defines how to generate Terragrunt configurations programmatically. It tells Terragrunt:
 
 - What units to create.
 - Where to get their configurations from.
 - Where to place them in the directory structure.
 - What values to pass to each unit.
 
-### The Two Types of Blocks
+### Supported Configuration Blocks
 
 #### `unit` blocks - Define Individual Infrastructure Components
 
 - **Purpose**: Define a single, deployable piece of infrastructure.
 - **Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application).
-- **Result**: Generates a single `terragrunt.hcl` file in the specified path.
+- **Result**: Generates a directory with a single `terragrunt.hcl` file in the specified `path` from the specified `source`.
 
 #### `stack` blocks - Define Reusable Infrastructure Patterns
 
-- **Purpose**: Define a collection of related units that can be reused.
+- **Purpose**: Define a stack of units to be deployed together.
 - **Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times.
-- **Result**: Generates another `terragrunt.stack.hcl` file that can contain more units or stacks.
-
-### Comparison: unit vs stack blocks
-
-| Aspect | `unit` block | `stack` block |
-|--------|-------------|---------------|
-| **Purpose** | Define a single infrastructure component. | Define a reusable collection of components. |
-| **When to use** | For specific, one-off infrastructure pieces. | For patterns of infrastructure pieces that you want provisioned together. |
-| **Generated output** | A directory with a single `terragrunt.hcl` file. | A directory with a `terragrunt.stack.hcl` file. |
+- **Result**: Generates a directory with another `terragrunt.stack.hcl` file in the specified `path` from the specified `source`.
 
 ### Example: Simple Stack with Units
 
@@ -170,11 +163,10 @@ unit "database" {
 }
 ```
 
-Running `terragrunt stack generate` creates:
+Running `terragrunt stack generate` in the directory containing that `terragrunt.stack.hcl` file generates:
 
 <FileTree>
 
-- terragrunt.stack.hcl
 - .terragrunt-stack
   - vpc
     - terragrunt.hcl
@@ -184,6 +176,12 @@ Running `terragrunt stack generate` creates:
     - terragrunt.values.hcl
 
 </FileTree>
+
+<Aside type="note">
+Note that the contents are generated into a `.terragrunt-stack` directory. This is to make it convenient to add `.terragrunt-stack` to your `.gitignore` file, and always generate the stack on demand instead of checking it in.
+
+Also note the `terragrunt.values.hcl` files generated next to the `terragrunt.hcl` files of the units. These files contain the values specified in the `values` block for the unit.
+</Aside>
 
 ### Example: Nested Stack with Reusable Patterns
 
@@ -233,22 +231,49 @@ unit "database" {
 }
 ```
 
+Running `terragrunt stack generate` in the directory containing that `terragrunt.stack.hcl` file generates:
+
+<FileTree>
+
+- .terragrunt-stack
+  - dev
+    - terragrunt.stack.hcl
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+      - database
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+  - prod
+    - terragrunt.stack.hcl
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+      - database
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+
+</FileTree>
+
 ### Working with Explicit Stacks
 
 ```bash
-# Generate units from the `terragrunt.stack.hcl` file in the current working directory.
+# Generate units from the `terragrunt.stack.hcl` file in the current
+# working directory (and all stacks in child directories).
 terragrunt stack generate
 
-# Deploy all generated units defined using the `terragrunt.stack.hcl` file in the current working directory (and any units generated by stacks in this file).
+# Deploy all generated units defined using the `terragrunt.stack.hcl` file
+# in the current working directory (and any units generated by stacks in this file).
+#
+# Note that this will also automatically generate the stack if it is not already generated.
 terragrunt stack run apply
-
-# Or combine generation and deployment.
-terragrunt stack run apply  # Automatically generates first
 ```
 
 ### Advantages of Explicit Stacks
 
-- **Reusability**: Define patterns once, use them across environments.
+- **Reusability**: Define patterns once, reuse them across environments.
 - **Consistency**: Ensure all environments follow the same structure.
 - **Version Control**: Version collections of infrastructure patterns alongside the units of infrastructure that make them up.
 - **Automation**: Generate complex infrastructure from simple blueprints.
@@ -264,18 +289,18 @@ terragrunt stack run apply  # Automatically generates first
 
 ### Use Implicit Stacks When:
 
-- You have a small number of units (1-10).
+- You have a small number of units.
 - Each unit is unique and not repeated across environments.
 - You don't mind a high file count.
 - You're just getting started with Terragrunt.
-- You need maximum flexibility and transparency.
+- You need maximum explicitness and transparency.
 
 ### Use Explicit Stacks When:
 
 - You have multiple environments (dev, staging, prod).
-- You want to reuse infrastructure patterns.
+- You want to reuse collections of related infrastructure patterns.
 - You have many similar units that differ only in values.
-- You want to version your infrastructure patterns.
+- You want to version collections of infrastructure patterns.
 - You're building infrastructure catalogs or templates.
 
 ## The Complete Workflow
@@ -288,7 +313,7 @@ terragrunt stack run apply  # Automatically generates first
 
 ### For Explicit Stacks:
 
-1. **Catalog**: Create a catalog of infrastructure patterns (using `terragrunt.hcl` files, `terragrunt.stack.hcl` files, etc.) in a git repository.
+1. **Catalog**: Create a catalog of infrastructure patterns (using `terragrunt.hcl` files, `terragrunt.stack.hcl` files, etc.) in a Git repository.
 2. **Author**: Write a `terragrunt.stack.hcl` file with `unit` and/or `stack` blocks.
 3. **Generate**: Run `terragrunt stack generate` to create the actual units\*.
 4. **Deploy**: Run `terragrunt stack run apply` to deploy all units\*\*.
@@ -299,92 +324,7 @@ terragrunt stack run apply  # Automatically generates first
 
 ## Common Patterns
 
-<Aside type="note">
-
-These are simplified examples that show common high-level patterns.
-
-For more detailed examples, see the [Gruntwork Terragrunt Infrastructure Catalog Stack Examples](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks).
-
-</Aside>
-
-### Environment-based Stacks
-
-Create reusable environment patterns that can be instantiated for dev, staging, and production:
-
-```hcl
-# terragrunt.stack.hcl
-
-stack "dev" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
-  path   = "dev"
-  values = {
-    environment = "development"
-    cidr        = "10.0.0.0/16"
-  }
-}
-
-stack "staging" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
-  path   = "staging"
-  values = {
-    environment = "staging"
-    cidr        = "10.1.0.0/16"
-  }
-}
-
-stack "prod" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
-  path   = "prod"
-  values = {
-    environment = "production"
-    cidr        = "10.2.0.0/16"
-  }
-}
-```
-
-### Application Stacks
-
-Define complete application patterns with all required components:
-
-```hcl
-# terragrunt.stack.hcl
-
-stack "web-app" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/web-application?ref=v0.0.1"
-  path   = "web-app"
-  values = {
-    app_name    = "my-web-app"
-    domain      = "example.com"
-    environment = "production"
-  }
-}
-```
-
-## Benefits of Using Stacks
-
-### Code Reusability
-
-- Define infrastructure patterns once and reuse them across environments.
-- Reduce duplication and maintenance overhead.
-- Ensure consistency across deployments.
-
-### Simplified Management
-
-- Generate multiple units from a single configuration file.
-- Deploy entire environments with a single command.
-- Manage dependencies automatically.
-
-### Version Control
-
-- Version your infrastructure patterns alongside your application code.
-- Track changes to infrastructure patterns.
-- Roll back infrastructure changes when needed.
-
-### Team Collaboration
-
-- Share infrastructure patterns across teams.
-- Standardize deployment approaches.
-- Reduce onboarding time for new team members.
+For detailed examples, see the [Gruntwork Terragrunt Infrastructure Catalog Stack Examples](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks).
 
 ## Passing outputs between units
 
@@ -404,7 +344,7 @@ Consider the following file structure:
 
 </FileTree>
 
-Suppose that you wanted to pass in the VPC ID of the VPC that is created from the `vpc` unit in the folder structure above to the `mysql` unit as an input variable. Or that you wanted to pass in the subnet IDs of the private subnet that is allocated as part of the `vpc` unit.
+Suppose that you wanted to pass in the VPC ID of the VPC that is created from the `vpc` unit in the directory structure above to the `mysql` unit as an input variable. Or that you wanted to pass in the subnet IDs of the private subnet that is allocated as part of the `vpc` unit.
 
 You can use the `dependency` block to extract those outputs and use them as `inputs` to the `mysql` unit.
 
@@ -557,9 +497,128 @@ dependency "vpc" {
 
 If real outputs only contain `vpc_id`, `dependency.outputs` will contain a real value for `vpc_id` and a mocked value for `new_output`.
 
+### Passing outputs between units in explicit stacks
+
+When defining units using a `terragrunt.stack.hcl` file, you might need to perform some indirection to pass outputs between units, as the dependency relationship of each unit is explicitly defined in each unit's `terragrunt.hcl` file.
+
+For example, say you wanted to generate the stack above using the following `terragrunt.stack.hcl` file:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "github.com/acme/infrastructure-catalog//units/vpc?ref=v1.0.0"
+  path   = "vpc"
+}
+
+unit "mysql" {
+  source = "github.com/acme/infrastructure-catalog//units/mysql?ref=v1.0.0"
+  path   = "mysql"
+}
+
+unit "valkey" {
+  source = "github.com/acme/infrastructure-catalog//units/valkey?ref=v1.0.0"
+  path   = "valkey"
+}
+
+unit "backend_app" {
+  source = "github.com/acme/infrastructure-catalog//units/backend-app?ref=v1.0.0"
+  path   = "backend-app"
+}
+```
+
+Generating this stack would generate the following:
+
+<FileTree>
+
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+  - mysql
+    - terragrunt.hcl
+  - valkey
+    - terragrunt.hcl
+  - backend-app
+    - terragrunt.hcl
+
+</FileTree>
+
+The `backend-app` unit would need to access the outputs of the `mysql` and `valkey` units to use as inputs. To do this, you can use the `dependency` block to access the outputs of the `mysql` and `backend-app` units.
+
+```hcl
+# github.com/acme/infrastructure-catalog//units/mysql/terragrunt.hcl
+dependency "vpc" {
+  config_path = values.vpc_path
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+```hcl
+# github.com/acme/infrastructure-catalog//units/backend-app/terragrunt.hcl
+dependency "mysql" {
+  config_path = values.mysql_path
+}
+
+dependency "valkey" {
+  config_path = values.valkey_path
+}
+
+inputs = {
+  mysql_url = dependency.mysql.outputs.domain
+  valkey_url = dependency.valkey.outputs.domain
+}
+```
+
+And update the `terragrunt.stack.hcl` file to:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "github.com/acme/infrastructure-catalog//units/vpc?ref=v1.0.0"
+  path   = "vpc"
+}
+
+unit "mysql" {
+  source = "github.com/acme/infrastructure-catalog//units/mysql?ref=v1.0.0"
+  path   = "mysql"
+  values = {
+    vpc_path = "../vpc"
+  }
+}
+
+unit "valkey" {
+  source = "github.com/acme/infrastructure-catalog//units/valkey?ref=v1.0.0"
+  path   = "valkey"
+  values = {
+    vpc_path = "../vpc"
+  }
+}
+
+unit "backend_app" {
+  source = "github.com/acme/infrastructure-catalog//units/backend-app?ref=v1.0.0"
+  path   = "backend-app"
+  values = {
+    mysql_path  = "../mysql"
+    valkey_path = "../valkey"
+  }
+}
+```
+
+Following this pattern, the path to dependencies are passed in as `values` to the unit, and units themselves define dependency blocks that utilize those values.
+
+<Aside type="note">
+You might not like this design!
+
+Take a look at RFC [#4067](https://github.com/gruntwork-io/terragrunt/issues/4067) for an alternate proposal from a member of the Terragrunt community, and follow the conversation there.
+</Aside>
+
 ## Stack outputs
 
-When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack.
+When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack from the CLI.
 
 To do this, use the [`stack output`](/docs/reference/cli/commands/stack/output) command (not the [`stack run output`](/docs/reference/cli/commands/stack/run) command).
 
@@ -582,7 +641,11 @@ vpc = {
 }
 ```
 
-This will return a single aggregated value for all the outputs of all the units in the stack.
+This returns a single aggregated HCL object aggregating all the outputs for all the units within the stack.
+
+<Aside type="tip">
+You can use the `--format json` flag to get the output in JSON format, which can be useful for accessing values programmatically.
+</Aside>
 
 ## Dependencies between units
 
@@ -660,12 +723,14 @@ For example, if `destroy` was called on the `Valkey` unit, you'd be asked for co
 
 ## Visualizing the DAG
 
-To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command).
+To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command), or its equivalent `list --format=dot --dependencies --external` command.
 
 The graph is output in DOT format. The typical program used to render this file format is GraphViz, but many web services are available that can do this as well.
 
 ```bash
 terragrunt dag graph | dot -Tsvg > graph.svg
+# Or equivalently:
+terragrunt list --format=dot --dependencies --external | dot -Tsvg > graph.svg
 ```
 
 The example above generates the following graph:
@@ -858,7 +923,7 @@ There are more flags that control the behavior of the `run` command, which you c
 
 ## Using Local State with Stacks
 
-When using Terragrunt Stacks, you might want to use local state files instead of remote state for development, testing, or specific use cases. However, this presents a challenge because the generated `.terragrunt-stack` directory can be safely deleted and regenerated using `terragrunt stack clean && terragrunt stack generate`, which would normally cause local state files to be lost.
+When using Explicit Stacks, you might want to use local state files instead of remote state for development, testing, or specific use cases. However, this presents a challenge because the generated `.terragrunt-stack` directory can be safely deleted and regenerated using `terragrunt stack clean && terragrunt stack generate`, which would normally cause local state files to be lost.
 
 To solve this problem, you can configure your stack to store state files outside of the `.terragrunt-stack` directory, in a persistent location that survives stack regeneration.
 
@@ -979,31 +1044,27 @@ After running the stack, your directory structure will look like this:
 
 </FileTree>
 
-### Benefits
+## Known Limitations of Explicit Stacks
 
-This approach provides several advantages:
+There are currently some known limitations with explicit stacks that you should be aware of as you start to adopt them.
 
-- **State Persistence**: State files survive stack regeneration
-- **Isolation**: Each unit gets its own state file
-- **Consistency**: Directory structure mirrors the stack layout
-- **Flexibility**: You can switch between local and remote state easily by changing the backend configuration
+### Dependencies cannot be set on stacks
 
-### Example Workflow
+The `dependency` block cannot set the value of the `config_path` attribute to that of a stack. This is functionality that is planned for the future, but is not currently supported.
 
-```bash
-# Initial setup
-terragrunt stack generate
-terragrunt stack run apply
+As such, if you currently have multiple stacks that need to depend on each other, or on units within each other's stacks, you will need to either use implicit stacks, or work around this limitation by setting the `config_path` attribute to the path of the unit within the stack, and carefully ensuring that all stacks are generated before any units are run.
 
-# Later, regenerate the stack without losing state
-terragrunt stack clean
-terragrunt stack generate
+### Deeply nested stack generation can be slow
 
-# Verify existing resources are recognized
-terragrunt stack run plan  # Should show "No changes"
-```
+Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
 
-This pattern is particularly useful for development environments, testing scenarios, or when you need to maintain local state for compliance or security reasons while still benefiting from Terragrunt's stack management capabilities.
+The planned solution for this in the future is to allow for some deduplication in stack generation, but this is not currently implemented.
+
+### Includes are not supported in `terragrunt.stack.hcl` files
+
+The `include` block is not supported in `terragrunt.stack.hcl` files. This isn't functionality that is planned for future implementation, but may change based on community feedback, and proven use-cases.
+
+The current design of explicit stacks is that, when necessary, stacks can be nested into other stacks making them better organized and reusable without relying on includes to share configuration between stacks.
 
 ## Next Steps
 

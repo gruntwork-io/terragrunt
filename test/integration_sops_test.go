@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -68,10 +69,77 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s  -- apply -auto-approve",
+			rootPath,
+			testFixtureSops,
+		),
+	)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s  -- output -no-color -json",
+			rootPath,
+			testFixtureSops,
+		),
+	)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Equal(t, []any{true, false}, outputs["json_bool_array"].Value)
+	assert.Equal(t, []any{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
+	assert.InEpsilon(t, 1234.56789, outputs["json_number"].Value, 0.0001)
+	assert.Equal(t, "example_value", outputs["json_string"].Value)
+	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["json_hello"].Value)
+	assert.Equal(t, []any{true, false}, outputs["yaml_bool_array"].Value)
+	assert.Equal(t, []any{"example_value1", "example_value2"}, outputs["yaml_string_array"].Value)
+	assert.InEpsilon(t, 1234.5679, outputs["yaml_number"].Value, 0.0001)
+	assert.Equal(t, "example_value", outputs["yaml_string"].Value)
+	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["yaml_hello"].Value)
+	assert.Equal(t, "Raw Secret Example", outputs["text_value"].Value)
+	assert.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
+	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
+}
+
+func TestSOPSDecryptedCorrectlyRunAllWithFilter(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureSops)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s/../.. --experiment filter-flag --filter ./%s -- apply -auto-approve",
+			rootPath,
+			testFixtureSops,
+		),
+	)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s/../.. --experiment filter-flag --filter ./%s -- output -no-color -json",
+			rootPath,
+			testFixtureSops,
+		),
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}

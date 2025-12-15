@@ -4,6 +4,7 @@ package list
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -31,15 +32,15 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return cli.Flags{
+	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "Output format for list results. Valid values: text, tree, long.",
+			Usage:       "Output format for list results. Valid values: text, tree, long, dot.",
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
@@ -58,7 +59,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        ExternalFlagName,
 			EnvVars:     tgPrefix.EnvVars(ExternalFlagName),
 			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
+			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TreeFlagName,
@@ -88,16 +89,24 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
 	}
+
+	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
+	prefix := flags.Prefix{CommandName}
+
+	// Base flags for list plus backend/feature flags
+	flags := NewFlags(l, cmdOpts, prefix)
+	flags = append(flags, shared.NewBackendFlags(opts, prefix)...)
+	flags = append(flags, shared.NewFeatureFlags(opts, prefix)...)
 
 	return &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandAlias},
 		Usage:   "List relevant Terragrunt configurations.",
-		Flags:   NewFlags(cmdOpts, nil),
+		Flags:   flags,
 		Before: func(ctx *cli.Context) error {
 			if cmdOpts.Tree {
 				cmdOpts.Format = FormatTree

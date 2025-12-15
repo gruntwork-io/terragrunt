@@ -6,7 +6,7 @@ env:
   - TG_UNITS_THAT_INCLUDE
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 When specified, Terragrunt will only run commands against units that include the specified configuration file. This is useful for targeting specific configurations that share common included files.
 

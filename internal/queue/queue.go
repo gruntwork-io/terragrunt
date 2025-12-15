@@ -26,16 +26,17 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
 // and tracks its execution status and relationships to other entries in the queue.
 type Entry struct {
-	// Config is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
+	// Component is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
 	// including its path, dependencies, and discovery context (such as the command being run).
-	Config *discovery.DiscoveredConfig
+	Component component.Component
 
 	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
 	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
@@ -71,7 +72,7 @@ func (e *Entry) UpdateBlocked(entries Entries) {
 	}
 
 	if e.IsUp() {
-		for _, dep := range e.Config.Dependencies {
+		for _, dep := range e.Component.Dependencies() {
 			depEntry := entries.Entry(dep)
 			if depEntry == nil {
 				continue
@@ -94,11 +95,11 @@ func (e *Entry) UpdateBlocked(entries Entries) {
 
 	// If the entry is a "down" command, we need to check if all of its dependents are ready.
 	for _, qEntry := range entries {
-		if qEntry.Config.Dependencies == nil {
+		if len(qEntry.Component.Dependencies()) == 0 {
 			continue
 		}
 
-		if !slices.Contains(qEntry.Config.Dependencies, e.Config) {
+		if !slices.Contains(qEntry.Component.Dependencies(), e.Component) {
 			continue
 		}
 
@@ -119,19 +120,19 @@ func (e *Entry) UpdateBlocked(entries Entries) {
 func (e *Entry) IsUp() bool {
 	// If we don't have a discovery context,
 	// we should assume the command is an "up" command.
-	if e.Config.DiscoveryContext == nil {
+	if e.Component.DiscoveryContext() == nil {
 		return true
 	}
 
-	if e.Config.DiscoveryContext.Cmd == "destroy" {
+	if e.Component.DiscoveryContext().Cmd == "destroy" {
 		return false
 	}
 
-	if e.Config.DiscoveryContext.Cmd == "apply" && slices.Contains(e.Config.DiscoveryContext.Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "apply" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
-	if e.Config.DiscoveryContext.Cmd == "plan" && slices.Contains(e.Config.DiscoveryContext.Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "plan" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
@@ -139,19 +140,29 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	Entries  Entries
+	// unitsMap is a map of unit paths to Unit objects, used to check if dependencies not in the queue
+	// are assumed already applied or have existing state.
+	unitsMap map[string]*component.Unit
+	// Entries is a list of entries in the queue.
+	Entries Entries
+	// mu is a mutex used to synchronize access to the queue.
+	mu sync.RWMutex
+	// FailFast, if set to true, causes the queue to fail fast if any entry fails.
 	FailFast bool
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
 	IgnoreDependencyOrder bool
+	// IgnoreDependencyErrors, if set to true, allows scheduling and running entries even if their
+	// dependencies failed. Additionally, failures will not propagate EarlyExit to dependents/dependencies.
+	IgnoreDependencyErrors bool
 }
 
 type Entries []*Entry
 
 // Entry returns a given entry from the queue.
-func (e Entries) Entry(cfg *discovery.DiscoveredConfig) *Entry {
+func (e Entries) Entry(cfg component.Component) *Entry {
 	for _, entry := range e {
-		if entry.Config.Path == cfg.Path {
+		if entry.Component.Path() == cfg.Path() {
 			return entry
 		}
 	}
@@ -159,11 +170,11 @@ func (e Entries) Entry(cfg *discovery.DiscoveredConfig) *Entry {
 	return nil
 }
 
-// Configs returns the queue configs.
-func (q *Queue) Configs() discovery.DiscoveredConfigs {
-	result := make(discovery.DiscoveredConfigs, 0, len(q.Entries))
+// Components returns the queue components.
+func (q *Queue) Components() component.Components {
+	result := make(component.Components, 0, len(q.Entries))
 	for _, entry := range q.Entries {
-		result = append(result, entry.Config)
+		result = append(result, entry.Component)
 	}
 
 	return result
@@ -171,8 +182,17 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 
 // EntryByPath returns the entry with the given config path, or nil if not found.
 func (q *Queue) EntryByPath(path string) *Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	return q.entryByPathUnsafe(path)
+}
+
+// entryByPathUnsafe returns the entry with the given config path without locking.
+// Should only be called when the caller already holds a lock.
+func (q *Queue) entryByPathUnsafe(path string) *Entry {
 	for _, entry := range q.Entries {
-		if entry.Config.Path == path {
+		if entry.Component.Path() == path {
 			return entry
 		}
 	}
@@ -196,7 +216,7 @@ func (q *Queue) EntryByPath(path string) *Entry {
 // Passing configurations that haven't been checked for cycles in their dependency graph is unsafe.
 // If any cycles are present, the queue construction will halt after N
 // iterations, where N is the number of discovered configs, and throw an error.
-func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
+func NewQueue(discovered component.Components) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
 			Entries: Entries{},
@@ -209,8 +229,8 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 	for _, cfg := range discovered {
 		entry := &Entry{
-			Config: cfg,
-			Status: StatusPending,
+			Component: cfg,
+			Status:    StatusPending,
 		}
 		entries = append(entries, entry)
 	}
@@ -235,7 +255,7 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 			}
 
 			if entries[i].Status == StatusUnsorted && entries[j].Status == StatusUnsorted {
-				return entries[i].Config.Path < entries[j].Config.Path
+				return entries[i].Component.Path() < entries[j].Component.Path()
 			}
 
 			return false
@@ -278,6 +298,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	if q.IgnoreDependencyOrder {
 		out := make([]*Entry, 0, len(q.Entries))
 
@@ -298,46 +321,14 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		}
 
 		if e.IsUp() {
-			// Up logic: all dependencies must be succeeded
-			allDepsReady := true
-
-			for _, dep := range e.Config.Dependencies {
-				depEntry := q.EntryByPath(dep.Path)
-				if depEntry == nil || depEntry.Status != StatusSucceeded {
-					allDepsReady = false
-					break
-				}
-			}
-
-			if allDepsReady {
+			if q.areDependenciesReadyUnsafe(e) {
 				out = append(out, e)
 			}
 
 			continue
 		}
-		// Down logic: all dependents must be succeeded
-		allDependentsReady := true
 
-		for _, other := range q.Entries {
-			if other == e || other.Config.Dependencies == nil {
-				continue
-			}
-
-			for _, dep := range other.Config.Dependencies {
-				if dep.Path == e.Config.Path {
-					if other.Status != StatusSucceeded {
-						allDependentsReady = false
-						break
-					}
-				}
-			}
-
-			if !allDependentsReady {
-				break
-			}
-		}
-
-		if allDependentsReady {
+		if q.areDependentsReadyUnsafe(e) {
 			out = append(out, e)
 		}
 	}
@@ -345,11 +336,93 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 	return out
 }
 
+// areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
+// For up commands, all dependencies must be in a succeeded state (or terminal if ignoring errors).
+// If a dependency is not in the queue, it is assumed to have existing state.
+// Should only be called when the caller already holds a read lock.
+func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
+	for _, dep := range e.Component.Dependencies() {
+		depEntry := q.entryByPathUnsafe(dep.Path())
+		if depEntry == nil {
+			// Dependency not in queue - check if assumed already applied
+			if q.unitsMap != nil {
+				if unit, ok := q.unitsMap[dep.Path()]; ok {
+					if unit.Execution != nil && unit.Execution.AssumeAlreadyApplied {
+						// Dependency is assumed already applied, consider it ready
+						continue
+					}
+				}
+			}
+			// If not in queue and not assumed already applied,
+			// assume it has existing state
+			continue
+		}
+
+		// When ignoring dependency errors, allow scheduling if dependencies are in a terminal state
+		// (succeeded OR failed), not just succeeded
+		if q.IgnoreDependencyErrors {
+			if !isTerminal(depEntry.Status) {
+				return false
+			}
+
+			continue
+		}
+
+		if depEntry.Status != StatusSucceeded {
+			return false
+		}
+	}
+
+	return true
+}
+
+// areDependentsReadyUnsafe checks if all dependents of an entry are ready for "down" commands.
+// For down commands, all dependents must be in a succeeded state (or terminal if ignoring errors).
+// Should only be called when the caller already holds a read lock.
+func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
+	for _, other := range q.Entries {
+		if other == e || len(other.Component.Dependencies()) == 0 {
+			continue
+		}
+
+		for _, dep := range other.Component.Dependencies() {
+			if dep.Path() == e.Component.Path() {
+				// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
+				// (succeeded OR failed), not just succeeded
+				if q.IgnoreDependencyErrors {
+					if !isTerminal(other.Status) {
+						return false
+					}
+
+					continue
+				}
+
+				if other.Status != StatusSucceeded {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
+}
+
+// SetEntryStatus safely sets the status of an entry with proper synchronization.
+func (q *Queue) SetEntryStatus(e *Entry, status Status) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	e.Status = status
+}
+
 // FailEntry marks the entry as failed and updates related entries if needed.
 // For up commands, this marks entries that come after this one as early exit.
 // For destroy/down commands, this marks entries that come before this one as early exit.
 // Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	e.Status = StatusFailed
 
 	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
@@ -365,6 +438,11 @@ func (q *Queue) FailEntry(e *Entry) {
 		return
 	}
 
+	// If ignoring dependency errors, do not propagate early exit to other entries.
+	if q.IgnoreDependencyErrors {
+		return
+	}
+
 	if e.IsUp() {
 		q.earlyExitDependents(e)
 		return
@@ -376,12 +454,12 @@ func (q *Queue) FailEntry(e *Entry) {
 // earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
 func (q *Queue) earlyExitDependents(e *Entry) {
 	for _, entry := range q.Entries {
-		if entry.Config.Dependencies == nil {
+		if len(entry.Component.Dependencies()) == 0 {
 			continue
 		}
 
-		for _, dep := range entry.Config.Dependencies {
-			if dep.Path == e.Config.Path {
+		for _, dep := range entry.Component.Dependencies() {
+			if dep.Path() == e.Component.Path() {
 				if isTerminalOrRunning(entry.Status) {
 					continue
 				}
@@ -398,12 +476,12 @@ func (q *Queue) earlyExitDependents(e *Entry) {
 
 // earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
 func (q *Queue) earlyExitDependencies(e *Entry) {
-	if e.Config.Dependencies == nil {
+	if len(e.Component.Dependencies()) == 0 {
 		return
 	}
 
-	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+	for _, dep := range e.Component.Dependencies() {
+		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
 			continue
 		}
@@ -419,6 +497,9 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 
 // Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
 func (q *Queue) Finished() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	for _, e := range q.Entries {
 		if !isTerminal(e.Status) {
 			return false
@@ -430,14 +511,17 @@ func (q *Queue) Finished() bool {
 
 // RemainingDeps Helper to calculate remaining dependencies for an entry.
 func (q *Queue) RemainingDeps(e *Entry) int {
-	if e.Config == nil || e.Config.Dependencies == nil {
+	if e.Component == nil || len(e.Component.Dependencies()) == 0 {
 		return 0
 	}
 
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
 	count := 0
 
-	for _, dep := range e.Config.Dependencies {
-		depEntry := q.EntryByPath(dep.Path)
+	for _, dep := range e.Component.Dependencies() {
+		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil || depEntry.Status != StatusSucceeded {
 			count++
 		}
@@ -461,4 +545,13 @@ func isTerminal(status Status) bool {
 // isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
 	return status == StatusRunning || isTerminal(status)
+}
+
+// SetUnitsMap sets the units map for the queue. This map is used to check if dependencies
+// not in the queue are assumed already applied or have existing state.
+func (q *Queue) SetUnitsMap(unitsMap map[string]*component.Unit) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	q.unitsMap = unitsMap
 }

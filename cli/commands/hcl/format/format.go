@@ -8,20 +8,25 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/mattn/go-zglob"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -47,7 +52,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return formatFromStdin(l, opts)
 	}
 
-	// handle when option specifies a particular file
 	if targetFile != "" {
 		if !filepath.IsAbs(targetFile) {
 			targetFile = util.JoinPath(workingDir, targetFile)
@@ -58,53 +62,95 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return formatTgHCL(ctx, l, opts, targetFile)
 	}
 
-	l.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
-	// zglob normalizes paths to "/"
-	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
-	if err != nil {
-		return err
-	}
+	var (
+		filters filter.Filters
+		err     error
+	)
 
-	filteredTgHclFiles := []string{}
-
-	for _, fname := range tgHclFiles {
-		skipFile := false
-		// Ignore any files that are in the cache or scaffold dir
-		pathList := strings.Split(fname, "/")
-
-		for _, excludePath := range excludePaths {
-			if slices.Contains(pathList, excludePath) {
-				skipFile = true
-				break
-			}
-		}
-
-		for _, excludeDir := range opts.HclExclude {
-			if slices.Contains(pathList, excludeDir) {
-				skipFile = true
-				break
-			}
-		}
-
-		if skipFile {
-			l.Debugf("%s was ignored", fname)
-		} else {
-			filteredTgHclFiles = append(filteredTgHclFiles, fname)
-		}
-	}
-
-	l.Debugf("Found %d hcl files", len(filteredTgHclFiles))
-
-	var formatErrors *errors.MultiError
-
-	for _, tgHclFile := range filteredTgHclFiles {
-		err := formatTgHCL(ctx, l, opts, tgHclFile)
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		filters, err = filter.ParseFilterQueries(opts.FilterQueries)
 		if err != nil {
-			formatErrors = formatErrors.Append(err)
+			return errors.New(err)
 		}
 	}
 
-	return formatErrors.ErrorOrNil()
+	// We use lightweight discovery here instead of the full discovery used by
+	// the discovery package because we want to find non-comps like includes.
+	files := []string{}
+
+	err = filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		basename := filepath.Base(path)
+		if slices.Contains(excludePaths, basename) {
+			l.Debugf("%s directory ignored by default", path)
+			return filepath.SkipDir
+		}
+
+		if slices.Contains(opts.HclExclude, basename) {
+			l.Debugf("%s directory ignored due to the %s flag", path, ExcludeDirFlagName)
+			return filepath.SkipDir
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(path, ".hcl") {
+			return nil
+		}
+
+		files = append(files, path)
+
+		return nil
+	})
+	if err != nil {
+		return errors.New(err)
+	}
+
+	var components component.Components
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		components, err = filters.EvaluateOnFiles(l, files, workingDir)
+		if err != nil {
+			return errors.New(err)
+		}
+	} else {
+		components = make(component.Components, 0, len(files))
+		for _, file := range files {
+			components = append(components, component.NewUnit(file))
+		}
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	limit := opts.Parallelism
+	if limit == options.DefaultParallelism {
+		limit = runtime.NumCPU()
+	}
+
+	g.SetLimit(limit)
+
+	// Pre-allocate the errs slice with max possible length
+	// so we don't need to hold a lock to append to it.
+	errs := make([]error, len(components))
+
+	for i, c := range components {
+		g.Go(func() error {
+			err := formatTgHCL(gctx, l, opts, c.Path())
+			if err != nil {
+				errs[i] = err
+			}
+
+			return nil
+		})
+	}
+
+	_ = g.Wait()
+
+	return errors.Join(errs...)
 }
 
 func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
@@ -148,16 +194,14 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
 		l.Errorf("Error retrieving file info of %s", tgHclFile)
-		return errors.Errorf("failed to get file info for %s: %v", tgHclFile, err)
+		return errors.Errorf("failed to get file info for %s: %w", tgHclFile, err)
 	}
 
-	contentsStr, err := util.ReadFileAsString(tgHclFile)
+	contents, err := os.ReadFile(tgHclFile)
 	if err != nil {
 		l.Errorf("Error reading %s", tgHclFile)
-		return err
+		return errors.Errorf("failed to read %s: %w", tgHclFile, err)
 	}
-
-	contents := []byte(contentsStr)
 
 	err = checkErrors(l, l.Formatter().DisabledColors(), contents, tgHclFile)
 	if err != nil {
@@ -184,7 +228,7 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	if opts.Check && fileUpdated {
-		return fmt.Errorf("invalid file format %s", tgHclFile)
+		return &FileNeedsFormattingError{Path: tgHclFile}
 	}
 
 	if fileUpdated {
@@ -196,11 +240,11 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 }
 
 // checkErrors takes in the contents of a hcl file and looks for syntax errors.
-func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFile string) error {
+func checkErrors(l log.Logger, disableColor bool, contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 
-	writer := writer.New(writer.WithLogger(logger), writer.WithDefaultLevel(log.ErrorLevel))
+	writer := writer.New(writer.WithLogger(l), writer.WithDefaultLevel(log.ErrorLevel))
 	diagWriter := parser.GetDiagnosticsWriter(writer, disableColor)
 
 	err := diagWriter.WriteDiagnostics(diags)
@@ -223,11 +267,11 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 	}
 
 	defer func() {
-		if err := f1.Close(); err != nil {
+		if err = f1.Close(); err != nil {
 			l.Warnf("Failed to close file %s %v", f1.Name(), err)
 		}
 
-		if err := os.Remove(f1.Name()); err != nil {
+		if err = os.Remove(f1.Name()); err != nil {
 			l.Warnf("Failed to remove file %s %v", f1.Name(), err)
 		}
 	}()
@@ -238,20 +282,20 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 	}
 
 	defer func() {
-		if err := f2.Close(); err != nil {
+		if err = f2.Close(); err != nil {
 			l.Warnf("Failed to close file %s %v", f2.Name(), err)
 		}
 
-		if err := os.Remove(f2.Name()); err != nil {
+		if err = os.Remove(f2.Name()); err != nil {
 			l.Warnf("Failed to remove file %s %v", f2.Name(), err)
 		}
 	}()
 
-	if _, err := f1.Write(b1); err != nil {
+	if _, err = f1.Write(b1); err != nil {
 		return nil, err
 	}
 
-	if _, err := f2.Write(b2); err != nil {
+	if _, err = f2.Write(b2); err != nil {
 		return nil, err
 	}
 

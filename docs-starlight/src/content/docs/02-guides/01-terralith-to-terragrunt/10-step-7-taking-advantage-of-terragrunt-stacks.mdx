@@ -6,7 +6,8 @@ sidebar:
   order: 10
 ---
 
-import { FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 Up until relatively recently in the history of Terragrunt, the proliferation of `terragrunt.hcl` files was the trade-off platform engineers had to accept for state segmentation. Luckily, with the advent of [Terragrunt Stacks](/docs/features/stacks/), that's not the case anymore. Collections of units, like the ones you created in the last step, can be generated on-demand using `terragrunt.stack.hcl` files. This saves you from having to duplicate `terragrunt.hcl` files across your codebase.
 
@@ -30,323 +31,63 @@ cp live/dev/s3/{terragrunt.hcl, .terraform.lock.hcl} catalog/units/s3/
 
 You might remember that the unit configurations differed very slightly between `dev` and `prod`. Luckily, Terragrunt has special tooling to handle that via the usage of `values` variables.
 
-```hcl
-# catalog/units/ddb/terragrunt.hcl
+import catalogUnitsDdbTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/catalog/units/ddb/terragrunt.hcl?raw';
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//ddb"
-}
-
-inputs = {
-  name = values.name
-}
-```
+<Code title="catalog/units/ddb/terragrunt.hcl" lang="hcl" code={catalogUnitsDdbTerragruntHcl} />
 
 By specifying `values.name` there, we're allowing values to be used in our unit configurations from `terragrunt.stack.hcl` files. You'll see how these values are set later in this step.
 
-```hcl
-# catalog/units/iam/terragrunt.hcl
+import catalogUnitsIamTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/catalog/units/iam/terragrunt.hcl?raw';
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//iam"
-}
-
-dependency "s3" {
-  config_path = values.s3_path
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:s3:::mock-bucket-name"
-  }
-}
-
-dependency "ddb" {
-  config_path = values.ddb_path
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:dynamodb:us-east-1:123456789012:table/mock-table-name"
-  }
-}
-
-inputs = {
-  name = values.name
-
-  aws_region = values.aws_region
-
-  s3_bucket_arn      = dependency.s3.outputs.arn
-  dynamodb_table_arn = dependency.ddb.outputs.arn
-}
-```
+<Code title="catalog/units/iam/terragrunt.hcl" lang="hcl" code={catalogUnitsIamTerragruntHcl} />
 
 <Aside type="note">
 We're not just using the `values` variable for the inputs that differ between stacks, like the `name` and `aws_region`. We can use them for any value we want to substitute in our `terragrunt.hcl` files, including the relative paths to other units (which we might want to be dynamic if we're going to refactor or add additional dependencies, etc.)
 </Aside>
 
-```hcl
-# catalog/units/lambda/terragrunt.hcl
+import catalogUnitsLambdaTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/catalog/units/lambda/terragrunt.hcl?raw';
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+<Code title="catalog/units/lambda/terragrunt.hcl" lang="hcl" code={catalogUnitsLambdaTerragruntHcl} />
 
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//lambda"
-}
+import catalogUnitsS3TerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/catalog/units/s3/terragrunt.hcl?raw';
 
-dependency "s3" {
-  config_path = "../s3"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    name = "mock-bucket-name"
-  }
-}
-
-dependency "ddb" {
-  config_path = "../ddb"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    name = "mock-table-name"
-  }
-}
-
-dependency "iam" {
-  config_path = "../iam"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:iam::123456789012:role/mock-role-name"
-  }
-}
-
-inputs = {
-  name = values.name
-
-  aws_region = values.aws_region
-
-  s3_bucket_name      = dependency.s3.outputs.name
-  dynamodb_table_name = dependency.ddb.outputs.name
-  lambda_role_arn     = dependency.iam.outputs.arn
-
-  lambda_zip_file     = "${get_repo_root()}/dist/best-cat.zip"
-}
-```
-
-```hcl
-# catalog/units/s3/terragrunt.hcl
-
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//s3"
-}
-
-inputs = {
-  name = values.name
-}
-```
+<Code title="catalog/units/s3/terragrunt.hcl" lang="hcl" code={catalogUnitsS3TerragruntHcl} />
 
 Now we can replace the `terragrunt.hcl` files in `live` with a single `terragrunt.stack.hcl` file in each environment to generate them on-demand using `unit` blocks. By default, units generated by Terragrunt are generated into `.terragrunt-stack` directories. We opt out of that by setting `no_dot_terragrunt_stack` to `true`.
 
-```hcl
-# live/dev/terragrunt.stack.hcl
+import liveDevTerragruntStackHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/live/dev/terragrunt.stack.hcl?raw';
 
-locals {
-    name       = "best-cat-2025-07-31-01-dev"
-    aws_region = "us-east-1"
-
-    units_path = find_in_parent_folders("catalog/units")
-}
-
-unit "ddb" {
-    source = "${local.units_path}/ddb"
-    path   = "ddb"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-    }
-}
-
-unit "s3" {
-    source = "${local.units_path}/s3"
-    path   = "s3"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-    }
-}
-
-unit "iam" {
-    source = "${local.units_path}/iam"
-    path   = "iam"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-
-        aws_region = local.aws_region
-
-        s3_path = "../s3"
-        ddb_path = "../ddb"
-    }
-}
-
-unit "lambda" {
-    source = "${local.units_path}/lambda"
-    path   = "lambda"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-
-        aws_region = local.aws_region
-
-        s3_path = "../s3"
-        ddb_path = "../ddb"
-        iam_path = "../iam"
-    }
-}
-```
+<Code title="live/dev/terragrunt.stack.hcl" lang="hcl" code={liveDevTerragruntStackHcl} />
 
 We'll also add this `.gitignore` file to avoid recommitting the generated files in our repository, as they'll be regenerated whenever we need them. We'll see how we can remove the need for this in a future step.
 
-```hcl
-# live/dev/.gitignore
+import liveDevGitignore from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/live/dev/.gitignore?raw';
 
-*
-!.gitignore
-!terragrunt.stack.hcl
-```
+<Code title="live/dev/.gitignore" lang="hcl" code={liveDevGitignore} />
 
 Now that we can generate these unit configurations on demand, we can remove the copies that we created manually!
 
-```bash
-# live/dev
-
-rm -rf .terraform.lock.hcl ddb iam lambda s3
-terragrunt run --all plan
-```
+<Code title="live/dev" lang="bash" frame="terminal" code={`rm -rf .terraform.lock.hcl ddb iam lambda s3
+terragrunt run --all plan`} />
 
 All that's left now is to repeat the same thing for prod.
 
-```hcl
-# live/prod/terragrunt.stack.hcl
+import liveProdTerragruntStackHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/live/prod/terragrunt.stack.hcl?raw';
 
-locals {
-    name       = "best-cat-2025-07-31-01"
-    aws_region = "us-east-1"
+<Code title="live/prod/terragrunt.stack.hcl" lang="hcl" code={liveProdTerragruntStackHcl} />
 
-    units_path = find_in_parent_folders("catalog/units")
-}
+import liveProdGitignore from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-7-taking-advantage-of-terragrunt-stacks/live/prod/.gitignore?raw';
 
-unit "ddb" {
-    source = "${local.units_path}/ddb"
-    path   = "ddb"
+<Code title="live/prod/.gitignore" lang="hcl" code={liveProdGitignore} />
 
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-    }
-}
-
-unit "s3" {
-    source = "${local.units_path}/s3"
-    path   = "s3"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-    }
-}
-
-unit "iam" {
-    source = "${local.units_path}/iam"
-    path   = "iam"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-
-        aws_region = local.aws_region
-
-        s3_path = "../s3"
-        ddb_path = "../ddb"
-    }
-}
-
-unit "lambda" {
-    source = "${local.units_path}/lambda"
-    path   = "lambda"
-
-    no_dot_terragrunt_stack = true
-
-    values = {
-        name = local.name
-
-        aws_region = local.aws_region
-
-        s3_path = "../s3"
-        ddb_path = "../ddb"
-        iam_path = "../iam"
-    }
-}
-```
-
-```hcl
-# live/prod/.gitignore
-
-*
-!.gitignore
-!terragrunt.stack.hcl
-```
-
-```bash
-# live/prod
-
-rm -rf .terraform.lock.hcl ddb iam lambda s3
-terragrunt run --all plan
-```
+<Code title="live/prod" lang="bash" frame="terminal" code={`rm -rf .terraform.lock.hcl ddb iam lambda s3
+terragrunt run --all plan`} />
 
 ## Project Layout Check-in
 
 If you clean out the `.gitignore`'ed files and take a look at the file tree, you should see that your `live` file count has shrunk down again!
 
-```bash
-# live
-
-$ rm -rf ./***/ddb ./***/iam ./***/lambda ./***/s3
-```
+<Code title="live" lang="bash" frame="terminal" code={`rm -rf ./***/ddb ./***/iam ./***/lambda ./***/s3`} />
 
 <FileTree>
 - live

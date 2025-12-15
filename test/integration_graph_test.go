@@ -62,7 +62,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
@@ -71,7 +71,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
@@ -89,13 +89,6 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		expectedModules    []string
 		notExpectedModules []string
 	}{
-		// We can keep this until the graph command is removed.
-		{
-			args:               "graph apply --non-interactive --working-dir %s --graph-root %s",
-			path:               "services/eks-service-3-v2",
-			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
-			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
-		},
 		{
 			args:               "run --graph apply --non-interactive --working-dir %s --graph-root %s",
 			path:               "lambda",
@@ -126,7 +119,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
@@ -135,7 +128,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
-				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
 				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)

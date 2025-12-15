@@ -6,21 +6,21 @@ sidebar:
   order: 2
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 The following is a simple overview of the main features in Terragrunt.
 
-It includes configurations that are a bit more complex than the ones found in the [Quick Start](/docs/getting-started/overview), but don't panic!
+It includes configurations that are a bit more complex than the ones found in the [Quick Start](/docs/getting-started/quick-start/), but don't panic!
 
 We'll walk you through each one, and you don't need to understand everything right away. Knowing that these features are available as you start to use Terragrunt can give you a tool to reach for when you encounter common problems that typically require one or more of these solutions.
 
-This guide is geared towards users who have either already gone through the [Quick Start](/docs/getting-started/overview) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real AWS infrastructure.
+This guide is geared towards users who have either already gone through the [Quick Start](/docs/getting-started/quick-start/) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real AWS infrastructure.
 
 If you are unfamiliar with OpenTofu/Terraform, you may want to also read [OpenTofu](https://opentofu.org/docs/intro/) or [Terraform](https://developer.hashicorp.com/terraform/intro) documentation after reading this guide.
 
 ## Following Along
 
-What follows isn't a tutorial in the same sense as the [Quick Start](/docs/getting-started/overview), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
+What follows isn't a tutorial in the same sense as the [Quick Start](/docs/getting-started/quick-start/), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
 
 The code samples provided here are available as individual "steps" [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview).
 

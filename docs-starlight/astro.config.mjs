@@ -6,6 +6,7 @@ import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
 import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
+import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
 import d2 from "astro-d2";
@@ -101,6 +102,8 @@ export default defineConfig({
       })
     : undefined,
   integrations: [
+    // We use React for the shadcn/ui components.
+    react(),
     starlight({
       title: "Terragrunt",
       description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
@@ -170,6 +173,7 @@ export default defineConfig({
       ],
       components: {
         Header: "./src/components/Header.astro",
+        PageSidebar: "./src/components/PageSidebar.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
         SkipLink: "./src/components/SkipLink.astro",
       },
@@ -278,5 +282,9 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+  },
+  tailwind: {
+    // We include this extra Tailwind config to support the shadcn/ui components.
+    configFile: './tailwind.config.mjs',
   },
 });

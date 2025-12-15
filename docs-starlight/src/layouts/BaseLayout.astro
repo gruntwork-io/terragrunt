@@ -1,21 +1,49 @@
 ---
 interface Props {
-	title: string;
+  title?: string;
+  description?: string;
+  url?: string;
 }
 
-const { title } = Astro.props;
+const {
+  title = 'Terragrunt | Orchestrate Terraform & OpenTofu at Scale',
+  description = 'Standardize IaC and manage growing infra complexity: define units & stacks, cut repetition with includes/hooks, execute modules in dependency order across environments.',
+  url = 'https://terragrunt.gruntwork.io/',
+} = Astro.props;
 ---
 <!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content="Terragrunt Homepage" />
-		<meta name="generator" content={Astro.generator} />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<title>{title}</title>
-	</head>
-	<body class="bg-white text-gray-900 antialiased">
-		<slot />
-	</body>
+<html lang="en" class="h-full">
+  <head>
+    <!-- Primary Meta Tags -->
+    <meta charset="UTF-8" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content="https://terragrunt.gruntwork.io/images/terragrunt-og-image-1200x630.png" />
+    <meta property="og:image:alt" content="An image featuring the Gruntwork Mascot and the words Orchestrate Terraform & OpenTofu at Scale" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:secure_url" content="https://terragrunt.gruntwork.io/images/terragrunt-og-image-1200x630.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:title" content={title} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={url} />
+
+    <!-- X (Twitter) -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content="https://terragrunt.gruntwork.io/images/terragrunt-twitter-image.png" />
+    <meta name="twitter:site" content="@gruntwork_io" />
+    <meta name="twitter:title" content={title} />
+
+    <link rel="canonical" href={url} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="tg bg-[#FAFAFA] min-h-full">
+    <slot />
+  </body>
 </html>

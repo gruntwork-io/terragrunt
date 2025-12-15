@@ -1,0 +1,98 @@
+name: Sign MacOS Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact-pattern:
+        description: 'Pattern for artifacts to download (default: terragrunt_darwin_*)'
+        required: false
+        type: string
+        default: 'terragrunt_darwin_*'
+      upload-artifact-name:
+        description: 'Name for the uploaded signed artifacts'
+        required: false
+        type: string
+        default: 'macos-signed-files'
+  workflow_call:
+    inputs:
+      artifact-pattern:
+        description: 'Pattern for artifacts to download (default: terragrunt_darwin_*)'
+        required: false
+        type: string
+        default: 'terragrunt_darwin_*'
+      upload-artifact-name:
+        description: 'Name for the uploaded signed artifacts'
+        required: false
+        type: string
+        default: 'macos-signed-files'
+
+jobs:
+  sign-macos:
+    name: Sign MacOS Binaries
+    runs-on: macos-latest
+    env:
+      MISE_PROFILE: cicd
+      GON_VERSION: v0.0.37
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download macOS build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: ${{ inputs.artifact-pattern }}
+          path: artifacts/
+
+      - name: Prepare build artifacts
+        run: .github/scripts/release/prepare-macos-artifacts.sh artifacts bin
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.8.16
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache gon binary
+        id: cache-gon
+        uses: actions/cache@v4
+        with:
+          path: gon
+          key: gon-${{ env.GON_VERSION }}
+
+      - name: Download and install gon
+        if: steps.cache-gon.outputs.cache-hit != 'true'
+        run: .github/scripts/release/install-gon.sh ${{ env.GON_VERSION }}
+
+      - name: Verify gon installation
+        run: gon --version
+
+      - name: Sign MacOS Binaries
+        env:
+          AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
+          AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
+          AC_USERNAME: ${{ secrets.MACOS_AC_LOGIN }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: .github/scripts/release/sign-macos-binaries.sh bin
+
+      - name: Verify codesign signatures
+        run: |
+          # Get list of expected macOS binaries from config
+          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
+
+          for binary in $macos_binaries; do
+            codesign -dv --verbose=4 "bin/$binary" 2>&1 || {
+              echo "ERROR: No valid signature found for bin/$binary"
+              exit 1
+            }
+          done
+
+      - name: Upload Signed MacOS Binaries
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.upload-artifact-name }}
+          path: bin/terragrunt_darwin_*
+          if-no-files-found: error

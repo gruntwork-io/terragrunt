@@ -63,8 +63,13 @@ terraform_version_constraint = "= 0.12.20"
 terragrunt_version_constraint = "= 0.23.18"
 download_dir = ".terragrunt-cache"
 prevent_destroy = true
-skip = true
 iam_role = "TerragruntIAMRole"
+
+exclude {
+  if = true
+  actions = ["all"]
+  no_run = true
+}
 
 inputs = {
   doc = "Emmett Brown"

@@ -28,10 +28,6 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
 	output[MetadataIamWebIdentityToken] = gostringToCty(config.IamWebIdentityToken)
 
-	if config.Skip != nil {
-		output[MetadataSkip] = goboolToCty(*config.Skip)
-	}
-
 	catalogConfigCty, err := catalogConfigAsCty(config.Catalog)
 	if err != nil {
 		return cty.NilVal, err
@@ -86,7 +82,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataRemoteState] = remoteStateCty
 	}
 
-	dependenciesCty, err := goTypeToCty(config.Dependencies)
+	dependenciesCty, err := GoTypeToCty(config.Dependencies)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -108,7 +104,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataDependency] = dependencyCty
 	}
 
-	generateCty, err := goTypeToCty(config.GenerateConfigs)
+	generateCty, err := GoTypeToCty(config.GenerateConfigs)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -117,40 +113,13 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataGenerateConfigs] = generateCty
 	}
 
-	retryableCty, err := goTypeToCty(config.RetryableErrors)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if retryableCty != cty.NilVal {
-		output[MetadataRetryableErrors] = retryableCty
-	}
-
-	iamAssumeRoleDurationCty, err := goTypeToCty(config.IamAssumeRoleDuration)
+	iamAssumeRoleDurationCty, err := GoTypeToCty(config.IamAssumeRoleDuration)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	if iamAssumeRoleDurationCty != cty.NilVal {
 		output[MetadataIamAssumeRoleDuration] = iamAssumeRoleDurationCty
-	}
-
-	retryMaxAttemptsCty, err := goTypeToCty(config.RetryMaxAttempts)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if retryMaxAttemptsCty != cty.NilVal {
-		output[MetadataRetryMaxAttempts] = retryMaxAttemptsCty
-	}
-
-	retrySleepIntervalSecCty, err := goTypeToCty(config.RetrySleepIntervalSec)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if retrySleepIntervalSecCty != cty.NilVal {
-		output[MetadataRetrySleepIntervalSec] = retrySleepIntervalSecCty
 	}
 
 	inputsCty, err := convertToCtyWithJSON(config.Inputs)
@@ -171,7 +140,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataLocals] = localsCty
 	}
 
-	if len(config.DependentModulesPath) > 0 {
+	if config.DependentModulesPath != nil {
 		dependentModulesCty, err := convertToCtyWithJSON(config.DependentModulesPath)
 		if err != nil {
 			return cty.NilVal, err
@@ -191,7 +160,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataFeatureFlag] = featureFlagsCty
 	}
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, error) {
@@ -218,10 +187,6 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.Skip, MetadataSkip, &output); err != nil {
-		return cty.NilVal, err
-	}
-
 	if err := wrapWithMetadata(config, config.IamAssumeRoleSessionName, MetadataIamAssumeRoleSessionName, &output); err != nil {
 		return cty.NilVal, err
 	}
@@ -232,19 +197,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		}
 	}
 
-	if err := wrapWithMetadata(config, config.RetryableErrors, MetadataRetryableErrors, &output); err != nil {
-		return cty.NilVal, err
-	}
-
 	if err := wrapWithMetadata(config, config.IamAssumeRoleDuration, MetadataIamAssumeRoleDuration, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	if err := wrapWithMetadata(config, config.RetryMaxAttempts, MetadataRetryMaxAttempts, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	if err := wrapWithMetadata(config, config.RetrySleepIntervalSec, MetadataRetrySleepIntervalSec, &output); err != nil {
 		return cty.NilVal, err
 	}
 
@@ -301,7 +254,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			dependencyWithMetadata = append(dependencyWithMetadata, content)
 		}
 
-		dependenciesCty, err := goTypeToCty(dependencyWithMetadata)
+		dependenciesCty, err := GoTypeToCty(dependencyWithMetadata)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -313,7 +266,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		var dependenciesMap = map[string]cty.Value{}
 
 		for _, block := range config.TerragruntDependencies {
-			ctyValue, err := goTypeToCty(block)
+			ctyValue, err := GoTypeToCty(block)
 			if err != nil {
 				continue
 			}
@@ -331,7 +284,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 				content.Metadata = metadata
 			}
 
-			value, err := goTypeToCty(content)
+			value, err := GoTypeToCty(content)
 			if err != nil {
 				continue
 			}
@@ -340,7 +293,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		}
 
 		if len(dependenciesMap) > 0 {
-			dependenciesCty, err := convertValuesMapToCtyVal(dependenciesMap)
+			dependenciesCty, err := ConvertValuesMapToCtyVal(dependenciesMap)
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -353,7 +306,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		var generateConfigsWithMetadata = map[string]cty.Value{}
 
 		for key, value := range config.GenerateConfigs {
-			ctyValue, err := goTypeToCty(value)
+			ctyValue, err := GoTypeToCty(value)
 			if err != nil {
 				continue
 			}
@@ -371,7 +324,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 				content.Metadata = metadata
 			}
 
-			v, err := goTypeToCty(content)
+			v, err := GoTypeToCty(content)
 			if err != nil {
 				continue
 			}
@@ -380,7 +333,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		}
 
 		if len(generateConfigsWithMetadata) > 0 {
-			dependenciesCty, err := convertValuesMapToCtyVal(generateConfigsWithMetadata)
+			dependenciesCty, err := ConvertValuesMapToCtyVal(generateConfigsWithMetadata)
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -389,7 +342,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		}
 	}
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fieldType string, output *map[string]cty.Value) error {
@@ -410,7 +363,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fiel
 			content.Metadata = metadata
 		}
 
-		v, err := goTypeToCty(content)
+		v, err := GoTypeToCty(content)
 		if err != nil {
 			continue
 		}
@@ -419,7 +372,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fiel
 	}
 
 	if len(valueWithMetadata) > 0 {
-		localsCty, err := convertValuesMapToCtyVal(valueWithMetadata)
+		localsCty, err := ConvertValuesMapToCtyVal(valueWithMetadata)
 		if err != nil {
 			return err
 		}
@@ -437,7 +390,7 @@ func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, 
 
 	var valueWithMetadata = ValueWithMetadata{}
 
-	ctyValue, err := goTypeToCty(value)
+	ctyValue, err := GoTypeToCty(value)
 	if err != nil {
 		return err
 	}
@@ -449,7 +402,7 @@ func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, 
 		valueWithMetadata.Metadata = metadata
 	}
 
-	ctyJSON, err := goTypeToCty(valueWithMetadata)
+	ctyJSON, err := GoTypeToCty(valueWithMetadata)
 	if err != nil {
 		return err
 	}
@@ -499,7 +452,7 @@ func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
 		URLs: config.URLs,
 	}
 
-	return goTypeToCty(configCty)
+	return GoTypeToCty(configCty)
 }
 
 // Serialize engineConfigAsCty to a cty Value, but with maps instead of lists for the blocks.
@@ -527,7 +480,7 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		configCty.Meta = *config.Meta
 	}
 
-	return goTypeToCty(configCty)
+	return GoTypeToCty(configCty)
 }
 
 // excludeConfigAsCty serialize exclude configuration to a cty Value.
@@ -547,7 +500,7 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 		ExcludeDependencies: excludeDependencies,
 	}
 
-	return goTypeToCty(configCty)
+	return GoTypeToCty(configCty)
 }
 
 // CtyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
@@ -596,7 +549,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		configCty.ErrorHooks[errorHook.Name] = errorHook
 	}
 
-	return goTypeToCty(configCty)
+	return GoTypeToCty(configCty)
 }
 
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
@@ -614,7 +567,7 @@ func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
 	output["disable_init"] = goboolToCty(config.DisableInit)
 	output["disable_dependency_optimization"] = goboolToCty(config.DisableDependencyOptimization)
 
-	generateCty, err := goTypeToCty(config.Generate)
+	generateCty, err := GoTypeToCty(config.Generate)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -635,7 +588,7 @@ func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
 
 	output["encryption"] = ctyJSONVal
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 // Serialize the list of dependency blocks to a cty Value as a map that maps the block names to the cty representation.
@@ -643,7 +596,7 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 	out := map[string]cty.Value{}
 
 	for _, block := range dependencyBlocks {
-		blockCty, err := goTypeToCty(block)
+		blockCty, err := GoTypeToCty(block)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -651,7 +604,7 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 		out[block.Name] = blockCty
 	}
 
-	return convertValuesMapToCtyVal(out)
+	return ConvertValuesMapToCtyVal(out)
 }
 
 // Serialize the list of feature flags to a cty Value as a map that maps the feature names to the cty representation.
@@ -659,7 +612,7 @@ func featureFlagsBlocksAsCty(featureFlagBlocks FeatureFlags) (cty.Value, error) 
 	out := map[string]cty.Value{}
 
 	for _, feature := range featureFlagBlocks {
-		featureCty, err := goTypeToCty(feature)
+		featureCty, err := GoTypeToCty(feature)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -667,7 +620,7 @@ func featureFlagsBlocksAsCty(featureFlagBlocks FeatureFlags) (cty.Value, error) 
 		out[feature.Name] = featureCty
 	}
 
-	return convertValuesMapToCtyVal(out)
+	return ConvertValuesMapToCtyVal(out)
 }
 
 // Serialize errors configuration as cty.Value.
@@ -678,7 +631,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 
 	output := map[string]cty.Value{}
 
-	retryCty, err := goTypeToCty(config.Retry)
+	retryCty, err := GoTypeToCty(config.Retry)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -687,7 +640,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 		output[MetadataRetry] = retryCty
 	}
 
-	ignoreCty, err := goTypeToCty(config.Ignore)
+	ignoreCty, err := GoTypeToCty(config.Ignore)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -696,7 +649,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 		output[MetadataIgnore] = ignoreCty
 	}
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 // stackConfigAsCty converts a StackConfig into a cty Value so its attributes can be used in other configs.
@@ -734,7 +687,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 		}
 
 		if len(stacksMap) > 0 {
-			stacksCty, err := convertValuesMapToCtyVal(stacksMap)
+			stacksCty, err := ConvertValuesMapToCtyVal(stacksMap)
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -759,7 +712,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 		}
 
 		if len(unitsMap) > 0 {
-			unitsCty, err := convertValuesMapToCtyVal(unitsMap)
+			unitsCty, err := ConvertValuesMapToCtyVal(unitsMap)
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -768,7 +721,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 		}
 	}
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 // stackToCty converts a Stack struct to a cty Value
@@ -797,7 +750,7 @@ func stackToCty(stack *Stack) (cty.Value, error) {
 		output["no_validation"] = goboolToCty(*stack.NoValidation)
 	}
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 // unitToCty converts a Unit struct to a cty Value
@@ -826,7 +779,7 @@ func unitToCty(unit *Unit) (cty.Value, error) {
 		output["no_validation"] = goboolToCty(*unit.NoValidation)
 	}
 
-	return convertValuesMapToCtyVal(output)
+	return ConvertValuesMapToCtyVal(output)
 }
 
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary
@@ -846,15 +799,15 @@ func convertToCtyWithJSON(val any) (cty.Value, error) {
 	return ctyJSONVal.Value, nil
 }
 
-// Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
+// GoTypeToCty converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
 // uint, float, cty.Value) to a cty Value
-func goTypeToCty(val any) (cty.Value, error) {
+func GoTypeToCty(val any) (cty.Value, error) {
 	// Check if the value is a map
 	if m, ok := val.(map[string]any); ok {
 		convertedMap := make(map[string]cty.Value)
 
 		for k, v := range m {
-			convertedValue, err := goTypeToCty(v)
+			convertedValue, err := GoTypeToCty(v)
 			if err != nil {
 				return cty.NilVal, err
 			}

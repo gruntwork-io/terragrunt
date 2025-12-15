@@ -20,3 +20,8 @@ terragrunt
 .env
 .licensei.cache
 bin
+
+# Windows code signing resources
+rsrc.syso
+resource.syso
+*.syso

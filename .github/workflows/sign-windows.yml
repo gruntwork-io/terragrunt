@@ -1,0 +1,82 @@
+name: Sign Windows Binaries
+
+on:
+  workflow_call:
+    inputs:
+      artifact_pattern:
+        description: 'Pattern for artifacts to download (default: terragrunt_windows_*)'
+        required: false
+        type: string
+        default: 'terragrunt_windows_*'
+      upload_artifact_name:
+        description: 'Name for the uploaded signed artifacts'
+        required: false
+        type: string
+        default: 'windows-signed-files'
+
+jobs:
+  sign-windows:
+    name: Sign Windows Binaries
+    runs-on: windows-latest
+
+    env:
+      SM_HOST: https://clientauth.one.digicert.com
+      SM_API_KEY: ${{ secrets.WINDOWS_SIGNING_API_KEY }}
+      SM_CLIENT_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_P12_PASSWORD }}
+      SM_KEYPAIR_ALIAS: ${{ secrets.WINDOWS_SIGNING_KEYPAIR_ALIAS }}
+      WINDOWS_SIGNING_P12_BASE64: ${{ secrets.WINDOWS_SIGNING_P12_BASE64 }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download Windows build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: ${{ inputs.artifact_pattern }}
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Prepare build artifacts
+        shell: pwsh
+        run: .github/scripts/release/prepare-windows-artifacts.ps1 -ArtifactsDirectory artifacts -BinDirectory bin
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-winres
+        shell: pwsh
+        run: .github/scripts/release/install-go-winres.ps1
+
+      # Install DigiCert smtools (smctl)
+      - name: Install DigiCert smtools
+        uses: digicert/ssm-code-signing@v1.1.1
+        with:
+          force-download-tools: 'true'
+
+      # Verify smctl is available
+      - name: Verify smctl installation
+        shell: pwsh
+        run: .github/scripts/release/verify-smctl.ps1
+
+      # Restore P12 client certificate and set SM_CLIENT_CERT_FILE
+      - name: Restore P12 client certificate
+        shell: pwsh
+        run: .github/scripts/release/restore-p12-certificate.ps1
+
+      # Sign Windows binaries using external script
+      - name: Sign and patch Windows binaries
+        shell: pwsh
+        run: .github/scripts/release/sign-windows.ps1 -BinDirectory bin
+
+      # Upload Windows binaries (signed amd64 + unsigned 386)
+      - name: Upload Windows Binaries
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.upload_artifact_name }}
+          path: |
+            bin/terragrunt_windows_amd64.exe
+            bin/terragrunt_windows_386.exe
+          if-no-files-found: error

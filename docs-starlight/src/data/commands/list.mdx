@@ -78,6 +78,19 @@ examples:
       units/live/prod/ec2  units/live/dev/db    units/live/prod/db
       units/live/dev/vpc   units/live/prod/vpc
 
+  - description: |
+      Generate a DOT format graph of dependencies for visualization.
+    code: |
+      $ terragrunt list --format=dot --dependencies
+      digraph {
+        "live/dev/vpc" ;
+        "live/dev/db" ;
+        "live/dev/ec2" ;
+        "live/dev/db" -> "live/dev/vpc";
+        "live/dev/ec2" -> "live/dev/db";
+        "live/dev/ec2" -> "live/dev/vpc";
+      }
+
 flags:
   - list-format
   - list-hidden
@@ -87,6 +100,8 @@ flags:
   - list-long
   - list-dag
   - queue-construct-as
+  - filter
+  - filter-affected
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -131,6 +146,47 @@ By default, configurations in tree format are displayed ordered by name and grou
         ├── ec2
         ╰── vpc
 ```
+
+### DOT Format
+
+The DOT format outputs a directed acyclic graph (DAG) in DOT language format, which can be rendered as a visual dependency graph using tools like GraphViz.
+
+```bash
+$ terragrunt list --format=dot --dependencies
+digraph {
+  "live/dev/vpc" ;
+  "live/dev/db" ;
+  "live/dev/ec2" ;
+  "live/dev/db" -> "live/dev/vpc";
+  "live/dev/ec2" -> "live/dev/db";
+  "live/dev/ec2" -> "live/dev/vpc";
+  "live/prod/vpc" ;
+  "live/prod/db" ;
+  "live/prod/ec2" ;
+  "live/prod/db" -> "live/prod/vpc";
+  "live/prod/ec2" -> "live/prod/db";
+  "live/prod/ec2" -> "live/prod/vpc";
+}
+```
+
+You can render the DOT output to an image using GraphViz:
+
+```bash
+$ terragrunt list --format=dot --dependencies | dot -Tpng > graph.png
+$ terragrunt list --format=dot --dependencies | dot -Tsvg > graph.svg
+```
+
+<Aside type="note" title="DOT Format Alias">
+
+The `dag graph` command is an alias for `list --format=dot`. Both commands produce identical DOT format output:
+
+```bash
+terragrunt dag graph
+# Equivalent to:
+terragrunt list --format=dot --dependencies --external
+```
+
+</Aside>
 
 ## DAG Mode
 
@@ -201,6 +257,19 @@ Include dependency information in the output using the `--dependencies` flag. Wh
 
 Use the `--external` flag to discover and include dependencies that exist outside your current working directory. This is particularly useful when working with shared modules or cross-repository dependencies.
 
+<Aside type="note" title="Automatic Dependency Discovery">
+
+The `--external` flag automatically enables dependency discovery, so you don't need to explicitly pass `--dependencies` when using `--external`. The following commands are equivalent:
+
+```bash
+terragrunt list --external
+terragrunt list --dependencies --external
+```
+
+This is because the default text format of `list` won't display dependency information anyways (as opposed to the `long` format, which does).
+
+</Aside>
+
 ### Hidden Configurations
 
 By default, Terragrunt excludes configurations in hidden directories (those starting with a dot). Use the `--hidden` flag to include these configurations in the output.
@@ -225,3 +294,65 @@ Discovered configurations are color coded to help you identify them at a glance:
 </Aside>
 
 You can disable color output by using the global `--no-color` flag.
+
+## Filtering Results
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt list --experiment filter-flag --filter 'foo'
+```
+</Aside>
+
+The `list` command supports the `--filter` flag to target specific configurations using a flexible query language. This is particularly useful for listing configurations that match specific criteria before running operations on them.
+
+### Listing Affected Components
+
+For the common use case of listing components affected by changes between the default branch and `HEAD`, you can use the `--filter-affected` flag:
+
+```bash
+# List all components affected by changes between main and HEAD
+terragrunt list --filter-affected
+```
+
+This is equivalent to `terragrunt list --filter '[main...HEAD]'` and automatically detects your repository's default branch.
+
+### Basic Filtering Examples
+
+```bash
+# Filter by name using glob patterns
+terragrunt list --experiment filter-flag --filter 'app*'
+
+# Filter by path
+terragrunt list --experiment filter-flag --filter './prod/**'
+
+# Filter by type
+terragrunt list --experiment filter-flag --filter 'type=unit'
+
+# Combine filters with intersection
+terragrunt list --experiment filter-flag --filter './prod/** | type=unit'
+```
+
+### Advanced Filtering
+
+The filter syntax supports negation, multiple filters, and complex queries:
+
+```bash
+# Exclude specific configurations
+terragrunt list --experiment filter-flag --filter '!./test/**'
+
+# Multiple filters (OR logic)
+terragrunt list --experiment filter-flag --filter 'app1' --filter 'app2'
+
+# Complex queries with chaining
+terragrunt list --experiment filter-flag --filter './dev/** | type=unit | !name=unit1'
+```
+
+<Aside type="tip" title="Learn More About Filtering">
+
+For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter).
+
+</Aside>

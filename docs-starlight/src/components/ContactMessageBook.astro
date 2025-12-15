@@ -1,0 +1,114 @@
+---
+// Contact component with toggle between sending a message and booking a call
+---
+
+<div class="flex flex-col w-full items-center lg:items-end">
+
+  <!-- Toggle Buttons -->
+  <div class="grid grid-cols-2 gap-2 bg-[#1a1a2e] rounded-lg p-1 mb-[12px] w-full max-w-md">
+    <button
+      id="form-toggle"
+      class="contact-toggle px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 text-gray-1 hover:text-white cursor-pointer"
+      aria-pressed="true"
+    >
+      Send a Message
+    </button>
+    <button
+      id="iframe-toggle"
+      class="contact-toggle px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 text-gray-1 hover:text-white cursor-pointer"
+      aria-pressed="false"
+    >
+      Book a Call
+    </button>
+  </div>
+
+  <!-- Contact Form -->
+  <div id="contact-form" class="w-full max-w-md">
+    <!-- HubSpot Form will be embedded here -->
+    <div id="hs-form" class="w-full h-full py-2 min-h-[600px]" role="form" aria-label="Contact Form"></div>
+    <p class="text-xs text-gray-1 text-center">We generally respond the same business day!</p>
+  </div>
+
+  <!-- Book a Call (Hidden by default) -->
+  <div id="book-a-call" class="w-full max-w-md hidden min-h-[650px]" role="form" aria-label="Book a Demo">
+    <iframe
+      class="w-full min-h-[650px]"
+      loading="lazy"
+      src="https://meetings.hubspot.com/chris-pham/book-a-demo-terragrunt-scale?embed=true"
+      title="Schedule Demo"
+    ></iframe>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const formToggle = document.getElementById('form-toggle');
+    formToggle?.classList.add('active');
+    const iframeToggle = document.getElementById('iframe-toggle');
+    const contactFormView = document.getElementById('contact-form');
+    const iframeView = document.getElementById('book-a-call');
+
+    // @ts-ignore
+    if (typeof hbspt !== 'undefined' && contactFormView) {
+        // @ts-ignore
+        hbspt.forms.create({
+        portalId: "8376079",
+        formId: "6e91923f-df87-4925-a8d1-72b50c2ee655",
+        region: "na1",
+        target: '#hs-form',
+        cssClass: 'hs-form w-full h-full'
+      });
+    }
+
+    function showContactForm() {
+      if (iframeToggle && formToggle) {
+        formToggle?.classList.add('active');
+        formToggle?.setAttribute('aria-pressed', 'true');
+        iframeToggle?.classList.remove('active');
+  +     iframeToggle?.setAttribute('aria-pressed', 'false');
+      }
+
+      contactFormView?.classList.remove('hidden');
+      contactFormView?.classList.add('active');
+
+      iframeView?.classList.add('hidden');
+      iframeView?.classList.remove('active');
+    }
+
+    function showIframe() {
+      if (iframeToggle && formToggle) {
+        formToggle?.classList.remove('active');
+        formToggle?.setAttribute('aria-pressed', 'false');
+        iframeToggle?.classList.add('active');
+        iframeToggle.setAttribute('aria-pressed', 'true');
+      }
+
+      contactFormView?.classList.remove('active');
+      contactFormView?.classList.add('hidden');
+
+      iframeView?.classList.add('active');
+      iframeView?.classList.remove('hidden');
+    }
+
+    formToggle?.addEventListener('click', showContactForm);
+    iframeToggle?.addEventListener('click', showIframe);
+  });
+</script>
+
+<script
+  charset="utf-8"
+  type="text/javascript"
+  src="//js.hsforms.net/forms/embed/v2.js"
+  defer
+></script>
+<script type="text/javascript" src="https://js.hs-scripts.com/8376079.js" async defer></script>
+
+<style>
+  .contact-toggle {
+    background-color: transparent;
+  }
+  .contact-toggle.active {
+    background-color: var(--color-contact-form-button-bg);
+    color: white;
+  }
+</style>

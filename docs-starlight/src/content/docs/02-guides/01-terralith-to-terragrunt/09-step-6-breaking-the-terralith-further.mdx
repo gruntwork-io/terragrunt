@@ -6,7 +6,8 @@ sidebar:
   order: 9
 ---
 
-import { FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 You've successfully added Terragrunt to your project, eliminating significant boilerplate from each of your `dev` and `prod` environments. While your environments are now isolated from each other, the resources *within* each environment (your S3 bucket, DynamoDB table, IAM role, and Lambda function) are still managed together in a single state file. This is essentially a smaller-scale Terralith within each environment.
 
@@ -20,124 +21,35 @@ We're going to follow a very similar process to what we did when breaking apart 
 
 First, we'll create a directory for each of the new units we want to create for all the constituent modules of the `best_cat` megamodule. In each of our environments (`dev` and `prod`).
 
-```bash
-# live
-
-mkdir -p {dev, prod}/{s3, ddb, iam, lambda}
-```
+<Code title="live" lang="bash" frame="terminal" code={`mkdir -p {dev, prod}/{s3, ddb, iam, lambda}`} />
 
 Next, we'll create the `terragrunt.hcl` files in each of these directories.
 
-```hcl
-# live/dev/ddb/terragrunt.hcl
+import devDdbTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/ddb/terragrunt.hcl?raw';
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+<Code title="live/dev/ddb/terragrunt.hcl" lang="hcl" code={devDdbTerragruntHcl} />
 
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//ddb"
-}
+import prodDdbTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/ddb/terragrunt.hcl?raw';
 
-inputs = {
-  name = "best-cat-2025-07-31-01-dev"
-}
-```
+<Code title="live/prod/ddb/terragrunt.hcl" lang="hcl" code={prodDdbTerragruntHcl} />
 
-Note that we're using `find_in_parent_folders("catalog/modules")` to conveniently discover the `modules` directory regardless of how deeply nested our unit is.
+import devS3TerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/s3/terragrunt.hcl?raw';
 
-```hcl
-# live/prod/ddb/terragrunt.hcl
+<Code title="live/dev/s3/terragrunt.hcl" lang="hcl" code={devS3TerragruntHcl} />
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+import prodS3TerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/s3/terragrunt.hcl?raw';
 
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//ddb"
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01"
-}
-```
-
-```hcl
-# live/dev/s3/terragrunt.hcl
-
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//s3"
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01-dev"
-}
-```
-
-```hcl
-# live/prod/s3/terragrunt.hcl
-
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//s3"
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01"
-}
-```
+<Code title="live/prod/s3/terragrunt.hcl" lang="hcl" code={prodS3TerragruntHcl} />
 
 In units where we need to integrate with other units (like the `iam` unit), we'll need to add a `dependency` block to tell Terragrunt how it can fetch outputs from relevant dependencies for use as inputs. Terragrunt has to integrate different units like this, as they don't have the same state file, so OpenTofu needs an external tool, like Terragrunt to pull outputs out of state from one unit and pass in inputs to another unit.
 
-```hcl
-# live/dev/iam/terragrunt.hcl
+import devIamTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/iam/terragrunt.hcl?raw';
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+<Code title="live/dev/iam/terragrunt.hcl" lang="hcl" code={devIamTerragruntHcl} />
 
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//iam"
-}
+import prodIamTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/iam/terragrunt.hcl?raw';
 
-dependency "s3" {
-  config_path = "../s3"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:s3:::mock-bucket-name"
-  }
-}
-
-dependency "ddb" {
-  config_path = "../ddb"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:dynamodb:us-east-1:123456789012:table/mock-table-name"
-  }
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01-dev"
-
-  aws_region = "us-east-1"
-
-  s3_bucket_arn      = dependency.s3.outputs.arn
-  dynamodb_table_arn = dependency.ddb.outputs.arn
-}
-```
+<Code title="live/prod/iam/terragrunt.hcl" lang="hcl" code={prodIamTerragruntHcl} />
 
 <Aside type="note">
 Unfortunately, OpenTofu doesn't have a way of specifying certain inputs as “unknown” [as of yet](https://github.com/opentofu/opentofu/issues/812), but we can work around this limitation by taking advantage of Terragrunt's ability to mock outputs from dependencies using `mock_outputs`. This allows us to plan successfully without worrying about getting errors that required variables aren't passed in.
@@ -149,162 +61,13 @@ We've also set the `mock_outputs_allowed_terraform_commands` attribute. By defau
 
 Finally, note that we've also set the `mock_outputs_merge_strategy_with_state` attribute. By default, Terragrunt treats mocking as something binary: Either outputs are mocked, or they're not. This is because you typically don't have a need to partially mock some outputs and not others. In our use-case, where we're migrating over state we will need to do this, as we'll be pushing existing state to units, but their outputs are also changing. We'll see what that looks like later.
 
-```hcl
-# live/prod/iam/terragrunt.hcl
+import devLambdaTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/lambda/terragrunt.hcl?raw';
 
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+<Code title="live/dev/lambda/terragrunt.hcl" lang="hcl" code={devLambdaTerragruntHcl} />
 
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//iam"
-}
+import prodLambdaTerragruntHcl from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/lambda/terragrunt.hcl?raw';
 
-dependency "s3" {
-  config_path = "../s3"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:s3:::mock-bucket-name"
-  }
-}
-
-dependency "ddb" {
-  config_path = "../ddb"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:dynamodb:us-east-1:123456789012:table/mock-table-name"
-  }
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01"
-
-  aws_region = "us-east-1"
-
-  s3_bucket_arn      = dependency.s3.outputs.arn
-  dynamodb_table_arn = dependency.ddb.outputs.arn
-}
-```
-
-```hcl
-# live/dev/lambda/terragrunt.hcl
-
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//lambda"
-}
-
-dependency "s3" {
-  config_path = "../s3"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    name = "mock-bucket-name"
-  }
-}
-
-dependency "ddb" {
-  config_path = "../ddb"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    name = "mock-table-name"
-  }
-}
-
-dependency "iam" {
-  config_path = "../iam"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:iam::123456789012:role/mock-role-name"
-  }
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01-dev"
-
-  aws_region = "us-east-1"
-
-  s3_bucket_name      = dependency.s3.outputs.name
-  dynamodb_table_name = dependency.ddb.outputs.name
-  lambda_role_arn     = dependency.iam.outputs.arn
-
-  lambda_zip_file     = "${get_repo_root()}/dist/best-cat.zip"
-}
-```
-
-```hcl
-# live/prod/lambda/terragrunt.hcl
-
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-terraform {
-  source = "${find_in_parent_folders("catalog/modules")}//lambda"
-}
-
-dependency "s3" {
-  config_path = "../s3"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    name = "mock-bucket-name"
-  }
-}
-
-dependency "ddb" {
-  config_path = "../ddb"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    name = "mock-table-name"
-  }
-}
-
-dependency "iam" {
-  config_path = "../iam"
-
-  mock_outputs_allowed_terraform_commands = ["plan", "state"]
-  mock_outputs_merge_strategy_with_state  = "shallow"
-
-  mock_outputs = {
-    arn = "arn:aws:iam::123456789012:role/mock-role-name"
-  }
-}
-
-inputs = {
-  name = "best-cat-2025-07-31-01"
-
-  aws_region = "us-east-1"
-
-  s3_bucket_name      = dependency.s3.outputs.name
-  dynamodb_table_name = dependency.ddb.outputs.name
-  lambda_role_arn     = dependency.iam.outputs.arn
-
-  lambda_zip_file     = "${get_repo_root()}/dist/best-cat.zip"
-}
-```
+<Code title="live/prod/lambda/terragrunt.hcl" lang="hcl" code={prodLambdaTerragruntHcl} />
 
 ## Project Layout Check-in
 
@@ -344,682 +107,95 @@ It's time to engage in our favorite solution for IaC refactoring, state manipula
 
 We're going to use the tools we've learned so far, and *pull* state from those two top-level units, then *push* them into the constituent units we've broken the megamodule down into. We expect to need to both move resource addresses in state, and forget particular resources to avoid accidentally destroying anything.
 
-```bash
-# live/dev
-
-terragrunt state pull > /tmp/tofu.tfstate
+<Code title="live/dev" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu.tfstate
 cd ddb && terragrunt state push /tmp/tofu.tfstate
 cd ../iam && terragrunt state push /tmp/tofu.tfstate
 cd ../lambda && terragrunt state push /tmp/tofu.tfstate
 cd ../s3 && terragrunt state push /tmp/tofu.tfstate
-```
+`} />
 
-```bash
-# live/prod
-
-terragrunt state pull > /tmp/tofu.tfstate
+<Code title="live/prod" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu.tfstate
 cd ddb && terragrunt state push /tmp/tofu.tfstate
 cd ../iam && terragrunt state push /tmp/tofu.tfstate
 cd ../lambda && terragrunt state push /tmp/tofu.tfstate
 cd ../s3 && terragrunt state push /tmp/tofu.tfstate
-```
+`} />
 
 We can now clean up the extraneous files mentioned earlier at the root of the environments.
 
-```bash
-# live
-
-rm -f {dev, prod}/{terragrunt.hcl, moved.tf}
-```
+<Code title="live" lang="bash" frame="terminal" code={`rm -f {dev, prod}/{terragrunt.hcl, moved.tf}`} />
 
 Go ahead and run the following to see very similar plan output to what we've seen in the past when we needed to make state moves & removes.
 
-```bash
-# live
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt run --all plan
 
-terragrunt run --all plan
-
-# Lots of destroys!
-```
+# Lots of destroys!`} />
 
 The following moves and removes will handle the state transitions necessary here.
 
-```bash
-# live/dev/ddb/moved.tf
+import devDdbMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/ddb/moved.tf?raw';
 
-moved {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  to   = aws_dynamodb_table.asset_metadata
-}
-```
+<Code title="live/dev/ddb/moved.tf" lang="hcl" code={devDdbMovedTf} />
 
-```bash
-# live/dev/ddb/removed.tf
+import devDdbRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/ddb/removed.tf?raw';
 
-removed {
-  from = module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/dev/ddb/removed.tf" lang="hcl" code={devDdbRemovedTf} />
 
-removed {
-  from = module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
+import devIamMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/iam/moved.tf?raw';
 
-removed {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/dev/iam/moved.tf" lang="hcl" code={devIamMovedTf} />
 
-removed {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
+import devIamRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/iam/removed.tf?raw';
 
-removed {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/dev/iam/removed.tf" lang="hcl" code={devIamRemovedTf} />
 
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
+import devLambdaMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/lambda/moved.tf?raw';
 
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/dev/lambda/moved.tf" lang="hcl" code={devLambdaMovedTf} />
 
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
+import devLambdaRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/lambda/removed.tf?raw';
 
-removed {
-  from = module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/dev/lambda/removed.tf" lang="hcl" code={devLambdaRemovedTf} />
 
-removed {
-  from = module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
+import devS3MovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/s3/moved.tf?raw';
 
-```bash
-# live/dev/iam/moved.tf
+<Code title="live/dev/s3/moved.tf" lang="hcl" code={devS3MovedTf} />
 
-moved {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  to   = aws_iam_policy.lambda_basic_execution
-}
+import devS3RemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/dev/s3/removed.tf?raw';
 
-moved {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  to   = aws_iam_policy.lambda_dynamodb
-}
+<Code title="live/dev/s3/removed.tf" lang="hcl" code={devS3RemovedTf} />
 
-moved {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  to   = aws_iam_policy.lambda_s3_read
-}
+import prodDdbMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/ddb/moved.tf?raw';
 
-moved {
-  from = module.iam.aws_iam_role.lambda_role
-  to   = aws_iam_role.lambda_role
-}
+<Code title="live/prod/ddb/moved.tf" lang="hcl" code={prodDdbMovedTf} />
 
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = aws_iam_role_policy_attachment.lambda_basic_execution
-}
+import prodDdbRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/ddb/removed.tf?raw';
 
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  to   = aws_iam_role_policy_attachment.lambda_dynamodb
-}
+<Code title="live/prod/ddb/removed.tf" lang="hcl" code={prodDdbRemovedTf} />
 
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  to   = aws_iam_role_policy_attachment.lambda_s3_read
-}
-```
+import prodIamMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/iam/moved.tf?raw';
 
-```bash
-# live/dev/iam/removed.tf
+<Code title="live/prod/iam/moved.tf" lang="hcl" code={prodIamMovedTf} />
 
-removed {
-  from = module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
+import prodIamRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/iam/removed.tf?raw';
 
-removed {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
+<Code title="live/prod/iam/removed.tf" lang="hcl" code={prodIamRemovedTf} />
 
-removed {
-  from = module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
+import prodLambdaMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/lambda/moved.tf?raw';
 
-removed {
-  from = module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
+<Code title="live/prod/lambda/moved.tf" lang="hcl" code={prodLambdaMovedTf} />
 
-```bash
-# live/dev/lambda/moved.tf
+import prodLambdaRemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/lambda/removed.tf?raw';
 
-moved {
-  from = module.lambda.aws_lambda_function.main
-  to   = aws_lambda_function.main
-}
+<Code title="live/prod/lambda/removed.tf" lang="hcl" code={prodLambdaRemovedTf} />
 
-moved {
-  from = module.lambda.aws_lambda_function_url.main
-  to   = aws_lambda_function_url.main
-}
-```
+import prodS3MovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/s3/moved.tf?raw';
 
-```bash
-# live/dev/lambda/removed.tf
+<Code title="live/prod/s3/moved.tf" lang="hcl" code={prodS3MovedTf} />
 
-removed {
-  from = module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
+import prodS3RemovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-6-breaking-the-terralith-further/live/prod/s3/removed.tf?raw';
 
-removed {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-```
-
-```bash
-# live/dev/s3/moved.tf
-
-moved {
-  from = module.s3.aws_s3_bucket.static_assets
-  to   = aws_s3_bucket.static_assets
-}
-```
-
-```bash
-# live/dev/s3/removed.tf
-
-removed {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-```
-
-```bash
-# live/prod/ddb/moved.tf
-
-moved {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  to   = aws_dynamodb_table.asset_metadata
-}
-```
-
-```bash
-# live/prod/ddb/removed.tf
-
-removed {
-  from = module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
-
-```bash
-# live/prod/iam/moved.tf
-
-moved {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  to   = aws_iam_policy.lambda_basic_execution
-}
-
-moved {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  to   = aws_iam_policy.lambda_dynamodb
-}
-
-moved {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  to   = aws_iam_policy.lambda_s3_read
-}
-
-moved {
-  from = module.iam.aws_iam_role.lambda_role
-  to   = aws_iam_role.lambda_role
-}
-
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = aws_iam_role_policy_attachment.lambda_basic_execution
-}
-
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  to   = aws_iam_role_policy_attachment.lambda_dynamodb
-}
-
-moved {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  to   = aws_iam_role_policy_attachment.lambda_s3_read
-}
-```
-
-```bash
-# live/prod/iam/removed.tf
-
-removed {
-  from = module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
-
-```bash
-# live/prod/lambda/moved.tf
-
-moved {
-  from = module.lambda.aws_lambda_function.main
-  to   = aws_lambda_function.main
-}
-
-moved {
-  from = module.lambda.aws_lambda_function_url.main
-  to   = aws_lambda_function_url.main
-}
-```
-
-```bash
-# live/prod/lambda/removed.tf
-
-removed {
-  from = module.s3.aws_s3_bucket.static_assets
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-```
-
-```bash
-# live/prod/s3/moved.tf
-
-moved {
-  from = module.s3.aws_s3_bucket.static_assets
-  to   = aws_s3_bucket.static_assets
-}
-```
-
-```bash
-# live/prod/s3/removed.tf
-
-removed {
-  from = module.ddb.aws_dynamodb_table.asset_metadata
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role.lambda_role
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_policy.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function.main
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = module.lambda.aws_lambda_function_url.main
-  lifecycle {
-    destroy = false
-  }
-}
-```
+<Code title="live/prod/s3/removed.tf" lang="hcl" code={prodS3RemovedTf} />
 
 That was a ton of work! The effort of making these state moves might encourage you to do some early planning to avoid the need to do these kinds of state moves down the line as you plan your infrastructure estate.
 
@@ -1031,35 +207,24 @@ Hopefully, going through these state moves in this guide gives you confidence th
 
 Now, let's repeat our plan to confirm that we won't destroy anything important. If you *do* see any destroys, you probably have something misconfigured in one of your `moved.tf` or `removed.tf` files. Review them carefully.
 
-```bash
-# live
-
-terragrunt run --all plan
+<Code title="live" lang="bash" frame="terminal" code={`terragrunt run --all plan
 
 # No destroys!
 # You might see some creates, but that's a side-effect of how
 # OpenTofu tracks state internally. You are safe to ignore them.
-```
+`} />
 
 Thankfully, now that we've segmented state we can carefully run across the `dev` units before running in `prod`, with *zero risk* that we're going to accidentally break anything there. We can actually perform our updates *even more carefully* by updating one unit at a time, but that's not really necessary for our use-case here.
 
 Consider when it might make sense to do that for your own real infrastructure, however. If you are doing state manipulation like this on stateful production resources like databases or blob stores for example, it's a good idea to move slower to avoid data loss or outages.
 
-```bash
-# live/dev
+<Code title="live/dev" lang="bash" frame="terminal" code={`terragrunt run --all apply
 
-terragrunt run --all apply
+# Migration complete!`} />
 
-# Migration complete!
-```
+<Code title="live/prod" lang="bash" frame="terminal" code={`terragrunt run --all apply
 
-```bash
-# live/prod
-
-terragrunt run --all apply
-
-# Migration complete!
-```
+# Migration complete!`} />
 
 ## Trade-offs
 

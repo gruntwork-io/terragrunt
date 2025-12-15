@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path"
@@ -65,7 +66,6 @@ const (
 	MetadataDependency                  = "dependency"
 	MetadataDownloadDir                 = "download_dir"
 	MetadataPreventDestroy              = "prevent_destroy"
-	MetadataSkip                        = "skip"
 	MetadataIamRole                     = "iam_role"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
@@ -76,9 +76,6 @@ const (
 	MetadataCatalog                     = "catalog"
 	MetadataEngine                      = "engine"
 	MetadataGenerateConfigs             = "generate"
-	MetadataRetryableErrors             = "retryable_errors"
-	MetadataRetryMaxAttempts            = "retry_max_attempts"
-	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
@@ -143,7 +140,6 @@ type DecodedBaseBlocks struct {
 type TerragruntConfig struct {
 	Locals                      map[string]any
 	ProcessedIncludes           IncludeConfigsMap
-	RetryMaxAttempts            *int
 	FieldsMetadata              map[string]map[string]any
 	Terraform                   *TerraformConfig
 	Errors                      *ErrorsConfig
@@ -151,10 +147,8 @@ type TerragruntConfig struct {
 	Dependencies                *ModuleDependencies
 	Exclude                     *ExcludeConfig
 	PreventDestroy              *bool
-	Skip                        *bool
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
-	RetrySleepIntervalSec       *int
 	Inputs                      map[string]any
 	Engine                      *EngineConfig
 	Catalog                     *CatalogConfig
@@ -166,7 +160,6 @@ type TerragruntConfig struct {
 	TerraformVersionConstraint  string
 	TerraformBinary             string
 	TerragruntDependencies      Dependencies
-	RetryableErrors             []string
 	FeatureFlags                FeatureFlags
 	DependentModulesPath        []*string
 	IsPartial                   bool
@@ -578,6 +571,14 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			catalogBody.SetAttributeValue("urls", catalogAsCty.GetAttr("urls"))
 		}
 
+		if cfg.Catalog.NoShell != nil {
+			catalogBody.SetAttributeValue("no_shell", catalogAsCty.GetAttr("no_shell"))
+		}
+
+		if cfg.Catalog.NoHooks != nil {
+			catalogBody.SetAttributeValue("no_hooks", catalogAsCty.GetAttr("no_hooks"))
+		}
+
 		rootBody.AppendBlock(catalogBlock)
 	}
 
@@ -602,10 +603,6 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		rootBody.SetAttributeValue("prevent_destroy", cfgAsCty.GetAttr("prevent_destroy"))
 	}
 
-	if cfg.Skip != nil {
-		rootBody.SetAttributeValue("skip", cfgAsCty.GetAttr("skip"))
-	}
-
 	if cfg.IamRole != "" {
 		rootBody.SetAttributeValue("iam_role", cfgAsCty.GetAttr("iam_role"))
 	}
@@ -616,18 +613,6 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 	if cfg.IamAssumeRoleSessionName != "" {
 		rootBody.SetAttributeValue("iam_assume_role_session_name", cfgAsCty.GetAttr("iam_assume_role_session_name"))
-	}
-
-	if cfg.RetryMaxAttempts != nil {
-		rootBody.SetAttributeValue("retry_max_attempts", cfgAsCty.GetAttr("retry_max_attempts"))
-	}
-
-	if cfg.RetrySleepIntervalSec != nil {
-		rootBody.SetAttributeValue("retry_sleep_interval_sec", cfgAsCty.GetAttr("retry_sleep_interval_sec"))
-	}
-
-	if len(cfg.RetryableErrors) > 0 {
-		rootBody.SetAttributeValue("retryable_errors", cfgAsCty.GetAttr("retryable_errors"))
 	}
 
 	if len(cfg.Inputs) > 0 {
@@ -667,7 +652,6 @@ type terragruntConfigFile struct {
 	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
 	DownloadDir              *string             `hcl:"download_dir,attr"`
 	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
-	Skip                     *bool               `hcl:"skip,attr"`
 	IamRole                  *string             `hcl:"iam_role,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
@@ -694,10 +678,6 @@ type terragruntConfigFile struct {
 	// }
 	GenerateAttrs  *cty.Value                `hcl:"generate,optional"`
 	GenerateBlocks []terragruntGenerateBlock `hcl:"generate,block"`
-
-	RetryableErrors       []string `hcl:"retryable_errors,optional"`
-	RetryMaxAttempts      *int     `hcl:"retry_max_attempts,optional"`
-	RetrySleepIntervalSec *int     `hcl:"retry_sleep_interval_sec,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals and include are
 	// evaluated in a completely separate cycle, it should not be evaluated here. Otherwise, we can't support self
@@ -1079,17 +1059,18 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	walkFunc := filepath.Walk
+	walkFunc := filepath.WalkDir
+
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkWithSymlinks
+		walkFunc = util.WalkDirWithSymlinks
 	}
 
-	err := walkFunc(rootPath, func(path string, info os.FileInfo, err error) error {
+	err := walkFunc(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() {
+		if !d.IsDir() {
 			return nil
 		}
 
@@ -1186,11 +1167,6 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
 		}
 
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -1200,10 +1176,15 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 			return errors.Errorf("failed to get file info: %w", err)
 		}
 
-		var (
-			file     *hclparse.File
-			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
+			configPath,
+			ctx.TerragruntOptions.WorkingDir,
+			childKey,
+			decodeListKey,
+			fileInfo.ModTime().UnixMicro(),
 		)
+
+		var file *hclparse.File
 
 		// TODO: Remove lint ignore
 		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
@@ -1274,10 +1255,15 @@ func ParseConfigString(ctx *ParsingContext, l log.Logger, configPath string, con
 //     - dependency
 //  5. Merge the included config with the parsed config. Note that all the config data is mergeable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
-func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfig(
+	ctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+	includeFromChild *IncludeConfig,
+) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
-	if err := detectDeprecatedConfigurations(ctx, l, file); err != nil {
+	if err := DetectDeprecatedConfigurations(ctx, l, file); err != nil {
 		return nil, err
 	}
 
@@ -1309,7 +1295,7 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 		ctx = ctx.WithLocals(baseBlocks.Locals)
 	}
 
-	if ctx.DecodedDependencies == nil {
+	if !ctx.SkipOutputsResolution && ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, file)
@@ -1349,6 +1335,13 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 			errs = errs.Append(err)
 			return config, errs.ErrorOrNil()
 		}
+
+		// We should never get a nil config here, so if we do, return the config we've been able to parse so far
+		// and return any errors that have occurred so far to avoid a nil pointer dereference below.
+		if mergedConfig == nil {
+			return config, errs.ErrorOrNil()
+		}
+
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		mergedConfig.ProcessedIncludes = ctx.TrackInclude.CurrentMap
 		// Make sure the top level information that is not automatically merged in is captured on the merged config to
@@ -1365,20 +1358,12 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 	return config, errs.ErrorOrNil()
 }
 
-// detectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
-func detectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hclparse.File) error {
-	if detectInputsCtyUsage(file) {
-		allControls := ctx.TerragruntOptions.StrictControls
-
-		skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
-		if skipDependenciesInputs == nil {
-			return errors.New("failed to find control " + controls.SkipDependenciesInputs)
-		}
-
-		evalCtx := log.ContextWithLogger(ctx, l)
-		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
-			return err
-		}
+// DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
+func DetectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hclparse.File) error {
+	if DetectInputsCtyUsage(file) {
+		// Dependency inputs (dependency.foo.inputs.bar) are now blocked by default for performance.
+		// This deprecated feature causes significant performance overhead due to recursive parsing.
+		return errors.New("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.")
 	}
 
 	if detectBareIncludeUsage(file) {
@@ -1398,10 +1383,10 @@ func detectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hcl
 	return nil
 }
 
-// detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
+// DetectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
 //
 // This is deprecated functionality, so we look for this to determine if we should throw an error or warning.
-func detectInputsCtyUsage(file *hclparse.File) bool {
+func DetectInputsCtyUsage(file *hclparse.File) bool {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		return false
@@ -1667,21 +1652,6 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataTerraformBinary, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.RetryableErrors != nil {
-		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
-		terragruntConfig.SetFieldMetadata(MetadataRetryableErrors, defaultMetadata)
-	}
-
-	if terragruntConfigFromFile.RetryMaxAttempts != nil {
-		terragruntConfig.RetryMaxAttempts = terragruntConfigFromFile.RetryMaxAttempts
-		terragruntConfig.SetFieldMetadata(MetadataRetryMaxAttempts, defaultMetadata)
-	}
-
-	if terragruntConfigFromFile.RetrySleepIntervalSec != nil {
-		terragruntConfig.RetrySleepIntervalSec = terragruntConfigFromFile.RetrySleepIntervalSec
-		terragruntConfig.SetFieldMetadata(MetadataRetrySleepIntervalSec, defaultMetadata)
-	}
-
 	if terragruntConfigFromFile.DownloadDir != nil {
 		terragruntConfig.DownloadDir = *terragruntConfigFromFile.DownloadDir
 		terragruntConfig.SetFieldMetadata(MetadataDownloadDir, defaultMetadata)
@@ -1700,11 +1670,6 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.PreventDestroy != nil {
 		terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
 		terragruntConfig.SetFieldMetadata(MetadataPreventDestroy, defaultMetadata)
-	}
-
-	if terragruntConfigFromFile.Skip != nil {
-		terragruntConfig.Skip = terragruntConfigFromFile.Skip
-		terragruntConfig.SetFieldMetadata(MetadataSkip, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamRole != nil {
@@ -1774,9 +1739,16 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	for _, block := range generateBlocks {
+		// Validate that if_exists is provided (required attribute)
+		if block.IfExists == "" {
+			errs = errs.Append(errors.Errorf("generate block %q is missing required attribute \"if_exists\"", block.Name))
+			continue
+		}
+
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			return nil, err
+			errs = errs.Append(errors.Errorf("generate block %q: %w", block.Name, err))
+			continue
 		}
 
 		if block.IfDisabled == nil {
@@ -1834,8 +1806,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 			return nil, err
 		}
 
-		terragruntConfig.Locals = localsParsed
-		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		// Only set Locals if there are actual values to avoid setting an empty map
+		if len(localsParsed) > 0 {
+			terragruntConfig.Locals = localsParsed
+			terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+		}
 	}
 
 	return terragruntConfig, errs.ErrorOrNil()
@@ -2033,12 +2008,21 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			continue
 		}
 
+		// Validate retry settings
+		if retryBlock.MaxAttempts < 1 {
+			return nil, errors.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
+		}
+
+		if retryBlock.SleepIntervalSec < 0 {
+			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
+		}
+
 		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
+				return nil, errors.Errorf("invalid retry pattern %q in block %q: %w",
 					pattern, retryBlock.Label, err)
 			}
 
@@ -2061,7 +2045,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 		var signals map[string]any
 
 		if ignoreBlock.Signals != nil {
-			value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
+			value, err := ConvertValuesMapToCtyVal(ignoreBlock.Signals)
 			if err != nil {
 				return nil, err
 			}
@@ -2077,7 +2061,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, fmt.Errorf("invalid ignore pattern %q in block %q: %w",
+				return nil, errors.Errorf("invalid ignore pattern %q in block %q: %w",
 					pattern, ignoreBlock.Label, err)
 			}
 

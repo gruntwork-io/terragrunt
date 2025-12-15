@@ -146,6 +146,12 @@ func (err EmptyStringNotAllowedError) Error() string {
 	return "Empty string value is not allowed for " + string(err)
 }
 
+type ConflictingRunCmdCacheOptionsError struct{}
+
+func (err ConflictingRunCmdCacheOptionsError) Error() string {
+	return "The --terragrunt-global-cache and --terragrunt-no-cache options cannot be used together. Choose one caching option for run_cmd."
+}
+
 type TerragruntConfigNotFoundError struct {
 	Path string
 }
@@ -288,4 +294,12 @@ type DependencyCycleError []string
 
 func (err DependencyCycleError) Error() string {
 	return "Found a dependency cycle between modules: " + strings.Join([]string(err), " -> ")
+}
+
+type DependencyInvalidConfigPathError struct {
+	DependencyName string
+}
+
+func (err DependencyInvalidConfigPathError) Error() string {
+	return fmt.Sprintf("dependency %q has invalid config_path", err.DependencyName)
 }

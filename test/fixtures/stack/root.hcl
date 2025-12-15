@@ -16,6 +16,12 @@ inputs = {
   terraform_remote_state_s3_bucket = "__FILL_IN_BUCKET_NAME__"
 }
 
-retryable_errors = [
-  "(?s).*A conflicting conditional operation is currently in progress against this resource. Please try again.*"
-]
+errors {
+  retry "s3_errors" {
+    retryable_errors = [
+      "(?s).*A conflicting conditional operation is currently in progress against this resource. Please try again.*"
+    ]
+    max_attempts = 3
+    sleep_interval_sec = 5
+  }
+}

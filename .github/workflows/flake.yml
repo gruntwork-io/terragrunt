@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -61,13 +61,13 @@ jobs:
           TIMEOUT: ${{ matrix.flake.timeout }}
 
       - name: Upload Report (${{ matrix.flake.name }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-report-${{ matrix.flake.name }}
           path: result.xml
 
       - name: Display Test Results (${{ matrix.flake.name }})
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: result.xml

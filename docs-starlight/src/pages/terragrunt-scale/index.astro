@@ -1,0 +1,99 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import FAQ from '@components/FAQ.astro';
+import FAQItem from '@components/FAQ-Item.astro';
+import Footer from '@components/dv-Footer.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+import Testimonial from '@components/Testimonial.astro';
+import TSAccelerator from '@components/TSAccelerator.astro';
+import TSHero from '@components/TSHero.astro';
+import TSPricing from '@components/TSPricing.astro';
+import TSTerragruntDrift from '@components/TSTerragruntDrift.astro';
+import TSTerragruntPipelines from '@components/TSTerragruntPipelines.astro';
+import TSTerragruntPatcher from '@components/TSTerragruntPatcher.astro';
+import Vimeo from '@components/Vimeo.astro';
+
+import '@styles/global.css';
+import '@styles/custom-page.css';
+---
+<BaseLayout
+  title="Terragrunt Scale | Secure GitOps Pipelines & Drift Detection"
+  description="Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current; built by the creators of Terragrunt."
+  url="https://terragrunt.gruntwork.io/terragrunt-scale/"
+>
+  <Header showThemeToggle={false} />
+  <TSHero />
+  <PageContainer>
+    <FeaturedBrands />
+    <SectionSpacer />
+    <Vimeo url="https://player.vimeo.com/video/1118246701" />
+    <SectionSpacer />
+    <TSTerragruntPipelines />
+    <SectionSpacer />
+    <TSTerragruntDrift />
+    <SectionSpacer />
+    <TSTerragruntPatcher />
+    <div id="view-plans">
+      <SectionSpacer />
+    </div>
+    <TSPricing />
+    <TSAccelerator />
+    <SectionSpacer />
+    <Testimonial />
+    <SectionSpacer />
+    <FAQ>
+      <FAQItem
+        question="How does Terragrunt Pipelines handle plan output when deploying infrastructure stacks?"
+        answer={`When deploying a stack of infrastructure units, Terragrunt Pipelines will concurrently generate a plan for all the infrastructure units in the stack, and display them in a single pull request / merge request comment as separate plans.`} />
+      <FAQItem
+        question="What happens if multiple PR/MRs interact with the same resources?"
+        answer={`Terragrunt Pipelines uses an "apply after merge" approach. This means that while multiple PRs are proposing changes to the same resources, there’s only ever a single source of truth for the infrastructure that will be provisioned (the Infrastructure as Code on the deploy branch e.g. main). During initial implementation we guide teams to using features of their SCM platform to enforce branch protection rules that ensure that plans are recent and applies are predictable.`} />
+      <FAQItem
+        question="How does Terragrunt Pipelines handle dependencies between infrastructure components?"
+        answer={`Terragrunt Pipelines natively integrates with the Terragrunt CLI to drive infrastructure updates through the Directed Acyclic Graph (DAG). When creating or updating multiple infrastructure components, dependencies will be created or updated before dependents (e.g. VPCs before servers), and when deleting infrastructure components, dependents will be destroyed before dependencies (e.g. servers before VPCs). This ordering is applied even if infrastructure is deployed through different units.`} />
+      <FAQItem
+        question="Can Terragrunt Pipelines deploy to multiple environments in one PR?"
+        answer={`Yes, you can make changes to infrastructure components within any number of different environments (e.g. AWS accounts) at the same time in the same PR, and the pipeline will update them concurrently on merge.`} />
+      <FAQItem
+        question="How does Terragrunt Pipelines ensure least privilege access?"
+        answer={`Access control to infrastructure is segmented by least privilege principals (e.g. AWS IAM roles) that only have access to individual environments, further segmented by a different principal used for read-only access during pull requests / merge requests open and a principal used for read-write access during pull request merge.<br><br>As a consequence, updates to a particular environment will only be done by a principal that only has access to that environment, and can only be used after review by your team.`} />
+      <FAQItem
+        question="How does Terragrunt Pipelines minimize blast radius?"
+        answer={`Terragrunt Pipelines takes full advantage of state isolation using Terragrunt to ensure that infrastructure is only updated if a corresponding code-change would impact that resource.`} />
+      <FAQItem
+        question="What is the workflow for getting infrastructure changes approved?"
+        answer={`When you create a PR, Terragrunt Pipelines will run a plan on units affected by the code change. The plan output shows in the PR comments with: (1) a clear plan summary of what specific infrastructure resources were impacted, and (2) a full plan output of what's changing. When you merge the PR, it kicks off the CI/CD pipeline to apply it.`} />
+      <FAQItem
+        question="Does Terragrunt Pipelines require a specific directory structure?"
+        answer={`Terragrunt Pipelines is flexible and can be configured to support your repository structure using <a href="https://docs.gruntwork.io/2.0/reference/pipelines/configurations-as-code/" target="_blank" rel="noopener noreferrer">HCL Configurations as Code</a>. You programmatically define the relationship your Infrastructure as Code has to your environments, and Pipelines will operate in those environments accordingly. Pipelines supports dependencies between Terragrunt units, even if those units are in different environments or require different cloud authentication credentials.`} />
+      <FAQItem
+        question="Does Terragrunt Pipelines support both monorepos and polyrepos?"
+        answer={`Both are supported.<br><br>Usage of OIDC-based credential acquisition means that repositories are trusted to assume particular credentials in target environments. You can delegate management of limited infrastructure to separate repositories, or have all your infrastructure managed in one repository. Pipelines and Terragrunt are designed to scale to very large and sophisticated monorepo structures.`} />
+      <FAQItem
+        question="How does authentication work with Terragrunt Pipelines?"
+        answer={`Terragrunt Pipelines uses a GitHub app in GitHub and a GitLab machine user in GitLab to authenticate with the respective Source Code Management (SCM) provider.<br><br>When authenticating with cloud providers, Pipelines will perform an OIDC handshake between the repository in the SCM and a principal in a given environment to acquire temporary, least privilege credentials for the actions it needs to perform in that environment. Pipelines also provides an escape-hatch mechanism which allows developers to implement a per-environment custom authentication mechanism to authenticate with arbitrary APIs and pass those credentials into Terragrunt at runtime.`} />
+      <FAQItem
+        question="How can I ensure infrastructure changes have proper approval?"
+        answer={`Terragrunt Pipelines creates a clear audit trail of infrastructure changes by tagging each cloud authentication session with unique identifying information of what change initiated that session.  In addition, PRs with plan outputs that can be reviewed and approved before merging. Both GitHub and GitLab also provide branch protection rules that require approval before merges. This provides an audit trail of requested changes and approval.`} />
+      <FAQItem
+        question="Can we customize the workflow for our specific deployment patterns?"
+        answer={`Yes, you can reuse workflow templates across multiple projects or environments and author any steps you want in addition to the ones provided by Gruntwork. Terragrunt Pipelines uses standard GitHub Actions and GitLab CI Pipelines to drive infrastructure updates.`} />
+      <FAQItem
+        question="What level of control do we have over our workflows?"
+        answer={`You have full control. All workflows are defined and run in your repository, you can add custom steps, and you're not dependent on calling Gruntwork for infrastructure changes.`} />
+      <FAQItem
+        question="How does Terragrunt Drift Detection work?"
+        answer={`Drift detection runs as a GitHub actions workflow / GitLab CI Pipeline at the root of your repository or within a subset (like a directory defining the infrastructure for a specific AWS account). It compares the contents of your Infrastructure as Code (IaC) code against the state of your infrastructure in your cloud environments (e.g. deployed in AWS). When it finds drift (like someone opening port 22 in the AWS console without making a corresponding change in IaC), it creates a PR/MR to remediate the drift by reverting deployed infrastructure to the designated configuration defined in IaC. You can review the impact of remediating the drift in a comment on the PR/MR, then either update the IaC to match the drift, or merge the PR/MR as is to re-apply the IaC specified configuration.`} />
+      <FAQItem
+        question="What's the recommended approach for using Terragrunt Drift Detection?"
+        answer={`If you are suffering from infrastructure that’s experiencing significant drift from your IaC, first, run drift detection in each environment one-by-one to gradually remediate drift over time. Once you are confident your deployed infrastructure is aligned with the configuration you’ve defined using IaC, schedule automatic runs of Drift Detection once a week to ensure you do not accrue drift.`} />
+    </FAQ>
+    <SectionSpacer />
+    <div class="flex flex-col gap-44 z-10">
+      <Footer />
+    </div>
+  </PageContainer>
+</BaseLayout>

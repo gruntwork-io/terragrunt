@@ -1,0 +1,26 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import CheckoutHero from '@components/CheckoutHero.astro';
+import FeaturedBrands from '@components/dv-FeaturedBrands.astro';
+import CompactFooter from '@components/CompactFooter.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+import SectionSpacer from '@components/SectionSpacer.astro';
+
+import '@styles/global.css';
+---
+<BaseLayout
+  title="Terragrunt Scale | Checkout"
+  description="Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current; built by the creators of Terragrunt."
+  url="https://terragrunt.gruntwork.io/terragrunt-scale/checkout"
+>
+  <Header showThemeToggle={false} />
+  <CheckoutHero />
+
+  <PageContainer>
+    <FeaturedBrands />
+    <SectionSpacer />
+    <CompactFooter />
+  </PageContainer>
+
+</BaseLayout>

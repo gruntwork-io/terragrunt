@@ -12,8 +12,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
@@ -21,11 +24,11 @@ import (
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -59,62 +62,162 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
-	parseOptions := []hclparse.Option{
-		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, hclDiag := range hclDiags {
-				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
-				if !diags.Contains(newDiag) {
-					diags = append(diags, newDiag)
+	// Diagnostics handler to collect validation errors
+	diagnosticsHandler := hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		for _, hclDiag := range hclDiags {
+			// Only report diagnostics that are actually in the file being parsed,
+			// not errors from dependencies or other files
+			if hclDiag.Subject != nil && file != nil {
+				fileFilename := file.Body.MissingItemRange().Filename
+
+				diagFilename := hclDiag.Subject.Filename
+				if diagFilename != fileFilename {
+					continue
 				}
 			}
 
-			return nil, nil
-		}),
-	}
+			newDiag := diagnostic.NewDiagnostic(file, hclDiag)
+			if !diags.Contains(newDiag) {
+				diags = append(diags, newDiag)
+			}
+		}
+
+		return nil, nil
+	})
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-		_, err := config.ReadTerragruntConfig(ctx, l, opts, parseOptions)
-		return err
-	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
+	// Create discovery with filter support if experiment enabled
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
 	if err != nil {
+		return processDiagnostics(l, opts, diags, errors.New(err))
+	}
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		// We do worktree generation here instead of in the discovery constructor
+		// so that we can defer cleanup in the same context.
+		filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse filters: %w", parseErr)
+		}
+
+		gitFilters := filters.UniqueGitFilters()
+
+		worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if parseErr != nil {
+			return errors.Errorf("failed to create worktrees: %w", parseErr)
+		}
+
+		defer func() {
+			cleanupErr := worktrees.Cleanup(ctx, l)
+			if cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+
+		d = d.WithWorktrees(worktrees)
+	}
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return processDiagnostics(l, opts, diags, errors.New(err))
+	}
+
+	parseOptions := []hclparse.Option{diagnosticsHandler}
+
+	parseErrs := []error{}
+
+	for _, c := range components {
+		parseOpts := opts.Clone()
+		parseOpts.WorkingDir = c.Path()
+
+		if _, ok := c.(*component.Stack); ok {
+			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
+			parseOpts.TerragruntConfigPath = stackFilePath
+
+			values, err := config.ReadValues(ctx, l, parseOpts, c.Path())
+			if err != nil {
+				parseErrs = append(parseErrs, errors.New(err))
+			}
+
+			parser := config.NewParsingContext(ctx, l, parseOpts).WithParseOption(parseOptions)
+			if values != nil {
+				parser = parser.WithValues(values)
+			}
+
+			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
+			if err != nil {
+				parseErrs = append(parseErrs, errors.New(err))
+				continue
+			}
+
+			//nolint:contextcheck
+			if _, err := config.ParseStackConfig(l, parser, parseOpts, file, values); err != nil {
+				parseErrs = append(parseErrs, errors.New(err))
+			}
+
+			continue
+		}
+
+		// Determine which config filename to use for a full parse
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+
+		if _, err := config.ReadTerragruntConfig(ctx, l, parseOpts, parseOptions); err != nil {
+			parseErrs = append(parseErrs, errors.New(err))
+		}
+	}
+
+	var combinedErr error
+	if len(parseErrs) > 0 {
+		combinedErr = errors.Join(parseErrs...)
+	}
+
+	return processDiagnostics(l, opts, diags, combinedErr)
+}
+
+func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+	if len(diags) == 0 {
+		return callErr
+	}
+
+	sort.Slice(diags, func(i, j int) bool {
+		var a, b string
+
+		if diags[i].Range != nil {
+			a = diags[i].Range.Filename
+		}
+
+		if diags[j].Range != nil {
+			b = diags[j].Range.Filename
+		}
+
+		return a < b
+	})
+
+	if err := writeDiagnostics(l, opts, diags); err != nil {
 		return err
 	}
 
-	stackErr := stack.Run(ctx, l, opts)
+	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
 
-	if len(diags) > 0 {
-		sort.Slice(diags, func(i, j int) bool {
-			var a, b string
-
-			if diags[i].Range != nil {
-				a = diags[i].Range.Filename
-			}
-
-			if diags[j].Range != nil {
-				b = diags[j].Range.Filename
-			}
-
-			return a < b
-		})
-
-		if err := writeDiagnostics(l, opts, diags); err != nil {
-			return err
-		}
-
-		// If there were diagnostics and stackErr is currently nil,
-		// create a new error to signal overall validation failure.
-		//
-		// This also ensures a non-zero exit code is returned by Terragrunt.
-		if stackErr == nil {
-			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
-		}
+	// If diagnostics exist and no other error was returned,
+	// return a synthetic error to mark validation as failed and
+	// ensure a non-zero exit code from Terragrunt.
+	if callErr == nil {
+		return diagError
 	}
 
-	return stackErr
+	return errors.Join(callErr, diagError)
 }
 
 func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
@@ -334,9 +437,9 @@ func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOpt
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.Arguments != nil {
-				vars, rawVarFiles, err := GetVarFlagsFromArgList(*arg.Arguments)
-				if err != nil {
-					return inputNames, err
+				vars, rawVarFiles, getArgsErr := GetVarFlagsFromArgList(*arg.Arguments)
+				if getArgsErr != nil {
+					return inputNames, getArgsErr
 				}
 
 				inputNames = append(inputNames, vars...)

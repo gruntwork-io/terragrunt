@@ -163,6 +163,12 @@ You can find the new environment variable names in the [CLI reference](/docs/ref
 
 ### Use the new `run` command
 
+Default behavior change (v0.88.0): Terragrunt no longer forwards unknown commands to OpenTofu/Terraform by default. If you previously ran commands like `terragrunt workspace ls`, use the explicit `run` form instead:
+
+```bash
+terragrunt run -- workspace ls
+```
+
 The `run` command has been introduced to the CLI to handle the responsibility currently held by the default command in Terragrunt.
 
 If you want to tell Terragrunt that what you are running is a command in the orchestrated IaC tool (OpenTofu/Terraform), you can use the `run` command to explicitly indicate this.
@@ -193,10 +199,10 @@ The commands that will not receive shortcuts are OpenTofu/Terraform commands tha
 
 For example, the `workspace` command will not receive a shortcut, as you are encouraged not to use workspaces when working with Terragrunt. Terragrunt manages state isolation for you, so you don't need to use them.
 
-If you would like to explicitly run a command that does not have a shortcut, you can use the `run` command to do so:
+If you would like to explicitly run a command that does not have a shortcut, you can use the `run` command to do so. We recommend separating Terragrunt flags from OpenTofu/Terraform arguments with `--`:
 
 ```bash
-terragrunt run workspace ls
+terragrunt run -- workspace ls
 ```
 
 Similarly, commands like `graph` won't be supported as a shortcut, as `graph` is a now deprecated command in the Terragrunt CLI. Supporting it as a shortcut would be misleading, so you can use the `run` command to run it explicitly:
@@ -208,7 +214,7 @@ terragrunt run graph
 You might want to explicitly indicate that the flag you are using is one for OpenTofu/Terraform, and not a Terragrunt flag. To do this, you can use the `--` argument to explicitly separate the Terragrunt flags from the OpenTofu/Terraform flags:
 
 ```bash
-terragrunt run  -- apply -auto-approve
+terragrunt run -- apply -auto-approve
 ```
 
 This usually isn't necessary, except when combining a complicated series of flags and arguments, which can be difficult to parse for the CLI.

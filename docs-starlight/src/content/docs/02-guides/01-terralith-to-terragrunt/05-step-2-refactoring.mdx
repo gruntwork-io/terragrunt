@@ -6,7 +6,8 @@ sidebar:
   order: 5
 ---
 
-import { FileTree, Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Code, Aside } from '@astrojs/starlight/components';
 
 One of the most important skills you can learn when managing IaC is learning how to refactor IaC. The code you write directly relates to infrastructure that delivers value to your team and wider organization, so knowing how to safely reorganize your code so that it's easier to reuse and reason about without incurring risk for the infrastructure you support is invaluable.
 
@@ -41,313 +42,57 @@ mv live/s3.tf catalog/modules/s3/main.tf
 
 The contents of some of these files need a little massaging, however, as the IaC didn't have clear boundaries between the constituent components. Let's fix that by providing an API for each of these modules in the form of variables for inputs and outputs…. for outputs.
 
-```hcl
-# catalog/modules/ddb/vars-required.tf
+import ddbVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/ddb/vars-required.tf?raw';
 
-variable "name" {
-  description = "The name of the DynamoDB table"
-  type        = string
-}
-```
+<Code title="catalog/modules/ddb/vars-required.tf" lang="hcl" code={ddbVarsRequiredTf} />
 
-```hcl
-# catalog/modules/ddb/outputs.tf
+import ddbOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/ddb/outputs.tf?raw';
 
-output "name" {
-  value = aws_dynamodb_table.asset_metadata.name
-}
+<Code title="catalog/modules/ddb/outputs.tf" lang="hcl" code={ddbOutputsTf} />
 
-output "arn" {
-  value = aws_dynamodb_table.asset_metadata.arn
-}
-```
+import s3VarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/s3/vars-required.tf?raw';
 
-```hcl
-# catalog/modules/s3/vars-required.tf
+<Code title="catalog/modules/s3/vars-required.tf" lang="hcl" code={s3VarsRequiredTf} />
 
-variable "name" {
-  description = "The name of the S3 bucket"
-  type        = string
-}
-```
+import s3VarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/s3/vars-optional.tf?raw';
 
-```hcl
-# catalog/modules/s3/vars-optional.tf
+<Code title="catalog/modules/s3/vars-optional.tf" lang="hcl" code={s3VarsOptionalTf} />
 
-variable "force_destroy" {
-  description = "Force destroy S3 buckets (only set to true for testing or cleanup of demo environments)"
-  type        = bool
-  default     = false
-}
-```
+import s3OutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/s3/outputs.tf?raw';
 
-```hcl
-# catalog/modules/s3/outputs.tf
+<Code title="catalog/modules/s3/outputs.tf" lang="hcl" code={s3OutputsTf} />
 
-output "name" {
-  value = aws_s3_bucket.static_assets.bucket
-}
+import iamVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/iam/vars-required.tf?raw';
 
-output "arn" {
-  value = aws_s3_bucket.static_assets.arn
-}
-```
+<Code title="catalog/modules/iam/vars-required.tf" lang="hcl" code={iamVarsRequiredTf} />
 
-```hcl
-# catalog/modules/iam/vars-required.tf
+import iamOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/iam/outputs.tf?raw';
 
-variable "name" {
-  description = "The name of the IAM role"
-  type        = string
-}
-
-variable "aws_region" {
-  description = "The AWS region to deploy the resources to"
-  type        = string
-}
-
-variable "s3_bucket_arn" {
-  description = "The ARN of the S3 bucket"
-  type        = string
-}
-
-variable "dynamodb_table_arn" {
-  description = "The ARN of the DynamoDB table"
-  type        = string
-}
-```
-
-```hcl
-# catalog/modules/iam/outputs.tf
-
-output "name" {
-  value = aws_iam_role.lambda_role.name
-}
-
-output "arn" {
-  value = aws_iam_role.lambda_role.arn
-}
-```
+<Code title="catalog/modules/iam/outputs.tf" lang="hcl" code={iamOutputsTf} />
 
 For the `iam` module, we're also going to need to make adjustments to the `main.tf` file to account for previous tight coupling between resources. The updates here take advantage of those new `s3_bucket_arn` and `dynamodb_table_arn` variables for message passing between modules, exposed by the outputs of the `ddb` and `s3` modules.
 
-```hcl
-# catalog/modules/iam/main.tf
+import iamMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/iam/main.tf?raw';
 
-resource "aws_iam_role" "lambda_role" {
-  name = "${var.name}-lambda-role"
+<Code title="catalog/modules/iam/main.tf" lang="hcl" code={iamMainTf} />
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
+import lambdaVarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/vars-optional.tf?raw';
 
-resource "aws_iam_policy" "lambda_s3_read" {
-  name        = "${var.name}-lambda-s3-read"
-  description = "Policy for Lambda to read from S3 bucket"
+<Code title="catalog/modules/lambda/vars-optional.tf" lang="hcl" code={lambdaVarsOptionalTf} />
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          var.s3_bucket_arn,
-          "${var.s3_bucket_arn}/*"
-        ]
-      }
-    ]
-  })
-}
+import lambdaVarsRequiredTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/vars-required.tf?raw';
 
-resource "aws_iam_policy" "lambda_dynamodb" {
-  name        = "${var.name}-lambda-dynamodb"
-  description = "Policy for Lambda to read/write to DynamoDB table"
+<Code title="catalog/modules/lambda/vars-required.tf" lang="hcl" code={lambdaVarsRequiredTf} />
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
-        ]
-        Resource = var.dynamodb_table_arn
-      }
-    ]
-  })
-}
+import lambdaOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/outputs.tf?raw';
 
-resource "aws_iam_policy" "lambda_basic_execution" {
-  name        = "${var.name}-lambda-basic-execution"
-  description = "Policy for Lambda basic execution (CloudWatch logs)"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_s3_read" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_s3_read.arn
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_dynamodb.arn
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_basic_execution.arn
-}
-```
-
-```hcl
-# catalog/modules/lambda/vars-optional.tf
-
-variable "lambda_runtime" {
-  description = "Lambda function runtime"
-  type        = string
-  default     = "nodejs22.x"
-}
-
-variable "lambda_handler" {
-  description = "Lambda function handler"
-  type        = string
-  default     = "index.handler"
-}
-
-variable "lambda_timeout" {
-  description = "Lambda function timeout in seconds"
-  type        = number
-  default     = 30
-}
-
-variable "lambda_memory_size" {
-  description = "Lambda function memory size in MB"
-  type        = number
-  default     = 128
-}
-
-variable "lambda_architectures" {
-  description = "Lambda function architectures"
-  type        = list(string)
-  default     = ["arm64"]
-}
-```
-
-```hcl
-# catalog/modules/lambda/vars-required.tf
-
-variable "name" {
-  description = "Name used for all resources"
-  type        = string
-}
-
-variable "aws_region" {
-  description = "AWS region to deploy the resources to"
-  type        = string
-}
-
-variable "lambda_zip_file" {
-  description = "Path to the Lambda function zip file"
-  type        = string
-}
-
-variable "lambda_role_arn" {
-  description = "Lambda function role ARN"
-  type        = string
-}
-
-variable "s3_bucket_name" {
-  description = "S3 bucket name"
-  type        = string
-}
-
-variable "dynamodb_table_name" {
-  description = "DynamoDB table name"
-  type        = string
-}
-```
-
-```hcl
-# catalog/modules/lambda/outputs.tf
-
-output "name" {
-  value = aws_lambda_function.main.function_name
-}
-
-output "arn" {
-  value = aws_lambda_function.main.arn
-}
-
-output "url" {
-  value = aws_lambda_function_url.main.function_url
-}
-```
+<Code title="catalog/modules/lambda/outputs.tf" lang="hcl" code={lambdaOutputsTf} />
 
 Again, for the Lambda module we're going to need to make updates to the `main.tf` file to account for the tight coupling between resources now that we're wiring them together via variables and outputs.
 
-```hcl
-# catalog/modules/lambda/main.tf
+import lambdaMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/catalog/modules/lambda/main.tf?raw';
 
-resource "aws_lambda_function" "main" {
-  function_name = "${var.name}-function"
-
-  filename         = var.lambda_zip_file
-  source_code_hash = filebase64sha256(var.lambda_zip_file)
-
-  role = var.lambda_role_arn
-
-  handler       = var.lambda_handler
-  runtime       = var.lambda_runtime
-  timeout       = var.lambda_timeout
-  memory_size   = var.lambda_memory_size
-  architectures = var.lambda_architectures
-
-  environment {
-    variables = {
-      S3_BUCKET_NAME      = var.s3_bucket_name
-      DYNAMODB_TABLE_NAME = var.dynamodb_table_name
-    }
-  }
-}
-
-resource "aws_lambda_function_url" "main" {
-  function_name      = aws_lambda_function.main.function_name
-  authorization_type = "NONE"
-}
-```
+<Code title="catalog/modules/lambda/main.tf" lang="hcl" code={lambdaMainTf} />
 
 Let's make sure that our modules have a copy of the `versions.tf` file that was in the root module (if you're not comfortable with using the `find` command below, you can just copy the `versions.tf` file into each of the modules you've created so far manually). It's a best practice to have reusable modules define their version constraints so that they can explicitly signal to module consumers when they use features in newer provider versions that might require a provider upgrade or are dodging a bug in a particular version of a provider that consumers should avoid.
 
@@ -359,107 +104,21 @@ To use these modules, we need to use OpenTofu `module` blocks to reference them 
 
 What we're doing here is simply instantiating each of the modules that we've created so far by referencing them using a relative path to the module in the `source` attribute, setting values for their required inputs (some of which are acquired as outputs from other modules).
 
-```hcl
-# live/main.tf
+import liveMainTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/main.tf?raw';
 
-module "s3" {
-  source = "../catalog/modules/s3"
-
-  name = var.name
-
-  force_destroy = var.force_destroy
-}
-
-module "ddb" {
-  source = "../catalog/modules/ddb"
-
-  name = var.name
-}
-
-module "iam" {
-  source = "../catalog/modules/iam"
-
-  name = var.name
-
-  aws_region = var.aws_region
-
-  s3_bucket_arn      = module.s3.arn
-  dynamodb_table_arn = module.ddb.arn
-}
-
-module "lambda" {
-  source = "../catalog/modules/lambda"
-
-  name = var.name
-
-  aws_region = var.aws_region
-
-  s3_bucket_name      = module.s3.name
-  dynamodb_table_name = module.ddb.name
-  lambda_zip_file     = var.lambda_zip_file
-  lambda_role_arn     = module.iam.arn
-}
-```
+<Code title="live/main.tf" lang="hcl" code={liveMainTf} />
 
 We also want to forward outputs from these modules into our root module so that we can access them from the `tofu` CLI.
 
-```hcl
-# live/outputs.tf
+import liveOutputsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/outputs.tf?raw';
 
-output "lambda_function_url" {
-  description = "URL of the Lambda function"
-  value       = module.lambda.url
-}
-
-output "lambda_function_name" {
-  description = "Name of the Lambda function"
-  value       = module.lambda.name
-}
-
-output "s3_bucket_name" {
-  description = "Name of the S3 bucket for static assets"
-  value       = module.s3.name
-}
-
-output "s3_bucket_arn" {
-  description = "ARN of the S3 bucket for static assets"
-  value       = module.s3.arn
-}
-
-output "dynamodb_table_name" {
-  description = "Name of the DynamoDB table for asset metadata"
-  value       = module.ddb.name
-}
-
-output "dynamodb_table_arn" {
-  description = "ARN of the DynamoDB table for asset metadata"
-  value       = module.ddb.arn
-}
-
-output "lambda_role_arn" {
-  description = "ARN of the Lambda execution role"
-  value       = module.iam.arn
-}
-```
+<Code title="live/outputs.tf" lang="hcl" code={liveOutputsTf} />
 
 We can also reduce the amount of content in the optional variables file, now that each of the modules define the variables that matter to them. This keeps the API of each module clean, as each module exposes the variables that specifically control them.
 
-```hcl
-# live/vars-optional.tf
+import liveVarsOptionalTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/vars-optional.tf?raw';
 
-variable "aws_region" {
-  description = "AWS region for all resources"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "force_destroy" {
-  description = "Force destroy S3 buckets (only set to true for testing or cleanup of demo environments)"
-  type        = bool
-  default     = false
-}
-
-```
+<Code title="live/vars-optional.tf" lang="hcl" code={liveVarsOptionalTf} />
 
 After all this refactoring, we'll want to run a `plan` to make sure we can safely apply our changes.
 
@@ -467,14 +126,12 @@ After all this refactoring, we'll want to run a `plan` to make sure we can safel
 You'll need to re-initialize now that you're using modules here.
 </Aside>
 
-```bash
-$ tofu init
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu init
 $ tofu plan
 ...
-
 Plan: 11 to add, 0 to change, 11 to destroy.
 ...
-```
+`} />
 
 Oh no! After all our refactors, we've introduced changes that would *completely destroy* all of the infrastructure we've created so far!
 
@@ -482,14 +139,14 @@ This is a common scenario that you need to become comfortable with as you learn 
 
 We, as authors of the IaC, know that all we've done in this step is move some files into different directories, but as far as OpenTofu is concerned, we've deleted resources at addresses like the following:
 
-```hcl
+```bash
   # aws_lambda_function.main will be destroyed
   # (because aws_lambda_function.main is not in configuration)
 ```
 
 And introduced resources at addresses the like the following:
 
-```hcl
+```bash
   # module.lambda.aws_lambda_function.main will be created
 ```
 
@@ -499,64 +156,9 @@ The way we communicate to OpenTofu that a resource at one address has simply mov
 
 For each resource that we want to move, we'll want to introduce a `move` block with a `from` of the old address (what OpenTofu reports as being destroyed in our plan) and a `to` of the equivalent new address (what OpenTofu reports as being created in our plan).
 
-```hcl
-# live/moved.tf
+import liveMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/moved.tf?raw';
 
-moved {
-  from = aws_dynamodb_table.asset_metadata
-  to   = module.ddb.aws_dynamodb_table.asset_metadata
-}
-
-moved {
-  from = aws_iam_policy.lambda_basic_execution
-  to   = module.iam.aws_iam_policy.lambda_basic_execution
-}
-
-moved {
-  from = aws_iam_policy.lambda_dynamodb
-  to   = module.iam.aws_iam_policy.lambda_dynamodb
-}
-
-moved {
-  from = aws_iam_policy.lambda_s3_read
-  to   = module.iam.aws_iam_policy.lambda_s3_read
-}
-
-moved {
-  from = aws_iam_role.lambda_role
-  to   = module.iam.aws_iam_role.lambda_role
-}
-
-moved {
-  from = aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = module.iam.aws_iam_role_policy_attachment.lambda_basic_execution
-}
-
-moved {
-  from = aws_iam_role_policy_attachment.lambda_dynamodb
-  to   = module.iam.aws_iam_role_policy_attachment.lambda_dynamodb
-}
-
-moved {
-  from = aws_iam_role_policy_attachment.lambda_s3_read
-  to   = module.iam.aws_iam_role_policy_attachment.lambda_s3_read
-}
-
-moved {
-  from = aws_lambda_function.main
-  to   = module.lambda.aws_lambda_function.main
-}
-
-moved {
-  from = aws_lambda_function_url.main
-  to   = module.lambda.aws_lambda_function_url.main
-}
-
-moved {
-  from = aws_s3_bucket.static_assets
-  to   = module.s3.aws_s3_bucket.static_assets
-}
-```
+<Code title="live/moved.tf" lang="hcl" code={liveMovedTf} />
 
 It's worth noting that we haven't been working with any infrastructure that's important to preserve in this demo so far. We can easily reproduce this infrastructure without much effort. It's important to know how to perform refactors without having to recreate infrastructure, though, as we need to be able to avoid paying the penalty of outages or data loss — especially when working with production infrastructure.
 
@@ -613,6 +215,7 @@ You should have a filesystem layout that look like the following for your IaC no
       - vars-required.tf
       - versions.tf
     - iam
+      - data.tf
       - main.tf
       - outputs.tf
       - vars-required.tf
@@ -645,10 +248,7 @@ You should have a filesystem layout that look like the following for your IaC no
 
 You can now run `tofu apply` with no changes (don't worry, you'll get a chance to confirm you want to proceed before you have to commit to anything).
 
-```bash
-# live
-
-$ tofu apply
+<Code title="live" lang="bash" frame="terminal" code={`$ tofu apply
 ...
 Plan: 0 to add, 0 to change, 0 to destroy.
 ...
@@ -658,7 +258,7 @@ Do you want to perform these actions?
   Only 'yes' will be accepted to approve.
 
   Enter a value:
-```
+`} />
 
 ## Trade-Offs
 

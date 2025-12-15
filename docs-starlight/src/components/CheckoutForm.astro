@@ -1,0 +1,159 @@
+---
+import Button from '@components/ui/Button';
+import IconPricingTeam from '@assets/icons/terragrunt-pricing-team.astro';
+import TerragruntAccent from '@assets/icons/terragrunt-icon-accent.astro';
+---
+
+<div class="flex flex-col w-full bg-bg-dark px-4 py-3 sm:px-14 sm:py-12 lg:px-8 lg:py-6 rounded-lg border border-card-border">
+  <div class="relative w-full">
+    <div class="flex flex-row items-center justify-between gap-2 mb-6">
+      <IconPricingTeam />
+      <div class="flex items-baseline">
+        <span id="price-value" class="text-[42px] text-accent-3">$600</span>
+        <span id="price-period" class="text-gray-1 text-2xl m-0">/mo</span>
+      </div>
+    </div>
+    <div class="flex flex-col gap-1">
+      <p class="text-white font-sans text-xl font-medium m-0">Team</p>
+      <p class="text-gray-1 font-sans text-sm m-0">For most platform teams</p>
+
+      <div class="invisible sm:visible absolute right-[-20px] lg:right-[-80px] top-[80px]" aria-hidden="true">
+        <TerragruntAccent />
+      </div>
+    </div>
+
+    <ul class="list-none pl-0 flex flex-col gap-2">
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Terragrunt Pipelines
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Terragrunt Patcher
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Terragrunt Drift Detection
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        License for 1 repo, 2 users
+      </li>
+      <li class="flex items-center gap-2 text-white text-[14px] before:content-[''] before:inline-block before:w-5 before:h-5 before:bg-[url('../assets/icons/list-item-purple.svg')] before:bg-contain before:bg-no-repeat before:flex-none">
+        Standard Support
+      </li>
+    </ul>
+  </div>
+
+  <div class="w-full flex flex-col gap-4 my-4">
+    <fieldset class="mx-auto p-0 flex gap-0 rounded-3xl bg-checkout-radio border-2 border-solid border-white">
+      <legend class="sr-only">Subscription options</legend>
+      <label
+        for="monthly"
+        class="p-0.5 flex flex-row items-center cursor-pointer rounded-3xl bg-checkout-radio hover:bg-button-bg"
+      >
+        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-3xl border-4 border-solid border-transparent px-6 hover:bg-white">
+          <input type="radio" name="plan" id="monthly" value="monthly" class="custom-radio peer mr-1.5 accent-accent" checked />
+          Monthly
+        </div>
+      </label>
+
+      <label
+        for="annual"
+        class="p-0.5 flex flex-row items-center cursor-pointer rounded-3xl hover:bg-button-bg"
+      >
+        <div class="flex items-center w-full h-full p-1.5 text-sm font-medium rounded-3xl border-4 border-solid border-transparent pl-4 hover:bg-white">
+          <input type="radio" name="plan" id="annual" value="annual" class="custom-radio peer shrink-0 grow-0" />
+          <div class="w-full flex flex-row flex-wrap items-center justify-between gap-3 mr-3">
+            <div>Annual</div>
+            <div class="text-right">
+              <span class="bg-accent/[7%] p-0.5 text-xs font-mono text-accent text-right">17% Off</span>
+            </div>
+          </div>
+
+        </div>
+      </label>
+    </fieldset>
+    <a
+      class="no-underline"
+      href="https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001"
+      id="checkout"
+    >
+      <Button
+        size='full'
+        variant="primary"
+      >
+        Continue to Payment
+      </Button>
+    </a>
+  </div>
+
+  <p class="text-xs text-gray-1 font-sans mt-0">Complete your transaction with Stripe. Schedule your onboarding session after payment.</p>
+  <p id="additional-legal" class="text-xs text-gray-1 font-sans m-0"></p>
+</div>
+
+<script>
+  const price = document.getElementById("price-value");
+  const term = document.getElementById("price-period");
+  const additionalLegal = document.getElementById("additional-legal");
+  const link = document.getElementById('checkout');
+
+  const radios = document.querySelectorAll("input[name='plan']");
+
+  radios.forEach(radio => {
+    const input = radio as HTMLInputElement;
+    input.addEventListener("change", () => {
+      // Monthly
+      if (!price || !term || !additionalLegal || !link) return;
+      if (input.value === "monthly") {
+        price.textContent = "$600";
+        term.textContent = "/mo";
+        additionalLegal.textContent = "";
+        // @ts-ignore
+        link.href = "https://buy.stripe.com/00w8wP1bn7aj9aRf4T8g001";
+
+      // Annual
+      } else if (input.value === "annual") {
+          price.textContent = "$500";
+          term.textContent = "/mo*";
+          additionalLegal.textContent = "* Annual contract, billed at $6,000 per year.";
+          // @ts-ignore
+          link.href = "https://buy.stripe.com/fZu7sLg6h7ajevb2i78g002";
+      }
+    });
+  });
+</script>
+
+<style>
+  label div:has(input:checked) {
+    border-color: var(--color-checkout-radio-active);
+    background-color: white;
+  }
+
+  .custom-radio {
+    appearance: none;
+    background-color: transparent;
+    border: 1px solid #4F2FD0;
+    border-radius: 50%;
+    cursor: pointer;
+    display: none;
+    height: 16px;
+    margin: 0 6px 0 0;
+    position: relative;
+    width: 16px;
+  }
+
+  /* Radio background */
+  .custom-radio:checked {
+    border-color: transparent;
+    background-color: transparent;
+  }
+
+  .custom-radio:checked::after {
+    background-color: transparent;
+    border-radius: 50%;
+    content: '';
+    height: 10px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+  }
+</style>

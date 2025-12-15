@@ -198,6 +198,31 @@ func TestRunCommand(t *testing.T) {
 			expectedOutput:    "foo",
 		},
 		{
+			params:            []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
+			params:            []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
+			params:            []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedOutput:    "foo",
+		},
+		{
+			params:            []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedErr:       config.ConflictingRunCmdCacheOptionsError{},
+		},
+		{
+			params:            []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptions: terragruntOptionsForTest(t, homeDir),
+			expectedErr:       config.ConflictingRunCmdCacheOptionsError{},
+		},
+		{
 			terragruntOptions: terragruntOptionsForTest(t, homeDir),
 			expectedErr:       config.EmptyStringNotAllowedError("{run_cmd()}"),
 		},
@@ -1374,13 +1399,13 @@ func TestConstraintCheck(t *testing.T) {
 			config: terragruntOptionsForTest(t, ""),
 			args:   []string{"1.E", ">= 1.0, < 1.4"},
 			value:  false,
-			err:    "invalid version 1.E: Malformed version: 1.E",
+			err:    "invalid version 1.E: malformed version: 1.E",
 		},
 		{
 			config: terragruntOptionsForTest(t, ""),
 			args:   []string{"1.4", ">== 1.0, < 1.4"},
 			value:  false,
-			err:    "invalid constraint >== 1.0, < 1.4: Malformed constraint: >== 1.0",
+			err:    "invalid constraint >== 1.0, < 1.4: malformed constraint: >== 1.0",
 		},
 	}
 

@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'alpha*'
+      - 'beta*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.58.8)'
+        required: true
+        type: string
+      clobber:
+        description: 'Overwrite existing release assets (--clobber)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+  actions: read
+
+jobs:
+  # Build and sign all binaries (reuses build.yml workflow)
+  build-and-sign:
+    name: Build and Sign All Binaries
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  # Upload binaries to existing GitHub release
+  upload-assets:
+    name: Upload Release Assets
+    needs: build-and-sign
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get version
+        id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: .github/scripts/release/get-version.sh
+
+      - name: Check if release exists
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: .github/scripts/release/check-release-exists.sh
+
+      - name: Download pre-built signed binaries
+        uses: actions/download-artifact@v6
+        with:
+          name: all-signed-binaries
+          path: bin/
+
+      - name: Verify binaries downloaded
+        run: .github/scripts/release/verify-binaries-downloaded.sh bin 7
+
+      - name: Set execution permissions on binaries
+        run: .github/scripts/release/set-permissions.sh bin
+
+      - name: Create ZIP and TAR.GZ archives
+        run: .github/scripts/release/create-archives.sh bin
+
+      - name: Generate SHA256SUMS
+        run: .github/scripts/release/generate-checksums.sh bin
+
+      - name: Verify signatures before upload
+        run: .github/scripts/release/verify-files.sh bin
+
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CLOBBER: ${{ github.event_name == 'workflow_dispatch' && inputs.clobber || 'false' }}
+        run: .github/scripts/release/upload-assets.sh bin
+
+      - name: Verify all assets uploaded
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CLOBBER: ${{ github.event_name == 'workflow_dispatch' && inputs.clobber || 'false' }}
+        run: .github/scripts/release/verify-assets-uploaded.sh bin
+
+      - name: Upload summary
+        if: always()
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_ID: ${{ steps.check_release.outputs.release_id }}
+          IS_DRAFT: ${{ steps.check_release.outputs.is_draft }}
+        run: .github/scripts/release/generate-upload-summary.sh

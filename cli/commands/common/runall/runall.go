@@ -3,13 +3,17 @@ package runall
 import (
 	"context"
 	"os"
+	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -52,34 +56,97 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	stackOpts := []common.Option{}
 
-	if opts.Experiments.Evaluate(experiment.Report) {
-		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
+	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
-			r.WithDisableColor()
+	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+		r.WithDisableColor()
+	}
+
+	if opts.ReportFormat != "" {
+		r.WithFormat(opts.ReportFormat)
+	}
+
+	if opts.SummaryPerUnit {
+		r.WithShowUnitLevelSummary()
+	}
+
+	stackOpts = append(stackOpts, common.WithReport(r))
+
+	if opts.ReportSchemaFile != "" {
+		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+	}
+
+	if opts.ReportFile != "" {
+		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+	}
+
+	// Skip summary for programmatic interactions:
+	// - When JSON output is requested (--json or report format is JSON)
+	// - When running 'output' command (typically for programmatic consumption)
+	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
+		defer r.WriteSummary(opts.Writer) //nolint:errcheck
+	}
+
+	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return errors.Errorf("failed to parse filters: %w", err)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+
+	// Only create worktrees when git filter expressions are present
+	var wts *worktrees.Worktrees
+	if len(gitFilters) > 0 {
+		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if err != nil {
+			return errors.Errorf("failed to create worktrees: %w", err)
 		}
 
-		if opts.ReportFormat != "" {
-			r.WithFormat(opts.ReportFormat)
+		defer func() {
+			cleanupErr := wts.Cleanup(ctx, l)
+			if cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+	}
+
+	if !opts.NoStackGenerate {
+		// Set the stack config path to the default location in the working directory
+		opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
+
+		// Clean stack folders before calling `generate` when the `--source-update` flag is passed
+		if opts.SourceUpdate {
+			errClean := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
+				"stack_config_path": opts.TerragruntStackConfigPath,
+				"working_dir":       opts.WorkingDir,
+			}, func(ctx context.Context) error {
+				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
+				return config.CleanStacks(ctx, l, opts)
+			})
+			if errClean != nil {
+				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
+			}
 		}
 
-		if opts.SummaryPerUnit {
-			r.WithShowUnitLevelSummary()
-		}
+		// Generate the stack configuration with telemetry tracking
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+			"stack_config_path": opts.TerragruntStackConfigPath,
+			"working_dir":       opts.WorkingDir,
+		}, func(ctx context.Context) error {
+			return generate.GenerateStacks(ctx, l, opts, wts)
+		})
 
-		stackOpts = append(stackOpts, common.WithReport(r))
-
-		if opts.ReportSchemaFile != "" {
-			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		// Handle any errors during stack generation
+		if err != nil {
+			return errors.Errorf("failed to generate stack file: %w", err)
 		}
+	} else {
+		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
+	}
 
-		if opts.ReportFile != "" {
-			defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
-		}
-
-		if !opts.SummaryDisable {
-			defer r.WriteSummary(opts.Writer) //nolint:errcheck
-		}
+	// Pass worktrees to runner for git filter expressions
+	if wts != nil && len(wts.WorktreePairs) > 0 {
+		stackOpts = append(stackOpts, common.WithWorktrees(wts))
 	}
 
 	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
@@ -120,7 +187,9 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
+	var runErr error
+
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
@@ -141,9 +210,39 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 			exitCode.Set(int(cli.ExitCodeGeneralError))
 
+			// Save error to potentially return after telemetry completes
+			runErr = err
+
+			// Return nil to allow telemetry and reporting to complete
 			return nil
 		}
 
 		return nil
 	})
+
+	// log telemetry error and continue execution
+	if telemetryErr != nil {
+		l.Warnf("Telemetry collection failed: %v", telemetryErr)
+	}
+
+	return runErr
+}
+
+// shouldSkipSummary determines if summary output should be skipped for programmatic interactions.
+// Summary is skipped when:
+// - The command is 'output' (typically used for programmatic consumption)
+// - JSON output is requested via terraform CLI args (-json flag)
+// - JSON report format is specified (--report-format=json)
+func shouldSkipSummary(opts *options.TerragruntOptions) bool {
+	// Skip summary for 'output' command as it's typically used programmatically
+	if opts.TerraformCommand == tf.CommandNameOutput {
+		return true
+	}
+
+	// Skip summary when JSON output is requested via -json flag
+	if opts.TerraformCliArgs.Normalize(cli.SingleDashFlag).Contains(tf.FlagNameJSON) {
+		return true
+	}
+
+	return false
 }

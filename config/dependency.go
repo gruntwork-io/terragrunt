@@ -28,12 +28,12 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -208,6 +208,18 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
+	// Validate that dependency config_path is not an empty string.
+	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).
+	for _, dep := range decodedDependency.Dependencies {
+		if dep.isDisabled() {
+			continue
+		}
+
+		if !IsValidConfigPath(dep.ConfigPath) {
+			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+		}
+	}
+
 	if err := checkForDependencyBlockCycles(ctx, l, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
 	}
@@ -238,45 +250,62 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
 	for _, dep := range decodedDependency.Dependencies {
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
-		if dep.isEnabled() && util.FileExists(depPath) {
-			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
-
-			cachedDependency, found := depCache.Get(ctx, cacheKey)
-			if !found {
-				l, depOpts, err := cloneTerragruntOptionsForDependency(ctx, l, depPath)
-				if err != nil {
-					return nil, err
-				}
-
-				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
-
-				if depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil); err == nil {
-					if depConfig.Skip != nil && *depConfig.Skip {
-						l.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-						dep.Enabled = new(bool)
-					}
-
-					inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
-					if err != nil {
-						return nil, err
-					}
-
-					cachedValue := dependencyOutputCache{
-						Enabled: dep.Enabled,
-						Inputs:  inputsCty,
-					}
-					depCache.Put(ctx, cacheKey, &cachedValue)
-
-					dep.Inputs = &inputsCty
-				} else {
-					l.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
-				}
-			} else {
-				dep.Enabled = cachedDependency.Enabled
-				dep.Inputs = &cachedDependency.Inputs
-			}
+		if !dep.isEnabled() {
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+			continue
 		}
+
+		if !IsValidConfigPath(dep.ConfigPath) {
+			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+		}
+
+		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
+
+		if !util.FileExists(depPath) {
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		cacheKey := filepath.Join(ctx.TerragruntOptions.WorkingDir, depPath)
+
+		// Cache hit - reuse cached values
+		if cachedDependency, found := depCache.Get(ctx, cacheKey); found {
+			dep.Enabled = cachedDependency.Enabled
+			dep.Inputs = &cachedDependency.Inputs
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		// Cache miss - parse and cache
+		l, depOpts, err := cloneTerragruntOptionsForDependency(ctx, l, depPath)
+		if err != nil {
+			return nil, err
+		}
+
+		depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
+
+		depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil)
+		if err != nil {
+			l.Warnf("Error reading partial config for dependency %s at %s: %v", dep.Name, depPath, err)
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
+		if err != nil {
+			return nil, errors.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
+		}
+
+		cachedValue := dependencyOutputCache{
+			Enabled: dep.Enabled,
+			Inputs:  inputsCty,
+		}
+		depCache.Put(ctx, cacheKey, &cachedValue)
+
+		dep.Inputs = &inputsCty
 
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
@@ -286,7 +315,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(l log.Logger, decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
@@ -296,6 +325,14 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 	for _, decodedDependencyBlock := range decodedDependencyBlocks {
 		// skip dependency if is not enabled
 		if !decodedDependencyBlock.isEnabled() {
+			continue
+		}
+
+		// Skip if ConfigPath is not a known string value (can happen during discovery phase)
+		if decodedDependencyBlock.ConfigPath.IsNull() ||
+			!decodedDependencyBlock.ConfigPath.IsWhollyKnown() ||
+			!decodedDependencyBlock.ConfigPath.Type().Equals(cty.String) {
+			l.Debugf("Skipping dependency %q: ConfigPath is not a valid known string value", decodedDependencyBlock.Name)
 			continue
 		}
 
@@ -314,6 +351,10 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, l log.Logger, configPath
 	for _, dependency := range decodedDependency.Dependencies {
 		if dependency.isDisabled() {
 			continue
+		}
+
+		if !IsValidConfigPath(dependency.ConfigPath) {
+			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
@@ -554,6 +595,7 @@ func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 func getTerragruntOutput(ctx *ParsingContext, l log.Logger, dependencyConfig Dependency) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
+
 	if !util.FileExists(targetConfigPath) {
 		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
 	}
@@ -662,11 +704,9 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, l log.Logger, targ
 
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
 
-	// `needUpdateDownloadDir` is true if `DownloadDir` was not explicitly specified by the user and we need to assign the default download dir, otherwise leave as is.
-	needUpdateDownloadDir := filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), util.TerragruntCacheDir) == ctx.TerragruntOptions.DownloadDir
-	if needUpdateDownloadDir {
-		targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
-	}
+	// Always use the dependency's default download directory for parsing
+	// dependencies, as the dependency's cache is where its state and modules exist.
+	targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
 
 	// Clear IAMRoleOptions in case if it is different from one passed through CLI to allow dependencies to define own iam roles
 	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
@@ -690,21 +730,16 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
-	// DownloadDir needs to be updated to be in the ctx of the new config, if using default
-	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(ctx.TerragruntOptions.TerragruntConfigPath)
+	// DownloadDir needs to be the dependency's default download directory
+	// because that's where the dependency's state was created when it was applied.
+	// We always use the dependency's default since outputs must be read from where
+	// the state exists, regardless of any stack-level download directory settings.
+	_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
 	if err != nil {
 		return l, nil, errors.New(err)
 	}
 
-	// Using default, so compute new download dir and update
-	if ctx.TerragruntOptions.DownloadDir == originalDefaultDownloadDir {
-		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
-		if err != nil {
-			return l, nil, errors.New(err)
-		}
-
-		targetOptions.DownloadDir = downloadDir
-	}
+	targetOptions.DownloadDir = downloadDir
 
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
@@ -718,7 +753,8 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 		return l, nil, err
 	}
 
-	if partialTerragruntConfig.TerraformBinary != "" {
+	// Only override TFPath if it was not explicitly set by the user via CLI or environment variable
+	if !targetOptions.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
 		targetOptions.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
@@ -784,7 +820,9 @@ func getTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 		targetConfig,
 		nil,
 	)
-	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
+	canGet := canGetRemoteState(remoteStateTGConfig.RemoteState)
+
+	if err != nil || !canGet {
 		l, targetOpts, err := cloneTerragruntOptionsForDependency(ctx, l, targetConfig)
 		if err != nil {
 			return nil, err
@@ -1200,4 +1238,18 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	}
 
 	return filteredDeps
+}
+
+// IsValidConfigPath checks if a cty.Value is a valid, usable config path.
+func IsValidConfigPath(v cty.Value) bool {
+	if v.IsNull() || !v.IsWhollyKnown() || !v.Type().Equals(cty.String) {
+		return false
+	}
+
+	// Empty string is not a valid config path
+	if v.AsString() == "" {
+		return false
+	}
+
+	return true
 }
