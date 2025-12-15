@@ -71,6 +71,8 @@ const (
 	// Repeated right now, but it might not be later.
 	TestFixtureOutDir = "fixtures/out-dir"
 
+	ReportFile = "report.json"
+
 	readPermissions      = 0444
 	readWritePermissions = 0666
 	allPermissions       = 0777
