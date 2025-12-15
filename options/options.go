@@ -56,6 +56,7 @@ const (
 	minCommandLength = 2
 
 	defaultExcludesFile = ".terragrunt-excludes"
+	defaultFiltersFile  = ".terragrunt-filters"
 
 	DefaultLogLevel = log.InfoLevel
 )
@@ -180,6 +181,8 @@ type TerragruntOptions struct {
 	GraphRoot string
 	// Path to the report file.
 	ReportFile string
+	// Path to a file containing filter queries, one per line. Default is .terragrunt-filters.
+	FiltersFile string
 	// Report format.
 	ReportFormat report.Format
 	// Path to the report schema file.
@@ -328,6 +331,8 @@ type TerragruntOptions struct {
 	NoShell bool
 	// NoHooks disables hooks when using boilerplate templates in catalog and scaffold commands.
 	NoHooks bool
+	// If set, disable automatic reading of .terragrunt-filters file.
+	NoFiltersFile bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -387,6 +392,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 	return &TerragruntOptions{
 		TFPath:                         DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
+		FiltersFile:                    defaultFiltersFile,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
