@@ -102,7 +102,10 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --queue-include-external --all --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply",
+	)
 	require.NoError(t, err)
 	require.NotContains(t, stderr, "Error: Unsupported block type")
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")

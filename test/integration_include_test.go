@@ -65,6 +65,47 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		})
 	}
 }
+func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
+	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+
+	files, err := os.ReadDir(tmpEnvPath)
+	require.NoError(t, err)
+
+	testCases := []string{}
+
+	for _, finfo := range files {
+		if finfo.IsDir() {
+			testCases = append(testCases, finfo.Name())
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(filepath.Base(tc), func(t *testing.T) {
+			t.Parallel()
+
+			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
+			helpers.CleanupTerraformFolder(t, childPath)
+			helpers.RunTerragrunt(t, "terragrunt run --all --filter '{./**}...' --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --log-level trace --working-dir "+childPath, &stdout, &stderr)
+			require.NoError(t, err)
+
+			outputs := map[string]helpers.TerraformOutput{}
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+		})
+	}
+}
 
 func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	t.Parallel()
