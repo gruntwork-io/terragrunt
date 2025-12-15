@@ -952,7 +952,11 @@ func RunTerragruntCommandWithContext(
 
 	parser := shellwords.NewParser()
 
-	args, err := parser.Parse(command)
+	// Convert backslashes to forward slashes before parsing.
+	// shellwords treats backslashes as escape characters, corrupting Windows paths
+	// like C:\foo\bar into C:foobar. Forward slashes work fine since Terragrunt CLI
+	// normalizes paths internally (see cli/commands/commands.go).
+	args, err := parser.Parse(filepath.ToSlash(command))
 	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {

@@ -354,7 +354,7 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 	cleanupTerraformFolder(t, testFixtureUnitsReading)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureUnitsReading)
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
