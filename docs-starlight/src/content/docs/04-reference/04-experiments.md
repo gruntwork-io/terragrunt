@@ -70,6 +70,7 @@ The following experiments are available:
 - [symlinks](#symlinks)
 - [cas](#cas)
 - [filter-flag](#filter-flag)
+- [iac-engine](#iac-engine)
 
 ### symlinks
 
@@ -185,6 +186,33 @@ When this experiment stabilizes, the following queue control flags will be depre
 - `--queue-strict-include`
 
 The current plan is to continue to support the flags as aliases for particular `--filter` patterns.
+
+### `iac-engine`
+
+Support for Terragrunt IaC engines.
+
+#### `iac-engine` - What it does
+
+Enables usage of [Terragrunt IaC engines](/docs/features/engine) for running IaC operations. This allows Terragrunt to use pluggable engines to execute Terraform/OpenTofu commands, providing enhanced functionality and extensibility.
+
+IaC engines are still experimental, as the API is unstable and may change in future minor versions of Terragrunt.
+
+You can disable engine usage on a per-command basis using the [`--no-engine`](/docs/reference/cli/commands/run#no-engine) flag, even when the experiment is enabled globally.
+
+#### `iac-engine` - How to provide feedback
+
+Provide your feedback on the [Terragrunt IaC Engines](https://github.com/gruntwork-io/terragrunt/discussions/5202) GitHub discussion.
+
+#### `iac-engine` - Criteria for stabilization
+
+To transition the `iac-engine` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] API stability and backward compatibility guarantees
+- [ ] Comprehensive integration testing across all supported operations
+- [ ] Documentation of engine development and integration process
+- [ ] Performance benchmarks and optimization
+- [ ] Security review of engine execution and isolation mechanisms
+- [ ] Community feedback on real-world usage and edge cases
 
 ## Completed Experiments
 
