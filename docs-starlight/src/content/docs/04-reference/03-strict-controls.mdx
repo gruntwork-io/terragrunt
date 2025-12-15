@@ -206,6 +206,12 @@ $ terragrunt run --all plan --queue-exclude-external
 WARN  The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.
 ```
 
+### disable-command-validation
+
+Throw an error when using the deprecated `--disable-command-validation` flag.
+
+**Reason**: Command validation has been removed entirely from Terragrunt. The `run` command now accepts any command and passes it through to the underlying OpenTofu/Terraform binary. The `--disable-command-validation` flag is no longer needed and does nothing.
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
