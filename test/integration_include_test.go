@@ -117,7 +117,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --units-that-include alpha.hcl",
+			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --filter 'reading=alpha.hcl'",
 			modulePath,
 		),
 	)

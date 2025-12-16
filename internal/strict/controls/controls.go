@@ -62,6 +62,9 @@ const (
 	// QueueStrictInclude is the control that prevents the use of the deprecated `--queue-strict-include` flag.
 	QueueStrictInclude = "queue-strict-include"
 
+	// UnitsThatInclude is the control that prevents the use of the deprecated `--units-that-include` flag.
+	UnitsThatInclude = "units-that-include"
+
 	// DiscoveryExternal is the control that prevents usage of the deprecated `--external` flag in discovery commands
 	// like `find` and `list`.
 	DiscoveryExternal = "discovery-external"
@@ -228,17 +231,24 @@ func New() strict.Controls {
 		},
 		&Control{
 			Name:        QueueExcludeExternal,
-			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag. External dependencies are now excluded by default.",
+			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
 			Category:    stageCategory,
 			Error:       errors.New("The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them."),
 			Warning:     "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
 		},
 		&Control{
 			Name:        QueueStrictInclude,
-			Description: "Prevents the use of the deprecated `--queue-strict-include` flag. Only modules under the directories passed in with '--queue-include-dir' will be included.",
+			Description: "Prevents the use of the deprecated `--queue-strict-include` flag.",
 			Category:    stageCategory,
 			Error:       errors.New("The `--queue-strict-include` flag is no longer supported. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior."),
 			Warning:     "The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
+		},
+		&Control{
+			Name:        UnitsThatInclude,
+			Description: "Prevents the use of the deprecated `--units-that-include` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration."),
+			Warning:     "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
 		},
 		&Control{
 			Name:        DiscoveryExternal,

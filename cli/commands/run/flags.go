@@ -263,6 +263,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(UnitsThatIncludeFlagName),
 			Destination: &opts.ModulesThatInclude,
 			Usage:       "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
+			Hidden:      true,
+			Action: func(ctx *cli.Context, value []string) error {
+				if len(value) != 0 {
+					return opts.StrictControls.FilterByNames(controls.UnitsThatInclude).Evaluate(ctx.Context)
+				}
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("modules-that-include"), terragruntPrefixControl)),
 
