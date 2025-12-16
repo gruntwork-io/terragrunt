@@ -293,14 +293,50 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		args     []string
 		expected []string
 	}{
-		{[]string{}, []string{}},
-		{[]string{"plan", "--bar"}, []string{"plan", "-bar"}},
-		{[]string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"plan"}},
-		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName)}, []string{"plan"}},
-		{[]string{"plan", doubleDashed(run.InputsDebugFlagName)}, []string{"plan"}},
-		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName), "-bar", doubleDashed(global.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"plan", "-bar", "-baz"}},
-		{[]string{"run", "--all", "apply", "plan", "bar"}, []string{tf.CommandNameApply, "plan", "bar"}},
-		{[]string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
+		{
+			args: []string{},
+		},
+		{
+			args:     []string{"plan", "--bar"},
+			expected: []string{"plan", "-bar"},
+		},
+		{
+			args:     []string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath},
+			expected: []string{"plan"},
+		},
+		{
+			args:     []string{"plan", doubleDashed(global.NonInteractiveFlagName)},
+			expected: []string{"plan"},
+		},
+		{
+			args:     []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			expected: []string{"plan"},
+		},
+		{
+			args: []string{
+				"plan",
+				doubleDashed(global.NonInteractiveFlagName),
+				"-bar",
+				doubleDashed(global.WorkingDirFlagName),
+				"/some/path",
+				"--baz",
+				doubleDashed(run.ConfigFlagName),
+				"/some/path/" + config.DefaultTerragruntConfigPath,
+			},
+			expected: []string{"plan", "-bar", "-baz"},
+		},
+		{
+			args:     []string{"run", "--all", "apply", "plan", "bar"},
+			expected: []string{tf.CommandNameApply, "plan", "bar"},
+		},
+		{
+			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
+			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
+		},
+		{
+			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
+			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
+		},
 	}
 
 	for i, tc := range testCases {
