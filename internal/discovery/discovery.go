@@ -68,6 +68,9 @@ type Discovery struct {
 	// This is set up by callers before calling Discover().
 	worktrees *worktrees.Worktrees
 
+	// report is used for recording excluded external dependencies during discovery.
+	report *report.Report
+
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
@@ -93,12 +96,6 @@ type Discovery struct {
 
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitExpressions
-
-	// report is used for recording excluded external dependencies during discovery.
-	report *report.Report
-
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
@@ -695,13 +692,10 @@ func (d *Discovery) processFile(
 
 	// Now enforce hidden directory check if still applicable
 	if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
-		// If the directory is hidden, allow it only if it matches an include pattern
-		allowHidden := false
-
 		// Always allow .terragrunt-stack contents. We can safely use the non-canonical
 		// dir here because this branch is only reached when canonical path computation
 		// failed, or when we couldn't early-return with a concrete component.
-		allowHidden = isInStackDirectory(filepath.ToSlash(dir))
+		allowHidden := isInStackDirectory(filepath.ToSlash(dir))
 
 		if !allowHidden {
 			return nil
