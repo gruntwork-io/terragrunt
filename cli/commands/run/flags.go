@@ -247,6 +247,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoDependencyFetchOutputFromStateFlagName),
 			Destination: &opts.NoDependencyFetchOutputFromState,
 			Usage:       "Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.",
+			Hidden:      true,
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
@@ -278,6 +279,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(DisableCommandValidationFlagName),
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
+			Hidden:      true,
 			Action: func(ctx *cli.Context, value bool) error {
 				if value {
 					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx.Context)
@@ -408,6 +410,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoEngineFlagName),
 			Destination: &opts.NoEngine,
 			Usage:       "Disable IaC engines even when the iac-engine experiment is enabled.",
+			Hidden:      true,
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
