@@ -90,12 +90,6 @@ type Discovery struct {
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
 
-	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
-	compiledExcludePatterns []CompiledPattern
-
-	// excludeDirs is a list of directory patterns to exclude from discovery.
-	excludeDirs []string
-
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
 
@@ -280,12 +274,6 @@ func (d *Discovery) WithIncludeDirs(dirs []string) *Discovery {
 	return d
 }
 
-// WithExcludeDirs sets exclude directory glob patterns used for filtering during discovery.
-func (d *Discovery) WithExcludeDirs(dirs []string) *Discovery {
-	d.excludeDirs = dirs
-	return d
-}
-
 // WithParserOptions sets custom HCL parser options to use when parsing during discovery.
 func (d *Discovery) WithParserOptions(options []hclparse.Option) *Discovery {
 	d.parserOptions = options
@@ -422,21 +410,6 @@ func (d *Discovery) matchesIncludePath(dir string) bool {
 	}
 
 	return false
-}
-
-// compileExcludePatterns compiles the exclude directory patterns for faster matching.
-func (d *Discovery) compileExcludePatterns(l log.Logger) {
-	d.compiledExcludePatterns = make([]CompiledPattern, 0, len(d.excludeDirs))
-	for _, pattern := range d.excludeDirs {
-		if compiled, err := zglob.New(pattern); err == nil {
-			d.compiledExcludePatterns = append(d.compiledExcludePatterns, CompiledPattern{
-				Original: pattern,
-				Compiled: compiled,
-			})
-		} else {
-			l.Warnf("Failed to compile exclude pattern '%s': %v. Pattern will be ignored.", pattern, err)
-		}
-	}
 }
 
 // String returns a string representation of a Component.
@@ -882,26 +855,6 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 	return nil
 }
 
-// skipParsing determines if the given component should be skipped based on compiled exclude patterns and its path.
-func (d *Discovery) skipParsing(comp component.Component) bool {
-	if len(d.compiledExcludePatterns) == 0 {
-		return false
-	}
-
-	canonicalPath, err := util.CanonicalPath(comp.Path(), d.workingDir)
-	if err != nil {
-		return false
-	}
-
-	for _, pattern := range d.compiledExcludePatterns {
-		if pattern.Compiled.Match(canonicalPath) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // parseConcurrently parses components concurrently to improve performance using errgroup.
 func (d *Discovery) parseConcurrently(
 	ctx context.Context,
@@ -916,12 +869,6 @@ func (d *Discovery) parseConcurrently(
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
 		if _, ok := c.(*component.Stack); ok {
-			continue
-		}
-
-		// Skip parsing components that match exclude patterns.
-		if d.skipParsing(c) {
-			l.Debugf("Skipping parse for excluded component: %s", c.Path())
 			continue
 		}
 
@@ -1045,25 +992,10 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	if len(d.excludeDirs) > 0 {
-		for _, p := range d.excludeDirs {
-			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.discoveryContext.WorkingDir, p)
-			}
-
-			excludePatterns = append(excludePatterns, util.CleanPath(p))
-		}
-	}
-
 	// Compile patterns if not already compiled
 	if len(d.compiledIncludePatterns) == 0 && len(includePatterns) > 0 {
 		d.includeDirs = includePatterns
 		d.compileIncludePatterns(l)
-	}
-
-	if len(d.compiledExcludePatterns) == 0 && len(excludePatterns) > 0 {
-		d.excludeDirs = excludePatterns
-		d.compileExcludePatterns(l)
 	}
 
 	// Use concurrent discovery for better performance

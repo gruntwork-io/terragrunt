@@ -133,10 +133,6 @@ func prepareDiscovery(
 		d = d.WithIncludeDirs(tgOpts.IncludeDirs)
 	}
 
-	if len(tgOpts.ExcludeDirs) > 0 {
-		d = d.WithExcludeDirs(tgOpts.ExcludeDirs)
-	}
-
 	// Include behavior flags
 	if tgOpts.StrictInclude {
 		d = d.WithStrictInclude()

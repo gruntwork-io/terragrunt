@@ -463,8 +463,11 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
+	filters, err := filter.ParseFilterQueries([]string{"!" + unit2Dir})
+	require.NoError(t, err)
+
 	// Exclude unit2
-	d := discovery.NewDiscovery(tmpDir).WithExcludeDirs([]string{unit2Dir})
+	d := discovery.NewDiscovery(tmpDir).WithFilters(filters)
 	cfgs, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(component.UnitKind).Paths())

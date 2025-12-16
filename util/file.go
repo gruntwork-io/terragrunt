@@ -896,8 +896,11 @@ func GetTempDir() (string, error) {
 	return tempDir, nil
 }
 
-// GetExcludeDirsFromFile returns a list of directories from the given filename, where each directory path starts on a new line.
-func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
+// ExcludeFiltersFromFile returns a list of filters from the given filename, where each filter starts on a new line.
+//
+// Note that this is a backwards compatibility implementation for the `--queue-excludes-file` flag, so it's going to
+// append the ! prefix to each filter to negate it.
+func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
 	if err != nil {
 		return nil, err
@@ -913,8 +916,8 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 	}
 
 	var (
-		lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-		dirs  = make([]string, 0, len(lines))
+		lines   = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+		filters = make([]string, 0, len(lines))
 	)
 
 	for _, dir := range lines {
@@ -923,10 +926,10 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 			continue
 		}
 
-		dirs = append(dirs, dir)
+		filters = append(filters, "!"+dir)
 	}
 
-	return dirs, nil
+	return filters, nil
 }
 
 // GetFiltersFromFile returns a list of filter queries from the given filename, where each filter query starts on a new line.

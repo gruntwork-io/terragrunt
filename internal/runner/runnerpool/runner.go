@@ -313,45 +313,6 @@ func NewRunnerPoolStack(
 
 	// Check for units with Git refs but no remote state configuration
 	checkLocalStateWithGitRefs(l, units)
-
-	// Record exclude-dir reasons in report before filtering.
-	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(terragruntOptions.ExcludeDirs) > 0 {
-		for _, unit := range units {
-			for _, dir := range terragruntOptions.ExcludeDirs {
-				cleanDir := dir
-				if !filepath.IsAbs(cleanDir) {
-					cleanDir = filepath.Join(terragruntOptions.WorkingDir, cleanDir)
-				}
-
-				cleanDir = util.CleanPath(cleanDir)
-
-				if util.HasPathPrefix(unit.Path(), cleanDir) {
-					absPath := util.CleanPath(unit.Path())
-					if !filepath.IsAbs(absPath) {
-						if abs, err := filepath.Abs(absPath); err == nil {
-							absPath = util.CleanPath(abs)
-						}
-					}
-
-					run, err := runner.Stack.Execution.Report.EnsureRun(l, absPath)
-					if err != nil {
-						continue
-					}
-
-					err = runner.Stack.Execution.Report.EndRun(
-						l,
-						run.Path,
-						report.WithResult(report.ResultExcluded),
-						report.WithReason(report.ReasonExcludeDir),
-					)
-					if err != nil {
-						l.Errorf("Error ending run for unit %s: %v", absPath, err)
-					}
-				}
-			}
-		}
-	}
-
 	runner.Stack.Units = units
 
 	if isDestroyCommand(terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs) {

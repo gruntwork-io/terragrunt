@@ -381,6 +381,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
+	// TODO: Complete this strict control
 	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
 
 	// Sort and compact opts.IncludeDirs to make them unique
@@ -394,15 +395,12 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		}
 	}
 
-	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
-	// Sort and compact opts.ExcludeDirs to make them unique
-	slices.Sort(opts.ExcludeDirs)
-	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
+	opts.FilterQueries = append(opts.FilterQueries, excludeFiltersFromFile...)
 
 	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
 	if opts.Experiments.Evaluate("filter-flag") && !opts.NoFiltersFile {
@@ -414,12 +412,9 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
 	}
 
-	if !doubleStarEnabled {
-		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
-		if err != nil {
-			return errors.Errorf("invalid exclude dirs: %w", err)
-		}
-	}
+	// Sort and compact opts.FilterQueries to make them unique
+	slices.Sort(opts.FilterQueries)
+	opts.FilterQueries = slices.Compact(opts.FilterQueries)
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

@@ -6,6 +6,7 @@ package shared
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -176,10 +177,23 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.SliceFlag[string]{
-				Name:        QueueExcludeDirFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueExcludeDirFlagName),
-				Destination: &opts.ExcludeDirs,
-				Usage:       "Unix-style glob of directories to exclude from the queue of Units to run.",
+				Name:    QueueExcludeDirFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueExcludeDirFlagName),
+				Hidden:  true,
+				Usage:   "Unix-style glob of directories to exclude from the queue of Units to run.",
+				Action: func(_ *cli.Context, value []string) error {
+					if len(value) == 0 {
+						return nil
+					}
+
+					for _, v := range value {
+						v = filepath.Clean(v)
+
+						opts.FilterQueries = append(opts.FilterQueries, "!"+v)
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("exclude-dir"), terragruntPrefixControl),
 		),

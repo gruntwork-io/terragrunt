@@ -13,7 +13,6 @@ import (
 func (d *Discovery) applyQueueFilters(opts *options.TerragruntOptions, components component.Components) component.Components {
 	components = d.applyIncludeDirs(opts, components)
 	components = d.flagUnitsThatRead(opts, components)
-	components = d.applyExcludeDirs(opts, components)
 	components = d.applyExcludeModules(opts, components)
 
 	return components
@@ -29,24 +28,6 @@ func (d *Discovery) matchesInclude(path string) bool {
 	}
 
 	for _, raw := range d.includeDirs {
-		if cleanPath == util.CleanPath(raw) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (d *Discovery) matchesExclude(path string) bool {
-	cleanPath := util.CleanPath(path)
-
-	for _, pattern := range d.compiledExcludePatterns {
-		if pattern.Compiled.Match(cleanPath) {
-			return true
-		}
-	}
-
-	for _, raw := range d.excludeDirs {
 		if cleanPath == util.CleanPath(raw) {
 			return true
 		}
@@ -281,37 +262,6 @@ func (d *Discovery) flagUnitsThatRead(opts *options.TerragruntOptions, component
 
 	// Restore prior inclusions
 	restorePreIncluded(components, preIncluded)
-
-	return components
-}
-
-// applyExcludeDirs marks units as excluded when they match --queue-exclude-dir patterns.
-func (d *Discovery) applyExcludeDirs(_ *options.TerragruntOptions, components component.Components) component.Components {
-	if len(d.compiledExcludePatterns) == 0 && len(d.excludeDirs) == 0 {
-		return components
-	}
-
-	for _, c := range components {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if d.matchesExclude(unit.Path()) {
-			unit.SetExcluded(true)
-		}
-
-		for _, dep := range unit.Dependencies() {
-			depUnit, ok := dep.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			if d.matchesExclude(depUnit.Path()) {
-				depUnit.SetExcluded(true)
-			}
-		}
-	}
 
 	return components
 }

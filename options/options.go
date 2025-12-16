@@ -192,8 +192,6 @@ type TerragruntOptions struct {
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
-	// Unix-style glob of directories to exclude when running *-all commands
-	ExcludeDirs []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
