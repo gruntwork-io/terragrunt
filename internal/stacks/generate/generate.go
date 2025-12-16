@@ -276,10 +276,6 @@ func ListStackFiles(
 	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return listStackFiles(l, opts, dir)
-	}
-
 	discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,

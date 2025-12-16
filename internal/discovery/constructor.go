@@ -90,17 +90,15 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		})
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled()
+	d = d.WithFilterFlagEnabled()
 
-		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
-			if err != nil {
-				return nil, err
-			}
-
-			d = d.WithFilters(filters)
+	if len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		if err != nil {
+			return nil, err
 		}
+
+		d = d.WithFilters(filters)
 	}
 
 	return d, nil
@@ -110,17 +108,15 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled()
+	d = d.WithFilterFlagEnabled()
 
-		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
-			if err != nil {
-				return nil, err
-			}
-
-			d = d.WithFilters(filters)
+	if len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		if err != nil {
+			return nil, err
 		}
+
+		d = d.WithFilters(filters)
 	}
 
 	return d, nil
@@ -130,17 +126,15 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled()
+	d = d.WithFilterFlagEnabled()
 
-		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries)
-			if err != nil {
-				return nil, err
-			}
-
-			d = d.WithFilters(filters.RestrictToStacks())
+	if len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		if err != nil {
+			return nil, err
 		}
+
+		d = d.WithFilters(filters.RestrictToStacks())
 	}
 
 	return d, nil

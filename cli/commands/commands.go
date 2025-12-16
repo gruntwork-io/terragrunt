@@ -403,7 +403,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	opts.FilterQueries = append(opts.FilterQueries, excludeFiltersFromFile...)
 
 	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
-	if opts.Experiments.Evaluate("filter-flag") && !opts.NoFiltersFile {
+	if !opts.NoFiltersFile {
 		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
 		if filtersFromFileErr != nil {
 			return filtersFromFileErr

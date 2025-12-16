@@ -240,29 +240,17 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        FilterFlagName,
 				EnvVars:     tgPrefix.EnvVars(FilterFlagName),
 				Destination: &opts.FilterQueries,
-				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
-				Action: func(_ *cli.Context, val []string) error {
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics.",
 			},
 		),
 		flags.NewFlag(
 			&cli.BoolFlag{
 				Name:    FilterAffectedFlagName,
 				EnvVars: tgPrefix.EnvVars(FilterAffectedFlagName),
-				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD]. Requires the 'filter-flag' experiment.",
+				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD].",
 				Action: func(ctx *cli.Context, val bool) error {
 					if !val {
 						return nil
-					}
-
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filter-affected flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
 					}
 
 					// Get working directory
@@ -300,14 +288,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        FilterAllowDestroyFlagName,
 				EnvVars:     tgPrefix.EnvVars(FilterAllowDestroyFlagName),
 				Destination: &opts.FilterAllowDestroy,
-				Usage:       "Allow destroy runs when using Git-based filters. Requires the 'filter-flag' experiment.",
-				Action: func(_ *cli.Context, val bool) error {
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filter-allow-destroy flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Allow destroy runs when using Git-based filters.",
 			},
 		),
 		flags.NewFlag(
@@ -315,14 +296,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        FilterFileFlagName,
 				EnvVars:     tgPrefix.EnvVars(FilterFileFlagName),
 				Destination: &opts.FiltersFile,
-				Usage:       "Path to a file containing filter queries, one per line. Default is .terragrunt-filters. Requires the 'filter-flag' experiment.",
-				Action: func(_ *cli.Context, val string) error {
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filters-file flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Path to a file containing filter queries, one per line. Default is .terragrunt-filters.",
 			},
 		),
 		flags.NewFlag(
@@ -330,18 +304,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        NoFilterFileFlagName,
 				EnvVars:     tgPrefix.EnvVars(NoFilterFileFlagName),
 				Destination: &opts.NoFiltersFile,
-				Usage:       "Disable automatic reading of .terragrunt-filters file. Requires the 'filter-flag' experiment.",
-				Action: func(_ *cli.Context, val bool) error {
-					if !val {
-						return nil
-					}
-
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --no-filters-file flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Disable automatic reading of .terragrunt-filters file.",
 			},
 		),
 	}
