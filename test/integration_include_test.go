@@ -68,10 +68,6 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
 	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
@@ -129,10 +125,6 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 
 func TestTerragruntRunAllModulesThatIncludeRestrictsSetWithFilter(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping test - filter flag experiment is not enabled")
-	}
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
 	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)

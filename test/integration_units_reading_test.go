@@ -187,11 +187,6 @@ func TestSOPSUnitsReading(t *testing.T) {
 func TestUnitsReadingWithFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name           string
 		unitsReading   []string

@@ -349,10 +349,6 @@ func TestExcludeDirs(t *testing.T) {
 func TestExcludeDirsWithFilter(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	// Populate module paths.
 	moduleNames := []string{
 		"integration-env/aws/module-aws-a",
@@ -549,11 +545,6 @@ I'm not sure we're getting good value from the time taken on tests like this.
 */
 func TestIncludeDirsWithFilter(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	// Copy the entire download fixture directory to ensure all referenced sources are available
 	tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
@@ -778,10 +769,6 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 
 func TestTerragruntExternalDependenciesWithFilter(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	modules := []string{
 		"module-a",

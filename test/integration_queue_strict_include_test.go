@@ -92,11 +92,6 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
-		// Skip if filter-flag experiment is not enabled
-		if !helpers.IsExperimentMode(t) {
-			t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-		}
-
 		// Test with experimental --filter to only include dependency
 		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --experiment-mode --working-dir %s --filter './dependency' -- plan", testPath)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -118,11 +113,6 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 		t.Parallel()
 
 		helpers.CleanupTerraformFolder(t, testPath)
-
-		// Skip if filter-flag experiment is not enabled
-		if !helpers.IsExperimentMode(t) {
-			t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-		}
 
 		// Test with experimental --filter to only include dependency
 		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --experiment-mode --working-dir %s --filter './dependency' -- destroy -auto-approve", testPath)

@@ -300,10 +300,6 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 func TestFilterDocumentationExamples(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
 	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
 	require.NoError(t, err)
@@ -585,11 +581,6 @@ func TestFilterDocumentationExamples(t *testing.T) {
 
 func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 	t.Parallel()
-
-	// Skip if experiment mode is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	// Create temporary directory for dynamic fixtures
 	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
