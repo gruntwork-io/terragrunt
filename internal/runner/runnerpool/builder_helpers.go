@@ -95,7 +95,7 @@ func newBaseDiscovery(
 	configFilenames []string,
 	opts ...common.Option,
 ) *discovery.Discovery {
-	anyOpts := make([]interface{}, len(opts))
+	anyOpts := make([]any, len(opts))
 	for i, v := range opts {
 		anyOpts[i] = v
 	}
@@ -103,9 +103,6 @@ func newBaseDiscovery(
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anyOpts...).
-		WithParseInclude().
-		WithParseExclude().
-		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
