@@ -294,12 +294,6 @@ func (d *Discovery) WithGraphTarget(target string) *Discovery {
 	return d
 }
 
-// WithExcludeByDefault enables exclude-by-default behavior.
-func (d *Discovery) WithExcludeByDefault() *Discovery {
-	d.excludeByDefault = true
-	return d
-}
-
 // WithNumWorkers sets the number of concurrent workers for discovery operations.
 func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
 	d.numWorkers = numWorkers
@@ -317,7 +311,7 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	// If there are any positive filters, we need to exclude by default,
 	// and only include components if they match filters.
 	if d.filters.HasPositiveFilter() {
-		d.WithExcludeByDefault()
+		d.withExcludeByDefault()
 	}
 
 	// Collect target expressions from graph filters for selective graph traversal.
@@ -339,6 +333,12 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 // WithBreakCycles sets the BreakCycles flag to true.
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
+	return d
+}
+
+// WithExcludeByDefault enables exclude-by-default behavior.
+func (d *Discovery) withExcludeByDefault() *Discovery {
+	d.excludeByDefault = true
 	return d
 }
 

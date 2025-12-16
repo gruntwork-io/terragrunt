@@ -484,7 +484,7 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(component.UnitKind).Paths())
 
 	// Exclude-by-default and include only unit1
-	d = discovery.NewDiscovery(tmpDir).WithExcludeByDefault().WithIncludeDirs([]string{unit1Dir})
+	d = discovery.NewDiscovery(tmpDir).WithIncludeDirs([]string{unit1Dir})
 	cfgs, err = d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(component.UnitKind).Paths())
@@ -997,7 +997,6 @@ func TestDiscoverWithModulesThatIncludeDoesNotDropConfigs(t *testing.T) {
 	require.NoError(t, err)
 
 	opts.ModulesThatInclude = []string{"alpha.hcl"}
-	opts.ExcludeByDefault = true
 
 	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 	require.NoError(t, err)

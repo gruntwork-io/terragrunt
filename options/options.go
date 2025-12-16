@@ -190,8 +190,6 @@ type TerragruntOptions struct {
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
-	// Unix-style glob of directories to include when running *-all commands
-	IncludeDirs []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -248,8 +246,6 @@ type TerragruntOptions struct {
 	JSONDisableDependentModules bool
 	// Enables Terragrunt's provider caching.
 	ProviderCache bool
-	// If set to true, exclude all directories by default when running *-all commands
-	ExcludeByDefault bool
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 	// True if is required to check for dependent modules during destroy operations

@@ -119,7 +119,6 @@ func newBaseDiscovery(
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
 func prepareDiscovery(
 	tgOpts *options.TerragruntOptions,
-	excludeByDefault bool,
 	opts ...common.Option,
 ) (*discovery.Discovery, error) {
 	workingDir := resolveWorkingDir(tgOpts)
@@ -127,18 +126,9 @@ func prepareDiscovery(
 
 	d := newBaseDiscovery(tgOpts, workingDir, configFilenames, opts...)
 
-	// Include / exclude directories
-	if len(tgOpts.IncludeDirs) > 0 {
-		d = d.WithIncludeDirs(tgOpts.IncludeDirs)
-	}
-
 	// Include behavior flags
 	if tgOpts.StrictInclude {
 		d = d.WithStrictInclude()
-	}
-
-	if excludeByDefault {
-		d = d.WithExcludeByDefault()
 	}
 
 	// Enable reading file tracking when requested by CLI flags
@@ -178,7 +168,7 @@ func discoverWithRetry(
 	opts ...common.Option,
 ) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
-	d, err := prepareDiscovery(tgOpts, tgOpts.ExcludeByDefault, opts...)
+	d, err := prepareDiscovery(tgOpts, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +196,7 @@ func discoverWithRetry(
 	if len(discovered) == 0 && (len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0) {
 		l.Debugf("Runner pool discovery returned 0 configs; retrying without exclude-by-default")
 
-		d, err = prepareDiscovery(tgOpts, false, opts...)
+		d, err = prepareDiscovery(tgOpts, opts...)
 		if err != nil {
 			return nil, err
 		}

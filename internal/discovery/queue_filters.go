@@ -11,7 +11,6 @@ import (
 // applyQueueFilters marks discovered units as excluded or included based on queue-related CLI flags and config.
 // The runner consumes the exclusion markers instead of re-evaluating the filters.
 func (d *Discovery) applyQueueFilters(opts *options.TerragruntOptions, components component.Components) component.Components {
-	components = d.applyIncludeDirs(opts, components)
 	components = d.flagUnitsThatRead(opts, components)
 	components = d.applyExcludeModules(opts, components)
 
@@ -40,26 +39,6 @@ func (d *Discovery) matchesInclude(path string) bool {
 func unitFrom(c component.Component) (*component.Unit, bool) {
 	u, ok := c.(*component.Unit)
 	return u, ok
-}
-
-// applyIncludeDirs mirrors the runner's include-dir handling for ExcludeByDefault and StrictInclude flags.
-func (d *Discovery) applyIncludeDirs(opts *options.TerragruntOptions, components component.Components) component.Components {
-	if !opts.ExcludeByDefault {
-		return components
-	}
-
-	// First pass: set excluded by default, then include any units matching include patterns.
-	d.includePass(opts, components)
-
-	// If strict include is set, do not propagate inclusion to dependencies.
-	if opts.StrictInclude {
-		return components
-	}
-
-	// Second pass: include dependencies of already-included units.
-	d.propagateIncludedDeps(components)
-
-	return components
 }
 
 // includePass applies the initial include-dir rules when excluding by default.

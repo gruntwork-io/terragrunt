@@ -187,7 +187,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 					}
 
 					for _, v := range value {
-						v = filepath.Clean(v)
+						v = filepath.Join(".", filepath.Clean(v))
 
 						opts.FilterQueries = append(opts.FilterQueries, "!"+v)
 					}
@@ -200,10 +200,23 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.SliceFlag[string]{
-				Name:        QueueIncludeDirFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueIncludeDirFlagName),
-				Destination: &opts.IncludeDirs,
-				Usage:       "Unix-style glob of directories to include from the queue of Units to run.",
+				Name:    QueueIncludeDirFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueIncludeDirFlagName),
+				Hidden:  true,
+				Usage:   "Unix-style glob of directories to include from the queue of Units to run.",
+				Action: func(_ *cli.Context, value []string) error {
+					if len(value) == 0 {
+						return nil
+					}
+
+					for _, v := range value {
+						v = filepath.Join(".", filepath.Clean(v))
+
+						opts.FilterQueries = append(opts.FilterQueries, v)
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-dir"), terragruntPrefixControl),
 		),
