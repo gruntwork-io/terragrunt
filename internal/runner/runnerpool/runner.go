@@ -158,6 +158,7 @@ func resolveUnitsFromDiscovery(
 	}
 
 	basePath := stack.Path()
+
 	configFileName := config.DefaultTerragruntConfigPath
 	if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
 		configFileName = filepath.Base(stack.Execution.TerragruntOptions.TerragruntConfigPath)
