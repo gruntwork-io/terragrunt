@@ -90,8 +90,6 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		})
 	}
 
-	d = d.WithFilterFlagEnabled()
-
 	if len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 		if err != nil {
@@ -108,8 +106,6 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	d = d.WithFilterFlagEnabled()
-
 	if len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
 		if err != nil {
@@ -125,8 +121,6 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 // NewForStackGenerate creates a Discovery configured for `stack generate`.
 func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
-
-	d = d.WithFilterFlagEnabled()
 
 	if len(opts.FilterQueries) > 0 {
 		filters, err := filter.ParseFilterQueries(opts.FilterQueries)

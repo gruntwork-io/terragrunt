@@ -134,9 +134,6 @@ type Discovery struct {
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
 
-	// filterFlagEnabled determines whether the filter flag experiment is active
-	filterFlagEnabled bool
-
 	// breakCycles determines whether to break cycles in the dependency graph if any exist.
 	breakCycles bool
 
@@ -333,8 +330,6 @@ func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
 func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	d.filters = filters
 
-	d.WithFilterFlagEnabled()
-
 	// If there are any positive filters, we need to exclude by default,
 	// and only include components if they match filters.
 	if d.filters.HasPositiveFilter() {
@@ -354,13 +349,6 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	// The worktrees will be created during discovery before filtering.
 	d.gitExpressions = d.filters.UniqueGitFilters()
 
-	return d
-}
-
-// WithFilterFlagEnabled sets whether the filter flag experiment is enabled.
-// This changes how discovery processes components during file traversal.
-func (d *Discovery) WithFilterFlagEnabled() *Discovery {
-	d.filterFlagEnabled = true
 	return d
 }
 
@@ -700,12 +688,6 @@ func (d *Discovery) skipDirIfIgnorable(_ log.Logger, path string) error {
 		}
 	}
 
-	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns.
-	// We also avoid early skipping for CLI exclude patterns so reporting can capture excluded units.
-	if d.filterFlagEnabled {
-		return nil
-	}
-
 	return nil
 }
 
@@ -737,51 +719,36 @@ func (d *Discovery) processFile(
 		// Eventually, this is going to be removed entirely, as filter evaluation
 		// will be all that's needed. We no longer drop configs via exclude patterns here so
 		// reporting can record excluded units.
-		if d.filterFlagEnabled {
-			c := d.createComponentFromPath(path, filenames)
-			if c == nil {
+		c := d.createComponentFromPath(path, filenames)
+		if c == nil {
+			return nil
+		}
+
+		// Check for hidden directories before returning
+		if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
+			// Always allow .terragrunt-stack contents
+			cleanDir := util.CleanPath(canonicalDir)
+			if !isInStackDirectory(cleanDir) {
 				return nil
 			}
+		}
 
-			// Check for hidden directories before returning
-			if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
-				// Always allow .terragrunt-stack contents
-				cleanDir := util.CleanPath(canonicalDir)
-				if !isInStackDirectory(cleanDir) {
+		shouldEvaluateFiltersNow := !d.discoverDependencies
+		if shouldEvaluateFiltersNow {
+			if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
+				filtered, err := d.filters.Evaluate(l, component.Components{c})
+				if err != nil {
+					l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
+					return nil
+				}
+
+				if len(filtered) == 0 {
 					return nil
 				}
 			}
-
-			shouldEvaluateFiltersNow := !d.discoverDependencies
-			if shouldEvaluateFiltersNow {
-				if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
-					filtered, err := d.filters.Evaluate(l, component.Components{c})
-					if err != nil {
-						l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
-						return nil
-					}
-
-					if len(filtered) == 0 {
-						return nil
-					}
-				}
-			}
-
-			return c
 		}
 
-		// Everything after this point is only relevant when the filter flag is disabled.
-		// It should be removed once the filter flag is generally available.
-
-		// Enforce include patterns early only when patterns exist AND readFiles is NOT enabled.
-		// When readFiles is enabled (--queue-include-units-reading/--modules-that-include),
-		// we must discover all configs first so that flagUnitsThatRead can filter based on
-		// which files each unit reads. Without this bypass, units outside the default include
-		// patterns (.terragrunt-stack/**) would be dropped before flagUnitsThatRead runs.
-		enforceInclude := !d.readFiles && (d.strictInclude || d.excludeByDefault) && len(d.compiledIncludePatterns) > 0
-		if enforceInclude && !d.matchesIncludePath(canonicalDir) {
-			return nil
-		}
+		return c
 	}
 
 	// Now enforce hidden directory check if still applicable
@@ -1183,7 +1150,7 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	if d.filterFlagEnabled && d.discoverDependencies {
+	if d.discoverDependencies {
 		relationshipDiscovery := NewRelationshipDiscovery(&components).
 			WithMaxDepth(d.maxDependencyDepth).
 			WithNumWorkers(d.numWorkers).
@@ -1394,16 +1361,6 @@ func (d *Discovery) determineDependencyStartingComponents(
 		errs               []error
 	)
 
-	// In the legacy discovery path, it's a binary all or nothing.
-	if !d.filterFlagEnabled {
-		if d.discoverDependencies {
-			return components, nil
-		}
-
-		return startingComponents, nil
-	}
-
-	// In the filter flag enabled path:
 	// - If we have dependency target expressions, use them to determine starting components
 	// - If we don't have dependency target expressions but discoverDependencies is enabled,
 	//   use all components as starting points (to discover dependencies of all components)
