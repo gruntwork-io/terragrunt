@@ -28,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
 )
@@ -76,9 +75,6 @@ type Discovery struct {
 	sort Sort
 
 	graphTarget string
-
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
@@ -236,12 +232,6 @@ func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
 	return d
 }
 
-// WithIncludeDirs sets include directory glob patterns used for filtering during discovery.
-func (d *Discovery) WithIncludeDirs(dirs []string) *Discovery {
-	d.includeDirs = dirs
-	return d
-}
-
 // WithParserOptions sets custom HCL parser options to use when parsing during discovery.
 func (d *Discovery) WithParserOptions(options []hclparse.Option) *Discovery {
 	d.parserOptions = options
@@ -331,32 +321,6 @@ func (d *Discovery) WithBreakCycles() *Discovery {
 func (d *Discovery) withExcludeByDefault() *Discovery {
 	d.excludeByDefault = true
 	return d
-}
-
-// compileIncludePatterns compiles the include directory patterns for faster matching.
-func (d *Discovery) compileIncludePatterns(l log.Logger) {
-	d.compiledIncludePatterns = make([]CompiledPattern, 0, len(d.includeDirs))
-	for _, pattern := range d.includeDirs {
-		if compiled, err := zglob.New(pattern); err == nil {
-			d.compiledIncludePatterns = append(d.compiledIncludePatterns, CompiledPattern{
-				Original: pattern,
-				Compiled: compiled,
-			})
-		} else {
-			l.Warnf("Failed to compile include pattern '%s': %v. Pattern will be ignored.", pattern, err)
-		}
-	}
-}
-
-// matchesIncludePath reports whether the provided directory matches any compiled include pattern.
-func (d *Discovery) matchesIncludePath(dir string) bool {
-	for _, pattern := range d.compiledIncludePatterns {
-		if pattern.Compiled.Match(dir) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // String returns a string representation of a Component.
@@ -732,11 +696,6 @@ func (d *Discovery) processFile(
 			// Always allow .terragrunt-stack contents
 			cleanDir := util.CleanPath(canonicalDir)
 			allowHidden = isInStackDirectory(cleanDir)
-
-			if !allowHidden {
-				// Use a common helper for include matching
-				allowHidden = d.matchesIncludePath(canonicalDir)
-			}
 		}
 
 		if !allowHidden {
@@ -895,25 +854,6 @@ func (d *Discovery) Discover(
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
 		filenames = DefaultConfigFilenames
-	}
-
-	// Prepare include/exclude glob patterns (canonicalized) for matching
-	var includePatterns []string
-
-	if len(d.includeDirs) > 0 {
-		for _, p := range d.includeDirs {
-			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.discoveryContext.WorkingDir, p)
-			}
-
-			includePatterns = append(includePatterns, util.CleanPath(p))
-		}
-	}
-
-	// Compile patterns if not already compiled
-	if len(d.compiledIncludePatterns) == 0 && len(includePatterns) > 0 {
-		d.includeDirs = includePatterns
-		d.compileIncludePatterns(l)
 	}
 
 	// Use concurrent discovery for better performance

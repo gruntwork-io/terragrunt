@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -138,10 +137,6 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
 
 	discovery := &Discovery{
-		includeDirs: []string{
-			config.StackDir,
-			filepath.Join(config.StackDir, "**"),
-		},
 		numWorkers:         numWorkers,
 		maxDependencyDepth: defaultMaxDependencyDepth,
 		discoveryContext: &component.DiscoveryContext{
