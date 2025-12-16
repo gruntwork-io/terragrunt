@@ -49,7 +49,12 @@ func BuildCanonicalConfigPath(
 ) (canonicalConfigPath string, canonicalDir string, err error) {
 	terragruntConfigPath := unit.Path()
 	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
-		terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
+		fileName := config.DefaultTerragruntConfigPath
+		if configFileName != "" && configFileName != "." {
+			fileName = configFileName
+		}
+
+		terragruntConfigPath = filepath.Join(unit.Path(), fileName)
 	}
 
 	// Convert to canonical absolute path - this is critical for dependency resolution
@@ -153,6 +158,10 @@ func resolveUnitsFromDiscovery(
 	}
 
 	basePath := stack.Path()
+	configFileName := config.DefaultTerragruntConfigPath
+	if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
+		configFileName = filepath.Base(stack.Execution.TerragruntOptions.TerragruntConfigPath)
+	}
 
 	for _, c := range discovered {
 		unit, ok := c.(*component.Unit)
@@ -893,22 +902,22 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 
 		// Add any missing allowed dependencies from the resolved unit graph
 		for _, dep := range u.Dependencies() {
-			depUnit, ok := dep.(*component.Unit)
-			if !ok || depUnit == nil {
+			depUnit, okDep := dep.(*component.Unit)
+			if !okDep || depUnit == nil {
 				continue
 			}
 
-			if _, ok := allowed[depUnit.Path()]; !ok {
+			if _, allowedOK := allowed[depUnit.Path()]; !allowedOK {
 				continue
 			}
 
-			if _, ok := existing[depUnit.Path()]; ok {
+			if _, existsOK := existing[depUnit.Path()]; existsOK {
 				continue
 			}
 
 			// Ensure the dependency config exists in the filtered set
-			depCfg, ok := present[depUnit.Path()]
-			if !ok {
+			depCfg, presentOK := present[depUnit.Path()]
+			if !presentOK {
 				depCfg = component.NewUnit(depUnit.Path())
 				filtered = append(filtered, depCfg)
 				present[depUnit.Path()] = depCfg
