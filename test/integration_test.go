@@ -793,7 +793,13 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 		filepath.Join("second", "c", "terragrunt.hcl"),
 	}
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json --show-config-path", rootPath))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt hcl validate --all --working-dir %s --json --show-config-path",
+			rootPath,
+		),
+	)
 	require.Error(t, err)
 
 	var actualPaths []string
