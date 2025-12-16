@@ -67,9 +67,11 @@ func TraceGitWorktreeCreate(ctx context.Context, ref, worktreeDir, repoRemote, r
 	if repoRemote != "" {
 		attrs[AttrGitRepoRemote] = repoRemote
 	}
+
 	if repoBranch != "" {
 		attrs[AttrGitRepoBranch] = repoBranch
 	}
+
 	if repoCommit != "" {
 		attrs[AttrGitRepoCommit] = repoCommit
 	}
@@ -104,9 +106,11 @@ func TraceGitWorktreesCreate(ctx context.Context, workingDir string, refCount in
 	if repoRemote != "" {
 		attrs[AttrGitRepoRemote] = repoRemote
 	}
+
 	if repoBranch != "" {
 		attrs[AttrGitRepoBranch] = repoBranch
 	}
+
 	if repoCommit != "" {
 		attrs[AttrGitRepoCommit] = repoCommit
 	}

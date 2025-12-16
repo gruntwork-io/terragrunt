@@ -84,6 +84,7 @@ func (wd *WorktreeDiscovery) Discover(
 			discoveryGroup.Go(func() error {
 				// Track filter expansion with telemetry
 				var fromFilters, toFilters filter.Filters
+
 				diffs := pair.Diffs
 
 				expandErr := filter.TraceGitFilterExpand(
@@ -304,7 +305,9 @@ func (wd *WorktreeDiscovery) walkChangedStack(
 		toStack.DiscoveryContext().Ref,
 		func(ctx context.Context) error {
 			var walkErr error
+
 			result, walkErr = wd.walkChangedStackInternal(ctx, l, opts, originalDiscovery, fromStack, toStack)
+
 			return walkErr
 		},
 	)

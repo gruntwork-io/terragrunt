@@ -353,6 +353,7 @@ func NewWorktrees(
 	if err != nil {
 		return nil, tgerrors.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}
+
 	gitRunner = gitRunner.WithWorkDir(workingDir)
 
 	// Get repo info for telemetry
@@ -404,7 +405,9 @@ func NewWorktrees(
 
 				diffErr := filter.TraceGitDiff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote, func(ctx context.Context) error {
 					var err error
+
 					diffs, err = gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
+
 					return err
 				})
 				if diffErr != nil {
@@ -434,6 +437,7 @@ func NewWorktrees(
 				gitRunner:          gitRunner,
 			}
 			outerErr = err
+
 			return err
 		}
 
@@ -448,7 +452,7 @@ func NewWorktrees(
 
 			// Record telemetry for diff results
 			if diffs := expressionsToDiffs[gitExpression]; diffs != nil {
-				recordDiffTelemetry(ctx, gitExpression, diffs)
+				recordDiffTelemetry(ctx, diffs)
 			}
 		}
 
@@ -470,14 +474,12 @@ func NewWorktrees(
 }
 
 // recordDiffTelemetry records telemetry metrics for git diff results.
-func recordDiffTelemetry(ctx context.Context, expr *filter.GitExpression, diffs *git.Diffs) {
+func recordDiffTelemetry(ctx context.Context, diffs *git.Diffs) {
 	telemeter := telemetry.TelemeterFromContext(ctx)
 	if telemeter == nil || telemeter.Meter == nil {
 		return
 	}
 
-	// Count method only takes ctx, name, and value - attributes aren't supported
-	// Use descriptive metric names that include the context
 	telemeter.Count(ctx, "git_diff_files_added", int64(len(diffs.Added)))
 	telemeter.Count(ctx, "git_diff_files_removed", int64(len(diffs.Removed)))
 	telemeter.Count(ctx, "git_diff_files_changed", int64(len(diffs.Changed)))

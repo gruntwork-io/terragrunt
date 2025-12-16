@@ -466,6 +466,7 @@ func (g *GitRunner) GetCurrentBranch(ctx context.Context) string {
 	cmd := g.prepareCommand(ctx, "rev-parse", "--abbrev-ref", "HEAD")
 
 	var stdout bytes.Buffer
+
 	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
@@ -484,6 +485,7 @@ func (g *GitRunner) GetHeadCommit(ctx context.Context) string {
 	cmd := g.prepareCommand(ctx, "rev-parse", "HEAD")
 
 	var stdout bytes.Buffer
+
 	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
