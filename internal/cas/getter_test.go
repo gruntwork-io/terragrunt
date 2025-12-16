@@ -56,6 +56,11 @@ func TestCASGetterDetect(t *testing.T) {
 			pwd:  tmp,
 		},
 		{
+			name: "HTTPS URL repository",
+			src:  "git::https://github.com/gruntwork-io/terragrunt",
+			pwd:  tmp,
+		},
+		{
 			name:        "Invalid URL",
 			src:         "not-a-valid-url",
 			pwd:         tmp,
