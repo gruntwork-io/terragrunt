@@ -103,8 +103,6 @@ func newBaseDiscovery(
 	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anyOpts...).
-		WithParseInclude().
-		WithParseExclude().
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
 		WithDiscoveryContext(&component.DiscoveryContext{
