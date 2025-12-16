@@ -126,11 +126,6 @@ func prepareDiscovery(
 
 	d := newBaseDiscovery(tgOpts, workingDir, configFilenames, opts...)
 
-	// Include behavior flags
-	if tgOpts.StrictInclude {
-		d = d.WithStrictInclude()
-	}
-
 	// Enable reading file tracking when requested by CLI flags
 	if len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0 {
 		d = d.WithReadFiles()

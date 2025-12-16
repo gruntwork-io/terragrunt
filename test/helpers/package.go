@@ -390,7 +390,11 @@ func FileIsInFolder(t *testing.T, name string, path string) bool {
 	return found
 }
 
-func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
+func RunValidateAllWithIncludeAndGetIncludedModules(
+	t *testing.T,
+	rootModulePath string,
+	includeModulePaths []string,
+) []string {
 	t.Helper()
 
 	cmdParts := []string{
@@ -402,10 +406,6 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
-	}
-
-	if strictInclude {
-		cmdParts = append(cmdParts, "--queue-strict-include")
 	}
 
 	cmd := strings.Join(cmdParts, " ")

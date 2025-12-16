@@ -15,7 +15,7 @@ const (
 	testFixtureQueueStrictIncludeUnitsReading = "fixtures/queue-strict-include-units-reading"
 )
 
-// TestQueueStrictIncludeWithDependencyNotInQueue tests that when using --queue-strict-include
+// TestQueueStrictIncludeWithDependencyNotInQueue tests that when using --queue-include-dir
 // or --filter, units can run even when their dependencies are not in the queue (but have existing state).
 func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	t.Parallel()
@@ -36,15 +36,18 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	assert.Contains(t, stdout+stderr, "dependency", "dependency should be applied")
 	assert.Contains(t, stdout+stderr, "dependent", "dependent should be applied")
 
-	t.Run("queue-strict-include with queue-include-dir", func(t *testing.T) {
+	t.Run("queue-include-dir", func(t *testing.T) {
 		t.Parallel()
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
-		// Test with --queue-strict-include and --queue-include-dir to only include dependency
+		// Test with --queue-include-dir to only include dependency
 		// The dependency unit depends on transitive-dependency, which should not be in the queue
 		// but should be considered ready because it has existing state
-		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir '**/dependency' --queue-strict-include -- plan", testPath)
+		cmd := fmt.Sprintf(
+			"terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir '**/dependency' -- plan",
+			testPath,
+		)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// The command should succeed
@@ -60,15 +63,15 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue")
 	})
 
-	t.Run("queue-strict-include with queue-include-dir and destroy", func(t *testing.T) {
+	t.Run("queue-include-dir and destroy", func(t *testing.T) {
 		t.Parallel()
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
-		// Test with --queue-strict-include and --queue-include-dir to only include dependency
+		// Test with --queue-include-dir to only include dependency
 		// The dependency unit depends on transitive-dependency, which should not be in the queue
 		// but should be considered ready because it has existing state
-		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir '**/dependency' --queue-strict-include -- destroy -auto-approve", testPath)
+		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir '**/dependency' -- destroy -auto-approve", testPath)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// The command should succeed
@@ -140,7 +143,7 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 }
 
 // TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir reproduces the bug where
-// --queue-strict-include with --queue-include-units-reading (but no --queue-include-dir)
+// --queue-include-units-reading (but no --queue-include-dir)
 // fails to discover units that read the specified file.
 func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 	t.Parallel()
@@ -149,9 +152,9 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
 
-	// This reproduces the bug: --queue-strict-include + --queue-include-units-reading
-	// without --queue-include-dir should still include units that read the file
-	cmd := fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s --queue-strict-include --queue-include-units-reading=sources/source.hcl -- plan", testPath)
+	// This reproduces the bug: --queue-include-units-reading
+	// without --queue-include-dir should still only include units that read the file
+	cmd := fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s --queue-include-units-reading=sources/source.hcl -- plan", testPath)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 	// The command should succeed and discover the unit

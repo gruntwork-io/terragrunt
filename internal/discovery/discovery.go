@@ -119,9 +119,6 @@ type Discovery struct {
 	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
 	requiresParse bool
 
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
-
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool
 
@@ -279,12 +276,6 @@ func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
 		d = d.WithParserOptions(parserOptions)
 	}
 
-	return d
-}
-
-// WithStrictInclude enables strict include mode.
-func (d *Discovery) WithStrictInclude() *Discovery {
-	d.strictInclude = true
 	return d
 }
 
@@ -1104,15 +1095,6 @@ func (d *Discovery) Discover(
 
 		components = threadSafeComponents.ToComponents()
 
-		// Apply strictInclude filtering: when strictInclude is true, remove dependencies
-		// that don't match the include patterns (they shouldn't be included just because
-		// they are dependencies of included units).
-		// Skip this filtering when readFiles is enabled, as we need all components
-		// to remain available for flagUnitsThatRead to process in applyQueueFilters.
-		if d.strictInclude && len(d.compiledIncludePatterns) > 0 && !d.readFiles {
-			components = d.filterByStrictInclude(l, components)
-		}
-
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
 			"working_dir":  d.discoveryContext.WorkingDir,
 			"config_count": len(components),
@@ -1581,44 +1563,6 @@ func (d *Discovery) filterByExcludeBlock(l log.Logger, opts *options.TerragruntO
 		}
 
 		result = append(result, c)
-	}
-
-	return result
-}
-
-// filterByStrictInclude filters components to only include those that match the include patterns.
-// This is used when strictInclude is enabled to prevent dependencies from being automatically included.
-// Components that don't match any include pattern are removed from the result.
-func (d *Discovery) filterByStrictInclude(l log.Logger, components component.Components) component.Components {
-	result := make(component.Components, 0, len(components))
-
-	for _, c := range components {
-		componentPath := c.Path()
-
-		// Canonicalize the path for matching
-		canonicalPath, err := util.CanonicalPath(componentPath, d.workingDir)
-		if err != nil {
-			// If we can't canonicalize, try matching the raw path
-			canonicalPath = componentPath
-		}
-
-		cleanPath := util.CleanPath(canonicalPath)
-
-		// Check if this component matches any include pattern
-		matched := false
-
-		for _, pattern := range d.compiledIncludePatterns {
-			if pattern.Compiled.Match(cleanPath) {
-				matched = true
-				break
-			}
-		}
-
-		if matched {
-			result = append(result, c)
-		} else {
-			l.Debugf("Filtering out %s due to strict include mode (doesn't match include patterns)", componentPath)
-		}
 	}
 
 	return result

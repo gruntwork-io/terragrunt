@@ -345,7 +345,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 	}
 }
 
-// TestQueueStrictIncludeWithUnitsReading tests that --queue-strict-include works correctly
+// TestQueueStrictIncludeWithUnitsReading tests that --queue-include-units-reading works correctly
 // with --queue-include-units-reading when no --queue-include-dir is specified.
 // This reproduces the bug where units reading the specified file were not included.
 func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
@@ -358,10 +358,10 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	// Test the bug scenario: --queue-strict-include + --queue-include-units-reading
+	// Test the bug scenario: --queue-include-units-reading
 	// without --queue-include-dir. Units reading shared.hcl should be included.
 	cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath +
-		" --queue-strict-include --queue-include-units-reading shared.hcl"
+		" --queue-include-units-reading shared.hcl"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err, "Command should succeed and include units reading shared.hcl")
@@ -380,5 +380,5 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 		"reading-hcl-and-tfvars",
 	}
 	assert.ElementsMatch(t, expectedUnits, includedUnits,
-		"Units reading shared.hcl should be included when using --queue-strict-include with --queue-include-units-reading")
+		"Units reading shared.hcl should be included when using --queue-include-units-reading")
 }

@@ -991,7 +991,7 @@ func TestStackApplyStrictInclude(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run apply --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 

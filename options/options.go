@@ -240,8 +240,6 @@ type TerragruntOptions struct {
 	Check bool
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
-	// If set to true, do not include dependencies when processing IncludeDirs
-	StrictInclude bool
 	// Disable listing of dependent modules in render json output
 	JSONDisableDependentModules bool
 	// Enables Terragrunt's provider caching.

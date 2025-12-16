@@ -223,10 +223,16 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.BoolFlag{
-				Name:        QueueStrictIncludeFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueStrictIncludeFlagName),
-				Destination: &opts.StrictInclude,
-				Usage:       "If flag is set, only modules under the directories passed in with '--queue-include-dir' will be included.",
+				Name:    QueueStrictIncludeFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueStrictIncludeFlagName),
+				Usage:   "If flag is set, only modules under the directories passed in with '--queue-include-dir' will be included.",
+				Hidden:  true,
+				Action: func(ctx *cli.Context, value bool) error {
+					if value {
+						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx.Context)
+					}
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-include"), terragruntPrefixControl),
 		),

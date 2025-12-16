@@ -490,7 +490,7 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(component.UnitKind).Paths())
 
 	// Strict include behaves the same
-	d = discovery.NewDiscovery(tmpDir).WithStrictInclude().WithIncludeDirs([]string{unit3Dir})
+	d = discovery.NewDiscovery(tmpDir).WithIncludeDirs([]string{unit3Dir})
 	cfgs, err = d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{unit3Dir}, cfgs.Filter(component.UnitKind).Paths())
