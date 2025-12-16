@@ -53,13 +53,6 @@ const (
 	maxCycleRemovalAttempts = 100
 )
 
-// defaultExcludeDirs is the default directories where units should never be discovered.
-var defaultExcludeDirs = []string{
-	".git/**",
-	".terraform/**",
-	".terragrunt-cache/**",
-}
-
 // Sort is the sort order of the discovered configurations.
 type Sort string
 
@@ -140,9 +133,6 @@ type Discovery struct {
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
-
-	// useDefaultExcludes determines whether to use default exclude patterns.
-	useDefaultExcludes bool
 
 	// filterFlagEnabled determines whether the filter flag experiment is active
 	filterFlagEnabled bool
@@ -332,12 +322,6 @@ func (d *Discovery) WithExcludeByDefault() *Discovery {
 // WithNumWorkers sets the number of concurrent workers for discovery operations.
 func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
 	d.numWorkers = numWorkers
-	return d
-}
-
-// WithoutDefaultExcludes disables the use of default exclude patterns (e.g. .git, .terraform, .terragrunt-cache).
-func (d *Discovery) WithoutDefaultExcludes() *Discovery {
-	d.useDefaultExcludes = false
 	return d
 }
 
@@ -975,12 +959,7 @@ func (d *Discovery) Discover(
 	}
 
 	// Prepare include/exclude glob patterns (canonicalized) for matching
-	var includePatterns, excludePatterns []string
-
-	// Add default excludes if enabled
-	if d.useDefaultExcludes {
-		excludePatterns = append(excludePatterns, defaultExcludeDirs...)
-	}
+	var includePatterns []string
 
 	if len(d.includeDirs) > 0 {
 		for _, p := range d.includeDirs {
@@ -1207,7 +1186,8 @@ func (d *Discovery) Discover(
 	if d.filterFlagEnabled && d.discoverDependencies {
 		relationshipDiscovery := NewRelationshipDiscovery(&components).
 			WithMaxDepth(d.maxDependencyDepth).
-			WithNumWorkers(d.numWorkers)
+			WithNumWorkers(d.numWorkers).
+			WithDiscoveryContext(d.discoveryContext)
 
 		if len(d.parserOptions) > 0 {
 			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)

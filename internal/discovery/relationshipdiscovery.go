@@ -18,11 +18,18 @@ import (
 //
 // It's used to discover any potential relationships between components.
 type RelationshipDiscovery struct {
-	components               *component.Components           // all components that have been discovered (not just the ones that require relationship discovery)
-	interTransientComponents *component.ThreadSafeComponents // components that are discovered while trying to work out relationships between components, but are not officially discovered
-	parserOptions            []hclparse.Option               // the parser options to use when parsing configurations
-	maxDepth                 int                             // the maximum depth to discover relationships at
-	numWorkers               int                             // the number of workers to use to discover relationships
+	// components is all components that have been discovered (not just the ones that require relationship discovery)
+	components *component.Components
+	// interTransientComponents are components that are discovered while trying to work out relationships between components, but are not officially discovered
+	interTransientComponents *component.ThreadSafeComponents
+	// discoveryContext is the discovery context of the main Discover() call
+	discoveryContext *component.DiscoveryContext
+	// parserOptions are the parser options to use when parsing configurations
+	parserOptions []hclparse.Option
+	// maxDepth is the maximum depth to discover relationships at
+	maxDepth int
+	// numWorkers is the number of workers to use to discover relationships
+	numWorkers int
 }
 
 // NewRelationshipDiscovery creates a new RelationshipDiscovery with the given configuration.
@@ -49,6 +56,12 @@ func (rd *RelationshipDiscovery) WithNumWorkers(numWorkers int) *RelationshipDis
 // WithParserOptions sets the parser options for relationship discovery.
 func (rd *RelationshipDiscovery) WithParserOptions(parserOptions []hclparse.Option) *RelationshipDiscovery {
 	rd.parserOptions = parserOptions
+	return rd
+}
+
+// WithDiscoveryContext sets the discovery context for the relationship discovery.
+func (rd *RelationshipDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *RelationshipDiscovery {
+	rd.discoveryContext = discoveryContext
 	return rd
 }
 
@@ -229,6 +242,8 @@ func (rd *RelationshipDiscovery) dependencyToDiscover(c component.Component, pat
 	newUnit := component.NewUnit(path)
 
 	dep, created := rd.interTransientComponents.EnsureComponent(newUnit)
+
+	dep.SetDiscoveryContext(rd.discoveryContext)
 
 	c.AddDependency(dep)
 

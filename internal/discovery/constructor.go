@@ -150,7 +150,6 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 			filepath.Join(config.StackDir, "**"),
 		},
 		numWorkers:         numWorkers,
-		useDefaultExcludes: true,
 		maxDependencyDepth: defaultMaxDependencyDepth,
 		discoveryContext: &component.DiscoveryContext{
 			WorkingDir: dir,
