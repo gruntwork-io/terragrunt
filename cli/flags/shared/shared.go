@@ -251,15 +251,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 						l.Warnf("Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.")
 					}
 
-					defaultBranch := "main"
-
-					if b, err := gitRunner.Config(ctx.Context, "init.defaultBranch"); err == nil && b != "" {
-						l.Debugf("Using default branch discovered from git config: %s", b)
-
-						defaultBranch = b
-					} else {
-						l.Warnf("Failed to get default branch from `git config init.defaultBranch`, using main.")
-					}
+					defaultBranch := gitRunner.GetDefaultBranch(ctx.Context, l)
 
 					opts.FilterQueries = append(opts.FilterQueries, fmt.Sprintf("[%s...HEAD]", defaultBranch))
 
