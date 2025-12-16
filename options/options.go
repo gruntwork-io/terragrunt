@@ -150,7 +150,7 @@ type TerragruntOptions struct {
 	// Original Terraform command being executed by Terragrunt.
 	OriginalTerraformCommand string
 	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TerraformImplementation TerraformImplementationType
+	TofuImplementation TerraformImplementationType
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 	// The path to store unpacked providers.
@@ -421,7 +421,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		UsePartialParseConfigCache:  false,
 		ForwardTFStdout:             false,
 		JSONOut:                     DefaultJSONOutName,
-		TerraformImplementation:     UnknownImpl,
+		TofuImplementation:          UnknownImpl,
 		JSONDisableDependentModules: false,
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
