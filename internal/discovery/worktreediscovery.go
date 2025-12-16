@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -69,75 +70,116 @@ func (wd *WorktreeDiscovery) Discover(
 		return component.Components{}, nil
 	}
 
-	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
+	var result component.Components
 
-	// Run from and to discovery concurrently for each expression
-	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	discoveryGroup.SetLimit(wd.numWorkers)
+	// Wrap entire worktree discovery with telemetry
+	err := filter.TraceGitWorktreeDiscovery(ctx, len(w.WorktreePairs), func(ctx context.Context) error {
+		discoveredComponents := component.NewThreadSafeComponents(component.Components{})
 
-	for _, pair := range w.WorktreePairs {
+		// Run from and to discovery concurrently for each expression
+		discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
+		discoveryGroup.SetLimit(wd.numWorkers)
+
+		for _, pair := range w.WorktreePairs {
+			discoveryGroup.Go(func() error {
+				// Track filter expansion with telemetry
+				var fromFilters, toFilters filter.Filters
+				diffs := pair.Diffs
+
+				expandErr := filter.TraceGitFilterExpand(
+					discoveryCtx,
+					pair.GitExpression.FromRef,
+					pair.GitExpression.ToRef,
+					len(diffs.Added),
+					len(diffs.Removed),
+					len(diffs.Changed),
+					func(ctx context.Context) error {
+						fromFilters, toFilters = pair.Expand()
+						return nil
+					},
+				)
+				if expandErr != nil {
+					return expandErr
+				}
+
+				// Run from and to discovery concurrently
+				fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
+
+				// We only kick off from/to discovery if there any filters expanded from the git expression.
+				// This ensures that we don't discover anything when using a Git filter that doesn't match anything.
+
+				if len(fromFilters) > 0 {
+					fromToG.Go(func() error {
+						components, err := wd.discoverInWorktree(fromToCtx, l, opts, pair.FromWorktree, fromFilters, fromWorktreeKind)
+						if err != nil {
+							return err
+						}
+
+						for _, c := range components {
+							discoveredComponents.EnsureComponent(c)
+						}
+
+						return nil
+					})
+				}
+
+				if len(toFilters) > 0 {
+					fromToG.Go(func() error {
+						components, err := wd.discoverInWorktree(fromToCtx, l, opts, pair.ToWorktree, toFilters, toWorktreeKind)
+						if err != nil {
+							return err
+						}
+
+						for _, c := range components {
+							discoveredComponents.EnsureComponent(c)
+						}
+
+						return nil
+					})
+				}
+
+				return fromToG.Wait()
+			})
+		}
+
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := pair.Expand()
-
-			// Run from and to discovery concurrently
-			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
-
-			// We only kick off from/to discovery if there any filters expanded from the git expression.
-			// This ensures that we don't discover anything when using a Git filter that doesn't match anything.
-
-			if len(fromFilters) > 0 {
-				fromToG.Go(func() error {
-					components, err := wd.discoverInWorktree(fromToCtx, l, opts, pair.FromWorktree, fromFilters, fromWorktreeKind)
-					if err != nil {
-						return err
-					}
-
-					for _, c := range components {
-						discoveredComponents.EnsureComponent(c)
-					}
-
-					return nil
-				})
+			components, err := wd.discoverChangesInWorktreeStacks(ctx, l, opts, w)
+			if err != nil {
+				return err
 			}
 
-			if len(toFilters) > 0 {
-				fromToG.Go(func() error {
-					components, err := wd.discoverInWorktree(fromToCtx, l, opts, pair.ToWorktree, toFilters, toWorktreeKind)
-					if err != nil {
-						return err
-					}
-
-					for _, c := range components {
-						discoveredComponents.EnsureComponent(c)
-					}
-
-					return nil
-				})
+			// Run directly in worktree paths - no translation needed
+			for _, c := range components {
+				discoveredComponents.EnsureComponent(c)
 			}
 
-			return fromToG.Wait()
+			return nil
 		})
-	}
 
-	discoveryGroup.Go(func() error {
-		components, err := wd.discoverChangesInWorktreeStacks(ctx, l, opts, w)
-		if err != nil {
+		if err := discoveryGroup.Wait(); err != nil {
 			return err
 		}
 
-		// Run directly in worktree paths - no translation needed
-		for _, c := range components {
-			discoveredComponents.EnsureComponent(c)
-		}
+		result = discoveredComponents.ToComponents()
+
+		// Record result count metric
+		recordWorktreeDiscoveryMetrics(ctx, len(w.WorktreePairs), len(result))
 
 		return nil
 	})
 
-	if err := discoveryGroup.Wait(); err != nil {
-		return nil, err
+	return result, err
+}
+
+// recordWorktreeDiscoveryMetrics records telemetry metrics for worktree discovery.
+func recordWorktreeDiscoveryMetrics(ctx context.Context, pairCount, componentCount int) {
+	telemeter := telemetry.TelemeterFromContext(ctx)
+	if telemeter == nil || telemeter.Meter == nil {
+		return
 	}
 
-	return discoveredComponents.ToComponents(), nil
+	telemeter.Count(ctx, "git_worktree_discovery_worktree_pairs", int64(pairCount))
+	telemeter.Count(ctx, "git_worktree_discovery_components", int64(componentCount))
 }
 
 // discoverInWorktree discovers components in a single worktree.
@@ -246,6 +288,32 @@ type componentPair struct {
 // We need to do some diffing for situations where a stack is being changed, we can just include
 // all the components within that stack, with the assumption that all the units within it are changed.
 func (wd *WorktreeDiscovery) walkChangedStack(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	originalDiscovery *Discovery,
+	fromStack *component.Stack,
+	toStack *component.Stack,
+) (component.Components, error) {
+	var result component.Components
+
+	// Wrap stack walking with telemetry
+	err := filter.TraceGitWorktreeStackWalk(
+		ctx,
+		fromStack.DiscoveryContext().Ref,
+		toStack.DiscoveryContext().Ref,
+		func(ctx context.Context) error {
+			var walkErr error
+			result, walkErr = wd.walkChangedStackInternal(ctx, l, opts, originalDiscovery, fromStack, toStack)
+			return walkErr
+		},
+	)
+
+	return result, err
+}
+
+// walkChangedStackInternal is the internal implementation of walkChangedStack.
+func (wd *WorktreeDiscovery) walkChangedStackInternal(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,

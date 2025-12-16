@@ -451,6 +451,48 @@ func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
+// GetRemoteURL returns the origin remote URL, or empty string on error.
+func (g *GitRunner) GetRemoteURL(ctx context.Context) string {
+	remote, _ := g.Config(ctx, "remote.origin.url")
+	return remote
+}
+
+// GetCurrentBranch returns the current branch name, or empty string on error.
+func (g *GitRunner) GetCurrentBranch(ctx context.Context) string {
+	if err := g.RequiresWorkDir(); err != nil {
+		return ""
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--abbrev-ref", "HEAD")
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(stdout.String())
+}
+
+// GetHeadCommit returns the current HEAD commit hash, or empty string on error.
+func (g *GitRunner) GetHeadCommit(ctx context.Context) string {
+	if err := g.RequiresWorkDir(); err != nil {
+		return ""
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "HEAD")
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(stdout.String())
+}
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 
