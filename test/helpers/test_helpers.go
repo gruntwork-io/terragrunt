@@ -177,6 +177,22 @@ func PointerTo[T any](v T) *T {
 	return &v
 }
 
+// TmpDirWOSymlinks returns a temporary directory, evaluating any symlinks that might be there.
+//
+// This is useful for macOS tests where the standard library creates a temporary directory pointed to via a symlink
+// when using t.TempDir(). It's generally annoying to deal with in tests, as it breaks filepath comparisons, so
+// using this function is preferred over calling t.TempDir() directly unless you are sure it doesn't matter if the
+// temporary directory is a symlink.
+func TmpDirWOSymlinks(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	return tmpDir
+}
+
 type testLogger struct {
 	t      *testing.T
 	prefix string
