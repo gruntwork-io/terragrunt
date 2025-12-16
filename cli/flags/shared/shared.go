@@ -239,10 +239,21 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.SliceFlag[string]{
-				Name:        QueueIncludeUnitsReadingFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
-				Destination: &opts.UnitsReading,
-				Usage:       "If flag is set, 'run --all' will only run the command against units that read the specified file via a Terragrunt HCL function or include.",
+				Name:    QueueIncludeUnitsReadingFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
+				Usage:   "If flag is set, 'run --all' will only run the command against units that read the specified file via a Terragrunt HCL function or include.",
+				Hidden:  true,
+				Action: func(ctx *cli.Context, value []string) error {
+					if len(value) == 0 {
+						return nil
+					}
+
+					for _, v := range value {
+						opts.FilterQueries = append(opts.FilterQueries, "reading="+v)
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), terragruntPrefixControl),
 		),

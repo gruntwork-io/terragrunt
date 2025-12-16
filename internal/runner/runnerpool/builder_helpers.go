@@ -127,7 +127,7 @@ func prepareDiscovery(
 	d := newBaseDiscovery(tgOpts, workingDir, configFilenames, opts...)
 
 	// Enable reading file tracking when requested by CLI flags
-	if len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0 {
+	if len(tgOpts.ModulesThatInclude) > 0 {
 		d = d.WithReadFiles()
 	}
 
@@ -188,7 +188,7 @@ func discoverWithRetry(
 	}
 
 	// Retry without exclude-by-default if no results and relevant flags are set
-	if len(discovered) == 0 && (len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0) {
+	if len(discovered) == 0 && len(tgOpts.ModulesThatInclude) > 0 {
 		l.Debugf("Runner pool discovery returned 0 configs; retrying without exclude-by-default")
 
 		d, err = prepareDiscovery(tgOpts, opts...)
