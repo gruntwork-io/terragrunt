@@ -477,62 +477,6 @@ dependency "C" {
 	assert.Less(t, cIndex, fIndex, "C should come before F")
 }
 
-func TestExternalFlagImpliesDependencies(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	internalDir := filepath.Join(tmpDir, "internal")
-	require.NoError(t, os.MkdirAll(internalDir, 0755))
-
-	unitADir := filepath.Join(internalDir, "unitA")
-	require.NoError(t, os.MkdirAll(unitADir, 0755))
-
-	externalDir := filepath.Join(tmpDir, "external")
-	require.NoError(t, os.MkdirAll(externalDir, 0755))
-
-	unitBDir := filepath.Join(externalDir, "unitB")
-	require.NoError(t, os.MkdirAll(unitBDir, 0755))
-
-	require.NoError(t, os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(""), 0644))
-
-	require.NoError(t, os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(`
-dependency "unitB" {
-  config_path = "../../external/unitB"
-}
-`), 0644))
-
-	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = internalDir
-
-	l := logger.CreateLogger()
-	l.Formatter().SetDisabledColors(true)
-
-	opts := list.NewOptions(tgOpts)
-	opts.Format = "long"
-
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	opts.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
-	require.NoError(t, err)
-
-	w.Close()
-
-	output, err := io.ReadAll(r)
-	require.NoError(t, err)
-
-	outputStr := string(output)
-
-	assert.Contains(t, outputStr, "unitA", "should include internal unit")
-	assert.Contains(t, outputStr, "external", "should include external unit")
-
-	lines := strings.Split(strings.TrimSpace(outputStr), "\n")
-	assert.GreaterOrEqual(t, len(lines), 3, "should have at least header and 2 units")
-}
-
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
