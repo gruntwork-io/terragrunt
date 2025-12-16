@@ -13,15 +13,15 @@ import (
 
 // DiscoveryCommandOptions contains options for discovery commands like find and list.
 type DiscoveryCommandOptions struct {
-	WorkingDir       string
-	QueueConstructAs string
-	FilterQueries    []string
-	Experiments      experiment.Experiments
-	NoHidden         bool
-	Dependencies     bool
-	Exclude          bool
-	Include          bool
-	Reading          bool
+	WorkingDir        string
+	QueueConstructAs  string
+	FilterQueries     []string
+	Experiments       experiment.Experiments
+	NoHidden          bool
+	Exclude           bool
+	Include           bool
+	Reading           bool
+	WithRequiresParse bool
 }
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
@@ -48,8 +48,8 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithNoHidden()
 	}
 
-	if opts.Dependencies {
-		d = d.WithDiscoverDependencies()
+	if opts.WithRequiresParse {
+		d = d.WithRequiresParse()
 	}
 
 	if opts.Exclude {
@@ -66,7 +66,6 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 	if opts.QueueConstructAs != "" {
 		d = d.WithParseExclude()
-		d = d.WithDiscoverDependencies()
 
 		parser := shellwords.NewParser()
 

@@ -3,11 +3,8 @@ package generate
 
 import (
 	"context"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -21,10 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
-)
-
-const (
-	generationMaxPath = 1024
 )
 
 // StackNode represents a stack file in the file system.
@@ -309,55 +302,6 @@ func ListStackFiles(
 	}
 
 	return foundFiles, nil
-}
-
-// listStackFiles searches for stack files in the specified directory.
-//
-// The function walks through the given directory to find files that match the
-// default stack file name. It optionally follows symbolic links based on the
-// provided Terragrunt options.
-func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) ([]string, error) {
-	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-
-	walkFunc := filepath.WalkDir
-	if walkWithSymlinks {
-		walkFunc = util.WalkDirWithSymlinks
-	}
-
-	l.Debugf("Searching for stack files in %s", dir)
-
-	var stackFiles []string
-
-	// find all defaultStackFile files
-	if err := walkFunc(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			l.Warnf("Error accessing path %s: %w", path, err)
-			return nil
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		// skip files in Terragrunt cache directory
-		if strings.Contains(path, string(os.PathSeparator)+util.TerragruntCacheDir+string(os.PathSeparator)) ||
-			filepath.Base(path) == util.TerragruntCacheDir {
-			return filepath.SkipDir
-		}
-
-		if len(path) >= generationMaxPath {
-			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
-		}
-		if filepath.Base(path) == config.DefaultStackFile {
-			l.Debugf("Found stack file %s", path)
-			stackFiles = append(stackFiles, path)
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return stackFiles, nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.

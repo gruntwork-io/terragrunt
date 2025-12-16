@@ -27,12 +27,12 @@ import (
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
-		WorkingDir:       opts.WorkingDir,
-		QueueConstructAs: opts.QueueConstructAs,
-		NoHidden:         !opts.Hidden,
-		Dependencies:     shouldDiscoverDependencies(opts),
-		FilterQueries:    opts.FilterQueries,
-		Experiments:      opts.Experiments,
+		WorkingDir:        opts.WorkingDir,
+		QueueConstructAs:  opts.QueueConstructAs,
+		NoHidden:          !opts.Hidden,
+		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
+		FilterQueries:     opts.FilterQueries,
+		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return errors.New(err)
@@ -70,7 +70,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
-		"dependencies": shouldDiscoverDependencies(opts),
+		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
@@ -135,19 +135,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		// If it happens, we want to throw so we can fix the validation.
 		return errors.New("invalid format: " + opts.Format)
 	}
-}
-
-// shouldDiscoverDependencies returns true if we should discover dependencies.
-func shouldDiscoverDependencies(opts *Options) bool {
-	if opts.Dependencies {
-		return true
-	}
-
-	if opts.Mode == ModeDAG {
-		return true
-	}
-
-	return false
 }
 
 type ListedComponents []*ListedComponent

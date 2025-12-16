@@ -25,15 +25,15 @@ import (
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
-		WorkingDir:       opts.WorkingDir,
-		QueueConstructAs: opts.QueueConstructAs,
-		NoHidden:         !opts.Hidden,
-		Dependencies:     opts.Dependencies || opts.Mode == ModeDAG,
-		Exclude:          opts.Exclude,
-		Include:          opts.Include,
-		Reading:          opts.Reading,
-		FilterQueries:    opts.FilterQueries,
-		Experiments:      opts.Experiments,
+		WorkingDir:        opts.WorkingDir,
+		QueueConstructAs:  opts.QueueConstructAs,
+		NoHidden:          !opts.Hidden,
+		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
+		Exclude:           opts.Exclude,
+		Include:           opts.Include,
+		Reading:           opts.Reading,
+		FilterQueries:     opts.FilterQueries,
+		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return errors.New(err)

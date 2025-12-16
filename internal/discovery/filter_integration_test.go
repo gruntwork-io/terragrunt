@@ -238,10 +238,6 @@ dependency "db" {
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir, tt.discoveryOpts...).WithFilters(filters)
 
-			// Discover components with dependencies to test external filtering
-			discovery = discovery.
-				WithDiscoverDependencies()
-
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
 

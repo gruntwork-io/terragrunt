@@ -153,6 +153,9 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts.WorkingDir = internalDir
 	opts.RootWorkingDir = internalDir
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	tests := []struct {
 		discovery     *discovery.Discovery
 		setupExpected func() component.Components
@@ -160,18 +163,23 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		errorExpected bool
 	}{
 		{
-			name:      "discovery without dependencies",
+			name:      "discovery without external dependencies",
 			discovery: discovery.NewDiscovery(internalDir),
 			setupExpected: func() component.Components {
 				app := component.NewUnit(appDir)
 				db := component.NewUnit(dbDir)
+				externalApp := component.NewUnit(externalAppDir)
+				externalApp.SetExternal()
 				vpc := component.NewUnit(vpcDir)
+				db.AddDependency(vpc)
+				app.AddDependency(db)
+				app.AddDependency(externalApp)
 				return component.Components{app, db, vpc}
 			},
 		},
 		{
 			name:      "discovery with dependencies",
-			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies(),
+			discovery: discovery.NewDiscovery(internalDir).WithFilters(depsFilters),
 			setupExpected: func() component.Components {
 				vpc := component.NewUnit(vpcDir)
 				db := component.NewUnit(dbDir)
@@ -409,8 +417,11 @@ inputs = {
 		require.NoError(t, err)
 	}
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	// Test that d with parsing enabled doesn't fail on stack files
-	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+	d := discovery.NewDiscovery(tmpDir).WithFilters(depsFilters)
 
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
@@ -553,7 +564,10 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	d := discovery.NewDiscovery(internalDir).WithDiscoverDependencies()
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
+	d := discovery.NewDiscovery(internalDir).WithFilters(depsFilters)
 	components, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
 
@@ -954,8 +968,11 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	// Discover components with dependency discovery enabled
-	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+	d := discovery.NewDiscovery(tmpDir).WithFilters(depsFilters)
 	components, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err, "Discovery should complete even with cycles")
 
@@ -982,8 +999,11 @@ func TestDiscoverWithModulesThatIncludeDoesNotDropConfigs(t *testing.T) {
 	opts.ModulesThatInclude = []string{"alpha.hcl"}
 	opts.ExcludeByDefault = true
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	d := discovery.NewDiscovery(workingDir).
-		WithDiscoverDependencies().
+		WithFilters(depsFilters).
 		WithParseInclude().
 		WithParseExclude().
 		WithReadFiles()
@@ -1035,8 +1055,11 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	// Discover components with dependency discovery enabled
-	d := discovery.NewDiscovery(tmpDir).WithDiscoverDependencies()
+	d := discovery.NewDiscovery(tmpDir).WithFilters(depsFilters)
 	components, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err, "Discovery should complete even with cycles")
 

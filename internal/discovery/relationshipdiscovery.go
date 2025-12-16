@@ -245,6 +245,10 @@ func (rd *RelationshipDiscovery) dependencyToDiscover(c component.Component, pat
 
 	dep.SetDiscoveryContext(rd.discoveryContext)
 
+	if isExternal(rd.discoveryContext.WorkingDir, path) {
+		dep.SetExternal()
+	}
+
 	c.AddDependency(dep)
 
 	return dep, created

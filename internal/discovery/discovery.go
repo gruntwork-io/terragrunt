@@ -125,9 +125,6 @@ type Discovery struct {
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool
 
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
-
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
 
@@ -163,19 +160,6 @@ func (d *Discovery) WithNoHidden() *Discovery {
 // WithSort sets the Sort flag to the given sort.
 func (d *Discovery) WithSort(sort Sort) *Discovery {
 	d.sort = sort
-
-	return d
-}
-
-// WithDiscoverDependencies sets the DiscoverDependencies flag to true.
-func (d *Discovery) WithDiscoverDependencies() *Discovery {
-	d.WithRequiresParse()
-
-	d.discoverDependencies = true
-
-	if d.maxDependencyDepth == 0 {
-		d.maxDependencyDepth = defaultMaxDependencyDepth
-	}
 
 	return d
 }
@@ -733,18 +717,15 @@ func (d *Discovery) processFile(
 			}
 		}
 
-		shouldEvaluateFiltersNow := !d.discoverDependencies
-		if shouldEvaluateFiltersNow {
-			if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
-				filtered, err := d.filters.Evaluate(l, component.Components{c})
-				if err != nil {
-					l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
-					return nil
-				}
+		if _, ok := d.filters.RequiresParse(); !ok {
+			filtered, err := d.filters.Evaluate(l, component.Components{c})
+			if err != nil {
+				l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
+				return nil
+			}
 
-				if len(filtered) == 0 {
-					return nil
-				}
+			if len(filtered) == 0 {
+				return nil
 			}
 		}
 
@@ -979,12 +960,20 @@ func (d *Discovery) Discover(
 		components = d.filterByExcludeBlock(l, opts, components)
 	}
 
-	dependencyStartingComponents, err := d.determineDependencyStartingComponents(l, components)
+	dependencyStartingComponents, err := determineStartingComponentsFromExpressions(
+		l,
+		components,
+		d.dependencyTargetExpressions,
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	dependentStartingComponents, err := d.determineDependentStartingComponents(l, components)
+	dependentStartingComponents, err := determineStartingComponentsFromExpressions(
+		l,
+		components,
+		d.dependentTargetExpressions,
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1150,25 +1139,23 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	if d.discoverDependencies {
-		relationshipDiscovery := NewRelationshipDiscovery(&components).
-			WithMaxDepth(d.maxDependencyDepth).
-			WithNumWorkers(d.numWorkers).
-			WithDiscoveryContext(d.discoveryContext)
+	relationshipDiscovery := NewRelationshipDiscovery(&components).
+		WithMaxDepth(d.maxDependencyDepth).
+		WithNumWorkers(d.numWorkers).
+		WithDiscoveryContext(d.discoveryContext)
 
-		if len(d.parserOptions) > 0 {
-			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
-		}
+	if len(d.parserOptions) > 0 {
+		relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
+	}
 
-		err = relationshipDiscovery.Discover(ctx, l, opts, components)
-		if err != nil {
-			if !d.suppressParseErrors {
-				errs = append(errs, errors.New(err))
-			} else {
-				l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
+	err = relationshipDiscovery.Discover(ctx, l, opts, components)
+	if err != nil {
+		if !d.suppressParseErrors {
+			errs = append(errs, errors.New(err))
+		} else {
+			l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
 
-				l.Debugf("Errors: %v", err)
-			}
+			l.Debugf("Errors: %v", err)
 		}
 	}
 
@@ -1350,68 +1337,25 @@ func filterByAllowSet(components component.Components, allowed map[string]struct
 	return filtered
 }
 
-// determineDependencyStartingComponents determines the starting components for dependency discovery.
-// It uses filter expressions if provided, otherwise returns all components if dependency discovery is enabled.
-func (d *Discovery) determineDependencyStartingComponents(
+// determineStartingComponentsFromExpressions evaluates target expressions and returns
+// the matched components, deduplicated by path.
+func determineStartingComponentsFromExpressions(
 	l log.Logger,
 	components component.Components,
+	targetExpressions []filter.Expression,
 ) (component.Components, error) {
 	var (
 		startingComponents component.Components
 		errs               []error
 	)
 
-	// - If we have dependency target expressions, use them to determine starting components
-	// - If we don't have dependency target expressions but discoverDependencies is enabled,
-	//   use all components as starting points (to discover dependencies of all components)
-	if len(d.dependencyTargetExpressions) == 0 {
+	if len(targetExpressions) == 0 {
 		return startingComponents, nil
 	}
 
 	seenPaths := make(map[string]struct{})
 
-	for _, targetExpr := range d.dependencyTargetExpressions {
-		matched, err := filter.Evaluate(l, targetExpr, components)
-		if err != nil {
-			errs = append(errs, errors.New(err))
-			continue
-		}
-
-		for _, c := range matched {
-			path := c.Path()
-			if _, seen := seenPaths[path]; !seen {
-				startingComponents = append(startingComponents, c)
-				seenPaths[path] = struct{}{}
-			}
-		}
-	}
-
-	if len(errs) > 0 {
-		return startingComponents, errors.Join(errs...)
-	}
-
-	return startingComponents, nil
-}
-
-// determineDependentStartingComponents determines the starting components for dependent discovery.
-// It uses filter expressions to determine which components should be used as starting points.
-func (d *Discovery) determineDependentStartingComponents(
-	l log.Logger,
-	components component.Components,
-) (component.Components, error) {
-	var (
-		startingComponents component.Components
-		errs               []error
-	)
-
-	// If there are no dependent target expressions, return empty starting components
-	if len(d.dependentTargetExpressions) == 0 {
-		return startingComponents, nil
-	}
-
-	seenPaths := make(map[string]struct{})
-
-	for _, targetExpr := range d.dependentTargetExpressions {
+	for _, targetExpr := range targetExpressions {
 		matched, err := filter.Evaluate(l, targetExpr, components)
 		if err != nil {
 			errs = append(errs, errors.New(err))
