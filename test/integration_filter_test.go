@@ -1537,6 +1537,8 @@ unit "unit-to-be-created-2" {
 }
 
 func TestFiltersFileFlag(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name          string
 		setupFile     func(t *testing.T, dir string) string // Returns path to filter file, empty if no file
