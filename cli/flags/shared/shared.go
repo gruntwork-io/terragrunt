@@ -149,6 +149,21 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), terragruntPrefixControl),
 		),
 
+		// TODO: This flag needs to be handled carefully, as it means something semantically different than the `--filters-file` flag.
+		//
+		// We need to make sure that when the user supplies a `--queue-excludes-file` flag, that it's parsed, and then updated to an equivalent filter query.
+		//
+		// e.g.
+		//
+		// # .terragrunt-excludes
+		//
+		// foo
+		// nested/bar
+		//
+		// # Equivalent filter queries
+		//
+		// !./foo
+		// !./nested/bar
 		flags.NewFlag(
 			&cli.GenericFlag[string]{
 				Name:        QueueExcludesFileFlagName,
