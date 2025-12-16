@@ -441,6 +441,14 @@ func Parse(
 	//nolint: contextcheck
 	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
+		if suppressParseErrors {
+			var notFoundErr config.TerragruntConfigNotFoundError
+			if stderrs.As(err, &notFoundErr) {
+				l.Debugf("Skipping missing config during discovery: %s", parseOpts.TerragruntConfigPath)
+				return nil
+			}
+		}
+
 		// Treat include-only/no-settings configs as non-fatal during discovery when suppression is enabled
 		if suppressParseErrors && containsNoSettingsError(err) {
 			l.Debugf("Skipping include-only config during discovery: %s", parseOpts.TerragruntConfigPath)
@@ -1305,6 +1313,12 @@ func determineStartingComponentsFromExpressions(
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
 // It returns the list of absolute dependency paths and any errors encountered during extraction.
 func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Component) ([]string, error) {
+	// Some discovery passes may encounter components that don't actually have a config file (e.g., directories that
+	// exist under the working dir but have no terragrunt.hcl). Treat those as having no dependencies.
+	if cfg == nil {
+		return nil, nil
+	}
+
 	deduped := make(map[string]struct{})
 
 	var errs []error

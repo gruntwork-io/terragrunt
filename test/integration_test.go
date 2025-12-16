@@ -796,7 +796,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt hcl validate --all --working-dir %s --json --show-config-path",
+			"terragrunt hcl validate --working-dir %s --json --show-config-path",
 			rootPath,
 		),
 	)
