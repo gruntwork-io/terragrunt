@@ -24,6 +24,7 @@ type Unit struct {
 	discoveryContext *DiscoveryContext
 	Execution        *UnitExecution
 	path             string
+	configFile       string
 	reading          []string
 	dependencies     Components
 	dependents       Components
@@ -45,6 +46,7 @@ type UnitExecution struct {
 func NewUnit(path string) *Unit {
 	return &Unit{
 		path:             path,
+		configFile:       config.DefaultTerragruntConfigPath,
 		discoveryContext: &DiscoveryContext{},
 		dependencies:     make(Components, 0),
 		dependents:       make(Components, 0),
@@ -81,6 +83,16 @@ func (u *Unit) Config() *config.TerragruntConfig {
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	u.cfg = cfg
+}
+
+// ConfigFile returns the discovered config filename for this unit.
+func (u *Unit) ConfigFile() string {
+	return u.configFile
+}
+
+// SetConfigFile sets the discovered config filename for this unit.
+func (u *Unit) SetConfigFile(filename string) {
+	u.configFile = filename
 }
 
 // Kind returns the kind of component (always Unit for Unit).

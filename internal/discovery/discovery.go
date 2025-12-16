@@ -373,6 +373,12 @@ func Parse(
 	case *component.Stack:
 		configFilename = config.DefaultStackFile
 	default:
+		if unit, ok := c.(*component.Unit); ok && unit.ConfigFile() != "" {
+			configFilename = unit.ConfigFile()
+
+			break
+		}
+
 		if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
 			configFilename = filepath.Base(opts.TerragruntConfigPath)
 		}
@@ -692,11 +698,10 @@ func (d *Discovery) processFile(
 		// If the directory is hidden, allow it only if it matches an include pattern
 		allowHidden := false
 
-		if canErr == nil {
-			// Always allow .terragrunt-stack contents
-			cleanDir := util.CleanPath(canonicalDir)
-			allowHidden = isInStackDirectory(cleanDir)
-		}
+		// Always allow .terragrunt-stack contents. We can safely use the non-canonical
+		// dir here because this branch is only reached when canonical path computation
+		// failed, or when we couldn't early-return with a concrete component.
+		allowHidden = isInStackDirectory(filepath.ToSlash(dir))
 
 		if !allowHidden {
 			return nil
@@ -726,6 +731,9 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 		}
 
 		c := componentOfBase(dir, base)
+		if unit, ok := c.(*component.Unit); ok {
+			unit.SetConfigFile(base)
+		}
 
 		if d.discoveryContext != nil {
 			c.SetDiscoveryContext(d.discoveryContext)
