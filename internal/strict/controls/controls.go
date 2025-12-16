@@ -65,10 +65,6 @@ const (
 	// UnitsThatInclude is the control that prevents the use of the deprecated `--units-that-include` flag.
 	UnitsThatInclude = "units-that-include"
 
-	// DiscoveryExternal is the control that prevents usage of the deprecated `--external` flag in discovery commands
-	// like `find` and `list`.
-	DiscoveryExternal = "discovery-external"
-
 	// DisableCommandValidation is the control that prevents the use of the deprecated `--disable-command-validation` flag.
 	DisableCommandValidation = "disable-command-validation"
 
@@ -249,13 +245,6 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration."),
 			Warning:     "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
-		},
-		&Control{
-			Name:        DiscoveryExternal,
-			Description: "Prevents the use of the deprecated `--external` flag in discovery commands like `find` and `list`. External dependencies are now excluded by default.",
-			Category:    stageCategory,
-			Error:       errors.New("The `--external` flag is no longer supported. External dependencies are now treated no differently than other dependencies when running discovery commands like `find` and `list`. Use the `--filter` flag to control inclusion/exclusion of external dependencies."),
-			Warning:     "The `--external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now treated no differently than other dependencies when running discovery commands like `find` and `list`. Use the `--filter` flag to control inclusion/exclusion of external dependencies.",
 		},
 		&Control{
 			Name:        DisableCommandValidation,

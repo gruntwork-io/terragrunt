@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -61,10 +60,12 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars: tgPrefix.EnvVars(ExternalFlagName),
 			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
 			Hidden:  true,
-			Action: func(ctx *cli.Context, value bool) error {
-				if value {
-					return opts.StrictControls.FilterByNames(controls.DiscoveryExternal).Evaluate(ctx.Context)
+			Action: func(_ *cli.Context, value bool) error {
+				if !value {
+					return nil
 				}
+
+				opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
 				return nil
 			},
 		}),
