@@ -91,7 +91,7 @@ type TerraformOutput struct {
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := TmpDirWOSymlinks(t)
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
@@ -107,9 +107,6 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		),
 	)
 
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
-
 	return tmpDir
 }
 
@@ -122,7 +119,7 @@ func CreateTmpTerragruntConfig(
 ) string {
 	t.Helper()
 
-	tmpFolder := t.TempDir()
+	tmpFolder := TmpDirWOSymlinks(t)
 
 	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 	originalTerragruntConfigPath := filepath.Join(templatesPath, configFileName)
@@ -141,7 +138,7 @@ func CreateTmpTerragruntConfig(
 func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
 	t.Helper()
 
-	tmpFolder := t.TempDir()
+	tmpFolder := TmpDirWOSymlinks(t)
 
 	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 
@@ -1096,7 +1093,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := TmpDirWOSymlinks(t)
 
 	childDestPath := filepath.Join(tmpDir, childRelPath)
 

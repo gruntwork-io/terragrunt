@@ -173,7 +173,7 @@ locals {
 func TestWriteValuesSortsKeys(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	valuesFilePath := setupTestFiles(t, tmpDir)
 
 	// Helper function to read and return the values file content
@@ -333,7 +333,7 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 func TestWriteValuesSkipsWhenNilOrNull(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create two units: one without values, one with explicit null values
 	stackConfig := `
@@ -391,7 +391,7 @@ terraform {
 func TestWriteValuesRejectsNonObjectValues(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	stackConfig := `
 unit "bad" {

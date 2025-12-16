@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -458,7 +459,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 func tmpDir(t *testing.T) string {
 	t.Helper()
 
-	dir := t.TempDir()
+	dir := helpers.TmpDirWOSymlinks(t)
 
 	return filepath.FromSlash(dir)
 }
@@ -567,7 +568,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
 	src := &tf.Source{
@@ -609,7 +610,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
 	src := &tf.Source{
@@ -651,7 +652,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	src := &tf.Source{
 		CanonicalSourceURL: parseURL(t, "github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world"),
@@ -692,7 +693,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
 	src := &tf.Source{
@@ -776,7 +777,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			src := &tf.Source{
 				CanonicalSourceURL: parseURL(t, tc.sourceURL),

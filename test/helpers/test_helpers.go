@@ -105,9 +105,7 @@ func CreateGitRepo(t *testing.T, path string) {
 func CloneGitRepo(t *testing.T, srcDir string) string {
 	t.Helper()
 
-	dstDir := t.TempDir()
-	dstDir, err := filepath.EvalSymlinks(dstDir)
-	require.NoError(t, err)
+	dstDir := TmpDirWOSymlinks(t)
 
 	cmd := exec.CommandContext(t.Context(), "git", "clone", "--local", "--no-hardlinks", srcDir, dstDir)
 	output, err := cmd.CombinedOutput()

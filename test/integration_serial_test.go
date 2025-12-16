@@ -67,7 +67,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	ctx := t.Context()
 	defer ctx.Done()
 
-	cliConfigFilename, err := os.CreateTemp(t.TempDir(), "*")
+	cliConfigFilename, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "*")
 	require.NoError(t, err)
 
 	defer cliConfigFilename.Close()
@@ -179,7 +179,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	providerCacheDir := filepath.Join(rootPath, "providers-cache")
 
-	cliConfigFilename, err := os.CreateTemp(t.TempDir(), "*")
+	cliConfigFilename, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "*")
 	require.NoError(t, err)
 
 	defer cliConfigFilename.Close()

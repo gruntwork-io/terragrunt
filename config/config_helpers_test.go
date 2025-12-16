@@ -362,7 +362,7 @@ func TestFindInParentFolders(t *testing.T) {
 func TestFindInParentFoldersWithStackFile(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	regionHclPath := filepath.Join(tempDir, "region.hcl")
 	regionHclContent := `locals {

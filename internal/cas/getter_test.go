@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ func TestCASGetterDetect(t *testing.T) {
 
 	g := cas.NewCASGetter(nil, nil, &cas.CloneOptions{})
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	os.MkdirAll(filepath.Join(tmp, "fake-module"), 0755)
 	os.WriteFile(filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644)
@@ -96,7 +97,7 @@ func TestCASGetterDetect(t *testing.T) {
 func TestCASGetterGet(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
 	c, err := cas.New(cas.Options{
@@ -132,7 +133,7 @@ func TestCASGetterGet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			res, err := client.Get(
 				t.Context(),
@@ -151,7 +152,7 @@ func TestCASGetterGet(t *testing.T) {
 func TestCASGetterLocalDir(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tmp, "store")
 
 	c, err := cas.New(cas.Options{

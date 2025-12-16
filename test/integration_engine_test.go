@@ -356,7 +356,7 @@ func setupEngineCache(t *testing.T) (string, string) {
 	t.Helper()
 
 	// create a temporary folder
-	cacheDir := t.TempDir()
+	cacheDir := helpers.TmpDirWOSymlinks(t)
 	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
 
 	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)

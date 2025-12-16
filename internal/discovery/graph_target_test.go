@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -20,7 +21,7 @@ import (
 func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
 	cmd := exec.CommandContext(t.Context(), "git", "init")
@@ -68,9 +69,7 @@ dependency "db" {
 func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
 	cmd := exec.CommandContext(t.Context(), "git", "init")

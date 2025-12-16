@@ -304,7 +304,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	tmpDirRaw := t.TempDir()
+	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
 	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
 	require.NoError(t, err)
 
@@ -592,7 +592,7 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 	}
 
 	// Create temporary directory for dynamic fixtures
-	tmpDirRaw := t.TempDir()
+	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
 	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
 	require.NoError(t, err)
 

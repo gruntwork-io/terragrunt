@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func TestDiscovery(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	unit1Dir := filepath.Join(tmpDir, "unit1")
@@ -100,7 +101,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	internalDir := filepath.Join(tmpDir, "internal")
 	appDir := filepath.Join(internalDir, "app")
@@ -263,7 +264,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 func TestDiscoveryWithExclude(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	testDirs := []string{
@@ -350,7 +351,7 @@ exclude {
 func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	unit1Dir := filepath.Join(tmpDir, "unit1")
 	err := os.MkdirAll(unit1Dir, 0755)
 	require.NoError(t, err)
@@ -372,7 +373,7 @@ func TestDiscoveryWithStackConfigParsing(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	stackDir := filepath.Join(tmpDir, "stack")
@@ -455,7 +456,7 @@ inputs = {
 func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	unit1Dir := filepath.Join(tmpDir, "unit1")
 	unit2Dir := filepath.Join(tmpDir, "unit2")
@@ -499,7 +500,7 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	hiddenUnitDir := filepath.Join(tmpDir, ".hidden", "hunit")
 	require.NoError(t, os.MkdirAll(hiddenUnitDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(""), 0644))
@@ -517,7 +518,7 @@ func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
 func TestDiscoveryStackHiddenAllowed(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	stackHiddenDir := filepath.Join(tmpDir, ".terragrunt-stack", "u")
 	require.NoError(t, os.MkdirAll(stackHiddenDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(""), 0644))
@@ -535,9 +536,7 @@ func TestDiscoveryStackHiddenAllowed(t *testing.T) {
 func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	internalDir := filepath.Join(tmpDir, "internal")
 	externalDir := filepath.Join(tmpDir, "external")
@@ -592,7 +591,7 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 func TestDiscoveryPopulatesReadingField(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	appDir := filepath.Join(tmpDir, "app")
 	require.NoError(t, os.MkdirAll(appDir, 0755))
 
@@ -655,9 +654,7 @@ func TestDiscoveryPopulatesReadingField(t *testing.T) {
 func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	unit1Dir := filepath.Join(tmpDir, "unit1")
 	require.NoError(t, os.MkdirAll(unit1Dir, 0755))
@@ -721,7 +718,7 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 func TestDiscoveryOriginalTerragruntConfigPath(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	unitDir := filepath.Join(tmpDir, "unit")
 	require.NoError(t, os.MkdirAll(unitDir, 0755))
 
@@ -794,7 +791,7 @@ func TestDependentDiscovery_WithStartingComponents(t *testing.T) {
 func TestDependencyDiscovery_DiscoverAllDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	appDir := filepath.Join(tmpDir, "app")
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -834,7 +831,7 @@ func TestDependencyDiscovery_DiscoverAllDependencies(t *testing.T) {
 func TestDependencyDiscovery_SelectiveDiscoveryOnlyProcessesStartingComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create dependency graph: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -933,7 +930,7 @@ dependency "vpc" {
 func TestDiscoveryDetectsCycle(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	fooDir := filepath.Join(tmpDir, "foo")
 	barDir := filepath.Join(tmpDir, "bar")
@@ -1013,7 +1010,7 @@ func TestDiscoverWithModulesThatIncludeDoesNotDropConfigs(t *testing.T) {
 func TestDiscoveryDoesntDetectCycleWhenDisabled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	fooDir := filepath.Join(tmpDir, "foo")
 	barDir := filepath.Join(tmpDir, "bar")

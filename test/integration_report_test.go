@@ -495,7 +495,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
 
-	dep := t.TempDir()
+	dep := helpers.TmpDirWOSymlinks(t)
 
 	f, err := os.Create(filepath.Join(dep, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -505,7 +505,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	reportDir := t.TempDir()
+	reportDir := helpers.TmpDirWOSymlinks(t)
 	reportFile := filepath.Join(reportDir, "report.json")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(

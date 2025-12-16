@@ -1428,7 +1428,7 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range 20 {
 		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)

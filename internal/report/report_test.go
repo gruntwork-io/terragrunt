@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xeipuuv/gojsonschema"
@@ -29,7 +30,7 @@ func TestNewReport(t *testing.T) {
 func TestNewRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	path := filepath.Join(tmp, "test-run")
 	run := newRun(t, path)
@@ -45,7 +46,7 @@ func TestNewRun(t *testing.T) {
 func TestAddRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	path := filepath.Join(tmp, "test-run")
 
@@ -63,7 +64,7 @@ func TestAddRun(t *testing.T) {
 func TestGetRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	r := report.NewReport()
 	run := newRun(t, filepath.Join(tmp, "test-run"))
@@ -103,7 +104,7 @@ func TestGetRun(t *testing.T) {
 func TestEnsureRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	tests := []struct {
 		expectedErrIs error
@@ -189,7 +190,7 @@ func TestEnsureRun(t *testing.T) {
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	tests := []struct {
 		wantReason *report.Reason
@@ -279,7 +280,7 @@ func TestEndRun(t *testing.T) {
 func TestEndRunAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	tests := []struct {
 		name           string
@@ -359,7 +360,7 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 func TestSummarize(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	tests := []struct {
 		name    string
@@ -494,7 +495,7 @@ func TestWriteCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := t.TempDir()
+			tmp := helpers.TmpDirWOSymlinks(t)
 
 			// Create a temporary file for the CSV
 			csvFile := filepath.Join(tmp, "report.csv")
@@ -656,7 +657,7 @@ func TestWriteJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := t.TempDir()
+			tmp := helpers.TmpDirWOSymlinks(t)
 
 			// Create a temporary file for the JSON
 			jsonFile := filepath.Join(tmp, "report.json")
@@ -879,7 +880,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	tests := []struct {
 		name     string
@@ -977,7 +978,7 @@ func TestWriteSummary(t *testing.T) {
 func TestSchemaIsValid(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	// Create a new report with working directory
 	r := report.NewReport().WithWorkingDir(tmp)
@@ -1144,7 +1145,7 @@ func TestSchemaIsValid(t *testing.T) {
 func TestWriteUnitLevelSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	tests := []struct {
 		name     string

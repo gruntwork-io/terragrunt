@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terratest/modules/files"
@@ -107,7 +108,7 @@ func TestTFRGetterRootDir(t *testing.T) {
 	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0")
 	require.NoError(t, err)
 
-	dstPath := t.TempDir()
+	dstPath := helpers.TmpDirWOSymlinks(t)
 
 	// The dest path must not exist for go getter to work
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
@@ -127,7 +128,7 @@ func TestTFRGetterSubModule(t *testing.T) {
 	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws//modules/vpc-endpoints?version=3.3.0")
 	require.NoError(t, err)
 
-	dstPath := t.TempDir()
+	dstPath := helpers.TmpDirWOSymlinks(t)
 
 	// The dest path must not exist for go getter to work
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")

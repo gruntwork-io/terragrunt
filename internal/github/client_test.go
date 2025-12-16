@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -240,7 +241,7 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create mock server for GitHub releases
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -287,7 +288,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

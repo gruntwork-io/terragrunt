@@ -26,9 +26,7 @@ import (
 func TestWorktreeDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -183,9 +181,7 @@ func TestWorktreeDiscovery(t *testing.T) {
 func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -493,9 +489,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -583,9 +577,7 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -663,9 +655,7 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 func TestWorktreeDiscovery_Stacks(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -995,9 +985,7 @@ unit "unit_to_be_untouched" {
 func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -1110,9 +1098,7 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)

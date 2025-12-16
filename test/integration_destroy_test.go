@@ -344,7 +344,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	oldStdout := os.Stderr
 	os.Stderr = w
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	err = helpers.RunTerragruntCommand(
 		t,
@@ -381,9 +381,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -429,9 +427,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)

@@ -12,13 +12,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestBuildCanonicalConfigPath_DirectoryPath(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	unit := component.NewUnit(tmpDir)
 
 	canonicalPath, canonicalDir, err := buildCanonicalConfigPath(unit, tmpDir)
@@ -32,7 +33,7 @@ func TestBuildCanonicalConfigPath_DirectoryPath(t *testing.T) {
 func TestBuildCanonicalConfigPath_HCLSuffix(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	unit := component.NewUnit(configPath)
 
@@ -46,7 +47,7 @@ func TestBuildCanonicalConfigPath_HCLSuffix(t *testing.T) {
 func TestBuildCanonicalConfigPath_JSONSuffix(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl.json")
 	unit := component.NewUnit(configPath)
 
@@ -60,7 +61,7 @@ func TestBuildCanonicalConfigPath_JSONSuffix(t *testing.T) {
 func TestBuildCanonicalConfigPath_RelativePath(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	subDir := filepath.Join(tmpDir, "subdir")
 	require.NoError(t, os.MkdirAll(subDir, 0o755))
 
@@ -77,7 +78,7 @@ func TestBuildCanonicalConfigPath_RelativePath(t *testing.T) {
 func TestCloneUnitOptions_NilStackExecution(t *testing.T) {
 	t.Parallel()
 
-	stack := component.NewStack(t.TempDir())
+	stack := component.NewStack(helpers.TmpDirWOSymlinks(t))
 	unit := component.NewUnit("/some/path")
 	l := thlogger.CreateLogger()
 
@@ -91,7 +92,7 @@ func TestCloneUnitOptions_NilStackExecution(t *testing.T) {
 func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 
 	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "stack", "terragrunt.hcl"))
@@ -123,10 +124,10 @@ func TestShouldSkipUnitWithoutTerraform_WithSource(t *testing.T) {
 			Source: &source,
 		},
 	}
-	unit := component.NewUnit(t.TempDir()).WithConfig(cfg)
+	unit := component.NewUnit(helpers.TmpDirWOSymlinks(t)).WithConfig(cfg)
 	l := thlogger.CreateLogger()
 
-	skip, err := shouldSkipUnitWithoutTerraform(unit, t.TempDir(), l)
+	skip, err := shouldSkipUnitWithoutTerraform(unit, helpers.TmpDirWOSymlinks(t), l)
 
 	require.NoError(t, err)
 	assert.False(t, skip)
@@ -135,7 +136,7 @@ func TestShouldSkipUnitWithoutTerraform_WithSource(t *testing.T) {
 func TestShouldSkipUnitWithoutTerraform_WithTFFiles(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "main.tf"), []byte(""), 0o600))
 
 	unit := component.NewUnit(tmpDir)
@@ -150,7 +151,7 @@ func TestShouldSkipUnitWithoutTerraform_WithTFFiles(t *testing.T) {
 func TestShouldSkipUnitWithoutTerraform_NoSourceNoFiles(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	unit := component.NewUnit(tmpDir)
 	l := thlogger.CreateLogger()
 
@@ -163,7 +164,7 @@ func TestShouldSkipUnitWithoutTerraform_NoSourceNoFiles(t *testing.T) {
 func TestShouldSkipUnitWithoutTerraform_EmptySource(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	source := ""
 	cfg := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{
