@@ -310,7 +310,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	// Filter registries based on OpenTofu or Terraform implementation to avoid contacting unnecessary registries
 	filteredRegistryNames := filterRegistriesByImplementation(
 		opts.ProviderCacheRegistryNames,
-		opts.TerraformImplementation,
+		opts.TofuImplementation,
 	)
 
 	var providerInstallationIncludes = make([]string, 0, len(filteredRegistryNames))
@@ -394,7 +394,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
 	filteredRegistryNames := filterRegistriesByImplementation(
 		opts.ProviderCacheRegistryNames,
-		opts.TerraformImplementation,
+		opts.TofuImplementation,
 	)
 
 	for _, registryName := range filteredRegistryNames {

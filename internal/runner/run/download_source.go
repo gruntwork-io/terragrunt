@@ -123,7 +123,7 @@ func DownloadTerraformSourceIfNecessary(
 				return err
 			}
 
-			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TerraformImplementation, terraformSource.WorkingDir)
+			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TofuImplementation, terraformSource.WorkingDir)
 
 			return nil
 		}

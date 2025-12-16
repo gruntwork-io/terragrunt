@@ -355,7 +355,7 @@ func runTerragruntWithConfig(
 		// If command failed, log a helpful message
 		if runTerraformError != nil {
 			if out == nil {
-				l.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
+				l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.WorkingDir)
 			}
 		}
 
