@@ -1159,6 +1159,135 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	}
 }
 
+func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	testCases := []struct {
+		name          string
+		unitConfig    string
+		description   string
+		expectWarning bool
+	}{
+		{
+			name:          "warning fires when unit has no remote_state",
+			unitConfig:    `# Unit with no remote_state`,
+			expectWarning: true,
+			description:   "Warning should fire when unit discovered via Git ref has no remote_state configuration",
+		},
+		{
+			name: "warning fires when unit has local backend",
+			unitConfig: `remote_state {
+  backend = "local"
+  config = {
+    path = "terraform.tfstate"
+  }
+}
+# Unit with local backend`,
+			expectWarning: true,
+			description:   "Warning should fire when unit discovered via Git ref has local backend",
+		},
+		{
+			name: "no warning when unit has remote state backend",
+			unitConfig: `remote_state {
+  backend = "s3"
+  config = {
+    bucket = "test-bucket"
+    key    = "terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+# Unit with remote state`,
+			expectWarning: false,
+			description:   "Warning should not fire when unit discovered via Git ref has remote state backend",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			tmpDir, err := filepath.EvalSymlinks(tmpDir)
+			require.NoError(t, err)
+
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			err = runner.GoOpenRepo()
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				err = runner.GoCloseStorage()
+				require.NoError(t, err)
+			})
+
+			// Create a unit with the specified configuration
+			unitDir := filepath.Join(tmpDir, "test-unit")
+			unitHCLPath := createTestUnit(t, unitDir, tc.unitConfig)
+
+			// Initial commit
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Modify the unit to trigger Git filter detection
+			err = os.WriteFile(unitHCLPath, []byte(tc.unitConfig+"\n# Modified"), 0644)
+			require.NoError(t, err)
+
+			// Commit the modification
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Modify unit", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Run terragrunt run --all --filter with git filter
+			cmd := "terragrunt run --all --no-color --working-dir " + tmpDir + " --filter '[HEAD~1...HEAD]' --report-file " + helpers.ReportFile + " -- plan"
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			// Check for the warning in stderr
+			// The warning message should contain this unique substring
+			warningMessage := "do not have a remote_state configuration"
+			hasWarning := strings.Contains(stderr, warningMessage) && strings.Contains(stderr, "Git-based filter expressions")
+
+			if tc.expectWarning {
+				assert.True(t, hasWarning, "Expected warning message in stderr. stderr: %s\nstdout: %s", stderr, stdout)
+			} else {
+				assert.False(t, hasWarning, "Did not expect warning message in stderr. stderr: %s\nstdout: %s", stderr, stdout)
+			}
+
+			// The command may fail due to the backend not being bootstrapped, but that's okay.
+			// We're just checking for the warning
+			_ = err
+		})
+	}
+}
+
 func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 	t.Parallel()
 
