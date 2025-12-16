@@ -16,15 +16,16 @@ import (
 )
 
 const (
-	includeDeepFixturePath      = "fixtures/include-deep/"
-	includeDeepFixtureChildPath = "child"
-	includeFixturePath          = "fixtures/include/"
-	includeShallowFixturePath   = "stage/my-app"
-	includeNoMergeFixturePath   = "qa/my-app"
-	includeExposeFixturePath    = "fixtures/include-expose/"
-	includeChildFixturePath     = "child"
-	includeMultipleFixturePath  = "fixtures/include-multiple/"
-	includeRunAllFixturePath    = "fixtures/include-runall/"
+	includeDeepFixturePath       = "fixtures/include-deep/"
+	includeDeepFixtureChildPath  = "child"
+	includeFixturePath           = "fixtures/include/"
+	includeShallowFixturePath    = "stage/my-app"
+	includeNoMergeFixturePath    = "qa/my-app"
+	includeExposeFixturePath     = "fixtures/include-expose/"
+	includeChildFixturePath      = "child"
+	includeMultipleFixturePath   = "fixtures/include-multiple/"
+	includeRunAllFixturePath     = "fixtures/include-runall/"
+	rootTerragruntHCLFixturePath = "fixtures/root-terragrunt-hcl-regression/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
@@ -266,6 +267,55 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 			validateMultipleIncludeTestOutput(t, outputs)
 		})
 	}
+}
+
+func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
+	t.Parallel()
+
+	// This is a regression test to ensure that users can still have a root terragrunt.hcl at the project root,
+	// and run Terragrunt from that root, as long as they exclude that directory from the queue.
+	//
+	// In this fixture, the child units include the root config via:
+	//   path = find_in_parent_folders("terragrunt.hcl")
+	//
+	// The key requirement is: excluding "." should prevent Terragrunt from trying to treat the root directory
+	// itself as a unit, while still allowing the root terragrunt.hcl to be used for includes.
+	tmpEnvPath := helpers.CopyEnvironment(t, rootTerragruntHCLFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, rootTerragruntHCLFixturePath)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" --queue-exclude-dir=. -- plan",
+	)
+	require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)
+
+	// Excluding "." should skip parsing the root directory as a component.
+	assert.Contains(t, stderr, "Skipping parse for excluded component: .")
+
+	// Child configs should still be able to include the root `terragrunt.hcl` (deprecated, but supported).
+	assert.Regexp(t, `Included config \./terragrunt\.hcl`, stderr)
+
+	// And the child units should still be discovered.
+	assert.Contains(t, stderr, "=> Unit bar (excluded: false")
+	assert.Contains(t, stderr, "=> Unit baz (excluded: false")
+	assert.Contains(t, stderr, "=> Unit foo (excluded: false")
+
+	// And they should be queued for execution.
+	assert.Contains(t, stderr, "Unit queue will be processed for plan in this order:")
+	assert.Contains(t, stderr, "- Unit bar")
+	assert.Contains(t, stderr, "- Unit baz")
+	assert.Contains(t, stderr, "- Unit foo")
+
+	// Root should not be treated as a runnable unit.
+	assert.Contains(t, stderr, "=> Unit . (excluded: true")
+
+	assert.NotContains(t, stderr, "=> Unit bar (excluded: true")
+	assert.NotContains(t, stderr, "=> Unit baz (excluded: true")
+	assert.NotContains(t, stderr, "=> Unit foo (excluded: true")
+
+	assert.NotContains(t, stderr, "Runner Pool Controller: starting with 0 tasks")
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.TerraformOutput) {
