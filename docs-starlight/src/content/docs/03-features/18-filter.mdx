@@ -492,6 +492,12 @@ Graph expressions require dependency/dependent discovery to work correctly. When
 
 Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
 
+<Aside type="caution" title="Remote State Recommended">
+
+When using Git-based filter expressions (e.g. `[HEAD~1...HEAD]`), it is **strongly recommended** to use remote state configurations. Units discovered using Git-based filter expressions may not properly detect dependency outputs when using local state, which can lead to unexpected outcomes such as mock outputs being used instead of actual dependency outputs.
+
+</Aside>
+
 #### Shorthand: `--filter-affected`
 
 For the common use case of comparing the default branch (typically `main`) with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:
@@ -576,6 +582,36 @@ Then, for any unit that is discovered within those worktrees, Terragrunt will en
 In the example above, the `modified-unit` will be discovered in a "to" temporary directory (e.g. `/tmp/.../terragrunt-worktree-HEAD.../modified-unit`), whereas the `removed-unit` would be discovered in the "from" temporary directory (e.g. `/tmp/.../terragrunt-worktree-main.../removed-unit`).
 
 This is important to recognize, as it's how destroys will be possible despite the fact that the unit is no longer present in the current working directory. As a consequence, however, you may find that usage of absolute paths don't work how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
+
+</Aside>
+
+<Aside type="tip" title="Testing with Local State">
+
+If you need to test with local state while using Git-based filter expressions, you can work around the limitations by placing state files in a separate location using absolute paths in your `remote_state` configuration. This ensures that state files are stored consistently regardless of which worktree directory Terragrunt is operating in.
+
+For example, instead of using a relative path:
+
+```hcl
+remote_state {
+  backend = "local"
+  config = {
+    path = "${get_parent_terragrunt_dir()}/.state/${path_relative_to_include()}/tofu.tfstate"
+  }
+}
+```
+
+Consider using an absolute path to a shared location:
+
+```hcl
+remote_state {
+  backend = "local"
+  config = {
+    path = "/tmp/terragrunt-state/${path_relative_to_include()}/tofu.tfstate"
+  }
+}
+```
+
+Note that this is a workaround for testing purposes only. For production use, remote state backends (such as S3, GCS, or Azure Storage) are strongly recommended.
 
 </Aside>
 

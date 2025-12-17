@@ -222,6 +222,34 @@ func resolveUnitsFromDiscovery(
 	return units, nil
 }
 
+// checkLocalStateWithGitRefs checks if any unit has a Git ref in its discovery context
+// but no remote state configuration, and logs a warning if so.
+func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
+	for _, unit := range units {
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx == nil {
+			continue
+		}
+
+		if discoveryCtx.Ref == "" {
+			continue
+		}
+
+		unitConfig := unit.Config()
+		if unitConfig == nil {
+			continue
+		}
+
+		if unitConfig.RemoteState == nil || unitConfig.RemoteState.BackendName == "local" {
+			l.Warnf(
+				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
+			)
+
+			return
+		}
+	}
+}
+
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(
 	ctx context.Context,
@@ -281,6 +309,9 @@ func NewRunnerPoolStack(
 	if err != nil {
 		return nil, err
 	}
+
+	// Check for units with Git refs but no remote state configuration
+	checkLocalStateWithGitRefs(l, units)
 
 	// Record exclude-dir reasons in report before filtering.
 	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(terragruntOptions.ExcludeDirs) > 0 {

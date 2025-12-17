@@ -564,6 +564,7 @@ func Parse(
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 		config.ErrorsBlock,
+		config.RemoteStateBlock,
 	)
 
 	//nolint: contextcheck
