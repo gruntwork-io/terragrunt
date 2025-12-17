@@ -143,6 +143,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			expectedRecordsCopy := slices.Clone(expectedRecords)
 
 			// Set up test environment
