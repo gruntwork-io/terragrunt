@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Report captures data for a report/summary.
@@ -129,7 +131,7 @@ var ErrRunAlreadyExists = errors.New("run already exists")
 
 // AddRun adds a run to the report.
 // If the run already exists, it returns the ErrRunAlreadyExists error.
-func (r *Report) AddRun(run *Run) error {
+func (r *Report) AddRun(l log.Logger, run *Run) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -138,6 +140,8 @@ func (r *Report) AddRun(run *Run) error {
 			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Path)
 		}
 	}
+
+	l.Debugf("Adding report run %s", run.Path)
 
 	r.Runs = append(r.Runs, run)
 
@@ -169,9 +173,11 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // EnsureRun tries to get a run from the report.
 // If the run does not exist, it creates a new run and adds it to the report, then returns the run.
 // This is useful when a run is being ended that might not have been started due to exclusion, etc.
-func (r *Report) EnsureRun(path string) (*Run, error) {
+func (r *Report) EnsureRun(l log.Logger, path string) (*Run, error) {
 	run, err := r.GetRun(path)
 	if err == nil {
+		l.Debugf("Report run %s already exists, returning existing run", path)
+
 		return run, nil
 	}
 
@@ -179,12 +185,14 @@ func (r *Report) EnsureRun(path string) (*Run, error) {
 		return run, err
 	}
 
+	l.Debugf("Report run %s not found, creating new run", path)
+
 	run, err = NewRun(path)
 	if err != nil {
 		return run, err
 	}
 
-	if err = r.AddRun(run); err != nil {
+	if err = r.AddRun(l, run); err != nil {
 		return run, err
 	}
 
@@ -195,7 +203,7 @@ func (r *Report) EnsureRun(path string) (*Run, error) {
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
 // If the run has already ended from an early exit, it does nothing.
-func (r *Report) EndRun(path string, endOptions ...EndOption) error {
+func (r *Report) EndRun(l log.Logger, path string, endOptions ...EndOption) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -230,6 +238,8 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	for _, endOption := range endOptions {
 		endOption(run)
 	}
+
+	l.Debugf("Ending report run %s with result %s", path, run.Result)
 
 	return nil
 }

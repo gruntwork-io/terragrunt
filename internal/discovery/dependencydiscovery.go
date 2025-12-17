@@ -290,8 +290,21 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		// Record in report as excluded external dependency
 		if dd.report != nil {
 			absPath := util.CleanPath(depPath)
-			run, _ := dd.report.EnsureRun(absPath)
-			_ = dd.report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeExternal))
+
+			run, err := dd.report.EnsureRun(l, absPath)
+			if err != nil {
+				l.Errorf("Error ensuring run for excluded external dependency %s: %v", absPath, err)
+			}
+
+			err = dd.report.EndRun(
+				l,
+				run.Path,
+				report.WithResult(report.ResultExcluded),
+				report.WithReason(report.ReasonExcludeExternal),
+			)
+			if err != nil {
+				l.Errorf("Error ending run for excluded external dependency %s: %v", absPath, err)
+			}
 		}
 
 		dd.markSeen(depPath)
