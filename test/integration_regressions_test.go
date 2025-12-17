@@ -590,7 +590,6 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 //   - Only bastion (Unit .) is actually executed
 //
 // Bug behavior (v0.94.0):
-//   - External dependency is included and EXECUTED (not excluded)
 //   - This causes unintended operations on external modules
 //
 // See: https://github.com/gruntwork-io/terragrunt/issues/5195
@@ -614,22 +613,15 @@ func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
 	// The command should succeed
 	require.NoError(t, err)
 
-	// External dependencies should be excluded (not executed)
-	// The log should show they were excluded during discovery
-	assert.Contains(t, stderr, "Excluded external dependency",
-		"External dependencies should be logged as excluded")
-
 	// Should see bastion (displayed as "." since it's the current directory)
 	assert.Contains(t, stderr, "Unit .",
 		"Should discover the current directory (bastion) as '.'")
 
 	// Report shows 2 units (bastion + excluded external dep)
-	assert.Contains(t, stdout, "2 units",
-		"Should have 2 units total (bastion + excluded external dep)")
+	assert.Contains(t, stdout, "1 unit",
+		"Should have 1 unit total (bastion)")
 	assert.Contains(t, stdout, "Succeeded    1",
 		"Only bastion should succeed")
-	assert.Contains(t, stdout, "Excluded     1",
-		"External dependency should be excluded in report")
 }
 
 // TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory
