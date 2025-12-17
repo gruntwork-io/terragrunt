@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -40,7 +41,7 @@ func TestContent_Store(t *testing.T) {
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -64,7 +65,7 @@ func TestContent_Store(t *testing.T) {
 	t.Run("overwrite existing content", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -93,7 +94,7 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
-		storeDir := t.TempDir()
+		storeDir := helpers.TmpDirWOSymlinks(t)
 		store := cas.NewStore(storeDir)
 
 		content := cas.NewContent(store)
@@ -105,7 +106,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then create a link to it
-		targetDir := t.TempDir()
+		targetDir := helpers.TmpDirWOSymlinks(t)
 		targetPath := filepath.Join(targetDir, "test.txt")
 
 		err = content.Link(t.Context(), testHash, targetPath)
@@ -127,7 +128,7 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("link to existing file", func(t *testing.T) {
 		t.Parallel()
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -138,7 +139,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create target file
-		targetDir := t.TempDir()
+		targetDir := helpers.TmpDirWOSymlinks(t)
 		targetPath := filepath.Join(targetDir, "test.txt")
 		err = os.WriteFile(targetPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
@@ -186,7 +187,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content doesn't exist", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 		content := cas.NewContent(store)
 		testHash := "newcontent123456"
 		testData := []byte("new test content")
@@ -206,7 +207,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("concurrent writes - optimization", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(t.TempDir())
+		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
 		content := cas.NewContent(store)
 		testHash := "concurrent123456"
 

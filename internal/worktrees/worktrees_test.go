@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,9 +25,7 @@ import (
 func TestNewWorktrees(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -83,9 +82,7 @@ func TestNewWorktrees(t *testing.T) {
 func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
 	runner, err := git.NewGitRunner()
@@ -231,9 +228,7 @@ func TestExpressionExpansion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -376,9 +371,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -616,12 +609,10 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			// Setup filesystem structure
-			err = tt.setupFilesystem(tmpDir)
+			err := tt.setupFilesystem(tmpDir)
 			require.NoError(t, err)
 
 			wp := &worktrees.WorktreePair{

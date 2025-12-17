@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestRun(t *testing.T) {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				tmpDir := t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
 
 				// Create test directory structure
 				testDirs := []string{
@@ -103,7 +104,7 @@ func TestRun(t *testing.T) {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				tmpDir := t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
 
 				// Create test directory structure
 				testDirs := []string{
@@ -174,7 +175,7 @@ func TestRun(t *testing.T) {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				tmpDir := t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
 
 				// Create test directory structure
 				testDirs := []string{
@@ -242,7 +243,7 @@ func TestRun(t *testing.T) {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				tmpDir := t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
 
 				// Create test directory structure with dependencies:
 				// unit2 -> unit1
@@ -313,7 +314,7 @@ dependency "unit2" {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				tmpDir := t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
 
 				// Create test directory structure with dependencies
 				testDirs := []string{
@@ -386,7 +387,9 @@ dependency "B" {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				return t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
+
+				return tmpDir
 			},
 			format: "invalid",
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -399,7 +402,9 @@ dependency "B" {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				return t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
+
+				return tmpDir
 			},
 			mode: "invalid",
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -412,7 +417,7 @@ dependency "B" {
 			setup: func(t *testing.T) string {
 				t.Helper()
 
-				tmpDir := t.TempDir()
+				tmpDir := helpers.TmpDirWOSymlinks(t)
 				appDir := filepath.Join(tmpDir, "app")
 				require.NoError(t, os.MkdirAll(appDir, 0755))
 

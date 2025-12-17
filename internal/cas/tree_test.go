@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -156,7 +157,7 @@ func TestLinkTree(t *testing.T) {
 			setupStore: func(t *testing.T) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := t.TempDir()
+				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
 				content := cas.NewContent(store)
 
@@ -212,7 +213,7 @@ func TestLinkTree(t *testing.T) {
 			setupStore: func(t *testing.T) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := t.TempDir()
+				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
 				return store, ""
 			},
@@ -229,7 +230,7 @@ func TestLinkTree(t *testing.T) {
 			setupStore: func(t *testing.T) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := t.TempDir()
+				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
 				return store, ""
 			},
@@ -250,7 +251,7 @@ func TestLinkTree(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create target directory
-			targetDir := t.TempDir()
+			targetDir := helpers.TmpDirWOSymlinks(t)
 
 			// Link the tree
 			err = cas.LinkTree(t.Context(), store, tree, targetDir)

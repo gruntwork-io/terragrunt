@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,8 +27,8 @@ func TestListModules_HappyPath(t *testing.T) {
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
-		// Use t.TempDir() for the dummyRepoDir to ensure cleanup and parallelism safety.
-		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
+		// Use a temp dir for the dummyRepoDir to ensure cleanup and parallelism safety.
+		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
@@ -51,7 +52,7 @@ func TestListModules_HappyPath(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL in mock newRepoFunc: %s", repoURL)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	rootFile := filepath.Join(tmpDir, "root.hcl")
 	err := os.WriteFile(rootFile, []byte(`catalog {
 	urls = [
@@ -86,7 +87,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	opts.TerragruntConfigPath = filepath.Join(tmpDir, "nonexistent-terragrunt.hcl")
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
@@ -106,7 +107,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		if repoURL == "github.com/gruntwork-io/only-repo" {
-			dummyRepoDir := filepath.Join(t.TempDir(), "only-repo")
+			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "only-repo")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
@@ -159,7 +160,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		if repoURL == "github.com/gruntwork-io/find-error-repo" {
-			dummyRepoDir := filepath.Join(t.TempDir(), "find-error-repo-dir")
+			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "find-error-repo-dir")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
@@ -190,7 +191,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
-		dummyRepoDir := filepath.Join(t.TempDir(), "empty-repo-dir")
+		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "empty-repo-dir")
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)

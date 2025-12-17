@@ -191,7 +191,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- apply -auto-approve")
@@ -302,7 +302,7 @@ func TestRenderJSONConfig(t *testing.T) {
 func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSONRegression)

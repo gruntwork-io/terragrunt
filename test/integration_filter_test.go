@@ -762,9 +762,7 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -972,9 +970,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -1349,9 +1345,7 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)

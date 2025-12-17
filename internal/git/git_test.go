@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,7 @@ func TestGitRunner_Clone(t *testing.T) {
 
 	t.Run("shallow clone", func(t *testing.T) {
 		t.Parallel()
-		cloneDir := t.TempDir()
+		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
 
@@ -86,7 +87,7 @@ func TestGitRunner_Clone(t *testing.T) {
 
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
-		cloneDir := t.TempDir()
+		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
 
@@ -161,7 +162,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
-		cloneDir := t.TempDir()
+		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
 
@@ -193,7 +194,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 
 	t.Run("invalid reference", func(t *testing.T) {
 		t.Parallel()
-		cloneDir := t.TempDir()
+		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
 
@@ -217,7 +218,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
-		runner = runner.WithWorkDir(t.TempDir())
+		runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
 
 		// Try to ls-tree in an empty directory
 		_, err = runner.LsTreeRecursive(ctx, "HEAD")
@@ -237,7 +238,7 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
-		runner = runner.WithWorkDir(t.TempDir())
+		runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
 		err = runner.RequiresWorkDir()
 		assert.NoError(t, err)
 	})

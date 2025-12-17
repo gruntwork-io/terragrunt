@@ -1267,7 +1267,7 @@ func TestStacksNoStackDirDirectoryCreated(t *testing.T) {
 func TestStacksGeneratePrintWarning(t *testing.T) {
 	t.Parallel()
 
-	rootPath := t.TempDir()
+	rootPath := helpers.TmpDirWOSymlinks(t)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	assert.Contains(t, stderr, "No stack files found")
 	require.NoError(t, err)
@@ -1794,7 +1794,7 @@ func TestStackGenerateWithFilter(t *testing.T) {
 func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	setupNestedStackFixture(t, tmpDir)
 
 	liveDir := filepath.Join(tmpDir, "live")

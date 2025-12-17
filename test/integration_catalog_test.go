@@ -25,7 +25,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	assert.NotNil(t, auroraModule)
 
-	testPath := t.TempDir()
+	testPath := helpers.TmpDirWOSymlinks(t)
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
@@ -96,7 +96,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false)
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	assert.NotNil(t, auroraModule)
 
-	testPath := t.TempDir()
+	testPath := helpers.TmpDirWOSymlinks(t)
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 

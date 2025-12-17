@@ -161,7 +161,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// copy the template `numberOfModules` times into the app
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range numberOfModules {
 		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
 		if err != nil {

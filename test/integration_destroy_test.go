@@ -344,7 +344,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	oldStdout := os.Stderr
 	os.Stderr = w
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	err = helpers.RunTerragruntCommand(
 		t,
@@ -381,9 +381,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -393,7 +391,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
 
 	// plan and apply
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
@@ -429,9 +427,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -448,7 +444,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	)
 
 	// plan and apply
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
 			"terragrunt plan --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
