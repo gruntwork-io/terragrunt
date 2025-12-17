@@ -716,17 +716,17 @@ func TestWorktreeCleanup(t *testing.T) {
 
 	tempDir := os.TempDir()
 
-	worktreeDirs, err := filepath.Glob(tempDir + "/terragrunt-worktree-*")
+	worktreeDirs, err := filepath.Glob(filepath.Join(tempDir, "terragrunt-worktree-*"))
 	require.NoError(t, err)
 	// validate that test-worktree-cleanup worktree was deleted
-	notExistingWorktree := false
+	worktreeExists := false
 
 	for _, dir := range worktreeDirs {
-		if strings.HasPrefix(dir, "test-worktree-cleanup") {
-			notExistingWorktree = true
+		if strings.Contains(filepath.Base(dir), "test-worktree-cleanup") {
+			worktreeExists = true
 			break
 		}
 	}
 
-	assert.False(t, notExistingWorktree, "Worktree test-worktree-cleanup should be deleted")
+	assert.False(t, worktreeExists, "Worktree test-worktree-cleanup should be deleted")
 }

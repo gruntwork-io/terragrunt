@@ -548,7 +548,7 @@ func createGitWorktrees(
 				mu.Lock()
 
 				if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
-					l.Warnf("failed to clean worktree directory %s %v", tmpDir, cleanErr)
+					l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
 				}
 
 				errs = append(errs, tgerrors.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
