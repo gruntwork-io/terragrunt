@@ -50,8 +50,8 @@ func BuildCanonicalConfigPath(
 	terragruntConfigPath := unit.Path()
 	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
 		fileName := config.DefaultTerragruntConfigPath
-		if configFileName != "" && configFileName != "." {
-			fileName = configFileName
+		if unit.ConfigFile() != "" {
+			fileName = unit.ConfigFile()
 		}
 
 		terragruntConfigPath = filepath.Join(unit.Path(), fileName)
@@ -158,11 +158,6 @@ func resolveUnitsFromDiscovery(
 	}
 
 	basePath := stack.Path()
-
-	configFileName := config.DefaultTerragruntConfigPath
-	if stack.Execution != nil && stack.Execution.TerragruntOptions != nil {
-		configFileName = filepath.Base(stack.Execution.TerragruntOptions.TerragruntConfigPath)
-	}
 
 	for _, c := range discovered {
 		unit, ok := c.(*component.Unit)
