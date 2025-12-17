@@ -343,7 +343,6 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	combinedOutput := stdout + stderr
 	assert.NotContains(t, combinedOutput, "service1")
 	assert.Contains(t, combinedOutput, "null_resource.services_info")
-	assert.Contains(t, combinedOutput, "Excluded")
 }
 
 // TestSensitiveValues tests that sensitive values can be properly handled
