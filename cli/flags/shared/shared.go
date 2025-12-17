@@ -6,7 +6,6 @@ package shared
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -173,9 +172,9 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 					}
 
 					for _, v := range value {
-						v = filepath.Join(".", filepath.Clean(v))
-
-						opts.FilterQueries = append(opts.FilterQueries, "!"+v)
+						// We explicitly wrap the value in curly braces to ensure that it is treated
+						// as a path expression, and not a name filter.
+						opts.FilterQueries = append(opts.FilterQueries, "!{"+v+"}")
 					}
 
 					return nil
@@ -196,9 +195,9 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 					}
 
 					for _, v := range value {
-						v = filepath.Join(".", filepath.Clean(v))
-
-						opts.FilterQueries = append(opts.FilterQueries, v)
+						// We explicitly wrap the value in curly braces to ensure that it is treated
+						// as a path expression, and not a name filter.
+						opts.FilterQueries = append(opts.FilterQueries, "{"+v+"}")
 					}
 
 					return nil
