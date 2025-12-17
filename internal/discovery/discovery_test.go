@@ -119,7 +119,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	}
 
 	for _, dir := range testDirs {
-		err = os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0755)
 		require.NoError(t, err)
 	}
 
@@ -144,7 +144,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	}
 
 	for path, content := range testFiles {
-		err = os.WriteFile(path, []byte(content), 0644)
+		err := os.WriteFile(path, []byte(content), 0644)
 		require.NoError(t, err)
 	}
 
