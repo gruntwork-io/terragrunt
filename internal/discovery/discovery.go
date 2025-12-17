@@ -1044,31 +1044,6 @@ func (d *Discovery) Discover(
 		}
 
 		components = threadSafeComponents.ToComponents()
-
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
-			"working_dir":  d.discoveryContext.WorkingDir,
-			"config_count": len(components),
-		}, func(ctx context.Context) error {
-			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
-				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
-
-				l.Debugf("Cycle: %v", cycleErr)
-
-				var removeErr error
-
-				if d.breakCycles {
-					components, removeErr = RemoveCycles(components)
-					if removeErr != nil {
-						errs = append(errs, errors.New(removeErr))
-					}
-				}
-			}
-
-			return nil
-		})
-		if err != nil {
-			return components, errors.New(err)
-		}
 	}
 
 	relationshipDiscovery := NewRelationshipDiscovery(&components).
@@ -1100,6 +1075,31 @@ func (d *Discovery) Discover(
 		if evaluateErr == nil {
 			components = filtered
 		}
+	}
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
+		"working_dir":  d.discoveryContext.WorkingDir,
+		"config_count": len(components),
+	}, func(ctx context.Context) error {
+		if _, cycleErr := components.CycleCheck(); cycleErr != nil {
+			l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+
+			l.Debugf("Cycle: %w", cycleErr)
+
+			var removeErr error
+
+			if d.breakCycles {
+				components, removeErr = RemoveCycles(components)
+				if removeErr != nil {
+					errs = append(errs, errors.New(removeErr))
+				}
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		errs = append(errs, errors.New(err))
 	}
 
 	if len(errs) > 0 {
