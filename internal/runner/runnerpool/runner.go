@@ -333,12 +333,20 @@ func NewRunnerPoolStack(
 						}
 					}
 
-					run, err := runner.Stack.Execution.Report.EnsureRun(absPath)
+					run, err := runner.Stack.Execution.Report.EnsureRun(l, absPath)
 					if err != nil {
 						continue
 					}
 
-					_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
+					err = runner.Stack.Execution.Report.EndRun(
+						l,
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeDir),
+					)
+					if err != nil {
+						l.Errorf("Error ending run for unit %s: %v", absPath, err)
+					}
 				}
 			}
 		}
@@ -490,7 +498,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				run, err := r.Stack.Execution.Report.EnsureRun(unitPath)
+				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -508,6 +516,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 
 					if err := r.Stack.Execution.Report.EndRun(
+						l,
 						run.Path,
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
@@ -578,7 +587,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				run, reportErr := r.Stack.Execution.Report.EnsureRun(unitPath)
+				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue
@@ -609,7 +618,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 				}
 
-				if endErr := r.Stack.Execution.Report.EndRun(run.Path, endOpts...); endErr != nil {
+				if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
 					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 				}
 			}

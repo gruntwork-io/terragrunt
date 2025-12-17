@@ -676,18 +676,25 @@ type ErrorsPattern struct {
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
-func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.Logger, r *report.Report, operation func() error) error {
+func (opts *TerragruntOptions) RunWithErrorHandling(
+	ctx context.Context,
+	l log.Logger,
+	r *report.Report,
+	operation func() error,
+) error {
 	if opts.Errors == nil {
 		return operation()
 	}
 
 	currentAttempt := 1
 
-	// convert working dir to an absolute path for reporting
-	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
+	// convert working dir to a clean, absolute path for reporting
+	reportDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
+
+	reportDir = util.CleanPath(reportDir)
 
 	for {
 		err := operation()
@@ -715,12 +722,13 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
-			run, err := r.EnsureRun(absWorkingDir)
+			run, err := r.EnsureRun(l, reportDir)
 			if err != nil {
 				return err
 			}
 
 			if err := r.EndRun(
+				l,
 				run.Path,
 				report.WithResult(report.ResultSucceeded),
 				report.WithReason(report.ReasonErrorIgnored),
@@ -747,12 +755,13 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 			)
 
 			// Record that a retry will be attempted without prematurely marking success.
-			run, err := r.EnsureRun(absWorkingDir)
+			run, err := r.EnsureRun(l, reportDir)
 			if err != nil {
 				return err
 			}
 
 			if err := r.EndRun(
+				l,
 				run.Path,
 				report.WithResult(report.ResultSucceeded),
 				report.WithReason(report.ReasonRetrySucceeded),
