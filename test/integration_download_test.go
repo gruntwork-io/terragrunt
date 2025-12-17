@@ -647,42 +647,36 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	tmpPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	tmpPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	require.NoError(t, err)
 
 	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithNone := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{})
+	includedModulesWithNone := helpers.RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(t, testPath, []string{})
 	assert.NotEmpty(t, includedModulesWithNone)
 
-	includedModulesWithAmzApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(
+	includedModulesWithAmzApp := helpers.RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 		t,
 		testPath,
 		[]string{"amazing-app/k8s"},
 	)
 	assert.Equal(
-		t, getPathsRelativeTo(
-			t,
-			testPath,
-			[]string{"amazing-app/k8s", "clusters/eks"},
-		),
+		t,
+		[]string{"amazing-app/k8s", "clusters/eks"},
 		includedModulesWithAmzApp,
 	)
 
-	includedModulesWithTestApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(
+	includedModulesWithTestApp := helpers.RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 		t,
 		testPath,
 		[]string{"testapp/k8s"},
 	)
 	assert.Equal(
 		t,
-		getPathsRelativeTo(
-			t,
-			testPath,
-			[]string{"clusters/eks", "testapp/k8s"},
-		),
+		[]string{"clusters/eks", "testapp/k8s"},
 		includedModulesWithTestApp,
 	)
 }
@@ -696,7 +690,9 @@ func TestIncludeDirsStrict(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	tmpPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	tmpPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	require.NoError(t, err)
+
 	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	helpers.CleanupTerragruntFolder(t, testPath)
 
