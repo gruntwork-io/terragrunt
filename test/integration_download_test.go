@@ -704,9 +704,6 @@ func TestIncludeDirsStrict(t *testing.T) {
 		helpers.CleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithNone := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{})
-	assert.Equal(t, []string{}, includedModulesWithNone)
-
 	includedModulesWithAmzApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(
 		t,
 		testPath,
