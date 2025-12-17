@@ -158,7 +158,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 
 			reportFile := "report." + tc.format
 			cmd := fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
+				"terragrunt run --all --log-level trace apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				filepath.Join(rootPath, "second-exclude"),
 				reportFile)
