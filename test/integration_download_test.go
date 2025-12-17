@@ -713,22 +713,22 @@ func TestIncludeDirsStrict(t *testing.T) {
 		testPath,
 		[]string{"amazing-app/k8s"},
 	)
-	assert.Equal(t, getPathsRelativeTo(
+	assert.Equal(
 		t,
-		testPath,
 		[]string{"amazing-app/k8s"},
-	), includedModulesWithAmzApp)
+		includedModulesWithAmzApp,
+	)
 
 	includedModulesWithTestApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(
 		t,
 		testPath,
 		[]string{"testapp/k8s"},
 	)
-	assert.Equal(t, getPathsRelativeTo(
+	assert.Equal(
 		t,
-		testPath,
 		[]string{"testapp/k8s"},
-	), includedModulesWithTestApp)
+		includedModulesWithTestApp,
+	)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {
