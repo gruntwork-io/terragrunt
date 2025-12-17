@@ -21,7 +21,7 @@ type JSONRun struct {
 	// Ended is the time when the run ended.
 	Ended time.Time `json:"Ended" jsonschema:"required"`
 	// Reason is the reason for the run result, if any.
-	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=ancestor error"`
+	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=exclude block,enum=ancestor error"`
 	// Cause is the cause of the run result, if any.
 	Cause *string `json:"Cause,omitempty"`
 	// Name is the name of the run.
@@ -206,7 +206,7 @@ func (r *Report) WriteSchema(w io.Writer) error {
 
 	schema.Description = "Schema for Terragrunt run report"
 	schema.Title = "Terragrunt Run Report Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json"
 
 	arraySchema := &jsonschema.Schema{
 		Type:        "array",
