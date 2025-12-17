@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -1175,19 +1176,35 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		{
 			name: "multiple runs sorted by duration",
 			setup: func(r *report.Report) {
-				// Add runs with different durations
-				longRun := newRun(t, filepath.Join(tmp, "long-run"))
-				r.AddRun(longRun)
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				mediumRun := newRun(t, filepath.Join(tmp, "medium-run"))
-				r.AddRun(mediumRun)
+					longRun := newRun(t, filepath.Join(tmp, "long-run"))
+					r.AddRun(longRun)
 
-				shortRun := newRun(t, filepath.Join(tmp, "short-run"))
-				r.AddRun(shortRun)
+					time.Sleep(1 * time.Second)
 
-				r.EndRun(shortRun.Path)
-				r.EndRun(mediumRun.Path)
-				r.EndRun(longRun.Path)
+					mediumRun := newRun(t, filepath.Join(tmp, "medium-run"))
+					r.AddRun(mediumRun)
+
+					time.Sleep(1 * time.Second)
+
+					shortRun := newRun(t, filepath.Join(tmp, "short-run"))
+					r.AddRun(shortRun)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(shortRun.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(mediumRun.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(longRun.Path)
+				})
 			},
 			expected: `
 ❯❯ Run Summary  3 units  x
@@ -1201,21 +1218,50 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		{
 			name: "mixed results grouped by category",
 			setup: func(r *report.Report) {
-				// Add runs with different results
-				successRun1 := newRun(t, filepath.Join(tmp, "success-1"))
-				successRun2 := newRun(t, filepath.Join(tmp, "success-2"))
-				failRun := newRun(t, filepath.Join(tmp, "fail-run"))
-				excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				r.AddRun(successRun1)
-				r.AddRun(successRun2)
-				r.AddRun(failRun)
-				r.AddRun(excludedRun)
+					successRun1 := newRun(t, filepath.Join(tmp, "success-1"))
 
-				r.EndRun(successRun1.Path)
-				r.EndRun(successRun2.Path)
-				r.EndRun(failRun.Path, report.WithResult(report.ResultFailed))
-				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded))
+					time.Sleep(1 * time.Second)
+
+					successRun2 := newRun(t, filepath.Join(tmp, "success-2"))
+
+					time.Sleep(1 * time.Second)
+
+					failRun := newRun(t, filepath.Join(tmp, "fail-run"))
+
+					time.Sleep(1 * time.Second)
+
+					excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+
+					r.AddRun(successRun1)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(successRun2)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(failRun)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(excludedRun)
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(successRun1.Path)
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(successRun2.Path)
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(failRun.Path, report.WithResult(report.ResultFailed))
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded))
+				})
 			},
 			expected: `
 ❯❯ Run Summary  4 units  x
@@ -1232,18 +1278,42 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		{
 			name: "very short unit names",
 			setup: func(r *report.Report) {
-				// Add runs with very short names
-				a := newRun(t, filepath.Join(tmp, "a"))
-				b := newRun(t, filepath.Join(tmp, "b"))
-				c := newRun(t, filepath.Join(tmp, "c"))
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				r.AddRun(a)
-				r.AddRun(b)
-				r.AddRun(c)
+					a := newRun(t, filepath.Join(tmp, "a"))
 
-				r.EndRun(a.Path)
-				r.EndRun(b.Path)
-				r.EndRun(c.Path)
+					time.Sleep(1 * time.Second)
+
+					b := newRun(t, filepath.Join(tmp, "b"))
+
+					time.Sleep(1 * time.Second)
+
+					c := newRun(t, filepath.Join(tmp, "c"))
+
+					r.AddRun(a)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(b)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(c)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(a.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(b.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(c.Path)
+				})
 			},
 			expected: `
 ❯❯ Run Summary  3 units  x
@@ -1257,18 +1327,44 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		{
 			name: "very long unit names",
 			setup: func(r *report.Report) {
-				// Add runs with very long names
-				longName1 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-1"))
-				longName2 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-2"))
-				longName3 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-3"))
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				r.AddRun(longName1)
-				r.AddRun(longName2)
-				r.AddRun(longName3)
+					longName1 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-1"))
 
-				r.EndRun(longName1.Path)
-				r.EndRun(longName2.Path)
-				r.EndRun(longName3.Path)
+					time.Sleep(1 * time.Second)
+
+					longName2 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-2"))
+
+					time.Sleep(1 * time.Second)
+
+					longName3 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-3"))
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(longName1)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(longName2)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(longName3)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(longName1.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(longName2.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(longName3.Path)
+				})
 			},
 			expected: `
 ❯❯ Run Summary  3 units           x
