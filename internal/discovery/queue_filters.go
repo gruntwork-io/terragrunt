@@ -29,7 +29,7 @@ func (d *Discovery) matchesInclude(path string) bool {
 	}
 
 	for _, raw := range d.includeDirs {
-		if util.HasPathPrefix(cleanPath, util.CleanPath(raw)) {
+		if cleanPath == util.CleanPath(raw) {
 			return true
 		}
 	}
@@ -47,7 +47,7 @@ func (d *Discovery) matchesExclude(path string) bool {
 	}
 
 	for _, raw := range d.excludeDirs {
-		if util.HasPathPrefix(cleanPath, util.CleanPath(raw)) {
+		if cleanPath == util.CleanPath(raw) {
 			return true
 		}
 	}
