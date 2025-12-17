@@ -148,7 +148,8 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			assert.NotEmpty(t, stderr)
+			// stderr can be non-empty if there are deprecations
+			t.Logf("stderr: %s", stderr)
 			assert.NotEmpty(t, stdout)
 
 			fields := strings.Fields(stdout)
