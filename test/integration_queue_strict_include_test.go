@@ -28,7 +28,11 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	// First, apply all units to create state
 	// This simulates the scenario where units have been previously applied
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
-		fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --working-dir %s -- apply -auto-approve", testPath))
+		fmt.Sprintf(
+			"terragrunt run --log-level debug --all --non-interactive --working-dir %s -- apply -auto-approve",
+			testPath,
+		),
+	)
 	require.NoError(t, err, "Failed to apply all units initially\nstdout: %s\nstderr: %s", stdout, stderr)
 
 	// Verify all units were applied
@@ -45,13 +49,19 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 		// The dependency unit depends on transitive-dependency, which should not be in the queue
 		// but should be considered ready because it has existing state
 		cmd := fmt.Sprintf(
-			"terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir '**/dependency' -- plan",
+			"terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir 'dependency' -- plan",
 			testPath,
 		)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// The command should succeed
-		require.NoError(t, err, "Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s", stdout, stderr)
+		require.NoError(
+			t,
+			err,
+			"Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s",
+			stdout,
+			stderr,
+		)
 
 		// Verify that dependency unit was processed
 		output := stdout + stderr
@@ -71,11 +81,20 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 		// Test with --queue-include-dir to only include dependency
 		// The dependency unit depends on transitive-dependency, which should not be in the queue
 		// but should be considered ready because it has existing state
-		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir '**/dependency' -- destroy -auto-approve", testPath)
+		cmd := fmt.Sprintf(
+			"terragrunt run --log-level debug --all --non-interactive --working-dir %s --queue-include-dir 'dependency' -- destroy -auto-approve",
+			testPath,
+		)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// The command should succeed
-		require.NoError(t, err, "Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s", stdout, stderr)
+		require.NoError(
+			t,
+			err,
+			"Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s",
+			stdout,
+			stderr,
+		)
 
 		// Verify that dependency unit was processed
 		output := stdout + stderr
@@ -83,21 +102,34 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 		// Verify that transitive-dependency is NOT in the queue (filtered out)
 		// but dependency still runs successfully
-		assert.Contains(t, output, "found 1 readyEntries tasks",
-			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue")
+		assert.Contains(
+			t,
+			output,
+			"found 1 readyEntries tasks",
+			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue",
+		)
 	})
 
-	t.Run("experimental filter flag", func(t *testing.T) {
+	t.Run("filter flag", func(t *testing.T) {
 		t.Parallel()
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
-		// Test with experimental --filter to only include dependency
-		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --experiment-mode --working-dir %s --filter './dependency' -- plan", testPath)
+		// Test with --filter to only include dependency
+		cmd := fmt.Sprintf(
+			"terragrunt run --log-level debug --all --non-interactive --working-dir %s --filter './dependency' -- plan",
+			testPath,
+		)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// The command should succeed
-		require.NoError(t, err, "Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s", stdout, stderr)
+		require.NoError(
+			t,
+			err,
+			"Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s",
+			stdout,
+			stderr,
+		)
 
 		// Verify that dependency unit was processed
 		output := stdout + stderr
@@ -105,21 +137,34 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 		// Verify that transitive-dependency is NOT in the queue (filtered out)
 		// but dependency still runs successfully
-		assert.Contains(t, output, "found 1 readyEntries tasks",
-			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue")
+		assert.Contains(
+			t,
+			output,
+			"found 1 readyEntries tasks",
+			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue",
+		)
 	})
 
-	t.Run("experimental filter flag and destroy", func(t *testing.T) {
+	t.Run("filter flag and destroy", func(t *testing.T) {
 		t.Parallel()
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
-		// Test with experimental --filter to only include dependency
-		cmd := fmt.Sprintf("terragrunt run --log-level debug --all --non-interactive --experiment-mode --working-dir %s --filter './dependency' -- destroy -auto-approve", testPath)
+		// Test with --filter to only include dependency
+		cmd := fmt.Sprintf(
+			"terragrunt run --log-level debug --all --non-interactive --working-dir %s --filter './dependency' -- destroy -auto-approve",
+			testPath,
+		)
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// The command should succeed
-		require.NoError(t, err, "Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s", stdout, stderr)
+		require.NoError(
+			t,
+			err,
+			"Command should succeed when dependency has existing state\nstdout: %s\nstderr: %s",
+			stdout,
+			stderr,
+		)
 
 		// Verify that dependency unit was processed
 		output := stdout + stderr
@@ -127,8 +172,12 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 		// Verify that transitive-dependency is NOT in the queue (filtered out)
 		// but dependency still runs successfully
-		assert.Contains(t, output, "found 1 readyEntries tasks",
-			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue")
+		assert.Contains(
+			t,
+			output,
+			"found 1 readyEntries tasks",
+			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue",
+		)
 	})
 }
 
