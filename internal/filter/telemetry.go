@@ -40,7 +40,6 @@ const (
 	AttrGitDiffChanged = "git.diff.changed_count"
 
 	// Repository identification attributes
-	AttrGitRepoRoot   = "git.repo.root"
 	AttrGitRepoRemote = "git.repo.remote"
 	AttrGitRepoBranch = "git.repo.branch"
 	AttrGitRepoCommit = "git.repo.commit"
@@ -175,6 +174,19 @@ func TraceGitWorktreeStackWalk(ctx context.Context, fromRef, toRef string, fn fu
 	return telemeter.Collect(ctx, TelemetryOpGitWorktreeStackWalk, map[string]any{
 		AttrGitFromRef: fromRef,
 		AttrGitToRef:   toRef,
+	}, fn)
+}
+
+// TraceGitWorktreeFilterApply wraps filter application to git worktrees with telemetry.
+func TraceGitWorktreeFilterApply(ctx context.Context, filterCount, resultCount int, fn func(ctx context.Context) error) error {
+	telemeter := telemetry.TelemeterFromContext(ctx)
+	if telemeter == nil {
+		return fn(ctx)
+	}
+
+	return telemeter.Collect(ctx, TelemetryOpGitWorktreeFilterApply, map[string]any{
+		AttrFilterCount: filterCount,
+		AttrResultCount: resultCount,
 	}, fn)
 }
 

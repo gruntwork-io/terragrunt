@@ -100,6 +100,19 @@ func TestTraceGitWorktreeStackWalk_NoTelemeter(t *testing.T) {
 	assert.True(t, called, "callback should be called even without telemeter")
 }
 
+func TestTraceGitWorktreeFilterApply_NoTelemeter(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	err := filter.TraceGitWorktreeFilterApply(context.Background(), 3, 5, func(ctx context.Context) error {
+		called = true
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.True(t, called, "callback should be called even without telemeter")
+}
+
 func TestTraceFilterEvaluate_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
@@ -204,6 +217,9 @@ func TestTelemetryConstants(t *testing.T) {
 		filter.AttrGitDiffAdded,
 		filter.AttrGitDiffRemoved,
 		filter.AttrGitDiffChanged,
+		filter.AttrGitRepoRemote,
+		filter.AttrGitRepoBranch,
+		filter.AttrGitRepoCommit,
 		filter.AttrFilterQuery,
 		filter.AttrFilterType,
 		filter.AttrFilterCount,

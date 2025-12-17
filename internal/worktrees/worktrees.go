@@ -362,7 +362,7 @@ func NewWorktrees(
 	repoCommit := gitRunner.GetHeadCommit(ctx)
 
 	// Wrap entire worktree creation process with telemetry
-	_ = filter.TraceGitWorktreesCreate(ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
+	traceErr := filter.TraceGitWorktreesCreate(ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
 		var (
 			errs []error
 			mu   sync.Mutex
@@ -469,6 +469,10 @@ func NewWorktrees(
 
 		return nil
 	})
+
+	if traceErr != nil && outerErr == nil {
+		l.Warnf("telemetry trace error during worktree creation: %v", traceErr)
+	}
 
 	return worktrees, outerErr
 }
