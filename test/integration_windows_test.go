@@ -28,7 +28,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	// By default, t.TempDir() creates a temporary directory inside the user directory
+	// By default, TempDir creates a temporary directory inside the user directory
 	// `C:/Users/circleci/AppData/Local/Temp/`, which ends up exceeding the maximum allowed length
 	// and causes the error: "fatal: '$GIT_DIR' too big". Example:
 	// "C:/Users/circleci/AppData/Local/Temp/TestWindowsLocalWithRelativeExtraArgsWindows1263358614/001/fixtures/download/local-windows/.terragrunt-cache/rviFlp3V5mrXldwi6Hbi8p2rDL0/U0tL3quoR7Yt-oR6jROJomrYpTs".

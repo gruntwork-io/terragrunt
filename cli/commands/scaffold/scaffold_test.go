@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +66,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	vars["EnableRootInclude"] = false
 	vars["RootFileName"] = "root.hcl"
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 	templateDir := filepath.Join(workDir, "template")
 	err := os.Mkdir(templateDir, 0755)
 	require.NoError(t, err)
@@ -294,7 +295,7 @@ catalog {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			workDir := t.TempDir()
+			workDir := helpers.TmpDirWOSymlinks(t)
 			configDir := filepath.Join(workDir, "config")
 
 			err := os.MkdirAll(configDir, 0755)
@@ -368,7 +369,7 @@ func boolPtr(b bool) *bool {
 func TestCatalogConfigParsing(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 
 	// Test with no_shell and no_hooks attributes
 	terragruntConfig := `
@@ -408,7 +409,7 @@ catalog {
 func TestCatalogConfigOptional(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 
 	// Test without no_shell and no_hooks attributes
 	terragruntConfig := `
@@ -444,7 +445,7 @@ catalog {
 func TestBoilerplateShellTemplateFunctionDisabled(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 	templateDir := filepath.Join(workDir, "template")
 	outputDir := filepath.Join(workDir, "output")
 
@@ -502,7 +503,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 func TestBoilerplateShellTemplateFunctionEnabled(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 	templateDir := filepath.Join(workDir, "template")
 	outputDir := filepath.Join(workDir, "output")
 
@@ -558,7 +559,7 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 func TestBoilerplateHooksDisabled(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 	templateDir := filepath.Join(workDir, "template")
 	outputDir := filepath.Join(workDir, "output")
 
@@ -626,7 +627,7 @@ test_var = "{{ .TestVar }}"
 func TestBoilerplateHooksEnabled(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 	templateDir := filepath.Join(workDir, "template")
 	outputDir := filepath.Join(workDir, "output")
 
@@ -694,7 +695,7 @@ test_var = "{{ .TestVar }}"
 func TestBoilerplateBothFlagsDisabled(t *testing.T) {
 	t.Parallel()
 
-	workDir := t.TempDir()
+	workDir := helpers.TmpDirWOSymlinks(t)
 	templateDir := filepath.Join(workDir, "template")
 	outputDir := filepath.Join(workDir, "output")
 

@@ -111,7 +111,7 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	downloadDir := t.TempDir()
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
 	t.Cleanup(func() {
@@ -199,7 +199,7 @@ func TestTflintCustomConfig(t *testing.T) {
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 

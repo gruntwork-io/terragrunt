@@ -61,7 +61,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	require.NotEmpty(t, role)
 
-	tokenFile := t.TempDir() + "/oidc-token"
+	tokenFile := helpers.TmpDirWOSymlinks(t) + "/oidc-token"
 	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
 
 	defer func() {
@@ -104,7 +104,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	emptyTerragruntConfigPath := filepath.Join(tmp, "terragrunt.hcl")
 	require.NoError(t, os.WriteFile(emptyTerragruntConfigPath, []byte(""), 0400))

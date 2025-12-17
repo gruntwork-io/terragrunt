@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestConfig(t *testing.T) {
 		exclude = []string{"registry.opentofu.org/*/*"}
 	)
 
-	tempCacheDir := t.TempDir()
+	tempCacheDir := helpers.TmpDirWOSymlinks(t)
 	// Normalize paths to forward slashes for consistent comparison across platforms
 	normalizedTempCacheDir := filepath.Clean(tempCacheDir)
 	// replace backslashes with double forward slashes to match windows HCL representation
@@ -95,7 +96,7 @@ disable_checkpoint_signature = false
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			tempDir := t.TempDir()
+			tempDir := helpers.TmpDirWOSymlinks(t)
 			configFile := filepath.Join(tempDir, ".terraformrc")
 
 			for _, host := range tc.hosts {

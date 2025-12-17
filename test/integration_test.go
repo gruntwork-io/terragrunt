@@ -822,7 +822,7 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheMultiplePlatforms)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
 
-	providerCacheDir := t.TempDir()
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	var (
 		platforms     = []string{"linux_amd64", "darwin_arm64"}
@@ -3178,7 +3178,7 @@ func TestDependencyInputsBlockedByDefault(t *testing.T) {
 	t.Parallel()
 
 	// Test that using dependency.foo.inputs syntax results in an error by default
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a terragrunt.hcl that uses the deprecated dependency.foo.inputs syntax
 	dependencyConfig := `
@@ -3765,10 +3765,7 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
-
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3876,7 +3873,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	_, _, _, err := testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
 	require.NoError(t, err)
 
@@ -3905,7 +3902,7 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
@@ -3944,7 +3941,7 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
@@ -4052,7 +4049,7 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("terragrunt with "+tc.tgArgs+" -- plan "+tc.tfArgs, func(t *testing.T) {
 			t.Parallel()
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			_, _, _, err := testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
 			require.NoError(t, err)
 			list, err := findFilesWithExtension(tmpDir, ".json")
@@ -4337,7 +4334,7 @@ func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 func TestDiscoveryDoesntResolveOutputs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	depDir := filepath.Join(tmpDir, "dep")
 	err := os.MkdirAll(depDir, 0755)
@@ -4419,7 +4416,7 @@ output "result" {
 func TestExternalDependenciesAreResolved(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	depDir := filepath.Join(tmpDir, "dep")
 	err := os.MkdirAll(depDir, 0755)

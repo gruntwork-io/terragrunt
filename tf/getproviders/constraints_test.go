@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ func TestParseProviderConstraints(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with required_providers block
 	terraformContent := `
@@ -61,7 +62,7 @@ func TestParseProviderConstraintsWithImplicitProvider(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with implicit provider (no source specified)
 	terraformContent := `
@@ -100,7 +101,7 @@ terraform {
 
 func TestParseProviderConstraintsWithEnvironmentOverride(t *testing.T) {
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with implicit provider (no source specified)
 	terraformContent := `
@@ -152,7 +153,7 @@ func TestParseProviderConstraintsWithTofuFiles(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a .tf file with one provider
 	tfContent := `
@@ -209,7 +210,7 @@ func TestParseProviderConstraintsWithEqualsPrefix(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with "=" prefix in version constraints
 	terraformContent := `
@@ -320,7 +321,7 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 
 			// We need to call the unexported function through the public API
 			// So we'll test it through the constraint parsing
-			testDir := t.TempDir()
+			testDir := helpers.TmpDirWOSymlinks(t)
 			terraformContent := `terraform {
   required_providers {
     test = {

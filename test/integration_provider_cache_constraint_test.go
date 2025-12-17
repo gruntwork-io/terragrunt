@@ -32,7 +32,7 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
 	appPath := filepath.Join(rootPath, "app")
 
-	providerCacheDir := t.TempDir()
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	t.Run("initial_setup_preserves_module_constraints", func(t *testing.T) {
 		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))

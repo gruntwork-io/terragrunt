@@ -39,13 +39,14 @@ type Runner struct {
 	queue *queue.Queue
 }
 
-// buildCanonicalConfigPath computes the canonical config path for a unit.
-// It handles .hcl/.json suffixes, joins DefaultTerragruntConfigPath when needed,
+// BuildCanonicalConfigPath computes the canonical config path for a unit.
+// It handles .hcl/.json suffixes, joins an appropriate config filename when needed,
 // converts to canonical absolute path, and updates the unit's path.
 // Returns the canonical config path and the canonical unit directory.
-func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalConfigPath string, canonicalDir string, err error) {
-	// Discovery paths are directories (e.g., "./other") not files
-	// We need to append the config filename to get the full config path
+func BuildCanonicalConfigPath(
+	unit *component.Unit,
+	basePath string,
+) (canonicalConfigPath string, canonicalDir string, err error) {
 	terragruntConfigPath := unit.Path()
 	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
 		terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
@@ -67,10 +68,10 @@ func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalC
 	return canonicalConfigPath, canonicalDir, nil
 }
 
-// cloneUnitOptions clones TerragruntOptions for a specific unit.
+// CloneUnitOptions clones TerragruntOptions for a specific unit.
 // It handles CloneWithConfigPath, per-unit DownloadDir fallback, and OriginalTerragruntConfigPath.
 // Returns the cloned options and logger, or the original logger if stack has no options.
-func cloneUnitOptions(
+func CloneUnitOptions(
 	stack *component.Stack,
 	unit *component.Unit,
 	canonicalConfigPath string,
@@ -109,10 +110,10 @@ func cloneUnitOptions(
 	return clonedOpts, clonedLogger, nil
 }
 
-// shouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
+// ShouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
 // neither a Terraform source nor any Terraform/OpenTofu files in its directory.
 // Returns true if the unit should be skipped, false otherwise.
-func shouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
+func ShouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
 	terragruntConfig := unit.Config()
 
 	// If the unit has a Terraform source configured, don't skip it
@@ -160,13 +161,13 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Build canonical config path and update unit path
-		canonicalConfigPath, canonicalDir, err := buildCanonicalConfigPath(unit, basePath)
+		canonicalConfigPath, canonicalDir, err := BuildCanonicalConfigPath(unit, basePath)
 		if err != nil {
 			return nil, err
 		}
 
 		// Clone options for this unit
-		unitOpts, unitLogger, err := cloneUnitOptions(stack, unit, canonicalConfigPath, stackDefaultDownloadDir, l)
+		unitOpts, unitLogger, err := CloneUnitOptions(stack, unit, canonicalConfigPath, stackDefaultDownloadDir, l)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +194,7 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Skip units without Terraform configuration
-		skip, err := shouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
+		skip, err := ShouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
 		if err != nil {
 			return nil, err
 		}
