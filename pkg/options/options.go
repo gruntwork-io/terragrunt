@@ -113,8 +113,6 @@ type TerragruntOptions struct {
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
-	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
@@ -375,30 +373,27 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:             DefaultWrappedPath,
-		ExcludesFile:       defaultExcludesFile,
-		FiltersFile:        defaultFiltersFile,
-		AutoInit:           true,
-		RunAllAutoApprove:  true,
-		Env:                map[string]string{},
-		SourceMap:          map[string]string{},
-		Writer:             stdout,
-		ErrWriter:          stderr,
-		MaxFoldersToCheck:  DefaultMaxFoldersToCheck,
-		AutoRetry:          true,
-		Parallelism:        DefaultParallelism,
-		JSONOut:            DefaultJSONOutName,
-		TofuImplementation: UnknownImpl,
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
-			return errors.New(ErrRunTerragruntCommandNotSet)
-		},
-		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		FeatureFlags:               xsync.NewMapOf[string, string](),
-		Errors:                     defaultErrorsConfig(),
-		StrictControls:             controls.New(),
-		Experiments:                experiment.NewExperiments(),
-		Telemetry:                  new(telemetry.Options),
-		VersionManagerFileName:     defaultVersionManagerFileName,
+		TFPath:                           DefaultWrappedPath,
+		ExcludesFile:                     defaultExcludesFile,
+		FiltersFile:                      defaultFiltersFile,
+		AutoInit:                         true,
+		RunAllAutoApprove:                true,
+		Env:                              map[string]string{},
+		SourceMap:                        map[string]string{},
+		Writer:                           stdout,
+		ErrWriter:                        stderr,
+		MaxFoldersToCheck:                DefaultMaxFoldersToCheck,
+		AutoRetry:                        true,
+		Parallelism:                      DefaultParallelism,
+		JSONOut:                          DefaultJSONOutName,
+		TofuImplementation:               UnknownImpl,
+		ProviderCacheRegistryNames:       defaultProviderCacheRegistryNames,
+		FeatureFlags:                     xsync.NewMapOf[string, string](),
+		Errors:                           defaultErrorsConfig(),
+		StrictControls:                   controls.New(),
+		Experiments:                      experiment.NewExperiments(),
+		Telemetry:                        new(telemetry.Options),
+		VersionManagerFileName:           defaultVersionManagerFileName,
 	}
 }
 
@@ -845,6 +840,3 @@ func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 
 	return false
 }
-
-// ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
-var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")
