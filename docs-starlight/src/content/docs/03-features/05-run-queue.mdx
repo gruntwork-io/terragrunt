@@ -83,145 +83,76 @@ Several flags allow you to customize how Terragrunt builds and executes the run 
 
 ### Include by default
 
-By default, when using the `--all` flag, Terragrunt will include all units that are in the current working directory, and any external dependencies.
+By default, when using the `--all` flag, Terragrunt will include all units that are in the current working directory.
 
-Certain flags trigger "Exclude by default" behavior, meaning that Terragrunt will no longer automatically include all units in the current working directory, and will instead rely on discovering configurations based on the provided queue control flags.
+Using any positive filter triggers "Exclude by default" behavior, meaning that Terragrunt will no longer automatically include all units in the current working directory, and will instead selectively include units only if they match a positive filter (and don't match any negative filters).
 
-Those flags will be discussed in the next section.
+More on this in the [Filtering Units](#filtering-units) section.
 
 ### Filtering Units
 
-You can control which units are included or excluded from the queue using several approaches:
+You can control which units are included or excluded from the queue using the [`--filter` flag](/docs/features/filter).
 
-<Aside type="tip" title="New: Unified Filtering">
-The experimental [`--filter` flag](/docs/features/filter) provides a unified approach to filtering units and stacks using a sophisticated query syntax. This will eventually replace the queue control flags listed below.
+#### Positive Filters
+
+Any filter that doesn't start with a `!` prefix is considered a positive filter. When Terragrunt sees that any positive filter is present, it will evaluate every path it encounters while walking the directory tree, and only include units that match a positive filter.
+
+```bash
+terragrunt run --all --filter './subtree/**' -- plan
+```
+
+This will tell Terragrunt only to run the units that match the glob pattern `./subtree/**` (any directory found in the current working directory starting with `subtree`).
+
+There are many more types of filters you can use, and those details are covered in the [Filter feature documentation](/docs/features/filter).
+
+#### Negative Filters
+
+Any filter that starts with a `!` prefix is considered a negative filter. Negative filters are always evaluated after positive filters (if present).
+
+```bash
+terragrunt run --all --filter '!./subtree/**' -- plan
+```
+
+This will tell Terragrunt to run all units in the current working directory except those that match the glob pattern `./subtree/**` (any directory found in the current working directory starting with `subtree`).
+
+#### Combining Positive and Negative Filters
+
+You can combine positive and negative filters to ensure that only the units you want are run.
+
+```bash
+terragrunt run --all --filter './subtree/**' --filter '!./subtree/dependency/**' -- plan
+```
+
+This will tell Terragrunt to run all units in the directory `subtree` except those that match the glob pattern `./subtree/dependency/**` (any directory found in the current working directory starting with `subtree/dependency`).
+
+#### Filters File
+
+If you want to ensure that certain units are always included or excluded, you can use a filters file.
+
+```text
+# filters.txt
+
+./subtree/**
+!./subtree/dependency/**
+```
+
+```bash
+terragrunt run --all --filters-file filters.txt -- plan
+```
+
+Running Terragrunt like this is equivalent to running it with the following flags:
+
+```bash
+terragrunt run --all --filter './subtree/**' --filter '!./subtree/dependency/**' -- plan
+```
+
+<Aside type="tip">
+
+If you want to automatically configure certain filters to be applied by default, you can name the filters file `.terragrunt-filters`.
+
+Terragrunt will automatically read filters from this file if it exists in the current working directory.
+
 </Aside>
-
-**Queue Control Flags:**
-
-- [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir): Specify glob patterns for directories to *include*. Can be used multiple times.
-
-  e.g. `terragrunt run --all plan --queue-include-dir "subtree/*"`
-
-  Include units within the `subtree` directory (along with their dependencies), i.e., `subtree/dependent`, `subtree/dependency` and `ancestor-dependency`.
-
-  <Aside type="note">
-  Using the `--queue-include-dir` automatically triggers "Exclude by default" behavior, as mentioned above.
-  </Aside>
-
-  <Aside type="note">
-  `ancestor-dependency` is still included by default here because it's a dependency of `dependency`.
-
-  Using [`--queue-strict-include`](/docs/reference/cli/commands/run#queue-strict-include) would prevent that.
-  </Aside>
-
-- [`--queue-exclude-dir`](/docs/reference/cli/commands/run#queue-exclude-dir): Specify glob patterns for directories to *exclude*. Can be specified multiple times.
-
-  e.g. `terragrunt run --all plan --queue-exclude-dir "independent"`
-
-  Exclude the `independent` unit. `ancestor-dependency`, `subtree/dependency`, and `subtree/dependent` would still be processed according to their dependencies.
-
-  <Aside type="note">
-    Dependencies of excluded units will still be included unless they are also explicitly excluded.
-
-    In this example, excluding `subtree/dependency` would not automatically exclude `ancestor-dependency`.
-  </Aside>
-
-- [`--queue-excludes-file`](/docs/reference/cli/commands/run#queue-excludes-file): Provide a file containing a list of directories to exclude.
-
-  e.g. `terragrunt run --all plan --queue-excludes-file ".tg-excludes"`
-
-  ```text
-  # .tg-excludes
-
-  independent
-  subtree/dependency
-  ```
-
-  Exclude `independent` and `subtree/dependency` from the run, only running `subtree/dependent` and `ancestor-dependency`.
-
-  <Aside type="tip">
-  The default value for this flag is `.terragrunt-excludes`.
-
-  Populate a file named this in your project root to exclude units from being run by default, without using the `--queue-excludes-file` flag.
-  </Aside>
-
-- [`--queue-strict-include`](/docs/reference/cli/commands/run#queue-strict-include): Only include units matching `--queue-include-dir`.
-
-  e.g. `terragrunt run --all plan --queue-include-dir "subtree/dependency" --queue-strict-include`
-
-  Only include the `subtree/dependency` unit. Its dependency, `ancestor-dependency`, will be excluded because it does not match the include and strict mode is enabled.
-
-- [`--queue-include-external`](/docs/reference/cli/commands/run#queue-include-external): Include external dependencies (those outside the current working directory) by default.
-
-  e.g. `terragrunt run --all plan --working-dir subtree --queue-include-external`
-
-  Include `ancestor-dependency` in addition to the `subtree/dependent` and `subtree/dependency` units.
-
-  <Aside type="note">
-  The `--queue-include-external` flag is simply a convenience flag to avoid the interactive prompt to request inclusion of external dependencies.
-
-  By default, Terragrunt will wait for user input to determine whether or not external dependencies should be included.
-  </Aside>
-
-- [`--queue-exclude-external`](/docs/reference/cli/commands/run#queue-exclude-external): Exclude external dependencies.
-
-  e.g. `terragrunt run --all plan --working-dir subtree --queue-exclude-external`
-
-  Exclude `ancestor-dependency` from the run. Only run `subtree/dependent` and `subtree/dependency`.
-
-  <Aside type="note">
-  This flag is simply a convenience flag to avoid the interactive prompt to request exclusion of external dependencies.
-
-  By default, Terragrunt will wait for user input to determine whether or not external dependencies should be excluded.
-  </Aside>
-
-- [`--queue-include-units-reading`](/docs/reference/cli/commands/run#queue-include-units-reading): Include units that read a specific file (via [includes](/docs/reference/hcl/blocks#include) or HCL functions like [`mark_as_read`](/docs/reference/hcl/functions#mark_as_read)).
-
-  e.g. `terragrunt run --all plan --queue-include-units-reading "subtree/common.hcl"`
-
-  <Tabs>
-    <TabItem label="subtree/dependent/terragrunt.hcl">
-
-    ```hcl
-    dependency "dep" {
-      config_path  = "../dependency"
-      skip_outputs = true
-    }
-
-    include "common" {
-      path = find_in_parent_folders("common.hcl")
-    }
-    ```
-    </TabItem>
-    <TabItem label="subtree/dependency/terragrunt.hcl">
-
-    ```hcl
-    dependency "dep" {
-      config_path  = "../../ancestor-dependency"
-      skip_outputs = true
-    }
-
-    include "common" {
-      path = find_in_parent_folders("common.hcl")
-    }
-    ```
-    </TabItem>
-    <TabItem label="subtree/common.hcl">
-
-    ```hcl
-    # Intentionally empty
-    ```
-    </TabItem>
-  </Tabs>
-
-  Include `subtree/dependent` and `subtree/dependency` (the units that read `subtree/common.hcl`) in the run.
-
-  <Aside type="tip">
-  Sometimes, it can be impossible for Terragrunt to know that certain files are read by a unit (e.g. if the file is read in the OpenTofu/Terraform module, not in Terragrunt configuration).
-
-  In cases like this, you can use the [`mark_as_read`](/docs/reference/hcl/functions#mark_as_read) HCL function to explicitly tell Terragrunt that a unit reads a file.
-  </Aside>
 
 ### Modifying Order and Error Handling
 
@@ -249,11 +180,11 @@ The experimental [`--filter` flag](/docs/features/filter) provides a unified app
   unit  subtree/dependent
   ```
 
-- [`--queue-ignore-dag-order`](/docs/reference/cli/commands/run#queue-ignore-dag-order): Execute units concurrently without respecting the dependency order.
+- [`--queue-ignore-dag-order`](/docs/reference/cli/commands/run#queue-ignore-dag-order): Run units in the queue concurrently without respecting the dependency order.
 
   e.g. `terragrunt run --all plan --queue-ignore-dag-order`
 
-  Run `plan` on `ancestor-dependency`, `subtree/dependency`, `subtree/dependent`, and `independent` all concurrently, without waiting for their defined dependencies. For instance, `subtree/dependent`'s plan would not wait for `subtree/dependency`'s plan to complete).
+  Run `plan` on `ancestor-dependency`, `subtree/dependency`, `subtree/dependent`, and `independent` all concurrently, without waiting for their defined dependencies. For instance, `subtree/dependent`'s plan would not wait for `subtree/dependency`'s plan to complete.
 
   <Aside type="caution">
   This flag is useful for faster runs in stateless commands like `validate` or `plan`, but is **dangerous** for commands that modify state like `apply` or `destroy`.
@@ -271,6 +202,16 @@ The experimental [`--filter` flag](/docs/features/filter) provides a unified app
   This flag is useful for identifying all errors at once, but can lead to inconsistent state if used with `apply` or `destroy`.
 
   You might encounter failed applies if unit dependencies are not applied successfully before dependents, and conversely, failed destroys if unit dependents are not destroyed successfully before dependencies.
+  </Aside>
+
+- [`--fail-fast`](/docs/reference/cli/commands/run#fail-fast): Fail the run if any unit fails, stopping all remaining units immediately.
+
+  e.g. `terragrunt run --all plan --fail-fast`
+
+  If `independent`'s plan fails, Terragrunt will stop running any more units and fail the run, even if `ancestor-dependency`'s plan succeeds.
+
+  <Aside type="tip">
+  This flag is useful when you want to fail the run as soon as any unit fails, and stop running any more units.
   </Aside>
 
 ## Important Considerations
