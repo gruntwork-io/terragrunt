@@ -505,6 +505,7 @@ func createGitWorktrees(
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
 ) (map[string]string, error) {
+	parentCtx := ctx
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
 
@@ -558,10 +559,11 @@ func createGitWorktrees(
 				return nil
 			}
 
-			// Register cleanup to run on context cancellation
-			// This ensures worktrees are cleaned up even if the operation is interrupted
+			// Backstop cleanup on context cancellation only; primary cleanup is Worktrees.Cleanup().
+			// Does not trigger on regular errors; may run concurrently with main cleanup.
+			// Uses parentCtx (not errgroup ctx which cancels on completion).
 			//nolint:contextcheck // AfterFunc callback runs after ctx cancelled, must use Background()
-			context.AfterFunc(ctx, func() {
+			context.AfterFunc(parentCtx, func() {
 				l.Debugf("Context cancelled, cleaning up worktree %s for ref %s", tmpDir, ref)
 
 				if err := gitRunner.RemoveWorktree(context.Background(), tmpDir); err != nil {
