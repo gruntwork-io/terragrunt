@@ -72,8 +72,6 @@ const (
 	// `--graph` related flags.
 	GraphRootFlagName = "graph-root"
 
-	FailFastFlagName = "fail-fast"
-
 	// Backend and feature flags (shared with backend commands) - use shared package constants
 	BackendBootstrapFlagName        = shared.BackendBootstrapFlagName
 	BackendRequireBootstrapFlagName = shared.BackendRequireBootstrapFlagName
@@ -494,18 +492,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       `Path to generate report schema file in.`,
 			Destination: &opts.ReportSchemaFile,
 		}),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        FailFastFlagName,
-			EnvVars:     tgPrefix.EnvVars(FailFastFlagName),
-			Destination: &opts.FailFast,
-			Usage:       "Fail the run if any unit fails. This will make it so that any unit failing causes the whole run to fail.",
-		}),
 	}
 
 	// Add shared flags
 	flags = flags.Add(shared.NewBackendFlags(opts, prefix)...)
 	flags = flags.Add(shared.NewFeatureFlags(opts, prefix)...)
+	flags = flags.Add(shared.NewFailFastFlag(opts))
 	flags = flags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...)
 	flags = flags.Add(shared.NewQueueFlags(opts, prefix)...)
 	flags = flags.Add(shared.NewFilterFlags(l, opts)...)
