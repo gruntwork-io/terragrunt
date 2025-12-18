@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runfn"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -1143,7 +1144,7 @@ func runTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 	newOpts.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 
-	err := ctx.TerragruntOptions.RunTerragrunt(ctx, l, ctx.TerragruntOptions, report.NewReport())
+	err := runfn.Run(ctx, l, ctx.TerragruntOptions, report.NewReport())
 	if err != nil {
 		return nil, errors.New(err)
 	}

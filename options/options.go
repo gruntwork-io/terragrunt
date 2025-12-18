@@ -113,8 +113,6 @@ type TerragruntOptions struct {
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
-	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
@@ -391,42 +389,39 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                      DefaultWrappedPath,
-		ExcludesFile:                defaultExcludesFile,
-		FiltersFile:                 defaultFiltersFile,
-		OriginalTerraformCommand:    "",
-		TerraformCommand:            "",
-		AutoInit:                    true,
-		RunAllAutoApprove:           true,
-		NonInteractive:              false,
-		TerraformCliArgs:            []string{},
-		Env:                         map[string]string{},
-		Source:                      "",
-		SourceMap:                   map[string]string{},
-		SourceUpdate:                false,
-		IgnoreDependencyErrors:      false,
-		IgnoreDependencyOrder:       false,
-		IgnoreExternalDependencies:  false,
-		IncludeExternalDependencies: false,
-		Writer:                      stdout,
-		ErrWriter:                   stderr,
-		MaxFoldersToCheck:           DefaultMaxFoldersToCheck,
-		AutoRetry:                   true,
-		ExcludeDirs:                 []string{},
-		IncludeDirs:                 []string{},
-		ModulesThatInclude:          []string{},
-		StrictInclude:               false,
-		Parallelism:                 DefaultParallelism,
-		Check:                       false,
-		Diff:                        false,
-		UsePartialParseConfigCache:  false,
-		ForwardTFStdout:             false,
-		JSONOut:                     DefaultJSONOutName,
-		TofuImplementation:          UnknownImpl,
-		JSONDisableDependentModules: false,
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
-			return errors.New(ErrRunTerragruntCommandNotSet)
-		},
+		TFPath:                           DefaultWrappedPath,
+		ExcludesFile:                     defaultExcludesFile,
+		FiltersFile:                      defaultFiltersFile,
+		OriginalTerraformCommand:         "",
+		TerraformCommand:                 "",
+		AutoInit:                         true,
+		RunAllAutoApprove:                true,
+		NonInteractive:                   false,
+		TerraformCliArgs:                 []string{},
+		Env:                              map[string]string{},
+		Source:                           "",
+		SourceMap:                        map[string]string{},
+		SourceUpdate:                     false,
+		IgnoreDependencyErrors:           false,
+		IgnoreDependencyOrder:            false,
+		IgnoreExternalDependencies:       false,
+		IncludeExternalDependencies:      false,
+		Writer:                           stdout,
+		ErrWriter:                        stderr,
+		MaxFoldersToCheck:                DefaultMaxFoldersToCheck,
+		AutoRetry:                        true,
+		ExcludeDirs:                      []string{},
+		IncludeDirs:                      []string{},
+		ModulesThatInclude:               []string{},
+		StrictInclude:                    false,
+		Parallelism:                      DefaultParallelism,
+		Check:                            false,
+		Diff:                             false,
+		UsePartialParseConfigCache:       false,
+		ForwardTFStdout:                  false,
+		JSONOut:                          DefaultJSONOutName,
+		TofuImplementation:               UnknownImpl,
+		JSONDisableDependentModules:      false,
 		ProviderCacheRegistryNames:       defaultProviderCacheRegistryNames,
 		OutputFolder:                     "",
 		JSONOutputFolder:                 "",
@@ -890,6 +885,3 @@ func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 
 	return false
 }
-
-// ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
-var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")
