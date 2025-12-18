@@ -89,14 +89,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return errors.New(MissingCommand{})
 	}
 
-	return run(ctx, l, opts, r, new(Target))
+	return run(ctx, l, opts, r, new(target))
 }
 
-func RunWithTarget(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *Target) error {
-	return run(ctx, l, opts, r, target)
-}
-
-func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *Target) error {
+func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *target) error {
 	if opts.TerraformCommand == tf.CommandNameVersion {
 		return runVersionCommand(ctx, l, opts)
 	}
@@ -117,7 +113,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return target.runErrorCallback(l, opts, terragruntConfig, err)
 	}
 
-	if target.isPoint(TargetPointParseConfig) {
+	if target.isPoint(targetPointParseConfig) {
 		return target.runCallback(ctx, l, opts, terragruntConfig)
 	}
 
@@ -195,7 +191,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	if target.isPoint(TargetPointDownloadSource) {
+	if target.isPoint(targetPointDownloadSource) {
 		return target.runCallback(ctx, l, updatedTerragruntOptions, terragruntConfig)
 	}
 
@@ -205,7 +201,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return target.runErrorCallback(l, opts, terragruntConfig, err)
 	}
 
-	if target.isPoint(TargetPointGenerateConfig) {
+	if target.isPoint(targetPointGenerateConfig) {
 		return target.runCallback(ctx, l, updatedTerragruntOptions, terragruntConfig)
 	}
 
@@ -278,7 +274,7 @@ func runTerragruntWithConfig(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	r *report.Report,
-	target *Target,
+	t *target,
 ) error {
 	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
 		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
@@ -298,8 +294,8 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	if target.isPoint(TargetPointSetInputsAsEnvVars) {
-		return target.runCallback(ctx, l, opts, cfg)
+	if t.isPoint(targetPointSetInputsAsEnvVars) {
+		return t.runCallback(ctx, l, opts, cfg)
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
@@ -328,8 +324,8 @@ func runTerragruntWithConfig(
 	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if target.isPoint(TargetPointInitCommand) {
-		return target.runCallback(ctx, l, opts, cfg)
+	if t.isPoint(targetPointInitCommand) {
+		return t.runCallback(ctx, l, opts, cfg)
 	}
 
 	if err := checkProtectedModule(opts, cfg); err != nil {
@@ -641,7 +637,7 @@ func runTerraformInit(
 		return err
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, originalTerragruntOptions, initOptions, cfg, r, new(Target)); err != nil {
+	if err := runTerragruntWithConfig(ctx, l, originalTerragruntOptions, initOptions, cfg, r, nil); err != nil {
 		return err
 	}
 

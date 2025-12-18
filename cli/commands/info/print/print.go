@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -19,9 +18,32 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
+	prepared, err := run.PrepareConfig(ctx, l, opts)
+	if err != nil {
+		// Even on error, try to print what info we have
+		l.Debugf("Fetching info with error: %v", err)
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+		if printErr := printTerragruntContext(l, opts); printErr != nil {
+			l.Errorf("Error printing info: %v", printErr)
+		}
+
+		return nil
+	}
+
+	// Download source
+	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, report.NewReport())
+	if err != nil {
+		// Even on error, try to print what info we have
+		l.Debugf("Fetching info with error: %v", err)
+
+		if printErr := printTerragruntContext(l, opts); printErr != nil {
+			l.Errorf("Error printing info: %v", printErr)
+		}
+
+		return nil
+	}
+
+	return printTerragruntContext(prepared.Logger, updatedOpts)
 }
 
 // InfoOutput represents the structured output of the info command
@@ -32,20 +54,6 @@ type InfoOutput struct {
 	TerraformBinary  string `json:"terraform_binary"`
 	TerraformCommand string `json:"terraform_command"`
 	WorkingDir       string `json:"working_dir"`
-}
-
-func handleTerragruntContextPrint(_ context.Context, l log.Logger, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
-	return printTerragruntContext(l, opts)
-}
-
-func handleTerragruntContextPrintWithError(l log.Logger, opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
-	l.Debugf("Fetching info with error: %v", err)
-
-	if err := printTerragruntContext(l, opts); err != nil {
-		l.Errorf("Error printing info: %v", err)
-	}
-
-	return nil
 }
 
 func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
