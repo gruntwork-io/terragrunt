@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -28,9 +30,61 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return err
 	}
 
+	if opts.RunAll {
+		return runAll(ctx, l, opts)
+	}
+
 	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
 
 	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, report.NewReport(), target)
+}
+
+func runAll(ctx context.Context, l log.Logger, opts *Options) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts.TerragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	units := components.Filter(component.UnitKind).Sort()
+
+	var errs []error
+
+	for _, unit := range units {
+		unitOpts := opts.Clone()
+		unitOpts.WorkingDir = unit.Path()
+
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+
+		target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(unitOpts))
+
+		if err := run.RunWithTarget(ctx, l, unitOpts.TerragruntOptions, report.NewReport(), target); err != nil {
+			if opts.FailFast {
+				return err
+			}
+
+			errs = append(
+				errs,
+				fmt.Errorf(
+					"render of unit %s failed: %w",
+					unit.Path(),
+					err,
+				),
+			)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

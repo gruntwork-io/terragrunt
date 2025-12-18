@@ -117,6 +117,10 @@ linters:
           - unparam
           - wsl
         path: _test\.go
+      # We end up with duplicated content in this package to save us from duplicating code in other packages.
+      - linters:
+          - dupl
+        path: cli/flags/shared
     paths:
       - docs
       - _ci
