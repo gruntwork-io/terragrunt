@@ -2180,6 +2180,64 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 	})
 }
 
+func TestFilterFlagAutoEnablesAll(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	testCases := []struct {
+		name          string
+		cmd           string
+		expectedUnits []string
+	}{
+		{
+			name:          "filter flag without --all processes multiple units",
+			cmd:           "terragrunt run --no-color --filter './**' --report-file " + helpers.ReportFile + " plan",
+			expectedUnits: []string{"a-dependent", "b-dependency", "c-mixed-deps", "d-dependencies-only"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFilterDAG)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterDAG)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureFilterDAG)
+
+			cmd := tc.cmd + " --working-dir " + rootPath
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			// Verify the report file exists
+			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+			assert.FileExists(t, reportFilePath)
+
+			// Read and parse the report file
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Extract unit names from the report
+			var actualUnits []string
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				actualUnits = append(actualUnits, baseName)
+			}
+
+			// Verify expected units are in the report
+			assert.ElementsMatch(t, tc.expectedUnits, actualUnits)
+		})
+	}
+}
+
 // getUnitNames extracts unit names from records map for error messages
 func getUnitNames(recordsByUnit map[string]map[string]string) []string {
 	names := make([]string, 0, len(recordsByUnit))

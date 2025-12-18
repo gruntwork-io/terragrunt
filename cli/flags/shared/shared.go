@@ -210,6 +210,13 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 					if !opts.Experiments.Evaluate("filter-flag") {
 						return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
 					}
+
+					if len(val) == 0 {
+						return nil
+					}
+
+					opts.RunAll = true
+
 					return nil
 				},
 			},
