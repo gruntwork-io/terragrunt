@@ -85,6 +85,14 @@ func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
+		if opts.RunAll {
+			return runall.Run(ctx.Context, l, opts.OptionsFromContext(ctx))
+		}
+
+		if opts.Graph {
+			return graph.Run(ctx.Context, l, opts.OptionsFromContext(ctx))
+		}
+
 		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
 	}
 }
