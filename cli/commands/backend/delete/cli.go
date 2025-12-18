@@ -4,7 +4,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -44,22 +43,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
-	cmdFlags := NewFlags(l, opts, nil)
-	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
-
 	cmd := &cli.Command{
 		Name:  CommandName,
 		Usage: "Delete OpenTofu/Terraform state.",
-		Flags: cmdFlags,
+		Flags: NewFlags(l, opts, nil),
 		Action: func(ctx *cli.Context) error {
-			tgOpts := opts.OptionsFromContext(ctx)
-			tgOpts.SummaryDisable = true
-
-			if tgOpts.RunAll {
-				return runall.Run(ctx.Context, l, tgOpts)
-			}
-
-			return Run(ctx, l, tgOpts)
+			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}
 

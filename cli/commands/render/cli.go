@@ -4,10 +4,8 @@ package render
 import (
 	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
-	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -117,7 +115,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	renderOpts := NewOptions(opts)
 
 	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...)
-	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
 
 	cmd := &cli.Command{
 		Name:        CommandName,
@@ -126,11 +123,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Flags:       cmdFlags,
 		Action: func(ctx *cli.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
-			tgOpts.SummaryDisable = true
-
-			if tgOpts.RunAll {
-				return runall.Run(ctx.Context, l, tgOpts)
-			}
 
 			clonedOpts := renderOpts.Clone()
 			clonedOpts.TerragruntOptions = tgOpts
