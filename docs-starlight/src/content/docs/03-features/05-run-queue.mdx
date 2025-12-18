@@ -125,35 +125,6 @@ terragrunt run --all --filter './subtree/**' --filter '!./subtree/dependency/**'
 
 This will tell Terragrunt to run all units in the directory `subtree` except those that match the glob pattern `./subtree/dependency/**` (any directory found in the current working directory starting with `subtree/dependency`).
 
-#### Filters File
-
-If you want to ensure that certain units are always included or excluded, you can use a filters file.
-
-```text
-# filters.txt
-
-./subtree/**
-!./subtree/dependency/**
-```
-
-```bash
-terragrunt run --all --filters-file filters.txt -- plan
-```
-
-Running Terragrunt like this is equivalent to running it with the following flags:
-
-```bash
-terragrunt run --all --filter './subtree/**' --filter '!./subtree/dependency/**' -- plan
-```
-
-<Aside type="tip">
-
-If you want to automatically configure certain filters to be applied by default, you can name the filters file `.terragrunt-filters`.
-
-Terragrunt will automatically read filters from this file if it exists in the current working directory.
-
-</Aside>
-
 ### Modifying Order and Error Handling
 
 - [`--queue-construct-as`](/docs/reference/cli/commands/list#queue-construct-as) (`--as`): Build the run queue *as if* a particular command was run. Useful for performing dry-runs of [`run`](/docs/reference/cli/commands/run) using discovery commands, like [`find`](/docs/reference/cli/commands/find) and [`list`](/docs/reference/cli/commands/list).
