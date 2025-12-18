@@ -33,9 +33,27 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
+	prepared, err := run.PrepareConfig(ctx, l, opts)
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	r := report.NewReport()
+
+	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, r)
+	if err != nil {
+		return err
+	}
+
+	if err := run.PrepareGenerate(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+		return err
+	}
+
+	if err := run.PrepareInit(ctx, prepared.Logger, opts, updatedOpts, prepared.TerragruntConfig, r); err != nil {
+		return err
+	}
+
+	return runAwsProviderPatch(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
