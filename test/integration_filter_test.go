@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -2106,6 +2107,48 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestFilterFlagAutoEnablesAll(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		cmd           string
+		expectedUnits []string
+	}{
+		{
+			name:          "filter flag without --all processes multiple units",
+			cmd:           "terragrunt run --no-color --filter './**' --report-file " + helpers.ReportFile + " plan",
+			expectedUnits: []string{"a-dependent", "b-dependency", "c-mixed-deps", "d-dependencies-only"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFilterDAG)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterDAG)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureFilterDAG)
+
+			cmd := tc.cmd + " --working-dir " + rootPath
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			// Verify the report file exists
+			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+			assert.FileExists(t, reportFilePath)
+
+			r, err := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, err)
+
+			runs := r.Names()
+
+			// Verify expected units are in the report
+			assert.ElementsMatch(t, tc.expectedUnits, runs)
+		})
+	}
 }
 
 // getUnitNames extracts unit names from records map for error messages
