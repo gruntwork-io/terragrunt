@@ -997,31 +997,6 @@ dependency "foo" {
 	assert.Contains(t, componentPaths, barDir, "Bar should be discovered")
 }
 
-func TestDiscoverWithModulesThatIncludeDoesNotDropConfigs(t *testing.T) {
-	t.Parallel()
-
-	workingDir := filepath.Join("..", "..", "test", "fixtures", "include-runall")
-
-	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workingDir, "terragrunt.hcl"))
-	require.NoError(t, err)
-
-	opts.ModulesThatInclude = []string{"alpha.hcl"}
-
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
-	require.NoError(t, err)
-
-	d := discovery.NewDiscovery(workingDir).
-		WithFilters(depsFilters).
-		WithParseInclude().
-		WithParseExclude().
-		WithReadFiles()
-
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
-	require.NoError(t, err)
-
-	assert.NotEmpty(t, configs, "discovery should return configs even when exclude-by-default is set via modules-that-include")
-}
-
 func TestDiscoveryDoesntDetectCycleWhenDisabled(t *testing.T) {
 	t.Parallel()
 

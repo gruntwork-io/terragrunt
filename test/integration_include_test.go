@@ -103,27 +103,7 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	}
 }
 
-func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
-	t.Parallel()
-
-	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
-	helpers.CleanupTerraformFolder(t, modulePath)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		fmt.Sprintf(
-			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --filter 'reading=alpha.hcl'",
-			modulePath,
-		),
-	)
-	require.NoError(t, err)
-	assert.Contains(t, stdout, "alpha")
-	assert.NotContains(t, stdout, "beta")
-	assert.NotContains(t, stdout, "charlie")
-}
-
-func TestTerragruntRunAllModulesThatIncludeRestrictsSetWithFilter(t *testing.T) {
+func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)

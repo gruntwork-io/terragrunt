@@ -200,8 +200,6 @@ type TerragruntOptions struct {
 	ScaffoldVars []string
 	// StrictControls is a slice of strict controls.
 	StrictControls strict.Controls `clone:"shadowcopy"`
-	// When used with `run --all`, restrict the modules in the stack to only those that include at least one of the files in this list.
-	ModulesThatInclude []string
 	// FilterQueries contains filter query strings for component selection
 	FilterQueries []string
 	// When set, it will be used to compute the cache key for `-version` checks.

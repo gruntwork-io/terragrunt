@@ -124,11 +124,6 @@ func prepareDiscovery(
 
 	d := newBaseDiscovery(tgOpts, workingDir, configFilenames, opts...)
 
-	// Enable reading file tracking when requested by CLI flags
-	if len(tgOpts.ModulesThatInclude) > 0 {
-		d = d.WithReadFiles()
-	}
-
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
 		filters, err := parseFilters(tgOpts.FilterQueries)
@@ -183,32 +178,6 @@ func discoverWithRetry(
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	// Retry without exclude-by-default if no results and relevant flags are set
-	if len(discovered) == 0 && len(tgOpts.ModulesThatInclude) > 0 {
-		l.Debugf("Runner pool discovery returned 0 configs; retrying without exclude-by-default")
-
-		d, err = prepareDiscovery(tgOpts, opts...)
-		if err != nil {
-			return nil, err
-		}
-
-		err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
-			"working_dir": tgOpts.WorkingDir,
-		}, func(childCtx context.Context) error {
-			var retryErr error
-
-			discovered, retryErr = d.Discover(childCtx, l, tgOpts)
-			if retryErr == nil {
-				l.Debugf("Runner pool retry discovery found %d configs", len(discovered))
-			}
-
-			return retryErr
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return discovered, nil

@@ -624,7 +624,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 func TestParseMultiStringArg(t *testing.T) {
 	t.Parallel()
 
-	flagName := doubleDashed(run.UnitsThatIncludeFlagName)
+	flagName := doubleDashed(run.ProviderCacheRegistryNamesFlagName)
 
 	testCases := []struct {
 		expectedErr  error
@@ -634,23 +634,23 @@ func TestParseMultiStringArg(t *testing.T) {
 	}{
 		{
 			args:         []string{"run", "--all", "apply", flagName, "bar"},
-			defaultValue: []string{"default_bar"},
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
 			expectedVals: []string{"bar"},
 		},
 		{
 			args:         []string{"run", "--all", "apply", "--", "--test", "bar"},
-			defaultValue: []string{"default_bar"},
-			expectedVals: []string{"default_bar"},
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
+			expectedVals: []string{"registry.terraform.io", "registry.opentofu.org"},
 		},
 		{
 			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "bar2", "--", "--test", "value"},
-			defaultValue: []string{"default_bar"},
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
 			expectedVals: []string{"bar1", "bar2"},
 		},
 		{
 			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "--", "--test", "value"},
-			defaultValue: []string{"default_bar"},
-			expectedErr:  argMissingValueError(run.UnitsThatIncludeFlagName),
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
+			expectedErr:  argMissingValueError(run.ProviderCacheRegistryNamesFlagName),
 		},
 	}
 
@@ -659,7 +659,6 @@ func TestParseMultiStringArg(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions()
-			opts.ModulesThatInclude = tc.defaultValue
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -671,7 +670,7 @@ func TestParseMultiStringArg(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedVals, actualOptions.ModulesThatInclude, "For args %q", tc.args)
+				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheRegistryNames, "For args %q", tc.args)
 			}
 		})
 	}
