@@ -624,7 +624,10 @@ func TestHclvalidateValidConfig(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"))
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"),
+		)
 		require.NoError(t, err)
 	})
 
@@ -3274,7 +3277,12 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+appPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+appPath,
+		&stdout,
+		&stderr,
+	)
 	require.Error(t, err)
 
 	var missingCommandError runall.MissingCommand

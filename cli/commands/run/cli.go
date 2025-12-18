@@ -35,10 +35,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Flags:       cmdFlags,
 		Subcommands: NewSubcommands(l, opts),
 		Action: func(ctx *cli.Context) error {
-			if len(ctx.Args()) == 0 {
-				return cli.ShowCommandHelp(ctx)
-			}
-
 			tgOpts := opts.OptionsFromContext(ctx)
 
 			if tgOpts.RunAll {
@@ -47,6 +43,10 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 
 			if tgOpts.Graph {
 				return graph.Run(ctx.Context, l, tgOpts)
+			}
+
+			if len(ctx.Args()) == 0 {
+				return cli.ShowCommandHelp(ctx)
 			}
 
 			return Action(l, opts)(ctx)
