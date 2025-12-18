@@ -4,6 +4,7 @@ package render
 import (
 	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -115,6 +116,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	renderOpts := NewOptions(opts)
 
 	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...)
+	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, prefix))
 
 	cmd := &cli.Command{
 		Name:        CommandName,
