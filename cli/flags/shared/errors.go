@@ -1,8 +1,6 @@
-// Package common provides common code that are used by many commands.
-package common
+package shared
 
-var _ error = new(AllGraphFlagsError)
-
+// AllGraphFlagsError is returned when both --all and --graph flags are used simultaneously.
 type AllGraphFlagsError byte
 
 func (err *AllGraphFlagsError) Error() string {

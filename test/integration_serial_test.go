@@ -690,7 +690,10 @@ func TestParseTFLog(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --log-level trace --non-interactive --log-format=pretty --no-color --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all init --log-level trace --non-interactive --log-format=pretty --no-color --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {

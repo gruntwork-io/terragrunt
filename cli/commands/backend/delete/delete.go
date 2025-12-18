@@ -3,8 +3,11 @@ package delete
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -12,6 +15,15 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// If --all flag is set, use discovery to find all units and delete backend for each one
+	if opts.RunAll {
+		return runAll(ctx, l, opts)
+	}
+
+	return runDelete(ctx, l, opts)
+}
+
+func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	remoteState, err := config.ParseRemoteState(ctx, l, opts)
 	if err != nil || remoteState == nil {
 		return err
@@ -34,4 +46,40 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	return remoteState.Delete(ctx, l, opts)
+}
+
+func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return err
+	}
+
+	// Filter to only units (not stacks)
+	units := components.Filter(component.UnitKind)
+
+	var errs []error
+
+	for _, unit := range units {
+		unitOpts := opts.Clone()
+		unitOpts.WorkingDir = unit.Path()
+
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+
+		if err := runDelete(ctx, l, unitOpts); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
