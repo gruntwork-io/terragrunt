@@ -295,9 +295,26 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+		prepared, err := run.PrepareConfig(ctx, l, unitOpts)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 
-		if err := run.RunWithTarget(ctx, l, unitOpts, report.NewReport(), target); err != nil {
+		// Download source
+		updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, report.NewReport())
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		// Generate config
+		if err := run.PrepareGenerate(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		if err := runValidateInputs(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
 			errs = append(errs, err)
 		}
 	}
