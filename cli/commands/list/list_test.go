@@ -59,7 +59,6 @@ func TestBasicDiscovery(t *testing.T) {
 	opts.Format = "text" //nolint: goconst
 	opts.Mode = "normal"
 	opts.Dependencies = false
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -148,7 +147,6 @@ func TestHiddenDiscovery(t *testing.T) {
 	opts.Format = "text"
 	opts.Hidden = true
 	opts.Dependencies = false
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -232,7 +230,6 @@ dependency "unit2" {
 	opts.Format = "text"
 	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -311,7 +308,6 @@ dependency "unit3" {
 	opts.Format = "text"
 	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -424,7 +420,6 @@ dependency "C" {
 	opts.Format = "text"
 	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -515,7 +510,6 @@ dependency "unitB" {
 
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "long"
-	opts.External = true
 
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
@@ -626,7 +620,6 @@ dependency "unit1" {
 	opts.Format = list.FormatDot
 	opts.Mode = list.ModeDAG
 	opts.Dependencies = true
-	opts.External = false
 
 	r, w, err := os.Pipe()
 	require.NoError(t, err)

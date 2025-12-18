@@ -266,12 +266,8 @@ type TerragruntOptions struct {
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
-	// If set to true, apply all external dependencies when running *-all commands
-	IncludeExternalDependencies bool
 	// Skip checksum check for engine package.
 	EngineSkipChecksumCheck bool
-	// If set to true, skip any external dependencies when running *-all commands
-	IgnoreExternalDependencies bool
 	// If set to true, ignore the dependency order when running *-all command.
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
@@ -391,59 +387,30 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                      DefaultWrappedPath,
-		ExcludesFile:                defaultExcludesFile,
-		FiltersFile:                 defaultFiltersFile,
-		OriginalTerraformCommand:    "",
-		TerraformCommand:            "",
-		AutoInit:                    true,
-		RunAllAutoApprove:           true,
-		NonInteractive:              false,
-		TerraformCliArgs:            []string{},
-		Env:                         map[string]string{},
-		Source:                      "",
-		SourceMap:                   map[string]string{},
-		SourceUpdate:                false,
-		IgnoreDependencyErrors:      false,
-		IgnoreDependencyOrder:       false,
-		IgnoreExternalDependencies:  false,
-		IncludeExternalDependencies: false,
-		Writer:                      stdout,
-		ErrWriter:                   stderr,
-		MaxFoldersToCheck:           DefaultMaxFoldersToCheck,
-		AutoRetry:                   true,
-		ExcludeDirs:                 []string{},
-		IncludeDirs:                 []string{},
-		ModulesThatInclude:          []string{},
-		StrictInclude:               false,
-		Parallelism:                 DefaultParallelism,
-		Check:                       false,
-		Diff:                        false,
-		UsePartialParseConfigCache:  false,
-		ForwardTFStdout:             false,
-		JSONOut:                     DefaultJSONOutName,
-		TofuImplementation:          UnknownImpl,
-		JSONDisableDependentModules: false,
+		TFPath:             DefaultWrappedPath,
+		ExcludesFile:       defaultExcludesFile,
+		FiltersFile:        defaultFiltersFile,
+		AutoInit:           true,
+		RunAllAutoApprove:  true,
+		Env:                map[string]string{},
+		SourceMap:          map[string]string{},
+		Writer:             stdout,
+		ErrWriter:          stderr,
+		MaxFoldersToCheck:  DefaultMaxFoldersToCheck,
+		AutoRetry:          true,
+		Parallelism:        DefaultParallelism,
+		JSONOut:            DefaultJSONOutName,
+		TofuImplementation: UnknownImpl,
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
-		ProviderCacheRegistryNames:       defaultProviderCacheRegistryNames,
-		OutputFolder:                     "",
-		JSONOutputFolder:                 "",
-		FeatureFlags:                     xsync.NewMapOf[string, string](),
-		Errors:                           defaultErrorsConfig(),
-		StrictControls:                   controls.New(),
-		Experiments:                      experiment.NewExperiments(),
-		Telemetry:                        new(telemetry.Options),
-		NoStackValidate:                  false,
-		NoStackGenerate:                  false,
-		VersionManagerFileName:           defaultVersionManagerFileName,
-		NoAutoProviderCacheDir:           false,
-		NoEngine:                         false,
-		NoDependencyFetchOutputFromState: false,
-		NoDependencyPrompt:               false,
-		NoShell:                          false,
-		NoHooks:                          false,
+		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
+		FeatureFlags:               xsync.NewMapOf[string, string](),
+		Errors:                     defaultErrorsConfig(),
+		StrictControls:             controls.New(),
+		Experiments:                experiment.NewExperiments(),
+		Telemetry:                  new(telemetry.Options),
+		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
 

@@ -114,15 +114,6 @@ func newBaseDiscovery(
 			Args:       tgOpts.TerraformCliArgs.Tail(),
 		})
 
-	// Only include external dependencies in the run queue if explicitly requested via --queue-include-external.
-	// This restores the pre-v0.94.0 behavior where external dependencies were excluded by default.
-	// External dependencies are still detected and tracked for reporting purposes, but not fully discovered
-	// unless this flag is set.
-	// See: https://github.com/gruntwork-io/terragrunt/issues/5195
-	if tgOpts.IncludeExternalDependencies {
-		d = d.WithDiscoverExternalDependencies()
-	}
-
 	return d
 }
 

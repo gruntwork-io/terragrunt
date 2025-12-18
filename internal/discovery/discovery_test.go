@@ -181,21 +181,6 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				app := component.NewUnit(appDir)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
-				return component.Components{app, db, vpc}
-			},
-		},
-		{
-			name:      "discovery with external dependencies",
-			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithDiscoverExternalDependencies(),
-			setupExpected: func() component.Components {
-				vpc := component.NewUnit(vpcDir)
-				db := component.NewUnit(dbDir)
-				db.AddDependency(vpc)
-				externalApp := component.NewUnit(externalAppDir)
-				externalApp.SetExternal()
-				app := component.NewUnit(appDir)
-				app.AddDependency(db)
-				app.AddDependency(externalApp)
 				return component.Components{app, db, vpc, externalApp}
 			},
 		},
@@ -998,7 +983,6 @@ func TestDiscoverWithModulesThatIncludeDoesNotDropConfigs(t *testing.T) {
 		WithDiscoverDependencies().
 		WithParseInclude().
 		WithParseExclude().
-		WithDiscoverExternalDependencies().
 		WithReadFiles()
 
 	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)

@@ -117,11 +117,10 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.BoolFlag{
-				Name:        QueueExcludeExternalFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
-				Destination: &opts.IgnoreExternalDependencies,
-				Usage:       "Ignore external dependencies for --all commands.",
-				Hidden:      true,
+				Name:    QueueExcludeExternalFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueExcludeExternalFlagName),
+				Usage:   "Ignore external dependencies for --all commands.",
+				Hidden:  true,
 				Action: func(ctx *cli.Context, value bool) error {
 					if value {
 						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx.Context)
@@ -134,10 +133,18 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.BoolFlag{
-				Name:        QueueIncludeExternalFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueIncludeExternalFlagName),
-				Destination: &opts.IncludeExternalDependencies,
-				Usage:       "Include external dependencies for --all commands without asking.",
+				Name:    QueueIncludeExternalFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueIncludeExternalFlagName),
+				Usage:   "Include external dependencies for --all commands.",
+				Hidden:  true,
+				Action: func(ctx *cli.Context, value bool) error {
+					if !value {
+						return nil
+					}
+
+					opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), terragruntPrefixControl),
 		),

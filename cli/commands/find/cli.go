@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -87,10 +88,16 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Include the list of files that are read by components in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        External,
-			EnvVars:     tgPrefix.EnvVars(External),
-			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Name:    External,
+			EnvVars: tgPrefix.EnvVars(External),
+			Hidden:  true,
+			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Action: func(ctx *cli.Context, value bool) error {
+				if value {
+					return opts.StrictControls.FilterByNames(controls.DiscoveryExternal).Evaluate(ctx.Context)
+				}
+				return nil
+			},
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        QueueConstructAsFlagName,

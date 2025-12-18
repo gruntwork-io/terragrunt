@@ -29,8 +29,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		WorkingDir:       opts.WorkingDir,
 		QueueConstructAs: opts.QueueConstructAs,
 		NoHidden:         !opts.Hidden,
-		Dependencies:     opts.Dependencies || opts.External || opts.Mode == ModeDAG,
-		External:         opts.External,
+		Dependencies:     opts.Dependencies || opts.Mode == ModeDAG,
 		Exclude:          opts.Exclude,
 		Include:          opts.Include,
 		Reading:          opts.Reading,
@@ -75,7 +74,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": opts.Dependencies,
-		"external":     opts.External,
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,
 	}, func(ctx context.Context) error {
@@ -158,10 +156,6 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 	errs := []error{}
 
 	for _, c := range components {
-		if c.External() && !opts.External {
-			continue
-		}
-
 		if opts.QueueConstructAs != "" {
 			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {

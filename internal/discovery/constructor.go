@@ -19,7 +19,6 @@ type DiscoveryCommandOptions struct {
 	Experiments      experiment.Experiments
 	NoHidden         bool
 	Dependencies     bool
-	External         bool
 	Exclude          bool
 	Include          bool
 	Reading          bool
@@ -49,12 +48,8 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithNoHidden()
 	}
 
-	if opts.Dependencies || opts.External {
+	if opts.Dependencies {
 		d = d.WithDiscoverDependencies()
-	}
-
-	if opts.External {
-		d = d.WithDiscoverExternalDependencies()
 	}
 
 	if opts.Exclude {

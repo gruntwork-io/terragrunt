@@ -144,9 +144,6 @@ type Discovery struct {
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
 
-	// discoverExternalDependencies determines whether to discover external dependencies.
-	discoverExternalDependencies bool
-
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
 
@@ -246,13 +243,6 @@ func (d *Discovery) WithRequiresParse() *Discovery {
 // WithMaxDependencyDepth sets the MaxDependencyDepth flag to the given depth.
 func (d *Discovery) WithMaxDependencyDepth(depth int) *Discovery {
 	d.maxDependencyDepth = depth
-
-	return d
-}
-
-// WithDiscoverExternalDependencies sets the DiscoverExternalDependencies flag to true.
-func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
-	d.discoverExternalDependencies = true
 
 	return d
 }
@@ -382,12 +372,6 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	// Collect target expressions from graph filters for selective graph traversal.
 	d.dependencyTargetExpressions = d.filters.DependencyGraphExpressions()
 	d.dependentTargetExpressions = d.filters.DependentGraphExpressions()
-
-	// When working with graph filters, we always perform discovery of components,
-	// regardless of whether or not they are external. We can filter them out after the fact if necessary.
-	if len(d.dependencyTargetExpressions) > 0 || len(d.dependentTargetExpressions) > 0 {
-		d.discoverExternalDependencies = true
-	}
 
 	// If any filters require parsing, we need to opt-in to parsing.
 	if _, ok := d.filters.RequiresParse(); ok {
@@ -1142,11 +1126,10 @@ func (d *Discovery) Discover(
 		if shouldRunDependencyDiscovery {
 			g.Go(func() error {
 				return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
-					"working_dir":                    d.discoveryContext.WorkingDir,
-					"config_count":                   len(components),
-					"starting_component_count":       len(dependencyStartingComponents),
-					"discover_external_dependencies": d.discoverExternalDependencies,
-					"max_dependency_depth":           d.maxDependencyDepth,
+					"working_dir":              d.discoveryContext.WorkingDir,
+					"config_count":             len(components),
+					"starting_component_count": len(dependencyStartingComponents),
+					"max_dependency_depth":     d.maxDependencyDepth,
 				}, func(ctx context.Context) error {
 					dependencyDiscovery := NewDependencyDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
@@ -1154,10 +1137,6 @@ func (d *Discovery) Discover(
 
 					if d.discoveryContext != nil {
 						dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
-
-					if d.discoverExternalDependencies {
-						dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
 					}
 
 					if d.suppressParseErrors {
@@ -1208,10 +1187,6 @@ func (d *Discovery) Discover(
 
 					if d.suppressParseErrors {
 						dependentDiscovery = dependentDiscovery.WithSuppressParseErrors()
-					}
-
-					if d.discoverExternalDependencies {
-						dependentDiscovery = dependentDiscovery.WithDiscoverExternalDependencies()
 					}
 
 					// pass parser options

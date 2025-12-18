@@ -240,8 +240,7 @@ dependency "db" {
 
 			// Discover components with dependencies to test external filtering
 			discovery = discovery.
-				WithDiscoverDependencies().
-				WithDiscoverExternalDependencies()
+				WithDiscoverDependencies()
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)
@@ -407,8 +406,7 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 
 			// Create discovery with filters
 			discovery := discovery.NewDiscovery(tmpDir).
-				WithFilters(filters).
-				WithDiscoverExternalDependencies()
+				WithFilters(filters)
 
 			configs, err := discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			require.NoError(t, err)

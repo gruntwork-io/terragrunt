@@ -561,7 +561,6 @@ dependency "unitB" {
 			opts.Hidden = tt.hidden
 			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
-			opts.External = tt.external
 			opts.Reading = tt.reading
 
 			// Create a pipe to capture output

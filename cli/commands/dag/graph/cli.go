@@ -40,14 +40,5 @@ func Run(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error 
 	listOpts.Dependencies = true
 	listOpts.Hidden = true
 
-	// By default, graph includes external dependencies.
-	// Respect queue flags to override this behavior.
-	if opts.IgnoreExternalDependencies {
-		listOpts.External = false
-	} else {
-		// Default to true, or explicitly set if --queue-include-external is used
-		listOpts.External = true
-	}
-
 	return list.Run(ctx, l, listOpts)
 }

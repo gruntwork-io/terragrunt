@@ -32,7 +32,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		QueueConstructAs: opts.QueueConstructAs,
 		NoHidden:         !opts.Hidden,
 		Dependencies:     shouldDiscoverDependencies(opts),
-		External:         opts.External,
 		FilterQueries:    opts.FilterQueries,
 		Experiments:      opts.Experiments,
 	})
@@ -75,7 +74,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": shouldDiscoverDependencies(opts),
-		"external":     opts.External,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
@@ -148,10 +146,6 @@ func shouldDiscoverDependencies(opts *Options) bool {
 		return true
 	}
 
-	if opts.External {
-		return true
-	}
-
 	if opts.Mode == ModeDAG {
 		return true
 	}
@@ -195,10 +189,6 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 	errs := []error{}
 
 	for _, c := range components {
-		if c.External() && !opts.External {
-			continue
-		}
-
 		excluded := false
 
 		if opts.QueueConstructAs != "" {
