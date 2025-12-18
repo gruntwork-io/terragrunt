@@ -558,6 +558,21 @@ func createGitWorktrees(
 				return nil
 			}
 
+			// Register cleanup to run on context cancellation
+			// This ensures worktrees are cleaned up even if the operation is interrupted
+			//nolint:contextcheck // AfterFunc callback runs after ctx cancelled, must use Background()
+			context.AfterFunc(ctx, func() {
+				l.Debugf("Context cancelled, cleaning up worktree %s for ref %s", tmpDir, ref)
+
+				if err := gitRunner.RemoveWorktree(context.Background(), tmpDir); err != nil {
+					l.Debugf("Failed to remove worktree on cancellation (may already be cleaned): %v", err)
+					// Fallback to removing the directory directly
+					if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
+						l.Warnf("Failed to clean worktree directory %s on cancellation: %v", tmpDir, cleanErr)
+					}
+				}
+			})
+
 			mu.Lock()
 
 			refsToPaths[ref] = tmpDir
