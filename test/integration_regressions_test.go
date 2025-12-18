@@ -28,6 +28,7 @@ const (
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
+	testFixtureDependencyWarnings                = "fixtures/regressions/dependency-output"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -681,4 +682,24 @@ func TestNotExistingDependency(t *testing.T) {
 	require.Error(t, err)
 	// should be reported that find_in_parent_folders() fail
 	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
+}
+
+func TestRunNotPrintingDependencyWarnings(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyWarnings)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyWarnings)
+	depPath := filepath.Join(tmpEnvPath, testFixtureDependencyWarnings, "dep")
+	mainPath := filepath.Join(tmpEnvPath, testFixtureDependencyWarnings, "main")
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --auto-approve --non-interactive --working-dir "+depPath,
+	)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+mainPath,
+	)
+	require.NoError(t, err)
 }

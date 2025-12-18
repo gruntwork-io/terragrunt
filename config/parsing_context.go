@@ -112,3 +112,8 @@ func (ctx ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	ctx.SkipOutputsResolution = true
 	return &ctx
 }
+
+func (ctx ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
+	ctx.DecodedDependencies = v
+	return &ctx
+}

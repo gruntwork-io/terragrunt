@@ -213,6 +213,9 @@ func createTerragruntEvalContext(ctx *ParsingContext, l log.Logger, configPath s
 
 	if ctx.DecodedDependencies != nil {
 		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
+	} else {
+		// Set dynamic value in case of no dependencies to avoid errors when accessing dependency attributes.
+		evalCtx.Variables[MetadataDependency] = cty.DynamicVal
 	}
 
 	if ctx.TrackInclude != nil && len(ctx.TrackInclude.CurrentList) > 0 {
