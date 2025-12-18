@@ -1,11 +1,10 @@
 package format
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -86,17 +85,25 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
+	cmdFlags := NewFlags(l, opts, nil)
+	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
+
 	cmd := &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandNameAlias},
 		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
-		Flags:   NewFlags(l, opts, nil),
+		Flags:   cmdFlags,
 		Action: func(ctx *cli.Context) error {
-			return Run(ctx, l, opts.OptionsFromContext(ctx))
+			tgOpts := opts.OptionsFromContext(ctx)
+			tgOpts.SummaryDisable = true
+
+			if tgOpts.RunAll {
+				return runall.Run(ctx.Context, l, tgOpts)
+			}
+
+			return Run(ctx, l, tgOpts)
 		},
 	}
-
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
 
 	return cmd
 }

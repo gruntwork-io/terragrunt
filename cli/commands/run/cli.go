@@ -4,11 +4,12 @@ package run
 import (
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -19,6 +20,9 @@ const (
 )
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
+	cmdFlags := NewFlags(l, opts, nil)
+	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
+
 	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run an OpenTofu/Terraform command.",
@@ -27,23 +31,27 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Examples: []string{
 			"# Run a plan\nterragrunt run -- plan\n# Shortcut:\n# terragrunt plan",
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",
-			// TODO: Add this example back when we support `run --all` again.
-			//
-			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:       NewFlags(l, opts, nil),
+		Flags:       cmdFlags,
 		Subcommands: NewSubcommands(l, opts),
 		Action: func(ctx *cli.Context) error {
 			if len(ctx.Args()) == 0 {
 				return cli.ShowCommandHelp(ctx)
 			}
 
+			tgOpts := opts.OptionsFromContext(ctx)
+
+			if tgOpts.RunAll {
+				return runall.Run(ctx.Context, l, tgOpts)
+			}
+
+			if tgOpts.Graph {
+				return graph.Run(ctx.Context, l, tgOpts)
+			}
+
 			return Action(l, opts)(ctx)
 		},
 	}
-
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run, false)
-	cmd = graph.WrapCommand(l, opts, cmd, run.Run, false)
 
 	return cmd
 }

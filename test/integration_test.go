@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -3826,7 +3826,7 @@ func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
 	t.Parallel()
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
-	expectedErr := new(common.AllGraphFlagsError)
+	expectedErr := new(shared.AllGraphFlagsError)
 	require.ErrorAs(t, err, &expectedErr)
 }
 
