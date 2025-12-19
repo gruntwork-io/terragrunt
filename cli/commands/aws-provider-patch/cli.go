@@ -30,12 +30,9 @@
 package awsproviderpatch
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -67,11 +64,13 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).AddSubcontrolsToCategory(controls.CLIRedesignCommandsCategoryName, control)
 
+	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...)
+
 	cmd := &cli.Command{
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Hidden: true,
-		Flags:  append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...),
+		Flags:  cmdFlags,
 		Before: func(ctx *cli.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
@@ -84,9 +83,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 		DisabledErrorOnUndefinedFlag: true,
 	}
-
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
-	cmd = graph.WrapCommand(l, opts, cmd, run.Run, true)
 
 	return cmd
 }
