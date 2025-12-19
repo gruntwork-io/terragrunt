@@ -2,6 +2,7 @@ package filter
 
 import (
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/gobwas/glob"
@@ -227,12 +228,15 @@ func (i *InfixExpression) Negated() Expression {
 	}
 }
 
-// GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "...foo...", "^foo").
+// GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "..1foo", "foo..2").
+// Depth fields control how many levels of dependencies/dependents to traverse.
 type GraphExpression struct {
 	Target              Expression
 	IncludeDependents   bool
 	IncludeDependencies bool
 	ExcludeTarget       bool
+	DependentDepth      int
+	DependencyDepth     int
 }
 
 // NewGraphExpression creates a new GraphExpression.
@@ -253,8 +257,13 @@ func NewGraphExpression(
 func (g *GraphExpression) expressionNode() {}
 func (g *GraphExpression) String() string {
 	result := ""
+
 	if g.IncludeDependents {
-		result += "..."
+		if g.DependentDepth > 0 {
+			result += ".." + strconv.Itoa(g.DependentDepth)
+		} else {
+			result += "..."
+		}
 	}
 
 	if g.ExcludeTarget {
@@ -262,8 +271,13 @@ func (g *GraphExpression) String() string {
 	}
 
 	result += g.Target.String()
+
 	if g.IncludeDependencies {
-		result += "..."
+		if g.DependencyDepth > 0 {
+			result += ".." + strconv.Itoa(g.DependencyDepth)
+		} else {
+			result += "..."
+		}
 	}
 
 	return result

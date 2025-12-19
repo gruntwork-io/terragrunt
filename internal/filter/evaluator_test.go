@@ -1102,6 +1102,108 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 	})
 }
 
+func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
+	t.Parallel()
+
+	// Create a component graph: a -> b -> c -> d
+	a := component.NewUnit("./a")
+	b := component.NewUnit("./b")
+	c := component.NewUnit("./c")
+	d := component.NewUnit("./d")
+
+	// Set up dependencies: d depends on c, c depends on b, b depends on a
+	d.AddDependency(c)
+	c.AddDependency(b)
+	b.AddDependency(a)
+
+	components := []component.Component{a, b, c, d}
+
+	t.Run("depth 1 dependency traversal from d", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     1,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c}, result)
+	})
+
+	t.Run("depth 2 dependency traversal from d", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c, b}, result)
+	})
+
+	t.Run("depth 1 dependent traversal from a", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+			DependentDepth:      1,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{a, b}, result)
+	})
+
+	t.Run("depth 2 dependent traversal from a", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+			DependentDepth:      2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{a, b, c}, result)
+	})
+
+	t.Run("unlimited depth (0) traverses all", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     0,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c, b, a}, result)
+	})
+}
+
 func TestEvaluate_GitFilter(t *testing.T) {
 	t.Parallel()
 

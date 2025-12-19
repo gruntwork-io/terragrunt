@@ -629,6 +629,107 @@ func TestParser_GraphExpressions(t *testing.T) {
 				ExcludeTarget:       true,
 			},
 		},
+		{
+			name:  "depth-limited prefix - direct dependents only",
+			input: "..1foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+			},
+		},
+		{
+			name:  "depth-limited postfix - direct dependencies only",
+			input: "foo..1",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependencyDepth:     1,
+			},
+		},
+		{
+			name:  "depth-limited both directions",
+			input: "..2foo..3",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependentDepth:      2,
+				DependencyDepth:     3,
+			},
+		},
+		{
+			name:  "depth-limited with caret",
+			input: "..1^foo..2",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       true,
+				DependentDepth:      1,
+				DependencyDepth:     2,
+			},
+		},
+		{
+			name:  "depth-limited with multi-digit depth",
+			input: "..10foo..25",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependentDepth:      10,
+				DependencyDepth:     25,
+			},
+		},
+		{
+			name:  "very large depth clamps to max",
+			input: "..999999999foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      filter.MaxTraversalDepth,
+			},
+		},
+		{
+			name:  "overflow depth falls back to unlimited",
+			input: "..99999999999999999999999foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      0,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -648,6 +749,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).IncludeDependencies, graphExpr.IncludeDependencies)
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).ExcludeTarget, graphExpr.ExcludeTarget)
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).Target, graphExpr.Target)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).DependentDepth, graphExpr.DependentDepth)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).DependencyDepth, graphExpr.DependencyDepth)
 		})
 	}
 }

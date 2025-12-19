@@ -73,6 +73,20 @@ func (l *Lexer) NextToken() Token {
 				return tok
 			}
 
+			// ..N (depth-limited ellipsis)
+			if l.readPosition+1 < len(l.input) && isDigit(l.input[l.readPosition+1]) {
+				l.readChar()
+				l.readChar()
+
+				for isDigit(l.ch) {
+					l.readChar()
+				}
+
+				tok = NewToken(ELLIPSIS_DEPTH, l.input[startPosition:l.position], startPosition)
+
+				return tok
+			}
+
 			// Check if this is .. followed by / (parent directory path)
 			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '/' {
 				tok = l.readPath(startPosition)
@@ -166,10 +180,13 @@ func (l *Lexer) skipWhitespace() {
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isIdentifierChar(l.ch) {
-		// Check if we're about to read an ellipsis (...)
+		// stop at ellipsis (...) or depth ellipsis (..N)
 		if l.ch == '.' && l.peekChar() == '.' {
-			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
-				break
+			if l.readPosition+1 < len(l.input) {
+				nextChar := l.input[l.readPosition+1]
+				if nextChar == '.' || isDigit(nextChar) {
+					break
+				}
 			}
 		}
 
@@ -188,10 +205,13 @@ func (l *Lexer) readIdentifier() string {
 func (l *Lexer) readAttributeValue() string {
 	position := l.position
 	for isAttributeValueChar(l.ch) {
-		// Check if we're about to read an ellipsis (...)
+		// stop at ellipsis (...) or depth ellipsis (..N)
 		if l.ch == '.' && l.peekChar() == '.' {
-			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
-				break
+			if l.readPosition+1 < len(l.input) {
+				nextChar := l.input[l.readPosition+1]
+				if nextChar == '.' || isDigit(nextChar) {
+					break
+				}
 			}
 		}
 
@@ -209,10 +229,13 @@ func (l *Lexer) readAttributeValue() string {
 func (l *Lexer) readPath(startPosition int) Token {
 	position := l.position
 	for isPathChar(l.ch) {
-		// Check if we're about to read an ellipsis (...)
+		// stop at ellipsis (...) or depth ellipsis (..N)
 		if l.ch == '.' && l.peekChar() == '.' {
-			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
-				break
+			if l.readPosition+1 < len(l.input) {
+				nextChar := l.input[l.readPosition+1]
+				if nextChar == '.' || isDigit(nextChar) {
+					break
+				}
 			}
 		}
 
@@ -270,4 +293,9 @@ func isAttributeValueChar(ch byte) bool {
 // isPathChar returns true if the character can be part of a path.
 func isPathChar(ch byte) bool {
 	return !isSpecialChar(ch)
+}
+
+// isDigit returns true if the character is a digit.
+func isDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
 }
