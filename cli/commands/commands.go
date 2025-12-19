@@ -357,55 +357,15 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
-	if len(opts.IncludeDirs) > 0 {
-		l.Debugf("Included directories set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	if !opts.ExcludeByDefault && len(opts.ModulesThatInclude) > 0 {
-		l.Debugf("Modules that include set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	if !opts.ExcludeByDefault && len(opts.UnitsReading) > 0 {
-		l.Debugf("Units that read set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	if !opts.ExcludeByDefault && opts.StrictInclude {
-		l.Debugf("Strict include set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
-
-	// Sort and compact opts.IncludeDirs to make them unique
-	slices.Sort(opts.IncludeDirs)
-	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
-
-	if !doubleStarEnabled {
-		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
-		if err != nil {
-			return errors.Errorf("invalid include dirs: %w", err)
-		}
-	}
-
-	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
-	// Sort and compact opts.ExcludeDirs to make them unique
-	slices.Sort(opts.ExcludeDirs)
-	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
+	opts.FilterQueries = append(opts.FilterQueries, excludeFiltersFromFile...)
 
 	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
-	if opts.Experiments.Evaluate("filter-flag") && !opts.NoFiltersFile {
+	if !opts.NoFiltersFile {
 		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
 		if filtersFromFileErr != nil {
 			return filtersFromFileErr
@@ -414,12 +374,9 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
 	}
 
-	if !doubleStarEnabled {
-		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
-		if err != nil {
-			return errors.Errorf("invalid exclude dirs: %w", err)
-		}
-	}
+	// Sort and compact opts.FilterQueries to make them unique
+	slices.Sort(opts.FilterQueries)
+	opts.FilterQueries = slices.Compact(opts.FilterQueries)
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

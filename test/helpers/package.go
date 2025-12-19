@@ -390,7 +390,11 @@ func FileIsInFolder(t *testing.T, name string, path string) bool {
 	return found
 }
 
-func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
+func RunValidateAllWithIncludeAndGetIncludedModules(
+	t *testing.T,
+	rootModulePath string,
+	includeModulePaths []string,
+) []string {
 	t.Helper()
 
 	cmdParts := []string{
@@ -402,10 +406,6 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
-	}
-
-	if strictInclude {
-		cmdParts = append(cmdParts, "--queue-strict-include")
 	}
 
 	cmd := strings.Join(cmdParts, " ")
@@ -424,6 +424,55 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	require.NoError(t, err)
 
+	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
+	require.NoError(t, err)
+
+	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
+	includedModules := []string{}
+
+	for _, match := range matches {
+		if match[2] == "false" {
+			includedModules = append(includedModules, match[1])
+		}
+	}
+
+	sort.Strings(includedModules)
+
+	return includedModules
+}
+
+func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
+	t *testing.T,
+	workDir string,
+	units []string,
+) []string {
+	t.Helper()
+
+	cmdParts := []string{
+		"terragrunt", "run", "--all", "validate",
+		"--non-interactive",
+		"--log-level", "debug",
+		"--working-dir", workDir,
+	}
+
+	for _, unit := range units {
+		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))
+	}
+
+	cmd := strings.Join(cmdParts, " ")
+
+	validateAllStdout := bytes.Buffer{}
+	validateAllStderr := bytes.Buffer{}
+	err := RunTerragruntCommand(
+		t,
+		cmd,
+		&validateAllStdout,
+		&validateAllStderr,
+	)
+
+	LogBufferContentsLineByLine(t, validateAllStdout, "run --all validate stdout")
+	LogBufferContentsLineByLine(t, validateAllStderr, "run --all validate stderr")
+
 	require.NoError(t, err)
 
 	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
@@ -434,7 +483,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	for _, match := range matches {
 		if match[2] == "false" {
-			includedModules = append(includedModules, GetPathRelativeTo(t, match[1], rootModulePath))
+			includedModules = append(includedModules, match[1])
 		}
 	}
 

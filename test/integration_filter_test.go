@@ -50,11 +50,6 @@ func createTestUnit(t *testing.T, dir, comment string) string {
 func TestFilterFlagWithFind(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	workingDir, err := filepath.Abs(testFixtureFilterBasic)
 	require.NoError(t, err)
 
@@ -156,11 +151,6 @@ func TestFilterFlagWithFind(t *testing.T) {
 func TestFilterFlagWithFindJSON(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	workingDir, err := filepath.Abs(testFixtureFilterBasic)
 	require.NoError(t, err)
 
@@ -225,11 +215,6 @@ func TestFilterFlagWithFindJSON(t *testing.T) {
 
 func TestFilterFlagWithList(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	// The CLI constructor ensures that the working directory is always absolute.
 	workingDir, err := filepath.Abs(testFixtureFilterList)
@@ -329,11 +314,6 @@ func TestFilterFlagWithList(t *testing.T) {
 func TestFilterFlagWithListLong(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name           string
 		workingDir     string
@@ -395,11 +375,6 @@ func TestFilterFlagWithListLong(t *testing.T) {
 func TestFilterFlagWithListTree(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name           string
 		workingDir     string
@@ -460,11 +435,6 @@ func TestFilterFlagWithListTree(t *testing.T) {
 
 func TestFilterFlagWithDAG(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	workingDir, err := filepath.Abs(testFixtureFilterDAG)
 	require.NoError(t, err)
@@ -537,11 +507,6 @@ func TestFilterFlagWithDAG(t *testing.T) {
 func TestFilterFlagMultipleFilters(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	workingDir, err := filepath.Abs(testFixtureFilterBasic)
 	require.NoError(t, err)
 
@@ -598,11 +563,6 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 func TestFilterFlagEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	workingDir, err := filepath.Abs(testFixtureFilterBasic)
 	require.NoError(t, err)
 
@@ -653,11 +613,6 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 
 func TestFilterFlagWithSource(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	workingDir, err := filepath.Abs(testFixtureFilterSource)
 	require.NoError(t, err)
@@ -756,11 +711,6 @@ func TestFilterFlagWithSource(t *testing.T) {
 
 func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
@@ -928,11 +878,6 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	testCases := []struct {
 		name               string
@@ -1287,11 +1232,6 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name               string
 		filterQuery        string
@@ -1597,295 +1537,160 @@ unit "unit-to-be-created-2" {
 }
 
 func TestFiltersFileFlag(t *testing.T) {
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filters file flag tests - TG_EXPERIMENT_MODE is enabled, and this test requires testing both")
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		setupFile     func(t *testing.T, dir string) string // Returns path to filter file, empty if no file
+		cmdFlags      string                                // Additional flags like --filters-file or --no-filters-file
+		expectedUnits []string
+		expectError   bool
+	}{
+		{
+			name: "custom filters file with --filters-file flag",
+			setupFile: func(t *testing.T, dir string) string {
+				t.Helper()
+
+				filterFile := filepath.Join(dir, "custom-filters.txt")
+				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+				require.NoError(t, err)
+				return filterFile
+			},
+			cmdFlags:      "", // Will be set in test
+			expectedUnits: []string{"unit"},
+			expectError:   false,
+		},
+		{
+			name: "default .terragrunt-filters file is automatically read when experiment enabled",
+			setupFile: func(t *testing.T, dir string) string {
+				t.Helper()
+
+				filterFile := filepath.Join(dir, ".terragrunt-filters")
+				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+				require.NoError(t, err)
+				return filterFile
+			},
+			cmdFlags:      "",               // No flag, should auto-detect and read .terragrunt-filters
+			expectedUnits: []string{"unit"}, // Should filter to only unit, proving file was read
+			expectError:   false,
+		},
+		{
+			name: "--no-filters-file disables auto-reading",
+			setupFile: func(t *testing.T, dir string) string {
+				t.Helper()
+
+				filterFile := filepath.Join(dir, ".terragrunt-filters")
+				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+				require.NoError(t, err)
+				return filterFile
+			},
+			cmdFlags:      "--no-filters-file",
+			expectedUnits: []string{"stack", "unit"}, // Should show all units, not filtered
+			expectError:   false,
+		},
+		{
+			name: "filter file with comments and empty lines",
+			setupFile: func(t *testing.T, dir string) string {
+				t.Helper()
+
+				filterFile := filepath.Join(dir, ".terragrunt-filters")
+				content := "# This is a comment\n\ntype=unit\n  \n# Another comment\n"
+				err := os.WriteFile(filterFile, []byte(content), 0644)
+				require.NoError(t, err)
+				return filterFile
+			},
+			cmdFlags:      "",
+			expectedUnits: []string{"unit"},
+			expectError:   false,
+		},
+		{
+			name: "multiple filters in file",
+			setupFile: func(t *testing.T, dir string) string {
+				t.Helper()
+
+				filterFile := filepath.Join(dir, ".terragrunt-filters")
+				content := "unit\nstack\n"
+				err := os.WriteFile(filterFile, []byte(content), 0644)
+				require.NoError(t, err)
+				return filterFile
+			},
+			cmdFlags:      "",
+			expectedUnits: []string{"stack", "unit"}, // Union of both filters
+			expectError:   false,
+		},
+		{
+			name: "filters file combined with --filter flags",
+			setupFile: func(t *testing.T, dir string) string {
+				t.Helper()
+
+				filterFile := filepath.Join(dir, ".terragrunt-filters")
+				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+				require.NoError(t, err)
+				return filterFile
+			},
+			cmdFlags:      "--filter type=stack",
+			expectedUnits: []string{"stack", "unit"}, // Union: file has unit, flag has stack
+			expectError:   false,
+		},
 	}
 
-	t.Run("with experiment enabled", func(t *testing.T) {
-		t.Setenv("TG_EXPERIMENT_MODE", "true")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		testCases := []struct {
-			name          string
-			setupFile     func(t *testing.T, dir string) string // Returns path to filter file, empty if no file
-			cmdFlags      string                                // Additional flags like --filters-file or --no-filters-file
-			expectedUnits []string
-			expectError   bool
-		}{
-			{
-				name: "custom filters file with --filters-file flag",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
+			// Copy fixture to temporary directory
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
+			tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
 
-					filterFile := filepath.Join(dir, "custom-filters.txt")
-					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:      "", // Will be set in test
-				expectedUnits: []string{"unit"},
-				expectError:   false,
-			},
-			{
-				name: "default .terragrunt-filters file is automatically read when experiment enabled",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
+			helpers.CleanupTerraformFolder(t, tmpDir)
 
-					filterFile := filepath.Join(dir, ".terragrunt-filters")
-					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:      "",               // No flag, should auto-detect and read .terragrunt-filters
-				expectedUnits: []string{"unit"}, // Should filter to only unit, proving file was read
-				expectError:   false,
-			},
-			{
-				name: "--no-filters-file disables auto-reading",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
+			// Setup filter file if needed
+			var filterFilePath string
+			if tc.setupFile != nil {
+				filterFilePath = tc.setupFile(t, tmpDir)
+			}
 
-					filterFile := filepath.Join(dir, ".terragrunt-filters")
-					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:      "--no-filters-file",
-				expectedUnits: []string{"stack", "unit"}, // Should show all units, not filtered
-				expectError:   false,
-			},
-			{
-				name: "filter file with comments and empty lines",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
+			// Build command
+			cmd := "terragrunt find --no-color --working-dir " + tmpDir
+			if tc.cmdFlags != "" {
+				cmd += " " + tc.cmdFlags
+			}
+			// For custom filter files (not .terragrunt-filters), add --filters-file flag
+			if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" && !strings.Contains(tc.cmdFlags, "--filters-file") && !strings.Contains(tc.cmdFlags, "--no-filters-file") {
+				cmd += " --filters-file " + filterFilePath
+			}
 
-					filterFile := filepath.Join(dir, ".terragrunt-filters")
-					content := "# This is a comment\n\ntype=unit\n  \n# Another comment\n"
-					err := os.WriteFile(filterFile, []byte(content), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:      "",
-				expectedUnits: []string{"unit"},
-				expectError:   false,
-			},
-			{
-				name: "multiple filters in file",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
-					filterFile := filepath.Join(dir, ".terragrunt-filters")
-					content := "unit\nstack\n"
-					err := os.WriteFile(filterFile, []byte(content), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:      "",
-				expectedUnits: []string{"stack", "unit"}, // Union of both filters
-				expectError:   false,
-			},
-			{
-				name: "filters file combined with --filter flags",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
+			if tc.expectError {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				assert.NotEmpty(t, stderr, "Expected error message in stderr")
 
-					filterFile := filepath.Join(dir, ".terragrunt-filters")
-					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:      "--filter type=stack",
-				expectedUnits: []string{"stack", "unit"}, // Union: file has unit, flag has stack
-				expectError:   false,
-			},
-		}
+				return
+			}
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
+			require.NoError(t, err, "Unexpected error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
+			// Parse output into unit names (split by newlines and filter empty strings)
+			results := strings.Split(strings.TrimSpace(stdout), "\n")
+			// Filter out empty strings and extract basename from each path
+			var actualUnits []string
 
-				// Copy fixture to temporary directory
-				tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
-				tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
-
-				helpers.CleanupTerraformFolder(t, tmpDir)
-
-				// Setup filter file if needed
-				var filterFilePath string
-				if tc.setupFile != nil {
-					filterFilePath = tc.setupFile(t, tmpDir)
+			for _, r := range results {
+				if r != "" {
+					// Extract basename from path (handles both relative and absolute paths)
+					unitName := filepath.Base(strings.TrimSpace(r))
+					actualUnits = append(actualUnits, unitName)
 				}
-
-				// Build command
-				cmd := "terragrunt find --no-color --working-dir " + tmpDir
-				if tc.cmdFlags != "" {
-					cmd += " " + tc.cmdFlags
-				}
-				// For custom filter files (not .terragrunt-filters), add --filters-file flag
-				if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" && !strings.Contains(tc.cmdFlags, "--filters-file") && !strings.Contains(tc.cmdFlags, "--no-filters-file") {
-					cmd += " --filters-file " + filterFilePath
-				}
-
-				stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-
-				if tc.expectError {
-					require.Error(t, err, "Expected error for test case: %s", tc.name)
-					assert.NotEmpty(t, stderr, "Expected error message in stderr")
-
-					return
-				}
-
-				require.NoError(t, err, "Unexpected error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
-				// Parse output into unit names (split by newlines and filter empty strings)
-				results := strings.Split(strings.TrimSpace(stdout), "\n")
-				// Filter out empty strings and extract basename from each path
-				var actualUnits []string
-
-				for _, r := range results {
-					if r != "" {
-						// Extract basename from path (handles both relative and absolute paths)
-						unitName := filepath.Base(strings.TrimSpace(r))
-						actualUnits = append(actualUnits, unitName)
-					}
-				}
-				// For .terragrunt-filters auto-detection test: the file contains "type=unit"
-				// and we expect only "unit" in output, proving the file WAS automatically read
-				assert.ElementsMatch(t, tc.expectedUnits, actualUnits, "Output mismatch for test case: %s", tc.name)
-			})
-		}
-	})
-
-	t.Run("experiment disabled scenarios", func(t *testing.T) {
-		testCases := []struct {
-			setupFile   func(t *testing.T, dir string) string
-			name        string
-			cmdFlags    string
-			errorMsg    string
-			expectError bool
-		}{
-			{
-				name: "--filters-file flag returns error when experiment disabled",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
-
-					filterFile := filepath.Join(dir, "custom-filters.txt")
-					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:    "", // Will be set in test
-				expectError: true,
-				errorMsg:    "requires the 'filter-flag' experiment",
-			},
-			{
-				name: ".terragrunt-filters file is silently ignored when experiment disabled",
-				setupFile: func(t *testing.T, dir string) string {
-					t.Helper()
-
-					filterFile := filepath.Join(dir, ".terragrunt-filters")
-					// Create filter file that would filter to only unit if read
-					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
-					require.NoError(t, err)
-					return filterFile
-				},
-				cmdFlags:    "", // No flag, file should be ignored (not read)
-				expectError: false,
-				errorMsg:    "",
-				// Note: expectedOutput verification happens in the test - should show all units
-				// proving the filter file was NOT read
-			},
-			{
-				name:        "--no-filters-file flag returns error when experiment disabled",
-				setupFile:   nil,
-				cmdFlags:    "--no-filters-file",
-				expectError: true,
-				errorMsg:    "requires the 'filter-flag' experiment",
-			},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				// Ensure experiment is disabled for this test case by unsetting the variable
-				// This ensures the experiment is not enabled even if it was set in the parent environment
-				require.NoError(t, os.Unsetenv("TG_EXPERIMENT_MODE"))
-				// Copy fixture to temporary directory
-				tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
-				tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
-
-				helpers.CleanupTerraformFolder(t, tmpDir)
-
-				// Setup filter file if needed
-				var filterFilePath string
-				if tc.setupFile != nil {
-					filterFilePath = tc.setupFile(t, tmpDir)
-				}
-
-				// Build command
-				cmd := "terragrunt find --no-color --working-dir " + tmpDir
-				if tc.cmdFlags != "" {
-					cmd += " " + tc.cmdFlags
-				}
-				// Add --filters-file flag for custom filter files
-				if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" {
-					cmd += " --filters-file " + filterFilePath
-				}
-
-				stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-
-				if tc.expectError {
-					require.Error(t, err, "Expected error for test case: %s", tc.name)
-
-					if tc.errorMsg != "" {
-						// Error message might be in stderr or in the error itself
-						errStr := ""
-						if err != nil {
-							errStr = err.Error()
-						}
-
-						combinedOutput := stderr + stdout + errStr
-						assert.Contains(t, combinedOutput, tc.errorMsg,
-							"Expected error message containing '%s' in output for test case: %s\nstdout: %s\nstderr: %s\nerr: %v",
-							tc.errorMsg, tc.name, stdout, stderr, err)
-					}
-
-					return
-				}
-				// For .terragrunt-filters ignored case, should succeed but not filter
-				require.NoError(t, err, "Unexpected error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
-				// Parse output into unit names (split by newlines and filter empty strings)
-				results := strings.Split(strings.TrimSpace(stdout), "\n")
-				// Filter out empty strings and extract basename from each path
-				var actualUnits []string
-
-				for _, r := range results {
-					if r != "" {
-						// Extract basename from path (handles both relative and absolute paths)
-						unitName := filepath.Base(strings.TrimSpace(r))
-						actualUnits = append(actualUnits, unitName)
-					}
-				}
-				// When experiment is disabled, .terragrunt-filters file should be ignored
-				// The file contains "type=unit" which would filter to only "unit" if read
-				// But since it's ignored, we should see all units (stack and unit)
-				// This proves the file was NOT automatically read
-				expectedUnits := []string{"stack", "unit"}
-				assert.ElementsMatch(t, expectedUnits, actualUnits,
-					"When experiment is disabled, .terragrunt-filters should be ignored. "+
-						"File contains 'type=unit' which would filter to only 'unit' if read, "+
-						"but we see all units, proving the file was NOT read automatically.")
-			})
-		}
-	})
+			}
+			// For .terragrunt-filters auto-detection test: the file contains "type=unit"
+			// and we expect only "unit" in output, proving the file WAS automatically read
+			assert.ElementsMatch(t, tc.expectedUnits, actualUnits, "Output mismatch for test case: %s", tc.name)
+		})
+	}
 }
 
 func TestFilterFlagMinimizesParsing(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	t.Run("single unit filter", func(t *testing.T) {
 		t.Parallel()

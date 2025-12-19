@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -26,45 +25,42 @@ import (
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
-		WorkingDir:       opts.WorkingDir,
-		QueueConstructAs: opts.QueueConstructAs,
-		NoHidden:         !opts.Hidden,
-		Dependencies:     opts.Dependencies || opts.External || opts.Mode == ModeDAG,
-		External:         opts.External,
-		Exclude:          opts.Exclude,
-		Include:          opts.Include,
-		Reading:          opts.Reading,
-		FilterQueries:    opts.FilterQueries,
-		Experiments:      opts.Experiments,
+		WorkingDir:        opts.WorkingDir,
+		QueueConstructAs:  opts.QueueConstructAs,
+		NoHidden:          !opts.Hidden,
+		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
+		Exclude:           opts.Exclude,
+		Include:           opts.Include,
+		Reading:           opts.Reading,
+		FilterQueries:     opts.FilterQueries,
+		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return errors.New(err)
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		// We do worktree generation here instead of in the discovery constructor
-		// so that we can defer cleanup in the same context.
-		filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
-		if parseErr != nil {
-			return fmt.Errorf("failed to parse filters: %w", parseErr)
-		}
-
-		gitFilters := filters.UniqueGitFilters()
-
-		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
-		if worktreeErr != nil {
-			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
-		}
-
-		defer func() {
-			cleanupErr := worktrees.Cleanup(ctx, l)
-			if cleanupErr != nil {
-				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
-			}
-		}()
-
-		d = d.WithWorktrees(worktrees)
+	// We do worktree generation here instead of in the discovery constructor
+	// so that we can defer cleanup in the same context.
+	filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+	if parseErr != nil {
+		return fmt.Errorf("failed to parse filters: %w", parseErr)
 	}
+
+	gitFilters := filters.UniqueGitFilters()
+
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	if worktreeErr != nil {
+		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
+	}
+
+	defer func() {
+		cleanupErr := worktrees.Cleanup(ctx, l)
+		if cleanupErr != nil {
+			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+		}
+	}()
+
+	d = d.WithWorktrees(worktrees)
 
 	var (
 		components  component.Components
@@ -75,7 +71,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": opts.Dependencies,
-		"external":     opts.External,
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,
 	}, func(ctx context.Context) error {
@@ -158,10 +153,6 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 	errs := []error{}
 
 	for _, c := range components {
-		if c.External() && !opts.External {
-			continue
-		}
-
 		if opts.QueueConstructAs != "" {
 			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {

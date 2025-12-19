@@ -11,32 +11,28 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
 )
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
-	discoveryContext     *component.DiscoveryContext
-	components           *component.ThreadSafeComponents
-	externalDependencies *component.ThreadSafeComponents
-	report               *report.Report
-	mu                   *sync.RWMutex
-	seenComponents       map[string]struct{}
-	parserOptions        []hclparse.Option
-	maxDepth             int
-	numWorkers           int
-	discoverExternal     bool
-	suppressParseErrors  bool
+	discoveryContext    *component.DiscoveryContext
+	components          *component.ThreadSafeComponents
+	report              *report.Report
+	mu                  *sync.RWMutex
+	seenComponents      map[string]struct{}
+	parserOptions       []hclparse.Option
+	maxDepth            int
+	numWorkers          int
+	suppressParseErrors bool
 }
 
 func NewDependencyDiscovery(components *component.ThreadSafeComponents) *DependencyDiscovery {
 	return &DependencyDiscovery{
-		components:           components,
-		externalDependencies: component.NewThreadSafeComponents(component.Components{}),
-		mu:                   &sync.RWMutex{},
-		seenComponents:       make(map[string]struct{}),
-		numWorkers:           runtime.NumCPU(),
+		components:     components,
+		mu:             &sync.RWMutex{},
+		seenComponents: make(map[string]struct{}),
+		numWorkers:     runtime.NumCPU(),
 	}
 }
 
@@ -55,14 +51,6 @@ func (dd *DependencyDiscovery) WithNumWorkers(numWorkers int) *DependencyDiscove
 // WithSuppressParseErrors sets the SuppressParseErrors flag to true.
 func (dd *DependencyDiscovery) WithSuppressParseErrors() *DependencyDiscovery {
 	dd.suppressParseErrors = true
-
-	return dd
-}
-
-// WithDiscoverExternalDependencies sets the discoverExternal flag to true,
-// which determines whether to discover and include external dependencies in the final results.
-func (dd *DependencyDiscovery) WithDiscoverExternalDependencies() *DependencyDiscovery {
-	dd.discoverExternal = true
 
 	return dd
 }
@@ -130,11 +118,6 @@ func (dd *DependencyDiscovery) Discover(
 	}
 
 	return nil
-}
-
-// ExternalDependencies returns the external dependencies discovered during dependency discovery.
-func (dd *DependencyDiscovery) ExternalDependencies() component.Components {
-	return dd.externalDependencies.ToComponents()
 }
 
 // markSeen marks a component path as seen.
@@ -206,7 +189,7 @@ func (dd *DependencyDiscovery) discoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
-			depComponent := dd.dependencyToDiscover(l, dComponent, depPath)
+			depComponent := dd.dependencyToDiscover(dComponent, depPath)
 			if depComponent == nil {
 				return nil
 			}
@@ -241,7 +224,6 @@ func (dd *DependencyDiscovery) discoverDependencies(
 // marking as external if it's outside the working directory of discovery, and linking dependencies.
 // Returns nil if the dependency shouldn't be involved in discovery any further (e.g., already processed or ignored).
 func (dd *DependencyDiscovery) dependencyToDiscover(
-	l log.Logger,
 	dComponent component.Component,
 	depPath string,
 ) component.Component {
@@ -262,62 +244,12 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		return c
 	}
 
-	isExternal := isExternal(dd.discoveryContext.WorkingDir, depPath)
-
-	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
-	// set, ensure that we link it to the correct component, and mark it as seen.
-	if isExternal && !dd.discoverExternal {
-		existingDep := dd.externalDependencies.FindByPath(depPath)
-		if existingDep != nil {
-			dComponent.AddDependency(existingDep)
-			dd.markSeen(depPath)
-
-			return nil
-		}
-
-		depComponent := component.NewUnit(depPath)
-		depComponent.SetExternal()
-
-		if dd.discoveryContext != nil {
-			depComponent.SetDiscoveryContext(dd.discoveryContext)
-		}
-
-		existingDep, _ = dd.externalDependencies.EnsureComponent(depComponent)
-		dComponent.AddDependency(existingDep)
-
-		l.Debugf("Excluded external dependency: %s", depComponent.DisplayPath())
-
-		// Record in report as excluded external dependency
-		if dd.report != nil {
-			absPath := util.CleanPath(depPath)
-
-			_, err := dd.report.EnsureRun(l, absPath)
-			if err != nil {
-				l.Errorf("Error ensuring run for excluded external dependency %s: %v", absPath, err)
-			}
-
-			err = dd.report.EndRun(
-				l,
-				absPath,
-				report.WithResult(report.ResultExcluded),
-				report.WithReason(report.ReasonExcludeExternal),
-			)
-			if err != nil {
-				l.Errorf("Error ending run for excluded external dependency %s: %v", absPath, err)
-			}
-		}
-
-		dd.markSeen(depPath)
-
-		return nil
-	}
-
 	// Create new component for further discovery
 	//
 	// TODO: This will need to change in the future to handle stacks.
 	depComponent := component.NewUnit(depPath)
 
-	if isExternal {
+	if isExternal(dd.discoveryContext.WorkingDir, depPath) {
 		depComponent.SetExternal()
 	}
 

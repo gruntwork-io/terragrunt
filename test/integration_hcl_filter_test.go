@@ -21,10 +21,6 @@ const (
 func TestHCLFormatCheckWithFilter(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	// Create a temporary directory for this test case
 	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
@@ -186,10 +182,6 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 func TestHCLValidateWithFilter(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name         string
 		filterArgs   []string
@@ -282,10 +274,6 @@ func TestHCLValidateWithFilter(t *testing.T) {
 
 func TestHCLFormatFilterIntegration(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)

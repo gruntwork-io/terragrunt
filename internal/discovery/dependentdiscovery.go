@@ -36,7 +36,6 @@ type DependentDiscovery struct {
 	maxDepth            int
 	numWorkers          int
 	suppressParseErrors bool
-	discoverExternal    bool
 }
 
 // NewDependentDiscovery creates a new DependentDiscovery with the given configuration.
@@ -78,13 +77,6 @@ func (dd *DependentDiscovery) WithDiscoveryContext(discoveryContext *component.D
 // WithNumWorkers sets the number of concurrent workers for dependent discovery operations.
 func (dd *DependentDiscovery) WithNumWorkers(numWorkers int) *DependentDiscovery {
 	dd.numWorkers = numWorkers
-	return dd
-}
-
-// WithDiscoverExternalDependencies sets the discoverExternal flag to true,
-// which determines whether to discover and include external dependencies in the final results.
-func (dd *DependentDiscovery) WithDiscoverExternalDependencies() *DependentDiscovery {
-	dd.discoverExternal = true
 	return dd
 }
 
@@ -325,16 +317,12 @@ func (dd *DependentDiscovery) discoverDependents(
 			}
 
 			if dependsOnTarget {
-				isExternal := isExternal(dd.discoveryContext.WorkingDir, candidate.Path())
+				dd.ensureComponent(candidate)
 
-				if !isExternal || dd.discoverExternal {
-					dd.ensureComponent(candidate)
-
-					select {
-					case <-walkCtx.Done():
-						return walkCtx.Err()
-					case discoveredDependents <- candidate:
-					}
+				select {
+				case <-walkCtx.Done():
+					return walkCtx.Err()
+				case discoveredDependents <- candidate:
 				}
 			}
 		}

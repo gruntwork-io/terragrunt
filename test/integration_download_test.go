@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -283,28 +282,28 @@ func TestExcludeDirs(t *testing.T) {
 		name                  string
 		excludeArgs           string
 		excludedModuleOutputs []string
-		enableDoubleStar      bool
 	}{
-		{"exclude gce modules with triple star", "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, false},
-		{"exclude production env and gce c modules with triple star", "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, false},
-		{"exclude integration env gce b and c modules and aws modules with triple star", "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, false},
-		{"exclude gce modules with double star", "--queue-exclude-dir **/gce/**", []string{"Module GCE B", "Module GCE C", "Module GCE E"}, true},
-		{"exclude production env and gce c modules with double star", "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}, true},
-		{"exclude integration env gce b and c modules and aws modules with double star", "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}, true},
+		{
+			name:                  "exclude gce modules with double star",
+			excludeArgs:           "--queue-exclude-dir **/gce/**",
+			excludedModuleOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
+		},
+		{
+			name:                  "exclude production env and gce c modules with double star",
+			excludeArgs:           "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c",
+			excludedModuleOutputs: []string{"Module GCE C", "Module AWS D", "Module GCE E"},
+		},
+		{
+			name:                  "exclude integration env gce b and c modules and aws modules with double star",
+			excludeArgs:           "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*",
+			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
+		},
 	}
 
 	for _, tt := range testCases {
-		opts, err := options.NewTerragruntOptionsForTest("running_module_test")
-		require.NoError(t, err)
-
-		doubleStarDefaultEnabled := opts.StrictControls.FilterByNames("double-star").Evaluate(t.Context()) != nil
-		if doubleStarDefaultEnabled && !tt.enableDoubleStar {
-			t.Skip("Skipping test because double-star is already enabled by default")
-		}
-
 		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
 		workingDir := filepath.Join(tmpDir, testFixtureLocalWithExcludeDir)
-		workingDir, err = filepath.EvalSymlinks(workingDir)
+		workingDir, err := filepath.EvalSymlinks(workingDir)
 		require.NoError(t, err)
 
 		modulePaths := make(map[string]string, len(moduleNames))
@@ -316,12 +315,16 @@ func TestExcludeDirs(t *testing.T) {
 		applyAllStderr := bytes.Buffer{}
 
 		// Apply modules according to test cases
-		strictControl := ""
-		if !doubleStarDefaultEnabled && tt.enableDoubleStar {
-			strictControl = "--strict-control double-star"
-		}
-
-		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s %s", workingDir, tt.excludeArgs, strictControl), &applyAllStdout, &applyAllStderr)
+		err = helpers.RunTerragruntCommand(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s",
+				workingDir,
+				tt.excludeArgs,
+			),
+			&applyAllStdout,
+			&applyAllStderr,
+		)
 		require.NoError(t, err)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
@@ -332,7 +335,12 @@ func TestExcludeDirs(t *testing.T) {
 			showStdout := bytes.Buffer{}
 			showStderr := bytes.Buffer{}
 
-			err = helpers.RunTerragruntCommand(t, "terragrunt show --non-interactive --log-level trace --working-dir "+modulePath, &showStdout, &showStderr)
+			err = helpers.RunTerragruntCommand(
+				t,
+				"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+				&showStdout,
+				&showStderr,
+			)
 			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
 			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
@@ -348,10 +356,6 @@ func TestExcludeDirs(t *testing.T) {
 
 func TestExcludeDirsWithFilter(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	// Populate module paths.
 	moduleNames := []string{
@@ -550,11 +554,6 @@ I'm not sure we're getting good value from the time taken on tests like this.
 func TestIncludeDirsWithFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	// Copy the entire download fixture directory to ensure all referenced sources are available
 	tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
 	workingDir := filepath.Join(tmpDir, testFixtureLocalWithIncludeDir)
@@ -656,21 +655,38 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	tmpPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	tmpPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	require.NoError(t, err)
 
 	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithNone := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, false)
+	includedModulesWithNone := helpers.RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(t, testPath, []string{})
 	assert.NotEmpty(t, includedModulesWithNone)
 
-	includedModulesWithAmzApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
-	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"amazing-app/k8s", "clusters/eks"}), includedModulesWithAmzApp)
+	includedModulesWithAmzApp := helpers.RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
+		t,
+		testPath,
+		[]string{"amazing-app/k8s"},
+	)
+	assert.Equal(
+		t,
+		[]string{"amazing-app/k8s", "clusters/eks"},
+		includedModulesWithAmzApp,
+	)
 
-	includedModulesWithTestApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
-	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"clusters/eks", "testapp/k8s"}), includedModulesWithTestApp)
+	includedModulesWithTestApp := helpers.RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
+		t,
+		testPath,
+		[]string{"testapp/k8s"},
+	)
+	assert.Equal(
+		t,
+		[]string{"clusters/eks", "testapp/k8s"},
+		includedModulesWithTestApp,
+	)
 }
 
 func TestIncludeDirsStrict(t *testing.T) {
@@ -682,7 +698,9 @@ func TestIncludeDirsStrict(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	tmpPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	tmpPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureRegressions))
+	require.NoError(t, err)
+
 	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	helpers.CleanupTerragruntFolder(t, testPath)
 
@@ -690,14 +708,27 @@ func TestIncludeDirsStrict(t *testing.T) {
 		helpers.CleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithNone := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, true)
-	assert.Equal(t, []string{}, includedModulesWithNone)
+	includedModulesWithAmzApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(
+		t,
+		testPath,
+		[]string{"amazing-app/k8s"},
+	)
+	assert.Equal(
+		t,
+		[]string{"amazing-app/k8s"},
+		includedModulesWithAmzApp,
+	)
 
-	includedModulesWithAmzApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
-	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"amazing-app/k8s"}), includedModulesWithAmzApp)
-
-	includedModulesWithTestApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
-	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"testapp/k8s"}), includedModulesWithTestApp)
+	includedModulesWithTestApp := helpers.RunValidateAllWithIncludeAndGetIncludedModules(
+		t,
+		testPath,
+		[]string{"testapp/k8s"},
+	)
+	assert.Equal(
+		t,
+		[]string{"testapp/k8s"},
+		includedModulesWithTestApp,
+	)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {
@@ -739,10 +770,6 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 
 func TestTerragruntExternalDependenciesWithFilter(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	modules := []string{
 		"module-a",

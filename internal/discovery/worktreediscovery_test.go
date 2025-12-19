@@ -876,8 +876,12 @@ unit "unit_to_be_untouched" {
 	fromWorktree := worktreePair.FromWorktree.Path
 	toWorktree := worktreePair.ToWorktree.Path
 
-	// All paths are worktree paths - no translation needed
-	assert.ElementsMatch(t, components, component.Components{
+	// All paths are worktree paths - no translation needed.
+	//
+	// NOTE: Discovery may attach additional state (e.g., partially-parsed configs) that isn't relevant
+	// to this test's intent. We normalize the discovered components by clearing that state so a simple
+	// deep comparison remains stable over time.
+	expected := component.Components{
 		// Stacks
 		component.NewStack(filepath.Join(toWorktree, stackToBeAddedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
@@ -976,7 +980,22 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-	})
+	}
+
+	for _, c := range components {
+		switch v := c.(type) {
+		case *component.Unit:
+			// Normalize fields that may be populated during discovery, but are irrelevant to this test's assertions.
+			v.StoreConfig(nil)
+			// Normalize slices so deep equality is stable (nil vs empty differs in reflect.DeepEqual).
+			v.SetReading()
+		case *component.Stack:
+			v.StoreConfig(nil)
+			v.SetReading()
+		}
+	}
+
+	assert.ElementsMatch(t, components, expected)
 }
 
 // TestWorktreeDiscoveryDetectsFileRename verifies that renaming a file within a unit

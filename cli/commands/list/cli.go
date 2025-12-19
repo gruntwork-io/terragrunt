@@ -56,10 +56,18 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Include dependencies in list results (only when using --long).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        ExternalFlagName,
-			EnvVars:     tgPrefix.EnvVars(ExternalFlagName),
-			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Name:    ExternalFlagName,
+			EnvVars: tgPrefix.EnvVars(ExternalFlagName),
+			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Hidden:  true,
+			Action: func(_ *cli.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+				return nil
+			},
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TreeFlagName,

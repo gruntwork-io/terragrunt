@@ -67,7 +67,7 @@ func evaluatePathFilter(filter *PathExpression, components component.Components)
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
 	}
 
-	var result component.Components
+	result := make(component.Components, 0, len(components))
 
 	for _, component := range components {
 		matches, err := doesComponentValueMatchGlob(component, component.Path(), filter.Value, g)
