@@ -70,6 +70,26 @@
 //	{my path/file}          # Path without ./ prefix
 //	{apps}                  # Treat "apps" as a path, not a name filter
 //
+// ## Graph Traversal Operators (... and ..N)
+//
+// Graph traversal operators include dependencies and/or dependents in the result:
+//
+//	foo...                  # foo and all its dependencies (transitive)
+//	...foo                  # foo and all its dependents (transitive)
+//	...foo...               # foo, all its dependencies, and all its dependents
+//	^foo...                 # All dependencies of foo, excluding foo itself
+//	...^foo                 # All dependents of foo, excluding foo itself
+//
+// Depth-limited traversal allows specifying how many levels to traverse:
+//
+//	foo..1                  # foo and its direct dependencies only
+//	foo..2                  # foo and dependencies up to 2 levels deep
+//	..1foo                  # foo and its direct dependents only
+//	..2foo                  # foo and dependents up to 2 levels deep
+//	..1foo..2               # Direct dependents and dependencies up to 2 levels
+//
+// When depth is 0 or not specified, traversal is unlimited (default behavior).
+//
 // # Operator Precedence
 //
 // Operators are evaluated with the following precedence (highest to lowest):
