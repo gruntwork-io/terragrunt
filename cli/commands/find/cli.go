@@ -87,10 +87,18 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Include the list of files that are read by components in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        External,
-			EnvVars:     tgPrefix.EnvVars(External),
-			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Name:    External,
+			EnvVars: tgPrefix.EnvVars(External),
+			Hidden:  true,
+			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Action: func(_ *cli.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+				return nil
+			},
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        QueueConstructAsFlagName,

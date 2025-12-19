@@ -80,9 +80,6 @@ func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
 	t.Parallel()
 
 	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
@@ -991,7 +988,7 @@ func TestStackApplyStrictInclude(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run apply --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -1008,9 +1005,6 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 	t.Parallel()
 
 	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
@@ -1726,10 +1720,6 @@ func TestStackFindInParentFolders(t *testing.T) {
 
 func TestStackGenerateWithFilter(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)

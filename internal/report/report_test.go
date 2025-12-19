@@ -761,7 +761,7 @@ func TestWriteJSON(t *testing.T) {
 const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json",
     "properties": {
       "Started": {
         "type": "string",
@@ -777,7 +777,6 @@ const ExpectedSchema = `{
           "retry succeeded",
           "error ignored",
           "run error",
-          "--queue-exclude-dir",
           "exclude block",
           "ancestor error"
         ]
@@ -883,7 +882,17 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 	}{
 		{
 			name: "starlight",
-			file: filepath.Join("..", "..", "docs-starlight", "public", "schemas", "run", "report", "v1", "schema.json"),
+			file: filepath.Join(
+				"..",
+				"..",
+				"docs-starlight",
+				"public",
+				"schemas",
+				"run",
+				"report",
+				"v2",
+				"schema.json",
+			),
 		},
 	}
 

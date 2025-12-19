@@ -190,10 +190,6 @@ type TerragruntOptions struct {
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
-	// Unix-style glob of directories to include when running *-all commands
-	IncludeDirs []string
-	// Unix-style glob of directories to exclude when running *-all commands
-	ExcludeDirs []string
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -204,10 +200,6 @@ type TerragruntOptions struct {
 	ScaffoldVars []string
 	// StrictControls is a slice of strict controls.
 	StrictControls strict.Controls `clone:"shadowcopy"`
-	// When used with `run --all`, restrict the modules in the stack to only those that include at least one of the files in this list.
-	ModulesThatInclude []string
-	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
-	UnitsReading []string
 	// FilterQueries contains filter query strings for component selection
 	FilterQueries []string
 	// When set, it will be used to compute the cache key for `-version` checks.
@@ -244,14 +236,10 @@ type TerragruntOptions struct {
 	Check bool
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
-	// If set to true, do not include dependencies when processing IncludeDirs
-	StrictInclude bool
 	// Disable listing of dependent modules in render json output
 	JSONDisableDependentModules bool
 	// Enables Terragrunt's provider caching.
 	ProviderCache bool
-	// If set to true, exclude all directories by default when running *-all commands
-	ExcludeByDefault bool
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 	// True if is required to check for dependent modules during destroy operations
@@ -266,12 +254,8 @@ type TerragruntOptions struct {
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
-	// If set to true, apply all external dependencies when running *-all commands
-	IncludeExternalDependencies bool
 	// Skip checksum check for engine package.
 	EngineSkipChecksumCheck bool
-	// If set to true, skip any external dependencies when running *-all commands
-	IgnoreExternalDependencies bool
 	// If set to true, ignore the dependency order when running *-all command.
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
@@ -391,59 +375,30 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                      DefaultWrappedPath,
-		ExcludesFile:                defaultExcludesFile,
-		FiltersFile:                 defaultFiltersFile,
-		OriginalTerraformCommand:    "",
-		TerraformCommand:            "",
-		AutoInit:                    true,
-		RunAllAutoApprove:           true,
-		NonInteractive:              false,
-		TerraformCliArgs:            []string{},
-		Env:                         map[string]string{},
-		Source:                      "",
-		SourceMap:                   map[string]string{},
-		SourceUpdate:                false,
-		IgnoreDependencyErrors:      false,
-		IgnoreDependencyOrder:       false,
-		IgnoreExternalDependencies:  false,
-		IncludeExternalDependencies: false,
-		Writer:                      stdout,
-		ErrWriter:                   stderr,
-		MaxFoldersToCheck:           DefaultMaxFoldersToCheck,
-		AutoRetry:                   true,
-		ExcludeDirs:                 []string{},
-		IncludeDirs:                 []string{},
-		ModulesThatInclude:          []string{},
-		StrictInclude:               false,
-		Parallelism:                 DefaultParallelism,
-		Check:                       false,
-		Diff:                        false,
-		UsePartialParseConfigCache:  false,
-		ForwardTFStdout:             false,
-		JSONOut:                     DefaultJSONOutName,
-		TofuImplementation:          UnknownImpl,
-		JSONDisableDependentModules: false,
+		TFPath:             DefaultWrappedPath,
+		ExcludesFile:       defaultExcludesFile,
+		FiltersFile:        defaultFiltersFile,
+		AutoInit:           true,
+		RunAllAutoApprove:  true,
+		Env:                map[string]string{},
+		SourceMap:          map[string]string{},
+		Writer:             stdout,
+		ErrWriter:          stderr,
+		MaxFoldersToCheck:  DefaultMaxFoldersToCheck,
+		AutoRetry:          true,
+		Parallelism:        DefaultParallelism,
+		JSONOut:            DefaultJSONOutName,
+		TofuImplementation: UnknownImpl,
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
-		ProviderCacheRegistryNames:       defaultProviderCacheRegistryNames,
-		OutputFolder:                     "",
-		JSONOutputFolder:                 "",
-		FeatureFlags:                     xsync.NewMapOf[string, string](),
-		Errors:                           defaultErrorsConfig(),
-		StrictControls:                   controls.New(),
-		Experiments:                      experiment.NewExperiments(),
-		Telemetry:                        new(telemetry.Options),
-		NoStackValidate:                  false,
-		NoStackGenerate:                  false,
-		VersionManagerFileName:           defaultVersionManagerFileName,
-		NoAutoProviderCacheDir:           false,
-		NoEngine:                         false,
-		NoDependencyFetchOutputFromState: false,
-		NoDependencyPrompt:               false,
-		NoShell:                          false,
-		NoHooks:                          false,
+		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
+		FeatureFlags:               xsync.NewMapOf[string, string](),
+		Errors:                     defaultErrorsConfig(),
+		StrictControls:             controls.New(),
+		Experiments:                experiment.NewExperiments(),
+		Telemetry:                  new(telemetry.Options),
+		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
 

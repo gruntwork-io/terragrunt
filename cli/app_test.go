@@ -52,101 +52,354 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		args            []string
 	}{
 		{
-			args:            []string{"plan"},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, false),
+			args: []string{"plan"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(workingDir, config.DefaultTerragruntConfigPath),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", "bar"},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan", "bar"}, false, "", false, false, defaultLogLevel, false),
+			args: []string{"plan", "bar"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(workingDir, config.DefaultTerragruntConfigPath),
+				workingDir,
+				[]string{"plan", "bar"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"--foo", "--bar"},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
-			expectedErr:     clipkg.UndefinedFlagError("foo"),
+			args: []string{"--foo", "--bar"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				), workingDir,
+				[]string{"-foo", "-bar"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
+			expectedErr: clipkg.UndefinedFlagError("foo"),
 		},
 
 		{
-			args:            []string{"--foo", "apply", "--bar"},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply", "-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
-			expectedErr:     clipkg.UndefinedFlagError("foo"),
+			args: []string{"--foo", "apply", "--bar"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"apply", "-foo", "-bar"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
+			expectedErr: clipkg.UndefinedFlagError("foo"),
 		},
 
 		{
 			args:            []string{doubleDashed(global.NonInteractiveFlagName)},
-			expectedOptions: mockOptions(t, "", "", []string{}, true, "", false, false, defaultLogLevel, false),
+			expectedOptions: mockOptions(t, "", "", nil, true, "", false, false, defaultLogLevel, false),
 		},
 
 		{
-			args:            []string{"apply", doubleDashed(shared.QueueIncludeExternalFlagName)},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply"}, false, "", false, true, defaultLogLevel, false),
+			args: []string{"apply", doubleDashed(shared.QueueIncludeExternalFlagName)},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"apply"},
+				false,
+				"",
+				false,
+				true,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath},
-			expectedOptions: mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, false),
+			args: []string{
+				"plan",
+				doubleDashed(run.ConfigFlagName),
+				"/some/path/" + config.DefaultTerragruntConfigPath,
+			},
+			expectedOptions: mockOptions(
+				t,
+				"/some/path/"+config.DefaultTerragruntConfigPath,
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(global.WorkingDirFlagName), "/some/path"},
-			expectedOptions: mockOptions(t, filepath.Join("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{"plan"}, false, "", false, false, defaultLogLevel, false),
+			args: []string{"plan", doubleDashed(global.WorkingDirFlagName), "/some/path"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					"/some/path",
+					config.DefaultTerragruntConfigPath,
+				),
+				"/some/path",
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.SourceFlagName), "/some/path"},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "/some/path", false, false, defaultLogLevel, false),
+			args: []string{"plan", doubleDashed(run.SourceFlagName), "/some/path"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"/some/path",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.SourceMapFlagName), "git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE"},
-			expectedOptions: mockOptionsWithSourceMap(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, map[string]string{"git::git@github.com:one/gw-terraform-aws-vpc.git": "git::git@github.com:two/test.git?ref=FEATURE"}),
+			args: []string{
+				"plan",
+				doubleDashed(run.SourceMapFlagName),
+				"git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE",
+			},
+			expectedOptions: mockOptionsWithSourceMap(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				map[string]string{
+					"git::git@github.com:one/gw-terraform-aws-vpc.git": "git::git@github.com:two/test.git?ref=FEATURE",
+				},
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(shared.QueueIgnoreErrorsFlagName)},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", true, false, defaultLogLevel, false),
+			args: []string{"plan", doubleDashed(shared.QueueIgnoreErrorsFlagName)},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				true,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(shared.QueueExcludeExternalFlagName)},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, false),
+			args: []string{"plan", doubleDashed(shared.QueueExcludeExternalFlagName)},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleFlagName), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
-			expectedOptions: mockOptionsWithIamRole(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
+			args: []string{
+				"plan",
+				doubleDashed(run.IAMAssumeRoleFlagName),
+				"arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
+			},
+			expectedOptions: mockOptionsWithIamRole(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleDurationFlagName), "36000"},
-			expectedOptions: mockOptionsWithIamAssumeRoleDuration(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, 36000),
+			args: []string{"plan", doubleDashed(run.IAMAssumeRoleDurationFlagName), "36000"},
+			expectedOptions: mockOptionsWithIamAssumeRoleDuration(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				36000,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleSessionNameFlagName), "terragrunt-iam-role-session-name"},
-			expectedOptions: mockOptionsWithIamAssumeRoleSessionName(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "terragrunt-iam-role-session-name"),
+			args: []string{
+				"plan",
+				doubleDashed(run.IAMAssumeRoleSessionNameFlagName),
+				"terragrunt-iam-role-session-name",
+			},
+			expectedOptions: mockOptionsWithIamAssumeRoleSessionName(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"}, false, "", false, "terragrunt-iam-role-session-name"),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.IAMAssumeRoleWebIdentityTokenFlagName), "web-identity-token"},
-			expectedOptions: mockOptionsWithIamWebIdentityToken(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "web-identity-token"),
+			args: []string{
+				"plan",
+				doubleDashed(run.IAMAssumeRoleWebIdentityTokenFlagName),
+				"web-identity-token",
+			},
+			expectedOptions: mockOptionsWithIamWebIdentityToken(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				"web-identity-token",
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath, "-non-interactive"},
-			expectedOptions: mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, workingDir, []string{"plan"}, true, "", false, false, defaultLogLevel, false),
+			args: []string{
+				"plan",
+				doubleDashed(run.ConfigFlagName),
+				"/some/path/" + config.DefaultTerragruntConfigPath,
+				"-non-interactive",
+			},
+
+			expectedOptions: mockOptions(
+				t,
+				"/some/path/"+config.DefaultTerragruntConfigPath,
+				workingDir,
+				[]string{"plan"},
+				true,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath, "bar", doubleDashed(global.NonInteractiveFlagName), "--baz", doubleDashed(global.WorkingDirFlagName), "/some/path", doubleDashed(run.SourceFlagName), "github.com/foo/bar//baz?ref=1.0.3"},
-			expectedOptions: mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, "/some/path", []string{"plan", "bar", "-baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
+			args: []string{
+				"plan",
+				doubleDashed(run.ConfigFlagName),
+				"/some/path/" + config.DefaultTerragruntConfigPath,
+				"bar",
+				doubleDashed(global.NonInteractiveFlagName),
+				"--baz",
+				doubleDashed(global.WorkingDirFlagName),
+				"/some/path",
+				doubleDashed(run.SourceFlagName),
+				"github.com/foo/bar//baz?ref=1.0.3",
+			},
+
+			expectedOptions: mockOptions(
+				t,
+				"/some/path/"+config.DefaultTerragruntConfigPath,
+				"/some/path",
+				[]string{"plan",
+					"bar",
+					"-baz"},
+				true,
+				"github.com/foo/bar//baz?ref=1.0.3",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		// Adding the --terragrunt-log-level flag should result in DebugLevel configured
 		{
-			args:            []string{"plan", doubleDashed(global.LogLevelFlagName), "debug"},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, log.DebugLevel, false),
+			args: []string{"plan", doubleDashed(global.LogLevelFlagName), "debug"},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(workingDir,
+					config.DefaultTerragruntConfigPath),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				false,
+				log.DebugLevel,
+				false,
+			),
 		},
 		{
 			args:        []string{"plan", doubleDashed(run.ConfigFlagName)},
@@ -163,8 +416,20 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			expectedErr: argMissingValueError(run.ConfigFlagName),
 		},
 		{
-			args:            []string{"plan", doubleDashed(run.InputsDebugFlagName)},
-			expectedOptions: mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, true),
+			args: []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			expectedOptions: mockOptions(
+				t,
+				filepath.Join(workingDir,
+					config.DefaultTerragruntConfigPath),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				true,
+			),
 		},
 	}
 
@@ -205,7 +470,6 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 
 	assert.Equal(t, expectedConfigPath, actualConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
-	assert.Equal(t, expected.IncludeExternalDependencies, actual.IncludeExternalDependencies, msgAndArgs...)
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, msgAndArgs...)
 	assert.Equal(t, expectedWorkingDir, actualWorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
@@ -233,7 +497,6 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
-	opts.IncludeExternalDependencies = includeExternalDependencies
 	opts.Debug = debug
 
 	return opts
@@ -295,14 +558,46 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		args     []string
 		expected []string
 	}{
-		{[]string{}, []string{}},
-		{[]string{"plan", "--bar"}, []string{"plan", "-bar"}},
-		{[]string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"plan"}},
-		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName)}, []string{"plan"}},
-		{[]string{"plan", doubleDashed(run.InputsDebugFlagName)}, []string{"plan"}},
-		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName), "-bar", doubleDashed(global.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"plan", "-bar", "-baz"}},
-		{[]string{"run", "--all", "apply", "plan", "bar"}, []string{tf.CommandNameApply, "plan", "bar"}},
-		{[]string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
+		{
+			args: []string{},
+		},
+		{
+			args:     []string{"plan", "--bar"},
+			expected: []string{"plan", "-bar"},
+		},
+		{
+			args:     []string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath},
+			expected: []string{"plan"},
+		},
+		{
+			args:     []string{"plan", doubleDashed(global.NonInteractiveFlagName)},
+			expected: []string{"plan"},
+		},
+		{
+			args:     []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			expected: []string{"plan"},
+		},
+		{
+			args: []string{
+				"plan",
+				doubleDashed(global.NonInteractiveFlagName),
+				"-bar",
+				doubleDashed(global.WorkingDirFlagName),
+				"/some/path",
+				"--baz",
+				doubleDashed(run.ConfigFlagName),
+				"/some/path/" + config.DefaultTerragruntConfigPath,
+			},
+			expected: []string{"plan", "-bar", "-baz"},
+		},
+		{
+			args:     []string{"run", "--all", "apply", "plan", "bar"},
+			expected: []string{tf.CommandNameApply, "plan", "bar"},
+		},
+		{
+			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
+			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
+		},
 	}
 
 	for i, tc := range testCases {
@@ -325,7 +620,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 func TestParseMultiStringArg(t *testing.T) {
 	t.Parallel()
 
-	flagName := doubleDashed(run.UnitsThatIncludeFlagName)
+	flagName := doubleDashed(run.ProviderCacheRegistryNamesFlagName)
 
 	testCases := []struct {
 		expectedErr  error
@@ -335,23 +630,23 @@ func TestParseMultiStringArg(t *testing.T) {
 	}{
 		{
 			args:         []string{"run", "--all", "apply", flagName, "bar"},
-			defaultValue: []string{"default_bar"},
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
 			expectedVals: []string{"bar"},
 		},
 		{
 			args:         []string{"run", "--all", "apply", "--", "--test", "bar"},
-			defaultValue: []string{"default_bar"},
-			expectedVals: []string{"default_bar"},
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
+			expectedVals: []string{"registry.terraform.io", "registry.opentofu.org"},
 		},
 		{
 			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "bar2", "--", "--test", "value"},
-			defaultValue: []string{"default_bar"},
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
 			expectedVals: []string{"bar1", "bar2"},
 		},
 		{
 			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "--", "--test", "value"},
-			defaultValue: []string{"default_bar"},
-			expectedErr:  argMissingValueError(run.UnitsThatIncludeFlagName),
+			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
+			expectedErr:  argMissingValueError(run.ProviderCacheRegistryNamesFlagName),
 		},
 	}
 
@@ -360,7 +655,6 @@ func TestParseMultiStringArg(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions()
-			opts.ModulesThatInclude = tc.defaultValue
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -372,7 +666,7 @@ func TestParseMultiStringArg(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedVals, actualOptions.ModulesThatInclude, "For args %q", tc.args)
+				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheRegistryNames, "For args %q", tc.args)
 			}
 		})
 	}

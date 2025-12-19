@@ -24,9 +24,6 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 	t.Parallel()
 
 	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	testCases := []struct {
 		name           string
@@ -110,11 +107,6 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 func TestFilterFlagWithFindGraphExpressionsJSON(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name          string
 		filterQuery   string
@@ -186,9 +178,6 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 	t.Parallel()
 
 	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	testCases := []struct {
 		name         string
@@ -279,9 +268,6 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 	t.Parallel()
 
 	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	testCases := []struct {
 		name          string
@@ -429,11 +415,6 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 
 func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) {
 	t.Parallel()
-
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	// This test verifies that when using graph expressions, dependencies are executed before dependents
 	// We'll use a simple dependency chain to verify execution order
