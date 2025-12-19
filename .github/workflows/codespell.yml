@@ -15,7 +15,7 @@ jobs:
       - name: Create default packages file
         run: |
           cat <<EOF > .mise-python-default-packages
-          codespell==2.4.0
+          codespell==2.4.1
           EOF
 
           echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
@@ -27,7 +27,7 @@ jobs:
           experimental: true
           mise_toml: |
             [tools]
-            python = "3.13.3"
+            python = "3.14.2"
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
