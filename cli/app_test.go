@@ -598,10 +598,6 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
 			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
 		},
-		{
-			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
-			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
-		},
 	}
 
 	for i, tc := range testCases {
