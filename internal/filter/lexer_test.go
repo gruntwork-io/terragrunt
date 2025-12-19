@@ -127,6 +127,73 @@ func TestLexer_SingleTokens(t *testing.T) {
 				{Type: filter.EOF, Literal: "", Position: 13},
 			},
 		},
+		{
+			name:  "ellipsis",
+			input: "...",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 3},
+			},
+		},
+		{
+			name:  "depth ellipsis single digit",
+			input: "..1",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS_DEPTH, Literal: "..1", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 3},
+			},
+		},
+		{
+			name:  "depth ellipsis multi digit",
+			input: "..25",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS_DEPTH, Literal: "..25", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 4},
+			},
+		},
+		{
+			name:  "parent directory path not confused with depth",
+			input: "../foo",
+			expected: []filter.Token{
+				{Type: filter.PATH, Literal: "../foo", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "identifier with double dots followed by letter",
+			input: "foo..bar",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "foo..bar", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 8},
+			},
+		},
+		{
+			name:  "identifier followed by depth ellipsis",
+			input: "foo..1",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "foo", Position: 0},
+				{Type: filter.ELLIPSIS_DEPTH, Literal: "..1", Position: 3},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "depth ellipsis followed by identifier",
+			input: "..2foo",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS_DEPTH, Literal: "..2", Position: 0},
+				{Type: filter.IDENT, Literal: "foo", Position: 3},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "ellipsis takes precedence over depth",
+			input: "...foo",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 0},
+				{Type: filter.IDENT, Literal: "foo", Position: 3},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
 	}
 
 	for _, tt := range tests {

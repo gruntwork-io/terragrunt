@@ -252,16 +252,26 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	visited := make(map[string]bool)
 
 	if expr.IncludeDependencies {
+		maxDepth := MaxTraversalDepth
+		if expr.DependencyDepth > 0 {
+			maxDepth = expr.DependencyDepth
+		}
+
 		for _, target := range targetMatches {
-			traverseDependencies(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseDependencies(l, target, resultSet, visited, maxDepth)
 		}
 	}
 
 	visited = make(map[string]bool)
 
 	if expr.IncludeDependents {
+		maxDepth := MaxTraversalDepth
+		if expr.DependentDepth > 0 {
+			maxDepth = expr.DependentDepth
+		}
+
 		for _, target := range targetMatches {
-			traverseDependents(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseDependents(l, target, resultSet, visited, maxDepth)
 		}
 	}
 
