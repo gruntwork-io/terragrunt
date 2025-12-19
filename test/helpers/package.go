@@ -71,6 +71,8 @@ const (
 	// Repeated right now, but it might not be later.
 	TestFixtureOutDir = "fixtures/out-dir"
 
+	ReportFile = "report.json"
+
 	readPermissions      = 0444
 	readWritePermissions = 0666
 	allPermissions       = 0777
@@ -89,29 +91,46 @@ type TerraformOutput struct {
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := TmpDirWOSymlinks(t)
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
 	require.NoError(
 		t,
-		util.CopyFolderContents(logger.CreateLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil),
+		util.CopyFolderContents(
+			logger.CreateLogger(),
+			environmentPath,
+			filepath.Join(tmpDir, environmentPath),
+			".terragrunt-test",
+			includeInCopy,
+			nil,
+		),
 	)
-
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
 
 	return tmpDir
 }
 
-func CreateTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
+func CreateTmpTerragruntConfig(
+	t *testing.T,
+	templatesPath string,
+	s3BucketName string,
+	lockTableName string,
+	configFileName string,
+) string {
 	t.Helper()
 
-	tmpFolder := t.TempDir()
+	tmpFolder := TmpDirWOSymlinks(t)
 
-	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
-	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
-	CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "not-used")
+	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
+	originalTerragruntConfigPath := filepath.Join(templatesPath, configFileName)
+	CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		originalTerragruntConfigPath,
+		tmpTerragruntConfigFile,
+		s3BucketName,
+		lockTableName,
+		"not-used",
+	)
 
 	return tmpTerragruntConfigFile
 }
@@ -119,9 +138,9 @@ func CreateTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
 	t.Helper()
 
-	tmpFolder := t.TempDir()
+	tmpFolder := TmpDirWOSymlinks(t)
 
-	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 
 	if err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), readPermissions); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
@@ -453,7 +472,7 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 
 	tmpEnvPath := CopyEnvironment(t, TestFixtureOutDir)
 	CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TestFixtureOutDir)
+	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
 	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --log-level trace --working-dir %s %s", testPath, args))
@@ -521,7 +540,13 @@ type FakeProvider struct {
 }
 
 func (provider *FakeProvider) archiveName() string {
-	return fmt.Sprintf("terraform-provider-%s_%s_%s_%s.zip", provider.Name, provider.Version, provider.PlatformOS, provider.PlatformArch)
+	return fmt.Sprintf(
+		"terraform-provider-%s_%s_%s_%s.zip",
+		provider.Name,
+		provider.Version,
+		provider.PlatformOS,
+		provider.PlatformArch,
+	)
 }
 
 func (provider *FakeProvider) filename() string {
@@ -882,16 +907,16 @@ func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 func CleanupTerraformFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
-	RemoveFile(t, util.JoinPath(templatesPath, TerraformState))
-	RemoveFile(t, util.JoinPath(templatesPath, TerraformStateBackup))
-	RemoveFile(t, util.JoinPath(templatesPath, TerragruntDebugFile))
-	RemoveFolder(t, util.JoinPath(templatesPath, TerraformFolder))
+	RemoveFile(t, filepath.Join(templatesPath, TerraformState))
+	RemoveFile(t, filepath.Join(templatesPath, TerraformStateBackup))
+	RemoveFile(t, filepath.Join(templatesPath, TerragruntDebugFile))
+	RemoveFolder(t, filepath.Join(templatesPath, TerraformFolder))
 }
 
 func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
-	RemoveFolder(t, util.JoinPath(templatesPath, TerragruntCache))
+	RemoveFolder(t, filepath.Join(templatesPath, TerragruntCache))
 }
 
 func RemoveFile(t *testing.T, path string) {
@@ -926,7 +951,11 @@ func RunTerragruntCommandWithContext(
 
 	parser := shellwords.NewParser()
 
-	args, err := parser.Parse(command)
+	// Convert backslashes to forward slashes before parsing.
+	// shellwords treats backslashes as escape characters, corrupting Windows paths
+	// like C:\foo\bar into C:foobar. Forward slashes work fine since Terragrunt CLI
+	// normalizes paths internally (see cli/commands/commands.go).
+	args, err := parser.Parse(filepath.ToSlash(command))
 	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
@@ -1032,7 +1061,7 @@ func CreateEmptyStateFile(t *testing.T, testPath string) {
 	t.Helper()
 
 	// create empty terraform.tfstate file
-	file, err := os.Create(util.JoinPath(testPath, TerraformState))
+	file, err := os.Create(filepath.Join(testPath, TerraformState))
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 }
@@ -1064,20 +1093,20 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := TmpDirWOSymlinks(t)
 
-	childDestPath := util.JoinPath(tmpDir, childRelPath)
+	childDestPath := filepath.Join(tmpDir, childRelPath)
 
 	if err := os.MkdirAll(childDestPath, allPermissions); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
 	}
 
-	parentTerragruntSrcPath := util.JoinPath(parentPath, parentConfigFileName)
-	parentTerragruntDestPath := util.JoinPath(tmpDir, parentConfigFileName)
+	parentTerragruntSrcPath := filepath.Join(parentPath, parentConfigFileName)
+	parentTerragruntDestPath := filepath.Join(tmpDir, parentConfigFileName)
 	CopyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
-	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), childConfigFileName)
-	childTerragruntDestPath := util.JoinPath(childDestPath, childConfigFileName)
+	childTerragruntSrcPath := filepath.Join(parentPath, childRelPath, childConfigFileName)
+	childTerragruntDestPath := filepath.Join(childDestPath, childConfigFileName)
 	CopyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	return childTerragruntDestPath

@@ -66,7 +66,7 @@ jobs:
           echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
 
       - name: Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
@@ -97,7 +97,7 @@ jobs:
           .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
@@ -127,7 +127,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download macOS signed binaries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: macos-signed-files
           path: bin/
@@ -175,13 +175,13 @@ jobs:
           done
 
       - name: Download Windows signed binaries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: windows-signed-files
           path: bin/
 
       - name: Download Linux binaries (unsigned)
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           pattern: terragrunt_linux_*
           path: bin/
@@ -193,7 +193,7 @@ jobs:
           ls -lahrt bin/*
 
       - name: Upload All Signed Binaries
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: all-signed-binaries
           path: bin/*

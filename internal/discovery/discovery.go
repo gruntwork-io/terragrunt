@@ -564,6 +564,7 @@ func Parse(
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 		config.ErrorsBlock,
+		config.RemoteStateBlock,
 	)
 
 	//nolint: contextcheck
@@ -1247,7 +1248,7 @@ func (d *Discovery) Discover(
 
 						l.Warnf("Parsing errors were encountered while discovering dependents. They were suppressed, and can be found in the debug logs.")
 
-						l.Debugf("Errors: %w", discoveryErr)
+						l.Debugf("Errors: %v", discoveryErr)
 					}
 
 					return nil
@@ -1277,7 +1278,7 @@ func (d *Discovery) Discover(
 			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
 				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-				l.Debugf("Cycle: %w", cycleErr)
+				l.Debugf("Cycle: %v", cycleErr)
 
 				var removeErr error
 
@@ -1312,7 +1313,7 @@ func (d *Discovery) Discover(
 			} else {
 				l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
 
-				l.Debugf("Errors: %w", err)
+				l.Debugf("Errors: %v", err)
 			}
 		}
 	}

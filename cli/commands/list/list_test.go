@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 func TestBasicDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	testDirs := []string{
@@ -104,7 +105,7 @@ func TestBasicDiscovery(t *testing.T) {
 func TestHiddenDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	testDirs := []string{
@@ -184,7 +185,7 @@ func TestHiddenDiscovery(t *testing.T) {
 func TestDAGSortingSimpleDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure with dependencies:
 	// unit2 -> unit1
@@ -263,7 +264,7 @@ dependency "unit2" {
 func TestDAGSortingReversedDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure with dependencies:
 	// unit3 -> unit2
@@ -361,7 +362,7 @@ dependency "unit3" {
 func TestDAGSortingComplexDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure with complex dependencies:
 	// A (no deps)
@@ -591,7 +592,7 @@ func TestColorizer(t *testing.T) {
 func TestDotFormat(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -657,7 +658,7 @@ dependency "unit1" {
 func TestDotFormatWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -719,7 +720,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 func TestDotFormatWithComplexDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -797,7 +798,7 @@ dependency "unit2" {
 func TestDotFormatWithExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -876,7 +877,7 @@ dependency "unit2" {
 func TestDotFormatWithExcludedDependency(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -947,7 +948,7 @@ dependency "unit1" {
 func TestTextFormatExcludesExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -1015,7 +1016,7 @@ exclude {
 func TestDotFormatWithMultipleExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",

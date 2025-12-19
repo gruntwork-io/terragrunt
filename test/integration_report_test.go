@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +28,7 @@ func TestTerragruntReport(t *testing.T) {
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
 	// Run terragrunt with report experiment enabled
 	var (
@@ -83,7 +82,7 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
 	// Run terragrunt with report experiment enabled and summary disabled
 	var (
@@ -149,7 +148,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 			// Set up test environment
 			helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
 			// Run terragrunt with report experiment enabled and save to file
 			var (
@@ -161,13 +160,13 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 			cmd := fmt.Sprintf(
 				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
-				util.JoinPath(rootPath, "second-exclude"),
+				filepath.Join(rootPath, "second-exclude"),
 				reportFile)
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 			require.NoError(t, err)
 
 			// Verify the report file exists
-			reportFilePath := util.JoinPath(rootPath, reportFile)
+			reportFilePath := filepath.Join(rootPath, reportFile)
 			assert.FileExists(t, reportFilePath)
 
 			// Read and parse the file based on format
@@ -252,7 +251,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
 	testCases := []struct {
 		name           string
@@ -328,7 +327,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify the report file exists
-			reportFile := util.JoinPath(rootPath, tc.reportFile)
+			reportFile := filepath.Join(rootPath, tc.reportFile)
 			assert.FileExists(t, reportFile)
 
 			// Read the file content
@@ -360,7 +359,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 
 			// If schema file is specified, verify it exists and is valid JSON
 			if tc.schemaFile != "" {
-				schemaFilePath := util.JoinPath(rootPath, tc.schemaFile)
+				schemaFilePath := filepath.Join(rootPath, tc.schemaFile)
 				assert.FileExists(t, schemaFilePath)
 
 				// Read and verify schema file content
@@ -410,7 +409,7 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
 	// Run terragrunt with report experiment enabled and unit timing enabled
 	var (
@@ -496,7 +495,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
 
-	dep := t.TempDir()
+	dep := helpers.TmpDirWOSymlinks(t)
 
 	f, err := os.Create(filepath.Join(dep, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -506,7 +505,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	reportDir := t.TempDir()
+	reportDir := helpers.TmpDirWOSymlinks(t)
 	reportFile := filepath.Join(reportDir, "report.json")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(

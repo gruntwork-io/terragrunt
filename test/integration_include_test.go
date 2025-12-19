@@ -10,22 +10,22 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	includeDeepFixturePath      = "fixtures/include-deep/"
-	includeDeepFixtureChildPath = "child"
-	includeFixturePath          = "fixtures/include/"
-	includeShallowFixturePath   = "stage/my-app"
-	includeNoMergeFixturePath   = "qa/my-app"
-	includeExposeFixturePath    = "fixtures/include-expose/"
-	includeChildFixturePath     = "child"
-	includeMultipleFixturePath  = "fixtures/include-multiple/"
-	includeRunAllFixturePath    = "fixtures/include-runall/"
+	includeDeepFixturePath       = "fixtures/include-deep/"
+	includeDeepFixtureChildPath  = "child"
+	includeFixturePath           = "fixtures/include/"
+	includeShallowFixturePath    = "stage/my-app"
+	includeNoMergeFixturePath    = "qa/my-app"
+	includeExposeFixturePath     = "fixtures/include-expose/"
+	includeChildFixturePath      = "child"
+	includeMultipleFixturePath   = "fixtures/include-multiple/"
+	includeRunAllFixturePath     = "fixtures/include-runall/"
+	rootTerragruntHCLFixturePath = "fixtures/root-terragrunt-hcl-regression/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
@@ -33,7 +33,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
-	tmpEnvPath = util.JoinPath(tmpEnvPath, includeExposeFixturePath)
+	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
 
 	files, err := os.ReadDir(tmpEnvPath)
 	require.NoError(t, err)
@@ -65,12 +65,53 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		})
 	}
 }
+func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
+	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
+
+	files, err := os.ReadDir(tmpEnvPath)
+	require.NoError(t, err)
+
+	testCases := []string{}
+
+	for _, finfo := range files {
+		if finfo.IsDir() {
+			testCases = append(testCases, finfo.Name())
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(filepath.Base(tc), func(t *testing.T) {
+			t.Parallel()
+
+			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
+			helpers.CleanupTerraformFolder(t, childPath)
+			helpers.RunTerragrunt(t, "terragrunt run --all --filter '{./**}...' --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --log-level trace --working-dir "+childPath, &stdout, &stderr)
+			require.NoError(t, err)
+
+			outputs := map[string]helpers.TerraformOutput{}
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+		})
+	}
+}
 
 func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -94,7 +135,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSetWithFilter(t *testing.T) 
 	}
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -112,7 +153,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
-	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	// Retry to handle intermittent failures due to network issues on CICD
@@ -159,7 +200,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := util.JoinPath(includeDeepFixturePath, "child")
+	childPath := filepath.Join(includeDeepFixturePath, "child")
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+childPath)
@@ -226,6 +267,55 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 			validateMultipleIncludeTestOutput(t, outputs)
 		})
 	}
+}
+
+func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
+	t.Parallel()
+
+	// This is a regression test to ensure that users can still have a root terragrunt.hcl at the project root,
+	// and run Terragrunt from that root, as long as they exclude that directory from the queue.
+	//
+	// In this fixture, the child units include the root config via:
+	//   path = find_in_parent_folders("terragrunt.hcl")
+	//
+	// The key requirement is: excluding "." should prevent Terragrunt from trying to treat the root directory
+	// itself as a unit, while still allowing the root terragrunt.hcl to be used for includes.
+	tmpEnvPath := helpers.CopyEnvironment(t, rootTerragruntHCLFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, rootTerragruntHCLFixturePath)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" --queue-exclude-dir=. -- plan",
+	)
+	require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)
+
+	// Excluding "." should skip parsing the root directory as a component.
+	assert.Contains(t, stderr, "Skipping parse for excluded component: .")
+
+	// Child configs should still be able to include the root `terragrunt.hcl` (deprecated, but supported).
+	assert.Regexp(t, `Included config \./terragrunt\.hcl`, stderr)
+
+	// And the child units should still be discovered.
+	assert.Contains(t, stderr, "=> Unit bar (excluded: false")
+	assert.Contains(t, stderr, "=> Unit baz (excluded: false")
+	assert.Contains(t, stderr, "=> Unit foo (excluded: false")
+
+	// And they should be queued for execution.
+	assert.Contains(t, stderr, "Unit queue will be processed for plan in this order:")
+	assert.Contains(t, stderr, "- Unit bar")
+	assert.Contains(t, stderr, "- Unit baz")
+	assert.Contains(t, stderr, "- Unit foo")
+
+	// Root should not be treated as a runnable unit.
+	assert.Contains(t, stderr, "=> Unit . (excluded: true")
+
+	assert.NotContains(t, stderr, "=> Unit bar (excluded: true")
+	assert.NotContains(t, stderr, "=> Unit baz (excluded: true")
+	assert.NotContains(t, stderr, "=> Unit foo (excluded: true")
+
+	assert.NotContains(t, stderr, "Runner Pool Controller: starting with 0 tasks")
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.TerraformOutput) {

@@ -107,7 +107,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		}
 
 		for {
-			readyEntries := dr.q.GetReadyWithDependencies()
+			readyEntries := dr.q.GetReadyWithDependencies(l)
 			l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
 			for _, e := range readyEntries {

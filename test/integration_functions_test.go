@@ -38,7 +38,7 @@ func TestStartsWith(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStartswith)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStartswith)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStartswith)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStartswith)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -71,7 +71,7 @@ func TestTimeCmp(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureTimecmp)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmp)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureTimecmp)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureTimecmp)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -101,7 +101,7 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureTimecmpInvalidTimestamp)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmpInvalidTimestamp)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureTimecmpInvalidTimestamp)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureTimecmpInvalidTimestamp)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -118,7 +118,7 @@ func TestEndsWith(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureEndswith)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEndswith)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureEndswith)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureEndswith)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -151,7 +151,7 @@ func TestStrContains(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStrcontains)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrcontains)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStrcontains)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStrcontains)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -176,7 +176,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 	t.Parallel()
 	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestGetRepoRoot(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetWorkingDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetWorkingDir)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -318,9 +318,9 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixturePathRelativeFromInclude))
 	require.NoError(t, err)
 
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePathRelativeFromInclude, "lives/dev")
-	basePath := util.JoinPath(rootPath, "base")
-	clusterPath := util.JoinPath(rootPath, "cluster")
+	rootPath := filepath.Join(tmpEnvPath, testFixturePathRelativeFromInclude, "lives/dev")
+	basePath := filepath.Join(rootPath, "base")
+	clusterPath := filepath.Join(rootPath, "cluster")
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -344,7 +344,12 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+basePath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "Detected dependent modules:\n"+clusterPath)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --destroy-dependencies-check --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)
@@ -355,7 +360,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetPathFromRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathFromRepoRoot)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -390,7 +395,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathToRepoRoot))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathToRepoRoot)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathToRepoRoot)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	runner, err := git.NewGitRunner()
@@ -435,7 +440,7 @@ func TestGetPlatform(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetPlatform)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetPlatform)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPlatform)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPlatform)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 

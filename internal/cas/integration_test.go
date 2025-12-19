@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone
@@ -62,7 +63,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 	t.Run("clone with nonexistent branch fails gracefully", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 
 		c, err := cas.New(cas.Options{
 			StorePath: filepath.Join(tempDir, "store"),
@@ -82,7 +83,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 
 		c, err := cas.New(cas.Options{
 			StorePath: filepath.Join(tempDir, "store"),
@@ -109,7 +110,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store

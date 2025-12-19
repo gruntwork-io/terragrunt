@@ -2,10 +2,10 @@ package test_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	// Create test fixture with dependency chain: transitive-dependency -> dependency -> dependent
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictInclude)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureQueueStrictInclude)
+	testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictInclude)
 
 	// First, apply all units to create state
 	// This simulates the scenario where units have been previously applied
@@ -147,7 +147,7 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictIncludeUnitsReading)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
+	testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
 
 	// This reproduces the bug: --queue-strict-include + --queue-include-units-reading
 	// without --queue-include-dir should still include units that read the file

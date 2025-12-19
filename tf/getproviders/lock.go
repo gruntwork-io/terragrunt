@@ -150,7 +150,7 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 
 	// merge with existing hashes
 	for _, newHashe := range newHashes {
-		if !util.ListContainsElement(hashes, newHashe) {
+		if !slices.Contains(hashes, newHashe) {
 			hashes = append(hashes, newHashe)
 		}
 	}

@@ -17,16 +17,6 @@ func MatchesAny(regExps []string, s string) bool {
 	return false
 }
 
-// ListEquals returns true if the two lists are equal
-func ListEquals[S ~[]E, E comparable](a, b S) bool {
-	return slices.Equal(a, b)
-}
-
-// ListContainsElement returns true if the given list contains the given element
-func ListContainsElement[S ~[]E, E comparable](list S, element E) bool {
-	return slices.Contains(list, element)
-}
-
 // ListContainsSublist returns true if an instance of the sublist can be found in the given list
 func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	// A list cannot contain an empty sublist
@@ -39,7 +29,7 @@ func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	}
 
 	for i := 0; len(list[i:]) >= len(sublist); i++ {
-		if ListEquals(list[i:i+len(sublist)], sublist) {
+		if slices.Equal(list[i:i+len(sublist)], sublist) {
 			return true
 		}
 	}
@@ -57,7 +47,7 @@ func ListHasPrefix[S ~[]E, E comparable](list, prefix S) bool {
 		return false
 	}
 
-	return ListEquals(list[:len(prefix)], prefix)
+	return slices.Equal(list[:len(prefix)], prefix)
 }
 
 // RemoveElementFromList returns a copy of the given list with all instances of the given element removed.

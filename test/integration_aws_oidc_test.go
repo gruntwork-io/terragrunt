@@ -20,7 +20,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,16 +52,16 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
+	testPath := filepath.Join(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
 
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	originalTerragruntConfigPath := filepath.Join(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
+	tmpTerragruntConfigFile := filepath.Join(testPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	require.NotEmpty(t, role)
 
-	tokenFile := t.TempDir() + "/oidc-token"
+	tokenFile := helpers.TmpDirWOSymlinks(t) + "/oidc-token"
 	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
 
 	defer func() {
@@ -105,7 +104,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	emptyTerragruntConfigPath := filepath.Join(tmp, "terragrunt.hcl")
 	require.NoError(t, os.WriteFile(emptyTerragruntConfigPath, []byte(""), 0400))
@@ -128,7 +127,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	t.Setenv("OIDC_TOKEN", token)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
+	oidcPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
 	helpers.CleanupTerraformFolder(t, oidcPath)
 	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
@@ -151,12 +150,12 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	t.Setenv("OIDC_TOKEN", token)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	remoteStateOIDCPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-w-oidc")
+	remoteStateOIDCPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-w-oidc")
 	helpers.CleanupTerraformFolder(t, remoteStateOIDCPath)
 	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
 
 	// Create a temporary terragrunt config with actual values
-	tmpTerragruntConfigFile := util.JoinPath(remoteStateOIDCPath, "terragrunt.hcl")
+	tmpTerragruntConfigFile := filepath.Join(remoteStateOIDCPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")

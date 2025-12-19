@@ -284,7 +284,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
 	// It is important to resolve the alias because the `run --all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
-	if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
+	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
 		args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
@@ -332,7 +332,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
-		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
+		opts.DownloadDir = filepath.Join(opts.WorkingDir, util.TerragruntCacheDir)
 	}
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
@@ -347,7 +347,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
-		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
+		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
@@ -403,6 +403,16 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	// Sort and compact opts.ExcludeDirs to make them unique
 	slices.Sort(opts.ExcludeDirs)
 	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
+
+	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
+	if opts.Experiments.Evaluate("filter-flag") && !opts.NoFiltersFile {
+		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
+		if filtersFromFileErr != nil {
+			return filtersFromFileErr
+		}
+
+		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
+	}
 
 	if !doubleStarEnabled {
 		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)

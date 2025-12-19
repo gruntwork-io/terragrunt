@@ -163,7 +163,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
 
@@ -183,7 +183,7 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
 
@@ -202,7 +202,7 @@ func TestDetailedExitCodeChangesUnit(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 	ctx := t.Context()
 
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- apply")
@@ -235,7 +235,7 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+util.JoinPath(tmpEnvPath, testFixturePath)+" -- plan -detailed-exitcode")
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+filepath.Join(tmpEnvPath, testFixturePath)+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
 }
@@ -247,7 +247,7 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
 
@@ -269,7 +269,7 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
 
@@ -291,7 +291,7 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	// Pre-apply the drift unit so it has a file, then delete it to ensure drift exists
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app_drift"))
@@ -382,7 +382,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestBufferModuleOutput(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureBufferModuleOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBufferModuleOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureBufferModuleOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureBufferModuleOutput)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-disable --working-dir "+rootPath+" -- plan -out planfile")
 	require.NoError(t, err)
@@ -438,7 +438,7 @@ func TestDisableLogging(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --log-level trace --log-disable --non-interactive -no-color --no-color --working-dir "+rootPath)
 	require.NoError(t, err)
@@ -452,7 +452,7 @@ func TestLogWithAbsPath(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --log-level trace --log-show-abs-paths --non-interactive -no-color --no-color --log-format=pretty --working-dir "+rootPath)
 	require.NoError(t, err)
@@ -469,7 +469,7 @@ func TestLogWithRelPath(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogRelPaths)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogRelPaths)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogRelPaths)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLogRelPaths)
 
 	testCases := []struct {
 		assertFn   func(t *testing.T, stdout, stderr string)
@@ -508,7 +508,7 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
@@ -530,7 +530,7 @@ func TestLogStdoutLevel(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogStdoutLevel)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStdoutLevel)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogStdoutLevel)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLogStdoutLevel)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive -no-color --no-color --log-format=pretty  --working-dir "+rootPath)
 	require.NoError(t, err)
@@ -552,7 +552,7 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive "+flag+" --working-dir "+rootPath+" -- init -no-color")
 			require.NoError(t, err)
@@ -570,7 +570,7 @@ func TestLogRawModuleOutput(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive  --tf-forward-stdout --working-dir "+rootPath+" -- init -no-color")
 	require.NoError(t, err)
@@ -602,7 +602,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludesFile, ".terragrunt-excludes")
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureExcludesFile)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureExcludesFile)
 
 			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run apply --all --non-interactive --working-dir %s %s -- -auto-approve", rootPath, tc.flags))
 
@@ -622,7 +622,7 @@ func TestHclvalidateValidConfig(t *testing.T) {
 		t.Parallel()
 		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"))
 		require.NoError(t, err)
@@ -633,7 +633,7 @@ func TestHclvalidateValidConfig(t *testing.T) {
 
 		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate, "valid")
+		rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate, "valid")
 
 		// Test each subdirectory individually
 		entries, err := os.ReadDir(rootPath)
@@ -661,7 +661,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
 	expectedDiags := diagnostic.Diagnostics{
 		&diagnostic.Diagnostic{
@@ -768,7 +768,7 @@ func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
 	// We expect an error because the fixture has HCL validation issues.
 	// The content of stdout and stderr isn't the primary focus here,
@@ -786,7 +786,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
 	expectedRelPaths := []string{
 		filepath.Join("second", "a", "terragrunt.hcl"),
@@ -820,9 +820,9 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheMultiplePlatforms)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheMultiplePlatforms)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
 
-	providerCacheDir := t.TempDir()
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	var (
 		platforms     = []string{"linux_amd64", "darwin_arm64"}
@@ -878,7 +878,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitOnce)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureInitOnce)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInitOnce)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
@@ -902,7 +902,7 @@ func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureConfigSingleJSONPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigSingleJSONPath)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureConfigSingleJSONPath)
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureConfigSingleJSONPath)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootTerragruntConfigPath)
 }
@@ -945,7 +945,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFailedTerraform)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailedTerraform)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "fixtures/failure")
 
 	cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootTerragruntConfigPath
 
@@ -973,7 +973,7 @@ func TestTerragruntGraphDependenciesCommand(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraphDependencies)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureGraphDependencies, "root.hcl")
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureGraphDependencies, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/root", tmpEnvPath, testFixtureGraphDependencies)
@@ -1024,7 +1024,7 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDisjoint))
 	require.NoError(t, err)
 
-	disjointEnvironmentPath := util.JoinPath(tmpEnvPath, testFixtureDisjoint)
+	disjointEnvironmentPath := filepath.Join(tmpEnvPath, testFixtureDisjoint)
 
 	helpers.CleanupTerraformFolder(t, disjointEnvironmentPath)
 	helpers.RunTerragrunt(t, "terragrunt run --all  --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- plan -out=plan.tfplan")
@@ -1040,9 +1040,9 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, textFixtureDisjointSymlinks))
 	require.NoError(t, err)
 
-	disjointSymlinksEnvironmentPath := util.JoinPath(tmpEnvPath, textFixtureDisjointSymlinks)
-	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "b")))
-	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "c")))
+	disjointSymlinksEnvironmentPath := filepath.Join(tmpEnvPath, textFixtureDisjointSymlinks)
+	require.NoError(t, os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"), filepath.Join(disjointSymlinksEnvironmentPath, "b")))
+	require.NoError(t, os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"), filepath.Join(disjointSymlinksEnvironmentPath, "c")))
 
 	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
 
@@ -1068,7 +1068,7 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	assert.Contains(t, stderr, "Unit c")
 
 	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
-	require.NoError(t, os.Chtimes(util.JoinPath(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
+	require.NoError(t, os.Chtimes(filepath.Join(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
 
 	// perform the initialization and make sure that the cache is downloaded again
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
@@ -1100,7 +1100,7 @@ func TestPlanfileOrder(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, testFixturePlanfileOrder)
-	modulePath := util.JoinPath(rootPath, testFixturePlanfileOrder)
+	modulePath := filepath.Join(rootPath, testFixturePlanfileOrder)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt plan --working-dir "+modulePath, os.Stdout, os.Stderr)
 	require.NoError(t, err)
@@ -1141,15 +1141,6 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		{
 			command:  []string{"--", "graph"},
 			expected: "digraph",
-		},
-		{
-			command:     []string{"--", "paln"}, //codespell:ignore
-			expected:    "",
-			expectedErr: expectedWrongCommandErr("paln"), //codespell:ignore
-		},
-		{
-			command:  []string{"--disable-command-validation", "--", "paln"}, //codespell:ignore
-			expected: "has no command named",                                 // error caused by running terraform with the wrong command
 		},
 	}
 
@@ -1238,7 +1229,7 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -1257,7 +1248,7 @@ func TestRunCommand(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
 	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
@@ -1305,7 +1296,7 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureExternalDependence)
 
 	for _, module := range modules {
-		helpers.CleanupTerraformFolder(t, util.JoinPath(testFixtureExternalDependence, module))
+		helpers.CleanupTerraformFolder(t, filepath.Join(testFixtureExternalDependence, module))
 	}
 
 	var (
@@ -1314,7 +1305,7 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	)
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
-	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, includedModule)
+	modulePath := filepath.Join(rootPath, testFixtureExternalDependence, includedModule)
 
 	err := helpers.RunTerragruntCommand(
 		t,
@@ -1339,7 +1330,7 @@ func TestApplySkipTrue(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSkipLegacyRoot)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSkipLegacyRoot, "skip-true")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSkipLegacyRoot, "skip-true")
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -1363,7 +1354,7 @@ func TestApplySkipFalse(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureSkipLegacyRoot)
-	rootPath = util.JoinPath(rootPath, testFixtureSkipLegacyRoot, "skip-false")
+	rootPath = filepath.Join(rootPath, testFixtureSkipLegacyRoot, "skip-false")
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -1384,7 +1375,7 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureSkip)
-	rootPath = util.JoinPath(rootPath, testFixtureSkip, "skip-true")
+	rootPath = filepath.Join(rootPath, testFixtureSkip, "skip-true")
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -1411,7 +1402,7 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureSkip)
-	rootPath = util.JoinPath(rootPath, testFixtureSkip, "skip-false")
+	rootPath = filepath.Join(rootPath, testFixtureSkip, "skip-false")
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -1434,7 +1425,7 @@ func TestDependencyOutput(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "integration")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -1442,7 +1433,7 @@ func TestDependencyOutput(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	app3Path := util.JoinPath(rootPath, "app3")
+	app3Path := filepath.Join(rootPath, "app3")
 	require.NoError(
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+app3Path, &stdout, &stderr),
@@ -1601,7 +1592,7 @@ func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-default", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-default", "live")
 	parentPath := filepath.Join(rootPath, "parent")
 	childPath := filepath.Join(rootPath, "child")
 
@@ -1633,7 +1624,7 @@ func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-false", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-false", "live")
 	parentPath := filepath.Join(rootPath, "parent")
 	childPath := filepath.Join(rootPath, "child")
 
@@ -1664,7 +1655,7 @@ func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
 	parentPath := filepath.Join(rootPath, "parent")
 	childPath := filepath.Join(rootPath, "child")
 
@@ -1709,7 +1700,7 @@ func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-true-validate-only", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-true-validate-only", "live")
 	parentPath := filepath.Join(rootPath, "parent")
 	childPath := filepath.Join(rootPath, "child")
 
@@ -1743,7 +1734,7 @@ func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-no-override", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-no-override", "live")
 	parentPath := filepath.Join(rootPath, "parent")
 	childPath := filepath.Join(rootPath, "child")
 
@@ -1785,7 +1776,7 @@ func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-default", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-default", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -1804,7 +1795,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-false", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-false", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -1823,7 +1814,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -1856,7 +1847,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) 
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -1889,7 +1880,7 @@ func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-no-merge", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-no-merge", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -1909,7 +1900,7 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-shallow", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-shallow", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -1944,7 +1935,7 @@ func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep-map-only", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep-map-only", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}
@@ -2027,8 +2018,8 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 
-	inputsPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "type-conversion")
+	inputsPath := filepath.Join(tmpEnvPath, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "type-conversion")
 
 	// First apply the inputs module
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+inputsPath)
@@ -2124,8 +2115,8 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "cycle", tc)
-			fooPath := util.JoinPath(rootPath, "foo")
+			rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "cycle", tc)
+			fooPath := filepath.Join(rootPath, "foo")
 
 			planStdout := bytes.Buffer{}
 			planStderr := bytes.Buffer{}
@@ -2151,7 +2142,7 @@ func TestDependencyOutputRegression854(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "regression-854", "root")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-854", "root")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2173,7 +2164,7 @@ func TestDependencyOutputCachePathBug(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "localstate", "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "localstate", "live")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2193,8 +2184,8 @@ func TestDependencyOutputWithTerragruntSource(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "regression-1124", "live")
-	modulePath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "regression-1124", "modules")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1124", "live")
+	modulePath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1124", "modules")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2214,8 +2205,8 @@ func TestRunAllWithSourceFlag(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRunAllSource)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunAllSource)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunAllSource, "live")
-	modulePath := util.JoinPath(tmpEnvPath, testFixtureRunAllSource, "modules-marked")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRunAllSource, "live")
+	modulePath := filepath.Join(tmpEnvPath, testFixtureRunAllSource, "modules-marked")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -2227,12 +2218,12 @@ func TestRunAllWithSourceFlag(t *testing.T) {
 	// files being present.
 	assert.NotContains(t, stderr, "Error: No configuration files")
 
-	unit1Path := util.JoinPath(rootPath, "unit1")
-	unit2Path := util.JoinPath(rootPath, "unit2")
+	unit1Path := filepath.Join(rootPath, "unit1")
+	unit2Path := filepath.Join(rootPath, "unit2")
 
 	// Find the cache directories for each unit
-	unit1CacheDir := util.JoinPath(unit1Path, helpers.TerragruntCache)
-	unit2CacheDir := util.JoinPath(unit2Path, helpers.TerragruntCache)
+	unit1CacheDir := filepath.Join(unit1Path, helpers.TerragruntCache)
+	unit2CacheDir := filepath.Join(unit2Path, helpers.TerragruntCache)
 
 	var unit1MarkerPath, unit2MarkerPath string
 
@@ -2271,10 +2262,10 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "regression-1273")
-	depPathFileOut := util.JoinPath(rootPath, "dep", "file.out")
-	mainPath := util.JoinPath(rootPath, "main")
-	mainPathFileOut := util.JoinPath(mainPath, "file.out")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1273")
+	depPathFileOut := filepath.Join(rootPath, "dep", "file.out")
+	mainPath := filepath.Join(rootPath, "main")
+	mainPathFileOut := filepath.Join(mainPath, "file.out")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
@@ -2310,9 +2301,9 @@ func TestDataDir(t *testing.T) {
 	// Cannot be run in parallel with other tests as it modifies process' environment.
 	helpers.CleanupTerraformFolder(t, testFixtureDirsPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDirsPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDirsPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDirsPath)
 
-	t.Setenv("TF_DATA_DIR", util.JoinPath(tmpEnvPath, "data_dir"))
+	t.Setenv("TF_DATA_DIR", filepath.Join(tmpEnvPath, "data_dir"))
 
 	var (
 		stdout bytes.Buffer
@@ -2338,8 +2329,8 @@ func TestReadTerragruntConfigWithDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 
-	inputsPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureReadConfig, "with_dependency")
+	inputsPath := filepath.Join(tmpEnvPath, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_dependency")
 
 	// First apply the inputs module
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+inputsPath)
@@ -2385,7 +2376,7 @@ func TestReadTerragruntConfigFromDependency(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureReadConfig, "from_dependency")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "from_dependency")
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -2416,7 +2407,7 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := util.JoinPath(testFixtureReadConfig, "with_default")
+	rootPath := filepath.Join(testFixtureReadConfig, "with_default")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -2439,7 +2430,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := util.JoinPath(testFixtureReadConfig, "with_original_terragrunt_dir")
+	rootPath := filepath.Join(testFixtureReadConfig, "with_original_terragrunt_dir")
 
 	rootPathAbs, err := filepath.Abs(rootPath)
 	require.NoError(t, err)
@@ -2528,7 +2519,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := util.JoinPath(testFixtureReadConfig, "full")
+	rootPath := filepath.Join(testFixtureReadConfig, "full")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -2661,7 +2652,7 @@ func TestTerragruntGenerateBlockSkipRemove(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	generateTestCase := util.JoinPath(tmpEnvPath, testFixtureCodegenPath, "remove-file", "skip")
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remove-file", "skip")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
@@ -2671,7 +2662,7 @@ func TestTerragruntGenerateBlockRemove(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	generateTestCase := util.JoinPath(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove")
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
@@ -2681,7 +2672,7 @@ func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	generateTestCase := util.JoinPath(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove_terragrunt")
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove_terragrunt")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
@@ -2691,7 +2682,7 @@ func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	generateTestCase := util.JoinPath(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove_terragrunt_error")
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove_terragrunt_error")
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	require.Error(t, err)
@@ -3096,8 +3087,8 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "multiple-apps")
-	appPath := util.JoinPath(rootPath, "app1")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "multiple-apps")
+	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt run --all --non-interactive --working-dir %s --auth-provider-cmd %s -- apply -auto-approve`, rootPath, mockAuthCmd))
@@ -3187,7 +3178,7 @@ func TestDependencyInputsBlockedByDefault(t *testing.T) {
 	t.Parallel()
 
 	// Test that using dependency.foo.inputs syntax results in an error by default
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a terragrunt.hcl that uses the deprecated dependency.foo.inputs syntax
 	dependencyConfig := `
@@ -3224,7 +3215,7 @@ inputs = {
 
 func TestDependenciesOptimisation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependenciesOptimisation)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependenciesOptimisation)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- apply -auto-approve")
 	require.NoError(t, err)
@@ -3237,7 +3228,7 @@ func TestDependenciesOptimisation(t *testing.T) {
 
 	config.ClearOutputCache()
 
-	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
+	moduleC := filepath.Join(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 
 	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+moduleC)
@@ -3250,9 +3241,9 @@ func TestDependenciesOptimisation(t *testing.T) {
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
-	removeFile(t, util.JoinPath(templatesPath, terraformState))
-	removeFile(t, util.JoinPath(templatesPath, terraformStateBackup))
-	removeFolder(t, util.JoinPath(templatesPath, terraformFolder))
+	removeFile(t, filepath.Join(templatesPath, terraformState))
+	removeFile(t, filepath.Join(templatesPath, terraformStateBackup))
+	removeFolder(t, filepath.Join(templatesPath, terraformFolder))
 }
 
 func removeFile(t *testing.T, path string) {
@@ -3279,7 +3270,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStack)
-	appPath := util.JoinPath(tmpEnvPath, testFixtureStack)
+	appPath := filepath.Join(tmpEnvPath, testFixtureStack)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3297,7 +3288,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureStdout)
+	testPath := filepath.Join(tmpEnvPath, testFixtureStdout)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3322,9 +3313,9 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoInit)
+	testPath := filepath.Join(tmpEnvPath, testFixtureAutoInit)
 
-	terragruntHcl := util.JoinPath(testPath, "terragrunt.hcl")
+	terragruntHcl := filepath.Join(testPath, "terragrunt.hcl")
 
 	contents, err := util.ReadFileAsString(terragruntHcl)
 	if err != nil {
@@ -3359,7 +3350,7 @@ func TestNoColor(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoColor)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureNoColor)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNoColor)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3378,7 +3369,7 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 	fixturePath := testFixtureIncludeParent
 	helpers.CleanupTerraformFolder(t, fixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
+	rootPath := filepath.Join(tmpEnvPath, fixturePath)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all validate --tf-forward-stdout --non-interactive --working-dir "+rootPath)
 }
@@ -3407,7 +3398,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "integration")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
@@ -3415,7 +3406,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	app3Path := util.JoinPath(rootPath, "app3")
+	app3Path := filepath.Join(rootPath, "app3")
 	require.NoError(
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+app3Path, &stdout, &stderr),
@@ -3433,7 +3424,7 @@ func TestExplainingMissingCredentials(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
-	initTestCase := util.JoinPath(tmpEnvPath, testFixtureInitError)
+	initTestCase := filepath.Join(tmpEnvPath, testFixtureInitError)
 
 	helpers.CleanupTerraformFolder(t, initTestCase)
 	helpers.CleanupTerragruntFolder(t, initTestCase)
@@ -3450,7 +3441,7 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureModulePathError, "app")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureModulePathError, "app")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan -no-color --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
@@ -3463,7 +3454,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureModulePathError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureModulePathError)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color")
 	require.NoError(t, err)
@@ -3479,7 +3470,7 @@ func TestHclFmtDiff(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHclfmtDiff)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtDiff)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclfmtDiff)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtDiff)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3491,7 +3482,7 @@ func TestHclFmtDiff(t *testing.T) {
 
 	output := stdout.String()
 
-	expectedDiff, err := os.ReadFile(util.JoinPath(rootPath, "expected.diff"))
+	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.diff"))
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, stdout, "output")
@@ -3503,14 +3494,14 @@ func TestHclFmtStdin(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHclfmtStdin)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclfmtStdin)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtStdin)
 
-	os.Stdin, _ = os.Open(util.JoinPath(rootPath, "terragrunt.hcl"))
+	os.Stdin, _ = os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
 	require.NoError(t, err)
 
-	expectedDiff, err := os.ReadFile(util.JoinPath(rootPath, "expected.hcl"))
+	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.hcl"))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, string(expectedDiff))
@@ -3521,7 +3512,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureInitCache)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitCache)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureInitCache, "app")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInitCache, "app")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3548,7 +3539,7 @@ func TestInitSkipCache(t *testing.T) {
 	assert.NotContains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	// verify that after adding new file, init is executed
-	tfFile := util.JoinPath(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
+	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
 	if err := os.WriteFile(tfFile, []byte(""), 0644); err != nil {
 		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
 	}
@@ -3570,7 +3561,7 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -3591,7 +3582,7 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	tmpEnv := helpers.CopyEnvironment(t, generateTestCase)
 	helpers.CleanupTerraformFolder(t, tmpEnv)
 	helpers.CleanupTerragruntFolder(t, tmpEnv)
-	tmpEnv = util.JoinPath(tmpEnv, generateTestCase)
+	tmpEnv = filepath.Join(tmpEnv, generateTestCase)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+tmpEnv)
 
@@ -3635,7 +3626,7 @@ func TestTerragruntHandleLegacyNullValues(t *testing.T) {
 	tmpEnv := helpers.CopyEnvironment(t, generateTestCase)
 	helpers.CleanupTerraformFolder(t, tmpEnv)
 	helpers.CleanupTerragruntFolder(t, tmpEnv)
-	tmpEnv = util.JoinPath(tmpEnv, generateTestCase)
+	tmpEnv = filepath.Join(tmpEnv, generateTestCase)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+tmpEnv)
 	require.NoError(t, err)
@@ -3657,7 +3648,7 @@ func TestTerragruntNoWarningLocalPath(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledPath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureDisabledPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDisabledPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3672,7 +3663,7 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledModule)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app")
+	testPath := filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app")
 
 	_, output, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+testPath)
 	require.NoError(t, err)
@@ -3680,9 +3671,9 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	// check that only enabled dependencies are evaluated
 
 	for _, path := range []string{
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app"),
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-without-enabled"),
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-enabled"),
+		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app"),
+		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-without-enabled"),
+		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-enabled"),
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
@@ -3690,7 +3681,7 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-disabled"),
+		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-disabled"),
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
@@ -3703,7 +3694,7 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
+	testPath := filepath.Join(tmpEnvPath, testFixtureEmptyState)
 
 	helpers.CreateEmptyStateFile(t, testPath)
 
@@ -3715,7 +3706,7 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCommandsThatNeedInput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureCommandsThatNeedInput)
+	testPath := filepath.Join(tmpEnvPath, testFixtureCommandsThatNeedInput)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --tf-forward-stdout --working-dir "+testPath)
 	require.NoError(t, err)
@@ -3727,7 +3718,7 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSkipDependencies)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSkipDependencies)
+	testPath := filepath.Join(tmpEnvPath, testFixtureSkipDependencies)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3744,9 +3735,9 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 	// Check that units were excluded at stack level (shown in Run Summary)
 	assert.Contains(t, output, "Excluded")
 	// check that no test_file.txt was created in module directory
-	_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureSkipDependencies, "first", "test_file.txt"))
+	_, err = os.Stat(filepath.Join(tmpEnvPath, testFixtureSkipDependencies, "first", "test_file.txt"))
 	require.Error(t, err)
-	_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureSkipDependencies, "second", "test_file.txt"))
+	_, err = os.Stat(filepath.Join(tmpEnvPath, testFixtureSkipDependencies, "second", "test_file.txt"))
 	require.Error(t, err)
 }
 
@@ -3755,7 +3746,7 @@ func TestTerragruntInfoError(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInfoError)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureInfoError, "module-b")
+	testPath := filepath.Join(tmpEnvPath, testFixtureInfoError, "module-b")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3774,15 +3765,12 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
-
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
-	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
 
@@ -3810,16 +3798,16 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
-	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, testPath))
 
 	// run plan with output directory
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, "test"))
 	require.NoError(t, err)
 
-	outDir := util.JoinPath(testPath, "test")
+	outDir := filepath.Join(testPath, "test")
 
 	// verify that tfplan files are created in the tmpDir, 2 files
 	list, err := findFilesWithExtension(outDir, ".tfplan")
@@ -3860,20 +3848,20 @@ func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 			helpers.CleanupTerraformFolder(t, tmpEnvPath)
-			testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+			testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 			// run plan with output directory
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, testPath))
 			require.NoError(t, err)
 
 			// verify that tfplan files are created in the tmpDir, 2 files
-			outDir := util.JoinPath(testPath, "test")
+			outDir := filepath.Join(testPath, "test")
 			list, err := findFilesWithExtension(outDir, ".tfplan")
 			require.NoError(t, err)
 			assert.Len(t, list, 2)
 
 			// verify that json files are create
-			jsonDir := util.JoinPath(testPath, "json")
+			jsonDir := filepath.Join(testPath, "json")
 			listJSON, err := findFilesWithExtension(jsonDir, ".json")
 			require.NoError(t, err)
 			assert.Len(t, listJSON, 2)
@@ -3885,7 +3873,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	_, _, _, err := testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
 	require.NoError(t, err)
 
@@ -3914,12 +3902,12 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
-	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
 
 	// run plan with output directory
@@ -3953,12 +3941,12 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
-	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
 
 	// run plan and apply
@@ -3984,7 +3972,7 @@ func TestLogFormatJSONOutput(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --log-format=json --non-interactive --working-dir "+testPath)
 	require.Error(t, err)
@@ -4030,13 +4018,13 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 		t.Run("terragrunt output with "+tc.arg, func(t *testing.T) {
 			t.Parallel()
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-			rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+			rootTerragruntPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 			// apply dependency first
-			dependencyTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency")
+			dependencyTerragruntConfigPath := filepath.Join(rootTerragruntPath, "dependency")
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s ", dependencyTerragruntConfigPath))
 			require.NoError(t, err)
 
-			appTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "app")
+			appTerragruntConfigPath := filepath.Join(rootTerragruntPath, "app")
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s %s", appTerragruntConfigPath, tc.arg))
 			require.NoError(t, err)
 
@@ -4061,7 +4049,7 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("terragrunt with "+tc.tgArgs+" -- plan "+tc.tfArgs, func(t *testing.T) {
 			t.Parallel()
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			_, _, _, err := testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
 			require.NoError(t, err)
 			list, err := findFilesWithExtension(tmpDir, ".json")
@@ -4091,7 +4079,7 @@ func TestErrorMessageIncludeInOutput(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorPrint)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureErrorPrint)
+	testPath := filepath.Join(tmpEnvPath, testFixtureErrorPrint)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply  --non-interactive --working-dir "+testPath+" --tf-path "+testPath+"/custom-tf-script.sh --log-level trace")
 	require.Error(t, err)
@@ -4104,7 +4092,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
+	testPath := filepath.Join(tmpEnvPath, testFixtureInitError)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --log-format=json --non-interactive --working-dir "+testPath)
 	require.Error(t, err)
@@ -4135,7 +4123,7 @@ func TestLogStreaming(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStreaming)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureLogStreaming)
+	testPath := filepath.Join(tmpEnvPath, testFixtureLogStreaming)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" apply")
 	require.NoError(t, err)
@@ -4185,7 +4173,7 @@ func TestLogFormatBare(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
+	testPath := filepath.Join(tmpEnvPath, testFixtureEmptyState)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --log-format=bare --no-color --non-interactive --working-dir "+testPath)
 	require.NoError(t, err)
@@ -4205,7 +4193,7 @@ func TestTF110EphemeralVars(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEphemeralInputs)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureEphemeralInputs)
+	testPath := filepath.Join(tmpEnvPath, testFixtureEphemeralInputs)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+testPath)
 	require.NoError(t, err)
@@ -4225,7 +4213,7 @@ func TestTfPath(t *testing.T) {
 	// the terraform_binary path configuration if present
 	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPathBasic)
+	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -4249,7 +4237,7 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	// the terraform_binary path configuration if present
 	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPathBasic)
+	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -4271,7 +4259,7 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureTfPathTofuTerraform)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathTofuTerraform)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPathTofuTerraform)
+	workingDir := filepath.Join(rootPath, testFixtureTfPathTofuTerraform)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -4323,7 +4311,7 @@ func TestMixedStackConfigIgnored(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
+	testPath := filepath.Join(tmpEnvPath, testFixtureMixedConfig)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)
@@ -4337,7 +4325,7 @@ func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt workspace list --non-interactive --working-dir "+rootPath)
 	require.Error(t, err, "expected error when invoking unknown top-level command without 'run'")
@@ -4346,7 +4334,7 @@ func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 func TestDiscoveryDoesntResolveOutputs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	depDir := filepath.Join(tmpDir, "dep")
 	err := os.MkdirAll(depDir, 0755)
@@ -4428,7 +4416,7 @@ output "result" {
 func TestExternalDependenciesAreResolved(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	depDir := filepath.Join(tmpDir, "dep")
 	err := os.MkdirAll(depDir, 0755)
@@ -4510,7 +4498,7 @@ output "result" {
 func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	t.Parallel()
 	rootPath := helpers.CopyEnvironment(t, hiddenRunAllFixturePath, ".cloud/**")
-	modulePath := util.JoinPath(rootPath, hiddenRunAllFixturePath)
+	modulePath := filepath.Join(rootPath, hiddenRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	// Expect Terragrunt to discover modules under .cloud directory

@@ -21,7 +21,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
 
 	// Create a temporary workspace for the test
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
 
 	// Determine the paths used throughout the steps.
@@ -55,7 +55,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "aws@2.27.63")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "node@22.17.1")
 
-		miseTomlPath := util.JoinPath(repoDir, "mise.toml")
+		miseTomlPath := filepath.Join(repoDir, "mise.toml")
 		require.FileExists(t, miseTomlPath)
 		miseToml, err := os.ReadFile(miseTomlPath)
 		require.NoError(t, err)
@@ -872,7 +872,7 @@ EOF
 		for _, env := range environments {
 			envDir := filepath.Join(liveDir, env)
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			tempStateFile := filepath.Join(tmpDir, "tofu-"+env+".tfstate")
 
 			// Pull state from existing environment unit
@@ -1251,7 +1251,7 @@ EOF
 		}
 
 		// Migrate state from old unit paths to new .terragrunt-stack paths
-		tmpDir := t.TempDir()
+		tmpDir := helpers.TmpDirWOSymlinks(t)
 		tempStateFile := filepath.Join(tmpDir, "tofu.tfstate")
 
 		for _, env := range environments {

@@ -87,7 +87,7 @@ func EnsureDirectory(path string) error {
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
-		path = JoinPath(basePath, path)
+		path = filepath.Join(basePath, path)
 	}
 
 	absPath, err := filepath.Abs(path)
@@ -440,6 +440,10 @@ func CopyFolderContents(
 	includeInCopy []string,
 	excludeFromCopy []string,
 ) error {
+	// We use filepath.ToSlash because we end up using globs here, and those expect forward slashes.
+	source = filepath.ToSlash(source)
+	destination = filepath.ToSlash(destination)
+
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
@@ -616,15 +620,6 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	}
 
 	return os.WriteFile(destination, contents, fileInfo.Mode())
-}
-
-// JoinPath is a wrapper around filepath.Join
-//
-// Windows systems use \ as the path separator *nix uses /
-// Use this function when joining paths to force the returned path to use / as the path separator
-// This will improve cross-platform compatibility
-func JoinPath(elem ...string) string {
-	return filepath.ToSlash(filepath.Join(elem...))
 }
 
 // SplitPath splits the given path into a list.
@@ -932,6 +927,39 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 	}
 
 	return dirs, nil
+}
+
+// GetFiltersFromFile returns a list of filter queries from the given filename, where each filter query starts on a new line.
+func GetFiltersFromFile(baseDir, filename string) ([]string, error) {
+	filename, err := CanonicalPath(filename, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if !FileExists(filename) || !IsFile(filename) {
+		return nil, nil
+	}
+
+	content, err := ReadFileAsString(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		lines   = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+		filters = make([]string, 0, len(lines))
+	)
+
+	for _, filter := range lines {
+		filter = strings.TrimSpace(filter)
+		if filter == "" || strings.HasPrefix(filter, "#") {
+			continue
+		}
+
+		filters = append(filters, filter)
+	}
+
+	return filters, nil
 }
 
 // MatchSha256Checksum returns the SHA256 checksum for the given file and filename.

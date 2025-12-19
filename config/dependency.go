@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -158,7 +159,7 @@ func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool 
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
 	return allowedCommand && dep.getMockOutputsMergeStrategy() != NoMerge
 }
@@ -384,11 +385,11 @@ func checkForDependencyBlockCyclesUsingDFS(
 	visitedPaths *[]string,
 	currentTraversalPaths *[]string,
 ) error {
-	if util.ListContainsElement(*visitedPaths, dependencyPath) {
+	if slices.Contains(*visitedPaths, dependencyPath) {
 		return nil
 	}
 
-	if util.ListContainsElement(*currentTraversalPaths, dependencyPath) {
+	if slices.Contains(*currentTraversalPaths, dependencyPath) {
 		return errors.New(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
 	}
 
@@ -584,7 +585,7 @@ func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
 	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(ctx) || isRenderCommand(ctx)
 }
@@ -641,12 +642,12 @@ func isAwsS3NoSuchKey(err error) bool {
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
 func isRenderJSONCommand(ctx *ParsingContext) bool {
-	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
+	return slices.Contains(ctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
 func isRenderCommand(ctx *ParsingContext) bool {
-	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderCommand)
+	return slices.Contains(ctx.TerragruntOptions.TerraformCliArgs, renderCommand)
 }
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
@@ -982,24 +983,24 @@ func getTerragruntOutputJSONFromRemoteState(
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
-	if ctx.TerragruntOptions.FetchDependencyOutputFromState {
+	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) && !ctx.TerragruntOptions.NoDependencyFetchOutputFromState {
 		switch backend := remoteState.BackendName; backend {
 		case s3backend.BackendName:
-			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateS3(
+			jsonBytes, s3GetErr := getTerragruntOutputJSONFromRemoteStateS3(
 				ctx,
 				l,
 				targetTGOptions,
 				remoteState,
 			)
-			if err != nil {
-				return nil, err
+			if s3GetErr != nil {
+				return nil, s3GetErr
 			}
 
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
 		default:
-			l.Errorf("FetchDependencyOutputFromState is not supported for backend %s, falling back to normal method", backend)
+			l.Debugf("dependency-fetch-output-from-state experiment is not supported for backend %s, falling back to default output retrieval", backend)
 		}
 	}
 

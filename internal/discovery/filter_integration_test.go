@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,7 @@ func TestDiscoveryWithFilters(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	appsDir := filepath.Join(tmpDir, "apps")
@@ -261,9 +260,7 @@ dependency "db" {
 func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
@@ -337,13 +334,11 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a single component for edge case testing
 	unitDir := filepath.Join(tmpDir, "unit #1")
-	err = os.MkdirAll(unitDir, 0755)
+	err := os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644)
@@ -432,9 +427,7 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 func TestDiscoveryWithReadingFilters(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create shared configuration files
 	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
@@ -638,9 +631,7 @@ locals {
 func TestDiscoveryWithReadingFiltersAndAbsolutePaths(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a shared file with absolute path
 	sharedFile := filepath.Join(tmpDir, "shared.hcl")
@@ -685,7 +676,7 @@ locals {
 func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	appDir := filepath.Join(tmpDir, "app")
 	require.NoError(t, os.MkdirAll(appDir, 0755))
@@ -745,9 +736,7 @@ func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 func TestDiscoveryWithGraphExpressionFilters(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, we'll make the temporary directory a git repository.
 	// This creates a lower upper bound for dependent discovery.
@@ -847,9 +836,7 @@ dependency "vpc" {
 func TestDiscoveryWithGraphExpressionFilters_ComplexGraph(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, we'll make the temporary directory a git repository.
 	runner, err := git.NewGitRunner()
@@ -937,9 +924,7 @@ dependency "vpc" {
 func TestDiscoveryWithGraphExpressionFilters_OnlyMatchingComponentsTriggerDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create components: app depends on db, but there's also an unrelated component
 	appDir := filepath.Join(tmpDir, "app")
@@ -992,9 +977,7 @@ dependency "db" {
 func TestDiscoveryWithGraphExpressionFilters_FiltersAppliedAfterDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create dependency graph: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -1135,9 +1118,7 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			// Initialize Git repository
 			runner, err := git.NewGitRunner()
@@ -1281,9 +1262,7 @@ locals {
 func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
 	runner, err := git.NewGitRunner()
@@ -1370,9 +1349,7 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
 	runner, err := git.NewGitRunner()
@@ -1460,9 +1437,7 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 func TestDiscoveryWithGitFilters_FromSubdirectory(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository at the root
 	runner, err := git.NewGitRunner()
@@ -1595,9 +1570,7 @@ locals {
 func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository at the root
 	runner, err := git.NewGitRunner()

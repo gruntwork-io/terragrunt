@@ -75,7 +75,8 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 		parser := shellwords.NewParser()
 
-		args, err := parser.Parse(opts.QueueConstructAs)
+		// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
+		args, err := parser.Parse(filepath.ToSlash(opts.QueueConstructAs))
 		if err != nil {
 			return nil, err
 		}

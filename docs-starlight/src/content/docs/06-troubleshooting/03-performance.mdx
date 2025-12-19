@@ -38,9 +38,9 @@ terragrunt run --all plan --provider-cache
 
 #### Provider Cache - Gotchas
 
-The provider cache server is a single server that is used by all Terragrunt runs being performed in a given Terragrunt invocation. You will see the most benefit if you are using it in a command that will perform multiple OpenTofu/Terraform operations, like with the `--all` flag and the `--graph` flag.
+The provider cache server is a single server that is used by all Terragrunt runs being performed in a given Terragrunt invocation. You will see the most benefit if you are using it in a command that will perform many OpenTofu/Terraform operations, like with the `--all` flag and the `--graph` flag.
 
-When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers. Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
+When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/docs/features/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
 
 When in doubt, [measure the performance](#measuring-performance) before and after enabling the provider cache server to see if it's a net win for your use case.
 
@@ -50,17 +50,17 @@ Under the hood, Terragrunt dependency blocks leverage the OpenTofu/Terraform `ou
 
 The OpenTofu/Terraform `output -json` command does a bit more work than simply fetching output values from state, and a significant portion of that slowdown is loading providers, which it doesn't really need in most cases.
 
-You can significantly improve the performance of dependency blocks by using the `--dependency-fetch-output-from-state` flag. When the flag is set, Terragrunt will directly fetch the backend state file from S3 and parse it directly, avoiding any overhead incurred by calling the `output -json` command.
+You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](https://terragrunt.gruntwork.io/docs/reference/experiments/#dependency-fetch-output-from-state) experiment. When the experiment is active, Terragrunt will resolve outputs by directly fetching the backend state file from S3 and parse it directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.
 
 For example:
 
-```shell
-terragrunt run --all plan --dependency-fetch-output-from-state
+```bash
+terragrunt run --all plan --experiment=dependency-fetch-output-from-state
 ```
 
 #### Fetching Output From State - Gotchas
 
-The first thing you need to be aware of when considering usage of the `--dependency-fetch-output-from-state` flag is that it only works for S3 backends. If you are using a different backend, this flag won't do anything.
+The first thing you need to be aware of when considering usage of the `dependency-fetch-output-from-state` experiment is that it only works for S3 backends. If you are using a different backend, this experiment won't do anything.
 
 Next, you should be aware that there is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
 
@@ -93,7 +93,7 @@ You can use configurations like the `--warmup` flag to do some warmup runs befor
 Here's an example of how to use Hyperfine to benchmark the performance of Terragrunt with two different configurations:
 
 ```shell
-hyperfine -w 3 -r 5 'terragrunt run --all plan' 'terragrunt run --all plan --dependency-fetch-output-from-state'
+hyperfine -w 3 -r 5 'terragrunt run --all plan' 'terragrunt run --all plan --experiment=dependency-fetch-output-from-state'
 ```
 
 ### Terragrunt Developer

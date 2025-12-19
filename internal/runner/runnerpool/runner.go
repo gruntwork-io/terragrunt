@@ -39,13 +39,14 @@ type Runner struct {
 	queue *queue.Queue
 }
 
-// buildCanonicalConfigPath computes the canonical config path for a unit.
-// It handles .hcl/.json suffixes, joins DefaultTerragruntConfigPath when needed,
+// BuildCanonicalConfigPath computes the canonical config path for a unit.
+// It handles .hcl/.json suffixes, joins an appropriate config filename when needed,
 // converts to canonical absolute path, and updates the unit's path.
 // Returns the canonical config path and the canonical unit directory.
-func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalConfigPath string, canonicalDir string, err error) {
-	// Discovery paths are directories (e.g., "./other") not files
-	// We need to append the config filename to get the full config path
+func BuildCanonicalConfigPath(
+	unit *component.Unit,
+	basePath string,
+) (canonicalConfigPath string, canonicalDir string, err error) {
 	terragruntConfigPath := unit.Path()
 	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
 		terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
@@ -67,10 +68,10 @@ func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalC
 	return canonicalConfigPath, canonicalDir, nil
 }
 
-// cloneUnitOptions clones TerragruntOptions for a specific unit.
+// CloneUnitOptions clones TerragruntOptions for a specific unit.
 // It handles CloneWithConfigPath, per-unit DownloadDir fallback, and OriginalTerragruntConfigPath.
 // Returns the cloned options and logger, or the original logger if stack has no options.
-func cloneUnitOptions(
+func CloneUnitOptions(
 	stack *component.Stack,
 	unit *component.Unit,
 	canonicalConfigPath string,
@@ -109,10 +110,10 @@ func cloneUnitOptions(
 	return clonedOpts, clonedLogger, nil
 }
 
-// shouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
+// ShouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
 // neither a Terraform source nor any Terraform/OpenTofu files in its directory.
 // Returns true if the unit should be skipped, false otherwise.
-func shouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
+func ShouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
 	terragruntConfig := unit.Config()
 
 	// If the unit has a Terraform source configured, don't skip it
@@ -160,13 +161,13 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Build canonical config path and update unit path
-		canonicalConfigPath, canonicalDir, err := buildCanonicalConfigPath(unit, basePath)
+		canonicalConfigPath, canonicalDir, err := BuildCanonicalConfigPath(unit, basePath)
 		if err != nil {
 			return nil, err
 		}
 
 		// Clone options for this unit
-		unitOpts, unitLogger, err := cloneUnitOptions(stack, unit, canonicalConfigPath, stackDefaultDownloadDir, l)
+		unitOpts, unitLogger, err := CloneUnitOptions(stack, unit, canonicalConfigPath, stackDefaultDownloadDir, l)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +194,7 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Skip units without Terraform configuration
-		skip, err := shouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
+		skip, err := ShouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
 		if err != nil {
 			return nil, err
 		}
@@ -219,13 +220,35 @@ func resolveUnitsFromDiscovery(
 		units = append(units, unit)
 	}
 
-	// Ensure the stack-level default cache directory exists so tests that expect the root cache can find it,
-	// even when per-unit download directories are used.
-	if stackDefaultDownloadDir != "" {
-		_ = os.MkdirAll(stackDefaultDownloadDir, os.ModePerm) // best-effort
-	}
-
 	return units, nil
+}
+
+// checkLocalStateWithGitRefs checks if any unit has a Git ref in its discovery context
+// but no remote state configuration, and logs a warning if so.
+func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
+	for _, unit := range units {
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx == nil {
+			continue
+		}
+
+		if discoveryCtx.Ref == "" {
+			continue
+		}
+
+		unitConfig := unit.Config()
+		if unitConfig == nil {
+			continue
+		}
+
+		if unitConfig.RemoteState == nil || unitConfig.RemoteState.BackendName == "local" {
+			l.Warnf(
+				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
+			)
+
+			return
+		}
+	}
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
@@ -288,13 +311,16 @@ func NewRunnerPoolStack(
 		return nil, err
 	}
 
+	// Check for units with Git refs but no remote state configuration
+	checkLocalStateWithGitRefs(l, units)
+
 	// Record exclude-dir reasons in report before filtering.
 	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(terragruntOptions.ExcludeDirs) > 0 {
 		for _, unit := range units {
 			for _, dir := range terragruntOptions.ExcludeDirs {
 				cleanDir := dir
 				if !filepath.IsAbs(cleanDir) {
-					cleanDir = util.JoinPath(terragruntOptions.WorkingDir, cleanDir)
+					cleanDir = filepath.Join(terragruntOptions.WorkingDir, cleanDir)
 				}
 
 				cleanDir = util.CleanPath(cleanDir)
@@ -307,12 +333,20 @@ func NewRunnerPoolStack(
 						}
 					}
 
-					run, err := runner.Stack.Execution.Report.EnsureRun(absPath)
+					run, err := runner.Stack.Execution.Report.EnsureRun(l, absPath)
 					if err != nil {
 						continue
 					}
 
-					_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
+					err = runner.Stack.Execution.Report.EndRun(
+						l,
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeDir),
+					)
+					if err != nil {
+						l.Errorf("Error ending run for unit %s: %v", absPath, err)
+					}
 				}
 			}
 		}
@@ -434,7 +468,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	if util.ListContainsElement(config.TerraformCommandsNeedInput, terraformCmd) {
+	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
 		r.syncTerraformCliArgs(l, opts)
 	}
@@ -464,7 +498,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				run, err := r.Stack.Execution.Report.EnsureRun(unitPath)
+				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -482,6 +516,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 
 					if err := r.Stack.Execution.Report.EndRun(
+						l,
 						run.Path,
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
@@ -552,7 +587,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				run, reportErr := r.Stack.Execution.Report.EnsureRun(unitPath)
+				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue
@@ -583,7 +618,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 				}
 
-				if endErr := r.Stack.Execution.Report.EndRun(run.Path, endOpts...); endErr != nil {
+				if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
 					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 				}
 			}

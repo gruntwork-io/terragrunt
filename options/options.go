@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,6 +57,7 @@ const (
 	minCommandLength = 2
 
 	defaultExcludesFile = ".terragrunt-excludes"
+	defaultFiltersFile  = ".terragrunt-filters"
 
 	DefaultLogLevel = log.InfoLevel
 )
@@ -149,7 +151,7 @@ type TerragruntOptions struct {
 	// Original Terraform command being executed by Terragrunt.
 	OriginalTerraformCommand string
 	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TerraformImplementation TerraformImplementationType
+	TofuImplementation TerraformImplementationType
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 	// The path to store unpacked providers.
@@ -180,6 +182,8 @@ type TerragruntOptions struct {
 	GraphRoot string
 	// Path to the report file.
 	ReportFile string
+	// Path to a file containing filter queries, one per line. Default is .terragrunt-filters.
+	FiltersFile string
 	// Report format.
 	ReportFormat report.Format
 	// Path to the report schema file.
@@ -248,18 +252,14 @@ type TerragruntOptions struct {
 	ProviderCache bool
 	// If set to true, exclude all directories by default when running *-all commands
 	ExcludeByDefault bool
-	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
-	FetchDependencyOutputFromState bool
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
-	// True if is required not to show dependent modules and confirm action
-	NoDestroyDependenciesCheck bool
+	// True if is required to check for dependent modules during destroy operations
+	DestroyDependenciesCheck bool
 	// Include fields metadata in render-json
 	RenderJSONWithMetadata bool
 	// Whether we should automatically retry errored Terraform commands
 	AutoRetry bool
-	// Flag to enable engine for running IaC operations.
-	EngineEnabled bool
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
 	// Allows to skip the output of all dependencies.
@@ -318,6 +318,10 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
+	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
+	NoEngine bool
+	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
+	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
@@ -328,6 +332,8 @@ type TerragruntOptions struct {
 	NoShell bool
 	// NoHooks disables hooks when using boilerplate templates in catalog and scaffold commands.
 	NoHooks bool
+	// If set, disable automatic reading of .terragrunt-filters file.
+	NoFiltersFile bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -385,57 +391,59 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                         DefaultWrappedPath,
-		ExcludesFile:                   defaultExcludesFile,
-		OriginalTerraformCommand:       "",
-		TerraformCommand:               "",
-		AutoInit:                       true,
-		RunAllAutoApprove:              true,
-		NonInteractive:                 false,
-		TerraformCliArgs:               []string{},
-		Env:                            map[string]string{},
-		Source:                         "",
-		SourceMap:                      map[string]string{},
-		SourceUpdate:                   false,
-		IgnoreDependencyErrors:         false,
-		IgnoreDependencyOrder:          false,
-		IgnoreExternalDependencies:     false,
-		IncludeExternalDependencies:    false,
-		Writer:                         stdout,
-		ErrWriter:                      stderr,
-		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
-		AutoRetry:                      true,
-		ExcludeDirs:                    []string{},
-		IncludeDirs:                    []string{},
-		ModulesThatInclude:             []string{},
-		StrictInclude:                  false,
-		Parallelism:                    DefaultParallelism,
-		Check:                          false,
-		Diff:                           false,
-		FetchDependencyOutputFromState: false,
-		UsePartialParseConfigCache:     false,
-		ForwardTFStdout:                false,
-		JSONOut:                        DefaultJSONOutName,
-		TerraformImplementation:        UnknownImpl,
-		JSONDisableDependentModules:    false,
+		TFPath:                      DefaultWrappedPath,
+		ExcludesFile:                defaultExcludesFile,
+		FiltersFile:                 defaultFiltersFile,
+		OriginalTerraformCommand:    "",
+		TerraformCommand:            "",
+		AutoInit:                    true,
+		RunAllAutoApprove:           true,
+		NonInteractive:              false,
+		TerraformCliArgs:            []string{},
+		Env:                         map[string]string{},
+		Source:                      "",
+		SourceMap:                   map[string]string{},
+		SourceUpdate:                false,
+		IgnoreDependencyErrors:      false,
+		IgnoreDependencyOrder:       false,
+		IgnoreExternalDependencies:  false,
+		IncludeExternalDependencies: false,
+		Writer:                      stdout,
+		ErrWriter:                   stderr,
+		MaxFoldersToCheck:           DefaultMaxFoldersToCheck,
+		AutoRetry:                   true,
+		ExcludeDirs:                 []string{},
+		IncludeDirs:                 []string{},
+		ModulesThatInclude:          []string{},
+		StrictInclude:               false,
+		Parallelism:                 DefaultParallelism,
+		Check:                       false,
+		Diff:                        false,
+		UsePartialParseConfigCache:  false,
+		ForwardTFStdout:             false,
+		JSONOut:                     DefaultJSONOutName,
+		TofuImplementation:          UnknownImpl,
+		JSONDisableDependentModules: false,
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
-		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		OutputFolder:               "",
-		JSONOutputFolder:           "",
-		FeatureFlags:               xsync.NewMapOf[string, string](),
-		Errors:                     defaultErrorsConfig(),
-		StrictControls:             controls.New(),
-		Experiments:                experiment.NewExperiments(),
-		Telemetry:                  new(telemetry.Options),
-		NoStackValidate:            false,
-		NoStackGenerate:            false,
-		VersionManagerFileName:     defaultVersionManagerFileName,
-		NoAutoProviderCacheDir:     false,
-		NoDependencyPrompt:         false,
-		NoShell:                    false,
-		NoHooks:                    false,
+		ProviderCacheRegistryNames:       defaultProviderCacheRegistryNames,
+		OutputFolder:                     "",
+		JSONOutputFolder:                 "",
+		FeatureFlags:                     xsync.NewMapOf[string, string](),
+		Errors:                           defaultErrorsConfig(),
+		StrictControls:                   controls.New(),
+		Experiments:                      experiment.NewExperiments(),
+		Telemetry:                        new(telemetry.Options),
+		NoStackValidate:                  false,
+		NoStackGenerate:                  false,
+		VersionManagerFileName:           defaultVersionManagerFileName,
+		NoAutoProviderCacheDir:           false,
+		NoEngine:                         false,
+		NoDependencyFetchOutputFromState: false,
+		NoDependencyPrompt:               false,
+		NoShell:                          false,
+		NoHooks:                          false,
 	}
 }
 
@@ -577,7 +585,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
-	if util.ListContainsElement(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
+	if slices.Contains(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
 		commandLength = util.Min(minCommandLength, len(opts.TerraformCliArgs))
@@ -621,7 +629,7 @@ func (opts *TerragruntOptions) DataDir() string {
 		return tfDataDir
 	}
 
-	return util.JoinPath(opts.WorkingDir, tfDataDir)
+	return filepath.Join(opts.WorkingDir, tfDataDir)
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
@@ -669,18 +677,25 @@ type ErrorsPattern struct {
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
-func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.Logger, r *report.Report, operation func() error) error {
+func (opts *TerragruntOptions) RunWithErrorHandling(
+	ctx context.Context,
+	l log.Logger,
+	r *report.Report,
+	operation func() error,
+) error {
 	if opts.Errors == nil {
 		return operation()
 	}
 
 	currentAttempt := 1
 
-	// convert working dir to an absolute path for reporting
-	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
+	// convert working dir to a clean, absolute path for reporting
+	reportDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
+
+	reportDir = util.CleanPath(reportDir)
 
 	for {
 		err := operation()
@@ -708,12 +723,13 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
-			run, err := r.EnsureRun(absWorkingDir)
+			run, err := r.EnsureRun(l, reportDir)
 			if err != nil {
 				return err
 			}
 
 			if err := r.EndRun(
+				l,
 				run.Path,
 				report.WithResult(report.ResultSucceeded),
 				report.WithReason(report.ReasonErrorIgnored),
@@ -740,12 +756,13 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 			)
 
 			// Record that a retry will be attempted without prematurely marking success.
-			run, err := r.EnsureRun(absWorkingDir)
+			run, err := r.EnsureRun(l, reportDir)
 			if err != nil {
 				return err
 			}
 
 			if err := r.EndRun(
+				l,
 				run.Path,
 				report.WithResult(report.ResultSucceeded),
 				report.WithReason(report.ReasonRetrySucceeded),

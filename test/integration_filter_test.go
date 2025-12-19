@@ -21,10 +21,12 @@ import (
 )
 
 const (
-	testFixtureFilterBasic  = "fixtures/find/basic"
-	testFixtureFilterDAG    = "fixtures/find/dag"
-	testFixtureFilterList   = "fixtures/list/basic"
-	testFixtureFilterSource = "fixtures/filter-source"
+	testFixtureFilterBasic            = "fixtures/find/basic"
+	testFixtureFilterDAG              = "fixtures/find/dag"
+	testFixtureFilterList             = "fixtures/list/basic"
+	testFixtureFilterSource           = "fixtures/filter-source"
+	testFixtureMinimizeParsing        = "fixtures/filter/minimize-parsing"
+	testFixtureMinimizeParsingDestroy = "fixtures/filter/minimize-parsing-destroy"
 )
 
 // createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
@@ -760,9 +762,7 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
 	}
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -970,9 +970,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -1042,8 +1040,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 			// Run terragrunt run --all --filter with git filter
 			// Note: We use 'plan' command which should work even without terraform init
 			// Note: --experiment-mode enables the filter-flag experiment required for --filter
-			reportFile := "report.json"
-			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + reportFile
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
 
 			if tc.filterAllowDestroy {
 				cmd += " --filter-allow-destroy"
@@ -1070,7 +1067,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				}
 
 				// Verify the report file exists
-				reportFilePath := util.JoinPath(tmpDir, reportFile)
+				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
@@ -1094,8 +1091,8 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 					// Also store by full path for fallback
 					recordsByUnit[fullPath] = record
 					// Store by any part of the path that matches our unit pattern
-					parts := strings.Split(fullPath, string(filepath.Separator))
-					for _, part := range parts {
+					parts := strings.SplitSeq(fullPath, string(filepath.Separator))
+					for part := range parts {
 						if strings.HasPrefix(part, "unit-to-be-") {
 							recordsByUnit[part] = record
 						}
@@ -1154,6 +1151,135 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 					assert.Equal(t, "excluded", record["Result"], "Unit '%s' should be marked as excluded", excludedUnit)
 				}
 			}
+		})
+	}
+}
+
+func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	testCases := []struct {
+		name          string
+		unitConfig    string
+		description   string
+		expectWarning bool
+	}{
+		{
+			name:          "warning fires when unit has no remote_state",
+			unitConfig:    `# Unit with no remote_state`,
+			expectWarning: true,
+			description:   "Warning should fire when unit discovered via Git ref has no remote_state configuration",
+		},
+		{
+			name: "warning fires when unit has local backend",
+			unitConfig: `remote_state {
+  backend = "local"
+  config = {
+    path = "terraform.tfstate"
+  }
+}
+# Unit with local backend`,
+			expectWarning: true,
+			description:   "Warning should fire when unit discovered via Git ref has local backend",
+		},
+		{
+			name: "no warning when unit has remote state backend",
+			unitConfig: `remote_state {
+  backend = "s3"
+  config = {
+    bucket = "test-bucket"
+    key    = "terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+# Unit with remote state`,
+			expectWarning: false,
+			description:   "Warning should not fire when unit discovered via Git ref has remote state backend",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			tmpDir, err := filepath.EvalSymlinks(tmpDir)
+			require.NoError(t, err)
+
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			err = runner.GoOpenRepo()
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				err = runner.GoCloseStorage()
+				require.NoError(t, err)
+			})
+
+			// Create a unit with the specified configuration
+			unitDir := filepath.Join(tmpDir, "test-unit")
+			unitHCLPath := createTestUnit(t, unitDir, tc.unitConfig)
+
+			// Initial commit
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Modify the unit to trigger Git filter detection
+			err = os.WriteFile(unitHCLPath, []byte(tc.unitConfig+"\n# Modified"), 0644)
+			require.NoError(t, err)
+
+			// Commit the modification
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Modify unit", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			// Run terragrunt run --all --filter with git filter
+			cmd := "terragrunt run --all --no-color --working-dir " + tmpDir + " --filter '[HEAD~1...HEAD]' --report-file " + helpers.ReportFile + " -- plan"
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			// Check for the warning in stderr
+			// The warning message should contain this unique substring
+			warningMessage := "do not have a remote_state configuration"
+			hasWarning := strings.Contains(stderr, warningMessage) && strings.Contains(stderr, "Git-based filter expressions")
+
+			if tc.expectWarning {
+				assert.True(t, hasWarning, "Expected warning message in stderr. stderr: %s\nstdout: %s", stderr, stdout)
+			} else {
+				assert.False(t, hasWarning, "Did not expect warning message in stderr. stderr: %s\nstdout: %s", stderr, stdout)
+			}
+
+			// The command may fail due to the backend not being bootstrapped, but that's okay.
+			// We're just checking for the warning
+			_ = err
 		})
 	}
 }
@@ -1219,9 +1345,7 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -1356,8 +1480,7 @@ unit "unit-to-be-created-2" {
 			require.NoError(t, err)
 
 			// Run terragrunt run --all --filter with git filter
-			reportFile := "report.json"
-			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + reportFile
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
 
 			if tc.filterAllowDestroy {
 				cmd += " --filter-allow-destroy"
@@ -1384,7 +1507,7 @@ unit "unit-to-be-created-2" {
 				}
 
 				// Verify the report file exists
-				reportFilePath := util.JoinPath(tmpDir, reportFile)
+				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
@@ -1471,6 +1594,590 @@ unit "unit-to-be-created-2" {
 			}
 		})
 	}
+}
+
+func TestFiltersFileFlag(t *testing.T) {
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filters file flag tests - TG_EXPERIMENT_MODE is enabled, and this test requires testing both")
+	}
+
+	t.Run("with experiment enabled", func(t *testing.T) {
+		t.Setenv("TG_EXPERIMENT_MODE", "true")
+
+		testCases := []struct {
+			name          string
+			setupFile     func(t *testing.T, dir string) string // Returns path to filter file, empty if no file
+			cmdFlags      string                                // Additional flags like --filters-file or --no-filters-file
+			expectedUnits []string
+			expectError   bool
+		}{
+			{
+				name: "custom filters file with --filters-file flag",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, "custom-filters.txt")
+					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:      "", // Will be set in test
+				expectedUnits: []string{"unit"},
+				expectError:   false,
+			},
+			{
+				name: "default .terragrunt-filters file is automatically read when experiment enabled",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, ".terragrunt-filters")
+					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:      "",               // No flag, should auto-detect and read .terragrunt-filters
+				expectedUnits: []string{"unit"}, // Should filter to only unit, proving file was read
+				expectError:   false,
+			},
+			{
+				name: "--no-filters-file disables auto-reading",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, ".terragrunt-filters")
+					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:      "--no-filters-file",
+				expectedUnits: []string{"stack", "unit"}, // Should show all units, not filtered
+				expectError:   false,
+			},
+			{
+				name: "filter file with comments and empty lines",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, ".terragrunt-filters")
+					content := "# This is a comment\n\ntype=unit\n  \n# Another comment\n"
+					err := os.WriteFile(filterFile, []byte(content), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:      "",
+				expectedUnits: []string{"unit"},
+				expectError:   false,
+			},
+			{
+				name: "multiple filters in file",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, ".terragrunt-filters")
+					content := "unit\nstack\n"
+					err := os.WriteFile(filterFile, []byte(content), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:      "",
+				expectedUnits: []string{"stack", "unit"}, // Union of both filters
+				expectError:   false,
+			},
+			{
+				name: "filters file combined with --filter flags",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, ".terragrunt-filters")
+					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:      "--filter type=stack",
+				expectedUnits: []string{"stack", "unit"}, // Union: file has unit, flag has stack
+				expectError:   false,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Copy fixture to temporary directory
+				tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
+				tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
+
+				helpers.CleanupTerraformFolder(t, tmpDir)
+
+				// Setup filter file if needed
+				var filterFilePath string
+				if tc.setupFile != nil {
+					filterFilePath = tc.setupFile(t, tmpDir)
+				}
+
+				// Build command
+				cmd := "terragrunt find --no-color --working-dir " + tmpDir
+				if tc.cmdFlags != "" {
+					cmd += " " + tc.cmdFlags
+				}
+				// For custom filter files (not .terragrunt-filters), add --filters-file flag
+				if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" && !strings.Contains(tc.cmdFlags, "--filters-file") && !strings.Contains(tc.cmdFlags, "--no-filters-file") {
+					cmd += " --filters-file " + filterFilePath
+				}
+
+				stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+				if tc.expectError {
+					require.Error(t, err, "Expected error for test case: %s", tc.name)
+					assert.NotEmpty(t, stderr, "Expected error message in stderr")
+
+					return
+				}
+
+				require.NoError(t, err, "Unexpected error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
+				// Parse output into unit names (split by newlines and filter empty strings)
+				results := strings.Split(strings.TrimSpace(stdout), "\n")
+				// Filter out empty strings and extract basename from each path
+				var actualUnits []string
+
+				for _, r := range results {
+					if r != "" {
+						// Extract basename from path (handles both relative and absolute paths)
+						unitName := filepath.Base(strings.TrimSpace(r))
+						actualUnits = append(actualUnits, unitName)
+					}
+				}
+				// For .terragrunt-filters auto-detection test: the file contains "type=unit"
+				// and we expect only "unit" in output, proving the file WAS automatically read
+				assert.ElementsMatch(t, tc.expectedUnits, actualUnits, "Output mismatch for test case: %s", tc.name)
+			})
+		}
+	})
+
+	t.Run("experiment disabled scenarios", func(t *testing.T) {
+		testCases := []struct {
+			setupFile   func(t *testing.T, dir string) string
+			name        string
+			cmdFlags    string
+			errorMsg    string
+			expectError bool
+		}{
+			{
+				name: "--filters-file flag returns error when experiment disabled",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, "custom-filters.txt")
+					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:    "", // Will be set in test
+				expectError: true,
+				errorMsg:    "requires the 'filter-flag' experiment",
+			},
+			{
+				name: ".terragrunt-filters file is silently ignored when experiment disabled",
+				setupFile: func(t *testing.T, dir string) string {
+					t.Helper()
+
+					filterFile := filepath.Join(dir, ".terragrunt-filters")
+					// Create filter file that would filter to only unit if read
+					err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
+					require.NoError(t, err)
+					return filterFile
+				},
+				cmdFlags:    "", // No flag, file should be ignored (not read)
+				expectError: false,
+				errorMsg:    "",
+				// Note: expectedOutput verification happens in the test - should show all units
+				// proving the filter file was NOT read
+			},
+			{
+				name:        "--no-filters-file flag returns error when experiment disabled",
+				setupFile:   nil,
+				cmdFlags:    "--no-filters-file",
+				expectError: true,
+				errorMsg:    "requires the 'filter-flag' experiment",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Ensure experiment is disabled for this test case by unsetting the variable
+				// This ensures the experiment is not enabled even if it was set in the parent environment
+				require.NoError(t, os.Unsetenv("TG_EXPERIMENT_MODE"))
+				// Copy fixture to temporary directory
+				tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
+				tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
+
+				helpers.CleanupTerraformFolder(t, tmpDir)
+
+				// Setup filter file if needed
+				var filterFilePath string
+				if tc.setupFile != nil {
+					filterFilePath = tc.setupFile(t, tmpDir)
+				}
+
+				// Build command
+				cmd := "terragrunt find --no-color --working-dir " + tmpDir
+				if tc.cmdFlags != "" {
+					cmd += " " + tc.cmdFlags
+				}
+				// Add --filters-file flag for custom filter files
+				if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" {
+					cmd += " --filters-file " + filterFilePath
+				}
+
+				stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+				if tc.expectError {
+					require.Error(t, err, "Expected error for test case: %s", tc.name)
+
+					if tc.errorMsg != "" {
+						// Error message might be in stderr or in the error itself
+						errStr := ""
+						if err != nil {
+							errStr = err.Error()
+						}
+
+						combinedOutput := stderr + stdout + errStr
+						assert.Contains(t, combinedOutput, tc.errorMsg,
+							"Expected error message containing '%s' in output for test case: %s\nstdout: %s\nstderr: %s\nerr: %v",
+							tc.errorMsg, tc.name, stdout, stderr, err)
+					}
+
+					return
+				}
+				// For .terragrunt-filters ignored case, should succeed but not filter
+				require.NoError(t, err, "Unexpected error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
+				// Parse output into unit names (split by newlines and filter empty strings)
+				results := strings.Split(strings.TrimSpace(stdout), "\n")
+				// Filter out empty strings and extract basename from each path
+				var actualUnits []string
+
+				for _, r := range results {
+					if r != "" {
+						// Extract basename from path (handles both relative and absolute paths)
+						unitName := filepath.Base(strings.TrimSpace(r))
+						actualUnits = append(actualUnits, unitName)
+					}
+				}
+				// When experiment is disabled, .terragrunt-filters file should be ignored
+				// The file contains "type=unit" which would filter to only "unit" if read
+				// But since it's ignored, we should see all units (stack and unit)
+				// This proves the file was NOT automatically read
+				expectedUnits := []string{"stack", "unit"}
+				assert.ElementsMatch(t, expectedUnits, actualUnits,
+					"When experiment is disabled, .terragrunt-filters should be ignored. "+
+						"File contains 'type=unit' which would filter to only 'unit' if read, "+
+						"but we see all units, proving the file was NOT read automatically.")
+			})
+		}
+	})
+}
+
+func TestFilterFlagMinimizesParsing(t *testing.T) {
+	t.Parallel()
+
+	// Skip if filter-flag experiment is not enabled
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	t.Run("single unit filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// Run with filter targeting only target-unit
+		// This will parse target-unit and its dependency (dependency-unit) for outputs,
+		// but only target-unit will be run and appear in the report
+		// The excluded units with land-mine configs should NOT be parsed
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
+
+		// Verify that dependency-unit is still being parsed
+		assert.Contains(t, stderr, "dependency-unit", "dependency-unit should be parsed")
+
+		// Verify the report file exists and parse it
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected units are in the report
+			found := false
+
+			for name := range recordsByUnit {
+				if strings.Contains(name, "target-unit") {
+					found = true
+					break
+				}
+			}
+
+			require.True(t, found, "target-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+				found := false
+
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
+
+	t.Run("multiple units filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// Run with filter targeting both target-unit and dependency-unit (OR semantics)
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --filter './dependency-unit' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed - if land-mines were parsed, we'd get errors
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
+
+		// Verify the report file exists and parse it
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected units are in the report
+			found := false
+
+			for name := range recordsByUnit {
+				if strings.Contains(name, "target-unit") {
+					found = true
+					break
+				}
+			}
+
+			require.True(t, found, "target-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			found = false
+
+			for name := range recordsByUnit {
+				if strings.Contains(name, "dependency-unit") {
+					found = true
+					break
+				}
+			}
+
+			require.True(t, found, "dependency-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+				found := false
+
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
+
+	t.Run("destroy without graph filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsingDestroy)
+
+		// Run destroy with filter targeting only unit-a
+		// This should only parse unit-a, NOT all units in the repository
+		// The land-mine units should NOT be parsed
+		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath + " --filter './unit-a' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed - if land-mines were parsed, we'd get errors
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "landmine-unit-1", "landmine-unit-1 should not be parsed during destroy")
+		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy")
+
+		// Verify the report file exists and parse it
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected unit is in the report
+			found := false
+
+			for name := range recordsByUnit {
+				if strings.Contains(name, "unit-a") {
+					found = true
+					break
+				}
+			}
+
+			require.True(t, found, "unit-a should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
+				found := false
+
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
+
+	t.Run("destroy with graph filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsingDestroy)
+
+		// Run destroy with graph filter targeting unit-a
+		// Graph filters explicitly request dependency discovery, so this is expected behavior
+		// The land-mine units should still NOT be parsed (they're not dependencies)
+		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath + " --filter '{./unit-a}...' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		// Command should succeed - if land-mines were parsed, we'd get errors
+		// Note: destroy might fail for other reasons (e.g., no state), but it shouldn't fail due to parsing land-mines
+		require.NoError(t, err)
+
+		// Verify no errors from land-mine units in stderr
+		assert.NotContains(t, stderr, "landmine-unit-1", "landmine-unit-1 should not be parsed during destroy with graph filter")
+		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy with graph filter")
+
+		// Verify the report file exists and parse it
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+		if util.FileExists(reportFilePath) {
+			content, err := os.ReadFile(reportFilePath)
+			require.NoError(t, err, "Should be able to read report file")
+
+			var records []map[string]string
+
+			err = json.Unmarshal(content, &records)
+			require.NoError(t, err, "Should be able to parse report JSON")
+
+			// Create a map of unit names to records for easier lookup
+			recordsByUnit := make(map[string]map[string]string)
+
+			for _, record := range records {
+				fullPath := record["Name"]
+				baseName := filepath.Base(fullPath)
+				recordsByUnit[baseName] = record
+				recordsByUnit[fullPath] = record
+			}
+
+			// Verify expected unit is in the report
+			found := false
+
+			for name := range recordsByUnit {
+				if strings.Contains(name, "unit-a") {
+					found = true
+					break
+				}
+			}
+
+			require.True(t, found, "unit-a should be in report. Found units: %v", getUnitNames(recordsByUnit))
+
+			// Verify land-mine units are NOT in the report
+			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
+				found := false
+
+				for name := range recordsByUnit {
+					if strings.Contains(name, excludedUnit) {
+						found = true
+						break
+					}
+				}
+
+				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+			}
+		}
+	})
 }
 
 // getUnitNames extracts unit names from records map for error messages

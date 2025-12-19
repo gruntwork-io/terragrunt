@@ -10,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,7 +152,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
 				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
@@ -364,7 +364,7 @@ var defaultLogLevel = log.DebugLevel
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
 	t.Helper()
 
-	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
+	o := mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
 
 	return o
 }
@@ -403,7 +403,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 func createTempFile(t *testing.T) string {
 	t.Helper()
 
-	tmpFile, err := os.CreateTemp(t.TempDir(), "")
+	tmpFile, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}

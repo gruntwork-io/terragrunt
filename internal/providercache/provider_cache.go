@@ -239,7 +239,7 @@ func (cache *ProviderCache) warmUpCache(
 	// For upgrade scenarios where no providers were newly cached, we still need to update
 	// the lock file if module constraints have changed. This only happens during upgrades.
 	// Check if user passed -upgrade flag to terraform init
-	isUpgrade := util.ListContainsElement(opts.TerraformCliArgs, "-upgrade")
+	isUpgrade := slices.Contains(opts.TerraformCliArgs, "-upgrade")
 
 	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
 		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
@@ -310,7 +310,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	// Filter registries based on OpenTofu or Terraform implementation to avoid contacting unnecessary registries
 	filteredRegistryNames := filterRegistriesByImplementation(
 		opts.ProviderCacheRegistryNames,
-		opts.TerraformImplementation,
+		opts.TofuImplementation,
 	)
 
 	var providerInstallationIncludes = make([]string, 0, len(filteredRegistryNames))
@@ -356,8 +356,8 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	errWriter := util.NewTrapWriter(opts.ErrWriter)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
-	if util.ListContainsElement(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
-		!util.ListContainsElement(args, tf.FlagNameNoColor) {
+	if slices.Contains(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
+		!slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
@@ -394,7 +394,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
 	filteredRegistryNames := filterRegistriesByImplementation(
 		opts.ProviderCacheRegistryNames,
-		opts.TerraformImplementation,
+		opts.TofuImplementation,
 	)
 
 	for _, registryName := range filteredRegistryNames {
