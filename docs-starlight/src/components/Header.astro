@@ -72,9 +72,13 @@ try {
     --sl-color-gray-8: #0f0934;
     --sl-color-white: #ffffff;
   }
+
+  :global(body.has-banner) .navbar {
+    top: 2.5rem;
+  }
 </style>
 
-<div class="navbar header-dark-theme fixed top-10 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
+<div class="navbar header-dark-theme fixed top-0 w-full h-[var(--sl-nav-height)] p-0 z-50 border-b border-stroke-dark bg-bg-dark">
   <div class="flex flex-row justify-between px-4 py-2.5 md:py-6 xl:h-full xl:mt-1">
 
     <!-- Logo -->
