@@ -12,25 +12,5 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Create default packages file
-        run: |
-          cat <<EOF > .mise-python-default-packages
-          codespell==2.4.1
-          EOF
-
-          echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
-
-      - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
-        with:
-          version: 2025.8.16
-          experimental: true
-          mise_toml: |
-            [tools]
-            python = "3.14.2"
-        env:
-          # Adding token here to reduce the likelihood of hitting rate limit issues.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Run codespell
-        run: codespell .
+        uses: codespell-project/actions-codespell@bca0a5887de255a8903221c67b6478c7501c5edc # v2
