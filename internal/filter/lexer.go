@@ -62,6 +62,7 @@ func (l *Lexer) NextToken() Token {
 		tok = NewToken(EOF, "", startPosition)
 	case '.':
 		if l.peekChar() == '.' {
+			// Check for ellipsis (...)
 			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
 				l.readChar()
 				l.readChar()
@@ -69,20 +70,6 @@ func (l *Lexer) NextToken() Token {
 				tok = NewToken(ELLIPSIS, "...", startPosition)
 
 				l.readChar()
-
-				return tok
-			}
-
-			// ..N (depth-limited ellipsis)
-			if l.readPosition+1 < len(l.input) && isDigit(l.input[l.readPosition+1]) {
-				l.readChar()
-				l.readChar()
-
-				for isDigit(l.ch) {
-					l.readChar()
-				}
-
-				tok = NewToken(ELLIPSIS_DEPTH, l.input[startPosition:l.position], startPosition)
 
 				return tok
 			}
@@ -180,13 +167,10 @@ func (l *Lexer) skipWhitespace() {
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isIdentifierChar(l.ch) {
-		// stop at ellipsis (...) or depth ellipsis (..N)
+		// stop at ellipsis (...)
 		if l.ch == '.' && l.peekChar() == '.' {
-			if l.readPosition+1 < len(l.input) {
-				nextChar := l.input[l.readPosition+1]
-				if nextChar == '.' || isDigit(nextChar) {
-					break
-				}
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				break
 			}
 		}
 
@@ -205,13 +189,10 @@ func (l *Lexer) readIdentifier() string {
 func (l *Lexer) readAttributeValue() string {
 	position := l.position
 	for isAttributeValueChar(l.ch) {
-		// stop at ellipsis (...) or depth ellipsis (..N)
+		// stop at ellipsis (...)
 		if l.ch == '.' && l.peekChar() == '.' {
-			if l.readPosition+1 < len(l.input) {
-				nextChar := l.input[l.readPosition+1]
-				if nextChar == '.' || isDigit(nextChar) {
-					break
-				}
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				break
 			}
 		}
 
@@ -229,13 +210,10 @@ func (l *Lexer) readAttributeValue() string {
 func (l *Lexer) readPath(startPosition int) Token {
 	position := l.position
 	for isPathChar(l.ch) {
-		// stop at ellipsis (...) or depth ellipsis (..N)
+		// stop at ellipsis (...)
 		if l.ch == '.' && l.peekChar() == '.' {
-			if l.readPosition+1 < len(l.input) {
-				nextChar := l.input[l.readPosition+1]
-				if nextChar == '.' || isDigit(nextChar) {
-					break
-				}
+			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
+				break
 			}
 		}
 
