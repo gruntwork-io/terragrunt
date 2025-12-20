@@ -10,6 +10,7 @@ import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
 import d2 from "astro-d2";
+import starlightLlms from "./llms"
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -204,6 +205,7 @@ export default defineConfig({
             "/docs/reference/cli/commands/list/#*",
           ],
         }),
+        starlightLlms(sidebar)
       ],
     }),
     d2({
