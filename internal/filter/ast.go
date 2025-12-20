@@ -238,10 +238,10 @@ func (g *GraphExpression) String() string {
 
 	if g.IncludeDependents {
 		if g.DependentDepth > 0 {
-			result += ".." + strconv.Itoa(g.DependentDepth)
-		} else {
-			result += "..."
+			result += strconv.Itoa(g.DependentDepth)
 		}
+
+		result += "..."
 	}
 
 	if g.ExcludeTarget {
@@ -251,10 +251,10 @@ func (g *GraphExpression) String() string {
 	result += g.Target.String()
 
 	if g.IncludeDependencies {
+		result += "..."
+
 		if g.DependencyDepth > 0 {
-			result += ".." + strconv.Itoa(g.DependencyDepth)
-		} else {
-			result += "..."
+			result += strconv.Itoa(g.DependencyDepth)
 		}
 	}
 
