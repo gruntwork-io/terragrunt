@@ -272,8 +272,3 @@ func isAttributeValueChar(ch byte) bool {
 func isPathChar(ch byte) bool {
 	return !isSpecialChar(ch)
 }
-
-// isDigit returns true if the character is a digit.
-func isDigit(ch byte) bool {
-	return ch >= '0' && ch <= '9'
-}
