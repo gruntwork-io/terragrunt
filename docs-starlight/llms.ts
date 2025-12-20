@@ -64,7 +64,8 @@ export function sidebarToCustomSets(sidebar: Sidebar): Array<{ label: string; pa
 }
 
 export default function (sidebar: Sidebar) {
-  console.log(sidebarToCustomSets(sidebar))
+export default function (sidebar: Sidebar) {
+  return starlightLlmsTxt({
 
   return starlightLlmsTxt({
     customSets: sidebarToCustomSets(sidebar),
