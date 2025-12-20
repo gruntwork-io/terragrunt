@@ -72,16 +72,18 @@ func (p *Parser) nextToken() {
 
 // parseExpression is the core recursive descent parser.
 func (p *Parser) parseExpression(precedence int) Expression {
-	// Check for prefix ellipsis (...foo or ..Nfoo)
+	// Check for prefix depth (N...foo) or ellipsis (...foo)
 	includeDependents := false
 	dependentDepth := 0
 
-	if p.curToken.Type == ELLIPSIS {
+	// Check for N... (number followed by ellipsis = dependent depth)
+	if isPurelyNumeric(p.curToken.Literal) && p.peekToken.Type == ELLIPSIS {
 		includeDependents = true
-		p.nextToken()
-	} else if p.curToken.Type == ELLIPSIS_DEPTH {
+		dependentDepth = parseDepth(p.curToken.Literal)
+		p.nextToken() // consume number
+		p.nextToken() // consume ellipsis
+	} else if p.curToken.Type == ELLIPSIS {
 		includeDependents = true
-		dependentDepth = parseEllipsisDepth(p.curToken.Literal)
 		p.nextToken()
 	}
 
@@ -119,7 +121,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	case EOF:
 		p.addError("unexpected end of input")
 		return nil
-	case PIPE, EQUAL, RBRACE, RBRACKET, ELLIPSIS, ELLIPSIS_DEPTH, CARET:
+	case PIPE, EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
 		p.addError("unexpected token: " + p.curToken.Literal)
 		return nil
 	default:
@@ -133,17 +135,19 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 	target := leftExpr
 
-	// Check for postfix ellipsis (foo... or foo..N)
+	// Check for postfix ellipsis (foo... or foo...N)
 	includeDependencies := false
 	dependencyDepth := 0
 
 	if p.curToken.Type == ELLIPSIS {
 		includeDependencies = true
 		p.nextToken()
-	} else if p.curToken.Type == ELLIPSIS_DEPTH {
-		includeDependencies = true
-		dependencyDepth = parseEllipsisDepth(p.curToken.Literal)
-		p.nextToken()
+
+		// Check for ...N (ellipsis followed by number = dependency depth)
+		if isPurelyNumeric(p.curToken.Literal) {
+			dependencyDepth = parseDepth(p.curToken.Literal)
+			p.nextToken()
+		}
 	}
 
 	// If we have any graph operators, wrap in GraphExpression
@@ -162,7 +166,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		switch p.curToken.Type {
 		case PIPE:
 			leftExpr = p.parseInfixExpression(leftExpr)
-		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE, LBRACKET, RBRACKET, ELLIPSIS, ELLIPSIS_DEPTH, CARET:
+		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE, LBRACKET, RBRACKET, ELLIPSIS, CARET:
 			return leftExpr
 		default:
 			return leftExpr
@@ -172,14 +176,25 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	return leftExpr
 }
 
-// parseEllipsisDepth extracts the depth from a depth ellipsis token (e.g., "..2" -> 2).
-// Returns 0 (unlimited) if parsing fails. Clamps to MaxTraversalDepth for very large values.
-func parseEllipsisDepth(literal string) int {
-	if len(literal) < 3 {
-		return 0
+// isPurelyNumeric returns true if the string contains only digits.
+func isPurelyNumeric(s string) bool {
+	if len(s) == 0 {
+		return false
 	}
 
-	depth, err := strconv.Atoi(literal[2:])
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+
+	return true
+}
+
+// parseDepth parses a depth value from a numeric string.
+// Returns 0 (unlimited) if parsing fails. Clamps to MaxTraversalDepth for very large values.
+func parseDepth(literal string) int {
+	depth, err := strconv.Atoi(literal)
 	if err != nil || depth < 0 {
 		return 0
 	}

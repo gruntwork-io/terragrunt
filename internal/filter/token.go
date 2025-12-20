@@ -28,9 +28,8 @@ const (
 	RBRACKET // right bracket (])
 
 	// Graph operators
-	ELLIPSIS       // ellipsis operator (...)
-	ELLIPSIS_DEPTH // ellipsis with depth operator (..N where N is a number)
-	CARET          // caret operator (^)
+	ELLIPSIS // ellipsis operator (...)
+	CARET    // caret operator (^)
 )
 
 // String returns a string representation of the token type for debugging.
@@ -60,8 +59,6 @@ func (t TokenType) String() string {
 		return "]"
 	case ELLIPSIS:
 		return "..."
-	case ELLIPSIS_DEPTH:
-		return "..N"
 	case CARET:
 		return "^"
 	default:
