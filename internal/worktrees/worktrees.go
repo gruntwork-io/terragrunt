@@ -474,6 +474,13 @@ func NewWorktrees(
 		l.Warnf("telemetry trace error during worktree creation: %v", traceErr)
 	}
 
+	// cleanup worktrees
+	if outerErr != nil && worktrees != nil {
+		if cleanupErr := worktrees.Cleanup(ctx, l); cleanupErr != nil {
+			l.Warnf("failed to cleanup worktrees: %v", cleanupErr)
+		}
+	}
+
 	return worktrees, outerErr
 }
 
@@ -539,6 +546,10 @@ func createGitWorktrees(
 			})
 			if err != nil {
 				mu.Lock()
+
+				if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
+					l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
+				}
 
 				errs = append(errs, tgerrors.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
 
