@@ -49,7 +49,12 @@ func BuildCanonicalConfigPath(
 ) (canonicalConfigPath string, canonicalDir string, err error) {
 	terragruntConfigPath := unit.Path()
 	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
-		terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
+		fileName := config.DefaultTerragruntConfigPath
+		if unit.ConfigFile() != "" {
+			fileName = unit.ConfigFile()
+		}
+
+		terragruntConfigPath = filepath.Join(unit.Path(), fileName)
 	}
 
 	// Convert to canonical absolute path - this is critical for dependency resolution
@@ -313,37 +318,6 @@ func NewRunnerPoolStack(
 
 	// Check for units with Git refs but no remote state configuration
 	checkLocalStateWithGitRefs(l, units)
-
-	// Record exclude-dir reasons in report before filtering.
-	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(terragruntOptions.ExcludeDirs) > 0 {
-		for _, unit := range units {
-			for _, dir := range terragruntOptions.ExcludeDirs {
-				cleanDir := dir
-				if !filepath.IsAbs(cleanDir) {
-					cleanDir = filepath.Join(terragruntOptions.WorkingDir, cleanDir)
-				}
-
-				cleanDir = util.CleanPath(cleanDir)
-
-				if util.HasPathPrefix(unit.Path(), cleanDir) {
-					absPath := util.CleanPath(unit.Path())
-					if !filepath.IsAbs(absPath) {
-						if abs, err := filepath.Abs(absPath); err == nil {
-							absPath = util.CleanPath(abs)
-						}
-					}
-
-					run, err := runner.Stack.Execution.Report.EnsureRun(absPath)
-					if err != nil {
-						continue
-					}
-
-					_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
-				}
-			}
-		}
-	}
-
 	runner.Stack.Units = units
 
 	if isDestroyCommand(terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs) {
@@ -460,7 +434,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	if util.ListContainsElement(config.TerraformCommandsNeedInput, terraformCmd) {
+	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
 		r.syncTerraformCliArgs(l, opts)
 	}
@@ -490,7 +464,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				run, err := r.Stack.Execution.Report.EnsureRun(unitPath)
+				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -508,6 +482,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 
 					if err := r.Stack.Execution.Report.EndRun(
+						l,
 						run.Path,
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
@@ -578,7 +553,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				run, reportErr := r.Stack.Execution.Report.EnsureRun(unitPath)
+				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue
@@ -609,7 +584,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 				}
 
-				if endErr := r.Stack.Execution.Report.EndRun(run.Path, endOpts...); endErr != nil {
+				if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
 					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 				}
 			}
@@ -923,22 +898,22 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 
 		// Add any missing allowed dependencies from the resolved unit graph
 		for _, dep := range u.Dependencies() {
-			depUnit, ok := dep.(*component.Unit)
-			if !ok || depUnit == nil {
+			depUnit, okDep := dep.(*component.Unit)
+			if !okDep || depUnit == nil {
 				continue
 			}
 
-			if _, ok := allowed[depUnit.Path()]; !ok {
+			if _, allowedOK := allowed[depUnit.Path()]; !allowedOK {
 				continue
 			}
 
-			if _, ok := existing[depUnit.Path()]; ok {
+			if _, existsOK := existing[depUnit.Path()]; existsOK {
 				continue
 			}
 
 			// Ensure the dependency config exists in the filtered set
-			depCfg, ok := present[depUnit.Path()]
-			if !ok {
+			depCfg, presentOK := present[depUnit.Path()]
+			if !presentOK {
 				depCfg = component.NewUnit(depUnit.Path())
 				filtered = append(filtered, depCfg)
 				present[depUnit.Path()] = depCfg

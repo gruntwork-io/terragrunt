@@ -54,6 +54,9 @@ jobs:
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use shorter temp path on macOS to avoid path length issues with Git worktrees.
+          # Default /var/folders/.../T/ paths are too long for Git's path resolution.
+          TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
       - name: Upload Report (${{ matrix.os }})
         uses: actions/upload-artifact@v6

@@ -111,11 +111,6 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 func TestSOPSDecryptedCorrectlyRunAllWithFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)

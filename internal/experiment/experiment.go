@@ -82,7 +82,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: FilterFlag,
+			Name:   FilterFlag,
+			Status: StatusCompleted,
 		},
 		{
 			Name: IacEngine,

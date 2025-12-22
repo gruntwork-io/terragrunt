@@ -19,11 +19,6 @@ jobs:
             tags: tofu
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: Fixtures with Latest OSS Terraform
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-latest-oss.sh
           - name: Fixtures with Latest Terraform
             os: ubuntu
             target: ./test
@@ -66,14 +61,6 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: AWS with Latest OSS Terraform
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-latest-oss.sh
           - name: AWS with Latest Terraform
             os: ubuntu
             target: ./...
