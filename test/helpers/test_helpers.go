@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,6 +63,75 @@ func CreateFile(t *testing.T, paths ...string) {
 	require.NoError(t, err)
 }
 
+// CreateGitRepo initializes a git repository at the given path and creates an initial commit.
+func CreateGitRepo(t *testing.T, path string) {
+	t.Helper()
+
+	ctx := t.Context()
+
+	// Initialize git repo
+	cmd := exec.CommandContext(ctx, "git", "init")
+	cmd.Dir = path
+
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git init failed: %s", string(output))
+
+	// Configure user for the repo
+	cmd = exec.CommandContext(ctx, "git", "config", "user.email", "test@test.com")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git config user.email failed")
+
+	cmd = exec.CommandContext(ctx, "git", "config", "user.name", "Test User")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git config user.name failed")
+
+	// Add all files and commit
+	cmd = exec.CommandContext(ctx, "git", "add", "-A")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git add failed")
+
+	cmd = exec.CommandContext(ctx, "git", "commit", "-m", "initial commit", "--allow-empty")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git commit failed")
+}
+
+// CloneGitRepo creates an isolated git clone for parallel testing.
+// Uses git clone --local --no-hardlinks to preserve file modes, symlinks,
+// and avoid worktree race conditions when multiple tests operate on same repo.
+func CloneGitRepo(t *testing.T, srcDir string) string {
+	t.Helper()
+
+	dstDir := TmpDirWOSymlinks(t)
+
+	cmd := exec.CommandContext(t.Context(), "git", "clone", "--local", "--no-hardlinks", srcDir, dstDir)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git clone failed: %s", string(output))
+
+	return dstDir
+}
+
+// MakeDiscoveryContext creates a discovery context copy with an updated WorkingDir.
+func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
+	return &component.DiscoveryContext{
+		WorkingDir: dir,
+		Cmd:        baseCtx.Cmd,
+		Args:       append([]string{}, baseCtx.Args...),
+	}
+}
+
+// MakeOpts creates terragrunt options for a given directory.
+func MakeOpts(dir string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = dir
+	opts.RootWorkingDir = dir
+
+	return opts
+}
+
 // IsExperimentMode returns true if the TG_EXPERIMENT_MODE environment variable is set.
 func IsExperimentMode(t *testing.T) bool {
 	t.Helper()
@@ -102,6 +173,22 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 // Useful for constructing pointers to primitive types in test tables, etc.
 func PointerTo[T any](v T) *T {
 	return &v
+}
+
+// TmpDirWOSymlinks returns a temporary directory, evaluating any symlinks that might be there.
+//
+// This is useful for macOS tests where the standard library creates a temporary directory pointed to via a symlink
+// when using t.TempDir(). It's generally annoying to deal with in tests, as it breaks filepath comparisons, so
+// using this function is preferred over calling t.TempDir() directly unless you are sure it doesn't matter if the
+// temporary directory is a symlink.
+func TmpDirWOSymlinks(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	return tmpDir
 }
 
 type testLogger struct {

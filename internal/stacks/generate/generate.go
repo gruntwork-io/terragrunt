@@ -3,10 +3,9 @@ package generate
 
 import (
 	"context"
-	"io/fs"
-	"os"
 	"path/filepath"
-	"strings"
+	"runtime"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -14,13 +13,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
-)
-
-const (
-	generationMaxPath = 1024
+	"golang.org/x/sync/errgroup"
 )
 
 // StackNode represents a stack file in the file system.
@@ -44,8 +41,14 @@ func NewStackNode(filePath string) *StackNode {
 
 // GenerateStacks generates the stack files using topological ordering to prevent race conditions.
 // Stack files are generated level by level, ensuring parent stacks complete before their children.
-func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	foundFiles, err := ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+// Worktrees must be provided by the caller if needed; this function will never create worktrees internally.
+func GenerateStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) error {
+	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -77,7 +80,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 			return err
 		}
 
-		if err := discoverAndAddNewNodes(ctx, l, opts, stackTrees, generatedFiles, level+1); err != nil {
+		if err := discoverAndAddNewNodes(ctx, l, opts, wts, stackTrees, generatedFiles, level+1); err != nil {
 			return err
 		}
 	}
@@ -114,8 +117,16 @@ func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 }
 
 // discoverAndAddNewNodes discovers new stack files and adds them to the dependency graph.
-func discoverAndAddNewNodes(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dependencyGraph map[string]*StackNode, generatedFiles map[string]bool, minLevel int) error {
-	newFiles, listErr := ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+func discoverAndAddNewNodes(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+	dependencyGraph map[string]*StackNode,
+	generatedFiles map[string]bool,
+	minLevel int,
+) error {
+	newFiles, listErr := ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
 	if listErr != nil {
 		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -247,20 +258,17 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFilesMaybeWithDiscovery searches for stack files in the specified directory using the discovery package.
+// ListStackFiles searches for stack files in the specified directory.
 //
 // We only want to use the discovery package when the filter flag experiment is enabled, as we need to filter discovery
 // results to ensure that we get the right files back for generation.
-func ListStackFilesMaybeWithDiscovery(
+func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	dir string,
+	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return listStackFiles(l, opts, dir)
-	}
-
 	discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
@@ -270,13 +278,18 @@ func ListStackFilesMaybeWithDiscovery(
 		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
 	}
 
-	components, err := discovery.Discover(ctx, l, opts)
+	discoveredComponents, err := discovery.Discover(ctx, l, opts)
 	if err != nil {
 		return nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
-	foundFiles := make([]string, 0, len(components))
-	for _, c := range components {
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees, opts.Experiments)
+	if err != nil {
+		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+	}
+
+	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
+	for _, c := range discoveredComponents {
 		if _, ok := c.(*component.Stack); !ok {
 			continue
 		}
@@ -284,54 +297,123 @@ func ListStackFilesMaybeWithDiscovery(
 		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 	}
 
+	for _, c := range worktreeStacks {
+		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+	}
+
 	return foundFiles, nil
 }
 
-// listStackFiles searches for stack files in the specified directory.
-//
-// The function walks through the given directory to find files that match the
-// default stack file name. It optionally follows symbolic links based on the
-// provided Terragrunt options.
-func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) ([]string, error) {
-	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-
-	walkFunc := filepath.WalkDir
-	if walkWithSymlinks {
-		walkFunc = util.WalkDirWithSymlinks
+// worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
+func worktreeStacksToGenerate(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	w *worktrees.Worktrees,
+	experiments experiment.Experiments,
+) (component.Components, error) {
+	// If worktrees is nil, there are no worktrees to process, return empty components.
+	if w == nil {
+		return component.Components{}, nil
 	}
 
-	l.Debugf("Searching for stack files in %s", dir)
+	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
 
-	var stackFiles []string
+	// If we edit a stack in a worktree, we need to generate it, at the minimum.
+	stackDiff := w.Stacks()
 
-	// find all defaultStackFile files
-	if err := walkFunc(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			l.Warnf("Error accessing path %s: %w", path, err)
+	editedStacks := append(
+		stackDiff.Added,
+		stackDiff.Removed...,
+	)
+
+	for _, changed := range stackDiff.Changed {
+		editedStacks = append(editedStacks, changed.FromStack, changed.ToStack)
+	}
+
+	for _, stack := range editedStacks {
+		stacksToGenerate.EnsureComponent(stack)
+	}
+
+	// When the expanded filter for a given Git expression requires parsing,
+	// we need to generate all the stacks in the given worktree, as units within the generated stack might be affected.
+	//
+	// Based on business logic, the from branch here should never be used, but we'll check it anyways for completeness.
+	// We only require parsing for reading filters, and those only trigger in expanded Git expressions when
+	// the file is modified (which would result in a toFilter being returned).
+
+	fullDiscoveries := map[string]*discovery.Discovery{}
+
+	for _, pair := range w.WorktreePairs {
+		fromFilters, toFilters := pair.Expand()
+
+		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
+			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+				WorkingDir:    pair.FromWorktree.Path,
+				FilterQueries: []string{"type=stack"},
+				Experiments:   experiments,
+			})
+			if err != nil {
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.FromWorktree.Ref, err)
+			}
+
+			fullDiscoveries[pair.FromWorktree.Ref] = disc
+		}
+
+		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
+			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+				WorkingDir:    pair.ToWorktree.Path,
+				FilterQueries: []string{"type=stack"},
+				Experiments:   experiments,
+			})
+			if err != nil {
+				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.ToWorktree.Ref, err)
+			}
+
+			fullDiscoveries[pair.ToWorktree.Ref] = disc
+		}
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(min(runtime.NumCPU(), len(fullDiscoveries)))
+
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+
+	for ref, disc := range fullDiscoveries {
+		// Create per-iteration local copies to avoid closure capture bug
+		refCopy := ref
+		discCopy := disc
+
+		g.Go(func() error {
+			components, err := discCopy.Discover(ctx, l, opts)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", refCopy, err))
+
+				mu.Unlock()
+
+				return nil
+			}
+
+			for _, c := range components {
+				stacksToGenerate.EnsureComponent(c)
+			}
+
 			return nil
-		}
+		})
+	}
 
-		if d.IsDir() {
-			return nil
-		}
-
-		// skip files in Terragrunt cache directory
-		if strings.Contains(path, string(os.PathSeparator)+util.TerragruntCacheDir+string(os.PathSeparator)) ||
-			filepath.Base(path) == util.TerragruntCacheDir {
-			return filepath.SkipDir
-		}
-
-		if len(path) >= generationMaxPath {
-			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
-		}
-		if filepath.Base(path) == config.DefaultStackFile {
-			l.Debugf("Found stack file %s", path)
-			stackFiles = append(stackFiles, path)
-		}
-		return nil
-	}); err != nil {
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	return stackFiles, nil
+	if len(errs) > 0 {
+		return stacksToGenerate.ToComponents(), errors.Join(errs...)
+	}
+
+	return stacksToGenerate.ToComponents(), nil
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -51,7 +50,7 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 	_ = os.Remove(filepath.Join(scriptsPath, "no_cache_counter.txt"))
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunCmdFlags)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRunCmdFlags)
 
 	// Remove the conflicting module so the happy-path tests can run `terragrunt run --all` without errors.
 	conflictDir := filepath.Join(rootPath, "module-conflict")
@@ -116,7 +115,7 @@ func TestRunCmdConflictingCacheOptionsFails(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureRunCmdModuleConflict)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRunCmdFlags)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRunCmdFlags)
 
 	cmd := "terragrunt run --all plan --non-interactive --log-level debug --working-dir " + rootPath
 

@@ -43,6 +43,7 @@ const (
 	CommandNameRefresh        = "refresh"
 	CommandNameTest           = "test"
 	CommandNameWorkspace      = "workspace"
+	CommandNameQuery          = "query"
 
 	// Deprecated TF commands.
 
@@ -102,6 +103,7 @@ var (
 		CommandNameWorkspace,
 		CommandNameForceUnlock,
 		CommandNameState,
+		CommandNameQuery,
 	}
 
 	CommandUsages = map[string]string{

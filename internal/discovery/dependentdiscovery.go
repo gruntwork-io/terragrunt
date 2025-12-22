@@ -30,14 +30,12 @@ type DependentDiscovery struct {
 	opts                *options.TerragruntOptions
 	mu                  *sync.RWMutex
 	components          *component.ThreadSafeComponents
-	workingDir          string
 	gitRoot             string
 	parserOptions       []hclparse.Option
 	filenames           []string
 	maxDepth            int
 	numWorkers          int
 	suppressParseErrors bool
-	discoverExternal    bool
 }
 
 // NewDependentDiscovery creates a new DependentDiscovery with the given configuration.
@@ -82,13 +80,6 @@ func (dd *DependentDiscovery) WithNumWorkers(numWorkers int) *DependentDiscovery
 	return dd
 }
 
-// WithDiscoverExternalDependencies sets the discoverExternal flag to true,
-// which determines whether to discover and include external dependencies in the final results.
-func (dd *DependentDiscovery) WithDiscoverExternalDependencies() *DependentDiscovery {
-	dd.discoverExternal = true
-	return dd
-}
-
 // WithOpts sets the Terragrunt options for dependent discovery.
 // If opts has a valid Parallelism setting, it will update numWorkers (unless explicitly set via WithNumWorkers).
 func (dd *DependentDiscovery) WithOpts(opts *options.TerragruntOptions) *DependentDiscovery {
@@ -113,33 +104,10 @@ func (dd *DependentDiscovery) WithFilenames(filenames []string) *DependentDiscov
 	return dd
 }
 
-// WithWorkingDir sets the working directory for determining if dependencies are external.
-func (dd *DependentDiscovery) WithWorkingDir(workingDir string) *DependentDiscovery {
-	dd.workingDir = workingDir
-	return dd
-}
-
-// CopyForDiscoveredDependent creates a copy of the DependentDiscovery with fresh state maps
-// for recursing on newly discovered dependents. This ensures that each recursive discovery
-// starts with a clean visited/checked state while preserving configuration and shared mutex.
-func (dd *DependentDiscovery) CopyForDiscoveredDependent() *DependentDiscovery {
-	dd.mu.RLock()
-	defer dd.mu.RUnlock()
-
-	dependentDiscovery := *dd
-
-	// We reset these to ensure that each recursive discovery for a
-	// discovered dependent starts with a clean visited/checked state
-	dependentDiscovery.visitedDirs = make(map[string]struct{})
-	dependentDiscovery.knownComponentPaths = make(map[string]struct{})
-
-	return &dependentDiscovery
-}
-
-// DiscoverAllDependents discovers dependents by traversing up the file system from starting components
+// Discover discovers dependents by traversing up the file system from starting components
 // to find new Terragrunt configs in parent directories that depend on the starting components.
 // It recursively discovers dependents of newly found dependents.
-func (dd *DependentDiscovery) DiscoverAllDependents(
+func (dd *DependentDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	startingComponents component.Components,
@@ -154,7 +122,7 @@ func (dd *DependentDiscovery) DiscoverAllDependents(
 
 	for _, c := range startingComponents {
 		g.Go(func() error {
-			err := dd.DiscoverDependents(ctx, l, c, filepath.Dir(c.Path()), dd.maxDepth)
+			err := dd.discoverDependents(ctx, l, c, filepath.Dir(c.Path()), dd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -178,9 +146,9 @@ func (dd *DependentDiscovery) DiscoverAllDependents(
 	return nil
 }
 
-// DiscoverDependents discovers dependents for a single target component by traversing up parent directories
+// discoverDependents discovers dependents for a single target component by traversing up parent directories
 // and walking down child directories to find Terragrunt configs that depend on the targetComponent.
-func (dd *DependentDiscovery) DiscoverDependents(
+func (dd *DependentDiscovery) discoverDependents(
 	ctx context.Context,
 	l log.Logger,
 	target component.Component,
@@ -275,6 +243,9 @@ func (dd *DependentDiscovery) DiscoverDependents(
 	g.Go(func() error {
 		defer close(discoveredDependents)
 
+		// Resolve target path once for all candidates (handles symlinks like macOS /var -> /private/var)
+		resolvedTargetPath := resolvePath(target.Path())
+
 		for candidate := range candidates {
 			if dd.discoveryContext != nil {
 				candidate.SetDiscoveryContext(dd.discoveryContext)
@@ -331,7 +302,7 @@ func (dd *DependentDiscovery) DiscoverDependents(
 					continue
 				}
 
-				isExternal := isExternal(dd.workingDir, c.Path())
+				isExternal := isExternal(dd.discoveryContext.WorkingDir, c.Path())
 
 				if isExternal {
 					c.SetExternal()
@@ -339,22 +310,19 @@ func (dd *DependentDiscovery) DiscoverDependents(
 
 				candidate.AddDependency(c)
 
-				if dep == target.Path() {
+				// Use resolved paths for comparison to handle symlinks (e.g., macOS /var -> /private/var)
+				if resolvePath(dep) == resolvedTargetPath {
 					dependsOnTarget = true
 				}
 			}
 
 			if dependsOnTarget {
-				isExternal := isExternal(dd.workingDir, candidate.Path())
+				dd.ensureComponent(candidate)
 
-				if !isExternal || dd.discoverExternal {
-					dd.ensureComponent(candidate)
-
-					select {
-					case <-walkCtx.Done():
-						return walkCtx.Err()
-					case discoveredDependents <- candidate:
-					}
+				select {
+				case <-walkCtx.Done():
+					return walkCtx.Err()
+				case discoveredDependents <- candidate:
 				}
 			}
 		}
@@ -373,9 +341,9 @@ func (dd *DependentDiscovery) DiscoverDependents(
 
 			g.Go(func() error {
 				// Use a copy with fresh state maps for recursive discovery of discovered dependents
-				recursiveDD := dd.CopyForDiscoveredDependent()
+				recursiveDD := dd.copyForDiscoveredDependent()
 
-				err := recursiveDD.DiscoverDependents(
+				err := recursiveDD.discoverDependents(
 					walkCtx,
 					l,
 					dependent,
@@ -401,7 +369,7 @@ func (dd *DependentDiscovery) DiscoverDependents(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		g.Go(func() error {
-			err := dd.DiscoverDependents(walkCtx, l, target, parentDir, depthRemaining-1)
+			err := dd.discoverDependents(walkCtx, l, target, parentDir, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
@@ -495,4 +463,21 @@ func (dd *DependentDiscovery) isChecked(component component.Component) bool {
 // ensureComponent adds a component to the components list if it's not already present.
 func (dd *DependentDiscovery) ensureComponent(component component.Component) {
 	dd.components.EnsureComponent(component)
+}
+
+// copyForDiscoveredDependent creates a copy of the DependentDiscovery with fresh state maps
+// for recursing on newly discovered dependents. This ensures that each recursive discovery
+// starts with a clean visited/checked state while preserving configuration and shared mutex.
+func (dd *DependentDiscovery) copyForDiscoveredDependent() *DependentDiscovery {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
+	dependentDiscovery := *dd
+
+	// We reset these to ensure that each recursive discovery for a
+	// discovered dependent starts with a clean visited/checked state
+	dependentDiscovery.visitedDirs = make(map[string]struct{})
+	dependentDiscovery.knownComponentPaths = make(map[string]struct{})
+
+	return &dependentDiscovery
 }

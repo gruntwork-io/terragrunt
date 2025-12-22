@@ -1,11 +1,11 @@
 package test_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +45,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParentWithDeprecatedRoot)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParentWithDeprecatedRoot, "app")
+			rootPath := filepath.Join(tmpEnvPath, testFixtureFindParentWithDeprecatedRoot, "app")
 
 			args := "--non-interactive --log-level debug --working-dir " + rootPath
 			if tc.strictMode {
@@ -106,7 +106,7 @@ func TestBareIncludeStrictMode(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrictBareInclude)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureStrictBareInclude)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureStrictBareInclude)
 
 			args := "init --non-interactive --log-level trace --working-dir " + rootPath
 			if tc.strictMode {

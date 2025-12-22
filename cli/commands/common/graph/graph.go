@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
@@ -61,14 +62,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	// Create graph dependency filter to show only the working directory and its dependents
-	graphFilter := &common.UnitFilterGraph{
-		TargetDir: opts.WorkingDir,
-	}
+	// Limit graph to the working directory and its dependents.
+	// The prefix ellipsis means "include dependents"; target is included by default.
+	graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
 
-	// Add unit filter for graph command to filter units based on dependencies
-	// This will be applied after units are resolved but before the queue is built
-	stackOpts = append(stackOpts, common.WithReport(r), common.WithUnitFilters(graphFilter))
+	stackOpts = append(stackOpts, common.WithReport(r))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck

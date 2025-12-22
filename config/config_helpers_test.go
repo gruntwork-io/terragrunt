@@ -362,7 +362,7 @@ func TestFindInParentFolders(t *testing.T) {
 func TestFindInParentFoldersWithStackFile(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	regionHclPath := filepath.Join(tempDir, "region.hcl")
 	regionHclContent := `locals {
@@ -1399,13 +1399,13 @@ func TestConstraintCheck(t *testing.T) {
 			config: terragruntOptionsForTest(t, ""),
 			args:   []string{"1.E", ">= 1.0, < 1.4"},
 			value:  false,
-			err:    "invalid version 1.E: Malformed version: 1.E",
+			err:    "invalid version 1.E: malformed version: 1.E",
 		},
 		{
 			config: terragruntOptionsForTest(t, ""),
 			args:   []string{"1.4", ">== 1.0, < 1.4"},
 			value:  false,
-			err:    "invalid constraint >== 1.0, < 1.4: Malformed constraint: >== 1.0",
+			err:    "invalid constraint >== 1.0, < 1.4: malformed constraint: >== 1.0",
 		},
 	}
 

@@ -14,6 +14,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
@@ -94,6 +96,29 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	if err != nil {
 		return processDiagnostics(l, opts, diags, errors.New(err))
 	}
+
+	// We do worktree generation here instead of in the discovery constructor
+	// so that we can defer cleanup in the same context.
+	filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+	if parseErr != nil {
+		return fmt.Errorf("failed to parse filters: %w", parseErr)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+
+	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	if parseErr != nil {
+		return errors.Errorf("failed to create worktrees: %w", parseErr)
+	}
+
+	defer func() {
+		cleanupErr := worktrees.Cleanup(ctx, l)
+		if cleanupErr != nil {
+			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+		}
+	}()
+
+	d = d.WithWorktrees(worktrees)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {

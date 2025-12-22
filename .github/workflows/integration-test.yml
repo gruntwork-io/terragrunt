@@ -19,11 +19,6 @@ jobs:
             tags: tofu
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: Fixtures with Latest OSS Terraform
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-latest-oss.sh
           - name: Fixtures with Latest Terraform
             os: ubuntu
             target: ./test
@@ -66,14 +61,6 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: AWS with Latest OSS Terraform
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-latest-oss.sh
           - name: AWS with Latest Terraform
             os: ubuntu
             target: ./...
@@ -151,7 +138,7 @@ jobs:
               - .github/scripts/setup/experiment-mode.sh
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: "Setup Docker"
         if: runner.os == 'Linux'
@@ -216,7 +203,7 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
@@ -250,7 +237,7 @@ jobs:
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-${{ matrix.integration.name }}
           path: |
@@ -258,7 +245,7 @@ jobs:
             result.xml
 
       - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: result.xml

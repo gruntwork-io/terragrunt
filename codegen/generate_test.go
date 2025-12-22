@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -204,7 +205,7 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 func TestFmtGeneratedFile(t *testing.T) {
 	t.Parallel()
 
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	bTrue := true
 	bFalse := false
@@ -278,7 +279,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 func TestGenerateDisabling(t *testing.T) {
 	t.Parallel()
 
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	testCases := []struct {
 		name     string

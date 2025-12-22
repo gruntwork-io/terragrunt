@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -355,7 +356,7 @@ func runTerragruntWithConfig(
 		// If command failed, log a helpful message
 		if runTerraformError != nil {
 			if out == nil {
-				l.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
+				l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.WorkingDir)
 			}
 		}
 
@@ -373,7 +374,7 @@ func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *
 		}
 
 		for _, module := range modules {
-			if _, err := opts.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
+			if _, err := opts.ErrWriter.Write([]byte(module.Path() + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -580,7 +581,7 @@ func prepareNonInitCommand(
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
+	if slices.Contains(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -602,9 +603,9 @@ func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.Ter
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
-	pluginsPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
-	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
-	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, tf.TerraformLockFile)
+	pluginsPath := filepath.Join(terragruntOptions.DataDir(), "plugins")
+	providersPath := filepath.Join(terragruntOptions.DataDir(), "providers")
+	terraformLockPath := filepath.Join(terragruntOptions.WorkingDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
@@ -645,7 +646,7 @@ func runTerraformInit(
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(opts.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -685,12 +686,12 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
+	modulesPath := filepath.Join(terragruntOptions.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}
@@ -717,7 +718,7 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
+	if remoteState == nil || !slices.Contains(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -737,7 +738,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 		destroyFlag = true
 	}
 
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
+	if slices.Contains(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
 		destroyFlag = true
 	}
 

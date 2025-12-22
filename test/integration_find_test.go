@@ -181,16 +181,14 @@ func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) 
 func TestFindExternalDependencies(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(`This functionality will break once the filter flag experiment is generally available.
-We don't automatically discover external dependencies when going through discovery via the filter flag.`)
-	}
-
 	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
 
 	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -198,7 +196,10 @@ We don't automatically discover external dependencies when going through discove
 	normalizedStdout := filepath.ToSlash(stdout)
 	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -207,10 +208,6 @@ We don't automatically discover external dependencies when going through discove
 
 func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("This only works when the filter flag experiment is enabled until it is generally available.")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
 

@@ -6,4 +6,23 @@ env:
   - TG_QUEUE_INCLUDE_EXTERNAL
 ---
 
-When enabled, Terragrunt will include external dependencies (dependencies discovered outside the current working directory) in the queue when running commands with [`--all`](/docs/reference/cli/commands/run#all) or [`--graph`](/docs/reference/cli/commands/run#graph).
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Alias for --filter">
+
+This flag is an alias for the [`--filter` flag](/docs/reference/cli/commands/run#filter).
+
+When using this flag, the equivalent filter expression is used instead.
+
+e.g.
+
+```bash
+terragrunt run --all --queue-include-external -- plan
+```
+
+is equivalent to:
+
+```bash
+terragrunt run --all --filter "{./**}..." -- plan
+```
+</Aside>
