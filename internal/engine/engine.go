@@ -624,15 +624,46 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			break
 		}
 
-		if err = processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
-			return nil, errors.New(err)
+		responseType := runResp.GetResponse()
+		if responseType == nil {
+			continue
 		}
 
-		if err = processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
-			return nil, errors.New(err)
+		switch resp := responseType.(type) {
+		case *proto.RunResponse_Stdout:
+			if resp.Stdout != nil {
+				if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
+					return nil, errors.New(err)
+				}
+			}
+		case *proto.RunResponse_Stderr:
+			if resp.Stderr != nil {
+				if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
+					return nil, errors.New(err)
+				}
+			}
+		case *proto.RunResponse_ExitResult:
+			if resp.ExitResult != nil {
+				resultCode = int(resp.ExitResult.GetCode())
+			}
+		case *proto.RunResponse_Log:
+			if resp.Log != nil {
+				logContent := resp.Log.GetContent()
+				logLevel := resp.Log.GetLevel()
+				if logContent != "" {
+					switch logLevel {
+					case proto.LogLevel_LOG_LEVEL_DEBUG:
+						l.Debug(logContent)
+					case proto.LogLevel_LOG_LEVEL_INFO:
+						l.Info(logContent)
+					case proto.LogLevel_LOG_LEVEL_WARN:
+						l.Warn(logContent)
+					case proto.LogLevel_LOG_LEVEL_ERROR:
+						l.Error(logContent)
+					}
+				}
+			}
 		}
-
-		resultCode = int(runResp.GetResultCode())
 	}
 
 	if err = flushBuffer(&stdoutLineBuf, stdout); err != nil {
@@ -721,16 +752,45 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 			return nil, nil
 		}
 
-		if output.GetResultCode() != 0 {
-			l.Errorf("Engine init failed with error: %s", output.GetStderr())
+		outputLine := &OutputLine{}
 
-			return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, output.GetResultCode())
+		switch resp := output.GetResponse().(type) {
+		case *proto.InitResponse_Stdout:
+			if resp.Stdout != nil {
+				outputLine.Stdout = resp.Stdout.GetContent()
+			}
+		case *proto.InitResponse_Stderr:
+			if resp.Stderr != nil {
+				outputLine.Stderr = resp.Stderr.GetContent()
+			}
+		case *proto.InitResponse_ExitResult:
+			if resp.ExitResult != nil {
+				exitCode := int(resp.ExitResult.GetCode())
+				if exitCode != 0 {
+					l.Errorf("Engine init failed with exit code %d", exitCode)
+					return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+				}
+			}
+		case *proto.InitResponse_Log:
+			if resp.Log != nil {
+				logContent := resp.Log.GetContent()
+				logLevel := resp.Log.GetLevel()
+				if logContent != "" {
+					switch logLevel {
+					case proto.LogLevel_LOG_LEVEL_DEBUG:
+						l.Debug(logContent)
+					case proto.LogLevel_LOG_LEVEL_INFO:
+						l.Info(logContent)
+					case proto.LogLevel_LOG_LEVEL_WARN:
+						l.Warn(logContent)
+					case proto.LogLevel_LOG_LEVEL_ERROR:
+						l.Error(logContent)
+					}
+				}
+			}
 		}
 
-		return &OutputLine{
-			Stderr: output.GetStderr(),
-			Stdout: output.GetStdout(),
-		}, nil
+		return outputLine, nil
 	})
 }
 
@@ -764,16 +824,50 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 			return nil, nil
 		}
 
-		if output.GetResultCode() != 0 {
-			l.Errorf("Engine shutdown failed with error: %s", output.GetStderr())
+		outputLine := &OutputLine{}
 
-			return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, output.GetResultCode())
+		responseType := output.GetResponse()
+		if responseType == nil {
+			return outputLine, nil
 		}
 
-		return &OutputLine{
-			Stdout: output.GetStdout(),
-			Stderr: output.GetStderr(),
-		}, nil
+		switch resp := responseType.(type) {
+		case *proto.ShutdownResponse_Stdout:
+			if resp.Stdout != nil {
+				outputLine.Stdout = resp.Stdout.GetContent()
+			}
+		case *proto.ShutdownResponse_Stderr:
+			if resp.Stderr != nil {
+				outputLine.Stderr = resp.Stderr.GetContent()
+			}
+		case *proto.ShutdownResponse_ExitResult:
+			if resp.ExitResult != nil {
+				exitCode := int(resp.ExitResult.GetCode())
+				if exitCode != 0 {
+					l.Errorf("Engine shutdown failed with exit code %d", exitCode)
+					return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+				}
+			}
+		case *proto.ShutdownResponse_Log:
+			if resp.Log != nil {
+				logContent := resp.Log.GetContent()
+				logLevel := resp.Log.GetLevel()
+				if logContent != "" {
+					switch logLevel {
+					case proto.LogLevel_LOG_LEVEL_DEBUG:
+						l.Debug(logContent)
+					case proto.LogLevel_LOG_LEVEL_INFO:
+						l.Info(logContent)
+					case proto.LogLevel_LOG_LEVEL_WARN:
+						l.Warn(logContent)
+					case proto.LogLevel_LOG_LEVEL_ERROR:
+						l.Error(logContent)
+					}
+				}
+			}
+		}
+
+		return outputLine, nil
 	})
 }
 
