@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -128,7 +129,6 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		{"Name": "first-success", "Result": "succeeded", "Reason": "", "Cause": ""},
 		{"Name": "retry-success", "Result": "succeeded", "Reason": "retry succeeded", "Cause": ""},
 		{"Name": "second-early-exit", "Result": "early exit", "Reason": "ancestor error", "Cause": "second-failure"},
-		{"Name": "second-exclude", "Result": "excluded", "Reason": "--queue-exclude-dir", "Cause": ""},
 		{"Name": "second-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
 		{"Name": "second-success", "Result": "succeeded", "Reason": "", "Cause": ""},
 	}
@@ -140,10 +140,11 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		"excluded":   true,
 	}
 
-	for _, tc := range testCases {
-		// capture range variable
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			expectedRecordsCopy := slices.Clone(expectedRecords)
 
 			// Set up test environment
 			helpers.CleanupTerraformFolder(t, testFixtureReportPath)
@@ -156,9 +157,9 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 				stderr bytes.Buffer
 			)
 
-			reportFile := "report." + tc.format
+			reportFile := "report." + tt.format
 			cmd := fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
+				"terragrunt run --all --log-level trace apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				filepath.Join(rootPath, "second-exclude"),
 				reportFile)
@@ -172,7 +173,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 			// Read and parse the file based on format
 			var records []map[string]string
 
-			if tc.format == "csv" {
+			if tt.format == "csv" {
 				file, err := os.Open(reportFilePath)
 				require.NoError(t, err)
 
@@ -204,7 +205,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 			}
 
 			// Verify we have the expected number of records
-			require.Len(t, records, len(expectedRecords))
+			require.Len(t, records, len(expectedRecordsCopy))
 
 			// Sort records by name for consistent comparison
 			sort.Slice(records, func(i, j int) bool {
@@ -232,14 +233,20 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 
 				// Check that the cause is the error message
 				if record["Reason"] == "run error" {
-					assert.Regexp(t, expectedRecords[i]["Cause"], record["Cause"])
+					expectedCausePattern := expectedRecordsCopy[i]["Cause"]
+					assert.Regexp(t, expectedCausePattern, record["Cause"])
 
 					compareRecord["Cause"] = ""
-					expectedRecords[i]["Cause"] = ""
+					expectedRecordsCopy[i] = map[string]string{
+						"Name":   expectedRecordsCopy[i]["Name"],
+						"Result": expectedRecordsCopy[i]["Result"],
+						"Reason": expectedRecordsCopy[i]["Reason"],
+						"Cause":  "",
+					}
 				}
 
 				// Verify the record matches the expected record
-				assert.Equal(t, expectedRecords[i], compareRecord)
+				assert.Equal(t, expectedRecordsCopy[i], compareRecord)
 			}
 		})
 	}
@@ -486,89 +493,6 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
       second-exclude .... x`
 
 	assert.Equal(t, strings.TrimSpace(expectedOutput), strings.TrimSpace(stdoutStr))
-}
-
-func TestReportWithExternalDependenciesExcluded(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureExternalDependency)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
-
-	dep := helpers.TmpDirWOSymlinks(t)
-
-	f, err := os.Create(filepath.Join(dep, "terragrunt.hcl"))
-	require.NoError(t, err)
-	f.Close()
-
-	f, err = os.Create(filepath.Join(dep, "main.tf"))
-	require.NoError(t, err)
-	f.Close()
-
-	reportDir := helpers.TmpDirWOSymlinks(t)
-	reportFile := filepath.Join(reportDir, "report.json")
-
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		fmt.Sprintf(
-			"terragrunt run --all plan --queue-exclude-external --log-level debug --feature dep=%s --working-dir %s --report-file %s",
-			dep,
-			rootPath,
-			reportFile,
-		),
-	)
-
-	// The command should succeed without "run not found in report" errors
-	require.NoError(t, err)
-
-	// Verify that no "run not found in report" errors appear in stderr
-	assert.NotContains(t, stderr, "run not found in report")
-	assert.Contains(t, stdout, "Run Summary")
-
-	// External dependencies should be logged as excluded during discovery
-	assert.Contains(t, stderr, "Excluded external dependency",
-		"External dependencies should be logged as excluded")
-
-	// Verify that the report file exists
-	assert.FileExists(t, reportFile)
-
-	// Read the report file
-	reportContent, err := os.ReadFile(reportFile)
-	require.NoError(t, err)
-
-	// Verify that the report file contains the expected content
-	var report []map[string]any
-
-	err = json.Unmarshal(reportContent, &report)
-	require.NoError(t, err)
-
-	// Verify that the report file contains the expected content
-	assert.Len(t, report, 2)
-
-	depPath := dep
-	if resolved, err := filepath.EvalSymlinks(dep); err == nil {
-		depPath = resolved
-	}
-
-	expected := []struct {
-		name   string
-		result string
-		reason string
-	}{
-		// The first run is always going to be the external dependency,
-		// as it has an instant runtime.
-		{name: depPath, result: "excluded", reason: "--queue-exclude-external"},
-		{name: "external-dependency", result: "succeeded"},
-	}
-
-	for i, r := range report {
-		assert.Equal(t, expected[i].name, r["Name"])
-		assert.Equal(t, expected[i].result, r["Result"])
-
-		if expected[i].reason != "" {
-			assert.Equal(t, expected[i].reason, r["Reason"])
-		}
-	}
 }
 
 // lineType represents the type of line we're processing

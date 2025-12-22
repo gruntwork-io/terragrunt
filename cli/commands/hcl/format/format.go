@@ -17,7 +17,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -67,11 +66,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		err     error
 	)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, err = filter.ParseFilterQueries(opts.FilterQueries)
-		if err != nil {
-			return errors.New(err)
-		}
+	filters, err = filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return errors.New(err)
 	}
 
 	// We use lightweight discovery here instead of the full discovery used by
@@ -112,16 +109,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	var components component.Components
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		components, err = filters.EvaluateOnFiles(l, files, workingDir)
-		if err != nil {
-			return errors.New(err)
-		}
-	} else {
-		components = make(component.Components, 0, len(files))
-		for _, file := range files {
-			components = append(components, component.NewUnit(file))
-		}
+	components, err = filters.EvaluateOnFiles(l, files, workingDir)
+	if err != nil {
+		return errors.New(err)
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

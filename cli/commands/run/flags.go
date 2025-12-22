@@ -247,6 +247,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoDependencyFetchOutputFromStateFlagName),
 			Destination: &opts.NoDependencyFetchOutputFromState,
 			Usage:       "Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.",
+			Hidden:      true,
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
@@ -259,10 +260,25 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-module-prefix"), legacyLogsControl)),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
-			Name:        UnitsThatIncludeFlagName,
-			EnvVars:     tgPrefix.EnvVars(UnitsThatIncludeFlagName),
-			Destination: &opts.ModulesThatInclude,
-			Usage:       "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
+			Name:    UnitsThatIncludeFlagName,
+			EnvVars: tgPrefix.EnvVars(UnitsThatIncludeFlagName),
+			Usage:   "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
+			Hidden:  true,
+			Action: func(ctx *cli.Context, value []string) error {
+				if len(value) != 0 {
+					if err := opts.StrictControls.FilterByNames(controls.UnitsThatInclude).Evaluate(ctx.Context); err != nil {
+						return err
+					}
+
+					for _, v := range value {
+						opts.FilterQueries = append(opts.FilterQueries, "reading="+v)
+					}
+
+					return nil
+				}
+
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("modules-that-include"), terragruntPrefixControl)),
 
@@ -271,6 +287,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(DisableCommandValidationFlagName),
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
+			Hidden:      true,
 			Action: func(ctx *cli.Context, value bool) error {
 				if value {
 					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx.Context)
@@ -401,6 +418,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoEngineFlagName),
 			Destination: &opts.NoEngine,
 			Usage:       "Disable IaC engines even when the iac-engine experiment is enabled.",
+			Hidden:      true,
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{

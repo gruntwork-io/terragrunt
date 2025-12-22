@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -268,7 +269,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// Check that all entries are ready initially and in order A, B, C
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
 	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path())
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "First ready entry should be A")
@@ -279,7 +280,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	assert.False(t, q.Finished(), "Finished should be false after A is done")
 
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "After A is done, only B should be ready")
 	assert.Equal(t, "B", readyEntries[0].Component.Path(), "Second ready entry should be B")
 
@@ -289,7 +290,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	assert.False(t, q.Finished(), "Finished should be false after B is done")
 
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "After B is done, only C should be ready")
 	assert.Equal(t, "C", readyEntries[0].Component.Path(), "Third ready entry should be C")
 
@@ -300,7 +301,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	// Now all should be terminal
 	assert.True(t, q.Finished(), "Finished should be true after all succeeded")
 
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
 }
 
@@ -321,7 +322,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	// 1. Initially, only A should be ready
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
 	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path())
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "First ready entry should be A")
@@ -331,7 +332,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	entryA.Status = queue.StatusSucceeded
 
 	// 2. After A is done, both B and C should be ready (order doesn't matter)
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 2, "After A is done, B and C should be ready")
 	paths := []string{readyEntries[0].Component.Path(), readyEntries[1].Component.Path()}
 	assert.Contains(t, paths, "B")
@@ -357,7 +358,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	entryB.Status = queue.StatusSucceeded
 
 	// After B is done, C should still be ready (if not already marked)
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(logger.CreateLogger())
 	if entryC.Status != queue.StatusSucceeded {
 		assert.Len(t, readyEntries, 1, "After B is done, C should still be ready")
 		assert.Equal(t, "C", readyEntries[0].Component.Path())
@@ -366,7 +367,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	}
 
 	// After C is done, nothing should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Empty(t, readyEntries, "After B and C are done, no entries should be ready")
 }
 
@@ -423,7 +424,7 @@ func TestQueue_FailFast(t *testing.T) {
 	assert.True(t, q.Finished(), "Finished should be true after fail-fast triggers")
 
 	// No entries should be ready after fail-fast
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
 }
 
@@ -456,13 +457,15 @@ func buildMultiLevelDependencyTree() component.Components {
 func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	t.Parallel()
 
+	l := logger.CreateLogger()
+
 	configs := buildMultiLevelDependencyTree()
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
 	// 1. Initially, only A should be ready
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
 	assert.Equal(t, "A", readyEntries[0].Component.Path())
 
@@ -471,7 +474,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	entryA.Status = queue.StatusSucceeded
 
 	// 2. After A, B and C should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 2, "After A, B and C should be ready")
 	paths := []string{readyEntries[0].Component.Path(), readyEntries[1].Component.Path()}
 	assert.Contains(t, paths, "B")
@@ -493,7 +496,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	entryB.Status = queue.StatusSucceeded
 
 	// 3. After B is done, C should still be ready (if not already marked), and D and E should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 
 	readyPaths := map[string]bool{}
 	for _, entry := range readyEntries {
@@ -525,12 +528,14 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	entryE.Status = queue.StatusSucceeded
 
 	// 4. After all are done, nothing should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Empty(t, readyEntries, "After all are done, no entries should be ready")
 }
 
 func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	t.Parallel()
+
+	l := logger.CreateLogger()
 
 	configs := buildMultiLevelDependencyTree()
 
@@ -540,7 +545,7 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	q.FailFast = true
 
 	// 1. Initially, only A should be ready
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
 	assert.Equal(t, "A", readyEntries[0].Component.Path())
 
@@ -549,7 +554,7 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	entryA.Status = queue.StatusSucceeded
 
 	// 2. After A, B and C should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 
 	var entryB, entryC *queue.Entry
 
@@ -576,12 +581,14 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("E").Status)
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
 
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Empty(t, readyEntries, "All entries should be terminal")
 }
 
 func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	t.Parallel()
+
+	l := logger.CreateLogger()
 
 	configs := buildMultiLevelDependencyTree()
 
@@ -593,7 +600,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// 1. Initially, only A should be ready
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
 	assert.Equal(t, "A", readyEntries[0].Component.Path())
 
@@ -604,7 +611,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.False(t, q.Finished(), "Finished should be false after A is done")
 
 	// 2. After A, B and C should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 
 	var entryB, entryC *queue.Entry
 
@@ -633,7 +640,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("E").Status)
 
 	// C should still be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Only C should be ready after B fails")
 	assert.Equal(t, "C", readyEntries[0].Component.Path())
 
@@ -644,12 +651,15 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.True(t, q.Finished(), "Finished should be true after all entries are terminal")
 
 	// After C is done, nothing should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
 }
 
 func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	t.Parallel()
+
+	l := logger.CreateLogger()
+
 	// A -> B -> C, where A fails and fail-fast is enabled
 	cfgA := component.NewUnit("A")
 	cfgB := component.NewUnit("B")
@@ -667,7 +677,7 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// Only A should be ready
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
 	assert.Equal(t, "A", readyEntries[0].Component.Path())
 
@@ -690,12 +700,14 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	assert.True(t, q.Finished(), "Finished should be true after fail-fast triggers")
 
 	// No entries should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
 }
 
 func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 	t.Parallel()
+
+	l := logger.CreateLogger()
 
 	configs := buildMultiLevelDependencyTree()
 
@@ -704,7 +716,7 @@ func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 
 	q.IgnoreDependencyOrder = true
 
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 5, "Should be ready all entries")
 }
 
@@ -856,7 +868,7 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 	var processed []string
 
 	for {
-		ready := q.GetReadyWithDependencies()
+		ready := q.GetReadyWithDependencies(logger.CreateLogger())
 		if len(ready) == 0 {
 			break
 		}
@@ -877,6 +889,8 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 // When a dependent fails, we should still wait for it to be in a terminal state before destroying the dependency.
 func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	t.Parallel()
+
+	l := logger.CreateLogger()
 
 	// Build a graph: A -> B -> C
 	// For destroy, the order should be: C (destroyed first), then B, then A
@@ -901,7 +915,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	q.IgnoreDependencyErrors = true
 
 	// Step 1: Only C should be ready (it has no dependents)
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only C should be ready for destruction")
 	assert.Equal(t, "C", readyEntries[0].Component.Path(), "C should be the first entry ready for destruction")
 
@@ -910,7 +924,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	entryC.Status = queue.StatusSucceeded
 
 	// Step 2: After C is destroyed, B should be ready (but NOT A yet, as A is a dependency of B)
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "After C is destroyed, only B should be ready")
 	assert.Equal(t, "B", readyEntries[0].Component.Path(), "B should be ready after C is destroyed")
 
@@ -919,7 +933,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	entryB.Status = queue.StatusSucceeded
 
 	// Step 3: After B is destroyed, A should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "After B is destroyed, only A should be ready")
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "A should be ready last")
 
@@ -928,7 +942,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	entryA.Status = queue.StatusSucceeded
 
 	// Step 4: All entries should be finished
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Empty(t, readyEntries, "After all are destroyed, no entries should be ready")
 	assert.True(t, q.Finished(), "Queue should be finished")
 }
@@ -937,6 +951,8 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 // and a dependent fails, we can still destroy the dependency once the dependent is in a terminal state.
 func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *testing.T) {
 	t.Parallel()
+
+	l := logger.CreateLogger()
 
 	// Build a graph: A -> B -> C
 	cfgA := component.NewUnit("A")
@@ -959,7 +975,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	q.IgnoreDependencyErrors = true
 
 	// Step 1: Only C should be ready
-	readyEntries := q.GetReadyWithDependencies()
+	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only C should be ready")
 	assert.Equal(t, "C", readyEntries[0].Component.Path())
 
@@ -974,7 +990,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	assert.Equal(t, queue.StatusReady, q.EntryByPath("B").Status, "B should still be ready (not early exit)")
 
 	// Step 2: B should now be ready even though C failed
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "After C fails, B should still be ready due to IgnoreDependencyErrors")
 	assert.Equal(t, "B", readyEntries[0].Component.Path())
 
@@ -983,7 +999,7 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	entryB.Status = queue.StatusSucceeded
 
 	// Step 3: After B succeeds, A should be ready
-	readyEntries = q.GetReadyWithDependencies()
+	readyEntries = q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "After B succeeds, A should be ready")
 	assert.Equal(t, "A", readyEntries[0].Component.Path())
 

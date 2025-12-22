@@ -117,11 +117,10 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.BoolFlag{
-				Name:        QueueExcludeExternalFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueExcludeExternalFlagName),
-				Destination: &opts.IgnoreExternalDependencies,
-				Usage:       "Ignore external dependencies for --all commands.",
-				Hidden:      true,
+				Name:    QueueExcludeExternalFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueExcludeExternalFlagName),
+				Usage:   "Ignore external dependencies for --all commands.",
+				Hidden:  true,
 				Action: func(ctx *cli.Context, value bool) error {
 					if value {
 						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx.Context)
@@ -134,10 +133,18 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.BoolFlag{
-				Name:        QueueIncludeExternalFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueIncludeExternalFlagName),
-				Destination: &opts.IncludeExternalDependencies,
-				Usage:       "Include external dependencies for --all commands without asking.",
+				Name:    QueueIncludeExternalFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueIncludeExternalFlagName),
+				Usage:   "Include external dependencies for --all commands.",
+				Hidden:  true,
+				Action: func(ctx *cli.Context, value bool) error {
+					if !value {
+						return nil
+					}
+
+					opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), terragruntPrefixControl),
 		),
@@ -147,6 +154,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				Name:        QueueExcludesFileFlagName,
 				EnvVars:     tgPrefix.EnvVars(QueueExcludesFileFlagName),
 				Destination: &opts.ExcludesFile,
+				Hidden:      true,
 				Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("excludes-file"), terragruntPrefixControl),
@@ -154,40 +162,83 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 
 		flags.NewFlag(
 			&cli.SliceFlag[string]{
-				Name:        QueueExcludeDirFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueExcludeDirFlagName),
-				Destination: &opts.ExcludeDirs,
-				Usage:       "Unix-style glob of directories to exclude from the queue of Units to run.",
+				Name:    QueueExcludeDirFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueExcludeDirFlagName),
+				Hidden:  true,
+				Usage:   "Unix-style glob of directories to exclude from the queue of Units to run.",
+				Action: func(_ *cli.Context, value []string) error {
+					if len(value) == 0 {
+						return nil
+					}
+
+					for _, v := range value {
+						// We explicitly wrap the value in curly braces to ensure that it is treated
+						// as a path expression, and not a name filter.
+						opts.FilterQueries = append(opts.FilterQueries, "!{"+v+"}")
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("exclude-dir"), terragruntPrefixControl),
 		),
 
 		flags.NewFlag(
 			&cli.SliceFlag[string]{
-				Name:        QueueIncludeDirFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueIncludeDirFlagName),
-				Destination: &opts.IncludeDirs,
-				Usage:       "Unix-style glob of directories to include from the queue of Units to run.",
+				Name:    QueueIncludeDirFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueIncludeDirFlagName),
+				Hidden:  true,
+				Usage:   "Unix-style glob of directories to include from the queue of Units to run.",
+				Action: func(_ *cli.Context, value []string) error {
+					if len(value) == 0 {
+						return nil
+					}
+
+					for _, v := range value {
+						// We explicitly wrap the value in curly braces to ensure that it is treated
+						// as a path expression, and not a name filter.
+						opts.FilterQueries = append(opts.FilterQueries, "{"+v+"}")
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-dir"), terragruntPrefixControl),
 		),
 
 		flags.NewFlag(
 			&cli.BoolFlag{
-				Name:        QueueStrictIncludeFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueStrictIncludeFlagName),
-				Destination: &opts.StrictInclude,
-				Usage:       "If flag is set, only modules under the directories passed in with '--queue-include-dir' will be included.",
+				Name:    QueueStrictIncludeFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueStrictIncludeFlagName),
+				Usage:   "If flag is set, only modules under the directories passed in with '--queue-include-dir' will be included.",
+				Hidden:  true,
+				Action: func(ctx *cli.Context, value bool) error {
+					if value {
+						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx.Context)
+					}
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-include"), terragruntPrefixControl),
 		),
 
 		flags.NewFlag(
 			&cli.SliceFlag[string]{
-				Name:        QueueIncludeUnitsReadingFlagName,
-				EnvVars:     tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
-				Destination: &opts.UnitsReading,
-				Usage:       "If flag is set, 'run --all' will only run the command against units that read the specified file via a Terragrunt HCL function or include.",
+				Name:    QueueIncludeUnitsReadingFlagName,
+				EnvVars: tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
+				Usage:   "If flag is set, 'run --all' will only run the command against units that read the specified file via a Terragrunt HCL function or include.",
+				Hidden:  true,
+				Action: func(ctx *cli.Context, value []string) error {
+					if len(value) == 0 {
+						return nil
+					}
+
+					for _, v := range value {
+						opts.FilterQueries = append(opts.FilterQueries, "reading="+v)
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), terragruntPrefixControl),
 		),
@@ -204,29 +255,17 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        FilterFlagName,
 				EnvVars:     tgPrefix.EnvVars(FilterFlagName),
 				Destination: &opts.FilterQueries,
-				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics. Requires the 'filter' experiment.",
-				Action: func(_ *cli.Context, val []string) error {
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filter flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics.",
 			},
 		),
 		flags.NewFlag(
 			&cli.BoolFlag{
 				Name:    FilterAffectedFlagName,
 				EnvVars: tgPrefix.EnvVars(FilterAffectedFlagName),
-				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD]. Requires the 'filter-flag' experiment.",
+				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD].",
 				Action: func(ctx *cli.Context, val bool) error {
 					if !val {
 						return nil
-					}
-
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filter-affected flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
 					}
 
 					// Get working directory
@@ -264,14 +303,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        FilterAllowDestroyFlagName,
 				EnvVars:     tgPrefix.EnvVars(FilterAllowDestroyFlagName),
 				Destination: &opts.FilterAllowDestroy,
-				Usage:       "Allow destroy runs when using Git-based filters. Requires the 'filter-flag' experiment.",
-				Action: func(_ *cli.Context, val bool) error {
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filter-allow-destroy flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Allow destroy runs when using Git-based filters.",
 			},
 		),
 		flags.NewFlag(
@@ -279,14 +311,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        FilterFileFlagName,
 				EnvVars:     tgPrefix.EnvVars(FilterFileFlagName),
 				Destination: &opts.FiltersFile,
-				Usage:       "Path to a file containing filter queries, one per line. Default is .terragrunt-filters. Requires the 'filter-flag' experiment.",
-				Action: func(_ *cli.Context, val string) error {
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --filters-file flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Path to a file containing filter queries, one per line. Default is .terragrunt-filters.",
 			},
 		),
 		flags.NewFlag(
@@ -294,18 +319,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:        NoFilterFileFlagName,
 				EnvVars:     tgPrefix.EnvVars(NoFilterFileFlagName),
 				Destination: &opts.NoFiltersFile,
-				Usage:       "Disable automatic reading of .terragrunt-filters file. Requires the 'filter-flag' experiment.",
-				Action: func(_ *cli.Context, val bool) error {
-					if !val {
-						return nil
-					}
-
-					// Check if the filter-flag experiment is enabled
-					if !opts.Experiments.Evaluate("filter-flag") {
-						return cli.NewExitError("the --no-filters-file flag requires the 'filter-flag' experiment to be enabled. Use --experiment=filter-flag or --experiment-mode to enable it", cli.ExitCodeGeneralError)
-					}
-					return nil
-				},
+				Usage:       "Disable automatic reading of .terragrunt-filters file.",
 			},
 		),
 	}

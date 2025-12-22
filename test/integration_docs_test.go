@@ -300,10 +300,6 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 func TestFilterDocumentationExamples(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
 	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
 	require.NoError(t, err)
@@ -380,16 +376,14 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "attribute-based-external-false",
 			fixtureDir:     "attribute-based",
-			filterQuery:    "external=false",
+			filterQuery:    "{./*}... | external=false",
 			expectedOutput: "stack1\nunit1\n",
-			extraFlags:     "--dependencies --external",
 		},
 		{
 			name:           "attribute-based-external-true",
 			fixtureDir:     "attribute-based",
-			filterQuery:    "*... | external=true",
+			filterQuery:    "{./*}... | external=true",
 			expectedOutput: "../dependencies/dependency-of-app1\n",
-			extraFlags:     "--dependencies --external",
 		},
 		{
 			name:           "attribute-based-name-glob",
@@ -559,16 +553,15 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		},
 	}
 
-	// Run all test cases
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fixturePath := filepath.Join(tmpDir, tc.fixtureDir)
+			fixturePath := filepath.Join(tmpDir, tt.fixtureDir)
 			workingDir := filepath.Join(fixturePath, "root")
 
 			// Run the find command with the filter
-			command := fmt.Sprintf("terragrunt find --filter '%s' %s --working-dir %s", tc.filterQuery, tc.extraFlags, workingDir)
+			command := fmt.Sprintf("terragrunt find --filter '%s' %s --working-dir %s", tt.filterQuery, tt.extraFlags, workingDir)
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 
 			if err != nil {
@@ -578,18 +571,13 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			}
 
 			require.NoError(t, err, "Command should succeed")
-			assert.Equal(t, tc.expectedOutput, stdout, "Output should match expected result")
+			assert.Equal(t, tt.expectedOutput, stdout, "Output should match expected result")
 		})
 	}
 }
 
 func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 	t.Parallel()
-
-	// Skip if experiment mode is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	// Create temporary directory for dynamic fixtures
 	tmpDirRaw := helpers.TmpDirWOSymlinks(t)

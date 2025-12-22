@@ -18,11 +18,8 @@ func TestDagGraphFlagsRegistration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "--queue-exclude-dir", "queue-exclude-dir flag should be present")
-	assert.Contains(t, stdout, "--queue-excludes-file", "queue-excludes-file flag should be present")
 	assert.Contains(t, stdout, "--queue-ignore-dag-order", "queue-ignore-dag-order flag should be present")
 	assert.Contains(t, stdout, "--queue-ignore-errors", "queue-ignore-errors flag should be present")
-	assert.Contains(t, stdout, "--queue-include-dir", "queue-include-dir flag should be present")
 }
 
 func TestIncludeExternalInDagGraphCmd(t *testing.T) {

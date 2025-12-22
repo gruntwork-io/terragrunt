@@ -793,7 +793,13 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 		filepath.Join("second", "c", "terragrunt.hcl"),
 	}
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json --show-config-path", rootPath))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt hcl validate --working-dir %s --json --show-config-path",
+			rootPath,
+		),
+	)
 	require.Error(t, err)
 
 	var actualPaths []string
@@ -1027,8 +1033,14 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	disjointEnvironmentPath := filepath.Join(tmpEnvPath, testFixtureDisjoint)
 
 	helpers.CleanupTerraformFolder(t, disjointEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt run --all  --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- plan -out=plan.tfplan")
-	helpers.RunTerragrunt(t, "terragrunt run --all --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- apply plan.tfplan")
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all  --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- plan -out=plan.tfplan",
+	)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- apply plan.tfplan",
+	)
 }
 
 func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
@@ -1041,27 +1053,46 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	require.NoError(t, err)
 
 	disjointSymlinksEnvironmentPath := filepath.Join(tmpEnvPath, textFixtureDisjointSymlinks)
-	require.NoError(t, os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"), filepath.Join(disjointSymlinksEnvironmentPath, "b")))
-	require.NoError(t, os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"), filepath.Join(disjointSymlinksEnvironmentPath, "c")))
+	require.NoError(
+		t,
+		os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"),
+			filepath.Join(disjointSymlinksEnvironmentPath, "b"),
+		),
+	)
+	require.NoError(
+		t,
+		os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"),
+			filepath.Join(disjointSymlinksEnvironmentPath, "c"),
+		),
+	)
 
 	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
 
 	// perform the first initialization
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 
 	// perform the second initialization and make sure that the cache is not downloaded again
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
+	)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
 	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
 	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 
 	// validate the modules
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Unit a")
 	assert.Contains(t, stderr, "Unit b")
@@ -1071,7 +1102,10 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	require.NoError(t, os.Chtimes(filepath.Join(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
 
 	// perform the initialization and make sure that the cache is downloaded again
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")

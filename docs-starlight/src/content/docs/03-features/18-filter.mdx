@@ -9,20 +9,6 @@ sidebar:
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 
-<Aside type="tip" title="Experimental Feature">
-This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
-
-Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
-
-```bash
-terragrunt find --experiment filter-flag --filter 'foo'
-```
-
-Examples below will omit the `--experiment filter-flag` flag for brevity.
-
-The `--filter` flag is available in the `find`, `list`, `run`, `hcl fmt`, and `hcl validate` commands.
-</Aside>
-
 The `--filter` flag provides a sophisticated querying syntax for targeting specific [units](/docs/features/units) and [stacks](/docs/features/stacks) in Terragrunt commands. This unified approach offers powerful filtering capabilities using a flexible query language.
 
 ## Filter Syntax Overview
@@ -75,14 +61,14 @@ There are several different types of filter expressions, and particular ways in 
 
 | Filter Type | Description |
 |-------------|-------------|
-| Name-Based | Match units and stacks by their name. |
-| Path-Based | Match units and stacks by their file system path. |
-| Attribute-Based | Match units and stacks by their configuration attributes. |
-| Negation | Exclude units and stacks using the `!` prefix. |
-| Intersection | Use the `|` operator to refine results. |
+| Name | Match units and stacks by their name. |
+| Path | Match units and stacks by their file system path. |
+| Attribute | Match units and stacks by their configuration attributes. |
+| Negated | Exclude units and stacks using the `!` prefix. |
+| Intersection | Use the `\|` operator to refine results. |
 | Union | Combine filter results using multiple `--filter` flags. |
-| Graph-Based | Filter units based on their dependency relationships using graph traversal operators. |
-| Git-Based | Filter units and stacks based on Git diffs using Git expressions. |
+| Graph | Filter units based on their dependency relationships using graph traversal operators. |
+| Git | Filter units and stacks based on Git diffs using Git expressions. |
 
 ### Name-Based Expressions
 
@@ -107,7 +93,7 @@ terragrunt find --filter 'app*'
 </FileTree>
 
 <Aside type="note">
-Note that `app1` and `app2` were selected _within_ the `apps` directory. Filtering on names will match _any_ unit/stack that has a name that matches the filter.
+Note that `app1` and `app2` were selected _within_ the `apps` directory. Filtering on names will match _any_ unit/stack that has a directory basename name matching a filter.
 </Aside>
 
 ### Path-Based Expressions
@@ -122,7 +108,7 @@ terragrunt find --filter './envs/stage/**'
 # Absolute paths
 terragrunt find --filter '/absolute/path/to/envs/dev/apps/*'
 
-# Wrapped paths (useful for explicitly indicating that an expression is for a path if ambiguous)
+# Wrapped paths (useful for explicitly indicating that this is a path expression)
 terragrunt find --filter '{./envs/prod/apps/app2}'
 ```
 
@@ -154,6 +140,12 @@ Note that globs used in path-based expressions will not recursively match nested
 (That's why `./envs/stage/**` is used above)
 </Aside>
 
+<Aside type="note">
+
+Glob patterns must use Unix forward slashes `/` to separate directories, even on Windows machines.
+
+</Aside>
+
 ### Attribute-Based Expressions
 
 Match units and stacks by their configuration attributes.
@@ -164,10 +156,10 @@ terragrunt find --filter 'type=unit'
 terragrunt find --filter 'type=stack'
 
 # Filter by external dependency status
-terragrunt find --dependencies --external --filter '*... | external=false'
-terragrunt find --dependencies --external --filter '*... | external=true'
+terragrunt find --filter '{./**}... | external=false'
+terragrunt find --filter '{./**}... | external=true'
 
-# Explicitly filter by name (useful for explicitly indicating that an expression is for a name if ambiguous)
+# Explicitly filter by name (useful for explicitly indicating that this is a name expression)
 terragrunt find --filter 'name=stack*'
 ```
 
@@ -187,11 +179,69 @@ The following are the attributes supported for attribute-based expressions:
 
 | Attribute | Description |
 |-----------|-------------|
-| name | Match units and stacks by their name. |
+| name | Match units and stacks by their directory basename. |
 | type | Match units and stacks by their type. |
-| external | Match units and stacks by their external dependency status. |
+| external | Match units and stacks if they are external to the current working directory. |
 | reading | Match units and stacks by the files they read. |
 | source | Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files. |
+
+### Reading-Based Expressions
+
+Match units and stacks by the files they read.
+
+Consider the following file tree:
+
+<FileTree>
+
+- reading-shared-hcl
+  - terragrunt.hcl
+- also-reading-shared-hcl
+  - terragrunt.hcl
+- not-reading-shared-hcl
+  - terragrunt.hcl
+- shared.hcl
+
+</FileTree>
+
+Suppose that `reading-shared-hcl` and `also-reading-shared-hcl` both read `shared.hcl` in their configurations, like so:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+ shared = read_terragrunt_config(find_in_parent_folders("shared.hcl"))
+}
+```
+
+If you run the command `terragrunt run --all --filter 'reading=shared.hcl' -- plan` from the root folder, both
+`reading-shared-hcl` and `also-reading-shared-hcl` will be run; not `not-reading-shared-hcl`.
+
+This is because the `read_terragrunt_config` HCL function has a special hook that allows Terragrunt to track that it has
+read the file `shared.hcl`. This hook is used by all native HCL functions that Terragrunt supports which read files.
+
+Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
+
+For example, you may be using a bash script to read a file via [`run_cmd`](/docs/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu/Terraform code. To support these
+use-cases, the [`mark_as_read`](/docs/reference/hcl/functions/#mark_as_read) function can be used to explicitly mark a file as read in the unit.
+
+That would look something like this:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  filename = mark_as_read("file-read-by-tofu.txt")
+}
+
+inputs = {
+  filename = local.filename
+}
+```
+<Aside type="caution">
+Due to how Terragrunt parses configurations during `run --all`, functions will only properly mark files as read if they are used outside the `inputs` attribute.
+
+Reading a file directly in the `inputs` attribute will not mark the file as read, as the `inputs` attribute is not parsed until after the queue has already been populated to support rendering of dependency outputs, which are only available after dependencies have been run.
+</Aside>
 
 ### Source-Based Expressions
 
@@ -227,12 +277,14 @@ terragrunt find --filter 'source=gitlab.com/**'
 </FileTree>
 
 <Aside type="note">
-The `source=` filter matches against the Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files in units. It supports glob patterns, allowing you to match multiple sources with patterns like `*github.com**` or `gitlab.com/**`. This is useful for filtering units that use specific module sources, such as all units using a particular GitHub organization's modules or all local modules. This attribute may be supported on stacks in the future.
+The `source=` filter matches against the Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files in units. It supports glob patterns, allowing you to match multiple sources with patterns like `*github.com**` or `gitlab.com/**`. This is useful for filtering units that use specific module sources, such as all units using a particular GitHub organization's modules or all local modules.
+
+This attribute may be supported on stacks in the future.
 </Aside>
 
-### Negation
+### Negated Expressions
 
-Exclude units and stacks using the `!` prefix.
+Negate filter expressions using the `!` prefix. Negated expressions are always evaluated after all positive expressions have been evaluated.
 
 ```bash
 # Exclude by name
@@ -268,9 +320,9 @@ terragrunt find --filter '!type=stack'
 
 </FileTree>
 
-### Intersection (Refinement)
+### Intersection Expressions
 
-Use the `|` operator to refine results. The right side of the operator is applied to the results from the left side.
+Use the `|` operator to refine results from left to right. Results must match all filters in the chain to be included.
 
 ```bash
 # Find all components in ./prod/** that are also units
@@ -308,15 +360,15 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
       - terragrunt.stack.hcl
 </FileTree>
 
-### Union (Multiple Filters)
+### Union Expressions
 
-Specify multiple `--filter` flags to combine results using OR logic.
+Specify multiple `--filter` flags to merge results from multiple filters.
 
 ```bash
-# Find components named 'unit1' OR 'stack1'
+# Find components named 'unit1' and 'stack1'
 terragrunt find --filter unit1 --filter stack1
 
-# Find components in ./envs/prod/* OR ./envs/stage/*
+# Find components in ./envs/prod/* and ./envs/stage/*
 terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
 
 # Find components named 'stack2' _except_ those in ./envs/prod/* and ./envs/stage/*
@@ -359,14 +411,19 @@ terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/sta
 When a filter query starts with a negation (`!`), the result is applied after _all_ positive filters have been applied.
 
 This means that if you have a filter query like this:
+
 ```bash
 terragrunt find --filter '!type=unit' --filter 'name=unit1'
 ```
 
 The result will be the components that are not units _and_ are named `unit1`.
 
-As a result, you should be able to expect any negative filter to take effect, regardless of how other positive filters may result in the addition of results.
+This means that you should be able to expect negative filters to take effect regardless of how other positive filters may result in the addition of results.
 
+</Aside>
+
+<Aside type="tip" title="Using Negated Expressions">
+If you have infrastructure that you _never_ want to run, you can consider leveraging the [`--filters-file`](#filters-file) to automatically negate them.
 </Aside>
 
 ### Graph-Based Expressions
@@ -377,7 +434,7 @@ Graph-based expressions use the ellipsis (`...`) operator to indicate graph trav
 
 #### Include Dependencies
 
-Use `foo...` to include the target and all of its dependencies:
+Use `...` _after_ a target expression to include the target and all of its dependencies:
 
 ```bash
 # Find 'service' and everything it depends on
@@ -398,7 +455,7 @@ terragrunt find --filter 'service...'
 
 #### Include Dependents
 
-Use `...foo` to include the target and all components that depend on it:
+Use `...` _before_ a target expression to include the target and all components that depend on it:
 
 ```bash
 # Find 'vpc' and everything that depends on it
@@ -419,7 +476,7 @@ terragrunt find --filter '...vpc'
 
 #### Include Both Directions
 
-Use `...foo...` to include the target, all its dependencies, and all its dependents:
+Use `...` _before and after_ a target expression to include a target, all its dependencies, and all its dependents:
 
 ```bash
 # Find 'db' and its complete dependency graph
@@ -438,7 +495,7 @@ terragrunt find --filter '...db...'
 
 #### Exclude Target
 
-Use `^` to exclude the target component from results. This is useful when you want only the dependencies or dependents, but not the component itself:
+Use `^` before a target expression to exclude the target from results. This is useful when you want only the dependencies or dependents, but not the target itself:
 
 ```bash
 # Find all dependents of 'vpc' but exclude 'vpc' itself
@@ -457,64 +514,19 @@ terragrunt find --filter '...^vpc'
     - terragrunt.hcl
 </FileTree>
 
-#### Combining with Other Filter Types
-
-Graph expressions work with path filters, attribute filters, and other filter types:
-
-```bash
-# Graph traversal with path filter
-terragrunt find --filter '{./service}...'
-
-# Graph traversal with attribute filter
-terragrunt find --filter '...type=unit'
-
-# Graph traversal with name filter using glob
-terragrunt find --filter '...app*...'
-```
-
-#### Combining with Intersection
-
-Use the `|` operator to refine graph traversal results:
-
-```bash
-# Find all dependencies of 'service', but filter out all the database's dependencies.
-terragrunt find --filter 'service... | !^db...'
-
-# Find all dependents of 'vpc' in the prod environment
-terragrunt find --filter './prod/** | ...vpc'
-```
-
 <Aside type="tip">
-Graph expressions require dependency/dependent discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components to enable graph traversal. This may add some overhead compared to simple name or path filters.
+Graph expressions require dependency/dependent information to work correctly.
+
+When using graph expressions, Terragrunt automatically discovers dependency relationships between components to enable graph traversal. This may add some overhead compared to simple name or path filters, as Terragrunt will need to recursively parse and evaluate HCL files to determine whether there are more dependencies or dependents to include.
+
+Note that this overhead is especially noticeable in _dependent_ graph expressions, as Terragrunt will need to recursively parse _all_ units that could _possibly_ depend on the target. Use this expression judiciously.
 </Aside>
 
 ### Git-Based Expressions
 
 Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
 
-<Aside type="caution" title="Remote State Recommended">
-
-When using Git-based filter expressions (e.g. `[HEAD~1...HEAD]`), it is **strongly recommended** to use remote state configurations. Units discovered using Git-based filter expressions may not properly detect dependency outputs when using local state, which can lead to unexpected outcomes such as mock outputs being used instead of actual dependency outputs.
-
-</Aside>
-
-#### Shorthand: `--filter-affected`
-
-For the common use case of comparing the default branch (typically `main`) with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:
-
-```bash
-# Find components affected by changes between main and HEAD
-terragrunt find --filter-affected
-
-# Equivalent to:
-terragrunt find --filter '[main...HEAD]'
-```
-
-The `--filter-affected` flag automatically detects your repository's default branch and compares it with `HEAD`.
-
-#### Git Filter Expressions
-
-For more control, you can use Git-based filter expressions directly:
+Git-based expressions are written between `[` and `]` characters, and use the `...` operator to indicate the range of changes to compare.
 
 ```bash
 # Compare between two references
@@ -548,7 +560,13 @@ terragrunt find --filter '[feature-branch...main]'
     - terragrunt.hcl (unchanged)
 </FileTree>
 
-<Aside type="note">
+<Aside type="caution" title="Remote State Recommended">
+
+When using Git-based filter expressions (e.g. `[HEAD~1...HEAD]`), it is **strongly recommended** to use remote state configurations. Units discovered using Git-based filter expressions may not properly detect dependency outputs when using local state, which can lead to unexpected outcomes such as mock outputs being used instead of actual dependency outputs.
+
+</Aside>
+
+<Aside type="note" title="Interaction with the run command">
 When using Git-based expressions and the `run` command, you are required to use one of the `plan` or `apply` commands, and not the `-destroy` flag.
 
 This is because whether or not a unit will be destroyed is determined by logic relevant to inspecting changes in Git.
@@ -568,7 +586,18 @@ Will result in the following:
 - `removed-unit` will be planned for destruction (`tofu plan -destroy`)
 - `unchanged-unit` will be ignored
 
-Note that you will also receive a warning when doing this that you must provide the `--filter-allow-destroy` flag to allow destruction to occur on `apply`. This is a safeguard to prevent accidental destruction of infrastructure.
+</Aside>
+
+<Aside type="tip" title="Allowing destroys">
+
+When using Git-based filter expressions and the run command, Terragrunt won't destroy units that are removed between the two Git references unless you use the `--filter-allow-destroy` flag.
+
+```bash
+terragrunt run --filter '[main...HEAD]' --filter-allow-destroy destroy
+```
+
+This is a safeguard to prevent unintended destruction of infrastructure.
+
 </Aside>
 
 <Aside type="tip" title="How it works">
@@ -581,7 +610,7 @@ Then, for any unit that is discovered within those worktrees, Terragrunt will en
 
 In the example above, the `modified-unit` will be discovered in a "to" temporary directory (e.g. `/tmp/.../terragrunt-worktree-HEAD.../modified-unit`), whereas the `removed-unit` would be discovered in the "from" temporary directory (e.g. `/tmp/.../terragrunt-worktree-main.../removed-unit`).
 
-This is important to recognize, as it's how destroys will be possible despite the fact that the unit is no longer present in the current working directory. As a consequence, however, you may find that usage of absolute paths don't work how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
+This is important to recognize, as it's how destroys will be possible despite the fact that the unit is no longer present in the current working directory. As a consequence, however, you may find that paths don't behave how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
 
 </Aside>
 
@@ -615,6 +644,53 @@ Note that this is a workaround for testing purposes only. For production use, re
 
 </Aside>
 
+<Aside type="tip" title="--filter-affected">
+
+For the common use case of comparing the default branch (typically `main`) with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:
+
+```bash
+# Find components affected by changes between main and HEAD
+terragrunt find --filter-affected
+
+# Equivalent to:
+terragrunt find --filter '[main...HEAD]'
+```
+
+The `--filter-affected` flag automatically detects your repository's default branch and compares it with `HEAD`.
+
+</Aside>
+
+#### Filters File
+
+If you want to ensure that certain units are always included or excluded, you can use a filters file.
+
+Filters files are simple text files that contain filter expressions delimited by newlines. Empty lines and lines starting with `#` are ignored.
+
+```text
+# filters.txt
+
+./subtree/**
+!./subtree/dependency/**
+```
+
+```bash
+terragrunt run --all --filters-file filters.txt -- plan
+```
+
+Running Terragrunt like this is equivalent to running it with the following flags:
+
+```bash
+terragrunt run --all --filter './subtree/**' --filter '!./subtree/dependency/**' -- plan
+```
+
+<Aside type="tip">
+
+If you want to automatically configure certain filters to be applied by default, you can name the filters file `.terragrunt-filters`.
+
+Terragrunt will automatically read filters from this file if it exists in the current working directory.
+
+</Aside>
+
 ## Usage with Commands
 
 The following commands all support the `--filter` flag using the same filtering syntax (note the section below on [special interactions](#special-interactions)):
@@ -624,20 +700,29 @@ The following commands all support the `--filter` flag using the same filtering 
 - [run](/docs/reference/cli/commands/run)
 - [hcl fmt](/docs/reference/cli/commands/hcl/fmt)
 - [hcl validate](/docs/reference/cli/commands/hcl/validate)
+- [stack run](/docs/reference/cli/commands/stack/run)
+- [stack generate](/docs/reference/cli/commands/stack/generate)
 
 This flag is intended to be a flexible way to target specific infrastructure that allows you to dry-run infrastructure targeting using discovery commands (like `find` and `list`) before running a command that actually affects infrastructure (like `run`).
 
 ## Comparison with Queue Control Flags
 
-The `--filter` flag provides a unified alternative to multiple queue control flags. These flags will be aliased to their equivalent filter expressions once the `filter-flag` experiment is stabilized:
+The `--filter` flag provides a unified alternative to multiple queue control flags.
 
 | Legacy Flag | Filter Equivalent |
 |-------------|-------------------|
 | `--queue-include-dir=./path` | `--filter='./path'` |
 | `--queue-exclude-dir=./path` | `--filter='!./path'` |
-| `--queue-exclude-external` | `--filter='!external=true'` |
-| `--queue-include-external` | `--filter='external=true'` |
+| `--queue-include-external` | `--filter='{./**}...'` |
 | `--queue-include-units-reading=shared.hcl` | `--filter='reading=shared.hcl'` |
+
+<Aside type="tip" title="Queue flag aliases">
+
+If you are currently using those queue control flags, note that you are actually already using the equivalent filter expressions, as they are aliased internally.
+
+You will generally have a better experience using the filter flag instead, as it provides a more powerful and flexible way to target infrastructure.
+
+</Aside>
 
 ## Special Interactions
 

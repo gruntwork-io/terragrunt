@@ -481,65 +481,6 @@ locals {
 				assert.True(t, readingMap["shared.tfvars"], "should contain shared.tfvars")
 			},
 		},
-		{
-			name: "external flag implies dependencies",
-			setup: func(t *testing.T) string {
-				t.Helper()
-
-				tmpDir := t.TempDir()
-
-				internalDir := filepath.Join(tmpDir, "internal")
-				require.NoError(t, os.MkdirAll(internalDir, 0755))
-
-				unitADir := filepath.Join(internalDir, "unitA")
-				require.NoError(t, os.MkdirAll(unitADir, 0755))
-
-				externalDir := filepath.Join(tmpDir, "external")
-				require.NoError(t, os.MkdirAll(externalDir, 0755))
-
-				unitBDir := filepath.Join(externalDir, "unitB")
-				require.NoError(t, os.MkdirAll(unitBDir, 0755))
-
-				require.NoError(t, os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(""), 0644))
-
-				require.NoError(t, os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(`
-dependency "unitB" {
-  config_path = "../../external/unitB"
-}
-`), 0644))
-
-				return internalDir
-			},
-			expectedPaths: []string{"unitA", "../external/unitB"},
-			format:        "json",
-			mode:          "normal",
-			external:      true,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
-
-				var configs find.FoundComponents
-				err := json.Unmarshal([]byte(output), &configs)
-				require.NoError(t, err)
-
-				assert.Len(t, configs, 2, "should include both internal and external units")
-
-				var (
-					internalUnit *find.FoundComponent
-					externalUnit *find.FoundComponent
-				)
-
-				for _, cfg := range configs {
-					if cfg.Path == "unitA" {
-						internalUnit = cfg
-					} else if strings.Contains(cfg.Path, "external") {
-						externalUnit = cfg
-					}
-				}
-
-				require.NotNil(t, internalUnit, "should find internal unit")
-				require.NotNil(t, externalUnit, "should find external unit")
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -561,7 +502,6 @@ dependency "unitB" {
 			opts.Hidden = tt.hidden
 			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
-			opts.External = tt.external
 			opts.Reading = tt.reading
 
 			// Create a pipe to capture output
