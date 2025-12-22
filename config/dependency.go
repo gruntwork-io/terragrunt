@@ -285,7 +285,9 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 			return nil, err
 		}
 
-		depCtx := ctx.WithDecodedDependencies(nil).WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
+		// Suppress diagnostics during partial parsing to avoid false positive errors for unresolved dependency variables
+		suppressOpts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+		depCtx := ctx.WithDecodedDependencies(nil).WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts).WithParseOption(suppressOpts)
 
 		depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil)
 		if err != nil {
@@ -426,7 +428,10 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, l log.Logger, 
 	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
 	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
 	// dependencies block.
-	tgConfig, err := PartialParseConfigFile(ctx.WithDecodedDependencies(nil).WithDecodeList(DependencyBlock), l, configPath, nil)
+	// Suppress diagnostics during partial parsing to avoid false positive errors for unresolved dependency variables
+	suppressOpts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+
+	tgConfig, err := PartialParseConfigFile(ctx.WithDecodedDependencies(nil).WithDecodeList(DependencyBlock).WithParseOption(suppressOpts), l, configPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -743,9 +748,11 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	targetOptions.DownloadDir = downloadDir
 
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
+	// Suppress diagnostics during partial parsing to avoid false positive errors for unresolved dependency variables
+	suppressOpts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
 	partialTerragruntConfig, err := PartialParseConfigFile(
-		targetParsingContext.WithDecodedDependencies(nil).WithDecodeList(DependencyBlock),
+		targetParsingContext.WithDecodedDependencies(nil).WithDecodeList(DependencyBlock).WithParseOption(suppressOpts),
 		l,
 		targetConfig,
 		nil,
@@ -763,7 +770,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	if ctx.TerragruntOptions.Source != "" {
 		// We need the terraform source of the target config to compute the actual source to use
 		partialParseIncludedConfig, err := PartialParseConfigFile(
-			targetParsingContext.WithDecodedDependencies(nil).WithDecodeList(TerraformBlock),
+			targetParsingContext.WithDecodedDependencies(nil).WithDecodeList(TerraformBlock).WithParseOption(suppressOpts),
 			l,
 			targetConfig,
 			nil,
