@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -732,12 +733,11 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	// Preserve the ParserOptions from the parent context when creating the new context
 	// This ensures that error suppression handlers and other parser options are propagated
 	// to nested read_terragrunt_config calls
-	parserOptions := ctx.ParserOptions
+	// Additionally, suppress diagnostics during parsing to avoid false positive errors for unresolved
+	// dependency variables in the target config (the target config's dependencies haven't been resolved yet)
+	parserOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 
-	ctx = ctx.WithTerragruntOptions(opts)
-	if len(parserOptions) > 0 {
-		ctx = ctx.WithParseOption(parserOptions)
-	}
+	ctx = ctx.WithTerragruntOptions(opts).WithParseOption(parserOptions)
 
 	// check if file is stack file, decode as stack file
 	if filepath.Base(targetConfig) == DefaultStackFile {
