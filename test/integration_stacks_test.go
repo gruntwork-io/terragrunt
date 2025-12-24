@@ -1645,9 +1645,9 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackOriginalTerragruntDir)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackOriginalTerragruntDir)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackOriginalTerragruntDir)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackOriginalTerragruntDir)
 	helpers.CreateGitRepo(t, gitPath)
-	rootPath := util.JoinPath(gitPath, "live")
+	rootPath := filepath.Join(gitPath, "live")
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
 
