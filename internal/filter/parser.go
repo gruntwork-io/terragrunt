@@ -84,6 +84,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		p.nextToken() // consume ellipsis
 	} else if p.curToken.Type == ELLIPSIS {
 		includeDependents = true
+
 		p.nextToken()
 	}
 
@@ -141,6 +142,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 	if p.curToken.Type == ELLIPSIS {
 		includeDependencies = true
+
 		p.nextToken()
 
 		// Check for ...N (ellipsis followed by number = dependency depth)

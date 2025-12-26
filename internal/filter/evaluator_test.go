@@ -1235,8 +1235,10 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
 				return []component.Component{app1, app2}
 			},
 			expected: []component.Component{},
@@ -1248,10 +1250,13 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				return []component.Component{app1, app2, db}
 			},
 			expected: []component.Component{
@@ -1266,10 +1271,13 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				return []component.Component{app1, app2, db}
 			},
 			expected: []component.Component{
@@ -1284,12 +1292,16 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				api := component.NewUnit("./libs/api")
 				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				return []component.Component{app1, app2, db, api}
 			},
 			expected: []component.Component{
@@ -1305,10 +1317,13 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "develop"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "release"})
+
 				return []component.Component{app1, app2, db}
 			},
 			expected: []component.Component{},
@@ -1320,12 +1335,16 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				app2 := component.NewUnit("./apps/app2")
 				// No DiscoveryContext set
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				api := component.NewUnit("./libs/api")
 				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
 				return []component.Component{app1, app2, db, api}
 			},
 			expected: []component.Component{
