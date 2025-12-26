@@ -1,7 +1,9 @@
-package filter
+package filter_test
 
 import (
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,8 +89,8 @@ func TestParser_ComplexDepthExpressions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lexer := NewLexer(tt.input)
-			parser := NewParser(lexer)
+			lexer := filter.NewLexer(tt.input)
+			parser := filter.NewParser(lexer)
 			expr, err := parser.ParseExpression()
 
 			if tt.expectError {
