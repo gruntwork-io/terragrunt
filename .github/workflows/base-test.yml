@@ -34,13 +34,13 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
 
       - name: Go Mod Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
@@ -54,9 +54,12 @@ jobs:
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use shorter temp path on macOS to avoid path length issues with Git worktrees.
+          # Default /var/folders/.../T/ paths are too long for Git's path resolution.
+          TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
       - name: Upload Report (${{ matrix.os }})
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: test-report-${{ matrix.os }}
           path: result.xml

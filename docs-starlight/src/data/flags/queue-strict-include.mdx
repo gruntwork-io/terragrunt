@@ -6,34 +6,8 @@ env:
   - TG_QUEUE_STRICT_INCLUDE
 ---
 
-import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-When enabled, Terragrunt will only process directories that match the patterns specified by [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir).
-
-For example, with the following directory structure:
-
-<FileTree>
-
-- prod
-  - app
-    - terragrunt.hcl
-  - db
-    - terragrunt.hcl
-- staging
-  - app
-    - terragrunt.hcl
-  - db
-    - terragrunt.hcl
-
-</FileTree>
-
-Running `terragrunt run --all plan --queue-include-dir "prod/*"` would process all directories, but the [`--all`](/docs/reference/cli/commands/run#all) flag includes by default when no [excludes](/docs/reference/cli/commands/run#queue-exclude-dir) are provided, so the `stage` stack would also be included by default.
-
-Running `terragrunt run --all plan --queue-include-dir "prod/*" --queue-strict-include` tells Terragrunt to exclude by default, so it only include units `prod/app` and `prod/db`.
-
-<Aside type="danger">
-When using `--queue-strict-include`, all dependencies of included directories will be excluded if they are not explicitly included. This can lead to unexpected behavior if you're not careful with your include patterns.
-
-Always verify the modules that will be included before running destructive commands.
+<Aside type="caution" title="Deprecated">
+This flag is deprecated and will be removed in a future version of Terragrunt. Terragrunt performs strict inclusion by default, so this flag is no longer needed.
 </Aside>

@@ -1,0 +1,12 @@
+---
+name: no-engine
+description: Disable IaC engines even when the iac-engine experiment is enabled.
+type: bool
+env:
+  - TG_NO_ENGINE
+---
+
+When enabled, Terragrunt will disable IaC engines. This flag allows you to selectively opt-out of using engines even when the `iac-engine` experiment is enabled.
+
+This is useful when you want to maintain control over engine usage in specific environments or scenarios, or when you need to troubleshoot issues with engine functionality.
+

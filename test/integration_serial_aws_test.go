@@ -50,13 +50,13 @@ func TestTerragruntParallelism(t *testing.T) {
 func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -71,7 +71,7 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: usetesting
 	}()
 
-	credsConfig := util.JoinPath(rootPath, "creds.config")
+	credsConfig := filepath.Join(rootPath, "creds.config")
 
 	helpers.CopyAndFillMapPlaceholders(t, credsConfig, credsConfig, map[string]string{
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
@@ -84,7 +84,7 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -92,13 +92,13 @@ func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
-	dependencyCredsConfig := util.JoinPath(rootPath, "dependency", "creds.config")
+	dependencyCredsConfig := filepath.Join(rootPath, "dependency", "creds.config")
 	helpers.CopyAndFillMapPlaceholders(t, dependencyCredsConfig, dependencyCredsConfig, map[string]string{
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
 		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
 	})
 
-	dependentCredsConfig := util.JoinPath(rootPath, "dependent", "creds.config")
+	dependentCredsConfig := filepath.Join(rootPath, "dependent", "creds.config")
 	helpers.CopyAndFillMapPlaceholders(t, dependentCredsConfig, dependentCredsConfig, map[string]string{
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
 		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
@@ -161,7 +161,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// copy the template `numberOfModules` times into the app
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range numberOfModules {
 		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
 		if err != nil {
@@ -175,7 +175,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		}
 	}
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "root.hcl")
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := tmpEnvPath

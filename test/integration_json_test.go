@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,9 +26,9 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONMetadata)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes")
 
-	terragruntHCL := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
+	terragruntHCL := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
 
 	var expectedMetadata = map[string]any{
 		"found_in_file": terragruntHCL,
@@ -120,8 +119,8 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONInputs)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureRenderJSONInputs, "dependency")
-	appPath := util.JoinPath(tmpEnvPath, testFixtureRenderJSONInputs, "app")
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureRenderJSONInputs, "dependency")
+	appPath := filepath.Join(tmpEnvPath, testFixtureRenderJSONInputs, "app")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+dependencyPath)
 	helpers.RunTerragrunt(t, "terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir "+appPath)
@@ -135,7 +134,7 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
 	var includeMetadata = map[string]any{
-		"found_in_file": util.JoinPath(appPath, "terragrunt.hcl"),
+		"found_in_file": filepath.Join(appPath, "terragrunt.hcl"),
 	}
 
 	var (
@@ -151,10 +150,10 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONMockOutputs)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMockOutputs, "app")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONMockOutputs, "app")
 
 	var expectedMetadata = map[string]any{
-		"found_in_file": util.JoinPath(tmpDir, "terragrunt.hcl"),
+		"found_in_file": filepath.Join(tmpDir, "terragrunt.hcl"),
 	}
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
@@ -203,13 +202,13 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONMetadata)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "terragrunt.hcl")
-	localsHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "locals.hcl")
-	inputHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "inputs.hcl")
-	generateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "generate.hcl")
-	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "common", "common.hcl")
+	terragruntHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "terragrunt.hcl")
+	localsHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "locals.hcl")
+	inputHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "inputs.hcl")
+	generateHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "generate.hcl")
+	commonHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "common", "common.hcl")
 
 	var (
 		terragruntMetadata = map[string]any{"found_in_file": terragruntHcl}
@@ -277,9 +276,9 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONMetadata)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app", "terragrunt.hcl")
+	terragruntHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app", "terragrunt.hcl")
 
 	var terragruntMetadata = map[string]any{
 		"found_in_file": terragruntHcl,
@@ -349,10 +348,10 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONMetadata)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "app")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "app")
 
-	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "terraform.hcl")
-	remoteStateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "remote_state.hcl")
+	commonHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "terraform.hcl")
+	remoteStateHcl := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "remote_state.hcl")
 
 	var (
 		terragruntMetadata = map[string]any{"found_in_file": commonHcl}
@@ -403,7 +402,7 @@ func TestRenderJsonMetadataDependencyModulePrefix(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONMetadata)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
 
 	helpers.RunTerragrunt(t, "terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir "+tmpDir)
 }
@@ -413,7 +412,7 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyWarning)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s --out %s", tmpDir, jsonOut))
@@ -427,8 +426,8 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 
 	dependentModules := renderedJSON[config.MetadataDependentModules]["value"].([]any)
 	// check if value list contains app-v1 and app-v2
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
+	assert.Contains(t, dependentModules, filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
+	assert.Contains(t, dependentModules, filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
 }
 
 func TestTerragruntRenderJsonHelp(t *testing.T) {
@@ -436,7 +435,7 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -457,7 +456,7 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyWarning)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --log-level trace --working-dir %s --out %s", tmpDir, jsonOut))
@@ -470,8 +469,8 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 
 	var dependentModules = renderedJSON[config.MetadataDependentModules].([]any)
 	// check if value list contains app-v1 and app-v2
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
+	assert.Contains(t, dependentModules, filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
+	assert.Contains(t, dependentModules, filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
 }
 
 func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
@@ -479,7 +478,7 @@ func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyWarning)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
+	tmpDir := filepath.Join(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --disable-dependent-modules --non-interactive --log-level trace --working-dir %s --out %s", tmpDir, jsonOut))

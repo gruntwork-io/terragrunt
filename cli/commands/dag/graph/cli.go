@@ -20,7 +20,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	sharedFlags := shared.NewQueueFlags(opts, nil)
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
-	sharedFlags = append(sharedFlags, shared.NewFilterFlag(opts))
+	sharedFlags = append(sharedFlags, shared.NewFilterFlags(l, opts)...)
 
 	return &cli.Command{
 		Name:      CommandName,
@@ -39,15 +39,6 @@ func Run(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error 
 	listOpts.Mode = list.ModeDAG
 	listOpts.Dependencies = true
 	listOpts.Hidden = true
-
-	// By default, graph includes external dependencies.
-	// Respect queue flags to override this behavior.
-	if opts.IgnoreExternalDependencies {
-		listOpts.External = false
-	} else {
-		// Default to true, or explicitly set if --queue-include-external is used
-		listOpts.External = true
-	}
 
 	return list.Run(ctx, l, listOpts)
 }

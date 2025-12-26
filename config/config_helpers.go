@@ -508,7 +508,7 @@ func FindInParentFolders(
 
 		fileToFind := GetDefaultConfigPath(currentDir)
 		if fileToFindParam != "" {
-			fileToFind = util.JoinPath(currentDir, fileToFindParam)
+			fileToFind = filepath.Join(currentDir, fileToFindParam)
 		}
 
 		if util.FileExists(fileToFind) {
@@ -554,7 +554,7 @@ func PathRelativeToInclude(ctx *ParsingContext, l log.Logger, params []string) (
 	includePath := filepath.Dir(included.Path)
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(currentPath, includePath)
+		includePath = filepath.Join(currentPath, includePath)
 	}
 
 	relativePath, err := util.GetPathRelativeTo(currentPath, includePath)
@@ -579,7 +579,7 @@ func PathRelativeFromInclude(ctx *ParsingContext, l log.Logger, params []string)
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(currentPath, includePath)
+		includePath = filepath.Join(currentPath, includePath)
 	}
 
 	return util.GetPathRelativeTo(includePath, currentPath)
@@ -716,7 +716,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	path := targetConfig
 
 	if !filepath.IsAbs(path) {
-		path = util.JoinPath(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Join(ctx.TerragruntOptions.WorkingDir, path)
 		path = filepath.Clean(path)
 	}
 
@@ -826,7 +826,7 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 
 	targetConfig := configPath
 	if !filepath.IsAbs(targetConfig) {
-		targetConfig = util.JoinPath(cwd, targetConfig)
+		targetConfig = filepath.Join(cwd, targetConfig)
 	}
 
 	if util.IsDir(targetConfig) {
@@ -935,7 +935,7 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 	path := sourceFile
 
 	if !filepath.IsAbs(path) {
-		path = util.JoinPath(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Join(ctx.TerragruntOptions.WorkingDir, path)
 		path = filepath.Clean(path)
 	}
 

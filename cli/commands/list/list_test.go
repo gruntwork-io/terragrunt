@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 func TestBasicDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	testDirs := []string{
@@ -58,7 +59,6 @@ func TestBasicDiscovery(t *testing.T) {
 	opts.Format = "text" //nolint: goconst
 	opts.Mode = "normal"
 	opts.Dependencies = false
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -104,7 +104,7 @@ func TestBasicDiscovery(t *testing.T) {
 func TestHiddenDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure
 	testDirs := []string{
@@ -147,7 +147,6 @@ func TestHiddenDiscovery(t *testing.T) {
 	opts.Format = "text"
 	opts.Hidden = true
 	opts.Dependencies = false
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -184,7 +183,7 @@ func TestHiddenDiscovery(t *testing.T) {
 func TestDAGSortingSimpleDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure with dependencies:
 	// unit2 -> unit1
@@ -231,7 +230,6 @@ dependency "unit2" {
 	opts.Format = "text"
 	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -263,7 +261,7 @@ dependency "unit2" {
 func TestDAGSortingReversedDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure with dependencies:
 	// unit3 -> unit2
@@ -310,7 +308,6 @@ dependency "unit3" {
 	opts.Format = "text"
 	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -361,7 +358,7 @@ dependency "unit3" {
 func TestDAGSortingComplexDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create test directory structure with complex dependencies:
 	// A (no deps)
@@ -423,7 +420,6 @@ dependency "C" {
 	opts.Format = "text"
 	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
-	opts.External = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()
@@ -481,63 +477,6 @@ dependency "C" {
 	assert.Less(t, cIndex, fIndex, "C should come before F")
 }
 
-func TestExternalFlagImpliesDependencies(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	internalDir := filepath.Join(tmpDir, "internal")
-	require.NoError(t, os.MkdirAll(internalDir, 0755))
-
-	unitADir := filepath.Join(internalDir, "unitA")
-	require.NoError(t, os.MkdirAll(unitADir, 0755))
-
-	externalDir := filepath.Join(tmpDir, "external")
-	require.NoError(t, os.MkdirAll(externalDir, 0755))
-
-	unitBDir := filepath.Join(externalDir, "unitB")
-	require.NoError(t, os.MkdirAll(unitBDir, 0755))
-
-	require.NoError(t, os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(""), 0644))
-
-	require.NoError(t, os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(`
-dependency "unitB" {
-  config_path = "../../external/unitB"
-}
-`), 0644))
-
-	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = internalDir
-
-	l := logger.CreateLogger()
-	l.Formatter().SetDisabledColors(true)
-
-	opts := list.NewOptions(tgOpts)
-	opts.Format = "long"
-	opts.External = true
-
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	opts.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
-	require.NoError(t, err)
-
-	w.Close()
-
-	output, err := io.ReadAll(r)
-	require.NoError(t, err)
-
-	outputStr := string(output)
-
-	assert.Contains(t, outputStr, "unitA", "should include internal unit")
-	assert.Contains(t, outputStr, "external", "should include external unit")
-
-	lines := strings.Split(strings.TrimSpace(outputStr), "\n")
-	assert.GreaterOrEqual(t, len(lines), 3, "should have at least header and 2 units")
-}
-
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
@@ -591,7 +530,7 @@ func TestColorizer(t *testing.T) {
 func TestDotFormat(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -625,7 +564,6 @@ dependency "unit1" {
 	opts.Format = list.FormatDot
 	opts.Mode = list.ModeDAG
 	opts.Dependencies = true
-	opts.External = false
 
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
@@ -657,7 +595,7 @@ dependency "unit1" {
 func TestDotFormatWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -719,7 +657,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 func TestDotFormatWithComplexDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -797,7 +735,7 @@ dependency "unit2" {
 func TestDotFormatWithExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -876,7 +814,7 @@ dependency "unit2" {
 func TestDotFormatWithExcludedDependency(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -947,7 +885,7 @@ dependency "unit1" {
 func TestTextFormatExcludesExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",
@@ -1015,7 +953,7 @@ exclude {
 func TestDotFormatWithMultipleExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	testDirs := []string{
 		"unit1",

@@ -76,6 +76,24 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 		assert.Contains(t, err.Error(), "filter 0")
 		assert.Contains(t, err.Error(), "filter 1")
 	})
+
+	t.Run("filter in parent directory", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"../apps/*"})
+		require.NoError(t, err)
+		assert.NotNil(t, filters)
+		assert.Equal(t, `["../apps/*"]`, filters.String())
+	})
+
+	t.Run("name filter with slash", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"app/1"})
+		require.NoError(t, err)
+		assert.NotNil(t, filters)
+		assert.Equal(t, `["app/1"]`, filters.String())
+	})
 }
 
 func TestFilters_Evaluate(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -395,7 +396,7 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	t.Parallel()
 
 	// Setup test environment
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	configContent := `dependencies { paths = ["../app1"] }`
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
@@ -433,7 +434,7 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	configContent := `dependencies { paths = ["../app1"] }`
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
@@ -465,7 +466,7 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	originalContent := `dependencies { paths = ["../app1"] }`
 	modifiedContent := `dependencies { paths = ["../app1", "../app2"] }`
@@ -518,7 +519,7 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	invalidContent := `invalid hcl syntax {`
 	require.NoError(t, os.WriteFile(configPath, []byte(invalidContent), 0644))
@@ -545,7 +546,7 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 func TestPartialParseCacheKeyFormat(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	configContent := `dependencies { paths = ["../app1"] }`
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))

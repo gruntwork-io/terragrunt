@@ -6,6 +6,7 @@ import ButtonLink from '@components/ui/ButtonLink';
 import GithubIcon from '@assets/icons/github-icon-secondary.svg';
 import InfoIcon from '@assets/icons/info.svg';
 import LinkedinIcon from '@assets/icons/linkedin-icon-secondary.svg';
+import MediumIcon from '@assets/icons/medium-icon.svg';
 import YouPlaceholder from '@assets/you-placeholder-2.jpg'
 import WebsiteIcon from '@assets/icons/website-icon-secondary.svg';
 
@@ -20,6 +21,7 @@ const {
   image,
   github = null,
   linkedin = null,
+  medium = null,
   website = null,
   bio = null,
   youCard = false,
@@ -63,6 +65,13 @@ const {
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
             <a href={linkedin} target="_blank" rel="noopener noreferrer">
               <Image src={LinkedinIcon} alt="LinkedIn" />
+            </a>
+          </div>
+        )}
+        {medium && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={medium} target="_blank" rel="noopener noreferrer">
+              <Image src={MediumIcon} alt="Medium" />
             </a>
           </div>
         )}
@@ -113,6 +122,13 @@ const {
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
                           <a href={linkedin} target="_blank" rel="noopener noreferrer">
                             <Image src={LinkedinIcon} alt="LinkedIn" />
+                          </a>
+                        </div>
+                      )}
+                      {medium && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={medium} target="_blank" rel="noopener noreferrer">
+                            <Image src={MediumIcon} alt="Medium" />
                           </a>
                         </div>
                       )}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -158,7 +159,7 @@ func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool 
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
 	return allowedCommand && dep.getMockOutputsMergeStrategy() != NoMerge
 }
@@ -215,8 +216,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 			continue
 		}
 
-		if isEmptyKnownString(dep.ConfigPath) {
-			return nil, fmt.Errorf("dependency %q has empty config_path in %s; set a non-empty config_path or disable the dependency", dep.Name, file.ConfigPath)
+		if !IsValidConfigPath(dep.ConfigPath) {
+			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
 
@@ -250,40 +251,62 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
 	for _, dep := range decodedDependency.Dependencies {
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
-		if dep.isEnabled() && util.FileExists(depPath) {
-			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
-
-			cachedDependency, found := depCache.Get(ctx, cacheKey)
-			if !found {
-				l, depOpts, err := cloneTerragruntOptionsForDependency(ctx, l, depPath)
-				if err != nil {
-					return nil, err
-				}
-
-				depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
-
-				if depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil); err == nil {
-					inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
-					if err != nil {
-						return nil, err
-					}
-
-					cachedValue := dependencyOutputCache{
-						Enabled: dep.Enabled,
-						Inputs:  inputsCty,
-					}
-					depCache.Put(ctx, cacheKey, &cachedValue)
-
-					dep.Inputs = &inputsCty
-				} else {
-					l.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
-				}
-			} else {
-				dep.Enabled = cachedDependency.Enabled
-				dep.Inputs = &cachedDependency.Inputs
-			}
+		if !dep.isEnabled() {
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+			continue
 		}
+
+		if !IsValidConfigPath(dep.ConfigPath) {
+			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+		}
+
+		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
+
+		if !util.FileExists(depPath) {
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		cacheKey := filepath.Join(ctx.TerragruntOptions.WorkingDir, depPath)
+
+		// Cache hit - reuse cached values
+		if cachedDependency, found := depCache.Get(ctx, cacheKey); found {
+			dep.Enabled = cachedDependency.Enabled
+			dep.Inputs = &cachedDependency.Inputs
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		// Cache miss - parse and cache
+		l, depOpts, err := cloneTerragruntOptionsForDependency(ctx, l, depPath)
+		if err != nil {
+			return nil, err
+		}
+
+		depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
+
+		depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil)
+		if err != nil {
+			l.Warnf("Error reading partial config for dependency %s at %s: %v", dep.Name, depPath, err)
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+
+			continue
+		}
+
+		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
+		if err != nil {
+			return nil, errors.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
+		}
+
+		cachedValue := dependencyOutputCache{
+			Enabled: dep.Enabled,
+			Inputs:  inputsCty,
+		}
+		depCache.Put(ctx, cacheKey, &cachedValue)
+
+		dep.Inputs = &inputsCty
 
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
@@ -331,6 +354,10 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, l log.Logger, configPath
 			continue
 		}
 
+		if !IsValidConfigPath(dependency.ConfigPath) {
+			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
+		}
+
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
 
 		l, dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, l, dependencyPath)
@@ -358,11 +385,11 @@ func checkForDependencyBlockCyclesUsingDFS(
 	visitedPaths *[]string,
 	currentTraversalPaths *[]string,
 ) error {
-	if util.ListContainsElement(*visitedPaths, dependencyPath) {
+	if slices.Contains(*visitedPaths, dependencyPath) {
 		return nil
 	}
 
-	if util.ListContainsElement(*currentTraversalPaths, dependencyPath) {
+	if slices.Contains(*currentTraversalPaths, dependencyPath) {
 		return errors.New(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
 	}
 
@@ -558,7 +585,7 @@ func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
 	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(ctx) || isRenderCommand(ctx)
 }
@@ -615,12 +642,12 @@ func isAwsS3NoSuchKey(err error) bool {
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
 func isRenderJSONCommand(ctx *ParsingContext) bool {
-	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
+	return slices.Contains(ctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
 func isRenderCommand(ctx *ParsingContext) bool {
-	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderCommand)
+	return slices.Contains(ctx.TerragruntOptions.TerraformCliArgs, renderCommand)
 }
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
@@ -956,24 +983,24 @@ func getTerragruntOutputJSONFromRemoteState(
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
-	if ctx.TerragruntOptions.FetchDependencyOutputFromState {
+	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) && !ctx.TerragruntOptions.NoDependencyFetchOutputFromState {
 		switch backend := remoteState.BackendName; backend {
 		case s3backend.BackendName:
-			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateS3(
+			jsonBytes, s3GetErr := getTerragruntOutputJSONFromRemoteStateS3(
 				ctx,
 				l,
 				targetTGOptions,
 				remoteState,
 			)
-			if err != nil {
-				return nil, err
+			if s3GetErr != nil {
+				return nil, s3GetErr
 			}
 
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
 		default:
-			l.Errorf("FetchDependencyOutputFromState is not supported for backend %s, falling back to normal method", backend)
+			l.Debugf("dependency-fetch-output-from-state experiment is not supported for backend %s, falling back to default output retrieval", backend)
 		}
 	}
 
@@ -1214,7 +1241,16 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	return filteredDeps
 }
 
-// isEmptyKnownString returns true when v is a fully-known string whose trimmed value is empty.
-func isEmptyKnownString(v cty.Value) bool {
-	return v.Type().Equals(cty.String) && v.IsWhollyKnown() && strings.TrimSpace(v.AsString()) == ""
+// IsValidConfigPath checks if a cty.Value is a valid, usable config path.
+func IsValidConfigPath(v cty.Value) bool {
+	if v.IsNull() || !v.IsWhollyKnown() || !v.Type().Equals(cty.String) {
+		return false
+	}
+
+	// Empty string is not a valid config path
+	if v.AsString() == "" {
+		return false
+	}
+
+	return true
 }

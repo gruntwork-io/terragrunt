@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +32,7 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 
 	helpers.CleanupTerraformFolder(t, privateRegistryFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, privateRegistryFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, privateRegistryFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, privateRegistryFixturePath)
 
 	URL, err := url.Parse("tfr://" + registryUrl)
 	if err != nil {
@@ -43,7 +43,7 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 		t.Fatal("REGISTRY_URL is invalid")
 	}
 
-	helpers.CopyAndFillMapPlaceholders(t, util.JoinPath(privateRegistryFixturePath, "terragrunt.hcl"), util.JoinPath(rootPath, "terragrunt.hcl"), map[string]string{
+	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(privateRegistryFixturePath, "terragrunt.hcl"), filepath.Join(rootPath, "terragrunt.hcl"), map[string]string{
 		"__registry_url__": registryUrl,
 	})
 
@@ -53,12 +53,12 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 func TestPrivateRegistryWithConfgFileToken(t *testing.T) {
 	rootPath, host, token := setupPrivateRegistryTest(t)
 
-	helpers.CopyAndFillMapPlaceholders(t, util.JoinPath(privateRegistryFixturePath, "env.tfrc"), util.JoinPath(rootPath, "env.tfrc"), map[string]string{
+	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(privateRegistryFixturePath, "env.tfrc"), filepath.Join(rootPath, "env.tfrc"), map[string]string{
 		"__registry_token__": token,
 		"__registry_host__":  host,
 	})
 
-	t.Setenv("TF_CLI_CONFIG_FILE", util.JoinPath(rootPath, "env.tfrc"))
+	t.Setenv("TF_CLI_CONFIG_FILE", filepath.Join(rootPath, "env.tfrc"))
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath)
 

@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,6 +100,39 @@ func CreateGitRepo(t *testing.T, path string) {
 	require.NoError(t, err, "git commit failed")
 }
 
+// CloneGitRepo creates an isolated git clone for parallel testing.
+// Uses git clone --local --no-hardlinks to preserve file modes, symlinks,
+// and avoid worktree race conditions when multiple tests operate on same repo.
+func CloneGitRepo(t *testing.T, srcDir string) string {
+	t.Helper()
+
+	dstDir := TmpDirWOSymlinks(t)
+
+	cmd := exec.CommandContext(t.Context(), "git", "clone", "--local", "--no-hardlinks", srcDir, dstDir)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git clone failed: %s", string(output))
+
+	return dstDir
+}
+
+// MakeDiscoveryContext creates a discovery context copy with an updated WorkingDir.
+func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
+	return &component.DiscoveryContext{
+		WorkingDir: dir,
+		Cmd:        baseCtx.Cmd,
+		Args:       append([]string{}, baseCtx.Args...),
+	}
+}
+
+// MakeOpts creates terragrunt options for a given directory.
+func MakeOpts(dir string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = dir
+	opts.RootWorkingDir = dir
+
+	return opts
+}
+
 // IsExperimentMode returns true if the TG_EXPERIMENT_MODE environment variable is set.
 func IsExperimentMode(t *testing.T) bool {
 	t.Helper()
@@ -146,6 +181,22 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 // Useful for constructing pointers to primitive types in test tables, etc.
 func PointerTo[T any](v T) *T {
 	return &v
+}
+
+// TmpDirWOSymlinks returns a temporary directory, evaluating any symlinks that might be there.
+//
+// This is useful for macOS tests where the standard library creates a temporary directory pointed to via a symlink
+// when using t.TempDir(). It's generally annoying to deal with in tests, as it breaks filepath comparisons, so
+// using this function is preferred over calling t.TempDir() directly unless you are sure it doesn't matter if the
+// temporary directory is a symlink.
+func TmpDirWOSymlinks(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	return tmpDir
 }
 
 type testLogger struct {

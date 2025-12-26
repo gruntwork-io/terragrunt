@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,7 @@ import (
 func TestWorktreeDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -158,12 +157,13 @@ func TestWorktreeDiscovery(t *testing.T) {
 	require.NotEmpty(t, worktreePair)
 
 	fromWorktree := worktreePair.FromWorktree.Path
+	toWorktree := worktreePair.ToWorktree.Path
 
-	// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-	expectedUnitToBeCreated := filepath.Join(tmpDir, "unit-to-be-created")
-	expectedUnitToBeModified := filepath.Join(tmpDir, "unit-to-be-modified")
+	// All paths are worktree paths - no translation needed
+	expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
+	expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
 	expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
-	expectedUnitToBeUntouched := filepath.Join(tmpDir, "unit-to-be-untouched")
+	expectedUnitToBeUntouched := filepath.Join(toWorktree, "unit-to-be-untouched")
 
 	assert.Contains(t, unitPaths, expectedUnitToBeCreated, "Unit should be discovered as it was created between commits")
 	assert.DirExists(t, expectedUnitToBeCreated)
@@ -181,9 +181,7 @@ func TestWorktreeDiscovery(t *testing.T) {
 func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -393,26 +391,26 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+			// Clone repo to avoid git worktree race conditions in parallel tests
+			testDir := helpers.CloneGitRepo(t, tmpDir)
+
+			w, err := worktrees.NewWorktrees(t.Context(), l, testDir, gitExpressions)
 			require.NoError(t, err)
-
-			originalDiscovery := discovery.NewDiscovery(tmpDir).
-				WithDiscoveryContext(tt.discoveryContext).
-				WithWorktrees(w)
-
-			// Create worktree discovery with the test discovery context
-			worktreeDiscovery := discovery.NewWorktreeDiscovery(
-				gitExpressions,
-			).
-				WithOriginalDiscovery(originalDiscovery)
 
 			t.Cleanup(func() {
 				cleanupErr := w.Cleanup(context.Background(), l)
 				require.NoError(t, cleanupErr)
 			})
 
+			originalDiscovery := discovery.NewDiscovery(testDir).
+				WithDiscoveryContext(helpers.MakeDiscoveryContext(tt.discoveryContext, testDir)).
+				WithWorktrees(w)
+
+			worktreeDiscovery := discovery.NewWorktreeDiscovery(gitExpressions).
+				WithOriginalDiscovery(originalDiscovery)
+
 			// Perform discovery
-			components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+			components, err := worktreeDiscovery.Discover(t.Context(), l, helpers.MakeOpts(testDir), w)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)
@@ -434,14 +432,15 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 			require.NotEmpty(t, worktreePair)
 
 			fromWorktree := worktreePair.FromWorktree.Path
+			toWorktree := worktreePair.ToWorktree.Path
 
 			// Verify units were discovered
 			units := components.Filter(component.UnitKind)
 			unitPaths := units.Paths()
 
-			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-			expectedUnitToBeCreated := filepath.Join(tmpDir, "unit-to-be-created")
-			expectedUnitToBeModified := filepath.Join(tmpDir, "unit-to-be-modified")
+			// All paths are worktree paths - no translation needed
+			expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
+			expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
 			expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
 
 			// Find components by path and verify their discovery context args
@@ -490,9 +489,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -580,9 +577,7 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -660,9 +655,7 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 func TestWorktreeDiscovery_Stacks(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -881,20 +874,25 @@ unit "unit_to_be_untouched" {
 	require.NotEmpty(t, worktreePair)
 
 	fromWorktree := worktreePair.FromWorktree.Path
+	toWorktree := worktreePair.ToWorktree.Path
 
-	// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-	assert.ElementsMatch(t, components, component.Components{
+	// All paths are worktree paths - no translation needed.
+	//
+	// NOTE: Discovery may attach additional state (e.g., partially-parsed configs) that isn't relevant
+	// to this test's intent. We normalize the discovered components by clearing that state so a simple
+	// deep comparison remains stable over time.
+	expected := component.Components{
 		// Stacks
-		component.NewStack(filepath.Join(tmpDir, stackToBeAddedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(toWorktree, stackToBeAddedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewStack(filepath.Join(tmpDir, stackToBeModifiedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(toWorktree, stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
@@ -907,47 +905,47 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-		// Units from stack-to-be-added (HEAD) - paths translated to tmpDir
-		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		// Units from stack-to-be-added (HEAD) - worktree paths
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		// Units from stack-to-be-modified (HEAD) - paths translated to tmpDir
+		// Units from stack-to-be-modified (HEAD) - worktree paths
 		// For changed stacks, we only discover units that are added, removed, or changed (different SHA)
 		// unit_to_be_added: only in HEAD (added)
-		component.NewUnit(filepath.Join(tmpDir, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
-		component.NewUnit(filepath.Join(tmpDir, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		// Units from stack-to-be-modified (HEAD~1) - fromWorktree paths NOT translated
+		// Units from stack-to-be-modified (HEAD~1) - fromWorktree paths
 		// unit_to_be_removed: only in HEAD~1 (removed)
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
@@ -957,7 +955,7 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-		// Units from stack-to-be-removed (HEAD~1) - fromWorktree paths NOT translated
+		// Units from stack-to-be-removed (HEAD~1) - fromWorktree paths
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
@@ -982,7 +980,22 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-	})
+	}
+
+	for _, c := range components {
+		switch v := c.(type) {
+		case *component.Unit:
+			// Normalize fields that may be populated during discovery, but are irrelevant to this test's assertions.
+			v.StoreConfig(nil)
+			// Normalize slices so deep equality is stable (nil vs empty differs in reflect.DeepEqual).
+			v.SetReading()
+		case *component.Stack:
+			v.StoreConfig(nil)
+			v.SetReading()
+		}
+	}
+
+	assert.ElementsMatch(t, components, expected)
 }
 
 // TestWorktreeDiscoveryDetectsFileRename verifies that renaming a file within a unit
@@ -991,9 +1004,7 @@ unit "unit_to_be_untouched" {
 func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -1067,7 +1078,9 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 	require.NoError(t, err)
 
-	defer w.Cleanup(t.Context(), l)
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), l))
+	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
@@ -1104,9 +1117,7 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -1184,7 +1195,9 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 	require.NoError(t, err)
 
-	defer w.Cleanup(t.Context(), l)
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), l))
+	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{

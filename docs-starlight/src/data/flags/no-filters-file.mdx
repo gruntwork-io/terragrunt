@@ -1,0 +1,31 @@
+---
+name: no-filters-file
+description: Disable automatic reading of .terragrunt-filters file
+type: bool
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental Feature">
+This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
+
+Usage of the `--no-filters-file` flag requires usage of the `filter-flag` experiment, like so:
+
+```bash
+terragrunt find --experiment filter-flag --no-filters-file
+```
+
+Examples below will omit the `--experiment filter-flag` flag for brevity.
+</Aside>
+
+The `--no-filters-file` flag disables automatic reading of the `.terragrunt-filters` file. By default, when the `filter-flag` experiment is enabled, Terragrunt automatically reads filter queries from `.terragrunt-filters` in the working directory. Use this flag to disable that automatic behavior.
+
+## Usage
+
+```bash
+# Disable automatic .terragrunt-filters reading
+terragrunt find --no-filters-file
+
+# Use with run --all
+terragrunt run --all --no-filters-file -- plan
+```

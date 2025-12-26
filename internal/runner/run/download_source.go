@@ -123,7 +123,7 @@ func DownloadTerraformSourceIfNecessary(
 				return err
 			}
 
-			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TerraformImplementation, terraformSource.WorkingDir)
+			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TofuImplementation, terraformSource.WorkingDir)
 
 			return nil
 		}
@@ -172,7 +172,7 @@ func DownloadTerraformSourceIfNecessary(
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
 		l.Debugf("Requesting re-init, source version has changed from %s to %s recently.", previousVersion, currentVersion)
 
-		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
+		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
 		f, createErr := os.Create(initFile)
 		if createErr != nil {

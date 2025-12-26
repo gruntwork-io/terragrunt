@@ -24,6 +24,7 @@ type Unit struct {
 	discoveryContext *DiscoveryContext
 	Execution        *UnitExecution
 	path             string
+	configFile       string
 	reading          []string
 	dependencies     Components
 	dependents       Components
@@ -44,9 +45,11 @@ type UnitExecution struct {
 // NewUnit creates a new Unit component with the given path.
 func NewUnit(path string) *Unit {
 	return &Unit{
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
+		path:             path,
+		configFile:       config.DefaultTerragruntConfigPath,
+		discoveryContext: &DiscoveryContext{},
+		dependencies:     make(Components, 0),
+		dependents:       make(Components, 0),
 	}
 }
 
@@ -80,6 +83,16 @@ func (u *Unit) Config() *config.TerragruntConfig {
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	u.cfg = cfg
+}
+
+// ConfigFile returns the discovered config filename for this unit.
+func (u *Unit) ConfigFile() string {
+	return u.configFile
+}
+
+// SetConfigFile sets the discovered config filename for this unit.
+func (u *Unit) SetConfigFile(filename string) {
+	u.configFile = filename
 }
 
 // Kind returns the kind of component (always Unit for Unit).
@@ -234,11 +247,11 @@ func (u *Unit) String() string {
 	u.rLock()
 	defer u.rUnlock()
 
-	path := u.path
+	path := u.DisplayPath()
 	deps := make([]string, 0, len(u.dependencies))
 
 	for _, dep := range u.dependencies {
-		deps = append(deps, dep.Path())
+		deps = append(deps, dep.DisplayPath())
 	}
 
 	excluded := false
@@ -268,6 +281,20 @@ func (u *Unit) AbsolutePath() string {
 	}
 
 	return absPath
+}
+
+// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
+// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
+func (u *Unit) DisplayPath() string {
+	if u.discoveryContext == nil || u.discoveryContext.WorkingDir == "" {
+		return u.path
+	}
+
+	if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
+		return rel
+	}
+
+	return u.path
 }
 
 // FindInPaths returns true if the unit is located in one of the target directories.

@@ -32,10 +32,10 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return cli.Flags{
+	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -56,10 +56,18 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Include dependencies in list results (only when using --long).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        ExternalFlagName,
-			EnvVars:     tgPrefix.EnvVars(ExternalFlagName),
-			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Name:    ExternalFlagName,
+			EnvVars: tgPrefix.EnvVars(ExternalFlagName),
+			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Hidden:  true,
+			Action: func(_ *cli.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+				return nil
+			},
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TreeFlagName,
@@ -88,8 +96,9 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
-		shared.NewFilterFlag(opts.TerragruntOptions),
 	}
+
+	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
@@ -97,7 +106,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	prefix := flags.Prefix{CommandName}
 
 	// Base flags for list plus backend/feature flags
-	flags := NewFlags(cmdOpts, prefix)
+	flags := NewFlags(l, cmdOpts, prefix)
 	flags = append(flags, shared.NewBackendFlags(opts, prefix)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, prefix)...)
 

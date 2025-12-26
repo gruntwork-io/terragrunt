@@ -284,7 +284,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
 	// It is important to resolve the alias because the `run --all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
-	if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
+	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
 		args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
@@ -332,7 +332,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
-		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
+		opts.DownloadDir = filepath.Join(opts.WorkingDir, util.TerragruntCacheDir)
 	}
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
@@ -347,7 +347,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
-		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
+		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
@@ -357,59 +357,26 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
-	if len(opts.IncludeDirs) > 0 {
-		l.Debugf("Included directories set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	if !opts.ExcludeByDefault && len(opts.ModulesThatInclude) > 0 {
-		l.Debugf("Modules that include set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	if !opts.ExcludeByDefault && len(opts.UnitsReading) > 0 {
-		l.Debugf("Units that read set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	if !opts.ExcludeByDefault && opts.StrictInclude {
-		l.Debugf("Strict include set. Excluding by default.")
-
-		opts.ExcludeByDefault = true
-	}
-
-	doubleStarEnabled := opts.StrictControls.FilterByNames("double-star").SuppressWarning().Evaluate(cliCtx.Context) != nil
-
-	// Sort and compact opts.IncludeDirs to make them unique
-	slices.Sort(opts.IncludeDirs)
-	opts.IncludeDirs = slices.Compact(opts.IncludeDirs)
-
-	if !doubleStarEnabled {
-		opts.IncludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.IncludeDirs...)
-		if err != nil {
-			return errors.Errorf("invalid include dirs: %w", err)
-		}
-	}
-
-	excludeDirsFromFile, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirsFromFile...)
-	// Sort and compact opts.ExcludeDirs to make them unique
-	slices.Sort(opts.ExcludeDirs)
-	opts.ExcludeDirs = slices.Compact(opts.ExcludeDirs)
+	opts.FilterQueries = append(opts.FilterQueries, excludeFiltersFromFile...)
 
-	if !doubleStarEnabled {
-		opts.ExcludeDirs, err = util.GlobCanonicalPath(l, opts.WorkingDir, opts.ExcludeDirs...)
-		if err != nil {
-			return errors.Errorf("invalid exclude dirs: %w", err)
+	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
+	if !opts.NoFiltersFile {
+		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
+		if filtersFromFileErr != nil {
+			return filtersFromFileErr
 		}
+
+		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
 	}
+
+	// Sort and compact opts.FilterQueries to make them unique
+	slices.Sort(opts.FilterQueries)
+	opts.FilterQueries = slices.Compact(opts.FilterQueries)
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

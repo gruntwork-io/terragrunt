@@ -129,11 +129,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 
 		// Generate the stack configuration with telemetry tracking
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return generate.GenerateStacks(ctx, l, opts)
+			return generate.GenerateStacks(ctx, l, opts, wts)
 		})
 
 		// Handle any errors during stack generation

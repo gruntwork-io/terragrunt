@@ -145,6 +145,26 @@ func TestParser_PrefixExpressions(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "negated braced path filter",
+			input: "!{./apps/legacy}",
+			expected: &filter.PrefixExpression{
+				Operator: "!",
+				Right: &filter.PathExpression{
+					Value: "./apps/legacy",
+				},
+			},
+		},
+		{
+			name:  "negated braced path filter with absolute path",
+			input: "!{/absolute/path}",
+			expected: &filter.PrefixExpression{
+				Operator: "!",
+				Right: &filter.PathExpression{
+					Value: "/absolute/path",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

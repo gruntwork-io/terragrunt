@@ -3,11 +3,8 @@ package generate
 
 import (
 	"context"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -15,17 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
-)
-
-const (
-	generationMaxPath = 1024
 )
 
 // StackNode represents a stack file in the file system.
@@ -49,37 +41,13 @@ func NewStackNode(filePath string) *StackNode {
 
 // GenerateStacks generates the stack files using topological ordering to prevent race conditions.
 // Stack files are generated level by level, ensuring parent stacks complete before their children.
-// If externalWorktrees is provided, it will be used instead of creating new worktrees.
+// Worktrees must be provided by the caller if needed; this function will never create worktrees internally.
 func GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	externalWorktrees ...*worktrees.Worktrees,
+	wts *worktrees.Worktrees,
 ) error {
-	var wts *worktrees.Worktrees
-
-	// Use external worktrees if provided, otherwise create internally
-	if len(externalWorktrees) > 0 && externalWorktrees[0] != nil {
-		wts = externalWorktrees[0]
-	} else {
-		// Create worktrees internally if filter-flag experiment is enabled and git filters are present
-		var err error
-
-		wts, err = buildWorktreesIfNeeded(ctx, l, opts)
-		if err != nil {
-			return errors.Errorf("failed to create worktrees: %w", err)
-		}
-
-		// Only cleanup worktrees we created internally
-		if wts != nil {
-			defer func() {
-				if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
-					l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
-				}
-			}()
-		}
-	}
-
 	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
@@ -301,10 +269,6 @@ func ListStackFiles(
 	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return listStackFiles(l, opts, dir)
-	}
-
 	discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
@@ -338,55 +302,6 @@ func ListStackFiles(
 	}
 
 	return foundFiles, nil
-}
-
-// listStackFiles searches for stack files in the specified directory.
-//
-// The function walks through the given directory to find files that match the
-// default stack file name. It optionally follows symbolic links based on the
-// provided Terragrunt options.
-func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) ([]string, error) {
-	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-
-	walkFunc := filepath.WalkDir
-	if walkWithSymlinks {
-		walkFunc = util.WalkDirWithSymlinks
-	}
-
-	l.Debugf("Searching for stack files in %s", dir)
-
-	var stackFiles []string
-
-	// find all defaultStackFile files
-	if err := walkFunc(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			l.Warnf("Error accessing path %s: %w", path, err)
-			return nil
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		// skip files in Terragrunt cache directory
-		if strings.Contains(path, string(os.PathSeparator)+util.TerragruntCacheDir+string(os.PathSeparator)) ||
-			filepath.Base(path) == util.TerragruntCacheDir {
-			return filepath.SkipDir
-		}
-
-		if len(path) >= generationMaxPath {
-			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
-		}
-		if filepath.Base(path) == config.DefaultStackFile {
-			l.Debugf("Found stack file %s", path)
-			stackFiles = append(stackFiles, path)
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return stackFiles, nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
@@ -501,28 +416,4 @@ func worktreeStacksToGenerate(
 	}
 
 	return stacksToGenerate.ToComponents(), nil
-}
-
-// buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
-// Returns nil worktrees if the experiment is not enabled or no git filters are present.
-func buildWorktreesIfNeeded(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-) (*worktrees.Worktrees, error) {
-	if !opts.Experiments.Evaluate(experiment.FilterFlag) {
-		return nil, nil
-	}
-
-	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
-	if err != nil {
-		return nil, errors.Errorf("failed to parse filters: %w", err)
-	}
-
-	gitFilters := filters.UniqueGitFilters()
-	if len(gitFilters) == 0 {
-		return nil, nil
-	}
-
-	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 }

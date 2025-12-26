@@ -4,7 +4,6 @@ package run
 import (
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -73,11 +72,7 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
-			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
-		}
-
-		if err := validateCommand(opts); err != nil {
-			return err
+			opts.CheckDependentModules = opts.DestroyDependenciesCheck
 		}
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
@@ -86,18 +81,8 @@ func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 	}
 }
 
-func validateCommand(opts *options.TerragruntOptions) error {
-	if opts.DisableCommandValidation || collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
-		return nil
-	}
-
-	if isTerraformPath(opts) {
-		return run.WrongTerraformCommand(opts.TerraformCommand)
-	}
-
-	return run.WrongTofuCommand(opts.TerraformCommand)
-}
-
+// isTerraformPath returns true if the TFPath ends with the default Terraform path.
+// This is used by help.go to determine whether to show "Terraform" or "OpenTofu" in help text.
 func isTerraformPath(opts *options.TerragruntOptions) bool {
 	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
 }

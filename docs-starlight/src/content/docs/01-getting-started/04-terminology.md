@@ -166,7 +166,7 @@ Terragrunt will always attempt to run until the Run Queue is empty.
 
 The Runner Pool is the pool of available resources that Terragrunt can use to execute runs.
 
-Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [parallelism](/docs/reference/cli/commands/run#parallelism) and the DAG.
+Units are dequeued from the Run Queue into the Runner Pool depending on factors like [parallelism](/docs/reference/cli/commands/run#parallelism) and the DAG.
 
 Units are only considered "running" when they are in the Runner Pool.
 

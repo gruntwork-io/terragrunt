@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/github"
 
 	"github.com/hashicorp/go-hclog"
@@ -139,7 +140,7 @@ func WithEngineValues(ctx context.Context) context.Context {
 
 // DownloadEngine downloads the engine for the given options.
 func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if !opts.EngineEnabled {
+	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
 		return nil
 	}
 
@@ -432,7 +433,7 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 
 // Shutdown shuts down the experimental engine.
 func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if !opts.EngineEnabled {
+	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
 		return nil
 	}
 

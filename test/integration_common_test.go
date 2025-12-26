@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -45,21 +44,6 @@ func getPathRelativeTo(t *testing.T, path string, basePath string) string {
 	return relPath
 }
 
-func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
-	t.Helper()
-
-	relPaths := make([]string, len(paths))
-
-	for i, path := range paths {
-		relPath, err := util.GetPathRelativeTo(path, basePath)
-		require.NoError(t, err)
-
-		relPaths[i] = relPath
-	}
-
-	return relPaths
-}
-
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
@@ -72,7 +56,7 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
@@ -377,15 +361,6 @@ func wrappedBinary() string {
 	}
 
 	return filepath.Base(value)
-}
-
-// expectedWrongCommandErr - return expected error message for wrong command
-func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == helpers.TofuBinary {
-		return run.WrongTofuCommand(command)
-	}
-
-	return run.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {

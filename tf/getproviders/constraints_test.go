@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ func TestParseProviderConstraints(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with required_providers block
 	terraformContent := `
@@ -38,7 +39,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		TofuImplementation: options.TerraformImpl,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -48,7 +49,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		TofuImplementation: options.OpenTofuImpl,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -61,7 +62,7 @@ func TestParseProviderConstraintsWithImplicitProvider(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with implicit provider (no source specified)
 	terraformContent := `
@@ -79,7 +80,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		TofuImplementation: options.TerraformImpl,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -89,7 +90,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		TofuImplementation: options.OpenTofuImpl,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -100,7 +101,7 @@ terraform {
 
 func TestParseProviderConstraintsWithEnvironmentOverride(t *testing.T) {
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with implicit provider (no source specified)
 	terraformContent := `
@@ -126,7 +127,7 @@ terraform {
 
 	// Test parsing with Terraform implementation - should use custom registry
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		TofuImplementation: options.TerraformImpl,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -138,7 +139,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation - should also use custom registry (environment override takes precedence)
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		TofuImplementation: options.OpenTofuImpl,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -152,7 +153,7 @@ func TestParseProviderConstraintsWithTofuFiles(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a .tf file with one provider
 	tfContent := `
@@ -184,7 +185,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		TofuImplementation: options.OpenTofuImpl,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -195,7 +196,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		TofuImplementation: options.TerraformImpl,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -209,7 +210,7 @@ func TestParseProviderConstraintsWithEqualsPrefix(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for testing
-	testDir := t.TempDir()
+	testDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create a test terraform file with "=" prefix in version constraints
 	terraformContent := `
@@ -236,7 +237,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.TerraformImpl,
+		TofuImplementation: options.TerraformImpl,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -248,7 +249,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TerraformImplementation: options.OpenTofuImpl,
+		TofuImplementation: options.OpenTofuImpl,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -320,7 +321,7 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 
 			// We need to call the unexported function through the public API
 			// So we'll test it through the constraint parsing
-			testDir := t.TempDir()
+			testDir := helpers.TmpDirWOSymlinks(t)
 			terraformContent := `terraform {
   required_providers {
     test = {
@@ -334,7 +335,7 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			require.NoError(t, err)
 
 			opts := &options.TerragruntOptions{
-				TerraformImplementation: options.TerraformImpl,
+				TofuImplementation: options.TerraformImpl,
 			}
 			constraints, err := getproviders.ParseProviderConstraints(opts, testDir)
 			require.NoError(t, err)
