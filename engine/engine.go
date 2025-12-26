@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -501,6 +502,13 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 	})
 
 	cmd := exec.CommandContext(ctx, localEnginePath)
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
@@ -743,7 +751,6 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 
 	for {
 		response, err := output()
-
 		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}

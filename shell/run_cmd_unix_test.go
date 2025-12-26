@@ -51,8 +51,10 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	expectedExitStatusErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nexit status %d", cmdPath, expectedWait)
 	expectedKilledErr := fmt.Sprintf("Failed to execute \"%s 5\" in .\n\nsignal: killed", cmdPath)
 
-	if actualErr.Error() != expectedExitStatusErr && actualErr.Error() != expectedKilledErr {
-		t.Errorf("Expected error to be either:\n  %s\nor:\n  %s\nbut got:\n  %s",
-			expectedExitStatusErr, expectedKilledErr, actualErr.Error())
+	if actualErr.Error() == expectedKilledErr {
+		t.Errorf("Expected process to gracefully terminate but got\n: %s", actualErr.Error())
+	} else if actualErr.Error() != expectedExitStatusErr {
+		t.Errorf("Expected error to be:\n  %s\nbut got:\n  %s",
+			expectedExitStatusErr, actualErr.Error())
 	}
 }
