@@ -1220,7 +1220,12 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, l log.Logger, work
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
 
-	if err = tf.RunCommand(ctx, l, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {
+	args := []string{tf.CommandNameInit, "-get=false"}
+	if l.Formatter().DisabledColors() {
+		args = append(args, tf.FlagNameNoColor)
+	}
+
+	if err = tf.RunCommand(ctx, l, initTGOptions, args...); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf(stderr.String())

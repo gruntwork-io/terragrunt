@@ -82,6 +82,7 @@ const (
 	testFixtureMissingDependence              = "fixtures/missing-dependencies/main"
 	testFixtureModulePathError                = "fixtures/module-path-in-error"
 	testFixtureNoColor                        = "fixtures/no-color"
+	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	testFixtureNoSubmodules                   = "fixtures/no-submodules/"
 	testFixtureNullValue                      = "fixtures/null-values"
 	testFixtureOutDir                         = "fixtures/out-dir"
@@ -3395,6 +3396,24 @@ func TestNoColor(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	assert.NotContains(t, stdout.String(), "\x1b")
+}
+
+func TestNoColorWithDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoColorDependency)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNoColorDependency)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all plan -no-color --tf-forward-stdout --non-interactive --working-dir "+testPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	// Verify no ANSI escape codes in output (including dependency init)
+	assert.NotContains(t, stdout.String(), "\x1b")
+	assert.NotContains(t, stderr.String(), "\x1b")
 }
 
 func TestTerragruntValidateModulePrefix(t *testing.T) {
