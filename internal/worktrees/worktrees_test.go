@@ -2,8 +2,10 @@ package worktrees_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -653,4 +655,69 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedToReadings, toReadings, "To reading filters should match")
 		})
 	}
+}
+
+// TestWorktreeCleanup test worktree cleanup
+func TestWorktreeCleanup(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	defer runner.GoCloseStorage()
+
+	for i := 0; i < 3; i++ {
+		err = runner.GoCommit(fmt.Sprintf("Commit %d", i), &gogit.CommitOptions{
+			AllowEmptyCommits: true,
+			Author: &object.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	filters, err := filter.ParseFilterQueries([]string{"[test-worktree-cleanup]"})
+	require.NoError(t, err)
+
+	_, err = worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		tmpDir,
+		filters.UniqueGitFilters(),
+	)
+	require.Error(t, err)
+
+	tempDir := os.TempDir()
+
+	worktreeDirs, err := filepath.Glob(filepath.Join(tempDir, "terragrunt-worktree-*"))
+	require.NoError(t, err)
+	// validate that test-worktree-cleanup worktree was deleted
+	worktreeExists := false
+
+	for _, dir := range worktreeDirs {
+		if strings.Contains(filepath.Base(dir), "test-worktree-cleanup") {
+			worktreeExists = true
+			break
+		}
+	}
+
+	assert.False(t, worktreeExists, "Worktree test-worktree-cleanup should be deleted")
 }
