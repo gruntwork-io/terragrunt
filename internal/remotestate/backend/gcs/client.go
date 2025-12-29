@@ -44,7 +44,7 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 	gcsConfig := config.RemoteStateConfigGCS
 
 	if gcsConfig.Credentials != "" {
-		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, gcsConfig.Credentials))
 	} else if gcsConfig.AccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcsConfig.AccessToken,
