@@ -398,6 +398,7 @@ func ReadStackConfigFile(ctx context.Context, l log.Logger, opts *options.Terrag
 
 	stackOpts := opts.Clone()
 	stackOpts.TerragruntConfigPath = filePath
+	stackOpts.OriginalTerragruntConfigPath = filePath
 
 	parser := NewParsingContext(ctx, l, stackOpts)
 
