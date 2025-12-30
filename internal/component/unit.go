@@ -348,7 +348,10 @@ func (u *Unit) planFilePath(opts *options.TerragruntOptions, outputFolder, fileN
 		return ""
 	}
 
-	relPath, err := filepath.Rel(opts.RootWorkingDir, u.path)
+	// Use discoveryContext.WorkingDir as base (always populated).
+	// This is critical for git-based filters where units are discovered in temporary worktrees.
+	// Using opts.RootWorkingDir would cause relative paths to escape the outputFolder.
+	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
 	if err != nil {
 		relPath = u.path
 	}
