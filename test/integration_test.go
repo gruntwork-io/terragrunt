@@ -115,6 +115,7 @@ const (
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
+	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
 
 	terraformFolder = ".terraform"
@@ -4542,4 +4543,20 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hidden1")
 	assert.Contains(t, stdout, "hidden2")
+}
+
+func TestNoColorDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoColorDependency)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNoColorDependency)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan -no-color --tf-forward-stdout --working-dir "+testPath)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout, "has been successfully initialized!"))
+
+	// check that no ANSI codes are printed
+	assert.NotContains(t, stderr, "\x1b")
+	assert.NotContains(t, stdout, "\x1b")
 }

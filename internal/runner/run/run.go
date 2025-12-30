@@ -674,7 +674,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		initOptions.Writer = io.Discard
 	}
 
-	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
+	if l.Formatter().DisabledColors() || collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
 		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, tf.FlagNameNoColor)
 	}
 
