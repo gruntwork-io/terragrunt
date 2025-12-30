@@ -88,7 +88,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5
 	github.com/aws/smithy-go v1.24.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
-	github.com/charmbracelet/x/term v0.2.2
+	github.com/charmbracelet/x/term v0.2.1
 	github.com/docker/go-connections v0.6.0
 	github.com/go-git/go-billy/v6 v6.0.0-20251022185412-61e52df296a5
 	github.com/go-git/go-git/v6 v6.0.0-20251103200709-47b1ed2930c9
