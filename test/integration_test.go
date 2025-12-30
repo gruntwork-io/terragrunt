@@ -115,7 +115,7 @@ const (
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
-	testFixtureNoColorDependency              = "fixtures/no-color-depenedncy"
+	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
 
 	terraformFolder = ".terraform"
@@ -4556,7 +4556,7 @@ func TestNoColorDependency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(stdout, "has been successfully initialized!"))
 
-	// check that no ASCI codes are printed
+	// check that no ANSI codes are printed
 	assert.NotContains(t, stderr, "\x1b")
 	assert.NotContains(t, stdout, "\x1b")
 }
