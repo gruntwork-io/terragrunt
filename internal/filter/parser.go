@@ -1,6 +1,9 @@
 package filter
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Parser parses a filter query string into an AST.
 type Parser struct {
@@ -69,10 +72,17 @@ func (p *Parser) nextToken() {
 
 // parseExpression is the core recursive descent parser.
 func (p *Parser) parseExpression(precedence int) Expression {
-	// Check for prefix ellipsis (...foo)
+	// Check for prefix depth (N...foo) or ellipsis (...foo)
 	includeDependents := false
+	dependentDepth := 0
 
-	if p.curToken.Type == ELLIPSIS {
+	// Check for N... (number followed by ellipsis = dependent depth)
+	if isPurelyNumeric(p.curToken.Literal) && p.peekToken.Type == ELLIPSIS {
+		includeDependents = true
+		dependentDepth = parseDepth(p.curToken.Literal)
+		p.nextToken() // consume number
+		p.nextToken() // consume ellipsis
+	} else if p.curToken.Type == ELLIPSIS {
 		includeDependents = true
 
 		p.nextToken()
@@ -126,12 +136,20 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 	target := leftExpr
 
-	// Check for postfix ellipsis (foo...)
+	// Check for postfix ellipsis (foo... or foo...N)
 	includeDependencies := false
+	dependencyDepth := 0
+
 	if p.curToken.Type == ELLIPSIS {
 		includeDependencies = true
 
 		p.nextToken()
+
+		// Check for ...N (ellipsis followed by number = dependency depth)
+		if isPurelyNumeric(p.curToken.Literal) {
+			dependencyDepth = parseDepth(p.curToken.Literal)
+			p.nextToken()
+		}
 	}
 
 	// If we have any graph operators, wrap in GraphExpression
@@ -141,6 +159,8 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			IncludeDependents:   includeDependents,
 			IncludeDependencies: includeDependencies,
 			ExcludeTarget:       excludeTarget,
+			DependentDepth:      dependentDepth,
+			DependencyDepth:     dependencyDepth,
 		}
 	}
 
@@ -156,6 +176,36 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	}
 
 	return leftExpr
+}
+
+// isPurelyNumeric returns true if the string contains only digits.
+func isPurelyNumeric(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+
+	return true
+}
+
+// parseDepth parses a depth value from a numeric string.
+// Returns 0 (unlimited) if parsing fails. Clamps to MaxTraversalDepth for very large values.
+func parseDepth(literal string) int {
+	depth, err := strconv.Atoi(literal)
+	if err != nil || depth < 0 {
+		return 0
+	}
+
+	if depth > MaxTraversalDepth {
+		return MaxTraversalDepth
+	}
+
+	return depth
 }
 
 // parsePrefixExpression parses a prefix expression (e.g., "!name=foo").
