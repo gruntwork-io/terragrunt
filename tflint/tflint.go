@@ -26,6 +26,9 @@ const (
 	argVarPrefix     = "-var="
 	argVarFilePrefix = "-var-file="
 	tfExternalTFLint = "--terragrunt-external-tflint"
+
+	// TFLintConfigEnvName is the environment variable name for tflint config file.
+	TFLintConfigEnvName = "TFLINT_CONFIG_FILE"
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
@@ -33,7 +36,15 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	// try to fetch configuration file from hook parameters
 	configFile := tflintConfigFilePath(hook.Execute)
 	if configFile == "" {
-		// find .tflint.hcl configuration in project files if it is not provided in arguments
+		// check if TFLINT_CONFIG_FILE environment variable is set
+		if envConfigFile, ok := opts.Env[TFLintConfigEnvName]; ok && envConfigFile != "" {
+			configFile = envConfigFile
+			l.Debugf("Using tflint config file from %s environment variable: %s", TFLintConfigEnvName, configFile)
+		}
+	}
+
+	if configFile == "" {
+		// find .tflint.hcl configuration in project files if it is not provided in arguments or environment
 		projectConfigFile, err := findTflintConfigInProject(l, opts)
 		if err != nil {
 			return err
