@@ -44,7 +44,7 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 	gcsConfig := config.RemoteStateConfigGCS
 
 	if gcsConfig.Credentials != "" {
-		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, gcsConfig.Credentials))
 	} else if gcsConfig.AccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcsConfig.AccessToken,
@@ -91,12 +91,14 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 			TargetPrincipal: gcsConfig.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcsConfig.ImpersonateServiceAccountDelegates,
-		})
+		}, opts...)
 		if err != nil {
 			return nil, err
 		}
 
-		opts = append(opts, option.WithTokenSource(ts))
+		// Replace opts with impersonation token source - the base credentials
+		// are now embedded in the impersonation token source
+		opts = []option.ClientOption{option.WithTokenSource(ts)}
 	}
 
 	gcsClient, err := storage.NewClient(ctx, opts...)
