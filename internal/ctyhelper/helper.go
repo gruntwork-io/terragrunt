@@ -5,6 +5,7 @@ package ctyhelper
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -49,7 +50,92 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 		return nil, errors.New(err)
 	}
 
-	return ctyJSONOutput.Value, nil
+	// Escape interpolation patterns in the resulting map to prevent Terraform
+	// from interpreting ${...} as variable references
+	escapedOutput := escapeInterpolationPatterns(ctyJSONOutput.Value)
+
+	return escapedOutput, nil
+}
+
+// escapeInterpolationPatterns recursively escapes ${...} patterns in all string values
+// within a map structure to prevent Terraform from interpreting them as variable references
+func escapeInterpolationPatterns(m map[string]any) map[string]any {
+	result := make(map[string]any, len(m))
+
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			result[k] = EscapeInterpolationInString(val)
+		case map[string]any:
+			// Recursively escape nested maps
+			result[k] = escapeInterpolationPatterns(val)
+		case []any:
+			// Handle arrays that might contain strings or maps
+			result[k] = escapeInterpolationPatternsInSlice(val)
+		default:
+			// For all other types (numbers, booleans, etc.), keep as-is
+			result[k] = val
+		}
+	}
+
+	return result
+}
+
+// escapeInterpolationPatternsInSlice handles arrays that might contain strings or maps
+func escapeInterpolationPatternsInSlice(slice []any) []any {
+	result := make([]any, len(slice))
+
+	for i, v := range slice {
+		switch val := v.(type) {
+		case string:
+			result[i] = EscapeInterpolationInString(val)
+		case map[string]any:
+			result[i] = escapeInterpolationPatterns(val)
+		case []any:
+			result[i] = escapeInterpolationPatternsInSlice(val)
+		default:
+			result[i] = val
+		}
+	}
+
+	return result
+}
+
+// EscapeInterpolationInString escapes ${...} patterns in a string in an idempotent way.
+// It only escapes ${...} patterns that are not already escaped (i.e., not preceded by $).
+// This prevents double-escaping of already escaped patterns.
+func EscapeInterpolationInString(s string) string {
+	// Count occurrences once; fast-path when absent and use count for capacity
+	count := strings.Count(s, "${")
+	if count == 0 {
+		return s
+	}
+
+	// Use a string builder for efficient string construction
+	var result strings.Builder
+
+	// Pre-allocate with headroom to minimize reallocs when adding '$'
+	result.Grow(len(s) + count)
+
+	for i := 0; i < len(s); i++ {
+		char := s[i]
+
+		// Check if we're at a potential interpolation pattern
+		if char == '$' && i+1 < len(s) && s[i+1] == '{' {
+			// Check if this ${...} is already escaped (preceded by another $)
+			if i > 0 && s[i-1] == '$' {
+				// Already escaped, don't double-escape
+				result.WriteByte(char)
+			} else {
+				// Not escaped, add extra $ to escape it: ${...} becomes $${...}
+				result.WriteString("$$")
+			}
+		} else {
+			result.WriteByte(char)
+		}
+	}
+
+	return result.String()
 }
 
 // CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
