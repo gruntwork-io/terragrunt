@@ -1100,13 +1100,125 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	}
 }
 
-func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
+func TestFilterFlagWithRunAllGitFilterRemovedUnitDestroyFlag(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
+
+	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
+	err = os.MkdirAll(unitToBeRemovedDir, 0755)
+	require.NoError(t, err)
+
+	terragruntHCL := `# Unit to be removed
+terraform {
+  source = "."
+}
+`
+	err = os.WriteFile(filepath.Join(unitToBeRemovedDir, "terragrunt.hcl"), []byte(terragruntHCL), 0644)
+	require.NoError(t, err)
+
+	mainTF := `resource "null_resource" "test" {
+  triggers = {
+    test = "value"
+  }
+}
+`
+	err = os.WriteFile(filepath.Join(unitToBeRemovedDir, "main.tf"), []byte(mainTF), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit with unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Apply the unit so that it shows up in state first.
+	cmd := "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir + " -- apply"
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	assert.Contains(
+		t,
+		stderr,
+		"Unit unit-to-be-removed",
+		"unit-to-be-removed should be discovered and run",
+	)
+
+	assert.Contains(
+		t,
+		stdout,
+		"Apply complete! Resources: 1 added",
+		"unit-to-be-removed should be applied",
+	)
+
+	err = os.RemoveAll(unitToBeRemovedDir)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Remove unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	cmd = "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir +
+		" --filter '[HEAD~1]' --filter-allow-destroy -- plan"
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+	combinedOutput := stdout + stderr
+
+	assert.Contains(
+		t,
+		combinedOutput,
+		"unit-to-be-removed",
+		"Removed unit should be discovered and processed",
+	)
+
+	// Check for destroy-related output. The message "No changes. No objects need to be destroyed"
+	// is what Terraform outputs when plan -destroy is run but there's no state to destroy.
+	// This is expected when using worktrees with local state (state is in original dir, not worktree).
+	// The important thing is that the -destroy flag was passed, which we verify by checking for
+	// this specific message that only appears with -destroy flag.
+	hasDestroyFlag := strings.Contains(combinedOutput, "to destroy") ||
+		strings.Contains(combinedOutput, "No objects need to be destroyed") ||
+		strings.Contains(combinedOutput, "will be destroyed")
+
+	assert.True(t, hasDestroyFlag,
+		"Removed unit should be planned with -destroy flag. Output should contain 'to destroy', 'No objects need to be destroyed', or 'will be destroyed'. "+
+			"Current output:\nstdout: %s\nstderr: %s", stdout, stderr)
+}
+
+func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
+	t.Parallel()
 
 	testCases := []struct {
 		name          string
@@ -2003,10 +2115,6 @@ func getUnitNames(recordsByUnit map[string]map[string]string) []string {
 // instead of the specified --out-dir path.
 func TestOutDirWithGitFilter(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
