@@ -55,6 +55,8 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 			AccessToken: oauthAccessToken,
 		})
 		opts = append(opts, option.WithTokenSource(tokenSource))
+	} else if credPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credPath != "" {
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, credPath))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
 		var account = struct {
 			PrivateKeyID string `json:"private_key_id"`
