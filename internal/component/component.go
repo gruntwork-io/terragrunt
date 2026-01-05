@@ -13,6 +13,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -121,6 +122,19 @@ func (dc *DiscoveryContext) TofuCLIArgs() []string {
 	}
 
 	return append([]string{dc.Cmd}, dc.Args...)
+}
+
+// ToExecution creates a TerraformExecution from this DiscoveryContext.
+// Returns nil if dc is nil. The Args slice is cloned to avoid shared mutation.
+func (dc *DiscoveryContext) ToExecution() *cli.TerraformExecution {
+	if dc == nil {
+		return nil
+	}
+
+	return &cli.TerraformExecution{
+		Cmd:  dc.Cmd,
+		Args: slices.Clone(dc.Args),
+	}
 }
 
 // Components is a list of discovered Terragrunt components.

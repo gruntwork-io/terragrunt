@@ -512,16 +512,23 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			return tgerrors.Errorf("unit %s has no execution context", u.Path())
 		}
 
-		// Copy final args from DiscoveryContext to TerragruntOptions for execution.
-		// DiscoveryContext is the single source of truth; TerragruntOptions is set once here.
-		if dc := u.DiscoveryContext(); dc != nil {
-			u.Execution.TerragruntOptions.TerraformCommand = dc.Cmd
-			u.Execution.TerragruntOptions.TerraformCliArgs = dc.TofuCLIArgs()
+		// DiscoveryContext is the single source of truth for per-unit command/args
+		// TerraformExecution is created from DiscoveryContext and passed to run.Run() via UnitRunner
+		dc := u.DiscoveryContext()
+
+		var (
+			tfCmd  string
+			tfArgs []string
+		)
+
+		if dc != nil {
+			tfCmd = dc.Cmd
+			tfArgs = dc.TofuCLIArgs()
 		}
 
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
-			"terraform_command":      u.Execution.TerragruntOptions.TerraformCommand,
-			"terraform_cli_args":     u.Execution.TerragruntOptions.TerraformCliArgs,
+			"terraform_command":      tfCmd,
+			"terraform_cli_args":     tfArgs,
 			"working_dir":            u.Execution.TerragruntOptions.WorkingDir,
 			"terragrunt_config_path": u.Execution.TerragruntOptions.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
