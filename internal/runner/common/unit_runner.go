@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -71,7 +72,9 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
 
-	runErr := opts.RunTerragrunt(ctx, runner.Unit.Execution.Logger, opts, r)
+	// Get execution from DiscoveryContext
+	exec := runner.Unit.DiscoveryContext().ToExecution()
+	runErr := opts.RunTerragrunt(ctx, runner.Unit.Execution.Logger, opts, exec, r)
 
 	// Only merge the final unit exit code when the unit run completed without error
 	// and the exit code isn't stuck at 1 from a prior retry attempt.
@@ -140,11 +143,16 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts)}
+
+		// Create execution for "show -json <planfile>" command
+		showExec := &cli.TerraformExecution{
+			Cmd:  tf.CommandNameShow,
+			Args: []string{"-json", runner.Unit.PlanFile(opts)},
+		}
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, adhocReport); err != nil {
+		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, showExec, adhocReport); err != nil {
 			return err
 		}
 

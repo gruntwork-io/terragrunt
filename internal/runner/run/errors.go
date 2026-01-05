@@ -42,11 +42,11 @@ func (path NoTerraformFilesFound) Error() string {
 }
 
 type ModuleIsProtected struct {
-	Opts *options.TerragruntOptions
+	ConfigPath string
 }
 
 func (err ModuleIsProtected) Error() string {
-	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.Opts.TerragruntConfigPath)
+	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.ConfigPath)
 }
 
 // Legacy retry error removed in favor of error handling via options.Errors

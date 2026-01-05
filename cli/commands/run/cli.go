@@ -77,7 +77,13 @@ func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
+		// Create TerraformExecution from opts for single-unit execution
+		exec := &cli.TerraformExecution{
+			Cmd:  opts.TerraformCommand,
+			Args: opts.TerraformCliArgs.Tail(),
+		}
+
+		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), exec, r)
 	}
 }
 

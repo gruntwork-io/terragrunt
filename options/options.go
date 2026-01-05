@@ -114,7 +114,8 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
+	// exec contains the terraform command and arguments to execute.
+	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, exec *cli.TerraformExecution, r *report.Report) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
@@ -389,7 +390,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Parallelism:        DefaultParallelism,
 		JSONOut:            DefaultJSONOutName,
 		TofuImplementation: UnknownImpl,
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
+		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, exec *cli.TerraformExecution, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,

@@ -40,7 +40,7 @@ func WrapCommand(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cmd *cli.Command,
-	runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error,
+	runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec *cli.TerraformExecution, r *report.Report) error,
 	alwaysDisableSummary bool,
 ) *cli.Command {
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
@@ -52,14 +52,14 @@ func WrapCommand(
 			return action(cliCtx)
 		}
 
-		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-			if opts.TerraformCommand == cmd.Name {
+		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec *cli.TerraformExecution, r *report.Report) error {
+			if exec.Cmd == cmd.Name {
 				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
 
 				return action(cliCtx)
 			}
 
-			return runFn(ctx, l, opts, r)
+			return runFn(ctx, l, opts, exec, r)
 		}
 
 		return Run(cliCtx, l, opts.OptionsFromContext(cliCtx))

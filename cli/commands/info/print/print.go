@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -21,7 +22,13 @@ import (
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	// info print doesn't run terraform, so create a placeholder execution
+	exec := &cli.TerraformExecution{
+		Cmd:  "info-print",
+		Args: []string{},
+	}
+
+	return run.RunWithTarget(ctx, l, opts, exec, report.NewReport(), target)
 }
 
 // InfoOutput represents the structured output of the info command
