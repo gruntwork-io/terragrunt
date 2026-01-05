@@ -2,6 +2,7 @@ package config
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
@@ -159,7 +160,7 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 		retryMap[otherBlock.Label] = otherBlock
 	}
 
-	return util.MapToSlice(retryMap)
+	return slices.Collect(maps.Values(retryMap))
 }
 
 // Merges two slices of IgnoreBlock, prioritizing the second slice
@@ -193,5 +194,5 @@ func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
 	}
 
 	// Convert map back to slice
-	return util.MapToSlice(ignoreMap)
+	return slices.Collect(maps.Values(ignoreMap))
 }
