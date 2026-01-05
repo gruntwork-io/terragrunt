@@ -1996,3 +1996,124 @@ func getUnitNames(recordsByUnit map[string]map[string]string) []string {
 
 	return names
 }
+
+// TestOutDirWithGitFilter verifies that --out-dir works correctly with git-based filters.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5287
+// The bug was that plan files were written to the temporary git worktree directory
+// instead of the specified --out-dir path.
+func TestOutDirWithGitFilter(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
+	}
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	outDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		require.NoError(t, err)
+	})
+
+	// Create initial unit
+	unitDir := filepath.Join(tmpDir, "unit-initial")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	// Create terragrunt.hcl
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Initial unit`), 0644)
+	require.NoError(t, err)
+
+	// Create main.tf with a simple null resource
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+resource "null_resource" "test" {}
+`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a new unit (this will be detected by the git filter)
+	newUnitDir := filepath.Join(tmpDir, "unit-new")
+	err = os.MkdirAll(newUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(newUnitDir, "terragrunt.hcl"), []byte(`# New unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(newUnitDir, "main.tf"), []byte(`
+resource "null_resource" "test" {}
+`), 0644)
+	require.NoError(t, err)
+
+	// Commit the new unit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Add new unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Run terragrunt with --out-dir and git filter
+	// The bug was that plan files went to /tmp/terragrunt-worktree-... instead of outDir
+	cmd := "terragrunt run --all --no-color --experiment-mode --non-interactive --working-dir " + tmpDir +
+		" --out-dir " + outDir + " --filter '[HEAD~1...HEAD]' -- plan"
+
+	helpers.RunTerragrunt(t, cmd)
+
+	// Verify plan files are in outDir, NOT in a worktree path
+	// The key assertion: plan files should be in outDir/unit-new/
+	// NOT in /tmp/terragrunt-worktree-*/unit-new/
+	files, err := filepath.Glob(filepath.Join(outDir, "**", "*.tfplan"))
+	if err != nil {
+		// Glob with ** doesn't work on all systems, try a walk
+		files = []string{}
+		_ = filepath.Walk(outDir, func(path string, info os.FileInfo, err error) error {
+			require.NoError(t, err)
+
+			if strings.HasSuffix(path, ".tfplan") {
+				files = append(files, path)
+			}
+
+			return nil
+		})
+	}
+
+	// Should have at least 1 plan file in outDir
+	assert.NotEmpty(t, files, "Expected plan files in outDir %s", outDir)
+
+	// None of the files should be in a worktree path
+	for _, file := range files {
+		assert.NotContains(t, file, "terragrunt-worktree",
+			"Plan file %s should not be in a worktree directory", file)
+		assert.True(t, strings.HasPrefix(file, outDir),
+			"Plan file %s should be in outDir %s", file, outDir)
+	}
+}
