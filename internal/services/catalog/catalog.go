@@ -110,7 +110,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	}
 
 	// Remove duplicates
-	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
+	repoURLs = util.RemoveDuplicates(repoURLs)
 	if len(repoURLs) == 0 || (len(repoURLs) == 1 && repoURLs[0] == "") {
 		return errors.Errorf("no valid repository URLs specified after configuration and flag processing")
 	}

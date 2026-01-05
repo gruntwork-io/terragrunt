@@ -32,8 +32,8 @@ type DeprecatedFlagName struct {
 // we take the first name from the list `Names()` for the name and description to display it in `info strict`.
 func NewDeprecatedFlagName(deprecatedFlag, newFlag clihelper.Flag, newValue string) *DeprecatedFlagName {
 	var (
-		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.Names()))
-		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
+		deprecatedName = util.FirstNonEmpty(deprecatedFlag.Names())
+		newName        = util.FirstNonEmpty(newFlag.Names())
 	)
 
 	if newValue != "" {
