@@ -451,7 +451,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+		opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-input=false")
 		r.syncTerraformCliArgs(l, opts)
 	}
 
@@ -460,7 +460,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+			opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-auto-approve")
 		}
 
 		r.syncTerraformCliArgs(l, opts)
