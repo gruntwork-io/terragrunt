@@ -58,18 +58,69 @@ type Component interface {
 	ensureDependent(Component)
 }
 
-// DiscoveryContext is the context in which
-// a Component was discovered.
+// DiscoveryContext is the context in which a component was discovered.
 //
-// It's useful to know this information,
-// because it can help us determine how the
-// Component should be run or enqueued later.
+// Throughout discovery and runnerpool phases, DiscoveryContext can be mutated to address various needs.
+// e.g. adding extra_args, -input=false, -auto-approve, plan files.
+//
+// Generally, the DiscoveryContext is meant to be a mutable understanding of how a component should be executed based
+// on how it was discovered. TerragruntOptions values are meant to be set externally (e.g. from the command line) and
+// left alone afterwards.
 type DiscoveryContext struct {
 	WorkingDir string
 	Ref        string
 
 	Cmd  string
 	Args []string
+}
+
+// IsDestroyCommand returns true if this discovery context represents a destroy operation.
+// Checks both the command name ("destroy") and the -destroy flag in args.
+func (dc *DiscoveryContext) IsDestroyCommand() bool {
+	if dc == nil {
+		return false
+	}
+
+	return dc.Cmd == "destroy" || slices.Contains(dc.Args, "-destroy")
+}
+
+// HasArg checks if the discovery context's args contain the specified argument.
+func (dc *DiscoveryContext) HasArg(arg string) bool {
+	if dc == nil {
+		return false
+	}
+
+	return slices.Contains(dc.Args, arg)
+}
+
+// InsertArg inserts an argument at the specified position.
+// Does nothing if the argument already exists or if dc is nil.
+func (dc *DiscoveryContext) InsertArg(arg string, position int) {
+	if dc == nil || dc.HasArg(arg) {
+		return
+	}
+
+	dc.Args = slices.Insert(dc.Args, position, arg)
+}
+
+// AppendArg appends an argument to the end of the args list.
+// Does nothing if dc is nil.
+func (dc *DiscoveryContext) AppendArg(arg string) {
+	if dc == nil {
+		return
+	}
+
+	dc.Args = append(dc.Args, arg)
+}
+
+// TofuCLIArgs returns the full CLI args (command + args) ready for tofu.
+// Returns nil if dc is nil.
+func (dc *DiscoveryContext) TofuCLIArgs() []string {
+	if dc == nil {
+		return nil
+	}
+
+	return append([]string{dc.Cmd}, dc.Args...)
 }
 
 // Components is a list of discovered Terragrunt components.

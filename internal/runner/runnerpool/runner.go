@@ -336,14 +336,13 @@ func NewRunnerPoolStack(
 	checkLocalStateWithGitRefs(l, units)
 	runner.Stack.Units = units
 
-	if isDestroyCommand(terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs) {
-		applyPreventDestroyExclusions(l, units)
-	}
+	// Apply prevent_destroy exclusions for any unit that will execute destroy
+	// Uses per-unit DiscoveryContext.IsDestroyCommand() instead of stack-level check
+	applyPreventDestroyExclusions(l, units)
 
-	// Apply filter-allow-destroy exclusions for plan and apply commands
-	if terragruntOptions.TerraformCommand == tf.CommandNamePlan || terragruntOptions.TerraformCommand == tf.CommandNameApply {
-		applyFilterAllowDestroyExclusions(l, terragruntOptions, units)
-	}
+	// Apply filter-allow-destroy exclusions for units with plan/apply commands
+	// Uses per-unit command check since units may have different commands
+	applyFilterAllowDestroyExclusions(l, terragruntOptions, units)
 
 	// Build queue from resolved units (which have canonical absolute paths).
 	// Filter out excluded units so they are not shown in lists or scheduled.
@@ -439,8 +438,6 @@ func isConfigurationErrorDepth(err error, depth int) bool {
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
 func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	terraformCmd := opts.TerraformCommand
-
 	if opts.OutputFolder != "" {
 		for _, u := range r.Stack.Units {
 			planFile := u.OutputFile(opts)
@@ -450,25 +447,19 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
-		opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-input=false")
-		r.syncTerraformCliArgs(l, opts)
-	}
+	// Mutate DiscoveryContext.Args for each unit (single source of truth for command/args)
+	r.prepareUnitArgs(l, opts)
 
 	var planErrorBuffers []bytes.Buffer
 
-	switch terraformCmd {
-	case tf.CommandNameApply, tf.CommandNameDestroy:
-		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-auto-approve")
-		}
+	// Handle plan-specific setup
+	for _, u := range r.Stack.Units {
+		if u.Command() == tf.CommandNamePlan {
+			planErrorBuffers = r.handlePlan()
+			defer r.summarizePlanAllErrors(l, planErrorBuffers)
 
-		r.syncTerraformCliArgs(l, opts)
-	case tf.CommandNameShow:
-		r.syncTerraformCliArgs(l, opts)
-	case tf.CommandNamePlan:
-		planErrorBuffers = r.handlePlan()
-		defer r.summarizePlanAllErrors(l, planErrorBuffers)
+			break
+		}
 	}
 
 	// Emit report entries for excluded units that haven't been reported yet.
@@ -519,6 +510,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	task := func(ctx context.Context, u *component.Unit) error {
 		if u.Execution == nil || u.Execution.TerragruntOptions == nil {
 			return tgerrors.Errorf("unit %s has no execution context", u.Path())
+		}
+
+		// Copy final args from DiscoveryContext to TerragruntOptions for execution.
+		// DiscoveryContext is the single source of truth; TerragruntOptions is set once here.
+		if dc := u.DiscoveryContext(); dc != nil {
+			u.Execution.TerragruntOptions.TerraformCommand = dc.Cmd
+			u.Execution.TerragruntOptions.TerraformCliArgs = dc.TofuCLIArgs()
 		}
 
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
@@ -667,11 +665,9 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	// For destroy commands, reflect the actual processing order (reverse of apply order).
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
+	// Uses per-unit command check since units may have different commands in mixed scenarios.
 	entries := slices.Clone(r.queue.Entries)
-	if r.Stack.Execution != nil && isDestroyCommand(
-		r.Stack.Execution.TerragruntOptions.TerraformCommand,
-		r.Stack.Execution.TerragruntOptions.TerraformCliArgs,
-	) {
+	if r.Stack.AnyUnitHasDestroyCommand() {
 		slices.Reverse(entries)
 	}
 
@@ -753,49 +749,50 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 	return dependentUnits
 }
 
-// syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
-func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+// prepareUnitArgs prepares each unit's DiscoveryContext.Args with necessary flags.
+// This is the single place where command-line arguments are mutated before execution.
+// After this function, each unit's DiscoveryContext contains the final args for terraform.
+func (r *Runner) prepareUnitArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
-		if unit.Execution == nil || unit.Execution.TerragruntOptions == nil {
+		dc := unit.DiscoveryContext()
+		if dc == nil {
 			continue
 		}
 
-		discoveryCtx := unit.DiscoveryContext()
-		if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
-			mergedArgs := slices.Clone(unit.Execution.TerragruntOptions.TerraformCliArgs)
-			for _, stackArg := range opts.TerraformCliArgs {
-				if stackArg == opts.TerraformCliArgs.First() {
-					continue
-				}
+		unitCmd := dc.Cmd
 
-				if !slices.Contains(mergedArgs, stackArg) {
-					mergedArgs = append(mergedArgs, stackArg)
-				}
+		// Merge stack-level args (excluding command) that aren't already present
+		for i, stackArg := range opts.TerraformCliArgs {
+			if i == 0 {
+				// Skip command name
+				continue
 			}
 
-			unit.Execution.TerragruntOptions.TerraformCliArgs = mergedArgs
-		} else {
-			unit.Execution.TerragruntOptions.TerraformCliArgs = slices.Clone(opts.TerraformCliArgs)
+			if !dc.HasArg(stackArg) {
+				dc.AppendArg(stackArg)
+			}
 		}
 
+		// Add -input=false for commands that need it
+		if slices.Contains(config.TerraformCommandsNeedInput, unitCmd) {
+			dc.InsertArg("-input=false", 0)
+		}
+
+		// Add -auto-approve for apply/destroy with auto-approve enabled
+		if opts.RunAllAutoApprove && (unitCmd == tf.CommandNameApply || unitCmd == tf.CommandNameDestroy) {
+			dc.InsertArg("-auto-approve", 0)
+		}
+
+		// Add plan file output if configured
 		planFile := unit.PlanFile(opts)
-
 		if planFile != "" {
-			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, unit.Path())
 
-			if slices.ContainsFunc(unit.Execution.TerragruntOptions.TerraformCliArgs, isPlanArg) {
-				// Plan file already present, just reorder to ensure it's at the end
-				unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
-				continue
+			if unitCmd == tf.CommandNamePlan {
+				dc.AppendArg("-out=" + planFile)
+			} else {
+				dc.AppendArg(planFile)
 			}
-
-			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
-				// for plan command add -out=<file> to the terraform cli args
-				unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
-				continue
-			}
-
-			unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile)
 		}
 
 		// Always reorder to ensure plan files are at the end, after all flags
@@ -1047,19 +1044,19 @@ func (r *Runner) SetReport(rpt *report.Report) {
 	r.Stack.Execution.Report = rpt
 }
 
-// isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(cmd string, args []string) bool {
-	return cmd == tf.CommandNameDestroy ||
-		slices.Contains(args, "-"+tf.CommandNameDestroy)
-}
-
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
 // from being destroyed. This prevents accidental destruction of protected infrastructure.
+// Only applies to units that are actually running destroy (uses unit.IsDestroyCommand()).
 func applyPreventDestroyExclusions(l log.Logger, units []*component.Unit) {
-	// First pass: identify units with prevent_destroy=true
+	// First pass: identify units with prevent_destroy=true that ARE running destroy
 	protectedUnits := make(map[string]bool)
 
 	for _, unit := range units {
+		// Only apply prevent_destroy to units actually running destroy
+		if !unit.IsDestroyCommand() {
+			continue
+		}
+
 		cfg := unit.Config()
 		if cfg != nil && cfg.PreventDestroy != nil && *cfg.PreventDestroy {
 			protectedUnits[unit.Path()] = true
@@ -1085,9 +1082,9 @@ func applyPreventDestroyExclusions(l log.Logger, units []*component.Unit) {
 		}
 	}
 
-	// Third pass: mark dependencies as excluded
+	// Third pass: mark dependencies as excluded (only if they're also running destroy)
 	for _, unit := range units {
-		if dependencyPaths[unit.Path()] && !protectedUnits[unit.Path()] {
+		if dependencyPaths[unit.Path()] && !protectedUnits[unit.Path()] && unit.IsDestroyCommand() {
 			if unit.Execution != nil {
 				unit.Execution.FlagExcluded = true
 			}
@@ -1114,7 +1111,7 @@ func applyFilterAllowDestroyExclusions(l log.Logger, opts *options.TerragruntOpt
 			continue
 		}
 
-		if discoveryCtx.Ref != "" && isDestroyCommand(discoveryCtx.Cmd, discoveryCtx.Args) {
+		if discoveryCtx.Ref != "" && unit.IsDestroyCommand() {
 			if unit.Execution != nil {
 				unit.Execution.FlagExcluded = true
 			}

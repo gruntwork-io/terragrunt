@@ -242,3 +242,43 @@ func (s *Stack) FindUnitByPath(path string) *Unit {
 
 	return nil
 }
+
+// AnyUnitHasDestroyCommand returns true if any unit in the stack will execute a destroy operation.
+func (s *Stack) AnyUnitHasDestroyCommand() bool {
+	for _, unit := range s.Units {
+		if unit.IsDestroyCommand() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// AllUnitsHaveDestroyCommand returns true if all units in the stack will execute destroy operations.
+// Returns false if the stack has no units.
+func (s *Stack) AllUnitsHaveDestroyCommand() bool {
+	if len(s.Units) == 0 {
+		return false
+	}
+
+	for _, unit := range s.Units {
+		if !unit.IsDestroyCommand() {
+			return false
+		}
+	}
+
+	return true
+}
+
+// UnitsWithCommand returns all units in the stack that have the specified command.
+func (s *Stack) UnitsWithCommand(cmd string) []*Unit {
+	var result []*Unit
+
+	for _, unit := range s.Units {
+		if unit.Command() == cmd {
+			result = append(result, unit)
+		}
+	}
+
+	return result
+}
