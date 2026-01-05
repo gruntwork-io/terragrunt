@@ -55,6 +55,7 @@ const (
 	testFixtureStacksAllNoStackDir             = "fixtures/stacks/all-no-stack-dir"
 	testFixtureStackNoDotTerragruntStackOutput = "fixtures/stacks/no-dot-terragrunt-stack-output"
 	testFixtureStackFindInParentFolders        = "fixtures/stacks/find-in-parent-folders"
+	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -1637,6 +1638,72 @@ func TestStackTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
+}
+
+func TestStackOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackOriginalTerragruntDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackOriginalTerragruntDir)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackOriginalTerragruntDir)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := filepath.Join(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	var valuesFiles []string
+
+	const (
+		valuesFileName  = "terragrunt.values.hcl"
+		dotStackDirName = ".terragrunt-stack"
+		nestedUnitDirs  = "unit_dirs"
+	)
+
+	err := filepath.WalkDir(rootPath, func(path string, d os.DirEntry, err error) error {
+		require.NoError(t, err)
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Base(path) == valuesFileName {
+			valuesFiles = append(valuesFiles, path)
+		}
+
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, valuesFiles)
+
+	for _, valuesPath := range valuesFiles {
+		content, readErr := os.ReadFile(valuesPath)
+		require.NoError(t, readErr)
+
+		idx := strings.Index(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
+		if idx == -1 {
+			continue
+		}
+
+		expected := valuesPath[:idx]
+
+		isNoLocals := strings.Contains(valuesPath, "no-locals")
+		isNestedReadConfig := strings.Contains(valuesPath, "read-config-nested")
+		isNestedLocals := strings.Contains(valuesPath, "with-locals-nested")
+
+		if isNoLocals && (isNestedReadConfig || isNestedLocals) {
+			// In these fixtures we intentionally validate the "no locals + nested stacks" behavior whereby a user,
+			// attempts to invoke the get_original_terragrunt_dir() function within the values block. Due to the order
+			// of evaluation this scenario will resolve to the generated child stack directory rather than the parent
+			// stack root. If users intend to acquire the parent stack directory at generate time they must do it from
+			// the locals block either directly or in another config evaluated via read_terragrunt_config().
+			expected = filepath.Join(expected, dotStackDirName, nestedUnitDirs)
+		}
+
+		expected = filepath.ToSlash(expected)
+
+		assert.Contains(t, string(content), `stack_dir = "`+expected+`"`, "wrong stack_dir in %s", valuesPath)
+	}
 }
 
 func TestStackRunAllNoStackDir(t *testing.T) {
