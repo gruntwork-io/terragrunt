@@ -223,7 +223,7 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 
 		if arg.OptionalVarFiles != nil {
 			// extract optional variables
-			for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
+			for _, file := range util.RemoveDuplicatesKeepLast(*arg.OptionalVarFiles) {
 				if util.FileExists(file) {
 					newVar := "--var-file=" + file
 					variables = append(variables, newVar)

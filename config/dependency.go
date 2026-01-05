@@ -415,7 +415,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	*visitedPaths = append(*visitedPaths, dependencyPath)
-	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, dependencyPath)
+	*currentTraversalPaths = slices.DeleteFunc(*currentTraversalPaths, func(path string) bool { return path == dependencyPath })
 
 	return nil
 }

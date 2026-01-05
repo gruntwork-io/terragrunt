@@ -22,7 +22,7 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 
 		if cmds, flag := findFlagInCommands(commands, undefFlag); cmds != nil {
 			var (
-				flagHint = util.FirstElement(util.RemoveEmptyElements(flag.Names()))
+				flagHint = util.FirstNonEmpty(flag.Names())
 				cmdHint  = strings.Join(cmds.Names(), " ")
 			)
 

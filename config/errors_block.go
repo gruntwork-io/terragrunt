@@ -144,7 +144,7 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 	// Merge retry blocks from 'other'
 	for _, otherBlock := range other {
 		if existingBlock, found := retryMap[otherBlock.Label]; found {
-			existingBlock.RetryableErrors = util.MergeStringSlices(existingBlock.RetryableErrors, otherBlock.RetryableErrors)
+			existingBlock.RetryableErrors = util.MergeSlices(existingBlock.RetryableErrors, otherBlock.RetryableErrors)
 
 			if otherBlock.MaxAttempts > 0 {
 				existingBlock.MaxAttempts = otherBlock.MaxAttempts
@@ -175,7 +175,7 @@ func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
 	// Merge ignore blocks from 'other'
 	for _, otherBlock := range other {
 		if existingBlock, found := ignoreMap[otherBlock.Label]; found {
-			existingBlock.IgnorableErrors = util.MergeStringSlices(existingBlock.IgnorableErrors, otherBlock.IgnorableErrors)
+			existingBlock.IgnorableErrors = util.MergeSlices(existingBlock.IgnorableErrors, otherBlock.IgnorableErrors)
 
 			if otherBlock.Message != "" {
 				existingBlock.Message = otherBlock.Message

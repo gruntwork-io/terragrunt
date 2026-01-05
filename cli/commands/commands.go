@@ -287,7 +287,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
-		args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
+		args = slices.DeleteFunc(args, func(arg string) bool { return arg == tf.FlagNameDestroy })
 	}
 
 	// Since Terragrunt and Terraform have the same `-no-color` flag,

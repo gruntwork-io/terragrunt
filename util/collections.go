@@ -1,7 +1,7 @@
 package util
 
 import (
-	"fmt"
+	"cmp"
 	"regexp"
 	"slices"
 	"strings"
@@ -50,116 +50,63 @@ func ListHasPrefix[S ~[]E, E comparable](list, prefix S) bool {
 	return slices.Equal(list[:len(prefix)], prefix)
 }
 
-// RemoveElementFromList returns a copy of the given list with all instances of the given element removed.
-func RemoveElementFromList[S ~[]E, E comparable](list S, element E) S {
-	var out S
+// RemoveDuplicates returns a new slice with duplicates removed.
+// Note: This function sorts the result, so original order is not preserved.
+func RemoveDuplicates[S ~[]E, E cmp.Ordered](list S) S {
+	result := slices.Clone(list)
+	slices.Sort(result)
+
+	return slices.Compact(result)
+}
+
+// MergeSlices combines multiple slices and removes duplicates.
+// Note: This function sorts the result, so original order is not preserved.
+func MergeSlices[S ~[]E, E cmp.Ordered](slicesToMerge ...S) S {
+	result := slices.Concat(slicesToMerge...)
+	if result == nil {
+		return S{}
+	}
+
+	slices.Sort(result)
+
+	return slices.Compact(result)
+}
+
+// RemoveDuplicatesKeepLast returns a new slice with duplicates removed, keeping the last occurrence.
+// Unlike RemoveDuplicates, this preserves the relative order of elements.
+func RemoveDuplicatesKeepLast[S ~[]E, E comparable](list S) S {
+	seen := make(map[E]int, len(list))
+	result := make(S, 0, len(list))
 
 	for _, item := range list {
-		if item != element {
-			out = append(out, item)
-		}
-	}
-
-	return out
-}
-
-// RemoveSublistFromList returns a copy of the given list with all instances of the given sublist removed
-func RemoveSublistFromList[S ~[]E, E comparable](list, sublist S) S {
-	var out = list
-	for _, item := range sublist {
-		out = RemoveElementFromList(out, item)
-	}
-
-	return out
-}
-
-// RemoveDuplicatesFromList returns a copy of the given list with all duplicates removed (keeping the first encountereds)
-func RemoveDuplicatesFromList[S ~[]E, E comparable](list S) S {
-	return removeDuplicatesFromList(list, false)
-}
-
-// RemoveDuplicatesFromListKeepLast returns a copy of the given list with all duplicates removed (keeping the last encountereds)
-func RemoveDuplicatesFromListKeepLast[S ~[]E, E comparable](list S) S {
-	return removeDuplicatesFromList(list, true)
-}
-
-func removeDuplicatesFromList[S ~[]E, E comparable](list S, keepLast bool) S {
-	out := make(S, 0, len(list))
-	present := make(map[E]bool)
-
-	for _, value := range list {
-		if _, ok := present[value]; ok {
-			if keepLast {
-				out = RemoveElementFromList(out, value)
-			} else {
-				continue
+		if idx, exists := seen[item]; exists {
+			// Remove the previous occurrence
+			result = slices.Delete(result, idx, idx+1)
+			// Update indices for items that were shifted
+			for k, v := range seen {
+				if v > idx {
+					seen[k] = v - 1
+				}
 			}
 		}
 
-		out = append(out, value)
-		present[value] = true
+		seen[item] = len(result)
+		result = append(result, item)
 	}
 
-	return out
+	return result
 }
 
-// CommaSeparatedStrings returns an HCL compliant formatted list of strings (each string within double quote)
-func CommaSeparatedStrings(list []string) string {
-	values := make([]string, 0, len(list))
-	for _, value := range list {
-		values = append(values, fmt.Sprintf(`"%s"`, value))
-	}
-
-	return strings.Join(values, ", ")
-}
-
-// RemoveEmptyElements returns a copy of the given list without empty elements.
-func RemoveEmptyElements[S ~[]E, E comparable](list S) S {
-	var (
-		out   S
-		empty E
-	)
-
+// FirstNonEmpty returns the first non-empty/non-zero element from the slice, or the zero value if none found.
+func FirstNonEmpty[S ~[]E, E comparable](list S) E {
+	var empty E
 	for _, item := range list {
 		if item != empty {
-			out = append(out, item)
+			return item
 		}
 	}
-
-	return out
-}
-
-// GetElement returns the element with the specified `index` from the given `list`.
-// if `index` is -1, the last element is returned.
-func GetElement[S ~[]E, E comparable](list S, index int) E {
-	lenList := len(list)
-
-	if lenList > 0 && lenList > index {
-		if index == -1 {
-			return (list)[lenList-1]
-		}
-
-		return (list)[index]
-	}
-
-	var empty E
 
 	return empty
-}
-
-// FirstElement returns the first element from the given `list`.
-func FirstElement[S ~[]E, E comparable](list S) E {
-	return GetElement(list, 0)
-}
-
-// SecondElement returns the second element from the given `list`.
-func SecondElement[S ~[]E, E comparable](list S) E {
-	return GetElement(list, 1)
-}
-
-// LastElement returns the last element from the given `list`.
-func LastElement[S ~[]E, E comparable](list S) E {
-	return GetElement(list, -1)
 }
 
 // SplitUrls slices s into all substrings separated by sep and returns a slice of
@@ -185,25 +132,4 @@ func SplitUrls(s, sep string) []string {
 	}
 
 	return urls
-}
-
-// SplitComma splits the given string by comma and returns a slice of the substrings.
-func SplitComma(s, sep string) []string {
-	return strings.Split(s, sep)
-}
-
-// MergeStringSlices combines two string slices removing duplicates
-func MergeStringSlices(a, b []string) []string {
-	seen := make(map[string]struct{})
-	result := make([]string, 0, len(a)+len(b))
-
-	for _, s := range append(a, b...) {
-		if _, exists := seen[s]; !exists {
-			seen[s] = struct{}{}
-
-			result = append(result, s)
-		}
-	}
-
-	return result
 }
