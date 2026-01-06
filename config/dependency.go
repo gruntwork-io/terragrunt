@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -242,7 +243,23 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, l log.Logger, file *hclparse.
 		decodedDependency = *mergedDecodedDependency
 	}
 
-	return dependencyBlocksToCtyValue(ctx, l, decodedDependency.Dependencies)
+	// Extract dependency names for tracing
+	dependencyNames := make([]string, 0, len(decodedDependency.Dependencies))
+	for _, dep := range decodedDependency.Dependencies {
+		dependencyNames = append(dependencyNames, dep.Name)
+	}
+
+	var result *cty.Value
+
+	err = TraceParseDependencies(ctx, file.ConfigPath, ctx.SkipOutputsResolution, len(decodedDependency.Dependencies), dependencyNames, func(childCtx context.Context) error {
+		var depErr error
+
+		result, depErr = dependencyBlocksToCtyValue(childCtx, ctx, l, file.ConfigPath, decodedDependency.Dependencies)
+
+		return depErr
+	})
+
+	return result, err
 }
 
 // decodeDependencies decode dependencies and fetch inputs
@@ -444,56 +461,68 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, l log.Logger, 
 //     dependency.
 //
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
-func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyConfigs []Dependency) (*cty.Value, error) {
+// The traceCtx parameter is the trace context from the parent span (parse_dependencies) to establish parent-child
+// relationship for individual dependency traces.
+func dependencyBlocksToCtyValue(traceCtx context.Context, parsingCtx *ParsingContext, l log.Logger, parentConfigPath string, dependencyConfigs []Dependency) (*cty.Value, error) {
 	paths := []string{}
 
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
 	// various attributes for accessing information about the target config (including the module outputs).
 	dependencyMap := map[string]cty.Value{}
 	lock := sync.Mutex{}
-	dependencyErrGroup, _ := errgroup.WithContext(ctx)
+	dependencyErrGroup, _ := errgroup.WithContext(traceCtx)
 
 	for _, dependencyConfig := range dependencyConfigs {
 		dependencyErrGroup.Go(func() error {
-			// Loose struct to hold the attributes of the dependency. This includes:
-			// - outputs: The module outputs of the target config
-			dependencyEncodingMap := map[string]cty.Value{}
-
-			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
-			if err := dependencyConfig.setRenderedOutputs(ctx, l); err != nil {
-				return err
+			// Get dependency path for tracing (handle invalid/unknown paths gracefully)
+			// Use getCleanedTargetConfigPath to get the absolute path
+			depPath := ""
+			if IsValidConfigPath(dependencyConfig.ConfigPath) {
+				depPath = getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), parentConfigPath)
 			}
 
-			if dependencyConfig.RenderedOutputs != nil {
+			// Use traceCtx to make this a child span of parse_dependencies
+			return TraceParseDependency(traceCtx, dependencyConfig.Name, depPath, func(_ context.Context) error {
+				// Loose struct to hold the attributes of the dependency. This includes:
+				// - outputs: The module outputs of the target config
+				dependencyEncodingMap := map[string]cty.Value{}
+
+				// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
+				if err := dependencyConfig.setRenderedOutputs(parsingCtx, l); err != nil { //nolint:contextcheck
+					return err
+				}
+
+				if dependencyConfig.RenderedOutputs != nil {
+					lock.Lock()
+
+					paths = append(paths, dependencyConfig.ConfigPath.AsString())
+
+					lock.Unlock()
+
+					dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+				}
+
+				if dependencyConfig.Inputs != nil {
+					dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
+				}
+
+				// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
+				// the higher order dependency map.
+				dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
+				if err != nil {
+					err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+					return err
+				}
+
+				// Lock the map as only one goroutine should be writing to the map at a time
 				lock.Lock()
+				defer lock.Unlock()
 
-				paths = append(paths, dependencyConfig.ConfigPath.AsString())
+				// Finally, feed the encoded dependency into the higher order map under the block name
+				dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
 
-				lock.Unlock()
-
-				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
-			}
-
-			if dependencyConfig.Inputs != nil {
-				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
-			}
-
-			// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
-			// the higher order dependency map.
-			dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
-			if err != nil {
-				err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
-				return err
-			}
-
-			// Lock the map as only one goroutine should be writing to the map at a time
-			lock.Lock()
-			defer lock.Unlock()
-
-			// Finally, feed the encoded dependency into the higher order map under the block name
-			dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
-
-			return nil
+				return nil
+			})
 		})
 	}
 
