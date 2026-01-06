@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -206,6 +205,23 @@ func resolveUnitsFromDiscovery(
 
 		if skip {
 			continue
+		}
+
+		// Transfer discovery context command and args to unit options if available
+		if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
+			if discoveryCtx.Cmd != "" {
+				unitOpts.TerraformCommand = discoveryCtx.Cmd
+			}
+
+			if len(discoveryCtx.Args) > 0 {
+				terraformCliArgs := make([]string, 0, 1+len(discoveryCtx.Args))
+				if discoveryCtx.Cmd != "" {
+					terraformCliArgs = append(terraformCliArgs, discoveryCtx.Cmd)
+				}
+
+				terraformCliArgs = append(terraformCliArgs, discoveryCtx.Args...)
+				unitOpts.TerraformCliArgs = terraformCliArgs
+			}
 		}
 
 		// Initialize execution context
@@ -435,7 +451,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+		opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-input=false")
 		r.syncTerraformCliArgs(l, opts)
 	}
 
@@ -444,7 +460,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+			opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-auto-approve")
 		}
 
 		r.syncTerraformCliArgs(l, opts)
@@ -732,7 +748,24 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 			continue
 		}
 
-		unit.Execution.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
+			mergedArgs := slices.Clone(unit.Execution.TerragruntOptions.TerraformCliArgs)
+
+			for _, stackArg := range opts.TerraformCliArgs {
+				if stackArg == opts.TerraformCliArgs.First() {
+					continue
+				}
+
+				if !slices.Contains(mergedArgs, stackArg) {
+					mergedArgs = append(mergedArgs, stackArg)
+				}
+			}
+
+			unit.Execution.TerragruntOptions.TerraformCliArgs = mergedArgs
+		} else {
+			unit.Execution.TerragruntOptions.TerraformCliArgs = slices.Clone(opts.TerraformCliArgs)
+		}
 
 		planFile := unit.PlanFile(opts)
 		if planFile != "" {
