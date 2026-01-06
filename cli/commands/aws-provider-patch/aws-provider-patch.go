@@ -12,6 +12,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -25,7 +26,13 @@ const defaultKeyParts = 2
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	// aws-provider-patch doesn't run terraform, so create a placeholder execution
+	exec := &cli.TerraformExecution{
+		Cmd:  "aws-provider-patch",
+		Args: []string{},
+	}
+
+	return run.RunWithTarget(ctx, l, opts, exec, report.NewReport(), target)
 }
 
 func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

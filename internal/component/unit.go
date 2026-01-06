@@ -159,6 +159,52 @@ func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 	u.discoveryContext = ctx
 }
 
+// Command returns the command this unit will run.
+// Returns empty string if DiscoveryContext is nil.
+func (u *Unit) Command() string {
+	if u.discoveryContext == nil {
+		return ""
+	}
+
+	return u.discoveryContext.Cmd
+}
+
+// Args returns the arguments this unit will use.
+// Returns nil if DiscoveryContext is nil.
+func (u *Unit) Args() []string {
+	if u.discoveryContext == nil {
+		return nil
+	}
+
+	return u.discoveryContext.Args
+}
+
+// IsDestroyCommand returns true if this unit will execute a destroy operation.
+// Delegates to DiscoveryContext.IsDestroyCommand().
+func (u *Unit) IsDestroyCommand() bool {
+	if u.discoveryContext == nil {
+		return false
+	}
+
+	return u.discoveryContext.IsDestroyCommand()
+}
+
+// InsertArg inserts an argument into this unit's DiscoveryContext.
+// Does nothing if DiscoveryContext is nil.
+func (u *Unit) InsertArg(arg string, position int) {
+	if u.discoveryContext != nil {
+		u.discoveryContext.InsertArg(arg, position)
+	}
+}
+
+// AppendArg appends an argument to this unit's DiscoveryContext.
+// Does nothing if DiscoveryContext is nil.
+func (u *Unit) AppendArg(arg string) {
+	if u.discoveryContext != nil {
+		u.discoveryContext.AppendArg(arg)
+	}
+}
+
 // lock locks the Unit.
 func (u *Unit) lock() {
 	u.mu.Lock()

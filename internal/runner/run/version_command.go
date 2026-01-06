@@ -3,13 +3,14 @@ package run
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec *cli.TerraformExecution) error {
 	if !opts.TFPathExplicitlySet {
 		if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {
 			return err
@@ -18,7 +19,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, opts, opts.TerraformCliArgs...)
+	return tf.RunCommand(ctx, l, opts, exec.TerraformCliArgs()...)
 }
 
 func getTfPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {

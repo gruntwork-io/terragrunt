@@ -23,7 +23,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 
 	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	// exec command doesn't run terraform, so create a placeholder execution
+	// The target callback will be invoked before terraform execution
+	exec := &cli.TerraformExecution{
+		Cmd:  "exec",
+		Args: args.Tail(),
+	}
+
+	return run.RunWithTarget(ctx, l, opts, exec, report.NewReport(), target)
 }
 
 func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {

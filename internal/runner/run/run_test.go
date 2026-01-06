@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -353,7 +354,12 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		}
 
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
+		// Create TerraformExecution from options
+		exec := &cli.TerraformExecution{
+			Cmd:  tc.options.TerraformCliArgs.First(),
+			Args: tc.options.TerraformCliArgs.Tail(),
+		}
+		out := run.FilterTerraformExtraArgs(l, exec, &config)
 
 		assert.Equal(t, tc.expectedArgs, out)
 	}
@@ -483,7 +489,16 @@ func TestShouldCopyLockFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equalf(t, tt.want, run.ShouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
+			// Create TerraformExecution from args
+			var exec *cli.TerraformExecution
+			if len(tt.args.args) > 0 {
+				exec = &cli.TerraformExecution{
+					Cmd:  tt.args.args[0],
+					Args: tt.args.args[1:],
+				}
+			}
+
+			assert.Equalf(t, tt.want, run.ShouldCopyLockFile(exec, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
 		})
 	}
 }

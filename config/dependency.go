@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -1143,7 +1144,13 @@ func runTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 	newOpts.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 
-	err := ctx.TerragruntOptions.RunTerragrunt(ctx, l, ctx.TerragruntOptions, report.NewReport())
+	// Create execution for "output -json" command
+	exec := &cli.TerraformExecution{
+		Cmd:  "output",
+		Args: []string{"-json"},
+	}
+
+	err := ctx.TerragruntOptions.RunTerragrunt(ctx, l, ctx.TerragruntOptions, exec, report.NewReport())
 	if err != nil {
 		return nil, errors.New(err)
 	}

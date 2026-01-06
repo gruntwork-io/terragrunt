@@ -25,6 +25,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -235,7 +236,13 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	// validate-inputs doesn't run terraform, so create a placeholder execution
+	exec := &cli.TerraformExecution{
+		Cmd:  "validate-inputs",
+		Args: []string{},
+	}
+
+	return run.RunWithTarget(ctx, l, opts, exec, report.NewReport(), target)
 }
 
 func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

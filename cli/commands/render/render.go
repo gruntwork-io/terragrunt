@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -30,7 +31,13 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
 
-	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, report.NewReport(), target)
+	// render doesn't run terraform, so create a placeholder execution
+	exec := &cli.TerraformExecution{
+		Cmd:  "render",
+		Args: []string{},
+	}
+
+	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, exec, report.NewReport(), target)
 }
 
 func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

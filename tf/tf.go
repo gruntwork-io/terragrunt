@@ -75,6 +75,13 @@ const (
 	TerraformPlanJSONFile = "tfplan.json"
 )
 
+// IsDestroyCommand checks if the given command and args represent a destroy operation.
+// This checks both the command name ("destroy") and the -destroy flag in args.
+// Use DiscoveryContext.IsDestroyCommand() or Unit.IsDestroyCommand() when those types are available.
+func IsDestroyCommand(cmd string, args []string) bool {
+	return cmd == CommandNameDestroy || slices.Contains(args, FlagNameDestroy)
+}
+
 var (
 	CommandNames = []string{
 		CommandNameApply,
