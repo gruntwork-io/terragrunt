@@ -286,7 +286,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 		}
 
 		// Suppress diagnostics during partial parsing to avoid false positive errors for unresolved dependency variables
-		suppressOpts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+		suppressOpts := append(slices.Clone(ctx.ParserOptions), hclparse.WithDiagnosticsWriter(io.Discard, true))
 		depCtx := ctx.WithDecodedDependencies(nil).WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts).WithParseOption(suppressOpts)
 
 		depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil)
@@ -429,7 +429,7 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, l log.Logger, 
 	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
 	// dependencies block.
 	// Suppress diagnostics during partial parsing to avoid false positive errors for unresolved dependency variables
-	suppressOpts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+	suppressOpts := append(slices.Clone(ctx.ParserOptions), hclparse.WithDiagnosticsWriter(io.Discard, true))
 
 	tgConfig, err := PartialParseConfigFile(ctx.WithDecodedDependencies(nil).WithDecodeList(DependencyBlock).WithParseOption(suppressOpts), l, configPath, nil)
 	if err != nil {
@@ -749,7 +749,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
 	// Suppress diagnostics during partial parsing to avoid false positive errors for unresolved dependency variables
-	suppressOpts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+	suppressOpts := append(slices.Clone(ctx.ParserOptions), hclparse.WithDiagnosticsWriter(io.Discard, true))
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		targetParsingContext.WithDecodedDependencies(nil).WithDecodeList(DependencyBlock).WithParseOption(suppressOpts),

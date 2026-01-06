@@ -3,7 +3,9 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -95,7 +97,18 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 		return PartialParseConfigFile(ctx, l, includePath, includedConfig)
 	}
 
-	config, err := ParseConfigFile(ctx, l, includePath, includedConfig)
+	// When included config has dependencies, suppress diagnostics during parsing.
+	// This is because the inputs block may reference dependency.*.outputs which
+	// haven't been resolved yet during include parsing. Without suppression,
+	// HCL will report false positive "There is no variable named dependency" errors.
+	parseCtx := ctx
+	if hasDependency {
+		suppressOpts := append(slices.Clone(ctx.ParserOptions),
+			hclparse.WithDiagnosticsWriter(io.Discard, true))
+		parseCtx = ctx.WithDecodedDependencies(nil).WithParseOption(suppressOpts)
+	}
+
+	config, err := ParseConfigFile(parseCtx, l, includePath, includedConfig)
 	if err != nil {
 		var configNotFoundError TerragruntConfigNotFoundError
 		if errors.As(err, &configNotFoundError) {

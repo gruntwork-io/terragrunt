@@ -735,7 +735,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	// to nested read_terragrunt_config calls
 	// Additionally, suppress diagnostics during parsing to avoid false positive errors for unresolved
 	// dependency variables in the target config (the target config's dependencies haven't been resolved yet)
-	parserOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
+	parserOptions := append(slices.Clone(ctx.ParserOptions), hclparse.WithDiagnosticsWriter(io.Discard, true))
 
 	ctx = ctx.WithTerragruntOptions(opts).WithParseOption(parserOptions)
 
