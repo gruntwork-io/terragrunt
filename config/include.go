@@ -105,7 +105,7 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 	if hasDependency {
 		suppressOpts := append(slices.Clone(ctx.ParserOptions),
 			hclparse.WithDiagnosticsWriter(io.Discard, true))
-		parseCtx = ctx.WithDecodedDependencies(nil).WithParseOption(suppressOpts)
+		parseCtx = ctx.WithParseOption(suppressOpts)
 	}
 
 	config, err := ParseConfigFile(parseCtx, l, includePath, includedConfig)
