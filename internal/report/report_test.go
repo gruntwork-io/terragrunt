@@ -820,11 +820,8 @@ func TestWriteSchema(t *testing.T) {
 	// Create a buffer to write the schema to
 	var buf bytes.Buffer
 
-	// Create a new report
-	r := report.NewReport()
-
 	// Write the schema
-	err := r.WriteSchema(&buf)
+	err := report.WriteSchema(&buf)
 	require.NoError(t, err)
 
 	// Assert the contents of the schema
@@ -1088,7 +1085,7 @@ func TestSchemaIsValid(t *testing.T) {
 
 	defer file.Close()
 
-	err = r.WriteSchema(file)
+	err = report.WriteSchema(file)
 	require.NoError(t, err)
 	file.Close()
 
@@ -1445,6 +1442,615 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 			assert.Equal(t, expected, strings.TrimSpace(output))
 		})
 	}
+}
+
+// TestWriteJSONWithDiscoveryWorkingDir verifies that when a run has a DiscoveryWorkingDir set,
+// the report writer uses it instead of the report's workingDir for path computation.
+// This is critical for worktree scenarios where units are discovered in temporary worktree directories.
+func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	// Simulate a worktree scenario:
+	// - Original working dir: /original/repo
+	// - Worktree path: /tmp/terragrunt-worktree-xxx/original/repo
+	// - Unit path in worktree: /tmp/terragrunt-worktree-xxx/original/repo/module/unit
+
+	// Create temp directories
+	originalRepoDir := helpers.TmpDirWOSymlinks(t)
+	worktreeDir := helpers.TmpDirWOSymlinks(t)
+
+	// Create the "unit" path in the worktree
+	unitPath := filepath.Join(worktreeDir, "module", "unit")
+	err := os.MkdirAll(unitPath, 0755)
+	require.NoError(t, err)
+
+	// Create a report with the original repo as working dir (simulating non-worktree scenario)
+	r := report.NewReport().WithWorkingDir(originalRepoDir)
+
+	// Add a run that was discovered in the worktree
+	// Set the DiscoveryWorkingDir to the worktree path
+	run := newRun(t, unitPath)
+	r.AddRun(l, run)
+
+	// Ensure the run and set the DiscoveryWorkingDir
+	r.EnsureRun(l, unitPath, report.WithDiscoveryWorkingDir(worktreeDir))
+
+	// End the run
+	r.EndRun(l, unitPath, report.WithResult(report.ResultSucceeded))
+
+	// Write JSON and verify the name is relative to DiscoveryWorkingDir, not report.workingDir
+	var buf bytes.Buffer
+
+	err = r.WriteJSON(&buf)
+	require.NoError(t, err)
+
+	// Parse the JSON
+	var runs []report.JSONRun
+
+	err = json.Unmarshal(buf.Bytes(), &runs)
+	require.NoError(t, err)
+
+	require.Len(t, runs, 1)
+
+	// The name should be relative to the worktree dir, not the original repo dir
+	// Without the fix, this would be the full absolute path since unitPath doesn't start with originalRepoDir
+	assert.Equal(t, "module/unit", runs[0].Name, "Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+}
+
+// TestWriteCSVWithDiscoveryWorkingDir verifies that CSV output also uses DiscoveryWorkingDir.
+func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	// Create temp directories (simulating worktree scenario)
+	originalRepoDir := helpers.TmpDirWOSymlinks(t)
+	worktreeDir := helpers.TmpDirWOSymlinks(t)
+
+	// Create the "unit" path in the worktree
+	unitPath := filepath.Join(worktreeDir, "module", "unit")
+	err := os.MkdirAll(unitPath, 0755)
+	require.NoError(t, err)
+
+	// Create a report with the original repo as working dir
+	r := report.NewReport().WithWorkingDir(originalRepoDir)
+
+	// Add a run with DiscoveryWorkingDir set to worktree path
+	run := newRun(t, unitPath)
+	r.AddRun(l, run)
+	r.EnsureRun(l, unitPath, report.WithDiscoveryWorkingDir(worktreeDir))
+	r.EndRun(l, unitPath, report.WithResult(report.ResultSucceeded))
+
+	// Write CSV
+	var buf bytes.Buffer
+
+	err = r.WriteCSV(&buf)
+	require.NoError(t, err)
+
+	// Parse the CSV
+	reader := csv.NewReader(&buf)
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+
+	require.Len(t, records, 2) // header + 1 data row
+
+	// The name (first column) should be relative to worktree dir
+	assert.Equal(t, "module/unit", records[1][0], "Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+}
+
+// TestParseJSONRuns verifies that JSON report data can be parsed from bytes.
+func TestParseJSONRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    report.JSONRuns
+		expectError bool
+	}{
+		{
+			name:     "empty array",
+			input:    "[]",
+			expected: report.JSONRuns{},
+		},
+		{
+			name: "single run",
+			input: `[{
+				"Name": "module/unit",
+				"Started": "2024-01-01T10:00:00Z",
+				"Ended": "2024-01-01T10:01:00Z",
+				"Result": "succeeded"
+			}]`,
+			expected: report.JSONRuns{
+				{
+					Name:   "module/unit",
+					Result: "succeeded",
+				},
+			},
+		},
+		{
+			name: "multiple runs with all fields",
+			input: `[
+				{
+					"Name": "unit-a",
+					"Started": "2024-01-01T10:00:00Z",
+					"Ended": "2024-01-01T10:01:00Z",
+					"Result": "succeeded"
+				},
+				{
+					"Name": "unit-b",
+					"Started": "2024-01-01T10:01:00Z",
+					"Ended": "2024-01-01T10:02:00Z",
+					"Result": "failed",
+					"Reason": "run error",
+					"Cause": "some error"
+				}
+			]`,
+			expected: report.JSONRuns{
+				{Name: "unit-a", Result: "succeeded"},
+				{Name: "unit-b", Result: "failed"},
+			},
+		},
+		{
+			name:        "invalid json",
+			input:       "not valid json",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runs, err := report.ParseJSONRuns([]byte(tt.input))
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, runs, len(tt.expected))
+
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected.Name, runs[i].Name)
+				assert.Equal(t, expected.Result, runs[i].Result)
+			}
+		})
+	}
+}
+
+// TestParseJSONRunsFromFile verifies that JSON report data can be parsed from a file.
+func TestParseJSONRunsFromFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	t.Run("valid file", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "valid-report.json")
+		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		runs, err := report.ParseJSONRunsFromFile(reportFile)
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+		assert.Equal(t, "test-unit", runs[0].Name)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := report.ParseJSONRunsFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		require.Error(t, err)
+	})
+}
+
+// TestJSONRunsFindByName verifies that runs can be found by name.
+func TestJSONRunsFindByName(t *testing.T) {
+	t.Parallel()
+
+	runs := report.JSONRuns{
+		{Name: "unit-a", Result: "succeeded"},
+		{Name: "module/unit-b", Result: "failed"},
+		{Name: "nested/path/unit-c", Result: "excluded"},
+	}
+
+	tests := []struct {
+		expected *report.JSONRun
+		name     string
+		search   string
+	}{
+		{
+			name:     "find first unit",
+			search:   "unit-a",
+			expected: &report.JSONRun{Name: "unit-a", Result: "succeeded"},
+		},
+		{
+			name:     "find nested path",
+			search:   "module/unit-b",
+			expected: &report.JSONRun{Name: "module/unit-b", Result: "failed"},
+		},
+		{
+			name:     "find deeply nested",
+			search:   "nested/path/unit-c",
+			expected: &report.JSONRun{Name: "nested/path/unit-c", Result: "excluded"},
+		},
+		{
+			name:     "not found",
+			search:   "does-not-exist",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runs.FindByName(tt.search)
+
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.expected.Name, result.Name)
+				assert.Equal(t, tt.expected.Result, result.Result)
+			}
+		})
+	}
+}
+
+// TestJSONRunsNames verifies that run names can be extracted from a slice of runs.
+func TestJSONRunsNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		runs     report.JSONRuns
+		expected []string
+	}{
+		{
+			name:     "empty slice",
+			runs:     report.JSONRuns{},
+			expected: []string{},
+		},
+		{
+			name: "multiple runs",
+			runs: report.JSONRuns{
+				{Name: "unit-a"},
+				{Name: "module/unit-b"},
+				{Name: "nested/path/unit-c"},
+			},
+			expected: []string{"unit-a", "module/unit-b", "nested/path/unit-c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			names := tt.runs.Names()
+			assert.Equal(t, tt.expected, names)
+		})
+	}
+}
+
+// TestParseCSVRuns verifies that CSV report data can be parsed from bytes.
+func TestParseCSVRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    report.CSVRuns
+		expectError bool
+	}{
+		{
+			name:     "header only",
+			input:    "Name,Started,Ended,Result,Reason,Cause\n",
+			expected: report.CSVRuns{},
+		},
+		{
+			name:     "single run",
+			input:    "Name,Started,Ended,Result,Reason,Cause\nmodule/unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,\n",
+			expected: report.CSVRuns{{Name: "module/unit", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"}},
+		},
+		{
+			name: "multiple runs with all fields",
+			input: `Name,Started,Ended,Result,Reason,Cause
+unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,
+unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error
+`,
+			expected: report.CSVRuns{
+				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"},
+				{Name: "unit-b", Started: "2024-01-01T10:01:00Z", Ended: "2024-01-01T10:02:00Z", Result: "failed", Reason: "run error", Cause: "some error"},
+			},
+		},
+		{
+			name:        "invalid csv - missing fields",
+			input:       "Name,Started,Ended,Result,Reason,Cause\nunit-a,2024-01-01T10:00:00Z\n",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runs, err := report.ParseCSVRuns([]byte(tt.input))
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, runs, len(tt.expected))
+
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected.Name, runs[i].Name)
+				assert.Equal(t, expected.Result, runs[i].Result)
+				assert.Equal(t, expected.Reason, runs[i].Reason)
+				assert.Equal(t, expected.Cause, runs[i].Cause)
+			}
+		})
+	}
+}
+
+// TestParseCSVRunsFromFile verifies that CSV report data can be parsed from a file.
+func TestParseCSVRunsFromFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	t.Run("valid file", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "valid-report.csv")
+		content := "Name,Started,Ended,Result,Reason,Cause\ntest-unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,\n"
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		runs, err := report.ParseCSVRunsFromFile(reportFile)
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+		assert.Equal(t, "test-unit", runs[0].Name)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := report.ParseCSVRunsFromFile(filepath.Join(tmp, "does-not-exist.csv"))
+		require.Error(t, err)
+	})
+}
+
+// TestCSVRunsFindByName verifies that CSV runs can be found by name.
+func TestCSVRunsFindByName(t *testing.T) {
+	t.Parallel()
+
+	runs := report.CSVRuns{
+		{Name: "unit-a", Result: "succeeded"},
+		{Name: "module/unit-b", Result: "failed"},
+		{Name: "nested/path/unit-c", Result: "excluded"},
+	}
+
+	tests := []struct {
+		expected *report.CSVRun
+		name     string
+		search   string
+	}{
+		{
+			name:     "find first unit",
+			search:   "unit-a",
+			expected: &report.CSVRun{Name: "unit-a", Result: "succeeded"},
+		},
+		{
+			name:     "find nested path",
+			search:   "module/unit-b",
+			expected: &report.CSVRun{Name: "module/unit-b", Result: "failed"},
+		},
+		{
+			name:     "not found",
+			search:   "does-not-exist",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runs.FindByName(tt.search)
+
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.expected.Name, result.Name)
+				assert.Equal(t, tt.expected.Result, result.Result)
+			}
+		})
+	}
+}
+
+// TestCSVRunsNames verifies that run names can be extracted from a slice of CSV runs.
+func TestCSVRunsNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		runs     report.CSVRuns
+		expected []string
+	}{
+		{
+			name:     "empty slice",
+			runs:     report.CSVRuns{},
+			expected: []string{},
+		},
+		{
+			name: "multiple runs",
+			runs: report.CSVRuns{
+				{Name: "unit-a"},
+				{Name: "module/unit-b"},
+				{Name: "nested/path/unit-c"},
+			},
+			expected: []string{"unit-a", "module/unit-b", "nested/path/unit-c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			names := tt.runs.Names()
+			assert.Equal(t, tt.expected, names)
+		})
+	}
+}
+
+// TestValidateJSONReport verifies that JSON report validation works correctly.
+func TestValidateJSONReport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			name:        "valid empty report",
+			input:       "[]",
+			expectError: false,
+		},
+		{
+			name: "valid single run",
+			input: `[{
+				"Name": "module/unit",
+				"Started": "2024-01-01T10:00:00Z",
+				"Ended": "2024-01-01T10:01:00Z",
+				"Result": "succeeded"
+			}]`,
+			expectError: false,
+		},
+		{
+			name: "valid run with all fields",
+			input: `[{
+				"Name": "module/unit",
+				"Started": "2024-01-01T10:00:00Z",
+				"Ended": "2024-01-01T10:01:00Z",
+				"Result": "failed",
+				"Reason": "run error",
+				"Cause": "some error"
+			}]`,
+			expectError: false,
+		},
+		{
+			name: "valid multiple runs",
+			input: `[
+				{"Name": "unit-a", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"},
+				{"Name": "unit-b", "Started": "2024-01-01T10:01:00Z", "Ended": "2024-01-01T10:02:00Z", "Result": "failed", "Reason": "run error"}
+			]`,
+			expectError: false,
+		},
+		{
+			name:        "invalid - not an array",
+			input:       `{"Name": "unit", "Result": "succeeded"}`,
+			expectError: true,
+		},
+		{
+			name:        "invalid - missing required field Name",
+			input:       `[{"Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`,
+			expectError: true,
+		},
+		{
+			name:        "invalid - missing required field Result",
+			input:       `[{"Name": "unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z"}]`,
+			expectError: true,
+		},
+		{
+			name:        "invalid json",
+			input:       "not valid json",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := report.ValidateJSONReport([]byte(tt.input))
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateJSONReportFromFile verifies that file-based validation works.
+func TestValidateJSONReportFromFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	t.Run("valid file", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "valid-report.json")
+		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		err = report.ValidateJSONReportFromFile(reportFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid file content", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "invalid-report.json")
+		content := `[{"Name": "test-unit"}]` // missing required fields
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		err = report.ValidateJSONReportFromFile(reportFile)
+		require.Error(t, err)
+
+		var schemaErr *report.SchemaValidationError
+		require.ErrorAs(t, err, &schemaErr)
+		assert.NotEmpty(t, schemaErr.Errors)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		err := report.ValidateJSONReportFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		require.Error(t, err)
+	})
+}
+
+// TestSchemaValidationError verifies the error type works correctly.
+func TestSchemaValidationError(t *testing.T) {
+	t.Parallel()
+
+	err := &report.SchemaValidationError{
+		Errors: []string{"error 1", "error 2"},
+	}
+
+	assert.Contains(t, err.Error(), "2 error(s)")
+	assert.Contains(t, err.Error(), "error 1")
+	assert.Contains(t, err.Error(), "error 2")
 }
 
 // newRun creates a new run, and asserts that it doesn't error.

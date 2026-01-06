@@ -480,7 +480,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath)
+				// Pass the discovery working directory for worktree scenarios
+				var ensureOpts []report.EndOption
+				if ctx := u.DiscoveryContext(); ctx != nil && ctx.WorkingDir != "" {
+					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(ctx.WorkingDir))
+				}
+
+				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -569,7 +575,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath)
+				// Pass the discovery working directory for worktree scenarios
+				var ensureOpts []report.EndOption
+				if ctx := unit.DiscoveryContext(); ctx != nil && ctx.WorkingDir != "" {
+					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(ctx.WorkingDir))
+				}
+
+				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue

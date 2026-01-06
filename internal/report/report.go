@@ -24,13 +24,14 @@ type Report struct {
 
 // Run captures data for a run.
 type Run struct {
-	Started time.Time
-	Ended   time.Time
-	Reason  *Reason
-	Cause   *Cause
-	Path    string
-	Result  Result
-	mu      sync.RWMutex
+	Started             time.Time
+	Ended               time.Time
+	Reason              *Reason
+	Cause               *Cause
+	Path                string
+	Result              Result
+	DiscoveryWorkingDir string
+	mu                  sync.RWMutex
 }
 
 // Result captures the result of a run.
@@ -173,10 +174,14 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // EnsureRun tries to get a run from the report.
 // If the run does not exist, it creates a new run and adds it to the report, then returns the run.
 // This is useful when a run is being ended that might not have been started due to exclusion, etc.
-func (r *Report) EnsureRun(l log.Logger, path string) (*Run, error) {
+func (r *Report) EnsureRun(l log.Logger, path string, opts ...EndOption) (*Run, error) {
 	run, err := r.GetRun(path)
 	if err == nil {
 		l.Debugf("Report run %s already exists, returning existing run", path)
+
+		for _, opt := range opts {
+			opt(run)
+		}
 
 		return run, nil
 	}
@@ -190,6 +195,10 @@ func (r *Report) EnsureRun(l log.Logger, path string) (*Run, error) {
 	run, err = NewRun(path)
 	if err != nil {
 		return run, err
+	}
+
+	for _, opt := range opts {
+		opt(run)
 	}
 
 	if err = r.AddRun(l, run); err != nil {
@@ -312,5 +321,13 @@ func withCause(name string) EndOption {
 	return func(run *Run) {
 		cause := Cause(name)
 		run.Cause = &cause
+	}
+}
+
+// WithDiscoveryWorkingDir sets the discovery working directory for a run.
+// This is used to compute relative paths for units discovered in worktrees.
+func WithDiscoveryWorkingDir(workingDir string) EndOption {
+	return func(run *Run) {
+		run.DiscoveryWorkingDir = workingDir
 	}
 }
