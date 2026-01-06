@@ -71,6 +71,12 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts *options.Terragru
 		FilesRead:         &filesRead,
 	}
 }
+
+func (ctx ParsingContext) WithContext(newCtx context.Context) *ParsingContext {
+	ctx.Context = newCtx
+	return &ctx
+}
+
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	ctx.PartialParseDecodeList = decodeList
 	return &ctx
