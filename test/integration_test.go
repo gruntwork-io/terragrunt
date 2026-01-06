@@ -115,6 +115,7 @@ const (
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
+	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
 
 	terraformFolder = ".terraform"
@@ -321,8 +322,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command-args(suffix=': ')%msg(path=relative)",
 			expectedStdOutRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init -input=false -no-color: Initializing the backend...")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init -input=false -no-color: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init -no-color -input=false: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init -no-color -input=false: Initializing the backend...")),
 			},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
@@ -4542,4 +4543,20 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hidden1")
 	assert.Contains(t, stdout, "hidden2")
+}
+
+func TestNoColorDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoColorDependency)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNoColorDependency)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan -no-color --tf-forward-stdout --working-dir "+testPath)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout, "has been successfully initialized!"))
+
+	// check that no ANSI codes are printed
+	assert.NotContains(t, stderr, "\x1b")
+	assert.NotContains(t, stdout, "\x1b")
 }

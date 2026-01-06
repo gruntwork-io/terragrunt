@@ -4,15 +4,18 @@ import '@styles/global.css';
 import Eyebrow from '@components/dv-Eyebrow.astro';
 import EmployeeCard from '@components/EmployeeCard.astro';
 
+import Amit from '@assets/ambassadors/amit-karni.jpg'
+import Alexander from '@assets/ambassadors/alexander-dovnar.jpg';
 import Axel from '@assets/ambassadors/axel-mendoza.jpg';
 import Dallas from '@assets/ambassadors/dallas-slaughter.jpg';
+import Ceyda from '@assets/ambassadors/ceyda-duzgec.jpg'
+import Gabor from '@assets/ambassadors/gabor-maghera.jpg'
 import Joshua from '@assets/ambassadors/joshua-ward.jpg';
 import Juan from '@assets/ambassadors/juan-reyes.jpg';
+import Lorelei from '@assets/ambassadors/lorelei-rupp.jpg';
 import Steven from '@assets/ambassadors/steven-tseng.jpg';
-import Gabor from '@assets/ambassadors/gabor-maghera.jpg'
-import Amit from '@assets/ambassadors/amit-karni.jpg'
 import Sofiane from '@assets/ambassadors/sofiane-djerbi.jpg'
-import Ceyda from '@assets/ambassadors/ceyda-duzgec.jpg'
+import Srinivasulu from '@assets/ambassadors/srinivasulu-paranduru.jpg'
 ---
 
 <section class="flex justify-center items-center px-5 md:px-0">
@@ -103,6 +106,33 @@ import Ceyda from '@assets/ambassadors/ceyda-duzgec.jpg'
         year="Ambassador since 2026"
         linkedin="https://www.linkedin.com/in/ceydaduzgec/"
         bio="Ceyda is a Solution Architect at Coca-Cola İçecek with a background in Python and microservices. She has extensive experience with AWS, Kubernetes, and using Terraform and Terragrunt for large production workloads. She also volunteers for various technology organizations, including Kubernetes Community Days Istanbul, and enjoys giving public talks on cloud-native technologies. In her free time, she likes playing tennis, snowboarding, and running."
+      />
+      <EmployeeCard
+        name="Alexander Dovnar"
+        image={Alexander}
+        title="Principle DevOps engineer"
+        year="Ambassador since 2026"
+        github="https://github.com/DovnarAlexander"
+        linkedin="https://www.linkedin.com/in/dovnaralex/"
+        youtube="https://youtube.com/@devopskitchentalks"
+        bio="Alexander Dovnar is an engineer focusing on Clouds & Infrastructure as Code, especially Terraform and Terragrunt. He helps teams build and manage cloud infrastructure in a clean, scalable, and predictable way. Alexander works a lot with structuring IaC, simplifying complex setups, and making infrastructure easier to maintain over time. In addition to engineering, he is a public speaker and technical educator, sharing practical DevOps and IaC experience through talks, workshops, podcasts & writing."
+      />
+      <EmployeeCard
+        name="Srinivasulu Paranduru"
+        image={Srinivasulu}
+        title="AWS Solution & Devops Architect"
+        year="Ambassador since 2026"
+        github="https://github.com/srinivasuluparanduru"
+        linkedin="https://linkedin.com/in/srinivasuluparanduru"
+        bio="Multi Cloud Solution Architect,Lead Devops engineer with 20+ years of IT experience | Microsoft Certified Trainer | AWS Community Builder & User Group Leader | GDG Organizer | Speaker & Blogger"
+      />
+      <EmployeeCard
+        name="Lorelei Rupp"
+        image={Lorelei}
+        title="Senior Principal DevOps Engineer"
+        year="Ambassador since 2026"
+        linkedin="https://www.linkedin.com/in/loreleimccollum/"
+        bio="I have been a Software Engineer for 20 years, 10 of those specifically as a DevOps engineer. My passion is to automate everything and I have really enjoyed working with Terraform and Terragrunt over the years. I hate all manual changes and if you ask me to do something manually, I will push back and automate it. I am currently responsible for the IAC of many environments at my current job and without Terragrunt. I am not sure this would be possible. I am very excited to be a part of this community and help others on their IAC journey."
       />
       <EmployeeCard youCard={true} />
     </div>

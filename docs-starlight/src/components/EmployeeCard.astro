@@ -8,6 +8,7 @@ import InfoIcon from '@assets/icons/info.svg';
 import LinkedinIcon from '@assets/icons/linkedin-icon-secondary.svg';
 import MediumIcon from '@assets/icons/medium-icon.svg';
 import YouPlaceholder from '@assets/you-placeholder-2.jpg'
+import YoutubeIcon from '@assets/icons/youtube-icon.svg';
 import WebsiteIcon from '@assets/icons/website-icon-secondary.svg';
 
 import '@styles/global.css';
@@ -22,6 +23,7 @@ const {
   github = null,
   linkedin = null,
   medium = null,
+  youtube = null,
   website = null,
   bio = null,
   youCard = false,
@@ -56,28 +58,35 @@ const {
       <div class="flex flex-row gap-2 justify-between items-center">
         {github && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={github} target="_blank" rel="noopener noreferrer">
+            <a href={github} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={GithubIcon} alt="Github" />
             </a>
           </div>
         )}
         {linkedin && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={linkedin} target="_blank" rel="noopener noreferrer">
+            <a href={linkedin} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={LinkedinIcon} alt="LinkedIn" />
             </a>
           </div>
         )}
         {medium && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={medium} target="_blank" rel="noopener noreferrer">
+            <a href={medium} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={MediumIcon} alt="Medium" />
+            </a>
+          </div>
+        )}
+        {youtube && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={youtube} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
+              <Image src={YoutubeIcon} alt="YouTube" />
             </a>
           </div>
         )}
         {website && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={website} target="_blank" rel="noopener noreferrer">
+            <a href={website} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={WebsiteIcon} alt="Website" />
             </a>
           </div>
@@ -113,28 +122,35 @@ const {
                     <div class="flex flex-row gap-2 mt-4">
                       {github && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={github} target="_blank" rel="noopener noreferrer">
+                          <a href={github} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={GithubIcon} alt="Github" />
                           </a>
                         </div>
                       )}
                       {linkedin && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={linkedin} target="_blank" rel="noopener noreferrer">
+                          <a href={linkedin} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={LinkedinIcon} alt="LinkedIn" />
                           </a>
                         </div>
                       )}
                       {medium && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={medium} target="_blank" rel="noopener noreferrer">
+                          <a href={medium} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={MediumIcon} alt="Medium" />
+                          </a>
+                        </div>
+                      )}
+                      {youtube && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={youtube} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
+                            <Image src={YoutubeIcon} alt="YouTube" />
                           </a>
                         </div>
                       )}
                       {website && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={website} target="_blank" rel="noopener noreferrer">
+                          <a href={website} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={WebsiteIcon} alt="Website" />
                           </a>
                         </div>
