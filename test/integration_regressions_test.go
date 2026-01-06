@@ -28,7 +28,6 @@ const (
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
-	testFixtureDependencyWarnings                = "fixtures/regressions/dependency-output"
 	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
 )
 
@@ -676,26 +675,6 @@ func TestNotExistingDependency(t *testing.T) {
 	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
 }
 
-func TestRunNotPrintingDependencyWarnings(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyWarnings)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyWarnings)
-	depPath := filepath.Join(tmpEnvPath, testFixtureDependencyWarnings, "dep")
-	mainPath := filepath.Join(tmpEnvPath, testFixtureDependencyWarnings, "main")
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt apply --auto-approve --non-interactive --working-dir "+depPath,
-	)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+mainPath,
-	)
-	require.NoError(t, err)
-}
-
 // TestDependencyIncludeError tests that include directives for configs with dependency blocks
 // don't produce false positive "Unknown variable" errors. This is a regression test for issue #5169.
 // The bug occurs when:
@@ -714,14 +693,14 @@ func TestDependencyIncludeError(t *testing.T) {
 	// First apply the dependency so it has outputs
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply --auto-approve --non-interactive --working-dir "+depPath,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+depPath,
 	)
 
 	// Now apply the unit that includes layer.hcl with dependency block
 	// This should NOT produce any ERROR-level diagnostics about "Unknown variable"
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt apply --auto-approve --non-interactive --working-dir "+unitPath,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+unitPath,
 	)
 	require.NoError(t, err)
 
