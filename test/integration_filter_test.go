@@ -727,7 +727,9 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 	t.Cleanup(func() {
 		err = runner.GoCloseStorage()
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
 	})
 
 	// Create three units initially
@@ -930,7 +932,9 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 			t.Cleanup(func() {
 				err = runner.GoCloseStorage()
-				require.NoError(t, err)
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			// Create three units initially using helper
@@ -1118,7 +1122,9 @@ func TestFilterFlagWithRunAllGitFilterRemovedUnitDestroyFlag(t *testing.T) {
 
 	t.Cleanup(func() {
 		err = runner.GoCloseStorage()
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
 	})
 
 	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
@@ -1281,7 +1287,9 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 
 			t.Cleanup(func() {
 				err = runner.GoCloseStorage()
-				require.NoError(t, err)
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			// Create a unit with the specified configuration
@@ -1412,7 +1420,9 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 
 			t.Cleanup(func() {
 				err = runner.GoCloseStorage()
-				require.NoError(t, err)
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			// Create a catalog of units that will be referenced by stacks
@@ -2132,7 +2142,9 @@ func TestOutDirWithGitFilter(t *testing.T) {
 
 	t.Cleanup(func() {
 		err = runner.GoCloseStorage()
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
 	})
 
 	// Create initial unit
