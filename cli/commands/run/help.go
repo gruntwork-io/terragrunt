@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -28,22 +29,22 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 {{ $tfHelp }}{{ end }}
 `
 
-// ShowTFHelp prints TF help for the given `ctx.Command` command.
+// ShowTFHelp prints TF help for the given `cliCtx.Command` command.
 func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
-	return func(ctx *cli.Context) error {
-		if err := shared.NewTFPathFlag(opts).Parse(ctx.Args()); err != nil {
+	return func(ctx context.Context, cliCtx *cli.Context) error {
+		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args()); err != nil {
 			return err
 		}
 
-		cli.HelpPrinterCustom(ctx, TFCommandHelpTemplate, map[string]any{
+		cli.HelpPrinterCustom(cliCtx, TFCommandHelpTemplate, map[string]any{
 			"isTerraformPath": func() bool {
 				return isTerraformPath(opts)
 			},
 			"runTFHelp": func() string {
-				return runTFHelp(ctx, l, opts)
+				return runTFHelp(ctx, cliCtx, l, opts)
 			},
 			"tfCommand": func() string {
-				return ctx.Command.Name
+				return cliCtx.Command.Name
 			},
 		})
 
@@ -51,11 +52,11 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
 	}
 }
 
-func runTFHelp(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) string {
+func runTFHelp(ctx context.Context, cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOptions) string {
 	opts = opts.Clone()
 	opts.Writer = io.Discard
 
-	terraformHelpCmd := []string{tf.FlagNameHelpLong, ctx.Command.Name}
+	terraformHelpCmd := []string{tf.FlagNameHelpLong, cliCtx.Command.Name}
 
 	out, err := tf.RunCommandWithOutput(ctx, l, opts, terraformHelpCmd...)
 	if err != nil {

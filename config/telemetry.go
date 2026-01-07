@@ -7,6 +7,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Telemetry operation names for config parsing operations.
@@ -98,49 +100,60 @@ func TraceParseBaseBlocks(
 	return result, resultErr
 }
 
-// TraceParseBaseBlocksResult adds result attributes to the base blocks trace.
-// This should be called after TraceParseBaseBlocks to add comprehensive result details.
+// TraceParseBaseBlocksResult adds result attributes to the current span from context.
 func TraceParseBaseBlocksResult(
 	ctx context.Context,
 	configPath string,
 	baseBlocks *DecodedBaseBlocks,
-	fn func(ctx context.Context) error,
-) error {
-	attrs := map[string]any{
-		AttrConfigPath: configPath,
+) {
+	span := trace.SpanFromContext(ctx)
+	if span == nil || !span.IsRecording() {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String(AttrConfigPath, configPath),
 	}
 
 	if baseBlocks != nil {
 		// Include information
 		if baseBlocks.TrackInclude != nil && len(baseBlocks.TrackInclude.CurrentList) > 0 {
-			attrs[AttrHasIncludes] = true
-			attrs[AttrIncludeCount] = len(baseBlocks.TrackInclude.CurrentList)
-			attrs[AttrIncludePaths] = formatIncludePaths(baseBlocks.TrackInclude.CurrentList)
+			attrs = append(attrs,
+				attribute.Bool(AttrHasIncludes, true),
+				attribute.Int(AttrIncludeCount, len(baseBlocks.TrackInclude.CurrentList)),
+				attribute.String(AttrIncludePaths, formatIncludePaths(baseBlocks.TrackInclude.CurrentList)),
+			)
 		} else {
-			attrs[AttrHasIncludes] = false
-			attrs[AttrIncludeCount] = 0
+			attrs = append(attrs,
+				attribute.Bool(AttrHasIncludes, false),
+				attribute.Int(AttrIncludeCount, 0),
+			)
 		}
 
 		// Locals information
 		if baseBlocks.Locals != nil && !baseBlocks.Locals.IsNull() {
 			localsMap := baseBlocks.Locals.AsValueMap()
-			attrs[AttrLocalsCount] = len(localsMap)
-			attrs[AttrLocalsNames] = formatMapKeys(localsMap)
+			attrs = append(attrs,
+				attribute.Int(AttrLocalsCount, len(localsMap)),
+				attribute.String(AttrLocalsNames, formatMapKeys(localsMap)),
+			)
 		} else {
-			attrs[AttrLocalsCount] = 0
+			attrs = append(attrs, attribute.Int(AttrLocalsCount, 0))
 		}
 
 		// Feature flags information
 		if baseBlocks.FeatureFlags != nil && !baseBlocks.FeatureFlags.IsNull() {
 			flagsMap := baseBlocks.FeatureFlags.AsValueMap()
-			attrs[AttrFeatureFlagCount] = len(flagsMap)
-			attrs[AttrFeatureFlagNames] = formatMapKeys(flagsMap)
+			attrs = append(attrs,
+				attribute.Int(AttrFeatureFlagCount, len(flagsMap)),
+				attribute.String(AttrFeatureFlagNames, formatMapKeys(flagsMap)),
+			)
 		} else {
-			attrs[AttrFeatureFlagCount] = 0
+			attrs = append(attrs, attribute.Int(AttrFeatureFlagCount, 0))
 		}
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpParseBaseBlocksResult, attrs, fn)
+	span.SetAttributes(attrs...)
 }
 
 // TraceParseDependencies wraps dependency parsing with telemetry.

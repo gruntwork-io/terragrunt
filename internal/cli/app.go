@@ -133,11 +133,11 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 		cmd := app.NewRootCommand()
 
 		args := Args(parentCtx.Args().Slice())
-		ctx := NewAppContext(parentCtx.Context, app, args)
+		cliCtx := NewAppContext(app, args)
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {
-				return app.handleExitCoder(ctx, err)
+				return app.handleExitCoder(cliCtx, err)
 			}
 
 			if compLine := os.Getenv(envCompleteLine); compLine != "" {
@@ -146,11 +146,11 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 					args = args[1:]
 				}
 
-				ctx.shellComplete = true
+				cliCtx.shellComplete = true
 			}
 		}
 
-		return cmd.Run(ctx, args)
+		return cmd.Run(parentCtx.Context, cliCtx, args)
 	}
 
 	return app.App.RunContext(ctx, arguments)
