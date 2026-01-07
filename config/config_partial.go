@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -275,23 +276,46 @@ func PartialParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string
 		return nil, errors.New(err)
 	}
 
-	var (
-		file     *hclparse.File
-		cacheKey = fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
-	)
+	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
 
-	if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-		file = cacheConfig
-	} else {
-		file, err = hclparse.NewParser(ctx.ParserOptions...).ParseFromFile(configPath)
-		if err != nil {
-			return nil, err
-		}
+	// Check cache hit status before tracing
+	_, cacheHit := hclCache.Get(ctx, cacheKey)
 
-		hclCache.Put(ctx, cacheKey, file)
-	}
+	var config *TerragruntConfig
 
-	return TerragruntConfigFromPartialConfig(ctx, l, file, include)
+	// TODO: Remove lint ignore
+	err = TraceParseConfigFile(
+		ctx,
+		configPath,
+		ctx.TerragruntOptions.WorkingDir,
+		true, // isPartial
+		ctx.PartialParseDecodeList,
+		include,
+		cacheHit,
+		func(_ context.Context) error {
+			var file *hclparse.File
+
+			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
+				file = cacheConfig
+			} else {
+				var parseErr error
+
+				file, parseErr = hclparse.NewParser(ctx.ParserOptions...).ParseFromFile(configPath)
+				if parseErr != nil {
+					return parseErr
+				}
+
+				hclCache.Put(ctx, cacheKey, file) //nolint:contextcheck
+			}
+
+			var parseErr error
+
+			config, parseErr = TerragruntConfigFromPartialConfig(ctx, l, file, include) //nolint:contextcheck
+
+			return parseErr
+		})
+
+	return config, err
 }
 
 // TerragruntConfigFromPartialConfig is a wrapper of PartialParseConfigString which checks for cached configs.
@@ -583,10 +607,30 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
 	if len(ctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
-		config, err := handleInclude(ctx, l, output, true)
+		includeCount := len(ctx.TrackInclude.CurrentList)
+		includePaths := make([]string, 0, includeCount)
+
+		for _, inc := range ctx.TrackInclude.CurrentList {
+			if inc.Path != "" {
+				includePaths = append(includePaths, inc.Path)
+			}
+		}
+
+		var config *TerragruntConfig
+
+		// TODO: Remove lint ignore
+		err := TraceParseIncludeMerge(ctx, file.ConfigPath, includeCount, includePaths, func(childCtx context.Context) error {
+			var mergeErr error
+
+			// Use the child context for trace propagation so include parsing is a child span
+			config, mergeErr = handleInclude(ctx.WithContext(childCtx), l, output, true) //nolint:contextcheck
+
+			return mergeErr
+		})
 		if err != nil {
 			errs = errs.Append(err)
 		}
+
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		config.ProcessedIncludes = ctx.TrackInclude.CurrentMap
 
