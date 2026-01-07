@@ -14,6 +14,10 @@ import (
 	"testing"
 	"time"
 
+	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -570,4 +574,212 @@ func sortLinesWithinCategories(input string) string {
 	}
 
 	return strings.Join(result, "\n")
+}
+
+// TestTerragruntReportWithGitFilter tests that report generation works correctly
+// with Git-based filters (worktree scenarios). This test verifies:
+// 1. Reports contain relative paths, not absolute worktree paths
+// 2. The report can be parsed using the utility functions
+// 3. The report passes schema validation
+func TestTerragruntReportWithGitFilter(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		reportFormat   string
+		expectedUnits  []string
+		excludedUnits  []string
+		ignoredUnits   []string
+		allowDestroy   bool
+		validateSchema bool
+	}{
+		{
+			name:           "JSON format with git filter",
+			reportFormat:   "json",
+			expectedUnits:  []string{"unit-created", "unit-modified"},
+			excludedUnits:  []string{"unit-removed"},
+			ignoredUnits:   []string{"unit-untouched"},
+			allowDestroy:   false,
+			validateSchema: true,
+		},
+		{
+			name:           "CSV format with git filter",
+			reportFormat:   "csv",
+			expectedUnits:  []string{"unit-created", "unit-modified"},
+			excludedUnits:  []string{"unit-removed"},
+			ignoredUnits:   []string{"unit-untouched"},
+			allowDestroy:   false,
+			validateSchema: false, // CSV doesn't have schema validation
+		},
+		{
+			name:           "JSON format with git filter and allow destroy",
+			reportFormat:   "json",
+			expectedUnits:  []string{"unit-created", "unit-modified", "unit-removed"},
+			excludedUnits:  []string{},
+			ignoredUnits:   []string{"unit-untouched"},
+			allowDestroy:   true,
+			validateSchema: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			err = runner.GoOpenRepo()
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				err = runner.GoCloseStorage()
+				require.NoError(t, err)
+			})
+
+			createReportTestUnit(t, filepath.Join(tmpDir, "unit-modified"), "# Unit to be modified")
+			createReportTestUnit(t, filepath.Join(tmpDir, "unit-removed"), "# Unit to be removed")
+			createReportTestUnit(t, filepath.Join(tmpDir, "unit-untouched"), "# Unit to be untouched")
+
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			err = os.WriteFile(filepath.Join(tmpDir, "unit-modified", "terragrunt.hcl"), []byte("# Modified"), 0644)
+			require.NoError(t, err)
+
+			err = os.RemoveAll(filepath.Join(tmpDir, "unit-removed"))
+			require.NoError(t, err)
+
+			createReportTestUnit(t, filepath.Join(tmpDir, "unit-created"), "# Unit created")
+
+			err = runner.GoAdd(".")
+			require.NoError(t, err)
+
+			err = runner.GoCommit("Modify, create, and remove units", &gogit.CommitOptions{
+				Author: &object.Signature{
+					Name:  "Test User",
+					Email: "test@example.com",
+					When:  time.Now(),
+				},
+			})
+			require.NoError(t, err)
+
+			reportFile := "report." + tc.reportFormat
+			cmd := fmt.Sprintf(
+				"terragrunt run --all plan --no-color --non-interactive --working-dir %s --filter '[HEAD~1...HEAD]' --report-file %s --report-format %s",
+				tmpDir,
+				reportFile,
+				tc.reportFormat,
+			)
+
+			if tc.allowDestroy {
+				cmd += " --filter-allow-destroy"
+			}
+
+			var stdout, stderr bytes.Buffer
+
+			err = helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			require.NoError(t, err)
+
+			reportFilePath := filepath.Join(tmpDir, reportFile)
+			require.FileExists(t, reportFilePath, "Report file should exist")
+
+			switch tc.reportFormat {
+			case "json":
+				if tc.validateSchema {
+					err := report.ValidateJSONReportFromFile(reportFilePath)
+					require.NoError(t, err, "Report should pass schema validation")
+				}
+
+				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				require.NoError(t, err, "Should be able to parse JSON report")
+
+				runNames := runs.Names()
+
+				for _, expectedUnit := range tc.expectedUnits {
+					run := runs.FindByName(expectedUnit)
+					require.NotNil(t, run, "Expected unit '%s' should be in report. Found: %v", expectedUnit, runNames)
+
+					assert.NotContains(t, run.Name, "terragrunt-worktree",
+						"Report path should not contain worktree directory. Got: %s", run.Name)
+					assert.NotContains(t, run.Name, "/tmp/",
+						"Report path should be relative, not absolute. Got: %s", run.Name)
+
+					assert.NotEqual(t, "excluded", run.Result,
+						"Expected unit '%s' should not be excluded", expectedUnit)
+				}
+
+				for _, excludedUnit := range tc.excludedUnits {
+					run := runs.FindByName(excludedUnit)
+					require.NotNil(t, run, "Excluded unit '%s' should be in report. Found: %v", excludedUnit, runNames)
+					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
+				}
+
+				for _, ignoredUnit := range tc.ignoredUnits {
+					run := runs.FindByName(ignoredUnit)
+					assert.Nil(t, run, "Ignored unit '%s' should NOT be in report", ignoredUnit)
+				}
+
+			case "csv":
+				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				require.NoError(t, err, "Should be able to parse CSV report")
+
+				runNames := runs.Names()
+
+				for _, expectedUnit := range tc.expectedUnits {
+					run := runs.FindByName(expectedUnit)
+					require.NotNil(t, run, "Expected unit '%s' should be in report. Found: %v", expectedUnit, runNames)
+
+					assert.NotContains(t, run.Name, "terragrunt-worktree",
+						"Report path should not contain worktree directory. Got: %s", run.Name)
+					assert.NotContains(t, run.Name, "/tmp/",
+						"Report path should be relative, not absolute. Got: %s", run.Name)
+
+					assert.NotEqual(t, "excluded", run.Result,
+						"Expected unit '%s' should not be excluded", expectedUnit)
+				}
+
+				for _, excludedUnit := range tc.excludedUnits {
+					run := runs.FindByName(excludedUnit)
+					require.NotNil(t, run, "Excluded unit '%s' should be in report. Found: %v", excludedUnit, runNames)
+					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
+				}
+
+				for _, ignoredUnit := range tc.ignoredUnits {
+					run := runs.FindByName(ignoredUnit)
+					assert.Nil(t, run, "Ignored unit '%s' should NOT be in report", ignoredUnit)
+				}
+			}
+		})
+	}
+}
+
+// createReportTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
+func createReportTestUnit(t *testing.T, dir, comment string) {
+	t.Helper()
+
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(comment), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`# Minimal terraform config`), 0644)
+	require.NoError(t, err)
 }

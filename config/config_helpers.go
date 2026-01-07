@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -35,6 +36,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -236,49 +238,109 @@ func getPlatform(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_repo_root", attrs, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		var innerErr error
+
+		result, innerErr = shell.GitTopLevelDir(childPctx, l, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir) //nolint:contextcheck
+
+		return innerErr
+	})
+
+	return result, err
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	repoRelPath, err := filepath.Rel(repoAbsPath, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
-	}
+	var result string
 
-	return filepath.ToSlash(repoRelPath), nil
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_path_from_repo_root", attrs, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		repoAbsPath, innerErr := shell.GitTopLevelDir(childPctx, l, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir) //nolint:contextcheck
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		repoRelPath, innerErr := filepath.Rel(repoAbsPath, ctx.TerragruntOptions.WorkingDir)
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		result = filepath.ToSlash(repoRelPath)
+
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	repoRootPathAbs, err := filepath.Rel(ctx.TerragruntOptions.WorkingDir, repoAbsPath)
-	if err != nil {
-		return "", errors.New(err)
-	}
+	var result string
 
-	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs)), nil
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_path_to_repo_root", attrs, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		repoAbsPath, innerErr := shell.GitTopLevelDir(childPctx, l, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir) //nolint:contextcheck
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		repoRootPathAbs, innerErr := filepath.Rel(ctx.TerragruntOptions.WorkingDir, repoAbsPath)
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		result = filepath.ToSlash(strings.TrimSpace(repoRootPathAbs))
+
+		return nil
+	})
+
+	return result, err
 }
 
 // GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
-	path := ctx.TerragruntOptions.TerragruntConfigPath
-
-	terragruntConfigFileAbsPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.New(err)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_terragrunt_dir", attrs, func(childCtx context.Context) error {
+		path := ctx.TerragruntOptions.TerragruntConfigPath
+
+		terragruntConfigFileAbsPath, innerErr := filepath.Abs(path)
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		result = filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath))
+
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the directory where the original Terragrunt configuration file lives. This is primarily useful when one
@@ -286,29 +348,58 @@ func GetTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
 // calls read_terragrunt_config("/foo/bar.hcl"), and within bar.hcl, you call get_original_terragrunt_dir(), you'll
 // get back /terraform-code.
 func getOriginalTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
-	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.OriginalTerragruntConfigPath)
-	if err != nil {
-		return "", errors.New(err)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_original_terragrunt_dir", attrs, func(childCtx context.Context) error {
+		terragruntConfigFileAbsPath, innerErr := filepath.Abs(ctx.TerragruntOptions.OriginalTerragruntConfigPath)
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		result = filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath))
+
+		return nil
+	})
+
+	return result, err
 }
 
 // GetParentTerragruntDir returns the parent directory where the Terragrunt configuration file lives.
 func GetParentTerragruntDir(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
-	parentPath, err := PathRelativeFromInclude(ctx, l, params)
-	if err != nil {
-		return "", errors.New(err)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(params) > 0 {
+		attrs["include_label"] = params[0]
 	}
 
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	var result string
 
-	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
-	if err != nil {
-		return "", errors.New(err)
-	}
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_parent_terragrunt_dir", attrs, func(childCtx context.Context) error {
+		parentPath, innerErr := PathRelativeFromInclude(ctx, l, params)
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
 
-	return filepath.ToSlash(parentPath), nil
+		currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+
+		parentPath, innerErr = filepath.Abs(filepath.Join(currentPath, parentPath))
+		if innerErr != nil {
+			return errors.New(innerErr)
+		}
+
+		result = filepath.ToSlash(parentPath)
+
+		return nil
+	})
+
+	return result, err
 }
 
 func parseGetEnvParameters(parameters []string) (EnvVar, error) {
@@ -336,6 +427,61 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 // for each `run_cmd` in locals section, function is called twice
 // result
 func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
+	// Capture original args for telemetry before any modifications
+	originalArgs := make([]string, len(args))
+	copy(originalArgs, args)
+
+	// Parse flags for telemetry attributes
+	suppressOutput := false
+	disableCache := false
+	useGlobalCache := false
+
+	for _, arg := range args {
+		switch arg {
+		case "--terragrunt-quiet":
+			suppressOutput = true
+		case "--terragrunt-global-cache":
+			useGlobalCache = true
+		case "--terragrunt-no-cache":
+			disableCache = true
+		}
+	}
+
+	// Extract command name (first non-flag argument)
+	var command string
+
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "--terragrunt-") {
+			command = arg
+			break
+		}
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_run_cmd", map[string]any{
+		"config_path":     ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir":     ctx.TerragruntOptions.WorkingDir,
+		"command":         command,
+		"args":            fmt.Sprintf("%v", originalArgs),
+		"suppress_output": suppressOutput,
+		"global_cache":    useGlobalCache,
+		"no_cache":        disableCache,
+	}, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		var innerErr error
+
+		result, innerErr = runCommandImpl(childPctx, l, args) //nolint:contextcheck
+
+		return innerErr
+	})
+
+	return result, err
+}
+
+// runCommandImpl contains the actual implementation of RunCommand
+func runCommandImpl(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
@@ -420,22 +566,43 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 }
 
 func getEnvironmentVariable(ctx *ParsingContext, l log.Logger, parameters []string) (string, error) {
-	parameterMap, err := parseGetEnvParameters(parameters)
-	if err != nil {
-		return "", errors.New(err)
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	envValue, exists := ctx.TerragruntOptions.Env[parameterMap.Name]
+	if len(parameters) > 0 {
+		attrs["env_name"] = parameters[0]
+	}
 
-	if !exists {
-		if parameterMap.IsRequired {
-			return "", errors.New(EnvVarNotFoundError{EnvVar: parameterMap.Name})
+	if len(parameters) > 1 {
+		attrs["default_value"] = parameters[1]
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_env", attrs, func(childCtx context.Context) error {
+		parameterMap, innerErr := parseGetEnvParameters(parameters)
+		if innerErr != nil {
+			return errors.New(innerErr)
 		}
 
-		envValue = parameterMap.DefaultValue
-	}
+		envValue, exists := ctx.TerragruntOptions.Env[parameterMap.Name]
 
-	return envValue, nil
+		if !exists {
+			if parameterMap.IsRequired {
+				return errors.New(EnvVarNotFoundError{EnvVar: parameterMap.Name})
+			}
+
+			envValue = parameterMap.DefaultValue
+		}
+
+		result = envValue
+
+		return nil
+	})
+
+	return result, err
 }
 
 // FindInParentFolders fings a parent Terragrunt configuration file in the parent
@@ -445,6 +612,35 @@ func FindInParentFolders(
 	l log.Logger,
 	params []string,
 ) (string, error) {
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(params) > 0 {
+		attrs["file_to_find"] = params[0]
+	}
+
+	if len(params) > 1 {
+		attrs["fallback"] = params[1]
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_find_in_parent_folders", attrs, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		var innerErr error
+
+		result, innerErr = findInParentFoldersImpl(childPctx, l, params) //nolint:contextcheck
+
+		return innerErr
+	})
+
+	return result, err
+}
+
+// findInParentFoldersImpl contains the actual implementation of FindInParentFolders
+func findInParentFoldersImpl(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	numParams := len(params)
 
 	var (
@@ -529,60 +725,96 @@ func FindInParentFolders(
 // and the current Terragrunt configuration file. Name param is required and used to lookup the
 // relevant import block when called in a child config with multiple import blocks.
 func PathRelativeToInclude(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
-	if ctx.TrackInclude == nil {
-		return ".", nil
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(params) > 0 {
+		attrs["include_label"] = params[0]
 	}
 
-	var included IncludeConfig
+	var result string
 
-	switch {
-	case ctx.TrackInclude.Original != nil:
-		included = *ctx.TrackInclude.Original
-	case len(ctx.TrackInclude.CurrentList) > 0:
-		// Called in child ctx, so we need to select the right include file.
-		selected, err := getSelectedIncludeBlock(*ctx.TrackInclude, params)
-		if err != nil {
-			return "", err
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_path_relative_to_include", attrs, func(childCtx context.Context) error {
+		if ctx.TrackInclude == nil {
+			result = "."
+			return nil
 		}
 
-		included = *selected
-	default:
-		return ".", nil
-	}
+		var included IncludeConfig
 
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
-	includePath := filepath.Dir(included.Path)
+		switch {
+		case ctx.TrackInclude.Original != nil:
+			included = *ctx.TrackInclude.Original
+		case len(ctx.TrackInclude.CurrentList) > 0:
+			// Called in child ctx, so we need to select the right include file.
+			selected, innerErr := getSelectedIncludeBlock(*ctx.TrackInclude, params)
+			if innerErr != nil {
+				return innerErr
+			}
 
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(currentPath, includePath)
-	}
+			included = *selected
+		default:
+			result = "."
+			return nil
+		}
 
-	relativePath, err := util.GetPathRelativeTo(currentPath, includePath)
+		currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+		includePath := filepath.Dir(included.Path)
 
-	return relativePath, err
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(currentPath, includePath)
+		}
+
+		var innerErr error
+
+		result, innerErr = util.GetPathRelativeTo(currentPath, includePath)
+
+		return innerErr
+	})
+
+	return result, err
 }
 
 // PathRelativeFromInclude returns the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
 func PathRelativeFromInclude(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
-	if ctx.TrackInclude == nil {
-		return ".", nil
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(params) > 0 {
+		attrs["include_label"] = params[0]
 	}
 
-	included, err := getSelectedIncludeBlock(*ctx.TrackInclude, params)
-	if err != nil {
-		return "", err
-	} else if included == nil {
-		return ".", nil
-	}
+	var result string
 
-	includePath := filepath.Dir(included.Path)
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_path_relative_from_include", attrs, func(childCtx context.Context) error {
+		if ctx.TrackInclude == nil {
+			result = "."
+			return nil
+		}
 
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(currentPath, includePath)
-	}
+		included, innerErr := getSelectedIncludeBlock(*ctx.TrackInclude, params)
+		if innerErr != nil {
+			return innerErr
+		} else if included == nil {
+			result = "."
+			return nil
+		}
 
-	return util.GetPathRelativeTo(includePath, currentPath)
+		includePath := filepath.Dir(included.Path)
+		currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(currentPath, includePath)
+		}
+
+		result, innerErr = util.GetPathRelativeTo(includePath, currentPath)
+
+		return innerErr
+	})
+
+	return result, err
 }
 
 // getTerraformCommand returns the current terraform command in execution
@@ -592,6 +824,28 @@ func getTerraformCommand(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // getWorkingDir returns the current working dir
 func getWorkingDir(ctx *ParsingContext, l log.Logger) (string, error) {
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_working_dir", attrs, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		var innerErr error
+
+		result, innerErr = getWorkingDirImpl(childPctx, l) //nolint:contextcheck
+
+		return innerErr
+	})
+
+	return result, err
+}
+
+// getWorkingDirImpl contains the actual implementation of getWorkingDir
+func getWorkingDirImpl(ctx *ParsingContext, l log.Logger) (string, error) {
 	l.Debugf("Start processing get_working_dir built-in function")
 	defer l.Debugf("Complete processing get_working_dir built-in function")
 
@@ -626,72 +880,148 @@ func getWorkingDir(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(ctx *ParsingContext, l log.Logger) ([]string, error) {
-	return ctx.TerragruntOptions.TerraformCliArgs, nil
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+
+	var result []string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_terraform_cli_args", attrs, func(childCtx context.Context) error {
+		result = ctx.TerragruntOptions.TerraformCliArgs
+		return nil
+	})
+
+	return result, err
 }
 
 // getDefaultRetryableErrors returns default retryable errors for use in errors.retry blocks
 func getDefaultRetryableErrors(ctx *ParsingContext, l log.Logger) ([]string, error) {
-	return options.DefaultRetryableErrors, nil
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+
+	var result []string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_default_retryable_errors", attrs, func(childCtx context.Context) error {
+		result = options.DefaultRetryableErrors
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the AWS account alias
 func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
-	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
-	if err != nil {
-		return "", err
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	accountAlias, err := awshelper.GetAWSAccountAlias(ctx.Context, awsConfig)
-	if err == nil {
-		return accountAlias, nil
-	}
+	var result string
 
-	return "", err
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_aws_account_alias", attrs, func(childCtx context.Context) error {
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, ctx.TerragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, awsConfig)
+		if err != nil {
+			return err
+		}
+
+		result = accountAlias
+
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
-	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
-	if err != nil {
-		return "", err
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	accountID, err := awshelper.GetAWSAccountID(ctx.Context, awsConfig)
-	if err == nil {
-		return accountID, nil
-	}
+	var result string
 
-	return "", err
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_aws_account_id", attrs, func(childCtx context.Context) error {
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, ctx.TerragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		accountID, err := awshelper.GetAWSAccountID(childCtx, awsConfig)
+		if err != nil {
+			return err
+		}
+
+		result = accountID
+
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx *ParsingContext, l log.Logger) (string, error) {
-	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
-	if err != nil {
-		return "", err
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	identityARN, err := awshelper.GetAWSIdentityArn(ctx.Context, awsConfig)
-	if err == nil {
-		return identityARN, nil
-	}
+	var result string
 
-	return "", err
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_aws_caller_identity_arn", attrs, func(childCtx context.Context) error {
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, ctx.TerragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, awsConfig)
+		if err != nil {
+			return err
+		}
+
+		result = identityARN
+
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx *ParsingContext, l log.Logger) (string, error) {
-	awsConfig, err := awshelper.CreateAwsConfig(ctx.Context, l, nil, ctx.TerragruntOptions)
-	if err != nil {
-		return "", err
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}
 
-	userID, err := awshelper.GetAWSUserID(ctx.Context, awsConfig)
-	if err == nil {
-		return userID, nil
-	}
+	var result string
 
-	return "", err
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_aws_caller_identity_user_id", attrs, func(childCtx context.Context) error {
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, ctx.TerragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		userID, err := awshelper.GetAWSUserID(childCtx, awsConfig)
+		if err != nil {
+			return err
+		}
+
+		result = userID
+
+		return nil
+	})
+
+	return result, err
 }
 
 // ParseTerragruntConfig parses the terragrunt config and return a
@@ -805,7 +1135,25 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext, l log.Logger) function.
 			}
 
 			targetConfigPath := strArgs[0]
-			return ParseTerragruntConfig(ctx, l, targetConfigPath, defaultVal)
+
+			attrs := map[string]any{
+				"config_path":        ctx.TerragruntOptions.TerragruntConfigPath,
+				"working_dir":        ctx.TerragruntOptions.WorkingDir,
+				"target_config_path": targetConfigPath,
+				"has_default":        defaultVal != nil,
+			}
+
+			var result cty.Value
+
+			err = telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_read_terragrunt_config", attrs, func(childCtx context.Context) error {
+				childPctx := ctx.WithContext(childCtx)
+
+				var innerErr error
+				result, innerErr = ParseTerragruntConfig(childPctx, l, targetConfigPath, defaultVal) //nolint:contextcheck
+				return innerErr
+			})
+
+			return result, err
 		},
 	})
 }
@@ -907,6 +1255,34 @@ var sopsCache = cache.NewCache[string](sopsCacheName)
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
+	var sourceFile string
+	if len(params) > 0 {
+		sourceFile = params[0]
+	}
+
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+		"file_path":   sourceFile,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_sops_decrypt_file", attrs, func(childCtx context.Context) error {
+		childPctx := ctx.WithContext(childCtx)
+
+		var innerErr error
+
+		result, innerErr = sopsDecryptFileImpl(childPctx, l, params) //nolint:contextcheck
+
+		return innerErr
+	})
+
+	return result, err
+}
+
+// sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
+func sopsDecryptFileImpl(ctx *ParsingContext, _ log.Logger, params []string) (string, error) {
 	numParams := len(params)
 
 	var sourceFile string
@@ -997,7 +1373,19 @@ func getSopsFileFormat(sourceFile string) (string, error) {
 
 // Return the location of the Terraform files provided via --source
 func getTerragruntSourceCliFlag(ctx *ParsingContext, l log.Logger) (string, error) {
-	return ctx.TerragruntOptions.Source, nil
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_terragrunt_source_cli_flag", attrs, func(childCtx context.Context) error {
+		result = ctx.TerragruntOptions.Source
+		return nil
+	})
+
+	return result, err
 }
 
 // Return the selected include block based on a label passed in as a function param. Note that the assumption is that:
@@ -1039,82 +1427,182 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 }
 
 // StartsWith Implementation of Terraform's StartsWith function
+//
+//nolint:dupl
 func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the startswith function"))
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["str"] = args[0]
 	}
 
-	str := args[0]
-	prefix := args[1]
-
-	if strings.HasPrefix(str, prefix) {
-		return true, nil
+	if len(args) > 1 {
+		attrs["prefix"] = args[1]
 	}
 
-	return false, nil
+	var result bool
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_startswith", attrs, func(childCtx context.Context) error {
+		if len(args) == 0 {
+			return errors.New(EmptyStringNotAllowedError("parameter to the startswith function"))
+		}
+
+		str := args[0]
+		prefix := args[1]
+
+		result = strings.HasPrefix(str, prefix)
+
+		return nil
+	})
+
+	return result, err
 }
 
 // EndsWith Implementation of Terraform's EndsWith function
+//
+//nolint:dupl
 func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the endswith function"))
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["str"] = args[0]
 	}
 
-	str := args[0]
-	suffix := args[1]
-
-	if strings.HasSuffix(str, suffix) {
-		return true, nil
+	if len(args) > 1 {
+		attrs["suffix"] = args[1]
 	}
 
-	return false, nil
+	var result bool
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_endswith", attrs, func(childCtx context.Context) error {
+		if len(args) == 0 {
+			return errors.New(EmptyStringNotAllowedError("parameter to the endswith function"))
+		}
+
+		str := args[0]
+		suffix := args[1]
+
+		result = strings.HasSuffix(str, suffix)
+
+		return nil
+	})
+
+	return result, err
 }
 
 // TimeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func TimeCmp(ctx *ParsingContext, l log.Logger, args []string) (int64, error) {
-	if len(args) != matchedPats {
-		return 0, errors.New(errors.New("function can take only two parameters: timestamp_a and timestamp_b"))
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["timestamp_a"] = args[0]
 	}
 
-	tsA, err := util.ParseTimestamp(args[0])
-	if err != nil {
-		return 0, errors.New(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
+	if len(args) > 1 {
+		attrs["timestamp_b"] = args[1]
 	}
 
-	tsB, err := util.ParseTimestamp(args[1])
-	if err != nil {
-		return 0, errors.New(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
-	}
+	var result int64
 
-	switch {
-	case tsA.Equal(tsB):
-		return 0, nil
-	case tsA.Before(tsB):
-		return -1, nil
-	default:
-		// By elimination, tsA must be after tsB.
-		return 1, nil
-	}
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_timecmp", attrs, func(childCtx context.Context) error {
+		if len(args) != matchedPats {
+			return errors.New(errors.New("function can take only two parameters: timestamp_a and timestamp_b"))
+		}
+
+		tsA, innerErr := util.ParseTimestamp(args[0])
+		if innerErr != nil {
+			return errors.New(fmt.Errorf("could not parse first parameter %q: %w", args[0], innerErr))
+		}
+
+		tsB, innerErr := util.ParseTimestamp(args[1])
+		if innerErr != nil {
+			return errors.New(fmt.Errorf("could not parse second parameter %q: %w", args[1], innerErr))
+		}
+
+		switch {
+		case tsA.Equal(tsB):
+			result = 0
+		case tsA.Before(tsB):
+			result = -1
+		default:
+			// By elimination, tsA must be after tsB.
+			result = 1
+		}
+
+		return nil
+	})
+
+	return result, err
 }
 
 // StrContains Implementation of Terraform's StrContains function
+//
+//nolint:dupl
 func StrContains(ctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the strcontains function"))
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["str"] = args[0]
 	}
 
-	str := args[0]
-	substr := args[1]
-
-	if strings.Contains(str, substr) {
-		return true, nil
+	if len(args) > 1 {
+		attrs["substr"] = args[1]
 	}
 
-	return false, nil
+	var result bool
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_strcontains", attrs, func(childCtx context.Context) error {
+		if len(args) == 0 {
+			return errors.New(EmptyStringNotAllowedError("parameter to the strcontains function"))
+		}
+
+		str := args[0]
+		substr := args[1]
+
+		result = strings.Contains(str, substr)
+
+		return nil
+	})
+
+	return result, err
 }
 
 // readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
 func readTFVarsFile(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
+	var filePath string
+	if len(args) > 0 {
+		filePath = args[0]
+	}
+
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+		"file_path":   filePath,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_read_tfvars_file", attrs, func(childCtx context.Context) error {
+		var innerErr error
+
+		result, innerErr = readTFVarsFileImpl(ctx, l, args)
+
+		return innerErr
+	})
+
+	return result, err
+}
+
+// readTFVarsFileImpl contains the actual implementation of readTFVarsFile
+func readTFVarsFileImpl(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	if len(args) != 1 {
 		return "", errors.New(WrongNumberOfParamsError{Func: "read_tfvars_file", Expected: "1", Actual: len(args)})
 	}
@@ -1163,26 +1651,42 @@ func readTFVarsFile(ctx *ParsingContext, l log.Logger, args []string) (string, e
 
 // markAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
 func markAsRead(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
-	if len(args) != 1 {
-		return "", errors.New(WrongNumberOfParamsError{Func: "mark_as_read", Expected: "1", Actual: len(args)})
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["file_path"] = args[0]
 	}
 
-	file := args[0]
+	var result string
 
-	// Copy the file path to avoid modifying the original.
-	// This is necessary so that the HCL function doesn't
-	// return a different value than the original file path.
-	path := file
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_mark_as_read", attrs, func(childCtx context.Context) error {
+		if len(args) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: "mark_as_read", Expected: "1", Actual: len(args)})
+		}
 
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(ctx.TerragruntOptions.WorkingDir, path)
-		path = filepath.Clean(path)
-	}
+		file := args[0]
 
-	// Track that this file was read during parsing
-	trackFileRead(ctx.FilesRead, path)
+		// Copy the file path to avoid modifying the original.
+		// This is necessary so that the HCL function doesn't
+		// return a different value than the original file path.
+		path := file
 
-	return file, nil
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(ctx.TerragruntOptions.WorkingDir, path)
+			path = filepath.Clean(path)
+		}
+
+		// Track that this file was read during parsing
+		trackFileRead(ctx.FilesRead, path)
+
+		result = file
+
+		return nil
+	})
+
+	return result, err
 }
 
 // warnWhenFileNotMarkedAsRead warns when a file is not being marked as read, even though a user might expect it to be.
@@ -1278,21 +1782,41 @@ func extractSopsErrors(err error) *errors.MultiError {
 
 // ConstraintCheck Implementation of Terraform's StartsWith function
 func ConstraintCheck(ctx *ParsingContext, args []string) (bool, error) {
-	if len(args) != matchedPats {
-		return false, errors.New(WrongNumberOfParamsError{Func: FuncNameConstraintCheck, Expected: "2", Actual: len(args)})
+	attrs := map[string]any{
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["version"] = args[0]
 	}
 
-	v, err := version.NewSemver(args[0])
-	if err != nil {
-		return false, errors.Errorf("invalid version %s: %w", args[0], err)
+	if len(args) > 1 {
+		attrs["constraint"] = args[1]
 	}
 
-	c, err := version.NewConstraint(args[1])
-	if err != nil {
-		return false, errors.Errorf("invalid constraint %s: %w", args[1], err)
-	}
+	var result bool
 
-	return c.Check(v), nil
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_constraint_check", attrs, func(childCtx context.Context) error {
+		if len(args) != matchedPats {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameConstraintCheck, Expected: "2", Actual: len(args)})
+		}
+
+		v, innerErr := version.NewSemver(args[0])
+		if innerErr != nil {
+			return errors.Errorf("invalid version %s: %w", args[0], innerErr)
+		}
+
+		c, innerErr := version.NewConstraint(args[1])
+		if innerErr != nil {
+			return errors.Errorf("invalid constraint %s: %w", args[1], innerErr)
+		}
+
+		result = c.Check(v)
+
+		return nil
+	})
+
+	return result, err
 }
 
 // trackFileRead adds a file path to the FilesRead slice if it's not already present.
