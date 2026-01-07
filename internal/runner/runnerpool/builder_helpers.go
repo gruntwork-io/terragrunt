@@ -3,6 +3,7 @@ package runnerpool
 import (
 	"context"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -18,9 +19,8 @@ import (
 
 // telemetry event names used in this file
 const (
-	telemetryDiscovery      = "runner_pool_discovery"
-	telemetryDiscoveryRetry = "runner_pool_discovery_retry"
-	telemetryCreation       = "runner_pool_creation"
+	telemetryDiscovery = "runner_pool_discovery"
+	telemetryCreation  = "runner_pool_creation"
 )
 
 // doWithTelemetry is a small helper to standardize telemetry collection calls.
@@ -41,14 +41,7 @@ func resolveWorkingDir(tgOpts *options.TerragruntOptions) string {
 func buildConfigFilenames(tgOpts *options.TerragruntOptions) []string {
 	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
 	customConfigName := filepath.Base(tgOpts.TerragruntConfigPath)
-	isCustom := true
-
-	for _, defaultName := range discovery.DefaultConfigFilenames {
-		if customConfigName == defaultName {
-			isCustom = false
-			break
-		}
-	}
+	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
 
 	if isCustom && customConfigName != "" && customConfigName != "." {
 		configFilenames = append(configFilenames, customConfigName)
@@ -105,6 +98,7 @@ func newBaseDiscovery(
 		WithOptions(anyOpts...).
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
+		WithRelationships().
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: workingDir,
 			Cmd:        tgOpts.TerraformCliArgs.First(),

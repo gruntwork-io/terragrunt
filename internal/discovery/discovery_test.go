@@ -164,7 +164,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	}{
 		{
 			name:      "discovery without external dependencies",
-			discovery: discovery.NewDiscovery(internalDir),
+			discovery: discovery.NewDiscovery(internalDir).WithRelationships(),
 			setupExpected: func() component.Components {
 				app := component.NewUnit(appDir)
 				db := component.NewUnit(dbDir)

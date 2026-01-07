@@ -126,6 +126,11 @@ type Discovery struct {
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
+
+	// discoverRelationships determines whether to run relationship discovery.
+	// When false, relationship discovery is skipped, improving performance for commands
+	// that don't need dependency information.
+	discoverRelationships bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -311,6 +316,16 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 // WithBreakCycles sets the BreakCycles flag to true.
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
+	return d
+}
+
+// WithRelationships enables relationship discovery.
+// When enabled, discovery will parse configurations to find dependencies between components.
+// This is required for operations that need the dependency graph (e.g., runner pool construction,
+// DAG ordering), but is expensive, and avoiding it can improve performance for commands that don't
+// need dependency information.
+func (d *Discovery) WithRelationships() *Discovery {
+	d.discoverRelationships = true
 	return d
 }
 
@@ -1046,23 +1061,25 @@ func (d *Discovery) Discover(
 		components = threadSafeComponents.ToComponents()
 	}
 
-	relationshipDiscovery := NewRelationshipDiscovery(&components).
-		WithMaxDepth(d.maxDependencyDepth).
-		WithNumWorkers(d.numWorkers).
-		WithDiscoveryContext(d.discoveryContext)
+	if d.discoverRelationships {
+		relationshipDiscovery := NewRelationshipDiscovery(&components).
+			WithMaxDepth(d.maxDependencyDepth).
+			WithNumWorkers(d.numWorkers).
+			WithDiscoveryContext(d.discoveryContext)
 
-	if len(d.parserOptions) > 0 {
-		relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
-	}
+		if len(d.parserOptions) > 0 {
+			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
+		}
 
-	err = relationshipDiscovery.Discover(ctx, l, opts, components)
-	if err != nil {
-		if !d.suppressParseErrors {
-			errs = append(errs, errors.New(err))
-		} else {
-			l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
+		err = relationshipDiscovery.Discover(ctx, l, opts, components)
+		if err != nil {
+			if !d.suppressParseErrors {
+				errs = append(errs, errors.New(err))
+			} else {
+				l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
 
-			l.Debugf("Errors: %v", err)
+				l.Debugf("Errors: %v", err)
+			}
 		}
 	}
 
