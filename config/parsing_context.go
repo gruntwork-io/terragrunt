@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"io"
+	"os"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -114,7 +116,28 @@ func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *Pars
 	return &ctx
 }
 
+// WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
+// Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
+// This avoids false positive "There is no variable named dependency" errors during parsing
+// when dependency outputs haven't been resolved yet.
+func (ctx ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
+	var diagWriter = io.Discard
+	if l.Level() >= log.DebugLevel {
+		diagWriter = os.Stderr
+	}
+
+	opts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(diagWriter, true))
+	ctx.ParserOptions = opts
+
+	return &ctx
+}
+
 func (ctx ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	ctx.SkipOutputsResolution = true
+	return &ctx
+}
+
+func (ctx ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
+	ctx.DecodedDependencies = v
 	return &ctx
 }

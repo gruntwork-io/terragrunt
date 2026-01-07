@@ -302,7 +302,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 			return nil, err
 		}
 
-		depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts)
+		depCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts).WithDiagnosticsSuppressed(l)
 
 		depConfig, err := PartialParseConfigFile(depCtx, l, depPath, nil)
 		if err != nil {
@@ -443,7 +443,7 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, l log.Logger, 
 	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
 	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
 	// dependencies block.
-	tgConfig, err := PartialParseConfigFile(ctx.WithDecodeList(DependencyBlock), l, configPath, nil)
+	tgConfig, err := PartialParseConfigFile(ctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(l), l, configPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -774,7 +774,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
 	partialTerragruntConfig, err := PartialParseConfigFile(
-		targetParsingContext.WithDecodeList(DependencyBlock),
+		targetParsingContext.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,
@@ -792,7 +792,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	if ctx.TerragruntOptions.Source != "" {
 		// We need the terraform source of the target config to compute the actual source to use
 		partialParseIncludedConfig, err := PartialParseConfigFile(
-			targetParsingContext.WithDecodeList(TerraformBlock),
+			targetParsingContext.WithDecodeList(TerraformBlock).WithDiagnosticsSuppressed(l),
 			l,
 			targetConfig,
 			nil,
@@ -837,11 +837,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
 	// directly.
 
-	// we need to suspend logging diagnostic errors on this attempt
-	parseOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
-
 	remoteStateTGConfig, err := PartialParseConfigFile(
-		ctx.WithParseOption(parseOptions).WithDecodeList(
+		ctx.WithDiagnosticsSuppressed(l).WithDecodeList(
 			RemoteStateBlock,
 			TerragruntFlags,
 			EngineBlock,

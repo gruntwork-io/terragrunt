@@ -95,7 +95,13 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 		return PartialParseConfigFile(ctx, l, includePath, includedConfig)
 	}
 
-	config, err := ParseConfigFile(ctx, l, includePath, includedConfig)
+	// When included config has dependencies, suppress diagnostics during parsing.
+	parseCtx := ctx
+	if hasDependency {
+		parseCtx = ctx.WithDiagnosticsSuppressed(l)
+	}
+
+	config, err := ParseConfigFile(parseCtx, l, includePath, includedConfig)
 	if err != nil {
 		var configNotFoundError TerragruntConfigNotFoundError
 		if errors.As(err, &configNotFoundError) {

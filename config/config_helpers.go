@@ -1059,15 +1059,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 		return cty.NilVal, err
 	}
 
-	// Preserve the ParserOptions from the parent context when creating the new context
-	// This ensures that error suppression handlers and other parser options are propagated
-	// to nested read_terragrunt_config calls
-	parserOptions := ctx.ParserOptions
-
-	ctx = ctx.WithTerragruntOptions(opts)
-	if len(parserOptions) > 0 {
-		ctx = ctx.WithParseOption(parserOptions)
-	}
+	ctx = ctx.WithTerragruntOptions(opts).WithDiagnosticsSuppressed(l)
 
 	// check if file is stack file, decode as stack file
 	if filepath.Base(targetConfig) == DefaultStackFile {
