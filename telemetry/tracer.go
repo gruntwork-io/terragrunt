@@ -201,15 +201,18 @@ func (tracer *Tracer) openSpan(ctx context.Context, name string, attrs map[strin
 	}
 
 	if tracer.parentTraceID != nil && tracer.parentSpanID != nil {
-		spanContext := trace.NewSpanContext(trace.SpanContextConfig{
-			TraceID:    *tracer.parentTraceID,
-			SpanID:     *tracer.parentSpanID,
-			Remote:     true,
-			TraceFlags: *tracer.parentTraceFlags,
-		})
+		existingSpan := trace.SpanFromContext(ctx)
+		if !existingSpan.SpanContext().IsValid() {
+			spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+				TraceID:    *tracer.parentTraceID,
+				SpanID:     *tracer.parentSpanID,
+				Remote:     true,
+				TraceFlags: *tracer.parentTraceFlags,
+			})
 
-		// create a new context with the parent span context
-		ctx = trace.ContextWithSpanContext(ctx, spanContext)
+			// create a new context with the parent span context
+			ctx = trace.ContextWithSpanContext(ctx, spanContext)
+		}
 	}
 
 	// This lint is suppressed because we definitely do close the span
