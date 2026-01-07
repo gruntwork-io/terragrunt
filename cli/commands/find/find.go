@@ -29,6 +29,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          !opts.Hidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
+		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
 		Exclude:           opts.Exclude,
 		Include:           opts.Include,
 		Reading:           opts.Reading,
