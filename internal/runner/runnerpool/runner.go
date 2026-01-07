@@ -482,8 +482,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				// Pass the discovery working directory for worktree scenarios
 				var ensureOpts []report.EndOption
-				if ctx := u.DiscoveryContext(); ctx != nil && ctx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(ctx.WorkingDir))
+				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
+					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
 				}
 
 				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -577,8 +577,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				// Pass the discovery working directory for worktree scenarios
 				var ensureOpts []report.EndOption
-				if ctx := unit.DiscoveryContext(); ctx != nil && ctx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(ctx.WorkingDir))
+				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
+					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
 				}
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
