@@ -118,16 +118,16 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
 	filename := "../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
-	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
+	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
 
-	ctx.TerragruntOptions = opts
-	err = ctx.TerragruntOptions.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
+	pctx.TerragruntOptions = opts
+	err = pctx.TerragruntOptions.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
-	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), filename, nil)
+	pctx.TerragruntOptions.Env = env.Parse(os.Environ())
+	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -177,10 +177,11 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath)).WithDecodeList(config.DependencyBlock)
+	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
+	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	// Only enabled dependency should be in the paths
@@ -203,10 +204,11 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath)).WithDecodeList(config.DependencyBlock)
+	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
+	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	// Only enabled dependency should be in the paths

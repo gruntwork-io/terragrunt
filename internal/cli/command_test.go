@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -158,12 +159,12 @@ func TestCommandRun(t *testing.T) {
 			var actualOrder = new(int)
 
 			action := func(expectedOrder int, expectedArgs []string) cli.ActionFunc {
-				return func(ctx *cli.Context) error {
+				return func(ctx context.Context, cliCtx *cli.Context) error {
 					(*actualOrder)++
 					assert.Equal(t, expectedOrder, *actualOrder)
 
 					if expectedArgs != nil {
-						actualArgs := ctx.Args().Slice()
+						actualArgs := cliCtx.Args().Slice()
 						assert.Equal(t, expectedArgs, actualArgs)
 					}
 
@@ -171,7 +172,7 @@ func TestCommandRun(t *testing.T) {
 				}
 			}
 
-			skip := func(ctx *cli.Context) error {
+			skip := func(ctx context.Context, cliCtx *cli.Context) error {
 				assert.Fail(t, "this action must be skipped")
 				return nil
 			}
@@ -179,9 +180,9 @@ func TestCommandRun(t *testing.T) {
 			tc := tcFn(action, skip)
 
 			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
-			ctx := cli.NewAppContext(t.Context(), app, tc.args)
+			cliCtx := cli.NewAppContext(app, tc.args)
 
-			err := tc.command.Run(ctx, tc.args)
+			err := tc.command.Run(t.Context(), cliCtx, tc.args)
 			if tc.expectedErr != nil {
 				require.EqualError(t, err, tc.expectedErr.Error(), tc)
 			} else {

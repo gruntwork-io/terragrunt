@@ -16,9 +16,8 @@ import (
 
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
+// Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	context.Context
-
 	TerragruntOptions *options.TerragruntOptions
 
 	// TrackInclude represents contexts of included configurations.
@@ -43,7 +42,7 @@ type ParsingContext struct {
 
 	// Set a custom converter to TerragruntConfig.
 	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
-	ConvertToTerragruntConfigFunc func(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
 	// FilesRead tracks files that were read during parsing (absolute paths).
 	// This is a pointer so that it's shared across all parsing context copies.
@@ -61,21 +60,20 @@ type ParsingContext struct {
 	SkipOutputsResolution bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {
+func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	filesRead := make([]string, 0)
 
-	return &ParsingContext{
-		Context:           ctx,
+	return ctx, &ParsingContext{
 		TerragruntOptions: opts,
 		ParserOptions:     DefaultParserOptions(l, opts),
 		FilesRead:         &filesRead,
 	}
 }
 
-func (ctx ParsingContext) WithContext(newCtx context.Context) *ParsingContext {
-	ctx.Context = newCtx
+// Clone returns a shallow copy of the ParsingContext.
+func (ctx ParsingContext) Clone() *ParsingContext {
 	return &ctx
 }
 

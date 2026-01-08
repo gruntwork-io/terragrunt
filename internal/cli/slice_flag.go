@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	libflag "flag"
 	"os"
 	"strings"
@@ -136,9 +137,9 @@ func (flag *SliceFlag[T]) Names() []string {
 }
 
 // RunAction implements ActionableFlag.RunAction
-func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
+func (flag *SliceFlag[T]) RunAction(ctx context.Context, cliCtx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx, *flag.Destination)
+		return flag.Action(ctx, cliCtx, *flag.Destination)
 	}
 
 	return nil

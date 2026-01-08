@@ -3,6 +3,8 @@
 package list
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -60,7 +62,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars: tgPrefix.EnvVars(ExternalFlagName),
 			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
 			Hidden:  true,
-			Action: func(_ *cli.Context, value bool) error {
+			Action: func(_ context.Context, _ *cli.Context, value bool) error {
 				if !value {
 					return nil
 				}
@@ -115,7 +117,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Aliases: []string{CommandAlias},
 		Usage:   "List relevant Terragrunt configurations.",
 		Flags:   flags,
-		Before: func(ctx *cli.Context) error {
+		Before: func(_ context.Context, _ *cli.Context) error {
 			if cmdOpts.Tree {
 				cmdOpts.Format = FormatTree
 			}
@@ -140,7 +142,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 
 			return nil
 		},
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx context.Context, _ *cli.Context) error {
 			return Run(ctx, l, cmdOpts)
 		},
 	}

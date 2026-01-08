@@ -1,6 +1,8 @@
 package validate
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -87,7 +89,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
 		Flags:                        NewFlags(l, opts),
 		DisabledErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx context.Context, _ *cli.Context) error {
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}

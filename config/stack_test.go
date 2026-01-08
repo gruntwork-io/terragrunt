@@ -33,7 +33,7 @@ stack "projects" {
 
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	ctx, _ := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
 	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
@@ -106,7 +106,7 @@ stack "network" {
 }
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	ctx, _ := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
 	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
@@ -164,7 +164,7 @@ locals {
 }
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	ctx, _ := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
 	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, invalidCfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")

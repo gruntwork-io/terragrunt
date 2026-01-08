@@ -2,6 +2,8 @@
 package stack
 
 import (
+	"context"
+
 	runcmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -35,36 +37,36 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			&cli.Command{
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
-				Action: func(ctx *cli.Context) error {
-					return RunGenerate(ctx.Context, l, opts.OptionsFromContext(ctx))
+				Action: func(ctx context.Context, _ *cli.Context) error {
+					return RunGenerate(ctx, l, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
 			},
 			&cli.Command{
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
-				Action: func(ctx *cli.Context) error {
-					return Run(ctx.Context, l, opts.OptionsFromContext(ctx))
+				Action: func(ctx context.Context, _ *cli.Context) error {
+					return Run(ctx, l, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
 				Usage: "Run fetch stack output",
-				Action: func(ctx *cli.Context) error {
+				Action: func(ctx context.Context, cliCtx *cli.Context) error {
 					index := ""
-					if val := ctx.Args().Get(0); val != "" {
+					if val := cliCtx.Args().Get(0); val != "" {
 						index = val
 					}
-					return RunOutput(ctx.Context, l, opts.OptionsFromContext(ctx), index)
+					return RunOutput(ctx, l, opts.OptionsFromContext(ctx), index)
 				},
 				Flags: outputFlags(l, opts, nil),
 			},
 			&cli.Command{
 				Name:  cleanCommandName,
 				Usage: "Clean the stack generated from the current directory",
-				Action: func(ctx *cli.Context) error {
-					return RunClean(ctx.Context, l, opts.OptionsFromContext(ctx))
+				Action: func(ctx context.Context, _ *cli.Context) error {
+					return RunClean(ctx, l, opts.OptionsFromContext(ctx))
 				},
 			},
 		},
@@ -101,7 +103,7 @@ func outputFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Pre
 		flags.NewFlag(&cli.BoolFlag{
 			Name:  RawFormatFlagName,
 			Usage: "Stack output in raw format",
-			Action: func(ctx *cli.Context, value bool) error {
+			Action: func(_ context.Context, _ *cli.Context, value bool) error {
 				opts.StackOutputFormat = rawOutputFormat
 				return nil
 			},
@@ -109,7 +111,7 @@ func outputFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Pre
 		flags.NewFlag(&cli.BoolFlag{
 			Name:  JSONFormatFlagName,
 			Usage: "Stack output in json format",
-			Action: func(ctx *cli.Context, value bool) error {
+			Action: func(_ context.Context, _ *cli.Context, value bool) error {
 				opts.StackOutputFormat = jsonOutputFormat
 				return nil
 			},
