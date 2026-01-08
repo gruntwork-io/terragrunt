@@ -14,13 +14,13 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/github"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -509,13 +509,23 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 		Output: l.Writer(),
 	})
 
-	cmd := exec.CommandContext(ctx, localEnginePath)
+	// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
+	// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
+	// when the command is cancelled.
+	cmd := exec.CommandContext(
+		context.WithoutCancel(ctx),
+		localEnginePath,
+	)
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
 		}
 
-		return cmd.Process.Signal(syscall.SIGINT)
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
 	}
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))

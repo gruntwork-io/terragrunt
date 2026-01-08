@@ -292,17 +292,28 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 
 	diffPath, err := exec.LookPath("diff")
 	if err != nil {
-		// panic if no diff command found
-		return nil, err
+		return nil, fmt.Errorf("failed to find diff command in PATH: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, diffPath, "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name())
+	cmd := exec.CommandContext(
+		ctx,
+		diffPath,
+		"--label="+filepath.Join("old", path),
+		"--label="+filepath.Join("new/", path),
+		"-u",
+		f1.Name(),
+		f2.Name(),
+	)
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
 		}
 
-		return cmd.Process.Signal(signal.InterruptSignal)
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
 	}
 
 	data, err := cmd.CombinedOutput()

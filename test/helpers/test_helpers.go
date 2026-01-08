@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
 )
@@ -154,7 +154,11 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 			return nil
 		}
 
-		return cmd.Process.Signal(syscall.SIGINT)
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
 	}
 
 	var stdout, stderr bytes.Buffer
