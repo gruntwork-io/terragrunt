@@ -854,7 +854,12 @@ func getWorkingDirImpl(ctx *ParsingContext, l log.Logger) (string, error) {
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, l, ctx.TerragruntOptions.TerragruntConfigPath, nil)
+	terragruntConfig, err := PartialParseConfigFile(
+		ctx.WithDecodeList(TerraformSource),
+		l,
+		ctx.TerragruntOptions.TerragruntConfigPath,
+		nil,
+	)
 	if err != nil {
 		return "", err
 	}
