@@ -179,6 +179,9 @@ func (r *Report) EnsureRun(l log.Logger, path string, opts ...EndOption) (*Run, 
 	if err == nil {
 		l.Debugf("Report run %s already exists, returning existing run", path)
 
+		run.mu.Lock()
+		defer run.mu.Unlock()
+
 		for _, opt := range opts {
 			opt(run)
 		}

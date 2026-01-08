@@ -61,8 +61,8 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 		// Pass the discovery working directory for worktree scenarios
 		var ensureOpts []report.EndOption
-		if ctx := runner.Unit.DiscoveryContext(); ctx != nil && ctx.WorkingDir != "" {
-			ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(ctx.WorkingDir))
+		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
+			ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
 		}
 
 		if _, err := r.EnsureRun(runner.Unit.Execution.Logger, unitPath, ensureOpts...); err != nil {
