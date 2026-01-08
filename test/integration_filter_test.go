@@ -2294,7 +2294,7 @@ resource "null_resource" "test" {}
 		" -- apply"
 	helpers.RunTerragrunt(t, cmd)
 
-	// remove unit to trigger destroy
+	// remove unit to trigger destruction
 	err = os.RemoveAll(unitDir)
 	require.NoError(t, err)
 
@@ -2334,7 +2334,7 @@ resource "null_resource" "test" {}
 
 	// Bug regression test
 
-	cmd = "terragrunt run --all --no-color --experiment-mode --non-interactive --working-dir " + tmpDir +
+	cmd = "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
 		" --out-dir " + outDir + " --filter-allow-destroy --filter '[HEAD~1...HEAD]' -- apply"
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)

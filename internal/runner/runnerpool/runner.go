@@ -763,7 +763,6 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 		discoveryCtx := unit.DiscoveryContext()
 		if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
 			mergedArgs := slices.Clone(unit.Execution.TerragruntOptions.TerraformCliArgs)
-
 			for _, stackArg := range opts.TerraformCliArgs {
 				if stackArg == opts.TerraformCliArgs.First() {
 					continue
@@ -774,14 +773,34 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 				}
 			}
 
-			unit.Execution.TerragruntOptions.TerraformCliArgs = mergedArgs
+			// reorder arguments to have plan file args at the end
+			var (
+				regularArgs []string
+				planArgs    []string
+			)
+
+			for _, arg := range mergedArgs {
+				if isPlanArg(arg) {
+					planArgs = append(planArgs, arg)
+					continue
+				}
+
+				regularArgs = append(regularArgs, arg)
+			}
+
+			unit.Execution.TerragruntOptions.TerraformCliArgs = append(regularArgs, planArgs...)
 		} else {
 			unit.Execution.TerragruntOptions.TerraformCliArgs = slices.Clone(opts.TerraformCliArgs)
 		}
 
 		planFile := unit.PlanFile(opts)
+
 		if planFile != "" {
 			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
+
+			if slices.Contains(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile) {
+				return
+			}
 
 			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
@@ -792,6 +811,18 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 			unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile)
 		}
 	}
+}
+
+func isPlanArg(arg string) bool {
+	if strings.HasPrefix(arg, "-") {
+		return false
+	}
+
+	if strings.HasSuffix(arg, ".tfplan") || strings.HasSuffix(arg, ".plan") {
+		return true
+	}
+
+	return false
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
