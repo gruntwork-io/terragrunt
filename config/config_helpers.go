@@ -382,7 +382,9 @@ func GetParentTerragruntDir(ctx *ParsingContext, l log.Logger, params []string) 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_get_parent_terragrunt_dir", attrs, func(childCtx context.Context) error {
-		parentPath, innerErr := PathRelativeFromInclude(ctx, l, params)
+		childPctx := ctx.WithContext(childCtx)
+
+		parentPath, innerErr := PathRelativeFromInclude(childPctx, l, params) //nolint:contextcheck
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
@@ -427,46 +429,12 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 // for each `run_cmd` in locals section, function is called twice
 // result
 func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
-	// Capture original args for telemetry before any modifications
-	originalArgs := make([]string, len(args))
-	copy(originalArgs, args)
-
-	// Parse flags for telemetry attributes
-	suppressOutput := false
-	disableCache := false
-	useGlobalCache := false
-
-	for _, arg := range args {
-		switch arg {
-		case "--terragrunt-quiet":
-			suppressOutput = true
-		case "--terragrunt-global-cache":
-			useGlobalCache = true
-		case "--terragrunt-no-cache":
-			disableCache = true
-		}
-	}
-
-	// Extract command name (first non-flag argument)
-	var command string
-
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "--terragrunt-") {
-			command = arg
-			break
-		}
-	}
-
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_run_cmd", map[string]any{
-		"config_path":     ctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir":     ctx.TerragruntOptions.WorkingDir,
-		"command":         command,
-		"args":            fmt.Sprintf("%v", originalArgs),
-		"suppress_output": suppressOutput,
-		"global_cache":    useGlobalCache,
-		"no_cache":        disableCache,
+		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
+		"args":        args,
 	}, func(childCtx context.Context) error {
 		childPctx := ctx.WithContext(childCtx)
 
@@ -1258,32 +1226,44 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 // plain-text result of the decrypt operation.
 var sopsCache = cache.NewCache[string](sopsCacheName)
 
-// decrypts and returns sops encrypted utf-8 yaml or json data as a string
-func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
-	var sourceFile string
+// collectStringFuncWithFilePathSpan is a helper that wraps a function implementation with telemetry collection,
+// extracting the file path from the first argument for span attributes.
+func collectStringFuncWithFilePathSpan(
+	ctx *ParsingContext,
+	l log.Logger,
+	params []string,
+	spanName string,
+	implFunc func(*ParsingContext, log.Logger, []string) (string, error),
+) (string, error) {
+	var filePath string
 	if len(params) > 0 {
-		sourceFile = params[0]
+		filePath = params[0]
 	}
 
 	attrs := map[string]any{
 		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
-		"file_path":   sourceFile,
+		"file_path":   filePath,
 	}
 
 	var result string
 
-	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_sops_decrypt_file", attrs, func(childCtx context.Context) error {
+	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, spanName, attrs, func(childCtx context.Context) error {
 		childPctx := ctx.WithContext(childCtx)
 
 		var innerErr error
 
-		result, innerErr = sopsDecryptFileImpl(childPctx, l, params) //nolint:contextcheck
+		result, innerErr = implFunc(childPctx, l, params) //nolint:contextcheck
 
 		return innerErr
 	})
 
 	return result, err
+}
+
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string
+func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string, error) {
+	return collectStringFuncWithFilePathSpan(ctx, l, params, "hcl_fn_sops_decrypt_file", sopsDecryptFileImpl)
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
@@ -1582,28 +1562,7 @@ func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 
 // readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
 func readTFVarsFile(ctx *ParsingContext, l log.Logger, args []string) (string, error) {
-	var filePath string
-	if len(args) > 0 {
-		filePath = args[0]
-	}
-
-	attrs := map[string]any{
-		"config_path": ctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": ctx.TerragruntOptions.WorkingDir,
-		"file_path":   filePath,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx.Context).Collect(ctx.Context, "hcl_fn_read_tfvars_file", attrs, func(childCtx context.Context) error {
-		var innerErr error
-
-		result, innerErr = readTFVarsFileImpl(ctx, l, args)
-
-		return innerErr
-	})
-
-	return result, err
+	return collectStringFuncWithFilePathSpan(ctx, l, args, "hcl_fn_read_tfvars_file", readTFVarsFileImpl)
 }
 
 // readTFVarsFileImpl contains the actual implementation of readTFVarsFile
