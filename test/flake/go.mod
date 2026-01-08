@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/google/go-github/v53 v53.2.0
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/oauth2 v0.25.0
+	golang.org/x/oauth2 v0.27.0
 )
 
 require (
