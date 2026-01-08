@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	libflag "flag"
 	"fmt"
 	"os"
@@ -33,7 +34,7 @@ type MapFlagSetterFunc[K any, V any] func(key K, value V) error
 
 // FlagActionFunc represents function type that is called when the flag is specified.
 // Executed after flag have been parsed  and assigned to the `Destination` field.
-type FlagActionFunc[T any] func(ctx *Context, value T) error
+type FlagActionFunc[T any] func(ctx context.Context, cliCtx *Context, value T) error
 
 type FlagVariable[T any] interface {
 	libflag.Getter
@@ -84,7 +85,7 @@ type Flag interface {
 	GetHidden() bool
 
 	// RunAction runs the flag action.
-	RunAction(ctx *Context) error
+	RunAction(ctx context.Context, cliCtx *Context) error
 
 	// LookupEnv gets and splits the environment variable depending on the flag type: common, map, slice.
 	LookupEnv(envVar string) []string

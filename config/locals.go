@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -25,7 +26,7 @@ const MaxIter = 1000
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
-func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File) (map[string]cty.Value, error) {
+func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err
@@ -61,13 +62,14 @@ func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File)
 
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			ctx,
+			pctx,
 			l,
 			file,
 			attrs,
 			evaluatedLocals,
 		)
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", pctx.TerragruntOptions.TerragruntConfigPath)
 			return evaluatedLocals, err
 		}
 	}
@@ -100,7 +102,8 @@ func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File)
 // - whether or not any locals were evaluated in this attempt
 // - any errors from the evaluation
 func attemptEvaluateLocals(
-	ctx *ParsingContext,
+	ctx context.Context,
+	pctx *ParsingContext,
 	l log.Logger,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
@@ -112,9 +115,9 @@ func attemptEvaluateLocals(
 		return nil, evaluatedLocals, false, err
 	}
 
-	ctx.Locals = &localsAsCtyVal
+	pctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := createTerragruntEvalContext(ctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err

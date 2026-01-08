@@ -1,6 +1,8 @@
 package migrate
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -43,13 +45,13 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
 		UsageText: usageText,
 		Flags:     NewFlags(l, opts, nil),
-		Action: func(ctx *cli.Context) error {
-			srcPath := ctx.Args().First()
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
+			srcPath := cliCtx.Args().First()
 			if srcPath == "" {
 				return errors.New(usageText)
 			}
 
-			dstPath := ctx.Args().Second()
+			dstPath := cliCtx.Args().Second()
 			if dstPath == "" {
 				return errors.New(usageText)
 			}

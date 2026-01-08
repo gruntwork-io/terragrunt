@@ -6,6 +6,8 @@
 package strict
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -45,28 +47,28 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 				Flags:     NewListFlags(opts, nil),
 				Usage:     "List the strict control settings.",
 				UsageText: "terragrunt info strict list [options] <name>",
-				Action:    ListAction(l, opts),
+				Action:    ListAction(opts),
 			},
 		},
 		Action: cli.ShowCommandHelp,
 	}
 }
 
-func ListAction(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
+func ListAction(opts *options.TerragruntOptions) func(ctx context.Context, cliCtx *cli.Context) error {
+	return func(_ context.Context, cliCtx *cli.Context) error {
 		var allowedStatuses = []strict.Status{
 			strict.ActiveStatus,
 		}
 
-		if val, ok := ctx.Flag(ShowAllFlagName).Value().Get().(bool); ok && val {
+		if val, ok := cliCtx.Flag(ShowAllFlagName).Value().Get().(bool); ok && val {
 			allowedStatuses = append(allowedStatuses, strict.CompletedStatus)
 		}
 
 		controls := opts.StrictControls.FilterByStatus(allowedStatuses...)
 		render := plaintext.NewRender()
-		writer := view.NewWriter(ctx.Writer, render)
+		writer := view.NewWriter(cliCtx.Writer, render)
 
-		if name := ctx.Args().CommandName(); name != "" {
+		if name := cliCtx.Args().CommandName(); name != "" {
 			control := controls.Find(name)
 			if control == nil {
 				return strict.NewInvalidControlNameError(controls.Names())
