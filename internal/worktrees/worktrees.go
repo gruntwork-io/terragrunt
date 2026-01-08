@@ -13,7 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -129,7 +129,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 						continue
 					}
 
-					return tgerrors.Errorf(
+					return errors.Errorf(
 						"failed to remove Git worktree for reference %s (%s): %w",
 						worktree.Ref,
 						worktree.Path,
@@ -351,7 +351,7 @@ func NewWorktrees(
 
 	gitRunner, err := git.NewGitRunner()
 	if err != nil {
-		return nil, tgerrors.Errorf("failed to create Git runner for worktree creation: %w", err)
+		return nil, errors.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}
 
 	gitRunner = gitRunner.WithWorkDir(workingDir)
@@ -463,7 +463,7 @@ func NewWorktrees(
 		}
 
 		if len(errs) > 0 {
-			outerErr = tgerrors.Join(errs...)
+			outerErr = errors.Join(errs...)
 			return outerErr
 		}
 
@@ -498,6 +498,9 @@ func recordDiffTelemetry(ctx context.Context, diffs *git.Diffs) {
 
 // createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
 // The worktrees are created in temporary directories and tracked in refsToPaths.
+// Worktrees are created sequentially because git worktree operations on the same repository
+// are not thread-safe - concurrent calls to `git worktree add` can cause race conditions
+// accessing the `.git/worktrees/` directory.
 func createGitWorktrees(
 	ctx context.Context,
 	l log.Logger,
@@ -505,77 +508,53 @@ func createGitWorktrees(
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
 ) (map[string]string, error) {
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
-
-	var (
-		errs []error
-		mu   sync.Mutex
-	)
+	var errs []error
 
 	refsToPaths := make(map[string]string, len(gitRefs))
 
 	for _, ref := range gitRefs {
-		g.Go(func() error {
-			tmpDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
-			if err != nil {
-				mu.Lock()
+		tmpDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
+		if err != nil {
+			errs = append(errs, errors.Errorf("failed to create temporary directory for worktree: %w", err))
 
-				errs = append(errs, tgerrors.Errorf("failed to create temporary directory for worktree: %w", err))
+			continue
+		}
 
-				mu.Unlock()
+		// macOS will create the temporary directory with symlinks, so we need to evaluate them.
+		origTmpDir := tmpDir
 
-				return nil
+		tmpDir, err = filepath.EvalSymlinks(tmpDir)
+		if err != nil {
+			if cleanErr := os.RemoveAll(origTmpDir); cleanErr != nil {
+				l.Warnf("failed to clean worktree directory %s: %v", origTmpDir, cleanErr)
 			}
 
-			// macOS will create the temporary directory with symlinks, so we need to evaluate them.
-			tmpDir, err = filepath.EvalSymlinks(tmpDir)
-			if err != nil {
-				mu.Lock()
+			errs = append(errs, errors.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
 
-				errs = append(errs, tgerrors.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
+			continue
+		}
 
-				mu.Unlock()
-
-				return nil
-			}
-
-			// Wrap individual worktree creation with telemetry including repo info
-			err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-				return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
-			})
-			if err != nil {
-				mu.Lock()
-
-				if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
-					l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
-				}
-
-				errs = append(errs, tgerrors.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
-
-				mu.Unlock()
-
-				return nil
-			}
-
-			mu.Lock()
-
-			refsToPaths[ref] = tmpDir
-
-			mu.Unlock()
-
-			l.Debugf("Created Git worktree for reference %s at %s", ref, tmpDir)
-
-			return nil
+		// Wrap individual worktree creation with telemetry including repo info
+		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
+			return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
 		})
-	}
+		if err != nil {
+			if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
+				l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
+			}
 
-	if err := g.Wait(); err != nil {
-		return refsToPaths, tgerrors.Errorf("failed to create Git worktrees: %w", err)
+			errs = append(errs, errors.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
+
+			continue
+		}
+
+		refsToPaths[ref] = tmpDir
+
+		l.Debugf("Created Git worktree for reference %s at %s", ref, tmpDir)
 	}
 
 	if len(errs) > 0 {
-		return refsToPaths, tgerrors.Join(errs...)
+		return refsToPaths, errors.Join(errs...)
 	}
 
 	return refsToPaths, nil

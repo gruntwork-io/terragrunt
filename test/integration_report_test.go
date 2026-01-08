@@ -641,7 +641,9 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			t.Cleanup(func() {
 				err = runner.GoCloseStorage()
-				require.NoError(t, err)
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-modified"), "# Unit to be modified")

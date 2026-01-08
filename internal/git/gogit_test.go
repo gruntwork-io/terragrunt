@@ -30,7 +30,12 @@ func TestGitRunner_GoLsTreeRecursive(t *testing.T) {
 	err = runner.GoOpenGitDir()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	tree, err := runner.GoLsTreeRecursive("HEAD")
 	require.NoError(t, err)
@@ -58,7 +63,12 @@ func TestGitRunner_GoAdd(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		// Create a new file
 		testFile := filepath.Join(workDir, "test-file.txt")
@@ -93,7 +103,12 @@ func TestGitRunner_GoAdd(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		// Create multiple files
 		testFile1 := filepath.Join(workDir, "test-file-1.txt")
@@ -151,7 +166,12 @@ func TestGitRunner_GoAdd(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		err = runner.GoAdd("nonexistent-file.txt")
 		require.Error(t, err)
@@ -178,7 +198,12 @@ func TestGitRunner_GoCommit(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		// Create and add a file
 		testFile := filepath.Join(workDir, "test-file.txt")
@@ -224,7 +249,12 @@ func TestGitRunner_GoCommit(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		// Create and add a file
 		testFile := filepath.Join(workDir, "test-file.txt")
@@ -288,7 +318,12 @@ func TestGitRunner_GoCommit(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		// Try to commit without options
 		err = runner.GoCommit("test commit", &gogit.CommitOptions{
@@ -317,7 +352,12 @@ func TestGitRunner_GoCommit(t *testing.T) {
 		err = runner.GoOpenRepo()
 		require.NoError(t, err)
 
-		defer runner.GoCloseStorage()
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
+			}
+		})
 
 		testFile := filepath.Join(workDir, "test-file.txt")
 		err = os.WriteFile(testFile, []byte("test content"), 0644)

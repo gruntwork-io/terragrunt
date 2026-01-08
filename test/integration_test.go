@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -4536,13 +4537,29 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	modulePath := filepath.Join(rootPath, hiddenRunAllFixturePath)
 	helpers.CleanupTerraformFolder(t, modulePath)
 
-	// Expect Terragrunt to discover modules under .cloud directory
-	command := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + modulePath
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
+	reportFile := filepath.Join(modulePath, helpers.ReportFile)
 
+	// Expect Terragrunt to discover modules under .cloud directory
+	command := fmt.Sprintf(
+		"terragrunt run --all plan --non-interactive --working-dir %s --report-file %s --report-format json",
+		modulePath,
+		reportFile,
+	)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "hidden1")
-	assert.Contains(t, stdout, "hidden2")
+
+	// Parse the report file to verify the correct units ran
+	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	require.NoError(t, err, "Should be able to parse JSON report")
+
+	runNames := runs.Names()
+
+	// Verify both hidden directories were discovered and executed
+	app1Run := runs.FindByName(".cloud/terraform/app1")
+	require.NotNil(t, app1Run, "Expected .cloud/terraform/app1 unit to be in report. Found: %v", runNames)
+
+	app2Run := runs.FindByName(".cloud/terraform/app2")
+	require.NotNil(t, app2Run, "Expected .cloud/terraform/app2 unit to be in report. Found: %v", runNames)
 }
 
 func TestNoColorDependency(t *testing.T) {
