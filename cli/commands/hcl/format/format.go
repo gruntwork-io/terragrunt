@@ -14,11 +14,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
@@ -293,15 +293,16 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 	diffPath, err := exec.LookPath("diff")
 	if err != nil {
 		// panic if no diff command found
-		panic("diff executable not found in PATH, it's required for terragrunt command: " + err.Error())
+		return nil, err
 	}
+
 	cmd := exec.CommandContext(ctx, diffPath, "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name())
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
 		}
 
-		return cmd.Process.Signal(syscall.SIGINT)
+		return cmd.Process.Signal(signal.InterruptSignal)
 	}
 
 	data, err := cmd.CombinedOutput()
