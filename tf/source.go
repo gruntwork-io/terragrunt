@@ -224,9 +224,9 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 	}
 
 	encodedWorkingDir := util.EncodeBase64Sha1(canonicalWorkingDir)
-	updatedDownloadDir := util.JoinPath(downloadDir, encodedWorkingDir, rootPath)
-	updatedWorkingDir := util.JoinPath(updatedDownloadDir, modulePath)
-	versionFile := util.JoinPath(updatedDownloadDir, ".terragrunt-source-version")
+	updatedDownloadDir := filepath.Join(downloadDir, encodedWorkingDir, rootPath)
+	updatedWorkingDir := filepath.Join(updatedDownloadDir, modulePath)
+	versionFile := filepath.Join(updatedDownloadDir, ".terragrunt-source-version")
 
 	return &Source{
 		CanonicalSourceURL:  rootSourceURL,

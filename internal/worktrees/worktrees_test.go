@@ -2,8 +2,10 @@ package worktrees_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,9 +25,7 @@ import (
 func TestNewWorktrees(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -37,7 +38,12 @@ func TestNewWorktrees(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
@@ -81,9 +87,7 @@ func TestNewWorktrees(t *testing.T) {
 func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
 	runner, err := git.NewGitRunner()
@@ -97,7 +101,12 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
@@ -229,9 +238,7 @@ func TestExpressionExpansion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -245,7 +252,10 @@ func TestExpressionExpansion(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				runner.GoCloseStorage()
+				err = runner.GoCloseStorage()
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
@@ -374,9 +384,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			runner, err := git.NewGitRunner()
 			require.NoError(t, err)
@@ -390,7 +398,10 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				runner.GoCloseStorage()
+				err = runner.GoCloseStorage()
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
@@ -614,12 +625,10 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			// Setup filesystem structure
-			err = tt.setupFilesystem(tmpDir)
+			err := tt.setupFilesystem(tmpDir)
 			require.NoError(t, err)
 
 			wp := &worktrees.WorktreePair{
@@ -662,4 +671,74 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedToReadings, toReadings, "To reading filters should match")
 		})
 	}
+}
+
+// TestWorktreeCleanup test worktree cleanup
+func TestWorktreeCleanup(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	// Initialize Git repository
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
+
+	for i := range 3 {
+		err = runner.GoCommit(fmt.Sprintf("Commit %d", i), &gogit.CommitOptions{
+			AllowEmptyCommits: true,
+			Author: &object.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	filters, err := filter.ParseFilterQueries([]string{"[test-worktree-cleanup]"})
+	require.NoError(t, err)
+
+	_, err = worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		tmpDir,
+		filters.UniqueGitFilters(),
+	)
+	require.Error(t, err)
+
+	tempDir := os.TempDir()
+
+	worktreeDirs, err := filepath.Glob(filepath.Join(tempDir, "terragrunt-worktree-*"))
+	require.NoError(t, err)
+	// validate that test-worktree-cleanup worktree was deleted
+	worktreeExists := false
+
+	for _, dir := range worktreeDirs {
+		if strings.Contains(filepath.Base(dir), "test-worktree-cleanup") {
+			worktreeExists = true
+			break
+		}
+	}
+
+	assert.False(t, worktreeExists, "Worktree test-worktree-cleanup should be deleted")
 }

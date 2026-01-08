@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -20,7 +21,7 @@ import (
 func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
 	cmd := exec.CommandContext(t.Context(), "git", "init")
@@ -53,8 +54,11 @@ dependency "db" {
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	d := discovery.NewDiscovery(tmpDir).
-		WithDiscoverDependencies().
+		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir)
 
 	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
@@ -68,9 +72,7 @@ dependency "db" {
 func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
 	cmd := exec.CommandContext(t.Context(), "git", "init")
@@ -107,15 +109,18 @@ dependency "db" {
 	filters, err := filter.ParseFilterQueries([]string{`...{` + vpcDir + `}`})
 	require.NoError(t, err)
 
+	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	require.NoError(t, err)
+
 	configsA, err := discovery.NewDiscovery(tmpDir).
-		WithDiscoverDependencies().
+		WithFilters(depsFilters).
 		WithFilters(filters).
 		Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
-		WithDiscoverDependencies().
+		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
 		Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)

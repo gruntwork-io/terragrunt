@@ -375,9 +375,9 @@ func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.Terr
 	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
-	parserCtx := NewParsingContext(ctx, l, opts)
+	ctx, parserCtx := NewParsingContext(ctx, l, opts)
 
-	jsonBytes, err := getOutputJSONWithCaching(parserCtx, l, configPath) //nolint: contextcheck
+	jsonBytes, err := getOutputJSONWithCaching(ctx, parserCtx, l, configPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -398,16 +398,16 @@ func ReadStackConfigFile(ctx context.Context, l log.Logger, opts *options.Terrag
 
 	stackOpts := opts.Clone()
 	stackOpts.TerragruntConfigPath = filePath
+	stackOpts.OriginalTerragruntConfigPath = filePath
 
-	parser := NewParsingContext(ctx, l, stackOpts)
+	ctx, parser := NewParsingContext(ctx, l, stackOpts)
 
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	//nolint:contextcheck
-	return ParseStackConfig(l, parser, opts, file, values)
+	return ParseStackConfig(ctx, l, parser, opts, file, values)
 }
 
 // ReadStackConfigString reads and parses a Terragrunt stack configuration from a string.
@@ -419,7 +419,7 @@ func ReadStackConfigString(
 	configString string,
 	values *cty.Value,
 ) (*StackConfig, error) {
-	parser := NewParsingContext(ctx, l, opts)
+	ctx, parser := NewParsingContext(ctx, l, opts)
 
 	if values != nil {
 		parser = parser.WithValues(values)
@@ -430,22 +430,20 @@ func ReadStackConfigString(
 		return nil, errors.New(err)
 	}
 
-	//nolint:contextcheck
-	return ParseStackConfig(l, parser, opts, hclFile, values)
+	return ParseStackConfig(ctx, l, parser, opts, hclFile, values)
 }
 
 // ParseStackConfig parses the stack configuration from the given file and values.
-func ParseStackConfig(l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
+func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
 
-	//nolint:contextcheck
-	if err := processLocals(l, parser, opts, file); err != nil {
+	if err := processLocals(ctx, l, parser, opts, file); err != nil {
 		return nil, errors.New(err)
 	}
-	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, l, file.ConfigPath)
+
+	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -554,14 +552,14 @@ func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 	}
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
-	parser := NewParsingContext(ctx, l, opts)
+	ctx, parser := NewParsingContext(ctx, l, opts)
 
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
-	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, l, file.ConfigPath)
+
+	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -578,7 +576,7 @@ func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 }
 
 // processLocals processes the locals block in the stack file.
-func processLocals(l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
+func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return errors.New(err)
@@ -610,6 +608,7 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 		var evalErr error
 
 		attrs, evaluatedLocals, evaluated, evalErr = attemptEvaluateLocals(
+			ctx,
 			parser,
 			l,
 			file,

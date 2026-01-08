@@ -31,7 +31,7 @@ inputs = {
 	require.NoError(t, err)
 
 	// Create a parsing context with strict controls
-	ctx := &config.ParsingContext{
+	pctx := &config.ParsingContext{
 		TerragruntOptions: &options.TerragruntOptions{
 			StrictControls: controls.New(),
 		},
@@ -40,7 +40,7 @@ inputs = {
 	logger := log.New()
 
 	// Test that the deprecated configuration is detected and blocked
-	err = config.DetectDeprecatedConfigurations(ctx, logger, file)
+	err = config.DetectDeprecatedConfigurations(t.Context(), pctx, logger, file)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Reading inputs from dependencies is no longer supported")
 	assert.Contains(t, err.Error(), "use outputs")
@@ -65,7 +65,7 @@ inputs = {
 	require.NoError(t, err)
 
 	// Create a parsing context with strict controls
-	ctx := &config.ParsingContext{
+	pctx := &config.ParsingContext{
 		TerragruntOptions: &options.TerragruntOptions{
 			StrictControls: controls.New(),
 		},
@@ -74,7 +74,7 @@ inputs = {
 	logger := log.New()
 
 	// Test that the dependency outputs are allowed (no error)
-	err = config.DetectDeprecatedConfigurations(ctx, logger, file)
+	err = config.DetectDeprecatedConfigurations(t.Context(), pctx, logger, file)
 	require.NoError(t, err)
 }
 

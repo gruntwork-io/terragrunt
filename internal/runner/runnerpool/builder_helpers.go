@@ -3,11 +3,13 @@ package runnerpool
 import (
 	"context"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -17,9 +19,8 @@ import (
 
 // telemetry event names used in this file
 const (
-	telemetryDiscovery      = "runner_pool_discovery"
-	telemetryDiscoveryRetry = "runner_pool_discovery_retry"
-	telemetryCreation       = "runner_pool_creation"
+	telemetryDiscovery = "runner_pool_discovery"
+	telemetryCreation  = "runner_pool_creation"
 )
 
 // doWithTelemetry is a small helper to standardize telemetry collection calls.
@@ -40,14 +41,7 @@ func resolveWorkingDir(tgOpts *options.TerragruntOptions) string {
 func buildConfigFilenames(tgOpts *options.TerragruntOptions) []string {
 	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
 	customConfigName := filepath.Base(tgOpts.TerragruntConfigPath)
-	isCustom := true
-
-	for _, defaultName := range discovery.DefaultConfigFilenames {
-		if customConfigName == defaultName {
-			isCustom = false
-			break
-		}
-	}
+	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
 
 	if isCustom && customConfigName != "" && customConfigName != "." {
 		configFilenames = append(configFilenames, customConfigName)
@@ -76,6 +70,17 @@ func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
 	return nil
 }
 
+// extractReport finds ReportProvider in options and returns the report.
+func extractReport(opts []common.Option) *report.Report {
+	for _, opt := range opts {
+		if rp, ok := opt.(common.ReportProvider); ok {
+			return rp.GetReport()
+		}
+	}
+
+	return nil
+}
+
 // newBaseDiscovery constructs the base discovery with common immutable options.
 func newBaseDiscovery(
 	tgOpts *options.TerragruntOptions,
@@ -83,60 +88,35 @@ func newBaseDiscovery(
 	configFilenames []string,
 	opts ...common.Option,
 ) *discovery.Discovery {
-	anyOpts := make([]interface{}, len(opts))
+	anyOpts := make([]any, len(opts))
 	for i, v := range opts {
 		anyOpts[i] = v
 	}
 
-	return discovery.
+	d := discovery.
 		NewDiscovery(workingDir).
 		WithOptions(anyOpts...).
-		WithDiscoverExternalDependencies().
-		WithParseInclude().
-		WithParseExclude().
-		WithDiscoverDependencies().
 		WithSuppressParseErrors().
 		WithConfigFilenames(configFilenames).
+		WithRelationships().
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: workingDir,
 			Cmd:        tgOpts.TerraformCliArgs.First(),
 			Args:       tgOpts.TerraformCliArgs.Tail(),
 		})
+
+	return d
 }
 
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
 func prepareDiscovery(
 	tgOpts *options.TerragruntOptions,
-	excludeByDefault bool,
 	opts ...common.Option,
 ) (*discovery.Discovery, error) {
 	workingDir := resolveWorkingDir(tgOpts)
 	configFilenames := buildConfigFilenames(tgOpts)
 
 	d := newBaseDiscovery(tgOpts, workingDir, configFilenames, opts...)
-
-	// Include / exclude directories
-	if len(tgOpts.IncludeDirs) > 0 {
-		d = d.WithIncludeDirs(tgOpts.IncludeDirs)
-	}
-
-	if len(tgOpts.ExcludeDirs) > 0 {
-		d = d.WithExcludeDirs(tgOpts.ExcludeDirs)
-	}
-
-	// Include behavior flags
-	if tgOpts.StrictInclude {
-		d = d.WithStrictInclude()
-	}
-
-	if excludeByDefault {
-		d = d.WithExcludeByDefault()
-	}
-
-	// Enable reading file tracking when requested by CLI flags
-	if len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0 {
-		d = d.WithReadFiles()
-	}
 
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
@@ -153,6 +133,11 @@ func prepareDiscovery(
 		d = d.WithWorktrees(w)
 	}
 
+	// Apply report for recording excluded external dependencies
+	if r := extractReport(opts); r != nil {
+		d = d.WithReport(r)
+	}
+
 	return d, nil
 }
 
@@ -165,7 +150,7 @@ func discoverWithRetry(
 	opts ...common.Option,
 ) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
-	d, err := prepareDiscovery(tgOpts, tgOpts.ExcludeByDefault, opts...)
+	d, err := prepareDiscovery(tgOpts, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -187,32 +172,6 @@ func discoverWithRetry(
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	// Retry without exclude-by-default if no results and relevant flags are set
-	if len(discovered) == 0 && (len(tgOpts.ModulesThatInclude) > 0 || len(tgOpts.UnitsReading) > 0) {
-		l.Debugf("Runner pool discovery returned 0 configs; retrying without exclude-by-default")
-
-		d, err = prepareDiscovery(tgOpts, false, opts...)
-		if err != nil {
-			return nil, err
-		}
-
-		err = doWithTelemetry(ctx, telemetryDiscoveryRetry, map[string]any{
-			"working_dir": tgOpts.WorkingDir,
-		}, func(childCtx context.Context) error {
-			var retryErr error
-
-			discovered, retryErr = d.Discover(childCtx, l, tgOpts)
-			if retryErr == nil {
-				l.Debugf("Runner pool retry discovery found %d configs", len(discovered))
-			}
-
-			return retryErr
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return discovered, nil

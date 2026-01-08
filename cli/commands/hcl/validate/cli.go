@@ -1,6 +1,8 @@
 package validate
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -20,7 +22,7 @@ const (
 	JSONFlagName           = "json"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
@@ -76,7 +78,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	}
 
 	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
-	flagSet = flagSet.Add(shared.NewFilterFlag(opts))
+	flagSet = flagSet.Add(shared.NewFilterFlags(l, opts)...)
 
 	return flagSet
 }
@@ -85,9 +87,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
-		Flags:                        NewFlags(opts),
+		Flags:                        NewFlags(l, opts),
 		DisabledErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx context.Context, _ *cli.Context) error {
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}

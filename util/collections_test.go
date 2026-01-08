@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestListContainsElement(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListContainsElement(tc.list, tc.element)
+			actual := slices.Contains(tc.list, tc.element)
 			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
 		})
 	}
@@ -91,7 +92,7 @@ func TestListEquals(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListEquals(tc.a, tc.b)
+			actual := slices.Equal(tc.a, tc.b)
 			assert.Equal(t, tc.expected, actual, "For list %v and list %v", tc.a, tc.b)
 		})
 	}
@@ -248,56 +249,4 @@ func TestCommaSeparatedStrings(t *testing.T) {
 			t.Logf("%v passed", tc.list)
 		})
 	}
-}
-
-func TestStringListInsert(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		element  string
-		list     []string
-		expected []string
-		index    int
-	}{
-		{list: []string{}, element: "foo", index: 0, expected: []string{"foo"}},
-		{list: []string{"a", "c", "d"}, element: "b", index: 1, expected: []string{"a", "b", "c", "d"}},
-		{list: []string{"b", "c", "d"}, element: "a", index: 0, expected: []string{"a", "b", "c", "d"}},
-		{list: []string{"a", "b", "d"}, element: "c", index: 2, expected: []string{"a", "b", "c", "d"}},
-	}
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tc.expected, util.StringListInsert(tc.list, tc.element, tc.index), "For list %v", tc.list)
-			t.Logf("%v passed", tc.list)
-		})
-	}
-}
-
-func TestMapToSlice(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Empty Map", func(t *testing.T) {
-		t.Parallel()
-
-		m := make(map[string]*int)
-
-		result := util.MapToSlice(m)
-		if len(result) != 0 {
-			t.Errorf("Expected empty slice, got %v", result)
-		}
-	})
-
-	t.Run("Single Element Map", func(t *testing.T) {
-		t.Parallel()
-
-		val := 42
-		m := map[string]*int{"key1": &val}
-
-		result := util.MapToSlice(m)
-		if len(result) != 1 || result[0] != &val {
-			t.Errorf("Expected slice with one element %v, got %v", &val, result)
-		}
-	})
 }

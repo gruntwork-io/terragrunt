@@ -36,6 +36,7 @@ type Component interface {
 	Kind() Kind
 	Path() string
 	SetPath(string)
+	DisplayPath() string
 	External() bool
 	SetExternal()
 	Reading() []string

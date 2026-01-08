@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +20,7 @@ func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureLocalRelativeArgsUnixDownloadPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureLocalRelativeArgsUnixDownloadPath)
 
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)

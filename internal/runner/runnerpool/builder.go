@@ -21,6 +21,5 @@ func Build(
 		return nil, err
 	}
 
-	// Create the runner
 	return createRunner(ctx, l, terragruntOptions, discovered, opts...)
 }

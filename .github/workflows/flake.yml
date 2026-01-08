@@ -43,7 +43,7 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.flake.os }}-amd64
@@ -61,7 +61,7 @@ jobs:
           TIMEOUT: ${{ matrix.flake.timeout }}
 
       - name: Upload Report (${{ matrix.flake.name }})
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: test-report-${{ matrix.flake.name }}
           path: result.xml

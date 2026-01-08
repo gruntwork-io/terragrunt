@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
 )
@@ -52,13 +52,6 @@ const (
 	maxCycleRemovalAttempts = 100
 )
 
-// defaultExcludeDirs is the default directories where units should never be discovered.
-var defaultExcludeDirs = []string{
-	".git/**",
-	".terraform/**",
-	".terragrunt-cache/**",
-}
-
 // Sort is the sort order of the discovered configurations.
 type Sort string
 
@@ -75,6 +68,9 @@ type Discovery struct {
 	// This is set up by callers before calling Discover().
 	worktrees *worktrees.Worktrees
 
+	// report is used for recording excluded external dependencies during discovery.
+	report *report.Report
+
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
@@ -83,17 +79,8 @@ type Discovery struct {
 
 	graphTarget string
 
-	// includeDirs is a list of directory patterns to include in discovery (for strict include mode).
-	includeDirs []string
-
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
-
-	// compiledExcludePatterns are precompiled glob patterns for excludeDirs.
-	compiledExcludePatterns []CompiledPattern
-
-	// excludeDirs is a list of directory patterns to exclude from discovery.
-	excludeDirs []string
 
 	// parserOptions are custom HCL parser options to use when parsing during discovery
 	parserOptions []hclparse.Option
@@ -110,9 +97,6 @@ type Discovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery
 	gitExpressions filter.GitExpressions
 
-	// compiledIncludePatterns are precompiled glob patterns for includeDirs.
-	compiledIncludePatterns []CompiledPattern
-
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
@@ -128,35 +112,25 @@ type Discovery struct {
 	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
 	requiresParse bool
 
-	// strictInclude determines whether to use strict include mode (only include directories that match includeDirs).
-	strictInclude bool
-
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool
-
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
 
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
 
-	// discoverExternalDependencies determines whether to discover external dependencies.
-	discoverExternalDependencies bool
-
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
-
-	// useDefaultExcludes determines whether to use default exclude patterns.
-	useDefaultExcludes bool
-
-	// filterFlagEnabled determines whether the filter flag experiment is active
-	filterFlagEnabled bool
 
 	// breakCycles determines whether to break cycles in the dependency graph if any exist.
 	breakCycles bool
 
 	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
 	excludeByDefault bool
+
+	// discoverRelationships determines whether to run relationship discovery.
+	// When false, relationship discovery is skipped, improving performance for commands
+	// that don't need dependency information.
+	discoverRelationships bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -181,19 +155,6 @@ func (d *Discovery) WithNoHidden() *Discovery {
 // WithSort sets the Sort flag to the given sort.
 func (d *Discovery) WithSort(sort Sort) *Discovery {
 	d.sort = sort
-
-	return d
-}
-
-// WithDiscoverDependencies sets the DiscoverDependencies flag to true.
-func (d *Discovery) WithDiscoverDependencies() *Discovery {
-	d.WithRequiresParse()
-
-	d.discoverDependencies = true
-
-	if d.maxDependencyDepth == 0 {
-		d.maxDependencyDepth = defaultMaxDependencyDepth
-	}
 
 	return d
 }
@@ -246,9 +207,9 @@ func (d *Discovery) WithMaxDependencyDepth(depth int) *Discovery {
 	return d
 }
 
-// WithDiscoverExternalDependencies sets the DiscoverExternalDependencies flag to true.
-func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
-	d.discoverExternalDependencies = true
+// WithReport sets the report for recording excluded external dependencies.
+func (d *Discovery) WithReport(r *report.Report) *Discovery {
+	d.report = r
 
 	return d
 }
@@ -270,18 +231,6 @@ func (d *Discovery) WithDiscoveryContext(discoveryContext *component.DiscoveryCo
 // WithConfigFilenames sets the configFilenames field to the given list.
 func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
 	d.configFilenames = filenames
-	return d
-}
-
-// WithIncludeDirs sets include directory glob patterns used for filtering during discovery.
-func (d *Discovery) WithIncludeDirs(dirs []string) *Discovery {
-	d.includeDirs = dirs
-	return d
-}
-
-// WithExcludeDirs sets exclude directory glob patterns used for filtering during discovery.
-func (d *Discovery) WithExcludeDirs(dirs []string) *Discovery {
-	d.excludeDirs = dirs
 	return d
 }
 
@@ -322,33 +271,15 @@ func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
 	return d
 }
 
-// WithStrictInclude enables strict include mode.
-func (d *Discovery) WithStrictInclude() *Discovery {
-	d.strictInclude = true
-	return d
-}
-
 // WithGraphTarget sets the graph target so discovery can prune to the target and its dependents.
 func (d *Discovery) WithGraphTarget(target string) *Discovery {
 	d.graphTarget = target
 	return d
 }
 
-// WithExcludeByDefault enables exclude-by-default behavior.
-func (d *Discovery) WithExcludeByDefault() *Discovery {
-	d.excludeByDefault = true
-	return d
-}
-
 // WithNumWorkers sets the number of concurrent workers for discovery operations.
 func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
 	d.numWorkers = numWorkers
-	return d
-}
-
-// WithoutDefaultExcludes disables the use of default exclude patterns (e.g. .git, .terraform, .terragrunt-cache).
-func (d *Discovery) WithoutDefaultExcludes() *Discovery {
-	d.useDefaultExcludes = false
 	return d
 }
 
@@ -360,23 +291,15 @@ func (d *Discovery) WithoutDefaultExcludes() *Discovery {
 func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	d.filters = filters
 
-	d.WithFilterFlagEnabled()
-
 	// If there are any positive filters, we need to exclude by default,
 	// and only include components if they match filters.
 	if d.filters.HasPositiveFilter() {
-		d.WithExcludeByDefault()
+		d.withExcludeByDefault()
 	}
 
 	// Collect target expressions from graph filters for selective graph traversal.
 	d.dependencyTargetExpressions = d.filters.DependencyGraphExpressions()
 	d.dependentTargetExpressions = d.filters.DependentGraphExpressions()
-
-	// When working with graph filters, we always perform discovery of components,
-	// regardless of whether or not they are external. We can filter them out after the fact if necessary.
-	if len(d.dependencyTargetExpressions) > 0 || len(d.dependentTargetExpressions) > 0 {
-		d.discoverExternalDependencies = true
-	}
 
 	// If any filters require parsing, we need to opt-in to parsing.
 	if _, ok := d.filters.RequiresParse(); ok {
@@ -390,58 +313,26 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	return d
 }
 
-// WithFilterFlagEnabled sets whether the filter flag experiment is enabled.
-// This changes how discovery processes components during file traversal.
-func (d *Discovery) WithFilterFlagEnabled() *Discovery {
-	d.filterFlagEnabled = true
-	return d
-}
-
 // WithBreakCycles sets the BreakCycles flag to true.
 func (d *Discovery) WithBreakCycles() *Discovery {
 	d.breakCycles = true
 	return d
 }
 
-// compileIncludePatterns compiles the include directory patterns for faster matching.
-func (d *Discovery) compileIncludePatterns(l log.Logger) {
-	d.compiledIncludePatterns = make([]CompiledPattern, 0, len(d.includeDirs))
-	for _, pattern := range d.includeDirs {
-		if compiled, err := zglob.New(pattern); err == nil {
-			d.compiledIncludePatterns = append(d.compiledIncludePatterns, CompiledPattern{
-				Original: pattern,
-				Compiled: compiled,
-			})
-		} else {
-			l.Warnf("Failed to compile include pattern '%s': %v. Pattern will be ignored.", pattern, err)
-		}
-	}
+// WithRelationships enables relationship discovery.
+// When enabled, discovery will parse configurations to find dependencies between components.
+// This is required for operations that need the dependency graph (e.g., runner pool construction,
+// DAG ordering), but is expensive, and avoiding it can improve performance for commands that don't
+// need dependency information.
+func (d *Discovery) WithRelationships() *Discovery {
+	d.discoverRelationships = true
+	return d
 }
 
-// matchesIncludePath reports whether the provided directory matches any compiled include pattern.
-func (d *Discovery) matchesIncludePath(dir string) bool {
-	for _, pattern := range d.compiledIncludePatterns {
-		if pattern.Compiled.Match(dir) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// compileExcludePatterns compiles the exclude directory patterns for faster matching.
-func (d *Discovery) compileExcludePatterns(l log.Logger) {
-	d.compiledExcludePatterns = make([]CompiledPattern, 0, len(d.excludeDirs))
-	for _, pattern := range d.excludeDirs {
-		if compiled, err := zglob.New(pattern); err == nil {
-			d.compiledExcludePatterns = append(d.compiledExcludePatterns, CompiledPattern{
-				Original: pattern,
-				Compiled: compiled,
-			})
-		} else {
-			l.Warnf("Failed to compile exclude pattern '%s': %v. Pattern will be ignored.", pattern, err)
-		}
-	}
+// WithExcludeByDefault enables exclude-by-default behavior.
+func (d *Discovery) withExcludeByDefault() *Discovery {
+	d.excludeByDefault = true
+	return d
 }
 
 // String returns a string representation of a Component.
@@ -480,24 +371,28 @@ func Parse(
 	// Determine working directory and config filename, supporting file paths and stack kind
 	componentPath := c.Path()
 
-	var workingDir, configFilename string
+	workingDir := componentPath
 
-	// Defaults assume a directory path
-	workingDir = componentPath
-	configFilename = config.DefaultTerragruntConfigPath
-
-	// If the path points directly to a file, split dir and filename
+	// If path points to a file, use its directory
 	if util.FileExists(componentPath) && !util.IsDir(componentPath) {
 		workingDir = filepath.Dir(componentPath)
-		configFilename = filepath.Base(componentPath)
-	} else {
-		// Allow user-specified config filename when provided as a file path
-		if p := opts.TerragruntConfigPath; p != "" && !util.IsDir(p) {
-			configFilename = filepath.Base(p)
+	}
+
+	// Determine config filename based on component type
+	configFilename := config.DefaultTerragruntConfigPath
+
+	switch c.(type) {
+	case *component.Stack:
+		configFilename = config.DefaultStackFile
+	default:
+		if unit, ok := c.(*component.Unit); ok && unit.ConfigFile() != "" {
+			configFilename = unit.ConfigFile()
+
+			break
 		}
-		// Stacks always use the default stack filename
-		if c.Kind() == component.StackKind {
-			configFilename = config.DefaultStackFile
+
+		if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
 		}
 	}
 
@@ -511,7 +406,8 @@ func Parse(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
+	ctx, parsingCtx := config.NewParsingContext(ctx, l, parseOpts)
+	parsingCtx = parsingCtx.WithDecodeList(
 		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
@@ -555,11 +451,19 @@ func Parse(
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 		config.ErrorsBlock,
+		config.RemoteStateBlock,
 	)
 
-	//nolint: contextcheck
-	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err = config.PartialParseConfigFile(ctx, parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
+		if suppressParseErrors {
+			var notFoundErr config.TerragruntConfigNotFoundError
+			if stderrs.As(err, &notFoundErr) {
+				l.Debugf("Skipping missing config during discovery: %s", parseOpts.TerragruntConfigPath)
+				return nil
+			}
+		}
+
 		// Treat include-only/no-settings configs as non-fatal during discovery when suppression is enabled
 		if suppressParseErrors && containsNoSettingsError(err) {
 			l.Debugf("Skipping include-only config during discovery: %s", parseOpts.TerragruntConfigPath)
@@ -749,12 +653,6 @@ func (d *Discovery) skipDirIfIgnorable(_ log.Logger, path string) error {
 		}
 	}
 
-	// When the filter flag is enabled, let the filters control discovery instead of exclude patterns.
-	// We also avoid early skipping for CLI exclude patterns so reporting can capture excluded units.
-	if d.filterFlagEnabled {
-		return nil
-	}
-
 	return nil
 }
 
@@ -786,69 +684,41 @@ func (d *Discovery) processFile(
 		// Eventually, this is going to be removed entirely, as filter evaluation
 		// will be all that's needed. We no longer drop configs via exclude patterns here so
 		// reporting can record excluded units.
-		if d.filterFlagEnabled {
-			c := d.createComponentFromPath(path, filenames)
-			if c == nil {
+		c := d.createComponentFromPath(path, filenames)
+		if c == nil {
+			return nil
+		}
+
+		// Check for hidden directories before returning
+		if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
+			// Always allow .terragrunt-stack contents
+			cleanDir := util.CleanPath(canonicalDir)
+			if !isInStackDirectory(cleanDir) {
+				return nil
+			}
+		}
+
+		if _, ok := d.filters.RequiresParse(); !ok {
+			filtered, err := d.filters.Evaluate(l, component.Components{c})
+			if err != nil {
+				l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
 				return nil
 			}
 
-			// Check for hidden directories before returning
-			if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
-				// Always allow .terragrunt-stack contents
-				cleanDir := util.CleanPath(canonicalDir)
-				if !isInStackDirectory(cleanDir) {
-					return nil
-				}
+			if len(filtered) == 0 {
+				return nil
 			}
-
-			shouldEvaluateFiltersNow := !d.discoverDependencies
-			if shouldEvaluateFiltersNow {
-				if _, requiresParsing := d.filters.RequiresDiscovery(); !requiresParsing {
-					filtered, err := d.filters.Evaluate(l, component.Components{c})
-					if err != nil {
-						l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
-						return nil
-					}
-
-					if len(filtered) == 0 {
-						return nil
-					}
-				}
-			}
-
-			return c
 		}
 
-		// Everything after this point is only relevant when the filter flag is disabled.
-		// It should be removed once the filter flag is generally available.
-
-		// Enforce include patterns only when strictInclude or excludeByDefault are set AND patterns exist.
-		// When excludeByDefault is true without include patterns (e.g., --units-that-include), or when readFiles
-		// filtering is enabled, we keep configs so downstream filtering can mark exclusions based on read files.
-		// Consolidated include enforcement: only apply when we have include patterns and either:
-		// - strictInclude is enabled, or
-		// - excludeByDefault is enabled and readFiles filtering is NOT enabled
-		enforceInclude := (d.strictInclude || (d.excludeByDefault && !d.readFiles)) && len(d.compiledIncludePatterns) > 0
-		if enforceInclude && !d.matchesIncludePath(canonicalDir) {
-			return nil
-		}
+		return c
 	}
 
 	// Now enforce hidden directory check if still applicable
 	if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
-		// If the directory is hidden, allow it only if it matches an include pattern
-		allowHidden := false
-
-		if canErr == nil {
-			// Always allow .terragrunt-stack contents
-			cleanDir := util.CleanPath(canonicalDir)
-			allowHidden = isInStackDirectory(cleanDir)
-
-			if !allowHidden {
-				// Use a common helper for include matching
-				allowHidden = d.matchesIncludePath(canonicalDir)
-			}
-		}
+		// Always allow .terragrunt-stack contents. We can safely use the non-canonical
+		// dir here because this branch is only reached when canonical path computation
+		// failed, or when we couldn't early-return with a concrete component.
+		allowHidden := isInStackDirectory(filepath.ToSlash(dir))
 
 		if !allowHidden {
 			return nil
@@ -878,6 +748,9 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 		}
 
 		c := componentOfBase(dir, base)
+		if unit, ok := c.(*component.Unit); ok {
+			unit.SetConfigFile(base)
+		}
 
 		if d.discoveryContext != nil {
 			c.SetDiscoveryContext(d.discoveryContext)
@@ -887,26 +760,6 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 	}
 
 	return nil
-}
-
-// skipParsing determines if the given component should be skipped based on compiled exclude patterns and its path.
-func (d *Discovery) skipParsing(comp component.Component) bool {
-	if len(d.compiledExcludePatterns) == 0 {
-		return false
-	}
-
-	canonicalPath, err := util.CanonicalPath(comp.Path(), d.workingDir)
-	if err != nil {
-		return false
-	}
-
-	for _, pattern := range d.compiledExcludePatterns {
-		if pattern.Compiled.Match(canonicalPath) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // parseConcurrently parses components concurrently to improve performance using errgroup.
@@ -923,12 +776,6 @@ func (d *Discovery) parseConcurrently(
 		// Stack configurations don't need to be parsed for discovery purposes.
 		// They don't have exclude blocks or dependencies.
 		if _, ok := c.(*component.Stack); ok {
-			continue
-		}
-
-		// Skip parsing components that match exclude patterns.
-		if d.skipParsing(c) {
-			l.Debugf("Skipping parse for excluded component: %s", c.Path())
 			continue
 		}
 
@@ -1034,45 +881,6 @@ func (d *Discovery) Discover(
 		filenames = DefaultConfigFilenames
 	}
 
-	// Prepare include/exclude glob patterns (canonicalized) for matching
-	var includePatterns, excludePatterns []string
-
-	// Add default excludes if enabled
-	if d.useDefaultExcludes {
-		excludePatterns = append(excludePatterns, defaultExcludeDirs...)
-	}
-
-	if len(d.includeDirs) > 0 {
-		for _, p := range d.includeDirs {
-			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.discoveryContext.WorkingDir, p)
-			}
-
-			includePatterns = append(includePatterns, util.CleanPath(p))
-		}
-	}
-
-	if len(d.excludeDirs) > 0 {
-		for _, p := range d.excludeDirs {
-			if !filepath.IsAbs(p) {
-				p = filepath.Join(d.discoveryContext.WorkingDir, p)
-			}
-
-			excludePatterns = append(excludePatterns, util.CleanPath(p))
-		}
-	}
-
-	// Compile patterns if not already compiled
-	if len(d.compiledIncludePatterns) == 0 && len(includePatterns) > 0 {
-		d.includeDirs = includePatterns
-		d.compileIncludePatterns(l)
-	}
-
-	if len(d.compiledExcludePatterns) == 0 && len(excludePatterns) > 0 {
-		d.excludeDirs = excludePatterns
-		d.compileExcludePatterns(l)
-	}
-
 	// Use concurrent discovery for better performance
 	components, err := d.discoverConcurrently(ctx, l, opts, &hiddenDirMemo{}, filenames)
 	if err != nil {
@@ -1108,12 +916,20 @@ func (d *Discovery) Discover(
 		components = d.filterByExcludeBlock(l, opts, components)
 	}
 
-	dependencyStartingComponents, err := d.determineDependencyStartingComponents(l, components)
+	dependencyStartingComponents, err := determineStartingComponentsFromExpressions(
+		l,
+		components,
+		d.dependencyTargetExpressions,
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	dependentStartingComponents, err := d.determineDependentStartingComponents(l, components)
+	dependentStartingComponents, err := determineStartingComponentsFromExpressions(
+		l,
+		components,
+		d.dependentTargetExpressions,
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1133,11 +949,10 @@ func (d *Discovery) Discover(
 		if shouldRunDependencyDiscovery {
 			g.Go(func() error {
 				return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
-					"working_dir":                    d.discoveryContext.WorkingDir,
-					"config_count":                   len(components),
-					"starting_component_count":       len(dependencyStartingComponents),
-					"discover_external_dependencies": d.discoverExternalDependencies,
-					"max_dependency_depth":           d.maxDependencyDepth,
+					"working_dir":              d.discoveryContext.WorkingDir,
+					"config_count":             len(components),
+					"starting_component_count": len(dependencyStartingComponents),
+					"max_dependency_depth":     d.maxDependencyDepth,
 				}, func(ctx context.Context) error {
 					dependencyDiscovery := NewDependencyDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
@@ -1147,10 +962,6 @@ func (d *Discovery) Discover(
 						dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
 					}
 
-					if d.discoverExternalDependencies {
-						dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
-					}
-
 					if d.suppressParseErrors {
 						dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 					}
@@ -1158,6 +969,11 @@ func (d *Discovery) Discover(
 					// pass parser options
 					if len(d.parserOptions) > 0 {
 						dependencyDiscovery = dependencyDiscovery.WithParserOptions(d.parserOptions)
+					}
+
+					// pass report for recording excluded external dependencies
+					if d.report != nil {
+						dependencyDiscovery = dependencyDiscovery.WithReport(d.report)
 					}
 
 					discoveryErr := dependencyDiscovery.Discover(discoveryCtx, l, opts, dependencyStartingComponents)
@@ -1196,10 +1012,6 @@ func (d *Discovery) Discover(
 						dependentDiscovery = dependentDiscovery.WithSuppressParseErrors()
 					}
 
-					if d.discoverExternalDependencies {
-						dependentDiscovery = dependentDiscovery.WithDiscoverExternalDependencies()
-					}
-
 					// pass parser options
 					if len(d.parserOptions) > 0 {
 						dependentDiscovery = dependentDiscovery.WithParserOptions(d.parserOptions)
@@ -1234,7 +1046,7 @@ func (d *Discovery) Discover(
 
 						l.Warnf("Parsing errors were encountered while discovering dependents. They were suppressed, and can be found in the debug logs.")
 
-						l.Debugf("Errors: %w", discoveryErr)
+						l.Debugf("Errors: %v", discoveryErr)
 					}
 
 					return nil
@@ -1247,44 +1059,13 @@ func (d *Discovery) Discover(
 		}
 
 		components = threadSafeComponents.ToComponents()
-
-		// Apply strictInclude filtering: when strictInclude is true, remove dependencies
-		// that don't match the include patterns (they shouldn't be included just because
-		// they are dependencies of included units)
-		if d.strictInclude && len(d.compiledIncludePatterns) > 0 {
-			components = d.filterByStrictInclude(l, components)
-		}
-
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
-			"working_dir":  d.discoveryContext.WorkingDir,
-			"config_count": len(components),
-		}, func(ctx context.Context) error {
-			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
-				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
-
-				l.Debugf("Cycle: %w", cycleErr)
-
-				var removeErr error
-
-				if d.breakCycles {
-					components, removeErr = RemoveCycles(components)
-					if removeErr != nil {
-						errs = append(errs, errors.New(removeErr))
-					}
-				}
-			}
-
-			return nil
-		})
-		if err != nil {
-			return components, errors.New(err)
-		}
 	}
 
-	if d.filterFlagEnabled && d.discoverDependencies {
+	if d.discoverRelationships {
 		relationshipDiscovery := NewRelationshipDiscovery(&components).
 			WithMaxDepth(d.maxDependencyDepth).
-			WithNumWorkers(d.numWorkers)
+			WithNumWorkers(d.numWorkers).
+			WithDiscoveryContext(d.discoveryContext)
 
 		if len(d.parserOptions) > 0 {
 			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
@@ -1297,7 +1078,7 @@ func (d *Discovery) Discover(
 			} else {
 				l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
 
-				l.Debugf("Errors: %w", err)
+				l.Debugf("Errors: %v", err)
 			}
 		}
 	}
@@ -1311,6 +1092,31 @@ func (d *Discovery) Discover(
 		if evaluateErr == nil {
 			components = filtered
 		}
+	}
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
+		"working_dir":  d.discoveryContext.WorkingDir,
+		"config_count": len(components),
+	}, func(ctx context.Context) error {
+		if _, cycleErr := components.CycleCheck(); cycleErr != nil {
+			l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+
+			l.Debugf("Cycle: %w", cycleErr)
+
+			var removeErr error
+
+			if d.breakCycles {
+				components, removeErr = RemoveCycles(components)
+				if removeErr != nil {
+					errs = append(errs, errors.New(removeErr))
+				}
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		errs = append(errs, errors.New(err))
 	}
 
 	if len(errs) > 0 {
@@ -1480,78 +1286,25 @@ func filterByAllowSet(components component.Components, allowed map[string]struct
 	return filtered
 }
 
-// determineDependencyStartingComponents determines the starting components for dependency discovery.
-// It uses filter expressions if provided, otherwise returns all components if dependency discovery is enabled.
-func (d *Discovery) determineDependencyStartingComponents(
+// determineStartingComponentsFromExpressions evaluates target expressions and returns
+// the matched components, deduplicated by path.
+func determineStartingComponentsFromExpressions(
 	l log.Logger,
 	components component.Components,
+	targetExpressions []filter.Expression,
 ) (component.Components, error) {
 	var (
 		startingComponents component.Components
 		errs               []error
 	)
 
-	// In the legacy discovery path, it's a binary all or nothing.
-	if !d.filterFlagEnabled {
-		if d.discoverDependencies {
-			return components, nil
-		}
-
-		return startingComponents, nil
-	}
-
-	// In the filter flag enabled path:
-	// - If we have dependency target expressions, use them to determine starting components
-	// - If we don't have dependency target expressions but discoverDependencies is enabled,
-	//   use all components as starting points (to discover dependencies of all components)
-	if len(d.dependencyTargetExpressions) == 0 {
+	if len(targetExpressions) == 0 {
 		return startingComponents, nil
 	}
 
 	seenPaths := make(map[string]struct{})
 
-	for _, targetExpr := range d.dependencyTargetExpressions {
-		matched, err := filter.Evaluate(l, targetExpr, components)
-		if err != nil {
-			errs = append(errs, errors.New(err))
-			continue
-		}
-
-		for _, c := range matched {
-			path := c.Path()
-			if _, seen := seenPaths[path]; !seen {
-				startingComponents = append(startingComponents, c)
-				seenPaths[path] = struct{}{}
-			}
-		}
-	}
-
-	if len(errs) > 0 {
-		return startingComponents, errors.Join(errs...)
-	}
-
-	return startingComponents, nil
-}
-
-// determineDependentStartingComponents determines the starting components for dependent discovery.
-// It uses filter expressions to determine which components should be used as starting points.
-func (d *Discovery) determineDependentStartingComponents(
-	l log.Logger,
-	components component.Components,
-) (component.Components, error) {
-	var (
-		startingComponents component.Components
-		errs               []error
-	)
-
-	// If there are no dependent target expressions, return empty starting components
-	if len(d.dependentTargetExpressions) == 0 {
-		return startingComponents, nil
-	}
-
-	seenPaths := make(map[string]struct{})
-
-	for _, targetExpr := range d.dependentTargetExpressions {
+	for _, targetExpr := range targetExpressions {
 		matched, err := filter.Evaluate(l, targetExpr, components)
 		if err != nil {
 			errs = append(errs, errors.New(err))
@@ -1577,6 +1330,12 @@ func (d *Discovery) determineDependentStartingComponents(
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
 // It returns the list of absolute dependency paths and any errors encountered during extraction.
 func extractDependencyPaths(cfg *config.TerragruntConfig, component component.Component) ([]string, error) {
+	// Some discovery passes may encounter components that don't actually have a config file (e.g., directories that
+	// exist under the working dir but have no terragrunt.hcl). Treat those as having no dependencies.
+	if cfg == nil {
+		return nil, nil
+	}
+
 	deduped := make(map[string]struct{})
 
 	var errs []error
@@ -1777,44 +1536,6 @@ func (d *Discovery) filterByExcludeBlock(l log.Logger, opts *options.TerragruntO
 		}
 
 		result = append(result, c)
-	}
-
-	return result
-}
-
-// filterByStrictInclude filters components to only include those that match the include patterns.
-// This is used when strictInclude is enabled to prevent dependencies from being automatically included.
-// Components that don't match any include pattern are removed from the result.
-func (d *Discovery) filterByStrictInclude(l log.Logger, components component.Components) component.Components {
-	result := make(component.Components, 0, len(components))
-
-	for _, c := range components {
-		componentPath := c.Path()
-
-		// Canonicalize the path for matching
-		canonicalPath, err := util.CanonicalPath(componentPath, d.workingDir)
-		if err != nil {
-			// If we can't canonicalize, try matching the raw path
-			canonicalPath = componentPath
-		}
-
-		cleanPath := util.CleanPath(canonicalPath)
-
-		// Check if this component matches any include pattern
-		matched := false
-
-		for _, pattern := range d.compiledIncludePatterns {
-			if pattern.Compiled.Match(cleanPath) {
-				matched = true
-				break
-			}
-		}
-
-		if matched {
-			result = append(result, c)
-		} else {
-			l.Debugf("Filtering out %s due to strict include mode (doesn't match include patterns)", componentPath)
-		}
 	}
 
 	return result

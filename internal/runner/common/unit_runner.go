@@ -59,12 +59,13 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		unitPath := runner.Unit.AbsolutePath()
 		unitPath = util.CleanPath(unitPath)
 
-		run, err := report.NewRun(unitPath)
-		if err != nil {
-			return err
+		// Pass the discovery working directory for worktree scenarios
+		var ensureOpts []report.EndOption
+		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
+			ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
 		}
 
-		if err := r.AddRun(run); err != nil {
+		if _, err := r.EnsureRun(runner.Unit.Execution.Logger, unitPath, ensureOpts...); err != nil {
 			return err
 		}
 	}
@@ -91,6 +92,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 		if runErr != nil {
 			if endErr := r.EndRun(
+				runner.Unit.Execution.Logger,
 				unitPath,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
@@ -99,7 +101,11 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 				runner.Unit.Execution.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}
 		} else {
-			if endErr := r.EndRun(unitPath, report.WithResult(report.ResultSucceeded)); endErr != nil {
+			if endErr := r.EndRun(
+				runner.Unit.Execution.Logger,
+				unitPath,
+				report.WithResult(report.ResultSucceeded),
+			); endErr != nil {
 				runner.Unit.Execution.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}
 		}

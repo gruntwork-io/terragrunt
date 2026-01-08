@@ -2,9 +2,9 @@
 package run
 
 import (
+	"context"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -34,12 +34,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 		Flags:       NewFlags(l, opts, nil),
 		Subcommands: NewSubcommands(l, opts),
-		Action: func(ctx *cli.Context) error {
-			if len(ctx.Args()) == 0 {
-				return cli.ShowCommandHelp(ctx)
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
+			if len(cliCtx.Args()) == 0 {
+				return cli.ShowCommandHelp(ctx, cliCtx)
 			}
 
-			return Action(l, opts)(ctx)
+			return Action(l, opts)(ctx, cliCtx)
 		},
 	}
 
@@ -60,8 +60,8 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 			Usage:      usage,
 			Hidden:     !visible,
 			CustomHelp: ShowTFHelp(l, opts),
-			Action: func(ctx *cli.Context) error {
-				return Action(l, opts)(ctx)
+			Action: func(ctx context.Context, cliCtx *cli.Context) error {
+				return Action(l, opts)(ctx, cliCtx)
 			},
 		}
 		subcommands[i] = subcommand
@@ -71,33 +71,19 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 }
 
 func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
+	return func(ctx context.Context, _ *cli.Context) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
-			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
-		}
-
-		if err := validateCommand(opts); err != nil {
-			return err
+			opts.CheckDependentModules = opts.DestroyDependenciesCheck
 		}
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
+		return run.Run(ctx, l, opts.OptionsFromContext(ctx), r)
 	}
 }
 
-func validateCommand(opts *options.TerragruntOptions) error {
-	if opts.DisableCommandValidation || collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
-		return nil
-	}
-
-	if isTerraformPath(opts) {
-		return run.WrongTerraformCommand(opts.TerraformCommand)
-	}
-
-	return run.WrongTofuCommand(opts.TerraformCommand)
-}
-
+// isTerraformPath returns true if the TFPath ends with the default Terraform path.
+// This is used by help.go to determine whether to show "Terraform" or "OpenTofu" in help text.
 func isTerraformPath(opts *options.TerragruntOptions) bool {
 	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
 }

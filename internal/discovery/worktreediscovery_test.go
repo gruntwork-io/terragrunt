@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,7 @@ import (
 func TestWorktreeDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -40,7 +39,11 @@ func TestWorktreeDiscovery(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create three units
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
@@ -158,12 +161,13 @@ func TestWorktreeDiscovery(t *testing.T) {
 	require.NotEmpty(t, worktreePair)
 
 	fromWorktree := worktreePair.FromWorktree.Path
+	toWorktree := worktreePair.ToWorktree.Path
 
-	// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-	expectedUnitToBeCreated := filepath.Join(tmpDir, "unit-to-be-created")
-	expectedUnitToBeModified := filepath.Join(tmpDir, "unit-to-be-modified")
+	// All paths are worktree paths - no translation needed
+	expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
+	expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
 	expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
-	expectedUnitToBeUntouched := filepath.Join(tmpDir, "unit-to-be-untouched")
+	expectedUnitToBeUntouched := filepath.Join(toWorktree, "unit-to-be-untouched")
 
 	assert.Contains(t, unitPaths, expectedUnitToBeCreated, "Unit should be discovered as it was created between commits")
 	assert.DirExists(t, expectedUnitToBeCreated)
@@ -178,12 +182,13 @@ func TestWorktreeDiscovery(t *testing.T) {
 	assert.DirExists(t, expectedUnitToBeUntouched)
 }
 
-func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
-	t.Parallel()
+// setupWorktreeTestRepo creates a git repository with the test structure needed for
+// TestWorktreeDiscoveryContextCommandArgsUpdate. Each subtest should call this to get
+// its own independent repository.
+func setupWorktreeTestRepo(t *testing.T) string {
+	t.Helper()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -197,8 +202,9 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		require.NoError(t, err)
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
 	})
 
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
@@ -268,10 +274,11 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Create options
-	opts := options.NewTerragruntOptions()
-	opts.WorkingDir = tmpDir
-	opts.RootWorkingDir = tmpDir
+	return tmpDir
+}
+
+func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
+	t.Parallel()
 
 	// Create a Git filter expression
 	gitFilter := filter.NewGitExpression("HEAD~1", "HEAD")
@@ -280,110 +287,81 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 	l := logger.CreateLogger()
 
 	tests := []struct {
-		discoveryContext *component.DiscoveryContext
+		cmd              string
 		name             string
 		expectedErrorMsg string
 		description      string
+		args             []string
 		expectError      bool
 	}{
 		{
-			name: "plan_command_removed_unit_has_destroy_flag",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "plan",
-				Args:       []string{},
-			},
+			name:        "plan_command_removed_unit_has_destroy_flag",
+			cmd:         "plan",
+			args:        []string{},
 			expectError: false,
 			description: "Plan command should add '-destroy' flag for removed units (from worktree)",
 		},
 		{
-			name: "apply_command_removed_unit_has_destroy_flag",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "apply",
-				Args:       []string{},
-			},
+			name:        "apply_command_removed_unit_has_destroy_flag",
+			cmd:         "apply",
+			args:        []string{},
 			expectError: false,
 			description: "Apply command should add '-destroy' flag for removed units (from worktree)",
 		},
 		{
-			name: "plan_command_added_unit_no_destroy_flag",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "plan",
-				Args:       []string{},
-			},
+			name:        "plan_command_added_unit_no_destroy_flag",
+			cmd:         "plan",
+			args:        []string{},
 			expectError: false,
 			description: "Plan command should NOT add '-destroy' flag for added units (to worktree)",
 		},
 		{
-			name: "apply_command_added_unit_no_destroy_flag",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "apply",
-				Args:       []string{},
-			},
+			name:        "apply_command_added_unit_no_destroy_flag",
+			cmd:         "apply",
+			args:        []string{},
 			expectError: false,
 			description: "Apply command should NOT add '-destroy' flag for added units (to worktree)",
 		},
 		{
-			name: "plan_command_modified_unit_no_destroy_flag",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "plan",
-				Args:       []string{},
-			},
+			name:        "plan_command_modified_unit_no_destroy_flag",
+			cmd:         "plan",
+			args:        []string{},
 			expectError: false,
 			description: "Plan command should NOT add '-destroy' flag for modified units (to worktree)",
 		},
 		{
-			name: "apply_command_modified_unit_no_destroy_flag",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "apply",
-				Args:       []string{},
-			},
+			name:        "apply_command_modified_unit_no_destroy_flag",
+			cmd:         "apply",
+			args:        []string{},
 			expectError: false,
 			description: "Apply command should NOT add '-destroy' flag for modified units (to worktree)",
 		},
 		{
-			name: "plan_command_with_destroy_throws_error",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "plan",
-				Args:       []string{"-destroy"},
-			},
+			name:        "plan_command_with_destroy_throws_error",
+			cmd:         "plan",
+			args:        []string{"-destroy"},
 			expectError: true,
 			description: "Plan command with '-destroy' already present should throw an error, as it's ambiguous whether to destroy or plan",
 		},
 		{
-			name: "empty_command_allowed",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "",
-				Args:       []string{},
-			},
+			name:        "empty_command_allowed",
+			cmd:         "",
+			args:        []string{},
 			expectError: false,
 			description: "Empty command and args should be allowed (discovery commands like find/list)",
 		},
 		{
-			name: "unsupported_command_returns_error",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "destroy",
-				Args:       []string{},
-			},
+			name:             "unsupported_command_returns_error",
+			cmd:              "destroy",
+			args:             []string{},
 			expectError:      true,
 			expectedErrorMsg: "Git-based filtering is not supported with the command 'destroy'",
 			description:      "Unsupported command should return error",
 		},
 		{
-			name: "plan_with_other_arbitrary_args_allowed",
-			discoveryContext: &component.DiscoveryContext{
-				WorkingDir: tmpDir,
-				Cmd:        "plan",
-				Args:       []string{"-out", "plan.out"},
-			},
+			name:        "plan_with_other_arbitrary_args_allowed",
+			cmd:         "plan",
+			args:        []string{"-out", "plan.out"},
 			expectError: false,
 			description: "Plan command with other arbitrary args should be allowed",
 		},
@@ -393,26 +371,32 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+			// Each subtest creates its own git repository to avoid race conditions
+			testDir := setupWorktreeTestRepo(t)
+
+			discoveryContext := &component.DiscoveryContext{
+				WorkingDir: testDir,
+				Cmd:        tt.cmd,
+				Args:       tt.args,
+			}
+
+			w, err := worktrees.NewWorktrees(t.Context(), l, testDir, gitExpressions)
 			require.NoError(t, err)
-
-			originalDiscovery := discovery.NewDiscovery(tmpDir).
-				WithDiscoveryContext(tt.discoveryContext).
-				WithWorktrees(w)
-
-			// Create worktree discovery with the test discovery context
-			worktreeDiscovery := discovery.NewWorktreeDiscovery(
-				gitExpressions,
-			).
-				WithOriginalDiscovery(originalDiscovery)
 
 			t.Cleanup(func() {
 				cleanupErr := w.Cleanup(context.Background(), l)
 				require.NoError(t, cleanupErr)
 			})
 
+			originalDiscovery := discovery.NewDiscovery(testDir).
+				WithDiscoveryContext(discoveryContext).
+				WithWorktrees(w)
+
+			worktreeDiscovery := discovery.NewWorktreeDiscovery(gitExpressions).
+				WithOriginalDiscovery(originalDiscovery)
+
 			// Perform discovery
-			components, err := worktreeDiscovery.Discover(t.Context(), l, opts, w)
+			components, err := worktreeDiscovery.Discover(t.Context(), l, helpers.MakeOpts(testDir), w)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)
@@ -434,14 +418,15 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 			require.NotEmpty(t, worktreePair)
 
 			fromWorktree := worktreePair.FromWorktree.Path
+			toWorktree := worktreePair.ToWorktree.Path
 
 			// Verify units were discovered
 			units := components.Filter(component.UnitKind)
 			unitPaths := units.Paths()
 
-			// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-			expectedUnitToBeCreated := filepath.Join(tmpDir, "unit-to-be-created")
-			expectedUnitToBeModified := filepath.Join(tmpDir, "unit-to-be-modified")
+			// All paths are worktree paths - no translation needed
+			expectedUnitToBeCreated := filepath.Join(toWorktree, "unit-to-be-created")
+			expectedUnitToBeModified := filepath.Join(toWorktree, "unit-to-be-modified")
 			expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
 
 			// Find components by path and verify their discovery context args
@@ -453,28 +438,28 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 
 				// Check removed unit (discovered in "from" worktree)
 				if unitPath == expectedUnitToBeRemoved {
-					if tt.discoveryContext.Cmd == "plan" || tt.discoveryContext.Cmd == "apply" {
+					if tt.cmd == "plan" || tt.cmd == "apply" {
 						// Removed units should have -destroy flag added
 						assert.Contains(t, ctx.Args, "-destroy",
-							"Removed unit discovered in 'from' worktree should have '-destroy' flag for %s command", tt.discoveryContext.Cmd)
+							"Removed unit discovered in 'from' worktree should have '-destroy' flag for %s command", tt.cmd)
 					}
 				}
 
 				// Check added unit (discovered in "to" worktree)
 				if unitPath == expectedUnitToBeCreated {
-					if tt.discoveryContext.Cmd == "plan" || tt.discoveryContext.Cmd == "apply" {
+					if tt.cmd == "plan" || tt.cmd == "apply" {
 						// Added units should NOT have -destroy flag
 						assert.NotContains(t, ctx.Args, "-destroy",
-							"Added unit discovered in 'to' worktree should NOT have '-destroy' flag for %s command", tt.discoveryContext.Cmd)
+							"Added unit discovered in 'to' worktree should NOT have '-destroy' flag for %s command", tt.cmd)
 					}
 				}
 
 				// Check modified unit (discovered in "to" worktree)
 				if unitPath == expectedUnitToBeModified {
-					if tt.discoveryContext.Cmd == "plan" || tt.discoveryContext.Cmd == "apply" {
+					if tt.cmd == "plan" || tt.cmd == "apply" {
 						// Modified units should NOT have -destroy flag
 						assert.NotContains(t, ctx.Args, "-destroy",
-							"Modified unit discovered in 'to' worktree should NOT have '-destroy' flag for %s command", tt.discoveryContext.Cmd)
+							"Modified unit discovered in 'to' worktree should NOT have '-destroy' flag for %s command", tt.cmd)
 					}
 				}
 			}
@@ -490,9 +475,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -505,7 +488,11 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create initial commit with no terragrunt.hcl files
 	err = runner.GoAdd(".")
@@ -580,9 +567,7 @@ func TestWorktreeDiscovery_EmptyFilters(t *testing.T) {
 func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -595,7 +580,11 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create initial commit
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
@@ -660,9 +649,7 @@ func TestWorktreeDiscovery_EmptyDiffs(t *testing.T) {
 func TestWorktreeDiscovery_Stacks(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -675,7 +662,11 @@ func TestWorktreeDiscovery_Stacks(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create a catalog of units
 
@@ -881,20 +872,25 @@ unit "unit_to_be_untouched" {
 	require.NotEmpty(t, worktreePair)
 
 	fromWorktree := worktreePair.FromWorktree.Path
+	toWorktree := worktreePair.ToWorktree.Path
 
-	// toWorktree paths are translated to original working dir (tmpDir), fromWorktree paths are not
-	assert.ElementsMatch(t, components, component.Components{
+	// All paths are worktree paths - no translation needed.
+	//
+	// NOTE: Discovery may attach additional state (e.g., partially-parsed configs) that isn't relevant
+	// to this test's intent. We normalize the discovered components by clearing that state so a simple
+	// deep comparison remains stable over time.
+	expected := component.Components{
 		// Stacks
-		component.NewStack(filepath.Join(tmpDir, stackToBeAddedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(toWorktree, stackToBeAddedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewStack(filepath.Join(tmpDir, stackToBeModifiedRel)).WithDiscoveryContext(
+		component.NewStack(filepath.Join(toWorktree, stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
@@ -907,47 +903,47 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-		// Units from stack-to-be-added (HEAD) - paths translated to tmpDir
-		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		// Units from stack-to-be-added (HEAD) - worktree paths
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		component.NewUnit(filepath.Join(tmpDir, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		// Units from stack-to-be-modified (HEAD) - paths translated to tmpDir
+		// Units from stack-to-be-modified (HEAD) - worktree paths
 		// For changed stacks, we only discover units that are added, removed, or changed (different SHA)
 		// unit_to_be_added: only in HEAD (added)
-		component.NewUnit(filepath.Join(tmpDir, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
-		component.NewUnit(filepath.Join(tmpDir, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
+		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
-				WorkingDir: tmpDir,
+				WorkingDir: toWorktree,
 				Ref:        "HEAD",
 				Cmd:        "plan",
 			},
 		),
-		// Units from stack-to-be-modified (HEAD~1) - fromWorktree paths NOT translated
+		// Units from stack-to-be-modified (HEAD~1) - fromWorktree paths
 		// unit_to_be_removed: only in HEAD~1 (removed)
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
@@ -957,7 +953,7 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-		// Units from stack-to-be-removed (HEAD~1) - fromWorktree paths NOT translated
+		// Units from stack-to-be-removed (HEAD~1) - fromWorktree paths
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_modified")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
@@ -982,7 +978,22 @@ unit "unit_to_be_untouched" {
 				Args:       []string{"-destroy"},
 			},
 		),
-	})
+	}
+
+	for _, c := range components {
+		switch v := c.(type) {
+		case *component.Unit:
+			// Normalize fields that may be populated during discovery, but are irrelevant to this test's assertions.
+			v.StoreConfig(nil)
+			// Normalize slices so deep equality is stable (nil vs empty differs in reflect.DeepEqual).
+			v.SetReading()
+		case *component.Stack:
+			v.StoreConfig(nil)
+			v.SetReading()
+		}
+	}
+
+	assert.ElementsMatch(t, components, expected)
 }
 
 // TestWorktreeDiscoveryDetectsFileRename verifies that renaming a file within a unit
@@ -991,9 +1002,7 @@ unit "unit_to_be_untouched" {
 func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -1006,7 +1015,11 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create a unit with a file
 	unitDir := filepath.Join(tmpDir, "unit")
@@ -1067,7 +1080,9 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 	require.NoError(t, err)
 
-	defer w.Cleanup(t.Context(), l)
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), l))
+	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
@@ -1104,9 +1119,7 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -1119,7 +1132,11 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create a unit with a file in root
 	unitDir := filepath.Join(tmpDir, "unit")
@@ -1184,7 +1201,9 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
 	require.NoError(t, err)
 
-	defer w.Cleanup(t.Context(), l)
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), l))
+	})
 
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{

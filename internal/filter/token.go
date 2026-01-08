@@ -13,7 +13,7 @@ const (
 	// IDENT represents an identifier (e.g., "foo", "name")
 	IDENT
 
-	// PATH represents a path (starts with ./ or /)
+	// PATH represents a path (starts with ./, ../, or /)
 	PATH
 
 	// Operators

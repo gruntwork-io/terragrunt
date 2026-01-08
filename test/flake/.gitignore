@@ -1,0 +1,8 @@
+# Runtime directories - downloaded/generated data
+logs/
+summaries/
+analysis/
+plan/
+
+# Binary
+flake

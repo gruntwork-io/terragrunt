@@ -339,10 +339,27 @@ func TestLexer_EdgeCases(t *testing.T) {
 			input: "{my path/file}",
 			expected: []filter.Token{
 				{Type: filter.LBRACE, Literal: "{", Position: 0},
-				{Type: filter.IDENT, Literal: "my path", Position: 1},
-				{Type: filter.PATH, Literal: "/file", Position: 8},
+				{Type: filter.PATH, Literal: "my path/file", Position: 1},
 				{Type: filter.RBRACE, Literal: "}", Position: 13},
 				{Type: filter.EOF, Literal: "", Position: 14},
+			},
+		},
+		{
+			name:  "source filter with slash",
+			input: "source=github.com/acme/foo/bar",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "source", Position: 0},
+				{Type: filter.EQUAL, Literal: "=", Position: 6},
+				{Type: filter.IDENT, Literal: "github.com/acme/foo/bar", Position: 7},
+				{Type: filter.EOF, Literal: "", Position: 30},
+			},
+		},
+		{
+			name:  "path filter with slash",
+			input: "foo/bar",
+			expected: []filter.Token{
+				{Type: filter.PATH, Literal: "foo/bar", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 7},
 			},
 		},
 	}

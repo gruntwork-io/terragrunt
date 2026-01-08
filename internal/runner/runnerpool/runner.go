@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -28,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/hashicorp/hcl/v2"
 )
@@ -38,16 +38,22 @@ type Runner struct {
 	queue *queue.Queue
 }
 
-// buildCanonicalConfigPath computes the canonical config path for a unit.
-// It handles .hcl/.json suffixes, joins DefaultTerragruntConfigPath when needed,
+// BuildCanonicalConfigPath computes the canonical config path for a unit.
+// It handles .hcl/.json suffixes, joins an appropriate config filename when needed,
 // converts to canonical absolute path, and updates the unit's path.
 // Returns the canonical config path and the canonical unit directory.
-func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalConfigPath string, canonicalDir string, err error) {
-	// Discovery paths are directories (e.g., "./other") not files
-	// We need to append the config filename to get the full config path
+func BuildCanonicalConfigPath(
+	unit *component.Unit,
+	basePath string,
+) (canonicalConfigPath string, canonicalDir string, err error) {
 	terragruntConfigPath := unit.Path()
 	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
-		terragruntConfigPath = filepath.Join(unit.Path(), config.DefaultTerragruntConfigPath)
+		fileName := config.DefaultTerragruntConfigPath
+		if unit.ConfigFile() != "" {
+			fileName = unit.ConfigFile()
+		}
+
+		terragruntConfigPath = filepath.Join(unit.Path(), fileName)
 	}
 
 	// Convert to canonical absolute path - this is critical for dependency resolution
@@ -66,11 +72,12 @@ func buildCanonicalConfigPath(unit *component.Unit, basePath string) (canonicalC
 	return canonicalConfigPath, canonicalDir, nil
 }
 
-// cloneUnitOptions clones TerragruntOptions for a specific unit.
+// CloneUnitOptions clones TerragruntOptions for a specific unit.
 // It handles CloneWithConfigPath, per-unit DownloadDir fallback, and OriginalTerragruntConfigPath.
 // Returns the cloned options and logger, or the original logger if stack has no options.
-func cloneUnitOptions(
+func CloneUnitOptions(
 	stack *component.Stack,
+	unit *component.Unit,
 	canonicalConfigPath string,
 	stackDefaultDownloadDir string,
 	l log.Logger,
@@ -82,6 +89,12 @@ func cloneUnitOptions(
 	clonedLogger, clonedOpts, err := stack.Execution.TerragruntOptions.CloneWithConfigPath(l, canonicalConfigPath)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Override logger prefix with display path (relative to discovery context) for cleaner logs
+	// unless --log-show-abs-paths is set
+	if !stack.Execution.TerragruntOptions.LogShowAbsPaths {
+		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 	}
 
 	// Use a per-unit default download directory when the stack is using its own default
@@ -101,10 +114,10 @@ func cloneUnitOptions(
 	return clonedOpts, clonedLogger, nil
 }
 
-// shouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
+// ShouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
 // neither a Terraform source nor any Terraform/OpenTofu files in its directory.
 // Returns true if the unit should be skipped, false otherwise.
-func shouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
+func ShouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
 	terragruntConfig := unit.Config()
 
 	// If the unit has a Terraform source configured, don't skip it
@@ -152,25 +165,63 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Build canonical config path and update unit path
-		canonicalConfigPath, canonicalDir, err := buildCanonicalConfigPath(unit, basePath)
+		canonicalConfigPath, canonicalDir, err := BuildCanonicalConfigPath(unit, basePath)
 		if err != nil {
 			return nil, err
 		}
 
 		// Clone options for this unit
-		unitOpts, unitLogger, err := cloneUnitOptions(stack, canonicalConfigPath, stackDefaultDownloadDir, l)
+		unitOpts, unitLogger, err := CloneUnitOptions(stack, unit, canonicalConfigPath, stackDefaultDownloadDir, l)
 		if err != nil {
 			return nil, err
 		}
 
+		// If --source is provided, compute the per-unit source by combining the base source
+		// with the path from the unit's terragrunt.hcl source configuration
+		if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
+			stack.Execution.TerragruntOptions.Source != "" {
+			unitConfig := unit.Config()
+			if unitConfig != nil {
+				unitSource, sourceErr := config.GetTerragruntSourceForModule(
+					stack.Execution.TerragruntOptions.Source,
+					canonicalConfigPath,
+					unitConfig,
+				)
+				if sourceErr != nil {
+					return nil, tgerrors.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
+				}
+
+				if unitSource != "" {
+					unitOpts.Source = unitSource
+				}
+			}
+		}
+
 		// Skip units without Terraform configuration
-		skip, err := shouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
+		skip, err := ShouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
 		if err != nil {
 			return nil, err
 		}
 
 		if skip {
 			continue
+		}
+
+		// Transfer discovery context command and args to unit options if available
+		if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
+			if discoveryCtx.Cmd != "" {
+				unitOpts.TerraformCommand = discoveryCtx.Cmd
+			}
+
+			if len(discoveryCtx.Args) > 0 {
+				terraformCliArgs := make([]string, 0, 1+len(discoveryCtx.Args))
+				if discoveryCtx.Cmd != "" {
+					terraformCliArgs = append(terraformCliArgs, discoveryCtx.Cmd)
+				}
+
+				terraformCliArgs = append(terraformCliArgs, discoveryCtx.Args...)
+				unitOpts.TerraformCliArgs = terraformCliArgs
+			}
 		}
 
 		// Initialize execution context
@@ -181,32 +232,44 @@ func resolveUnitsFromDiscovery(
 			AssumeAlreadyApplied: false,
 		}
 
-		// Handle external units - check if they should be excluded
-		if unit.External() {
-			if stack.Execution != nil && stack.Execution.TerragruntOptions != nil &&
-				stack.Execution.TerragruntOptions.IgnoreExternalDependencies {
-				unit.Execution.AssumeAlreadyApplied = true
-				unit.Execution.FlagExcluded = true
-				l.Infof("Excluded external dependency: %s", unit.Path())
-			}
-		}
-
 		// Store config from discovery context if available
 		if unit.DiscoveryContext() != nil && unit.Config() == nil {
 			// Config should already be set during discovery
-			l.Debugf("Unit %s has no config from discovery", unit.Path())
+			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
 		}
 
 		units = append(units, unit)
 	}
 
-	// Ensure the stack-level default cache directory exists so tests that expect the root cache can find it,
-	// even when per-unit download directories are used.
-	if stackDefaultDownloadDir != "" {
-		_ = os.MkdirAll(stackDefaultDownloadDir, os.ModePerm) // best-effort
-	}
-
 	return units, nil
+}
+
+// checkLocalStateWithGitRefs checks if any unit has a Git ref in its discovery context
+// but no remote state configuration, and logs a warning if so.
+func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
+	for _, unit := range units {
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx == nil {
+			continue
+		}
+
+		if discoveryCtx.Ref == "" {
+			continue
+		}
+
+		unitConfig := unit.Config()
+		if unitConfig == nil {
+			continue
+		}
+
+		if unitConfig.RemoteState == nil || unitConfig.RemoteState.BackendName == "local" {
+			l.Warnf(
+				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
+			)
+
+			return
+		}
+	}
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
@@ -269,40 +332,17 @@ func NewRunnerPoolStack(
 		return nil, err
 	}
 
-	// Record exclude-dir reasons in report before filtering.
-	if runner.Stack.Execution != nil && runner.Stack.Execution.Report != nil && len(terragruntOptions.ExcludeDirs) > 0 {
-		for _, unit := range units {
-			for _, dir := range terragruntOptions.ExcludeDirs {
-				cleanDir := dir
-				if !filepath.IsAbs(cleanDir) {
-					cleanDir = util.JoinPath(terragruntOptions.WorkingDir, cleanDir)
-				}
-
-				cleanDir = util.CleanPath(cleanDir)
-
-				if util.HasPathPrefix(unit.Path(), cleanDir) {
-					absPath := util.CleanPath(unit.Path())
-					if !filepath.IsAbs(absPath) {
-						if abs, err := filepath.Abs(absPath); err == nil {
-							absPath = util.CleanPath(abs)
-						}
-					}
-
-					run, err := runner.Stack.Execution.Report.EnsureRun(absPath)
-					if err != nil {
-						continue
-					}
-
-					_ = runner.Stack.Execution.Report.EndRun(run.Path, report.WithResult(report.ResultExcluded), report.WithReason(report.ReasonExcludeDir))
-				}
-			}
-		}
-	}
-
+	// Check for units with Git refs but no remote state configuration
+	checkLocalStateWithGitRefs(l, units)
 	runner.Stack.Units = units
 
-	if isDestroyCommand(terragruntOptions) {
+	if isDestroyCommand(terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs) {
 		applyPreventDestroyExclusions(l, units)
+	}
+
+	// Apply filter-allow-destroy exclusions for plan and apply commands
+	if terragruntOptions.TerraformCommand == tf.CommandNamePlan || terragruntOptions.TerraformCommand == tf.CommandNameApply {
+		applyFilterAllowDestroyExclusions(l, terragruntOptions, units)
 	}
 
 	// Build queue from resolved units (which have canonical absolute paths).
@@ -313,6 +353,17 @@ func NewRunnerPoolStack(
 	if queueErr != nil {
 		return nil, queueErr
 	}
+
+	// Set units map on queue to enable checking dependencies not in queue
+	// (e.g., when using --queue-strict-include or --filter)
+	unitsMap := make(map[string]*component.Unit, len(units))
+	for _, u := range units {
+		if u != nil && u.Path() != "" {
+			unitsMap[u.Path()] = u
+		}
+	}
+
+	q.SetUnitsMap(unitsMap)
 
 	runner.queue = q
 
@@ -399,8 +450,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 	}
 
-	if util.ListContainsElement(config.TerraformCommandsNeedInput, terraformCmd) {
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
+		opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-input=false")
 		r.syncTerraformCliArgs(l, opts)
 	}
 
@@ -409,7 +460,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+			opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-auto-approve")
 		}
 
 		r.syncTerraformCliArgs(l, opts)
@@ -429,7 +480,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				run, err := r.Stack.Execution.Report.EnsureRun(unitPath)
+				// Pass the discovery working directory for worktree scenarios
+				var ensureOpts []report.EndOption
+				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
+					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+				}
+
+				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -447,6 +504,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 
 					if err := r.Stack.Execution.Report.EndRun(
+						l,
 						run.Path,
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(reason),
@@ -470,10 +528,18 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			"terragrunt_config_path": u.Execution.TerragruntOptions.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			// Wrap the writer to buffer unit-scoped output
-			u.Execution.TerragruntOptions.Writer = NewUnitWriter(u.Execution.TerragruntOptions.Writer)
+			unitWriter := NewUnitWriter(u.Execution.TerragruntOptions.Writer)
+			u.Execution.TerragruntOptions.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
-			return unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
+			err := unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
+
+			// Flush any remaining buffered output
+			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {
+				err = flushErr
+			}
+
+			return err
 		})
 	}
 
@@ -509,7 +575,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				run, reportErr := r.Stack.Execution.Report.EnsureRun(unitPath)
+				// Pass the discovery working directory for worktree scenarios
+				var ensureOpts []report.EndOption
+				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
+					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+				}
+
+				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
 					continue
@@ -540,7 +612,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 				}
 
-				if endErr := r.Stack.Execution.Report.EndRun(run.Path, endOpts...); endErr != nil {
+				if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
 					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 				}
 			}
@@ -596,12 +668,24 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
 	entries := slices.Clone(r.queue.Entries)
-	if r.Stack.Execution != nil && isDestroyCommand(r.Stack.Execution.TerragruntOptions) {
+	if r.Stack.Execution != nil && isDestroyCommand(
+		r.Stack.Execution.TerragruntOptions.TerraformCommand,
+		r.Stack.Execution.TerragruntOptions.TerraformCliArgs,
+	) {
 		slices.Reverse(entries)
 	}
 
+	// Use absolute paths if --log-show-abs-paths is set
+	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
+		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
+
 	for _, unit := range entries {
-		outStr += fmt.Sprintf("- Unit %s\n", unit.Component.Path())
+		unitPath := unit.Component.DisplayPath()
+		if showAbsPaths {
+			unitPath = unit.Component.Path()
+		}
+
+		outStr += fmt.Sprintf("- Unit %s\n", unitPath)
 	}
 
 	l.Info(outStr)
@@ -611,9 +695,18 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
 func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
+	// Use absolute paths if --log-show-abs-paths is set
+	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
+		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
+
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
-		orderedUnits = append(orderedUnits, unit.Component.Path())
+		unitPath := unit.Component.DisplayPath()
+		if showAbsPaths {
+			unitPath = unit.Component.Path()
+		}
+
+		orderedUnits = append(orderedUnits, unitPath)
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")
@@ -667,7 +760,24 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 			continue
 		}
 
-		unit.Execution.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
+			mergedArgs := slices.Clone(unit.Execution.TerragruntOptions.TerraformCliArgs)
+
+			for _, stackArg := range opts.TerraformCliArgs {
+				if stackArg == opts.TerraformCliArgs.First() {
+					continue
+				}
+
+				if !slices.Contains(mergedArgs, stackArg) {
+					mergedArgs = append(mergedArgs, stackArg)
+				}
+			}
+
+			unit.Execution.TerragruntOptions.TerraformCliArgs = mergedArgs
+		} else {
+			unit.Execution.TerragruntOptions.TerraformCliArgs = slices.Clone(opts.TerraformCliArgs)
+		}
 
 		planFile := unit.PlanFile(opts)
 		if planFile != "" {
@@ -833,22 +943,22 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 
 		// Add any missing allowed dependencies from the resolved unit graph
 		for _, dep := range u.Dependencies() {
-			depUnit, ok := dep.(*component.Unit)
-			if !ok || depUnit == nil {
+			depUnit, okDep := dep.(*component.Unit)
+			if !okDep || depUnit == nil {
 				continue
 			}
 
-			if _, ok := allowed[depUnit.Path()]; !ok {
+			if _, allowedOK := allowed[depUnit.Path()]; !allowedOK {
 				continue
 			}
 
-			if _, ok := existing[depUnit.Path()]; ok {
+			if _, existsOK := existing[depUnit.Path()]; existsOK {
 				continue
 			}
 
 			// Ensure the dependency config exists in the filtered set
-			depCfg, ok := present[depUnit.Path()]
-			if !ok {
+			depCfg, presentOK := present[depUnit.Path()]
+			if !presentOK {
 				depCfg = component.NewUnit(depUnit.Path())
 				filtered = append(filtered, depCfg)
 				present[depUnit.Path()] = depCfg
@@ -885,9 +995,9 @@ func (r *Runner) SetReport(rpt *report.Report) {
 }
 
 // isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(opts *options.TerragruntOptions) bool {
-	return opts.TerraformCommand == tf.CommandNameDestroy ||
-		util.ListContainsElement(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy)
+func isDestroyCommand(cmd string, args []string) bool {
+	return cmd == tf.CommandNameDestroy ||
+		slices.Contains(args, "-"+tf.CommandNameDestroy)
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
@@ -936,6 +1046,30 @@ func applyPreventDestroyExclusions(l log.Logger, units []*component.Unit) {
 
 // maxDependencyTraversalDepth bounds the depth of dependency traversal to prevent excessive recursion.
 const maxDependencyTraversalDepth = 256
+
+// applyFilterAllowDestroyExclusions excludes units with destroy runs from Git-based filters
+// when the --filter-allow-destroy flag is not set. This prevents accidental destruction
+// of infrastructure when using Git-based filters.
+func applyFilterAllowDestroyExclusions(l log.Logger, opts *options.TerragruntOptions, units []*component.Unit) {
+	if opts.FilterAllowDestroy {
+		return
+	}
+
+	for _, unit := range units {
+		discoveryCtx := unit.DiscoveryContext()
+		if discoveryCtx == nil {
+			continue
+		}
+
+		if discoveryCtx.Ref != "" && isDestroyCommand(discoveryCtx.Cmd, discoveryCtx.Args) {
+			if unit.Execution != nil {
+				unit.Execution.FlagExcluded = true
+			}
+
+			l.Warnf("The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.", unit.DisplayPath(), discoveryCtx.Ref)
+		}
+	}
+}
 
 // collectDependencies collects dependency paths for a unit with a bounded recursion depth.
 func collectDependencies(unit *component.Unit, paths map[string]bool) {

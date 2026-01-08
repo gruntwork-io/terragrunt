@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/storage/filesystem"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -94,6 +95,30 @@ func (g *GitRunner) RequiresGoRepo() error {
 	}
 
 	return nil
+}
+
+// GetRepoRoot returns the root directory of the git repository.
+func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -379,6 +404,240 @@ func (g *GitRunner) Init(ctx context.Context) error {
 			Op:      "git_init",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// HasUncommittedChanges checks if there are uncommitted changes in the working directory.
+// Returns true if there are uncommitted changes, false otherwise (including if git command fails or not in a git repo).
+func (g *GitRunner) HasUncommittedChanges(ctx context.Context) bool {
+	cmd := g.prepareCommand(ctx, "status", "--porcelain")
+
+	var stdout bytes.Buffer
+
+	cmd.Stdout = &stdout
+
+	// If git command fails (e.g., not in a git repo), return false
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+
+	// Check if there are uncommitted changes (non-empty output)
+	return strings.TrimSpace(stdout.String()) != ""
+}
+
+// Config gets the configuration of the Git repository
+func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "config", name)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_config",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// GetRemoteURL returns the origin remote URL, or empty string on error.
+func (g *GitRunner) GetRemoteURL(ctx context.Context) string {
+	remote, _ := g.Config(ctx, "remote.origin.url")
+	return remote
+}
+
+// GetCurrentBranch returns the current branch name, or empty string on error.
+func (g *GitRunner) GetCurrentBranch(ctx context.Context) string {
+	if err := g.RequiresWorkDir(); err != nil {
+		return ""
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--abbrev-ref", "HEAD")
+
+	var stdout bytes.Buffer
+
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(stdout.String())
+}
+
+// GetHeadCommit returns the current HEAD commit hash, or empty string on error.
+func (g *GitRunner) GetHeadCommit(ctx context.Context) string {
+	if err := g.RequiresWorkDir(); err != nil {
+		return ""
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "HEAD")
+
+	var stdout bytes.Buffer
+
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(stdout.String())
+}
+
+// GetDefaultBranch implements the hybrid approach to detect the default branch:
+// 1. Tries to determine the default branch of the remote repository using the fast local method first
+// 2. Falls back to the network method if the local method fails
+// 3. Attempts to update local cache for future use
+// Returns the branch name (e.g., "main") or an error if both methods fail.
+func (g *GitRunner) GetDefaultBranch(ctx context.Context, l log.Logger) string {
+	branch, err := g.GetDefaultBranchLocal(ctx)
+	if err == nil && branch != "" {
+		return branch
+	}
+
+	branch, err = g.GetDefaultBranchRemote(ctx)
+	if err == nil && branch != "" {
+		err = g.SetRemoteHeadAuto(ctx)
+		if err != nil {
+			l.Warnf("Failed to update local cache for default branch: %v", err)
+		}
+
+		return branch
+	}
+
+	l.Debugf("Failed to determine default branch of remote repository, attempting to get default branch of local repository")
+
+	if b, err := g.Config(ctx, "init.defaultBranch"); err == nil && b != "" {
+		return b
+	}
+
+	l.Debugf("Failed to determine default branch of local repository, using 'main' as fallback")
+
+	return "main"
+}
+
+// GetDefaultBranchLocal attempts to get the default branch using the local cached remote HEAD.
+// Returns the branch name (e.g., "main") if successful, or an error if the local ref is not set.
+// This is fast and works offline, but requires that `git remote set-head origin --auto` has been run.
+func (g *GitRunner) GetDefaultBranchLocal(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--abbrev-ref", "origin/HEAD")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_rev_parse_origin_head",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	result := strings.TrimSpace(stdout.String())
+
+	// If the result is just "origin/HEAD", the local ref is not properly set
+	if result == "origin/HEAD" {
+		return "", &WrappedError{
+			Op:      "git_rev_parse_origin_head",
+			Context: "local origin/HEAD ref not set",
+			Err:     ErrNoMatchingReference,
+		}
+	}
+
+	if after, ok := strings.CutPrefix(result, "origin/"); ok {
+		return after, nil
+	}
+
+	return result, nil
+}
+
+// GetDefaultBranchRemote queries the remote repository to determine the default branch.
+// This is the most accurate method but requires network access.
+// Returns the branch name (e.g., "main") if successful.
+func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "ls-remote", "--symref", "origin", "HEAD")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_ls_remote_symref",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	// Parse output: "ref: refs/heads/main    HEAD"
+	output := stdout.String()
+	lines := strings.SplitSeq(strings.TrimSpace(output), "\n")
+
+	for line := range lines {
+		if line == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, "ref:") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 { //nolint:mnd
+				ref := parts[1]
+
+				if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+					return after, nil
+				}
+			}
+		}
+	}
+
+	return "", &WrappedError{
+		Op:      "git_ls_remote_symref",
+		Context: "could not parse default branch from ls-remote output",
+		Err:     ErrNoMatchingReference,
+	}
+}
+
+// SetRemoteHeadAuto runs `git remote set-head origin --auto` to update the local cached remote HEAD.
+// This makes future calls to GetDefaultBranchLocal faster.
+func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "remote", "set-head", "origin", "--auto")
+
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_remote_set_head",
+			Context: stderr.String(),
+			Err:     ErrCommandSpawn,
 		}
 	}
 

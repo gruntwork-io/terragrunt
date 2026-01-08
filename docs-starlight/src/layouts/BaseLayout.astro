@@ -3,12 +3,14 @@ interface Props {
   title?: string;
   description?: string;
   url?: string;
+  hasBanner?: boolean;
 }
 
 const {
   title = 'Terragrunt | Orchestrate Terraform & OpenTofu at Scale',
   description = 'Standardize IaC and manage growing infra complexity: define units & stacks, cut repetition with includes/hooks, execute modules in dependency order across environments.',
   url = 'https://terragrunt.gruntwork.io/',
+  hasBanner = false,
 } = Astro.props;
 ---
 <!DOCTYPE html>
@@ -43,7 +45,7 @@ const {
     <link rel="canonical" href={url} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
-  <body class="tg bg-[#FAFAFA] min-h-full">
+  <body class={`tg bg-[#FAFAFA] min-h-full ${hasBanner ? 'has-banner' : ''}`}>
     <slot />
   </body>
 </html>

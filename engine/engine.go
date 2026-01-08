@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/github"
 
 	"github.com/hashicorp/go-hclog"
@@ -139,7 +140,7 @@ func WithEngineValues(ctx context.Context) context.Context {
 
 // DownloadEngine downloads the engine for the given options.
 func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if !opts.EngineEnabled {
+	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
 		return nil
 	}
 
@@ -432,7 +433,7 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 
 // Shutdown shuts down the experimental engine.
 func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if !opts.EngineEnabled {
+	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
 		return nil
 	}
 
@@ -445,8 +446,16 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	engineClients.Range(func(key, value any) bool {
 		instance := value.(*engineInstance)
 		l.Debugf("Shutting down engine for %s", instance.executionOptions.WorkingDir)
-		// invoke shutdown on engine
-		if err := shutdown(ctx, l, instance.executionOptions, instance.terragruntEngine); err != nil {
+
+		// We use without cancel here to ensure that the shutdown isn't cancelled by the main context,
+		// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
+		// when the command is cancelled.
+		if err := shutdown(
+			context.WithoutCancel(ctx),
+			l,
+			instance.executionOptions,
+			instance.terragruntEngine,
+		); err != nil {
 			l.Errorf("Error shutting down engine: %v", err)
 		}
 		// kill grpc client
@@ -500,7 +509,13 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 		Output: l.Writer(),
 	})
 
-	cmd := exec.CommandContext(ctx, localEnginePath)
+	// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
+	// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
+	// when the command is cancelled.
+	cmd := exec.CommandContext(
+		context.WithoutCancel(ctx),
+		localEnginePath,
+	)
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
@@ -750,6 +765,7 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 
 	for {
 		response, err := output()
+
 		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}

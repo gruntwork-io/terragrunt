@@ -9,9 +9,13 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xeipuuv/gojsonschema"
@@ -29,7 +33,7 @@ func TestNewReport(t *testing.T) {
 func TestNewRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
 
 	path := filepath.Join(tmp, "test-run")
 	run := newRun(t, path)
@@ -45,17 +49,19 @@ func TestNewRun(t *testing.T) {
 func TestAddRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	path := filepath.Join(tmp, "test-run")
 
 	r := report.NewReport()
 
-	err := r.AddRun(newRun(t, path))
+	err := r.AddRun(l, newRun(t, path))
 	require.NoError(t, err)
 	assert.Len(t, r.Runs, 1)
 
-	err = r.AddRun(newRun(t, path))
+	err = r.AddRun(l, newRun(t, path))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, report.ErrRunAlreadyExists)
 }
@@ -63,11 +69,13 @@ func TestAddRun(t *testing.T) {
 func TestGetRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	r := report.NewReport()
 	run := newRun(t, filepath.Join(tmp, "test-run"))
-	r.AddRun(run)
+	r.AddRun(l, run)
 
 	tests := []struct {
 		expectedErr error
@@ -103,7 +111,9 @@ func TestGetRun(t *testing.T) {
 func TestEnsureRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	tests := []struct {
 		expectedErrIs error
@@ -126,7 +136,7 @@ func TestEnsureRun(t *testing.T) {
 			expectError: false,
 			setupFunc: func(r *report.Report) *report.Run {
 				run := newRun(t, filepath.Join(tmp, "existing-run"))
-				err := r.AddRun(run)
+				err := r.AddRun(l, run)
 				require.NoError(t, err)
 				return run
 			},
@@ -152,7 +162,7 @@ func TestEnsureRun(t *testing.T) {
 				existingRun = tt.setupFunc(r)
 			}
 
-			run, err := r.EnsureRun(tt.runName)
+			run, err := r.EnsureRun(l, tt.runName)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -178,7 +188,7 @@ func TestEnsureRun(t *testing.T) {
 				assert.Equal(t, run, retrievedRun)
 
 				// Verify that calling EnsureRun again returns the same run
-				secondRun, err := r.EnsureRun(tt.runName)
+				secondRun, err := r.EnsureRun(l, tt.runName)
 				require.NoError(t, err)
 				assert.Equal(t, run, secondRun)
 			}
@@ -189,7 +199,9 @@ func TestEnsureRun(t *testing.T) {
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	tests := []struct {
 		wantReason *report.Reason
@@ -246,10 +258,10 @@ func TestEndRun(t *testing.T) {
 
 			if !tt.wantErr {
 				run := newRun(t, tt.runName)
-				r.AddRun(run)
+				r.AddRun(l, run)
 			}
 
-			err := r.EndRun(tt.runName, tt.options...)
+			err := r.EndRun(l, tt.runName, tt.options...)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -279,7 +291,9 @@ func TestEndRun(t *testing.T) {
 func TestEndRunAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	tests := []struct {
 		name           string
@@ -332,20 +346,20 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 			r := report.NewReport()
 			runName := filepath.Join(tmp, tt.name)
 			run := newRun(t, runName)
-			r.AddRun(run)
+			r.AddRun(l, run)
 
 			// Set up initial options with the initial result
 			initialOptions := append(tt.initialOptions, report.WithResult(tt.initialResult))
 
 			// End the run with the initial state
-			err := r.EndRun(runName, initialOptions...)
+			err := r.EndRun(l, runName, initialOptions...)
 			require.NoError(t, err)
 
 			// Set up second options with the second result
 			secondOptions := append(tt.secondOptions, report.WithResult(tt.secondResult))
 
 			// Then try to end it again with a different state
-			err = r.EndRun(runName, secondOptions...)
+			err = r.EndRun(l, runName, secondOptions...)
 			require.NoError(t, err)
 
 			// Verify that the result is the expected one
@@ -359,7 +373,9 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 func TestSummarize(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	tests := []struct {
 		name    string
@@ -419,8 +435,8 @@ func TestSummarize(t *testing.T) {
 
 			for _, result := range tt.results {
 				run := newRun(t, result.name)
-				r.AddRun(run)
-				r.EndRun(result.name, report.WithResult(result.result))
+				r.AddRun(l, run)
+				r.EndRun(l, result.name, report.WithResult(result.result))
 			}
 
 			summary := r.Summarize()
@@ -438,15 +454,15 @@ func TestWriteCSV(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		setup    func(dir string, r *report.Report)
+		setup    func(l log.Logger, dir string, r *report.Report)
 		expected [][]string
 	}{
 		{
 			name: "single successful run",
-			setup: func(dir string, r *report.Report) {
+			setup: func(l log.Logger, dir string, r *report.Report) {
 				run := newRun(t, filepath.Join(dir, "successful-run"))
-				r.AddRun(run)
-				r.EndRun(run.Path)
+				r.AddRun(l, run)
+				r.EndRun(l, run.Path)
 			},
 			expected: [][]string{
 				{"Name", "Started", "Ended", "Result", "Reason", "Cause"},
@@ -455,26 +471,26 @@ func TestWriteCSV(t *testing.T) {
 		},
 		{
 			name: "complex mixed results",
-			setup: func(dir string, r *report.Report) {
+			setup: func(l log.Logger, dir string, r *report.Report) {
 				// Add successful run
 				successRun := newRun(t, filepath.Join(dir, "success-run"))
-				r.AddRun(successRun)
-				r.EndRun(successRun.Path)
+				r.AddRun(l, successRun)
+				r.EndRun(l, successRun.Path)
 
 				// Add failed run with reason
 				failedRun := newRun(t, filepath.Join(dir, "failed-run"))
-				r.AddRun(failedRun)
-				r.EndRun(failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
+				r.AddRun(l, failedRun)
+				r.EndRun(l, failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
 
 				// Add excluded run with cause
 				excludedRun := newRun(t, filepath.Join(dir, "excluded-run"))
-				r.AddRun(excludedRun)
-				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
+				r.AddRun(l, excludedRun)
+				r.EndRun(l, excludedRun.Path, report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
 
 				// Add early exit run with both reason and cause
 				earlyExitRun := newRun(t, filepath.Join(dir, "early-exit-run"))
-				r.AddRun(earlyExitRun)
-				r.EndRun(earlyExitRun.Path,
+				r.AddRun(l, earlyExitRun)
+				r.EndRun(l, earlyExitRun.Path,
 					report.WithResult(report.ResultEarlyExit),
 					report.WithReason(report.ReasonRunError),
 					report.WithCauseRetryBlock("another-block"),
@@ -494,7 +510,9 @@ func TestWriteCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := t.TempDir()
+			tmp := helpers.TmpDirWOSymlinks(t)
+
+			l := logger.CreateLogger()
 
 			// Create a temporary file for the CSV
 			csvFile := filepath.Join(tmp, "report.csv")
@@ -505,7 +523,7 @@ func TestWriteCSV(t *testing.T) {
 
 			// Setup and write the report
 			r := report.NewReport().WithWorkingDir(tmp)
-			tt.setup(tmp, r)
+			tt.setup(l, tmp, r)
 
 			err = r.WriteCSV(file)
 			require.NoError(t, err)
@@ -562,17 +580,19 @@ func TestWriteCSV(t *testing.T) {
 func TestWriteJSON(t *testing.T) {
 	t.Parallel()
 
+	l := logger.CreateLogger()
+
 	tests := []struct {
 		name     string
-		setup    func(dir string, r *report.Report)
+		setup    func(l log.Logger, dir string, r *report.Report)
 		expected string
 	}{
 		{
 			name: "single successful run",
-			setup: func(dir string, r *report.Report) {
+			setup: func(l log.Logger, dir string, r *report.Report) {
 				run := newRun(t, filepath.Join(dir, "successful-run"))
-				r.AddRun(run)
-				r.EndRun(run.Path)
+				r.AddRun(l, run)
+				r.EndRun(l, run.Path)
 			},
 			expected: `[
   {
@@ -585,16 +605,17 @@ func TestWriteJSON(t *testing.T) {
 		},
 		{
 			name: "complex mixed results",
-			setup: func(dir string, r *report.Report) {
+			setup: func(l log.Logger, dir string, r *report.Report) {
 				// Add successful run
 				successRun := newRun(t, filepath.Join(dir, "success-run"))
-				r.AddRun(successRun)
-				r.EndRun(successRun.Path)
+				r.AddRun(l, successRun)
+				r.EndRun(l, successRun.Path)
 
 				// Add failed run with reason
 				failedRun := newRun(t, filepath.Join(dir, "failed-run"))
-				r.AddRun(failedRun)
+				r.AddRun(l, failedRun)
 				r.EndRun(
+					l,
 					failedRun.Path,
 					report.WithResult(report.ResultFailed),
 					report.WithReason(report.ReasonRunError),
@@ -602,8 +623,9 @@ func TestWriteJSON(t *testing.T) {
 
 				// Add excluded run with cause
 				retriedRun := newRun(t, filepath.Join(dir, "retried-run"))
-				r.AddRun(retriedRun)
+				r.AddRun(l, retriedRun)
 				r.EndRun(
+					l,
 					retriedRun.Path,
 					report.WithResult(report.ResultSucceeded),
 					report.WithReason(report.ReasonRetrySucceeded),
@@ -611,8 +633,9 @@ func TestWriteJSON(t *testing.T) {
 
 				// Add excluded run with cause
 				excludedRun := newRun(t, filepath.Join(dir, "excluded-run"))
-				r.AddRun(excludedRun)
+				r.AddRun(l, excludedRun)
 				r.EndRun(
+					l,
 					excludedRun.Path,
 					report.WithResult(report.ResultExcluded),
 					report.WithReason(report.ReasonExcludeBlock),
@@ -656,7 +679,7 @@ func TestWriteJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := t.TempDir()
+			tmp := helpers.TmpDirWOSymlinks(t)
 
 			// Create a temporary file for the JSON
 			jsonFile := filepath.Join(tmp, "report.json")
@@ -667,7 +690,7 @@ func TestWriteJSON(t *testing.T) {
 
 			// Setup and write the report
 			r := report.NewReport().WithWorkingDir(tmp)
-			tt.setup(tmp, r)
+			tt.setup(l, tmp, r)
 
 			err = r.WriteJSON(file)
 			require.NoError(t, err)
@@ -738,7 +761,7 @@ func TestWriteJSON(t *testing.T) {
 const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json",
     "properties": {
       "Started": {
         "type": "string",
@@ -754,7 +777,6 @@ const ExpectedSchema = `{
           "retry succeeded",
           "error ignored",
           "run error",
-          "--queue-exclude-dir",
           "exclude block",
           "ancestor error"
         ]
@@ -798,11 +820,8 @@ func TestWriteSchema(t *testing.T) {
 	// Create a buffer to write the schema to
 	var buf bytes.Buffer
 
-	// Create a new report
-	r := report.NewReport()
-
 	// Write the schema
-	err := r.WriteSchema(&buf)
+	err := report.WriteSchema(&buf)
 	require.NoError(t, err)
 
 	// Assert the contents of the schema
@@ -860,7 +879,17 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 	}{
 		{
 			name: "starlight",
-			file: filepath.Join("..", "..", "docs-starlight", "public", "schemas", "run", "report", "v1", "schema.json"),
+			file: filepath.Join(
+				"..",
+				"..",
+				"docs-starlight",
+				"public",
+				"schemas",
+				"run",
+				"report",
+				"v2",
+				"schema.json",
+			),
 		},
 	}
 
@@ -879,19 +908,21 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	tests := []struct {
 		name     string
-		setup    func(*report.Report)
+		setup    func(l log.Logger, r *report.Report)
 		expected string
 	}{
 		{
 			name: "single successful run",
-			setup: func(r *report.Report) {
+			setup: func(l log.Logger, r *report.Report) {
 				run := newRun(t, filepath.Join(tmp, "successful-run"))
-				r.AddRun(run)
-				r.EndRun(run.Path)
+				r.AddRun(l, run)
+				r.EndRun(l, run.Path)
 			},
 			expected: `
 ❯❯ Run Summary  1 units  x
@@ -901,42 +932,42 @@ func TestWriteSummary(t *testing.T) {
 		},
 		{
 			name: "complex mixed results",
-			setup: func(r *report.Report) {
+			setup: func(l log.Logger, r *report.Report) {
 				// Add successful runs
 				firstSuccessfulRun := newRun(t, filepath.Join(tmp, "first-successful-run"))
-				r.AddRun(firstSuccessfulRun)
-				r.EndRun(firstSuccessfulRun.Path)
+				r.AddRun(l, firstSuccessfulRun)
+				r.EndRun(l, firstSuccessfulRun.Path)
 
 				secondSuccessfulRun := newRun(t, filepath.Join(tmp, "second-successful-run"))
-				r.AddRun(secondSuccessfulRun)
-				r.EndRun(secondSuccessfulRun.Path)
+				r.AddRun(l, secondSuccessfulRun)
+				r.EndRun(l, secondSuccessfulRun.Path)
 
 				// Add failed runs
 				firstFailedRun := newRun(t, filepath.Join(tmp, "first-failed-run"))
-				r.AddRun(firstFailedRun)
-				r.EndRun(firstFailedRun.Path, report.WithResult(report.ResultFailed))
+				r.AddRun(l, firstFailedRun)
+				r.EndRun(l, firstFailedRun.Path, report.WithResult(report.ResultFailed))
 
 				secondFailedRun := newRun(t, filepath.Join(tmp, "second-failed-run"))
-				r.AddRun(secondFailedRun)
-				r.EndRun(secondFailedRun.Path, report.WithResult(report.ResultFailed))
+				r.AddRun(l, secondFailedRun)
+				r.EndRun(l, secondFailedRun.Path, report.WithResult(report.ResultFailed))
 
 				// Add excluded runs
 				firstExcludedRun := newRun(t, filepath.Join(tmp, "first-excluded-run"))
-				r.AddRun(firstExcludedRun)
-				r.EndRun(firstExcludedRun.Path, report.WithResult(report.ResultExcluded))
+				r.AddRun(l, firstExcludedRun)
+				r.EndRun(l, firstExcludedRun.Path, report.WithResult(report.ResultExcluded))
 
 				secondExcludedRun := newRun(t, filepath.Join(tmp, "second-excluded-run"))
-				r.AddRun(secondExcludedRun)
-				r.EndRun(secondExcludedRun.Path, report.WithResult(report.ResultExcluded))
+				r.AddRun(l, secondExcludedRun)
+				r.EndRun(l, secondExcludedRun.Path, report.WithResult(report.ResultExcluded))
 
 				// Add early exit runs
 				firstEarlyExitRun := newRun(t, filepath.Join(tmp, "first-early-exit-run"))
-				r.AddRun(firstEarlyExitRun)
-				r.EndRun(firstEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
+				r.AddRun(l, firstEarlyExitRun)
+				r.EndRun(l, firstEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
 
 				secondEarlyExitRun := newRun(t, filepath.Join(tmp, "second-early-exit-run"))
-				r.AddRun(secondEarlyExitRun)
-				r.EndRun(secondEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
+				r.AddRun(l, secondEarlyExitRun)
+				r.EndRun(l, secondEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
 			},
 			expected: `
 ❯❯ Run Summary  8 units  x
@@ -954,7 +985,7 @@ func TestWriteSummary(t *testing.T) {
 			t.Parallel()
 
 			r := report.NewReport().WithDisableColor()
-			tt.setup(r)
+			tt.setup(l, r)
 
 			var buf bytes.Buffer
 
@@ -977,22 +1008,24 @@ func TestWriteSummary(t *testing.T) {
 func TestSchemaIsValid(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	// Create a new report with working directory
 	r := report.NewReport().WithWorkingDir(tmp)
 
 	// Add a simple run that succeeds
 	simpleRun := newRun(t, filepath.Join(tmp, "simple-run"))
-	r.AddRun(simpleRun)
-	r.EndRun(simpleRun.Path,
+	r.AddRun(l, simpleRun)
+	r.EndRun(l, simpleRun.Path,
 		report.WithResult(report.ResultSucceeded),
 	)
 
 	// Add a complex run that tests all possible fields and states
 	complexRun := newRun(t, filepath.Join(tmp, "complex-run"))
-	r.AddRun(complexRun)
-	r.EndRun(complexRun.Path,
+	r.AddRun(l, complexRun)
+	r.EndRun(l, complexRun.Path,
 		report.WithResult(report.ResultFailed),
 		report.WithReason(report.ReasonRunError),
 		report.WithCauseAncestorExit("some-error"),
@@ -1000,8 +1033,8 @@ func TestSchemaIsValid(t *testing.T) {
 
 	// Create an excluded run with exclude block
 	excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
-	r.AddRun(excludedRun)
-	r.EndRun(excludedRun.Path,
+	r.AddRun(l, excludedRun)
+	r.EndRun(l, excludedRun.Path,
 		report.WithResult(report.ResultExcluded),
 		report.WithReason(report.ReasonExcludeBlock),
 		report.WithCauseExcludeBlock("test-block"),
@@ -1009,8 +1042,8 @@ func TestSchemaIsValid(t *testing.T) {
 
 	// Create a retry run that succeeded
 	retryRun := newRun(t, filepath.Join(tmp, "retry-run"))
-	r.AddRun(retryRun)
-	r.EndRun(retryRun.Path,
+	r.AddRun(l, retryRun)
+	r.EndRun(l, retryRun.Path,
 		report.WithResult(report.ResultSucceeded),
 		report.WithReason(report.ReasonRetrySucceeded),
 		report.WithCauseRetryBlock("retry-block"),
@@ -1018,8 +1051,8 @@ func TestSchemaIsValid(t *testing.T) {
 
 	// Create an early exit run
 	earlyExitRun := newRun(t, filepath.Join(tmp, "early-exit-run"))
-	r.AddRun(earlyExitRun)
-	r.EndRun(earlyExitRun.Path,
+	r.AddRun(l, earlyExitRun)
+	r.EndRun(l, earlyExitRun.Path,
 		report.WithResult(report.ResultEarlyExit),
 		report.WithReason(report.ReasonAncestorError),
 		report.WithCauseAncestorExit("parent-unit"),
@@ -1027,8 +1060,8 @@ func TestSchemaIsValid(t *testing.T) {
 
 	// Create a run with ignored error
 	ignoredRun := newRun(t, filepath.Join(tmp, "ignored-run"))
-	r.AddRun(ignoredRun)
-	r.EndRun(ignoredRun.Path,
+	r.AddRun(l, ignoredRun)
+	r.EndRun(l, ignoredRun.Path,
 		report.WithResult(report.ResultSucceeded),
 		report.WithReason(report.ReasonErrorIgnored),
 		report.WithCauseIgnoreBlock("ignore-block"),
@@ -1052,7 +1085,7 @@ func TestSchemaIsValid(t *testing.T) {
 
 	defer file.Close()
 
-	err = r.WriteSchema(file)
+	err = report.WriteSchema(file)
 	require.NoError(t, err)
 	file.Close()
 
@@ -1144,26 +1177,28 @@ func TestSchemaIsValid(t *testing.T) {
 func TestWriteUnitLevelSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
 
 	tests := []struct {
 		name     string
-		setup    func(*report.Report)
+		setup    func(l log.Logger, r *report.Report)
 		expected string
 	}{
 		{
 			name: "empty runs",
-			setup: func(r *report.Report) {
+			setup: func(l log.Logger, r *report.Report) {
 				// No runs added
 			},
 			expected: ``,
 		},
 		{
 			name: "single run",
-			setup: func(r *report.Report) {
+			setup: func(l log.Logger, r *report.Report) {
 				run := newRun(t, filepath.Join(tmp, "single-run"))
-				r.AddRun(run)
-				r.EndRun(run.Path)
+				r.AddRun(l, run)
+				r.EndRun(l, run.Path)
 			},
 			expected: `
 ❯❯ Run Summary  1 units  x
@@ -1174,20 +1209,36 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		},
 		{
 			name: "multiple runs sorted by duration",
-			setup: func(r *report.Report) {
-				// Add runs with different durations
-				longRun := newRun(t, filepath.Join(tmp, "long-run"))
-				r.AddRun(longRun)
+			setup: func(l log.Logger, r *report.Report) {
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				mediumRun := newRun(t, filepath.Join(tmp, "medium-run"))
-				r.AddRun(mediumRun)
+					longRun := newRun(t, filepath.Join(tmp, "long-run"))
+					r.AddRun(l, longRun)
 
-				shortRun := newRun(t, filepath.Join(tmp, "short-run"))
-				r.AddRun(shortRun)
+					time.Sleep(1 * time.Second)
 
-				r.EndRun(shortRun.Path)
-				r.EndRun(mediumRun.Path)
-				r.EndRun(longRun.Path)
+					mediumRun := newRun(t, filepath.Join(tmp, "medium-run"))
+					r.AddRun(l, mediumRun)
+
+					time.Sleep(1 * time.Second)
+
+					shortRun := newRun(t, filepath.Join(tmp, "short-run"))
+					r.AddRun(l, shortRun)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, shortRun.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, mediumRun.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, longRun.Path)
+				})
 			},
 			expected: `
 ❯❯ Run Summary  3 units  x
@@ -1200,22 +1251,51 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		},
 		{
 			name: "mixed results grouped by category",
-			setup: func(r *report.Report) {
-				// Add runs with different results
-				successRun1 := newRun(t, filepath.Join(tmp, "success-1"))
-				successRun2 := newRun(t, filepath.Join(tmp, "success-2"))
-				failRun := newRun(t, filepath.Join(tmp, "fail-run"))
-				excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+			setup: func(l log.Logger, r *report.Report) {
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				r.AddRun(successRun1)
-				r.AddRun(successRun2)
-				r.AddRun(failRun)
-				r.AddRun(excludedRun)
+					successRun1 := newRun(t, filepath.Join(tmp, "success-1"))
 
-				r.EndRun(successRun1.Path)
-				r.EndRun(successRun2.Path)
-				r.EndRun(failRun.Path, report.WithResult(report.ResultFailed))
-				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded))
+					time.Sleep(1 * time.Second)
+
+					successRun2 := newRun(t, filepath.Join(tmp, "success-2"))
+
+					time.Sleep(1 * time.Second)
+
+					failRun := newRun(t, filepath.Join(tmp, "fail-run"))
+
+					time.Sleep(1 * time.Second)
+
+					excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+
+					r.AddRun(l, successRun1)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, successRun2)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, failRun)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, excludedRun)
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(l, successRun1.Path)
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(l, successRun2.Path)
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(l, failRun.Path, report.WithResult(report.ResultFailed))
+
+					time.Sleep(1 * time.Second)
+					r.EndRun(l, excludedRun.Path, report.WithResult(report.ResultExcluded))
+				})
 			},
 			expected: `
 ❯❯ Run Summary  4 units  x
@@ -1231,19 +1311,43 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		},
 		{
 			name: "very short unit names",
-			setup: func(r *report.Report) {
-				// Add runs with very short names
-				a := newRun(t, filepath.Join(tmp, "a"))
-				b := newRun(t, filepath.Join(tmp, "b"))
-				c := newRun(t, filepath.Join(tmp, "c"))
+			setup: func(l log.Logger, r *report.Report) {
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				r.AddRun(a)
-				r.AddRun(b)
-				r.AddRun(c)
+					a := newRun(t, filepath.Join(tmp, "a"))
 
-				r.EndRun(a.Path)
-				r.EndRun(b.Path)
-				r.EndRun(c.Path)
+					time.Sleep(1 * time.Second)
+
+					b := newRun(t, filepath.Join(tmp, "b"))
+
+					time.Sleep(1 * time.Second)
+
+					c := newRun(t, filepath.Join(tmp, "c"))
+
+					r.AddRun(l, a)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, b)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, c)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, a.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, b.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, c.Path)
+				})
 			},
 			expected: `
 ❯❯ Run Summary  3 units  x
@@ -1256,19 +1360,45 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 		},
 		{
 			name: "very long unit names",
-			setup: func(r *report.Report) {
-				// Add runs with very long names
-				longName1 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-1"))
-				longName2 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-2"))
-				longName3 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-3"))
+			setup: func(l log.Logger, r *report.Report) {
+				// Use syntest.Test so that we can artificially manipulate the clock for duration testing.
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
 
-				r.AddRun(longName1)
-				r.AddRun(longName2)
-				r.AddRun(longName3)
+					longName1 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-1"))
 
-				r.EndRun(longName1.Path)
-				r.EndRun(longName2.Path)
-				r.EndRun(longName3.Path)
+					time.Sleep(1 * time.Second)
+
+					longName2 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-2"))
+
+					time.Sleep(1 * time.Second)
+
+					longName3 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-3"))
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, longName1)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, longName2)
+
+					time.Sleep(1 * time.Second)
+
+					r.AddRun(l, longName3)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, longName1.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, longName2.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, longName3.Path)
+				})
 			},
 			expected: `
 ❯❯ Run Summary  3 units           x
@@ -1290,7 +1420,7 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 				WithShowUnitLevelSummary().
 				WithWorkingDir(tmp)
 
-			tt.setup(r)
+			tt.setup(l, r)
 
 			var buf bytes.Buffer
 
@@ -1312,6 +1442,615 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 			assert.Equal(t, expected, strings.TrimSpace(output))
 		})
 	}
+}
+
+// TestWriteJSONWithDiscoveryWorkingDir verifies that when a run has a DiscoveryWorkingDir set,
+// the report writer uses it instead of the report's workingDir for path computation.
+// This is critical for worktree scenarios where units are discovered in temporary worktree directories.
+func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	// Simulate a worktree scenario:
+	// - Original working dir: /original/repo
+	// - Worktree path: /tmp/terragrunt-worktree-xxx/original/repo
+	// - Unit path in worktree: /tmp/terragrunt-worktree-xxx/original/repo/module/unit
+
+	// Create temp directories
+	originalRepoDir := helpers.TmpDirWOSymlinks(t)
+	worktreeDir := helpers.TmpDirWOSymlinks(t)
+
+	// Create the "unit" path in the worktree
+	unitPath := filepath.Join(worktreeDir, "module", "unit")
+	err := os.MkdirAll(unitPath, 0755)
+	require.NoError(t, err)
+
+	// Create a report with the original repo as working dir (simulating non-worktree scenario)
+	r := report.NewReport().WithWorkingDir(originalRepoDir)
+
+	// Add a run that was discovered in the worktree
+	// Set the DiscoveryWorkingDir to the worktree path
+	run := newRun(t, unitPath)
+	r.AddRun(l, run)
+
+	// Ensure the run and set the DiscoveryWorkingDir
+	r.EnsureRun(l, unitPath, report.WithDiscoveryWorkingDir(worktreeDir))
+
+	// End the run
+	r.EndRun(l, unitPath, report.WithResult(report.ResultSucceeded))
+
+	// Write JSON and verify the name is relative to DiscoveryWorkingDir, not report.workingDir
+	var buf bytes.Buffer
+
+	err = r.WriteJSON(&buf)
+	require.NoError(t, err)
+
+	// Parse the JSON
+	var runs []report.JSONRun
+
+	err = json.Unmarshal(buf.Bytes(), &runs)
+	require.NoError(t, err)
+
+	require.Len(t, runs, 1)
+
+	// The name should be relative to the worktree dir, not the original repo dir
+	// Without the fix, this would be the full absolute path since unitPath doesn't start with originalRepoDir
+	assert.Equal(t, "module/unit", runs[0].Name, "Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+}
+
+// TestWriteCSVWithDiscoveryWorkingDir verifies that CSV output also uses DiscoveryWorkingDir.
+func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	// Create temp directories (simulating worktree scenario)
+	originalRepoDir := helpers.TmpDirWOSymlinks(t)
+	worktreeDir := helpers.TmpDirWOSymlinks(t)
+
+	// Create the "unit" path in the worktree
+	unitPath := filepath.Join(worktreeDir, "module", "unit")
+	err := os.MkdirAll(unitPath, 0755)
+	require.NoError(t, err)
+
+	// Create a report with the original repo as working dir
+	r := report.NewReport().WithWorkingDir(originalRepoDir)
+
+	// Add a run with DiscoveryWorkingDir set to worktree path
+	run := newRun(t, unitPath)
+	r.AddRun(l, run)
+	r.EnsureRun(l, unitPath, report.WithDiscoveryWorkingDir(worktreeDir))
+	r.EndRun(l, unitPath, report.WithResult(report.ResultSucceeded))
+
+	// Write CSV
+	var buf bytes.Buffer
+
+	err = r.WriteCSV(&buf)
+	require.NoError(t, err)
+
+	// Parse the CSV
+	reader := csv.NewReader(&buf)
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+
+	require.Len(t, records, 2) // header + 1 data row
+
+	// The name (first column) should be relative to worktree dir
+	assert.Equal(t, "module/unit", records[1][0], "Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+}
+
+// TestParseJSONRuns verifies that JSON report data can be parsed from bytes.
+func TestParseJSONRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    report.JSONRuns
+		expectError bool
+	}{
+		{
+			name:     "empty array",
+			input:    "[]",
+			expected: report.JSONRuns{},
+		},
+		{
+			name: "single run",
+			input: `[{
+				"Name": "module/unit",
+				"Started": "2024-01-01T10:00:00Z",
+				"Ended": "2024-01-01T10:01:00Z",
+				"Result": "succeeded"
+			}]`,
+			expected: report.JSONRuns{
+				{
+					Name:   "module/unit",
+					Result: "succeeded",
+				},
+			},
+		},
+		{
+			name: "multiple runs with all fields",
+			input: `[
+				{
+					"Name": "unit-a",
+					"Started": "2024-01-01T10:00:00Z",
+					"Ended": "2024-01-01T10:01:00Z",
+					"Result": "succeeded"
+				},
+				{
+					"Name": "unit-b",
+					"Started": "2024-01-01T10:01:00Z",
+					"Ended": "2024-01-01T10:02:00Z",
+					"Result": "failed",
+					"Reason": "run error",
+					"Cause": "some error"
+				}
+			]`,
+			expected: report.JSONRuns{
+				{Name: "unit-a", Result: "succeeded"},
+				{Name: "unit-b", Result: "failed"},
+			},
+		},
+		{
+			name:        "invalid json",
+			input:       "not valid json",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runs, err := report.ParseJSONRuns([]byte(tt.input))
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, runs, len(tt.expected))
+
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected.Name, runs[i].Name)
+				assert.Equal(t, expected.Result, runs[i].Result)
+			}
+		})
+	}
+}
+
+// TestParseJSONRunsFromFile verifies that JSON report data can be parsed from a file.
+func TestParseJSONRunsFromFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	t.Run("valid file", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "valid-report.json")
+		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		runs, err := report.ParseJSONRunsFromFile(reportFile)
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+		assert.Equal(t, "test-unit", runs[0].Name)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := report.ParseJSONRunsFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		require.Error(t, err)
+	})
+}
+
+// TestJSONRunsFindByName verifies that runs can be found by name.
+func TestJSONRunsFindByName(t *testing.T) {
+	t.Parallel()
+
+	runs := report.JSONRuns{
+		{Name: "unit-a", Result: "succeeded"},
+		{Name: "module/unit-b", Result: "failed"},
+		{Name: "nested/path/unit-c", Result: "excluded"},
+	}
+
+	tests := []struct {
+		expected *report.JSONRun
+		name     string
+		search   string
+	}{
+		{
+			name:     "find first unit",
+			search:   "unit-a",
+			expected: &report.JSONRun{Name: "unit-a", Result: "succeeded"},
+		},
+		{
+			name:     "find nested path",
+			search:   "module/unit-b",
+			expected: &report.JSONRun{Name: "module/unit-b", Result: "failed"},
+		},
+		{
+			name:     "find deeply nested",
+			search:   "nested/path/unit-c",
+			expected: &report.JSONRun{Name: "nested/path/unit-c", Result: "excluded"},
+		},
+		{
+			name:     "not found",
+			search:   "does-not-exist",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runs.FindByName(tt.search)
+
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.expected.Name, result.Name)
+				assert.Equal(t, tt.expected.Result, result.Result)
+			}
+		})
+	}
+}
+
+// TestJSONRunsNames verifies that run names can be extracted from a slice of runs.
+func TestJSONRunsNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		runs     report.JSONRuns
+		expected []string
+	}{
+		{
+			name:     "empty slice",
+			runs:     report.JSONRuns{},
+			expected: []string{},
+		},
+		{
+			name: "multiple runs",
+			runs: report.JSONRuns{
+				{Name: "unit-a"},
+				{Name: "module/unit-b"},
+				{Name: "nested/path/unit-c"},
+			},
+			expected: []string{"unit-a", "module/unit-b", "nested/path/unit-c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			names := tt.runs.Names()
+			assert.Equal(t, tt.expected, names)
+		})
+	}
+}
+
+// TestParseCSVRuns verifies that CSV report data can be parsed from bytes.
+func TestParseCSVRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    report.CSVRuns
+		expectError bool
+	}{
+		{
+			name:     "header only",
+			input:    "Name,Started,Ended,Result,Reason,Cause\n",
+			expected: report.CSVRuns{},
+		},
+		{
+			name:     "single run",
+			input:    "Name,Started,Ended,Result,Reason,Cause\nmodule/unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,\n",
+			expected: report.CSVRuns{{Name: "module/unit", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"}},
+		},
+		{
+			name: "multiple runs with all fields",
+			input: `Name,Started,Ended,Result,Reason,Cause
+unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,
+unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error
+`,
+			expected: report.CSVRuns{
+				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"},
+				{Name: "unit-b", Started: "2024-01-01T10:01:00Z", Ended: "2024-01-01T10:02:00Z", Result: "failed", Reason: "run error", Cause: "some error"},
+			},
+		},
+		{
+			name:        "invalid csv - missing fields",
+			input:       "Name,Started,Ended,Result,Reason,Cause\nunit-a,2024-01-01T10:00:00Z\n",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runs, err := report.ParseCSVRuns([]byte(tt.input))
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, runs, len(tt.expected))
+
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected.Name, runs[i].Name)
+				assert.Equal(t, expected.Result, runs[i].Result)
+				assert.Equal(t, expected.Reason, runs[i].Reason)
+				assert.Equal(t, expected.Cause, runs[i].Cause)
+			}
+		})
+	}
+}
+
+// TestParseCSVRunsFromFile verifies that CSV report data can be parsed from a file.
+func TestParseCSVRunsFromFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	t.Run("valid file", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "valid-report.csv")
+		content := "Name,Started,Ended,Result,Reason,Cause\ntest-unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,\n"
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		runs, err := report.ParseCSVRunsFromFile(reportFile)
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+		assert.Equal(t, "test-unit", runs[0].Name)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := report.ParseCSVRunsFromFile(filepath.Join(tmp, "does-not-exist.csv"))
+		require.Error(t, err)
+	})
+}
+
+// TestCSVRunsFindByName verifies that CSV runs can be found by name.
+func TestCSVRunsFindByName(t *testing.T) {
+	t.Parallel()
+
+	runs := report.CSVRuns{
+		{Name: "unit-a", Result: "succeeded"},
+		{Name: "module/unit-b", Result: "failed"},
+		{Name: "nested/path/unit-c", Result: "excluded"},
+	}
+
+	tests := []struct {
+		expected *report.CSVRun
+		name     string
+		search   string
+	}{
+		{
+			name:     "find first unit",
+			search:   "unit-a",
+			expected: &report.CSVRun{Name: "unit-a", Result: "succeeded"},
+		},
+		{
+			name:     "find nested path",
+			search:   "module/unit-b",
+			expected: &report.CSVRun{Name: "module/unit-b", Result: "failed"},
+		},
+		{
+			name:     "not found",
+			search:   "does-not-exist",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runs.FindByName(tt.search)
+
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.expected.Name, result.Name)
+				assert.Equal(t, tt.expected.Result, result.Result)
+			}
+		})
+	}
+}
+
+// TestCSVRunsNames verifies that run names can be extracted from a slice of CSV runs.
+func TestCSVRunsNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		runs     report.CSVRuns
+		expected []string
+	}{
+		{
+			name:     "empty slice",
+			runs:     report.CSVRuns{},
+			expected: []string{},
+		},
+		{
+			name: "multiple runs",
+			runs: report.CSVRuns{
+				{Name: "unit-a"},
+				{Name: "module/unit-b"},
+				{Name: "nested/path/unit-c"},
+			},
+			expected: []string{"unit-a", "module/unit-b", "nested/path/unit-c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			names := tt.runs.Names()
+			assert.Equal(t, tt.expected, names)
+		})
+	}
+}
+
+// TestValidateJSONReport verifies that JSON report validation works correctly.
+func TestValidateJSONReport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			name:        "valid empty report",
+			input:       "[]",
+			expectError: false,
+		},
+		{
+			name: "valid single run",
+			input: `[{
+				"Name": "module/unit",
+				"Started": "2024-01-01T10:00:00Z",
+				"Ended": "2024-01-01T10:01:00Z",
+				"Result": "succeeded"
+			}]`,
+			expectError: false,
+		},
+		{
+			name: "valid run with all fields",
+			input: `[{
+				"Name": "module/unit",
+				"Started": "2024-01-01T10:00:00Z",
+				"Ended": "2024-01-01T10:01:00Z",
+				"Result": "failed",
+				"Reason": "run error",
+				"Cause": "some error"
+			}]`,
+			expectError: false,
+		},
+		{
+			name: "valid multiple runs",
+			input: `[
+				{"Name": "unit-a", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"},
+				{"Name": "unit-b", "Started": "2024-01-01T10:01:00Z", "Ended": "2024-01-01T10:02:00Z", "Result": "failed", "Reason": "run error"}
+			]`,
+			expectError: false,
+		},
+		{
+			name:        "invalid - not an array",
+			input:       `{"Name": "unit", "Result": "succeeded"}`,
+			expectError: true,
+		},
+		{
+			name:        "invalid - missing required field Name",
+			input:       `[{"Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`,
+			expectError: true,
+		},
+		{
+			name:        "invalid - missing required field Result",
+			input:       `[{"Name": "unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z"}]`,
+			expectError: true,
+		},
+		{
+			name:        "invalid json",
+			input:       "not valid json",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := report.ValidateJSONReport([]byte(tt.input))
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateJSONReportFromFile verifies that file-based validation works.
+func TestValidateJSONReportFromFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	t.Run("valid file", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "valid-report.json")
+		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		err = report.ValidateJSONReportFromFile(reportFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid file content", func(t *testing.T) {
+		t.Parallel()
+
+		reportFile := filepath.Join(tmp, "invalid-report.json")
+		content := `[{"Name": "test-unit"}]` // missing required fields
+
+		err := os.WriteFile(reportFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		err = report.ValidateJSONReportFromFile(reportFile)
+		require.Error(t, err)
+
+		var schemaErr *report.SchemaValidationError
+		require.ErrorAs(t, err, &schemaErr)
+		assert.NotEmpty(t, schemaErr.Errors)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		err := report.ValidateJSONReportFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		require.Error(t, err)
+	})
+}
+
+// TestSchemaValidationError verifies the error type works correctly.
+func TestSchemaValidationError(t *testing.T) {
+	t.Parallel()
+
+	err := &report.SchemaValidationError{
+		Errors: []string{"error 1", "error 2"},
+	}
+
+	assert.Contains(t, err.Error(), "2 error(s)")
+	assert.Contains(t, err.Error(), "error 1")
+	assert.Contains(t, err.Error(), "error 2")
 }
 
 // newRun creates a new run, and asserts that it doesn't error.

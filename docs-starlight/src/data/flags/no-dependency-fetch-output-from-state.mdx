@@ -1,0 +1,12 @@
+---
+name: no-dependency-fetch-output-from-state
+description: Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.
+type: bool
+env:
+  - TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE
+---
+
+When enabled, Terragrunt will disable the `dependency-fetch-output-from-state` feature. This flag allows you to selectively opt-out of fetching dependency outputs directly from state files.
+
+This is useful when you want to maintain control over dependency output retrieval in specific environments or scenarios, even when the experiment is enabled globally.
+

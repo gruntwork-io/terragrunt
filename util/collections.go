@@ -17,16 +17,6 @@ func MatchesAny(regExps []string, s string) bool {
 	return false
 }
 
-// ListEquals returns true if the two lists are equal
-func ListEquals[S ~[]E, E comparable](a, b S) bool {
-	return slices.Equal(a, b)
-}
-
-// ListContainsElement returns true if the given list contains the given element
-func ListContainsElement[S ~[]E, E comparable](list S, element E) bool {
-	return slices.Contains(list, element)
-}
-
 // ListContainsSublist returns true if an instance of the sublist can be found in the given list
 func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	// A list cannot contain an empty sublist
@@ -39,7 +29,7 @@ func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	}
 
 	for i := 0; len(list[i:]) >= len(sublist); i++ {
-		if ListEquals(list[i:i+len(sublist)], sublist) {
+		if slices.Equal(list[i:i+len(sublist)], sublist) {
 			return true
 		}
 	}
@@ -57,7 +47,7 @@ func ListHasPrefix[S ~[]E, E comparable](list, prefix S) bool {
 		return false
 	}
 
-	return ListEquals(list[:len(prefix)], prefix)
+	return slices.Equal(list[:len(prefix)], prefix)
 }
 
 // RemoveElementFromList returns a copy of the given list with all instances of the given element removed.
@@ -172,14 +162,6 @@ func LastElement[S ~[]E, E comparable](list S) E {
 	return GetElement(list, -1)
 }
 
-// StringListInsert will insert the given string in to the provided string list at the specified index and return the
-// new list of strings. To insert the element, we append the item to the tail of the string and then prepend the
-// existing items.
-func StringListInsert(list []string, element string, index int) []string {
-	tail := append([]string{element}, list[index:]...)
-	return append(list[:index], tail...)
-}
-
 // SplitUrls slices s into all substrings separated by sep and returns a slice of
 // the substrings between those separators.
 // Taking into account that the `=` sign can also be used as a git tag, e.g. `git@github.com/test.git?ref=feature`
@@ -221,23 +203,6 @@ func MergeStringSlices(a, b []string) []string {
 
 			result = append(result, s)
 		}
-	}
-
-	return result
-}
-
-// MapToSlice transforms a map with string keys and pointer values into a slice of pointers.
-// It extracts all values from the map and returns them as a slice while maintaining their original order in the map iteration.
-//
-// Parameters:
-//   - m: A map where the keys are strings and the values are pointers to elements of type T.
-//
-// Returns:
-//   - A slice containing all the pointer values from the input map.
-func MapToSlice[T any](m map[string]*T) []*T {
-	result := make([]*T, 0, len(m))
-	for _, block := range m {
-		result = append(result, block)
 	}
 
 	return result

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -42,7 +43,8 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 
 	parser := shellwords.NewParser()
 
-	parts, err := parser.Parse(provider.terragruntOptions.AuthProviderCmd)
+	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
+	parts, err := parser.Parse(filepath.ToSlash(provider.terragruntOptions.AuthProviderCmd))
 	if err != nil {
 		return nil, errors.Errorf("failed to parse auth provider command: %w", err)
 	}
