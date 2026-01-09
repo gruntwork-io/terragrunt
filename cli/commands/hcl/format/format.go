@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
@@ -289,7 +290,33 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 		return nil, err
 	}
 
-	data, err := exec.CommandContext(ctx, "diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
+	diffPath, err := exec.LookPath("diff")
+	if err != nil {
+		return nil, fmt.Errorf("failed to find diff command in PATH: %w", err)
+	}
+
+	cmd := exec.CommandContext(
+		ctx,
+		diffPath,
+		"--label="+filepath.Join("old", path),
+		"--label="+filepath.Join("new/", path),
+		"-u",
+		f1.Name(),
+		f2.Name(),
+	)
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
+	}
+
+	data, err := cmd.CombinedOutput()
 	if len(data) > 0 {
 		// diff exits with a non-zero status when the files don't match.
 		// Ignore that failure as long as we get output.

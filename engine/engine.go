@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/github"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -515,7 +516,17 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 		context.WithoutCancel(ctx),
 		localEnginePath,
 	)
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
 
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
+	}
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
@@ -758,7 +769,6 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 
 	for {
 		response, err := output()
-
 		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}
