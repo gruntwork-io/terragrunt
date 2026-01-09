@@ -773,22 +773,7 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 				}
 			}
 
-			// reorder arguments to have plan file args at the end
-			var (
-				regularArgs []string
-				planArgs    []string
-			)
-
-			for _, arg := range mergedArgs {
-				if isPlanArg(arg) {
-					planArgs = append(planArgs, arg)
-					continue
-				}
-
-				regularArgs = append(regularArgs, arg)
-			}
-
-			unit.Execution.TerragruntOptions.TerraformCliArgs = append(regularArgs, planArgs...)
+			unit.Execution.TerragruntOptions.TerraformCliArgs = mergedArgs
 		} else {
 			unit.Execution.TerragruntOptions.TerraformCliArgs = slices.Clone(opts.TerraformCliArgs)
 		}
@@ -799,7 +784,9 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
 
 			if slices.Contains(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile) {
-				return
+				// Plan file already present, just reorder to ensure it's at the end
+				unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
+				continue
 			}
 
 			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
@@ -810,6 +797,9 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 
 			unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile)
 		}
+
+		// Always reorder to ensure plan files are at the end, after all flags
+		unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
 	}
 }
 
@@ -823,6 +813,36 @@ func isPlanArg(arg string) bool {
 	}
 
 	return false
+}
+
+// isPreviousArgFlag checks if the previous argument is a flag that might expect a value.
+// A flag without '=' (like "-out") expects its value as the next argument.
+func isPreviousArgFlag(args []string, index int) bool {
+	if index <= 0 {
+		return false
+	}
+
+	prevArg := args[index-1]
+	// If previous arg is a flag without '=', current arg might be its value
+	return strings.HasPrefix(prevArg, "-") && !strings.Contains(prevArg, "=")
+}
+
+// reorderPlanFilesToEnd moves plan file arguments to the end of the args slice,
+// preserving flag-value pairs (e.g., "-out plan.plan" stays together).
+func reorderPlanFilesToEnd(args []string) []string {
+	var regularArgs, planArgs []string
+
+	for i, arg := range args {
+		// Move to end if: looks like plan file AND previous arg isn't a flag expecting a value
+		if isPlanArg(arg) && !isPreviousArgFlag(args, i) {
+			planArgs = append(planArgs, arg)
+			continue
+		}
+
+		regularArgs = append(regularArgs, arg)
+	}
+
+	return append(regularArgs, planArgs...)
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
