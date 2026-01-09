@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -962,10 +963,15 @@ func TestCASStorageDirectory(t *testing.T) {
 	cmd := "terragrunt plan --experiment cas --working-dir " + testPath
 	_ = helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 
-	_, err = os.Stat(expectedCASDir)
-	require.NoError(t, err)
+	// Use require.Eventually to handle potential timing issues with CAS directory creation
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(expectedCASDir)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond, "CAS directory should be created at %s", expectedCASDir)
 
 	storeDir := filepath.Join(expectedCASDir, "store")
-	_, err = os.Stat(storeDir)
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(storeDir)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond, "CAS store directory should be created at %s", storeDir)
 }

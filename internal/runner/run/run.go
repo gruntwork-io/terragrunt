@@ -879,11 +879,12 @@ func useLegacyNullValues() bool {
 }
 
 func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
-	configCtx := config.NewParsingContext(ctx, l, opts).WithDecodeList(
+	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
+	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
-	// TODO: See if we should be ignore this lint error
-	return config.PartialParseConfigFile( //nolint: contextcheck
+	return config.PartialParseConfigFile(
+		ctx,
 		configCtx,
 		l,
 		opts.TerragruntConfigPath,

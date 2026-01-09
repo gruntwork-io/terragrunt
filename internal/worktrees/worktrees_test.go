@@ -38,7 +38,12 @@ func TestNewWorktrees(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
@@ -96,7 +101,12 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
 		AllowEmptyCommits: true,
@@ -242,7 +252,10 @@ func TestExpressionExpansion(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				runner.GoCloseStorage()
+				err = runner.GoCloseStorage()
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
@@ -385,7 +398,10 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				runner.GoCloseStorage()
+				err = runner.GoCloseStorage()
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
 			})
 
 			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
@@ -676,9 +692,14 @@ func TestWorktreeCleanup(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		err = runner.GoCommit(fmt.Sprintf("Commit %d", i), &gogit.CommitOptions{
 			AllowEmptyCommits: true,
 			Author: &object.Signature{

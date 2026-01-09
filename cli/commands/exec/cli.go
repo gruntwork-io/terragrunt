@@ -3,6 +3,8 @@
 package exec
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -54,8 +56,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec --in-download-dir -- cat main.tf",
 		},
 		Flags: NewFlags(l, opts, cmdOpts, nil),
-		Action: func(ctx *cli.Context) error {
-			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
+			tgArgs, cmdArgs := cliCtx.Args().Split(cli.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user
 			// specified the target command without `--`, e.g. `terragrunt exec ls`.
@@ -64,7 +66,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if len(cmdArgs) == 0 {
-				return cli.ShowCommandHelp(ctx)
+				return cli.ShowCommandHelp(ctx, cliCtx)
 			}
 
 			return Run(ctx, l, opts, cmdOpts, cmdArgs)

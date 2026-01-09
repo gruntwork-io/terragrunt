@@ -79,8 +79,8 @@ func TestCommandHelpTemplate(t *testing.T) {
 
 	app.Writer = &out
 
-	ctx := cli.NewAppContext(t.Context(), app, nil).NewCommandContext(cmd, nil)
-	require.Error(t, cli.ShowCommandHelp(ctx))
+	cliCtx := cli.NewAppContext(app, nil).NewCommandContext(cmd, nil)
+	require.Error(t, cli.ShowCommandHelp(t.Context(), cliCtx))
 
 	expectedOutput := fmt.Sprintf(`Usage: terragrunt run [options] -- <tofu/terraform command>
 

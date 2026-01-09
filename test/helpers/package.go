@@ -1033,7 +1033,7 @@ func RunTerragruntCommandWithContext(
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	app := cli.NewApp(l, opts) //nolint:contextcheck
+	app := cli.NewApp(l, opts)
 
 	ctx = log.ContextWithLogger(ctx, l)
 

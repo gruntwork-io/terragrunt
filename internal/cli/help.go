@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"slices"
 	"strings"
 
@@ -22,8 +23,8 @@ var (
 )
 
 // ShowAppHelp prints App help.
-func ShowAppHelp(ctx *Context) error {
-	tpl := ctx.CustomAppHelpTemplate
+func ShowAppHelp(_ context.Context, cliCtx *Context) error {
+	tpl := cliCtx.CustomAppHelpTemplate
 	if tpl == "" {
 		tpl = AppHelpTemplate
 	}
@@ -32,11 +33,11 @@ func ShowAppHelp(ctx *Context) error {
 		return errors.Errorf("app help template not defined")
 	}
 
-	if ctx.HelpName == "" {
-		ctx.HelpName = ctx.Name
+	if cliCtx.HelpName == "" {
+		cliCtx.HelpName = cliCtx.Name
 	}
 
-	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, map[string]any{
+	cli.HelpPrinterCustom(cliCtx.Writer, tpl, cliCtx, map[string]any{
 		"parentCommands": parentCommands,
 		"offsetCommands": offsetCommands,
 	})
@@ -44,21 +45,21 @@ func ShowAppHelp(ctx *Context) error {
 	return NewExitError(nil, ExitCodeSuccess)
 }
 
-// ShowCommandHelp prints command help for the given `ctx`.
-func ShowCommandHelp(ctx *Context) error {
-	if ctx.Command.HelpName == "" {
-		ctx.Command.HelpName = ctx.Command.Name
+// ShowCommandHelp prints command help for the given `cliCtx`.
+func ShowCommandHelp(ctx context.Context, cliCtx *Context) error {
+	if cliCtx.Command.HelpName == "" {
+		cliCtx.Command.HelpName = cliCtx.Command.Name
 	}
 
-	if ctx.Command.CustomHelp != nil {
-		if err := ctx.Command.CustomHelp(ctx); err != nil {
+	if cliCtx.Command.CustomHelp != nil {
+		if err := cliCtx.Command.CustomHelp(ctx, cliCtx); err != nil {
 			return err
 		}
 
 		return NewExitError(nil, ExitCodeSuccess)
 	}
 
-	tpl := ctx.Command.CustomHelpTemplate
+	tpl := cliCtx.Command.CustomHelpTemplate
 	if tpl == "" {
 		tpl = CommandHelpTemplate
 	}
@@ -67,12 +68,12 @@ func ShowCommandHelp(ctx *Context) error {
 		return errors.Errorf("command help template not defined")
 	}
 
-	HelpPrinterCustom(ctx, tpl, nil)
+	HelpPrinterCustom(cliCtx, tpl, nil)
 
 	return NewExitError(nil, ExitCodeSuccess)
 }
 
-func HelpPrinterCustom(ctx *Context, tpl string, customFuncs map[string]any) {
+func HelpPrinterCustom(cliCtx *Context, tpl string, customFuncs map[string]any) {
 	var funcs = map[string]any{
 		"parentCommands": parentCommands,
 		"offsetCommands": offsetCommands,
@@ -82,11 +83,11 @@ func HelpPrinterCustom(ctx *Context, tpl string, customFuncs map[string]any) {
 		maps.Copy(funcs, customFuncs)
 	}
 
-	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, funcs)
+	cli.HelpPrinterCustom(cliCtx.Writer, tpl, cliCtx, funcs)
 }
 
-func ShowVersion(ctx *Context) error {
-	tpl := ctx.CustomAppVersionTemplate
+func ShowVersion(_ context.Context, cliCtx *Context) error {
+	tpl := cliCtx.CustomAppVersionTemplate
 	if tpl == "" {
 		tpl = AppVersionTemplate
 	}
@@ -95,7 +96,7 @@ func ShowVersion(ctx *Context) error {
 		return errors.Errorf("app version template not defined")
 	}
 
-	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, nil)
+	cli.HelpPrinterCustom(cliCtx.Writer, tpl, cliCtx, nil)
 
 	return NewExitError(nil, ExitCodeSuccess)
 }

@@ -5,6 +5,8 @@
 package graph
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -27,13 +29,13 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language. Alias for 'list --format=dot --dag --dependencies --external'.",
 		UsageText: "terragrunt dag graph",
 		Flags:     sharedFlags,
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx context.Context, _ *cli.Context) error {
 			return Run(ctx, l, opts)
 		},
 	}
 }
 
-func Run(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	listOpts := list.NewOptions(opts)
 	listOpts.Format = list.FormatDot
 	listOpts.Mode = list.ModeDAG

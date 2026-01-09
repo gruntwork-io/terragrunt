@@ -110,8 +110,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	}
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
-		// TODO: Remove lint suppression
-		if _, err := client.CheckIfGCSVersioningEnabled(ctx, l, bucketName); err != nil { //nolint:contextcheck
+		if _, err := client.CheckIfGCSVersioningEnabled(ctx, l, bucketName); err != nil {
 			return err
 		}
 	}

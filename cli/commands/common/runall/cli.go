@@ -19,7 +19,7 @@ const (
 	AllFlagAlias = "a"
 )
 
-func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	return cli.Flags{
@@ -29,7 +29,7 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 			EnvVars:     tgPrefix.EnvVars(AllFlagName),
 			Destination: &opts.RunAll,
 			Usage:       `Run the specified command on the stack of units in the current directory.`,
-			Action: func(_ *cli.Context, _ bool) error {
+			Action: func(_ context.Context, _ *cli.Context, _ bool) error {
 				if opts.Graph {
 					return errors.New(new(common.AllGraphFlagsError))
 				}
@@ -48,29 +48,29 @@ func WrapCommand(
 	runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error,
 	alwaysDisableSummary bool,
 ) *cli.Command {
-	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
+	cmd = cmd.WrapAction(func(ctx context.Context, cliCtx *cli.Context, action cli.ActionFunc) error {
 		if alwaysDisableSummary {
 			opts.SummaryDisable = true
 		}
 
 		if !opts.RunAll {
-			return action(cliCtx)
+			return action(ctx, cliCtx)
 		}
 
-		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
+		opts.RunTerragrunt = func(innerCtx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			if opts.TerraformCommand == cmd.Name {
-				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
+				innerCtx = context.WithValue(innerCtx, options.ContextKey, opts)
 
-				return action(cliCtx)
+				return action(innerCtx, cliCtx)
 			}
 
-			return runFn(ctx, l, opts, r)
+			return runFn(innerCtx, l, opts, r)
 		}
 
-		return Run(cliCtx, l, opts.OptionsFromContext(cliCtx))
+		return Run(ctx, l, opts.OptionsFromContext(ctx))
 	})
 
-	cmd.Flags = append(cmd.Flags, NewFlags(opts, cmd.Name, nil)...)
+	cmd.Flags = append(cmd.Flags, NewFlags(opts, nil)...)
 
 	return cmd
 }

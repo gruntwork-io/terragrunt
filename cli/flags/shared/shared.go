@@ -5,6 +5,7 @@
 package shared
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -121,9 +122,9 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars: tgPrefix.EnvVars(QueueExcludeExternalFlagName),
 				Usage:   "Ignore external dependencies for --all commands.",
 				Hidden:  true,
-				Action: func(ctx *cli.Context, value bool) error {
+				Action: func(ctx context.Context, _ *cli.Context, value bool) error {
 					if value {
-						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx.Context)
+						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx)
 					}
 					return nil
 				},
@@ -137,7 +138,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars: tgPrefix.EnvVars(QueueIncludeExternalFlagName),
 				Usage:   "Include external dependencies for --all commands.",
 				Hidden:  true,
-				Action: func(ctx *cli.Context, value bool) error {
+				Action: func(_ context.Context, _ *cli.Context, value bool) error {
 					if !value {
 						return nil
 					}
@@ -166,7 +167,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars: tgPrefix.EnvVars(QueueExcludeDirFlagName),
 				Hidden:  true,
 				Usage:   "Unix-style glob of directories to exclude from the queue of Units to run.",
-				Action: func(_ *cli.Context, value []string) error {
+				Action: func(_ context.Context, _ *cli.Context, value []string) error {
 					if len(value) == 0 {
 						return nil
 					}
@@ -189,7 +190,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars: tgPrefix.EnvVars(QueueIncludeDirFlagName),
 				Hidden:  true,
 				Usage:   "Unix-style glob of directories to include from the queue of Units to run.",
-				Action: func(_ *cli.Context, value []string) error {
+				Action: func(_ context.Context, _ *cli.Context, value []string) error {
 					if len(value) == 0 {
 						return nil
 					}
@@ -212,9 +213,9 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars: tgPrefix.EnvVars(QueueStrictIncludeFlagName),
 				Usage:   "If flag is set, only modules under the directories passed in with '--queue-include-dir' will be included.",
 				Hidden:  true,
-				Action: func(ctx *cli.Context, value bool) error {
+				Action: func(ctx context.Context, _ *cli.Context, value bool) error {
 					if value {
-						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx.Context)
+						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx)
 					}
 					return nil
 				},
@@ -228,7 +229,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Fla
 				EnvVars: tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
 				Usage:   "If flag is set, 'run --all' will only run the command against units that read the specified file via a Terragrunt HCL function or include.",
 				Hidden:  true,
-				Action: func(ctx *cli.Context, value []string) error {
+				Action: func(_ context.Context, _ *cli.Context, value []string) error {
 					if len(value) == 0 {
 						return nil
 					}
@@ -263,7 +264,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				Name:    FilterAffectedFlagName,
 				EnvVars: tgPrefix.EnvVars(FilterAffectedFlagName),
 				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD].",
-				Action: func(ctx *cli.Context, val bool) error {
+				Action: func(ctx context.Context, _ *cli.Context, val bool) error {
 					if !val {
 						return nil
 					}
@@ -286,11 +287,11 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 
 					gitRunner = gitRunner.WithWorkDir(workDir)
 
-					if gitRunner.HasUncommittedChanges(ctx.Context) {
+					if gitRunner.HasUncommittedChanges(ctx) {
 						l.Warnf("Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.")
 					}
 
-					defaultBranch := gitRunner.GetDefaultBranch(ctx.Context, l)
+					defaultBranch := gitRunner.GetDefaultBranch(ctx, l)
 
 					opts.FilterQueries = append(opts.FilterQueries, fmt.Sprintf("[%s...HEAD]", defaultBranch))
 
@@ -335,7 +336,7 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 			EnvVars:     tgPrefix.EnvVars(RootFileNameFlagName),
 			Destination: &opts.ScaffoldRootFileName,
 			Usage:       "Name of the root Terragrunt configuration file, if used.",
-			Action: func(ctx *cli.Context, value string) error {
+			Action: func(ctx context.Context, _ *cli.Context, value string) error {
 				if value == "" {
 					return cli.NewExitError("root-file-name flag cannot be empty", cli.ExitCodeGeneralError)
 				}
@@ -438,7 +439,7 @@ func NewFeatureFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.F
 			EnvVars: tgPrefix.EnvVars(FeatureFlagName),
 			Usage:   "Set feature flags for the HCL code.",
 			// Use default splitting behavior with comma separators via MapFlag defaults
-			Action: func(_ *cli.Context, value map[string]string) error {
+			Action: func(_ context.Context, _ *cli.Context, value map[string]string) error {
 				for key, val := range value {
 					opts.FeatureFlags.Store(key, val)
 				}

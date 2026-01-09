@@ -3,6 +3,8 @@
 package catalog
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
@@ -24,10 +26,10 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
 		Flags: NewFlags(opts, nil),
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
 			var repoPath string
 
-			if val := ctx.Args().Get(0); val != "" {
+			if val := cliCtx.Args().Get(0); val != "" {
 				repoPath = val
 			}
 

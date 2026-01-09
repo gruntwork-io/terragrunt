@@ -2,6 +2,7 @@
 package run
 
 import (
+	"context"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
@@ -33,12 +34,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 		Flags:       NewFlags(l, opts, nil),
 		Subcommands: NewSubcommands(l, opts),
-		Action: func(ctx *cli.Context) error {
-			if len(ctx.Args()) == 0 {
-				return cli.ShowCommandHelp(ctx)
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
+			if len(cliCtx.Args()) == 0 {
+				return cli.ShowCommandHelp(ctx, cliCtx)
 			}
 
-			return Action(l, opts)(ctx)
+			return Action(l, opts)(ctx, cliCtx)
 		},
 	}
 
@@ -59,8 +60,8 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 			Usage:      usage,
 			Hidden:     !visible,
 			CustomHelp: ShowTFHelp(l, opts),
-			Action: func(ctx *cli.Context) error {
-				return Action(l, opts)(ctx)
+			Action: func(ctx context.Context, cliCtx *cli.Context) error {
+				return Action(l, opts)(ctx, cliCtx)
 			},
 		}
 		subcommands[i] = subcommand
@@ -70,14 +71,14 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 }
 
 func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
+	return func(ctx context.Context, _ *cli.Context) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
 			opts.CheckDependentModules = opts.DestroyDependenciesCheck
 		}
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
+		return run.Run(ctx, l, opts.OptionsFromContext(ctx), r)
 	}
 }
 

@@ -62,9 +62,9 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			ctx := config.NewParsingContext(t.Context(), l, opts)
+			ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
 
-			cfg, _ := config.ParseConfigFile(ctx, l, file, nil)
+			cfg, _ := config.ParseConfigFile(ctx, pctx, l, file, nil)
 
 			if slices.Contains(knownBadFiles, file) {
 				assert.Nil(t, cfg)

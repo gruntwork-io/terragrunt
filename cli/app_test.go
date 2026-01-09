@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -859,7 +860,7 @@ func setCommandAction(action clipkg.ActionFunc, cmds ...*clipkg.Command) {
 }
 
 func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
-	emptyAction := func(ctx *clipkg.Context) error { return nil }
+	emptyAction := func(ctx context.Context, cliCtx *clipkg.Context) error { return nil }
 
 	terragruntCommands := commands.New(l, opts)
 	setCommandAction(emptyAction, terragruntCommands...)
@@ -871,8 +872,8 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
-	app.Action = func(ctx *clipkg.Context) error {
-		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)
+	app.Action = func(ctx context.Context, cliCtx *clipkg.Context) error {
+		opts.TerraformCliArgs = append(opts.TerraformCliArgs, cliCtx.Args()...)
 		return nil
 	}
 	app.ExitErrHandler = cli.ExitErrHandler

@@ -21,6 +21,7 @@ type DiscoveryCommandOptions struct {
 	Include           bool
 	Reading           bool
 	WithRequiresParse bool
+	WithRelationships bool
 }
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
@@ -49,6 +50,10 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 	if opts.WithRequiresParse {
 		d = d.WithRequiresParse()
+	}
+
+	if opts.WithRelationships {
+		d = d.WithRelationships()
 	}
 
 	if opts.Exclude {

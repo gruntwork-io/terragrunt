@@ -152,11 +152,11 @@ func removeNoColorFlagDuplicates(args []string) []string {
 }
 
 func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
+	return func(ctx context.Context, cliCtx *cli.Context) error {
 		// setting current context to the options
 		// show help if the args are not specified.
-		if !ctx.Args().Present() {
-			err := cli.ShowAppHelp(ctx)
+		if !cliCtx.Args().Present() {
+			err := cli.ShowAppHelp(ctx, cliCtx)
 			// exit the app
 			return cli.NewExitError(err, 0)
 		}
@@ -165,9 +165,9 @@ func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 		// top-level command, fail fast with guidance to use `run --`.
 		// This removes the legacy behavior of implicitly forwarding unknown
 		// commands to OpenTofu/Terraform.
-		cmdName := ctx.Args().CommandName()
+		cmdName := cliCtx.Args().CommandName()
 		if cmdName != "" {
-			if ctx.Command == nil || ctx.Command.Subcommand(cmdName) == nil {
+			if cliCtx.Command == nil || cliCtx.Command.Subcommand(cmdName) == nil {
 				// Show a clear error pointing users to the explicit run form.
 				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return cli.NewExitError(

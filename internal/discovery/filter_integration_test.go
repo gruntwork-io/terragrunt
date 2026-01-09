@@ -1126,7 +1126,12 @@ func TestDiscoveryWithGitFilters(t *testing.T) {
 			err = runner.GoOpenRepo()
 			require.NoError(t, err)
 
-			defer runner.GoCloseStorage()
+			t.Cleanup(func() {
+				err = runner.GoCloseStorage()
+				if err != nil {
+					t.Logf("Error closing storage: %s", err)
+				}
+			})
 
 			// Create initial components
 			appDir := filepath.Join(tmpDir, "app")
@@ -1270,7 +1275,11 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create a component
 	appDir := filepath.Join(tmpDir, "app")
@@ -1357,7 +1366,11 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create a component
 	appDir := filepath.Join(tmpDir, "app")
@@ -1445,7 +1458,11 @@ func TestDiscoveryWithGitFilters_FromSubdirectory(t *testing.T) {
 	err = runner.GoOpenRepo()
 	require.NoError(t, err)
 
-	defer runner.GoCloseStorage()
+	t.Cleanup(func() {
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	// Create subdirectory structure: basic/basic-1, basic/basic-2
 	basicDir := filepath.Join(tmpDir, "basic")
@@ -1559,10 +1576,11 @@ locals {
 	}
 }
 
-// TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits tests git filter discovery
-// initiated from a subdirectory when comparing against multiple commits back (HEAD~2, HEAD~3).
-func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) {
-	t.Parallel()
+// setupMultiCommitTestRepo creates a git repository with 4 commits for testing
+// git filter discovery from a subdirectory. Returns the basicDir (subdirectory).
+// Each subtest should call this to get its own independent repository.
+func setupMultiCommitTestRepo(t *testing.T) string {
+	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
@@ -1579,7 +1597,9 @@ func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) 
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		runner.GoCloseStorage()
+		if err = runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
 	})
 
 	// Create subdirectory structure: basic/basic-1, basic/basic-2, basic/basic-3
@@ -1698,6 +1718,14 @@ locals {
 	})
 	require.NoError(t, err)
 
+	return basicDir
+}
+
+// TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits tests git filter discovery
+// initiated from a subdirectory when comparing against multiple commits back (HEAD~2, HEAD~3).
+func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		expectedUnitsFunc func(toWorktreePath string) []string
 		name              string
@@ -1741,6 +1769,9 @@ locals {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Each subtest creates its own git repository to avoid race conditions
+			basicDir := setupMultiCommitTestRepo(t)
 
 			// Run discovery FROM THE SUBDIRECTORY (basic)
 			opts := options.NewTerragruntOptions()

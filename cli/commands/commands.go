@@ -97,7 +97,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 		dag.NewCommand(l, opts),              // dag
 		render.NewCommand(l, opts),           // render
 		helpcmd.NewCommand(l, opts),          // help (hidden)
-		versioncmd.NewCommand(opts),          // version (hidden)
+		versioncmd.NewCommand(),              // version (hidden)
 		awsproviderpatch.NewCommand(l, opts), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&cli.Category{
@@ -123,26 +123,24 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 }
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
-	return func(ctx *cli.Context, action cli.ActionFunc) error {
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
+func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx context.Context, cliCtx *cli.Context, action cli.ActionFunc) error {
+	return func(ctx context.Context, cliCtx *cli.Context, action cli.ActionFunc) error {
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, fmt.Sprintf("%s %s", cliCtx.Command.Name, opts.TerraformCommand), map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
-			ctx.Context = childCtx //nolint:fatcontext
-			if err := initialSetup(ctx, l, opts); err != nil {
+			if err := initialSetup(cliCtx, l, opts); err != nil {
 				return err
 			}
 
-			// TODO: See if this lint should be ignored
-			return runAction(ctx, l, opts, action) //nolint:contextcheck
+			return runAction(childCtx, cliCtx, l, opts, action)
 		})
 	}
 }
 
-func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOptions, action cli.ActionFunc) error {
-	ctx, cancel := context.WithCancel(cliCtx.Context)
+func runAction(ctx context.Context, cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOptions, action cli.ActionFunc) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	errGroup, ctx := errgroup.WithContext(ctx)
@@ -153,6 +151,9 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
+
+	// actionCtx is the context passed to the action, which may be wrapped with hooks
+	actionCtx := ctx
 
 	// Run provider cache server
 	if opts.ProviderCache {
@@ -167,7 +168,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 		}
 		defer ln.Close() //nolint:errcheck
 
-		cliCtx.Context = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		actionCtx = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
 			return server.Run(ctx, ln)
@@ -179,7 +180,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 		defer cancel()
 
 		if action != nil {
-			return action(cliCtx)
+			return action(actionCtx, cliCtx)
 		}
 
 		return nil

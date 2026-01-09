@@ -2,6 +2,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -232,7 +233,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:    DependencyFetchOutputFromStateFlagName,
 			EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
 			Usage:   "Enable the dependency-fetch-output-from-state experiment to fetch dependency output directly from the state file instead of using tofu/terraform output.",
-			Action: func(_ *cli.Context, val bool) error {
+			Action: func(_ context.Context, _ *cli.Context, val bool) error {
 				if val {
 					return opts.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 				}
@@ -264,9 +265,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars: tgPrefix.EnvVars(UnitsThatIncludeFlagName),
 			Usage:   "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
 			Hidden:  true,
-			Action: func(ctx *cli.Context, value []string) error {
+			Action: func(ctx context.Context, _ *cli.Context, value []string) error {
 				if len(value) != 0 {
-					if err := opts.StrictControls.FilterByNames(controls.UnitsThatInclude).Evaluate(ctx.Context); err != nil {
+					if err := opts.StrictControls.FilterByNames(controls.UnitsThatInclude).Evaluate(ctx); err != nil {
 						return err
 					}
 
@@ -288,9 +289,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
 			Hidden:      true,
-			Action: func(ctx *cli.Context, value bool) error {
+			Action: func(ctx context.Context, _ *cli.Context, value bool) error {
 				if value {
-					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx.Context)
+					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx)
 				}
 				return nil
 			},
@@ -302,9 +303,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars: tgPrefix.EnvVars(NoDestroyDependenciesCheckFlagName),
 			Usage:   "When this flag is set, Terragrunt will not check for dependent units when destroying.",
 			Hidden:  true,
-			Action: func(ctx *cli.Context, value bool) error {
+			Action: func(ctx context.Context, _ *cli.Context, value bool) error {
 				if value {
-					return opts.StrictControls.FilterByNames(controls.NoDestroyDependenciesCheck).Evaluate(ctx.Context)
+					return opts.StrictControls.FilterByNames(controls.NoDestroyDependenciesCheck).Evaluate(ctx)
 				}
 				return nil
 			},
@@ -376,7 +377,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars: tgPrefix.EnvVars(EngineEnableFlagName),
 			Usage:   "Enable the iac-engine experiment to use IaC engines.",
 			Hidden:  true,
-			Action: func(_ *cli.Context, val bool) error {
+			Action: func(_ context.Context, _ *cli.Context, val bool) error {
 				if val {
 					return opts.Experiments.EnableExperiment(experiment.IacEngine)
 				}

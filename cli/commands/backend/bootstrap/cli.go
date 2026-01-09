@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
@@ -12,7 +14,9 @@ import (
 
 const CommandName = "bootstrap"
 
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	prefix := flags.Prefix{flags.TgPrefix}
+
 	sharedFlags := cli.Flags{
 		shared.NewConfigFlag(opts, prefix, CommandName),
 		shared.NewDownloadDirFlag(opts, prefix, CommandName),
@@ -27,8 +31,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:  CommandName,
 		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
-		Flags: NewFlags(l, opts, nil),
-		Action: func(ctx *cli.Context) error {
+		Flags: NewFlags(opts),
+		Action: func(ctx context.Context, _ *cli.Context) error {
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}

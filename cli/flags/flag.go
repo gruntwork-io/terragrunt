@@ -122,7 +122,7 @@ func (newFlag *Flag) Apply(set *flag.FlagSet) error {
 }
 
 // RunAction implements `cli.Flag` interface.
-func (newFlag *Flag) RunAction(ctx *cli.Context) error {
+func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *cli.Context) error {
 	for _, deprecated := range newFlag.deprecatedFlags {
 		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
@@ -132,7 +132,7 @@ func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 			continue
 		}
 
-		if err := deprecated.RunAction(ctx); err != nil {
+		if err := deprecated.RunAction(ctx, cliCtx); err != nil {
 			return err
 		}
 	}
@@ -145,7 +145,7 @@ func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 		}
 	}
 
-	return newFlag.Flag.RunAction(ctx)
+	return newFlag.Flag.RunAction(ctx, cliCtx)
 }
 
 // Parse parses the given `args` for the flag value and env vars values specified in the flag.

@@ -142,7 +142,9 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				parseErrs = append(parseErrs, errors.New(err))
 			}
 
-			parser := config.NewParsingContext(ctx, l, parseOpts).WithParseOption(parseOptions)
+			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
+
+			parser = parser.WithParseOption(parseOptions)
 			if values != nil {
 				parser = parser.WithValues(values)
 			}
@@ -153,8 +155,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				continue
 			}
 
-			//nolint:contextcheck
-			if _, err := config.ParseStackConfig(l, parser, parseOpts, file, values); err != nil {
+			if _, err := config.ParseStackConfig(ctx, l, parser, parseOpts, file, values); err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
 

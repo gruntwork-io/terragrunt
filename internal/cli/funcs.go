@@ -1,19 +1,21 @@
 package cli
 
+import "context"
+
 // CompleteFunc is an action to execute when the shell completion flag is set
-type CompleteFunc func(ctx *Context) error
+type CompleteFunc func(ctx context.Context, cliCtx *Context) error
 
 // ActionFunc is the action to execute when no commands/subcommands are specified.
-type ActionFunc func(ctx *Context) error
+type ActionFunc func(ctx context.Context, cliCtx *Context) error
 
 // HelpFunc is the action to execute when help needs to be displayed.
 // Example:
 //
-//	func showHelp(ctx *Context) error {
+//	func showHelp(ctx context.Context, cliCtx *Context) error {
 //	  fmt.Println("Usage: ...")
 //	  return nil
 //	}
-type HelpFunc func(ctx *Context) error
+type HelpFunc func(ctx context.Context, cliCtx *Context) error
 
 // SplitterFunc is used to parse flags containing multiple values.
 type SplitterFunc func(s, sep string) []string

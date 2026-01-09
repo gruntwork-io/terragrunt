@@ -26,7 +26,12 @@ func BenchmarkGitOperations(b *testing.B) {
 	err = g.GoOpenGitDir()
 	require.NoError(b, err)
 
-	defer g.GoCloseStorage()
+	b.Cleanup(func() {
+		err = g.GoCloseStorage()
+		if err != nil {
+			b.Logf("Error closing storage: %s", err)
+		}
+	})
 
 	b.Run("ls-remote", func(b *testing.B) {
 		for b.Loop() {

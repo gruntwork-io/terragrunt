@@ -28,6 +28,7 @@ const (
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
+	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -672,4 +673,44 @@ func TestNotExistingDependency(t *testing.T) {
 	require.Error(t, err)
 	// should be reported that find_in_parent_folders() fail
 	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
+}
+
+// TestDependencyIncludeError tests that include directives for configs with dependency blocks
+// don't produce false positive "Unknown variable" errors. This is a regression test for issue #5169.
+// The bug occurs when:
+// 1. A config file (layer.hcl) has a dependency block AND inputs that reference dependency.*.outputs
+// 2. Another config (unit/terragrunt.hcl) includes layer.hcl via include directive
+// 3. During parsing, the inputs block is evaluated before dependencies are resolved
+// 4. This causes HCL to report "There is no variable named dependency" errors
+func TestDependencyIncludeError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyIncludeError)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyIncludeError)
+	depPath := filepath.Join(tmpEnvPath, testFixtureDependencyIncludeError, "dep")
+	unitPath := filepath.Join(tmpEnvPath, testFixtureDependencyIncludeError, "unit")
+
+	// First apply the dependency so it has outputs
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+depPath,
+	)
+
+	// Now apply the unit that includes layer.hcl with dependency block
+	// This should NOT produce any ERROR-level diagnostics about "Unknown variable"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+unitPath,
+	)
+	require.NoError(t, err)
+
+	// Verify no false positive "Unknown variable" errors appear in stderr
+	assert.NotContains(t, stderr, "There is no variable named \"dependency\"",
+		"Should not see false positive 'Unknown variable' errors for dependency references")
+	assert.NotContains(t, stderr, "Unknown variable",
+		"Should not see any 'Unknown variable' errors")
+
+	// Verify the command actually completed successfully
+	assert.Contains(t, stdout, "Apply complete!",
+		"Apply should complete successfully")
 }

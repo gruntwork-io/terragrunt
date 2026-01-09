@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"io"
+	"os"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -14,9 +16,8 @@ import (
 
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
+// Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	context.Context
-
 	TerragruntOptions *options.TerragruntOptions
 
 	// TrackInclude represents contexts of included configurations.
@@ -41,7 +42,7 @@ type ParsingContext struct {
 
 	// Set a custom converter to TerragruntConfig.
 	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
-	ConvertToTerragruntConfigFunc func(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
 	// FilesRead tracks files that were read during parsing (absolute paths).
 	// This is a pointer so that it's shared across all parsing context copies.
@@ -59,18 +60,23 @@ type ParsingContext struct {
 	SkipOutputsResolution bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {
+func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	filesRead := make([]string, 0)
 
-	return &ParsingContext{
-		Context:           ctx,
+	return ctx, &ParsingContext{
 		TerragruntOptions: opts,
 		ParserOptions:     DefaultParserOptions(l, opts),
 		FilesRead:         &filesRead,
 	}
 }
+
+// Clone returns a shallow copy of the ParsingContext.
+func (ctx ParsingContext) Clone() *ParsingContext {
+	return &ctx
+}
+
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	ctx.PartialParseDecodeList = decodeList
 	return &ctx
@@ -108,7 +114,28 @@ func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *Pars
 	return &ctx
 }
 
+// WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
+// Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
+// This avoids false positive "There is no variable named dependency" errors during parsing
+// when dependency outputs haven't been resolved yet.
+func (ctx ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
+	var diagWriter = io.Discard
+	if l.Level() >= log.DebugLevel {
+		diagWriter = os.Stderr
+	}
+
+	opts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(diagWriter, true))
+	ctx.ParserOptions = opts
+
+	return &ctx
+}
+
 func (ctx ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	ctx.SkipOutputsResolution = true
+	return &ctx
+}
+
+func (ctx ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
+	ctx.DecodedDependencies = v
 	return &ctx
 }
