@@ -252,16 +252,26 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	visited := make(map[string]bool)
 
 	if expr.IncludeDependencies {
+		maxDepth := MaxTraversalDepth
+		if expr.DependencyDepth > 0 {
+			maxDepth = expr.DependencyDepth
+		}
+
 		for _, target := range targetMatches {
-			traverseDependencies(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseDependencies(l, target, resultSet, visited, maxDepth, maxDepth)
 		}
 	}
 
 	visited = make(map[string]bool)
 
 	if expr.IncludeDependents {
+		maxDepth := MaxTraversalDepth
+		if expr.DependentDepth > 0 {
+			maxDepth = expr.DependentDepth
+		}
+
 		for _, target := range targetMatches {
-			traverseDependents(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseDependents(l, target, resultSet, visited, maxDepth, maxDepth)
 		}
 	}
 
@@ -299,9 +309,10 @@ func traverseDependencies(
 	resultSet map[string]component.Component,
 	visited map[string]bool,
 	maxDepth int,
+	originalDepth int,
 ) {
 	if maxDepth <= 0 {
-		if l != nil {
+		if l != nil && originalDepth == MaxTraversalDepth {
 			l.Warnf(
 				"Maximum dependency traversal depth (%d) reached for component %s during filtering. Some dependencies may have been excluded from results.",
 				MaxTraversalDepth,
@@ -323,7 +334,7 @@ func traverseDependencies(
 		depPath := dep.Path()
 		resultSet[depPath] = dep
 
-		traverseDependencies(l, dep, resultSet, visited, maxDepth-1)
+		traverseDependencies(l, dep, resultSet, visited, maxDepth-1, originalDepth)
 	}
 }
 
@@ -334,9 +345,10 @@ func traverseDependents(
 	resultSet map[string]component.Component,
 	visited map[string]bool,
 	maxDepth int,
+	originalDepth int,
 ) {
 	if maxDepth <= 0 {
-		if l != nil {
+		if l != nil && originalDepth == MaxTraversalDepth {
 			l.Warnf(
 				"Maximum dependent traversal depth (%d) reached for component %s during filtering. Some dependents may have been excluded from results.",
 				MaxTraversalDepth,
@@ -358,7 +370,7 @@ func traverseDependents(
 		depPath := dependent.Path()
 		resultSet[depPath] = dependent
 
-		traverseDependents(l, dependent, resultSet, visited, maxDepth-1)
+		traverseDependents(l, dependent, resultSet, visited, maxDepth-1, originalDepth)
 	}
 }
 
