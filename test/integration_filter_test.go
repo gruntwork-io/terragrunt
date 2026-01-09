@@ -2290,7 +2290,7 @@ resource "null_resource" "test" {}
 	require.NoError(t, err)
 
 	// do initial apply
-	cmd := "terragrunt run --all --no-color --non-interactive --working-dir " + outDir +
+	cmd := "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
 		" -- apply"
 	helpers.RunTerragrunt(t, cmd)
 

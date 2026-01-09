@@ -799,7 +799,7 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
 
 			if slices.Contains(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile) {
-				return
+				continue
 			}
 
 			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
