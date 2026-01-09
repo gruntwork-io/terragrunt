@@ -1186,3 +1186,364 @@ func TestGitFilter_RequiresParse(t *testing.T) {
 	assert.False(t, requires)
 	assert.Nil(t, expr)
 }
+
+// TestEvaluate_GraphExpressionWithGitExpressionTarget tests evaluating GraphExpressions
+// where the target is a GitExpression.
+//
+// e.g.
+// `... [main...commit] ...`
+func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dependencies of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./db", "./vpc"},
+			resultPaths,
+			"Should include db (git-matched) and vpc (its dependency)",
+		)
+	})
+
+	t.Run("dependents of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./db", "./app"},
+			resultPaths,
+			"Should include db (git-matched) and app (its dependent)",
+		)
+	})
+
+	t.Run("both directions of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./app"},
+			resultPaths,
+			"Should include db (git-matched), vpc (dependency), and app (dependent)",
+		)
+	})
+
+	t.Run("no components match git filter - returns empty", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		assert.Empty(t, result, "Should return empty when no components match git filter")
+	})
+
+	t.Run("multiple git-changed components with shared dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		cache := component.NewUnit("./cache")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+		cache.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+		components := []component.Component{vpc, db, cache, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./cache", "./app"},
+			resultPaths,
+			"Should include all components connected to git-changed components",
+		)
+	})
+
+	t.Run("exclude target with git expression", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       true,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc"},
+			resultPaths,
+			"Should include only vpc (dependency), excluding db (target)",
+		)
+	})
+
+	t.Run("git-changed component with Ref matching FromRef", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./app"},
+			resultPaths,
+			"Should include components when Ref matches FromRef",
+		)
+	})
+}
+
+// TestEvaluate_GraphExpressionWithGitTarget_DependencyChain tests that dependency
+// traversal works correctly through a chain when the starting component is git-matched.
+func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
+	t.Parallel()
+
+	// Create a longer chain: a -> b -> c -> d -> e
+	a := component.NewUnit("./a")
+	b := component.NewUnit("./b")
+	c := component.NewUnit("./c")
+	d := component.NewUnit("./d")
+	e := component.NewUnit("./e")
+
+	a.AddDependency(b)
+	b.AddDependency(c)
+	c.AddDependency(d)
+	d.AddDependency(e)
+
+	c.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+	components := []component.Component{a, b, c, d, e}
+
+	t.Run("dependencies traverse the full chain", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		assert.ElementsMatch(t, []string{"./c", "./d", "./e"}, resultPaths)
+	})
+
+	t.Run("dependents traverse the full chain", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+		t.Logf("Result paths: %v", resultPaths)
+
+		assert.ElementsMatch(t, []string{"./a", "./b", "./c"}, resultPaths)
+	})
+
+	t.Run("both directions traverse the full graph", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+		t.Logf("Result paths: %v", resultPaths)
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./a", "./b", "./c", "./d", "./e"},
+			resultPaths,
+		)
+	})
+}
