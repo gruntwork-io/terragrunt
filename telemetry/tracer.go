@@ -125,8 +125,8 @@ func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string, opt
 		return nil, errors.New(err)
 	}
 
-
 	exporterType := traceExporterType(opts.TraceExporter)
+
 	var processor sdktrace.SpanProcessor
 	if exporterType == consoleTraceExporterType {
 		processor = sdktrace.NewSimpleSpanProcessor(exp)
