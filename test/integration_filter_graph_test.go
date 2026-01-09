@@ -1,15 +1,16 @@
 package test_test
 
 import (
-	"encoding/csv"
-	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/object"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -267,12 +268,10 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-
 	testCases := []struct {
 		name          string
 		filterQuery   string
-		expectedUnits []string // Expected units to be executed (based on graph traversal)
+		expectedUnits []string
 		expectError   bool
 	}{
 		{
@@ -325,90 +324,28 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunFilter)
 			workingDir := filepath.Join(tmpEnvPath, testFixtureRunFilter)
 
-			// Use a non-destructive command like `plan` to verify the filter works
-			// The actual terraform commands will likely fail due to missing providers/resources,
-			// but we can verify that the filter correctly selects units by checking the output and report
 			reportFile := filepath.Join(workingDir, "report.json")
 			cmd := "terragrunt run --all --non-interactive --working-dir " + workingDir + " --filter '" + tc.filterQuery + "' --report-file " + reportFile + " --report-format json -- plan"
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
 				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
-			} else {
-				output := stdout + stderr
 
-				// Verify we don't get filter parsing or evaluation errors
-				errStr := ""
-				if err != nil {
-					errStr = err.Error()
-				}
-
-				// Check for filter-related errors (these would indicate a problem with graph expressions)
-				if strings.Contains(output, "filter") {
-					if strings.Contains(output, "parse") || strings.Contains(output, "syntax") || strings.Contains(output, "invalid") {
-						t.Fatalf("Filter parsing/evaluation error detected in output: %s\nOutput: %s\nStderr: %s", errStr, stdout, stderr)
-					}
-				}
-
-				// Check error string directly for filter issues
-				if err != nil {
-					if strings.Contains(errStr, "filter") && (strings.Contains(errStr, "parse") || strings.Contains(errStr, "syntax") || strings.Contains(errStr, "invalid")) {
-						t.Fatalf("Filter parsing/evaluation error: %v\nOutput: %s\nStderr: %s", err, stdout, stderr)
-					}
-					// Terraform execution errors are acceptable - we're just verifying filter discovery works
-					t.Logf("Command completed (Terraform execution errors are expected in test environment): %v", err)
-				}
-
-				// Verify that the command at least attempted to process units (discovery phase completed)
-				assert.NotEmpty(t, output, "Command should produce some output")
-
-				// Verify that expected units appear in the output (they should be discovered and processed)
-				// The output should contain references to the units being processed
-				// Note: Since terraform may fail, we check for unit names in paths or logs
-				for _, expectedUnit := range tc.expectedUnits {
-					unitName := expectedUnit
-					// Check if the unit appears in the output (might be in paths, logs, or error messages)
-					// We're lenient here since terraform execution may fail, but discovery should have happened
-					found := strings.Contains(output, unitName)
-					if !found {
-						t.Logf("Warning: Expected unit '%s' not found in output, but this may be due to terraform execution errors. Output: %s", unitName, output)
-					}
-				}
-
-				// Verify run report contains expected units
-				if _, statErr := os.Stat(reportFile); statErr == nil {
-					reportUnits, parseErr := parseReportFile(reportFile)
-					if parseErr != nil {
-						t.Logf("Warning: Could not parse report file: %v. Skipping report verification.", parseErr)
-					} else {
-						// Verify all expected units are in the report
-						reportUnitMap := make(map[string]bool)
-						for _, unit := range reportUnits {
-							reportUnitMap[unit] = true
-						}
-
-						for _, expectedUnit := range tc.expectedUnits {
-							// Check if unit name appears in any report entry (might be full path or just name)
-							found := false
-
-							for reportUnit := range reportUnitMap {
-								if strings.Contains(reportUnit, expectedUnit) || strings.Contains(expectedUnit, reportUnit) {
-									found = true
-									break
-								}
-							}
-
-							if !found {
-								t.Logf("Warning: Expected unit '%s' not found in report. Report units: %v", expectedUnit, reportUnits)
-							} else {
-								t.Logf("Verified unit '%s' found in report", expectedUnit)
-							}
-						}
-					}
-				} else {
-					t.Logf("Warning: Report file not found at %s. Skipping report verification.", reportFile)
-				}
+				return
 			}
+
+			require.FileExists(t, reportFile)
+
+			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+			require.NoError(t, parseErr)
+
+			reportUnits := runs.Names()
+			reportUnitMap := make(map[string]struct{})
+			for _, unit := range reportUnits {
+				reportUnitMap[unit] = struct{}{}
+			}
+
+			assert.ElementsMatch(t, tc.expectedUnits, reportUnits)
 		})
 	}
 }
@@ -416,8 +353,6 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) {
 	t.Parallel()
 
-	// This test verifies that when using graph expressions, dependencies are executed before dependents
-	// We'll use a simple dependency chain to verify execution order
 	helpers.CleanupTerraformFolder(t, testFixtureRunFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunFilter)
 	workingDir := filepath.Join(tmpEnvPath, testFixtureRunFilter)
@@ -425,265 +360,377 @@ func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) 
 	// Test that "service..." executes vpc, db, cache (dependencies) before service
 	reportFile := filepath.Join(workingDir, "report.json")
 	cmd := "terragrunt run --all --non-interactive --working-dir " + workingDir + " --filter 'service...' --report-file " + reportFile + " --report-format json -- plan"
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
 
-	output := stdout + stderr
+	require.FileExists(t, reportFile)
 
-	// Verify no filter errors
-	if strings.Contains(output, "filter") && (strings.Contains(output, "parse") || strings.Contains(output, "syntax")) {
-		t.Fatalf("Filter parsing error: %v\nOutput: %s\nStderr: %s", err, stdout, stderr)
-	}
+	runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+	require.NoError(t, parseErr)
 
-	// Even if terraform fails, we should verify that all units were discovered
-	// The key is that filter parsing and discovery worked correctly
-	assert.NotEmpty(t, output, "Command should produce some output")
+	// Verify execution order: dependencies (vpc, db, cache) should start before service
+	// We expect: vpc, db, cache should have started before service
+	dependencies := []string{"vpc", "db", "cache"}
+	dependent := "service"
 
-	// Verify that the filter was processed (no filter-related errors means it worked)
-	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "filter") && (strings.Contains(errStr, "parse") || strings.Contains(errStr, "syntax")) {
-			t.Fatalf("Filter parsing error: %v", err)
-		}
-		// Other errors are expected (terraform init/plan failures)
-		t.Logf("Terraform execution error (expected): %v", err)
-	}
+	service := runs.FindByName(dependent)
+	require.NotNil(t, service)
 
-	// Parse report file to verify execution order
-	if _, statErr := os.Stat(reportFile); statErr == nil {
-		reportRecords, parseErr := parseReportFileWithTimestamps(reportFile)
-		if parseErr != nil {
-			t.Logf("Warning: Could not parse report file: %v. Skipping execution order verification.", parseErr)
-		} else {
-			// Verify execution order: dependencies (vpc, db, cache) should start before service
-			// We expect: vpc, db, cache should have started before service
-			dependencies := []string{"vpc", "db", "cache"}
-			dependent := "service"
+	// Verify each dependency started before service
+	for _, depName := range dependencies {
+		dep := runs.FindByName(depName)
+		require.NotNil(t, dep)
 
-			// Find service start time
-			var serviceStartTime time.Time
-
-			serviceFound := false
-
-			for _, record := range reportRecords {
-				if strings.Contains(record.Name, dependent) {
-					serviceStartTime = record.Started
-					serviceFound = true
-
-					break
-				}
-			}
-
-			if !serviceFound {
-				t.Logf("Warning: Service unit not found in report. Cannot verify execution order.")
-			} else {
-				// Verify each dependency started before service
-				for _, depName := range dependencies {
-					depFound := false
-
-					for _, record := range reportRecords {
-						if strings.Contains(record.Name, depName) {
-							depFound = true
-
-							if record.Started.After(serviceStartTime) {
-								t.Errorf("Execution order violation: %s started at %v, which is after service started at %v", depName, record.Started, serviceStartTime)
-							} else {
-								t.Logf("Verified: %s started at %v (before service at %v)", depName, record.Started, serviceStartTime)
-							}
-
-							break
-						}
-					}
-
-					if !depFound {
-						t.Logf("Warning: Dependency %s not found in report.", depName)
-					}
-				}
-			}
-		}
-	} else {
-		t.Logf("Warning: Report file not found at %s. Skipping execution order verification.", reportFile)
+		assert.True(
+			t,
+			dep.Started.Before(service.Started),
+		)
 	}
 }
 
-// parseReportFile parses a JSON report file and returns the list of unit names.
-func parseReportFile(reportFilePath string) ([]string, error) {
-	content, err := os.ReadFile(reportFilePath)
-	if err != nil {
-		return nil, err
-	}
+// TestFilterFlagWithFindCombinedGitAndGraphExpressions tests the combination of git-based
+// queries with dependency graph traversal.
+func TestFilterFlagWithFindCombinedGitAndGraphExpressions(t *testing.T) {
+	t.Parallel()
 
-	// Try parsing as JSON first
-	var jsonRecords []map[string]interface{}
-	if unmarshalErr := json.Unmarshal(content, &jsonRecords); unmarshalErr == nil {
-		units := make([]string, 0, len(jsonRecords))
-		for _, record := range jsonRecords {
-			if name, ok := record["Name"].(string); ok {
-				units = append(units, name)
-			}
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
 		}
+	})
 
-		return units, nil
-	}
+	// Create a dependency chain: app -> db -> vpc
+	// We'll modify 'db' and use git+graph filter to find its dependencies and dependents
 
-	// If JSON parsing fails, try CSV
-	file, err := os.Open(reportFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+	// Create vpc unit (no dependencies)
+	vpcDir := filepath.Join(tmpDir, "vpc")
+	err = os.MkdirAll(vpcDir, 0755)
+	require.NoError(t, err)
 
-	reader := csv.NewReader(file)
+	vpcHCL := `# VPC unit - no dependencies`
+	err = os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(vpcHCL), 0644)
+	require.NoError(t, err)
 
-	csvRecords, err := reader.ReadAll()
-	if err != nil {
-		return nil, err
-	}
+	// Create db unit (depends on vpc)
+	dbDir := filepath.Join(tmpDir, "db")
+	err = os.MkdirAll(dbDir, 0755)
+	require.NoError(t, err)
 
-	if len(csvRecords) < 2 {
-		return []string{}, nil
-	}
-
-	// Find the Name column index
-	header := csvRecords[0]
-	nameIndex := -1
-
-	for i, col := range header {
-		if col == "Name" {
-			nameIndex = i
-			break
-		}
-	}
-
-	if nameIndex == -1 {
-		return nil, errors.New("Name column not found in CSV report")
-	}
-
-	// Extract unit names from CSV records
-	units := make([]string, 0, len(csvRecords)-1)
-	for _, record := range csvRecords[1:] {
-		if nameIndex < len(record) {
-			units = append(units, record[nameIndex])
-		}
-	}
-
-	return units, nil
+	dbHCL := `# DB unit - depends on vpc
+dependency "vpc" {
+  config_path = "../vpc"
 }
+`
+	err = os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(dbHCL), 0644)
+	require.NoError(t, err)
 
-// reportRecord represents a record from the run report with timestamps.
-type reportRecord struct {
-	Name    string
-	Started time.Time
-	Ended   time.Time
-	Result  string
+	// Create app unit (depends on db)
+	appDir := filepath.Join(tmpDir, "app")
+	err = os.MkdirAll(appDir, 0755)
+	require.NoError(t, err)
+
+	appHCL := `# App unit - depends on db
+dependency "db" {
+  config_path = "../db"
 }
+`
+	err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(appHCL), 0644)
+	require.NoError(t, err)
 
-// parseReportFileWithTimestamps parses a JSON or CSV report file and returns records with timestamps.
-func parseReportFileWithTimestamps(reportFilePath string) ([]reportRecord, error) {
-	content, err := os.ReadFile(reportFilePath)
-	if err != nil {
-		return nil, err
+	// Initial commit with all units
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit with vpc, db, app chain", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Modify db unit to trigger git filter detection
+	modifiedDbHCL := `# DB unit - depends on vpc (MODIFIED)
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+	err = os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(modifiedDbHCL), 0644)
+	require.NoError(t, err)
+
+	// Commit the modification
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modify db unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	testCases := []struct {
+		name          string
+		filterQuery   string
+		expectedUnits []string
+		description   string
+		expectError   bool
+	}{
+		{
+			name:          "git filter only - baseline",
+			filterQuery:   "[HEAD~1...HEAD]",
+			expectedUnits: []string{"db"},
+			description:   "Baseline: git filter alone should find the modified db unit",
+			expectError:   false,
+		},
+		{
+			name:          "dependencies of git changes - [HEAD~1...HEAD]...",
+			filterQuery:   "[HEAD~1...HEAD]...",
+			expectedUnits: []string{"db", "vpc"},
+			description:   "Should find db (git-matched) and vpc (its dependency)",
+			expectError:   false,
+		},
+		{
+			name:          "dependents of git changes - ...[HEAD~1...HEAD]",
+			filterQuery:   "...[HEAD~1...HEAD]",
+			expectedUnits: []string{"db", "app"},
+			description:   "Should find db (git-matched) and app (its dependent)",
+			expectError:   false,
+		},
+		{
+			name:          "both directions - issue #5307 pattern - ...[HEAD~1...HEAD]...",
+			filterQuery:   "...[HEAD~1...HEAD]...",
+			expectedUnits: []string{"vpc", "db", "app"},
+			description:   "Issue #5307: Should find db (git-matched), vpc (dependency), and app (dependent)",
+			expectError:   false,
+		},
+		{
+			name:          "exclude target - ^[HEAD~1...HEAD]...",
+			filterQuery:   "^[HEAD~1...HEAD]...",
+			expectedUnits: []string{"vpc"},
+			description:   "Should find vpc (dependency of db), excluding db itself",
+			expectError:   false,
+		},
+		{
+			name:          "exclude target both directions - ...^[HEAD~1...HEAD]...",
+			filterQuery:   "...^[HEAD~1...HEAD]...",
+			expectedUnits: []string{"vpc", "app"},
+			description:   "Should find vpc (dependency) and app (dependent), excluding db itself",
+			expectError:   false,
+		},
 	}
 
-	// Try parsing as JSON first
-	var jsonRecords []map[string]interface{}
-	if err = json.Unmarshal(content, &jsonRecords); err == nil {
-		records := make([]reportRecord, 0, len(jsonRecords))
-		for _, record := range jsonRecords {
-			r := reportRecord{}
-			if name, ok := record["Name"].(string); ok {
-				r.Name = name
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "'"
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
+				return
 			}
 
-			if startedStr, ok := record["Started"].(string); ok {
-				if t, parseErr := time.Parse(time.RFC3339, startedStr); parseErr == nil {
-					r.Started = t
+			// Parse actual output
+			actualUnits := []string{}
+			for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
+				if line != "" {
+					// Extract just the unit name from the path
+					actualUnits = append(actualUnits, filepath.Base(line))
 				}
 			}
 
-			if endedStr, ok := record["Ended"].(string); ok {
-				if t, parseErr := time.Parse(time.RFC3339, endedStr); parseErr == nil {
-					r.Ended = t
-				}
+			assert.ElementsMatch(
+				t,
+				tc.expectedUnits,
+				actualUnits,
+			)
+		})
+	}
+}
+
+// TestFilterFlagWithRunAllCombinedGitAndGraphExpressions tests the `run --all` command
+// with combined git + graph filter expressions.
+func TestFilterFlagWithRunAllCombinedGitAndGraphExpressions(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) string {
+		tmpDir := helpers.TmpDirWOSymlinks(t)
+
+		runner, err := git.NewGitRunner()
+		require.NoError(t, err)
+
+		runner = runner.WithWorkDir(tmpDir)
+
+		err = runner.Init(t.Context())
+		require.NoError(t, err)
+
+		err = runner.GoOpenRepo()
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			err = runner.GoCloseStorage()
+			if err != nil {
+				t.Logf("Error closing storage: %s", err)
 			}
+		})
 
-			if result, ok := record["Result"].(string); ok {
-				r.Result = result
-			}
+		// Create a dependency chain: service -> cache -> vpc
+		// We'll modify 'cache' and use git+graph filter
 
-			records = append(records, r)
-		}
+		vpcDir := filepath.Join(tmpDir, "vpc")
+		err = os.MkdirAll(vpcDir, 0755)
+		require.NoError(t, err)
 
-		return records, nil
+		vpcHCL := `# VPC unit`
+		err = os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(vpcHCL), 0644)
+		require.NoError(t, err)
+
+		vpcTF := `# VPC TF`
+		err = os.WriteFile(filepath.Join(vpcDir, "main.tf"), []byte(vpcTF), 0644)
+		require.NoError(t, err)
+
+		cacheDir := filepath.Join(tmpDir, "cache")
+		err = os.MkdirAll(cacheDir, 0755)
+		require.NoError(t, err)
+
+		cacheHCL := `# Cache unit
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(cacheHCL), 0644)
+		require.NoError(t, err)
+
+		cacheTF := `# Cache TF`
+		err = os.WriteFile(filepath.Join(cacheDir, "main.tf"), []byte(cacheTF), 0644)
+		require.NoError(t, err)
+
+		serviceDir := filepath.Join(tmpDir, "service")
+		err = os.MkdirAll(serviceDir, 0755)
+		require.NoError(t, err)
+
+		serviceHCL := `# Service unit
+dependency "cache" {
+  config_path = "../cache"
+}
+`
+		err = os.WriteFile(filepath.Join(serviceDir, "terragrunt.hcl"), []byte(serviceHCL), 0644)
+		require.NoError(t, err)
+
+		serviceTF := `# Service TF`
+		err = os.WriteFile(filepath.Join(serviceDir, "main.tf"), []byte(serviceTF), 0644)
+		require.NoError(t, err)
+
+		// Initial commit
+		err = runner.GoAdd(".")
+		require.NoError(t, err)
+
+		err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+			Author: &object.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
+		})
+		require.NoError(t, err)
+
+		modifiedCacheHCL := `# Cache unit (MODIFIED)
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(modifiedCacheHCL), 0644)
+		require.NoError(t, err)
+
+		err = runner.GoAdd(".")
+		require.NoError(t, err)
+
+		err = runner.GoCommit("Modify cache", &gogit.CommitOptions{
+			Author: &object.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
+		})
+		require.NoError(t, err)
+
+		return tmpDir
 	}
 
-	// If JSON parsing fails, try CSV
-	file, err := os.Open(reportFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-
-	csvRecords, err := reader.ReadAll()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(csvRecords) < 2 {
-		return []reportRecord{}, nil
-	}
-
-	// Find column indices
-	header := csvRecords[0]
-	nameIndex := -1
-	startedIndex := -1
-	endedIndex := -1
-	resultIndex := -1
-
-	for i, col := range header {
-		switch col {
-		case "Name":
-			nameIndex = i
-		case "Started":
-			startedIndex = i
-		case "Ended":
-			endedIndex = i
-		case "Result":
-			resultIndex = i
-		}
+	testCases := []struct {
+		name          string
+		filterQuery   string
+		expectedUnits []string
+		description   string
+	}{
+		{
+			name:          "git filter only - run baseline",
+			filterQuery:   "[HEAD~1...HEAD]",
+			expectedUnits: []string{"cache"},
+			description:   "Baseline: run with git filter should execute cache",
+		},
+		{
+			name:          "dependencies of git changes - run",
+			filterQuery:   "[HEAD~1...HEAD]...",
+			expectedUnits: []string{"cache", "vpc"},
+			description:   "Should run cache and its dependency vpc",
+		},
+		{
+			name:          "dependents of git changes - run",
+			filterQuery:   "...[HEAD~1...HEAD]",
+			expectedUnits: []string{"cache", "service"},
+			description:   "Should run cache and its dependent service",
+		},
+		{
+			name:          "both directions - issue #5307 - run",
+			filterQuery:   "...[HEAD~1...HEAD]...",
+			expectedUnits: []string{"vpc", "cache", "service"},
+			description:   "Should run vpc (dep), cache (target), service (dependent)",
+		},
 	}
 
-	if nameIndex == -1 {
-		return nil, errors.New("Name column not found in CSV report")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := setup(t)
+
+			reportFile := filepath.Join(tmpDir, "report.json")
+			cmd := "terragrunt run --all --non-interactive --no-color --working-dir " + tmpDir +
+				" --filter '" + tc.filterQuery + "' --report-file " + reportFile + " --report-format json -- plan"
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			require.FileExists(t, reportFile)
+
+			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+			require.NoError(t, parseErr)
+
+			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
+		})
 	}
-
-	// Extract records from CSV
-	records := make([]reportRecord, 0, len(csvRecords)-1)
-	for _, row := range csvRecords[1:] {
-		r := reportRecord{}
-		if nameIndex < len(row) {
-			r.Name = row[nameIndex]
-		}
-
-		if startedIndex >= 0 && startedIndex < len(row) && row[startedIndex] != "" {
-			if t, err := time.Parse(time.RFC3339, row[startedIndex]); err == nil {
-				r.Started = t
-			}
-		}
-
-		if endedIndex >= 0 && endedIndex < len(row) && row[endedIndex] != "" {
-			if t, err := time.Parse(time.RFC3339, row[endedIndex]); err == nil {
-				r.Ended = t
-			}
-		}
-
-		if resultIndex >= 0 && resultIndex < len(row) {
-			r.Result = row[resultIndex]
-		}
-
-		records = append(records, r)
-	}
-
-	return records, nil
 }
