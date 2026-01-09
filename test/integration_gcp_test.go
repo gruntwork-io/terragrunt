@@ -120,8 +120,8 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend delete --all --feature disable_versioning=true")
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Run failed")
+	require.Error(t, err)
+	assert.Contains(t, stderr, "Backend delete failed")
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend delete --backend-bootstrap --feature disable_versioning=true --all --force")
 	require.NoError(t, err)

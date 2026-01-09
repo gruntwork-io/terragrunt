@@ -110,7 +110,8 @@ func TestAwsBootstrapBackend(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			// FIXME: Restore
+			// t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Backend)
@@ -129,9 +130,44 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			}
 
 			commonConfigPath := filepath.Join(rootPath, "common.hcl")
-			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+			helpers.CopyTerragruntConfigAndFillPlaceholders(
+				t,
+				commonConfigPath,
+				commonConfigPath,
+				s3BucketName,
+				dynamoDBName,
+				helpers.TerraformRemoteStateS3Region,
+			)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --working-dir "+rootPath)
+			// Also replace placeholders in subdirectory config files that are discovered by --all
+			dualLockingConfigPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
+			if util.FileExists(dualLockingConfigPath) {
+				helpers.CopyTerragruntConfigAndFillPlaceholders(
+					t,
+					dualLockingConfigPath,
+					dualLockingConfigPath,
+					s3BucketName,
+					dynamoDBName,
+					helpers.TerraformRemoteStateS3Region,
+				)
+			}
+
+			useLockfileConfigPath := filepath.Join(rootPath, "use-lockfile", "terragrunt.hcl")
+			if util.FileExists(useLockfileConfigPath) {
+				helpers.CopyTerragruntConfigAndFillPlaceholders(
+					t,
+					useLockfileConfigPath,
+					useLockfileConfigPath,
+					s3BucketName,
+					dynamoDBName,
+					helpers.TerraformRemoteStateS3Region,
+				)
+			}
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+tc.args+" --all --non-interactive --log-level debug --working-dir "+rootPath,
+			)
 			require.NoError(t, err)
 
 			tc.checkExpectedResultFn(t, stdout+stderr, s3BucketName, dynamoDBName)
@@ -244,14 +280,52 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
+	// Also replace placeholders in subdirectory config files that are discovered by --all
+	dualLockingConfigPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
+	if util.FileExists(dualLockingConfigPath) {
+		helpers.CopyTerragruntConfigAndFillPlaceholders(
+			t,
+			dualLockingConfigPath,
+			dualLockingConfigPath,
+			s3BucketName,
+			dynamoDBName,
+			helpers.TerraformRemoteStateS3Region,
+		)
+		// Add skip_bucket_versioning for disable_versioning feature
+		contents, err := util.ReadFileAsString(dualLockingConfigPath)
+		require.NoError(t, err)
+		contents = strings.ReplaceAll(contents, "    enable_lock_table_ssencryption = feature.enable_lock_table_ssencryption.value", "    enable_lock_table_ssencryption = feature.enable_lock_table_ssencryption.value\n    skip_bucket_versioning         = true")
+		err = os.WriteFile(dualLockingConfigPath, []byte(contents), 0644)
+		require.NoError(t, err)
+	}
+
+	useLockfileConfigPath := filepath.Join(rootPath, "use-lockfile", "terragrunt.hcl")
+	if util.FileExists(useLockfileConfigPath) {
+		helpers.CopyTerragruntConfigAndFillPlaceholders(
+			t,
+			useLockfileConfigPath,
+			useLockfileConfigPath,
+			s3BucketName,
+			dynamoDBName,
+			helpers.TerraformRemoteStateS3Region,
+		)
+		// Add skip_bucket_versioning for disable_versioning feature
+		contents, err := util.ReadFileAsString(useLockfileConfigPath)
+		require.NoError(t, err)
+		contents = strings.ReplaceAll(contents, "    use_lockfile = true", "    use_lockfile = true\n    skip_bucket_versioning = true")
+		err = os.WriteFile(useLockfileConfigPath, []byte(contents), 0644)
+		require.NoError(t, err)
+	}
+
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" apply --backend-bootstrap --feature disable_versioning=true")
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, false, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend delete --backend-bootstrap --feature disable_versioning=true --all")
-	require.NoError(t, err)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend delete --backend-bootstrap --feature disable_versioning=true --all")
+	require.Error(t, err)
+	assert.Contains(t, stderr, "Backend delete failed")
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" backend delete --backend-bootstrap --feature disable_versioning=true --all --force")
 	require.NoError(t, err)
@@ -339,7 +413,39 @@ func TestAwsDeleteBackend(t *testing.T) {
 	}()
 
 	commonConfigPath := filepath.Join(rootPath, "common.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		commonConfigPath,
+		commonConfigPath,
+		s3BucketName,
+		dynamoDBName,
+		helpers.TerraformRemoteStateS3Region,
+	)
+
+	// Also replace placeholders in subdirectory config files that are discovered by --all
+	dualLockingConfigPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
+	if util.FileExists(dualLockingConfigPath) {
+		helpers.CopyTerragruntConfigAndFillPlaceholders(
+			t,
+			dualLockingConfigPath,
+			dualLockingConfigPath,
+			s3BucketName,
+			dynamoDBName,
+			helpers.TerraformRemoteStateS3Region,
+		)
+	}
+
+	useLockfileConfigPath := filepath.Join(rootPath, "use-lockfile", "terragrunt.hcl")
+	if util.FileExists(useLockfileConfigPath) {
+		helpers.CopyTerragruntConfigAndFillPlaceholders(
+			t,
+			useLockfileConfigPath,
+			useLockfileConfigPath,
+			s3BucketName,
+			dynamoDBName,
+			helpers.TerraformRemoteStateS3Region,
+		)
+	}
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)

@@ -1,3 +1,5 @@
+// Package graph implements the logic for running commands against the
+// graph of dependencies for the unit in the current working directory.
 package graph
 
 import (
@@ -7,8 +9,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -33,9 +35,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
-		if err != nil {
-			return err
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
+		if gitRootErr != nil {
+			return gitRootErr
 		}
 
 		rootDir = gitRoot
