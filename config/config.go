@@ -1400,7 +1400,11 @@ func ParseConfig(
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
 		mergedConfig.Locals = config.Locals
-		mergedConfig.Exclude = config.Exclude
+
+		// preserve included Exclude config when no Exclude config is present in current config
+		if config.Exclude != nil {
+			mergedConfig.Exclude = config.Exclude
+		}
 
 		return mergedConfig, errs.ErrorOrNil()
 	}
