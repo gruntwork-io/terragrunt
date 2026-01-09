@@ -196,6 +196,40 @@ func TestTflintCustomConfig(t *testing.T) {
 	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
 }
 
+func TestTflintConfigFileEnvVar(t *testing.T) {
+	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
+
+	// Use the no-config-file fixture which doesn't have a .tflint.hcl
+	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoConfigFile)
+	t.Cleanup(func() {
+		helpers.RemoveFolder(t, rootPath)
+	})
+
+	// Create a temporary tflint config file
+	tmpConfigFile := filepath.Join(rootPath, "env-tflint.hcl")
+	tflintConfig := `plugin "terraform" {
+  enabled = true
+  version = "0.2.1"
+  source  = "github.com/terraform-linters/tflint-ruleset-terraform"
+}
+`
+	err := os.WriteFile(tmpConfigFile, []byte(tflintConfig), 0644)
+	require.NoError(t, err)
+
+	// Set the TFLINT_CONFIG_FILE environment variable
+	t.Setenv("TFLINT_CONFIG_FILE", tmpConfigFile)
+
+	runPath := filepath.Join(rootPath, testFixtureTflintNoConfigFile)
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --working-dir "+runPath, out, errOut)
+	require.NoError(t, err)
+
+	// Verify the config file from environment variable was used
+	assert.Contains(t, errOut.String(), "Using tflint config file from TFLINT_CONFIG_FILE environment variable")
+	assert.Contains(t, errOut.String(), "--config "+tmpConfigFile)
+	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
+}
+
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 	t.Helper()
 
