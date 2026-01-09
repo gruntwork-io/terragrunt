@@ -406,7 +406,8 @@ func Parse(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
+	ctx, parsingCtx := config.NewParsingContext(ctx, l, parseOpts)
+	parsingCtx = parsingCtx.WithDecodeList(
 		config.TerraformSource,
 		config.DependenciesBlock,
 		config.DependencyBlock,
@@ -453,8 +454,7 @@ func Parse(
 		config.RemoteStateBlock,
 	)
 
-	//nolint: contextcheck
-	cfg, err = config.PartialParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err = config.PartialParseConfigFile(ctx, parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if suppressParseErrors {
 			var notFoundErr config.TerragruntConfigNotFoundError

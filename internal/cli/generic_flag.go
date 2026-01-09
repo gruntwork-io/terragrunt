@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	libflag "flag"
 	"fmt"
 	"strconv"
@@ -107,14 +108,14 @@ func (flag *GenericFlag[T]) Names() []string {
 }
 
 // RunAction implements ActionableFlag.RunAction
-func (flag *GenericFlag[T]) RunAction(ctx *Context) error {
+func (flag *GenericFlag[T]) RunAction(ctx context.Context, cliCtx *Context) error {
 	dest := flag.Destination
 	if dest == nil {
 		dest = new(T)
 	}
 
 	if flag.Action != nil {
-		return flag.Action(ctx, *dest)
+		return flag.Action(ctx, cliCtx, *dest)
 	}
 
 	return nil

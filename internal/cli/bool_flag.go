@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	libflag "flag"
 	"fmt"
 
@@ -115,14 +116,14 @@ func (flag *BoolFlag) Names() []string {
 }
 
 // RunAction implements ActionableFlag.RunAction
-func (flag *BoolFlag) RunAction(ctx *Context) error {
+func (flag *BoolFlag) RunAction(ctx context.Context, cliCtx *Context) error {
 	dest := flag.Destination
 	if dest == nil {
 		dest = new(bool)
 	}
 
 	if flag.Action != nil {
-		return flag.Action(ctx, *dest)
+		return flag.Action(ctx, cliCtx, *dest)
 	}
 
 	return nil

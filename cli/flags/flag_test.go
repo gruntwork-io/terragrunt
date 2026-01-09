@@ -147,7 +147,7 @@ func TestFlag_Evaluate(t *testing.T) {
 					require.NoError(t, err)
 				}
 
-				err = testFlag.flag.RunAction(cli.NewAppContext(ctx, nil, nil))
+				err = testFlag.flag.RunAction(ctx, cli.NewAppContext(nil, nil))
 				require.NoError(t, err)
 			}
 

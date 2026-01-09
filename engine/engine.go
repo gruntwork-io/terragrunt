@@ -445,8 +445,16 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	engineClients.Range(func(key, value any) bool {
 		instance := value.(*engineInstance)
 		l.Debugf("Shutting down engine for %s", instance.executionOptions.WorkingDir)
-		// invoke shutdown on engine
-		if err := shutdown(ctx, l, instance.executionOptions, instance.terragruntEngine); err != nil {
+
+		// We use without cancel here to ensure that the shutdown isn't cancelled by the main context,
+		// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
+		// when the command is cancelled.
+		if err := shutdown(
+			context.WithoutCancel(ctx),
+			l,
+			instance.executionOptions,
+			instance.terragruntEngine,
+		); err != nil {
 			l.Errorf("Error shutting down engine: %v", err)
 		}
 		// kill grpc client
@@ -500,7 +508,14 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 		Output: l.Writer(),
 	})
 
-	cmd := exec.CommandContext(ctx, localEnginePath)
+	// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
+	// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
+	// when the command is cancelled.
+	cmd := exec.CommandContext(
+		context.WithoutCancel(ctx),
+		localEnginePath,
+	)
+
 	// pass log level to engine
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{

@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"context"
 	libflag "flag"
 	"io"
 	"testing"
@@ -63,7 +64,7 @@ func TestFalgsRunActions(t *testing.T) {
 
 	mockFlags := cli.Flags{
 		&cli.SliceFlag[string]{Name: "bar"},
-		&cli.GenericFlag[string]{Name: "foo", Action: func(ctx *cli.Context, val string) error {
+		&cli.GenericFlag[string]{Name: "foo", Action: func(ctx context.Context, cliCtx *cli.Context, val string) error {
 			actionHasBeenRun = true
 			return nil
 		}},
@@ -82,7 +83,7 @@ func TestFalgsRunActions(t *testing.T) {
 
 	assert.False(t, actionHasBeenRun)
 
-	err := mockFlags.RunActions(nil)
+	err := mockFlags.RunActions(t.Context(), nil)
 	require.NoError(t, err)
 
 	assert.True(t, actionHasBeenRun)

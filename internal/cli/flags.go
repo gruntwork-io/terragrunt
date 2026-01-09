@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	libflag "flag"
 	"io"
 	"sort"
@@ -104,10 +105,10 @@ func (flags Flags) Swap(i, j int) {
 	flags[i], flags[j] = flags[j], flags[i]
 }
 
-func (flags Flags) RunActions(ctx *Context) error {
+func (flags Flags) RunActions(ctx context.Context, cliCtx *Context) error {
 	for _, flag := range flags {
 		if flag.Value().IsSet() {
-			if err := flag.RunAction(ctx); err != nil {
+			if err := flag.RunAction(ctx, cliCtx); err != nil {
 				return err
 			}
 		}
