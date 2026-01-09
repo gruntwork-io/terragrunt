@@ -52,7 +52,7 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 		return nil, nil
 	}
 
-	provider, err := newTraceProvider(spanExporter, appName, appVersion)
+	provider, err := newTraceProvider(spanExporter, appName, appVersion, opts)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -112,7 +112,7 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 }
 
 // newTraceProvider creates a new trace tracer with terragrunt version.
-func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string) (*sdktrace.TracerProvider, error) {
+func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string, opts *Options) (*sdktrace.TracerProvider, error) {
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
@@ -125,8 +125,17 @@ func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string) (*s
 		return nil, errors.New(err)
 	}
 
+	exporterType := traceExporterType(opts.TraceExporter)
+
+	var processor sdktrace.SpanProcessor
+	if exporterType == consoleTraceExporterType {
+		processor = sdktrace.NewSimpleSpanProcessor(exp)
+	} else {
+		processor = sdktrace.NewBatchSpanProcessor(exp)
+	}
+
 	return sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
+		sdktrace.WithSpanProcessor(processor),
 		sdktrace.WithResource(r),
 	), nil
 }
