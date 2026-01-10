@@ -724,7 +724,7 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 	for _, unit := range r.queue.Entries {
 		if len(unit.Component.Dependencies()) != 0 {
 			for _, dep := range unit.Component.Dependencies() {
-				dependentUnits[dep.Path()] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path()], unit.Component.Path()))
+				dependentUnits[dep.Path()] = util.RemoveDuplicates(append(dependentUnits[dep.Path()], unit.Component.Path()))
 			}
 		}
 	}
@@ -735,8 +735,8 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 		for unit, dependents := range dependentUnits {
 			for _, dependent := range dependents {
 				initialSize := len(dependentUnits[unit])
-				list := util.RemoveDuplicatesFromList(append(dependentUnits[unit], dependentUnits[dependent]...))
-				list = util.RemoveElementFromList(list, unit)
+				list := util.RemoveDuplicates(append(dependentUnits[unit], dependentUnits[dependent]...))
+				list = slices.DeleteFunc(list, func(path string) bool { return path == unit })
 				dependentUnits[unit] = list
 
 				if initialSize != len(dependentUnits[unit]) {

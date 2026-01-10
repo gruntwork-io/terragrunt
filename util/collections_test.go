@@ -170,83 +170,74 @@ func TestListHasPrefix(t *testing.T) {
 	}
 }
 
-func TestRemoveElementFromList(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		list     []string
-		element  string
-		expected []string
-	}{
-		{[]string{}, "", nil},
-		{[]string{}, "foo", nil},
-		{[]string{"foo"}, "foo", nil},
-		{[]string{"bar"}, "foo", []string{"bar"}},
-		{[]string{"bar", "foo", "baz"}, "foo", []string{"bar", "baz"}},
-		{[]string{"bar", "foo", "baz"}, "nope", []string{"bar", "foo", "baz"}},
-		{[]string{"bar", "foo", "baz"}, "", []string{"bar", "foo", "baz"}},
-	}
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			actual := util.RemoveElementFromList(tc.list, tc.element)
-			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
-		})
-	}
-}
-
-func TestRemoveDuplicatesFromList(t *testing.T) {
+func TestRemoveDuplicates(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		list     []string
 		expected []string
-		reverse  bool
 	}{
-		{[]string{}, []string{}, false},
-		{[]string{"foo"}, []string{"foo"}, false},
-		{[]string{"foo", "bar"}, []string{"foo", "bar"}, false},
-		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foo", "bar", "foobar"}, false},
-		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foo", "bar", "foobar"}, false},
-		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foobar", "bar", "foo"}, true},
-		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foobar", "foo", "bar"}, true},
+		{[]string{}, []string{}},
+		{[]string{"foo"}, []string{"foo"}},
+		{[]string{"foo", "bar"}, []string{"bar", "foo"}}, // sorted
+		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"bar", "foo", "foobar"}},
 	}
 
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			f := util.RemoveDuplicatesFromList[[]string]
-			if tc.reverse {
-				f = util.RemoveDuplicatesFromListKeepLast[[]string]
-			}
-
-			assert.Equal(t, tc.expected, f(tc.list), "For list %v", tc.list)
-			t.Logf("%v passed", tc.list)
+			actual := util.RemoveDuplicates(tc.list)
+			assert.Equal(t, tc.expected, actual, "For list %v", tc.list)
 		})
 	}
 }
 
-func TestCommaSeparatedStrings(t *testing.T) {
+func TestRemoveDuplicatesKeepLast(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		expected string
 		list     []string
+		expected []string
 	}{
-		{list: []string{}, expected: ``},
-		{list: []string{"foo"}, expected: `"foo"`},
-		{list: []string{"foo", "bar"}, expected: `"foo", "bar"`},
+		{[]string{}, []string{}},
+		{[]string{"foo"}, []string{"foo"}},
+		{[]string{"foo", "bar"}, []string{"foo", "bar"}},
+		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foobar", "bar", "foo"}},
+		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foobar", "foo", "bar"}},
 	}
 
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.expected, util.CommaSeparatedStrings(tc.list), "For list %v", tc.list)
-			t.Logf("%v passed", tc.list)
+			actual := util.RemoveDuplicatesKeepLast(tc.list)
+			assert.Equal(t, tc.expected, actual, "For list %v", tc.list)
+		})
+	}
+}
+
+func TestMergeSlices(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		a        []string
+		b        []string
+		expected []string
+	}{
+		{[]string{}, []string{}, []string{}},
+		{[]string{"foo"}, []string{}, []string{"foo"}},
+		{[]string{}, []string{"bar"}, []string{"bar"}},
+		{[]string{"foo"}, []string{"bar"}, []string{"bar", "foo"}}, // sorted
+		{[]string{"foo", "bar"}, []string{"bar", "baz"}, []string{"bar", "baz", "foo"}},
+	}
+
+	for i, tc := range testCases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.MergeSlices(tc.a, tc.b)
+			assert.Equal(t, tc.expected, actual, "For lists %v and %v", tc.a, tc.b)
 		})
 	}
 }

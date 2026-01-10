@@ -930,14 +930,14 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 
 	// Include all specified RequiredVarFiles.
 	if args.RequiredVarFiles != nil {
-		varFiles = append(varFiles, util.RemoveDuplicatesFromListKeepLast(*args.RequiredVarFiles)...)
+		varFiles = append(varFiles, util.RemoveDuplicatesKeepLast(*args.RequiredVarFiles)...)
 	}
 
 	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
 	// files list. Note that it is possible that many files resolve to the same path, so we remove
 	// duplicates.
 	if args.OptionalVarFiles != nil {
-		for _, file := range util.RemoveDuplicatesFromListKeepLast(*args.OptionalVarFiles) {
+		for _, file := range util.RemoveDuplicatesKeepLast(*args.OptionalVarFiles) {
 			if util.FileExists(file) {
 				varFiles = append(varFiles, file)
 			} else {
