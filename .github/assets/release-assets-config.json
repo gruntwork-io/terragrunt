@@ -69,6 +69,10 @@
     {
       "name": "SHA256SUMS.pem",
       "description": "Cosign certificate"
+    },
+    {
+      "name": "terragrunt-signing-key.asc",
+      "description": "GPG public key for signature verification"
     }
   ]
 }

@@ -6,7 +6,8 @@ set -e
 # Usage: sign-checksums.sh <bin-directory>
 #
 # Environment variables:
-#   GPG_FINGERPRINT - GPG key fingerprint for signing (required)
+#   GPG_FINGERPRINT        - GPG key fingerprint for signing (required)
+#   SIGNING_GPG_PASSPHRASE - GPG key passphrase (required)
 #
 # Outputs:
 #   SHA256SUMS.gpgsig - GPG detached signature
@@ -26,6 +27,11 @@ function main {
     exit 1
   fi
 
+  if [[ -z "${SIGNING_GPG_PASSPHRASE}" ]]; then
+    echo "ERROR: SIGNING_GPG_PASSPHRASE environment variable is not set"
+    exit 1
+  fi
+
   # Use pushd/popd to avoid side effects on caller's working directory
   pushd "$bin_dir" || exit 1
 
@@ -38,6 +44,8 @@ function main {
   # GPG signing
   echo "Signing SHA256SUMS with GPG..."
   gpg --batch --yes -u "${GPG_FINGERPRINT}" \
+      --pinentry-mode loopback \
+      --passphrase "${SIGNING_GPG_PASSPHRASE}" \
       --output SHA256SUMS.gpgsig \
       --detach-sign SHA256SUMS
 

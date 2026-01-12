@@ -72,16 +72,21 @@ jobs:
       - name: Generate SHA256SUMS
         run: .github/scripts/release/generate-checksums.sh bin
 
-      - name: Import GPG key
+      - name: Import GPG key and export public key
+        env:
+          SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode | gpg --import
+          echo "${SIGNING_GPG_PRIVATE_KEY}" | base64 --decode | gpg --batch --import
           GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
           echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >> "${GITHUB_ENV}"
+          gpg --armor --export "${GPG_FINGERPRINT}" > bin/terragrunt-signing-key.asc
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign SHA256SUMS
+        env:
+          SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
         run: .github/scripts/release/sign-checksums.sh bin
 
       - name: Verify signatures before upload
