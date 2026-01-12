@@ -72,6 +72,18 @@ jobs:
       - name: Generate SHA256SUMS
         run: .github/scripts/release/generate-checksums.sh bin
 
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode | gpg --import
+          GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
+          echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >> "${GITHUB_ENV}"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign SHA256SUMS
+        run: .github/scripts/release/sign-checksums.sh bin
+
       - name: Verify signatures before upload
         run: .github/scripts/release/verify-files.sh bin
 
