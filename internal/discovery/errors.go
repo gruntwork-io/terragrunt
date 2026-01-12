@@ -39,3 +39,49 @@ func NewGitFilterCommandError(cmd string, args []string) error {
 		Args: args,
 	})
 }
+
+// MissingDiscoveryContextError represents an error that occurs when a component
+// is missing its discovery context during dependency discovery. This indicates
+// a bug in Terragrunt.
+type MissingDiscoveryContextError struct {
+	ComponentPath string
+}
+
+func (e MissingDiscoveryContextError) Error() string {
+	return fmt.Sprintf(
+		"Component at path '%s' is missing its discovery context during dependency discovery. "+
+			"This is a bug in Terragrunt. Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
+			"with details about how you encountered this error.",
+		e.ComponentPath,
+	)
+}
+
+// NewMissingDiscoveryContextError creates a new MissingDiscoveryContextError for the given component path.
+func NewMissingDiscoveryContextError(componentPath string) error {
+	return errors.New(MissingDiscoveryContextError{
+		ComponentPath: componentPath,
+	})
+}
+
+// MissingWorkingDirectoryError represents an error that occurs when a component's
+// discovery context is missing its working directory during dependency discovery.
+// This indicates a bug in Terragrunt.
+type MissingWorkingDirectoryError struct {
+	ComponentPath string
+}
+
+func (e MissingWorkingDirectoryError) Error() string {
+	return fmt.Sprintf(
+		"Component at path '%s' has a discovery context but is missing its working directory during dependency discovery. "+
+			"This is a bug in Terragrunt. Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
+			"with details about how you encountered this error.",
+		e.ComponentPath,
+	)
+}
+
+// NewMissingWorkingDirectoryError creates a new MissingWorkingDirectoryError for the given component path.
+func NewMissingWorkingDirectoryError(componentPath string) error {
+	return errors.New(MissingWorkingDirectoryError{
+		ComponentPath: componentPath,
+	})
+}

@@ -1515,6 +1515,7 @@ func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
 		for i, comp := range result {
 			resultPaths[i] = comp.Path()
 		}
+
 		t.Logf("Result paths: %v", resultPaths)
 
 		assert.ElementsMatch(t, []string{"./a", "./b", "./c"}, resultPaths)
@@ -1538,6 +1539,7 @@ func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
 		for i, comp := range result {
 			resultPaths[i] = comp.Path()
 		}
+
 		t.Logf("Result paths: %v", resultPaths)
 
 		assert.ElementsMatch(

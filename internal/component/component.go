@@ -72,6 +72,13 @@ type DiscoveryContext struct {
 	Args []string
 }
 
+// Copy returns a copy of the DiscoveryContext.
+func (dc *DiscoveryContext) Copy() *DiscoveryContext {
+	c := *dc
+
+	return &c
+}
+
 // Components is a list of discovered Terragrunt components.
 type Components []Component
 

@@ -958,10 +958,6 @@ func (d *Discovery) Discover(
 						WithMaxDepth(d.maxDependencyDepth).
 						WithNumWorkers(d.numWorkers)
 
-					if d.discoveryContext != nil {
-						dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
-
 					if d.suppressParseErrors {
 						dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 					}
@@ -1003,10 +999,6 @@ func (d *Discovery) Discover(
 					dependentDiscovery := NewDependentDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
 						WithNumWorkers(d.numWorkers)
-
-					if d.discoveryContext != nil {
-						dependentDiscovery = dependentDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
 
 					if d.suppressParseErrors {
 						dependentDiscovery = dependentDiscovery.WithSuppressParseErrors()

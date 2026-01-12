@@ -26,7 +26,6 @@ import (
 type DependentDiscovery struct {
 	visitedDirs         map[string]struct{}
 	knownComponentPaths map[string]struct{}
-	discoveryContext    *component.DiscoveryContext
 	opts                *options.TerragruntOptions
 	mu                  *sync.RWMutex
 	components          *component.ThreadSafeComponents
@@ -65,12 +64,6 @@ func (dd *DependentDiscovery) WithSuppressParseErrors() *DependentDiscovery {
 // WithParserOptions sets custom HCL parser options for dependent discovery.
 func (dd *DependentDiscovery) WithParserOptions(options []hclparse.Option) *DependentDiscovery {
 	dd.parserOptions = options
-	return dd
-}
-
-// WithDiscoveryContext sets the discovery context for dependent discovery.
-func (dd *DependentDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependentDiscovery {
-	dd.discoveryContext = discoveryContext
 	return dd
 }
 
@@ -247,8 +240,19 @@ func (dd *DependentDiscovery) discoverDependents(
 		resolvedTargetPath := resolvePath(target.Path())
 
 		for candidate := range candidates {
-			if dd.discoveryContext != nil {
-				candidate.SetDiscoveryContext(dd.discoveryContext)
+			dCtx := target.DiscoveryContext()
+			if dCtx != nil {
+				copiedCtx := dCtx.Copy()
+
+				if copiedCtx.Ref != "" {
+					updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+						return arg == "-destroy"
+					})
+
+					copiedCtx.Args = updatedArgs
+				}
+
+				candidate.SetDiscoveryContext(copiedCtx)
 			}
 
 			if dd.isChecked(candidate) {
@@ -302,7 +306,7 @@ func (dd *DependentDiscovery) discoverDependents(
 					continue
 				}
 
-				isExternal := isExternal(dd.discoveryContext.WorkingDir, c.Path())
+				isExternal := isExternal(dCtx.WorkingDir, c.Path())
 
 				if isExternal {
 					c.SetExternal()
