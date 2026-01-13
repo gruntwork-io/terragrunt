@@ -314,7 +314,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 			continue
 		}
 
-		if err := runValidateInputs(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+		if err := runValidateInputs(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -326,7 +326,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	return nil
 }
 
-func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err

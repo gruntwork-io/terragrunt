@@ -53,7 +53,7 @@ func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return err
 	}
 
-	return runAwsProviderPatch(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig)
+	return runAwsProviderPatch(prepared.Logger, updatedOpts)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -97,7 +97,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 	return nil
 }
 
-func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
 		return errors.New(MissingOverrideAttrError(OverrideAttrFlagName))
 	}

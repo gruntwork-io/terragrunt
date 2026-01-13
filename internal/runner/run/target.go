@@ -36,6 +36,7 @@ func (t *target) isPoint(point targetPointType) bool {
 	if t == nil {
 		return false
 	}
+
 	return t.point == point
 }
 
@@ -43,6 +44,7 @@ func (t *target) runCallback(ctx context.Context, l log.Logger, opts *options.Te
 	if t == nil || t.callbackFunc == nil {
 		return nil
 	}
+
 	return t.callbackFunc(ctx, l, opts, config)
 }
 
@@ -50,5 +52,6 @@ func (t *target) runErrorCallback(l log.Logger, opts *options.TerragruntOptions,
 	if t == nil || t.errorCallbackFunc == nil {
 		return e
 	}
+
 	return t.errorCallbackFunc(l, opts, config, e)
 }
