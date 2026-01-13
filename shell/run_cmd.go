@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"

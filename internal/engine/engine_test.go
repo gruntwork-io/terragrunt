@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
