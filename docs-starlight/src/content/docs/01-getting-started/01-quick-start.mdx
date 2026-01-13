@@ -189,13 +189,13 @@ You can also see what to expect in your filesystem at each step [here](https://g
    mkdir shared
    ```
 
-   Now, move the `main.tf` file from `foo` to `shared`:
+   Now, copy the `main.tf` file from `foo` to `shared`:
 
    ```bash
-   mv foo/main.tf shared/main.tf
+   cp foo/main.tf shared/main.tf
    ```
 
-   Finally, let's update the `foo` and `bar` directories to reference the `shared` directory. Update the `main.tf` files in both `foo` and `bar` to look like this:
+   Finally, let's update the `foo` and `bar` main.tf files to reference the `shared` directory. Update the `main.tf` files in both `foo` and `bar` to look like this:
 
    ```hcl
    # foo/main.tf
