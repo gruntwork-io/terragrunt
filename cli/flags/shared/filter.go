@@ -30,6 +30,15 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 				EnvVars:     tgPrefix.EnvVars(FilterFlagName),
 				Destination: &opts.FilterQueries,
 				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics.",
+				Action: func(_ context.Context, _ *cli.Context, val []string) error {
+					if len(val) == 0 {
+						return nil
+					}
+
+					opts.RunAll = true
+
+					return nil
+				},
 			},
 		),
 		flags.NewFlag(
