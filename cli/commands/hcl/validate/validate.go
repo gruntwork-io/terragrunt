@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
@@ -234,9 +235,78 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 }
 
 func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+	opts = opts.Clone()
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	opts.SkipOutput = true
+	opts.NonInteractive = true
+
+	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+		WorkingDir:    opts.WorkingDir,
+		FilterQueries: opts.FilterQueries,
+		Experiments:   opts.Experiments,
+	})
+	if err != nil {
+		return err
+	}
+
+	if opts.Experiments.Evaluate(experiment.FilterFlag) {
+		filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse filters: %w", parseErr)
+		}
+
+		gitFilters := filters.UniqueGitFilters()
+
+		worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if parseErr != nil {
+			return errors.Errorf("failed to create worktrees: %w", parseErr)
+		}
+
+		defer func() {
+			cleanupErr := worktrees.Cleanup(ctx, l)
+			if cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+
+		d = d.WithWorktrees(worktrees)
+	}
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+
+	for _, c := range components {
+		// Skip stacks, only validate inputs for units
+		if _, ok := c.(*component.Stack); ok {
+			continue
+		}
+
+		unitOpts := opts.Clone()
+		unitOpts.WorkingDir = c.Path()
+
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+
+		target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+
+		if err := run.RunWithTarget(ctx, l, unitOpts, report.NewReport(), target); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
