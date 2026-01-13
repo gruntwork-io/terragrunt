@@ -89,6 +89,7 @@ func PrepareSource(
 	)
 
 	credsGetter := creds.NewGetter()
+
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
 	}); err != nil {
