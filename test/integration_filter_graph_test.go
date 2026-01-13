@@ -523,13 +523,20 @@ dependency "vpc" {
 		// 	description:   "Issue #5307: Should find db (git-matched), vpc (dependency), and app (dependent)",
 		// 	expectError:   false,
 		// },
-		// {
-		// 	name:          "exclude target - ^[HEAD~1...HEAD]...",
-		// 	filterQuery:   "^[HEAD~1...HEAD]...",
-		// 	expectedUnits: []string{"vpc"},
-		// 	description:   "Should find vpc (dependency of db), excluding db itself",
-		// 	expectError:   false,
-		// },
+		{
+			name:          "exclude target - ^[HEAD~1...HEAD]...",
+			filterQuery:   "^[HEAD~1...HEAD]...",
+			expectedUnits: []string{"vpc"},
+			description:   "Should find vpc (dependency of db), excluding db itself",
+			expectError:   false,
+		},
+		{
+			name:          "exclude target - ^...[HEAD~1...HEAD]",
+			filterQuery:   "...^[HEAD~1...HEAD]",
+			expectedUnits: []string{"app"},
+			description:   "Should find app (dependent of db), excluding db itself",
+			expectError:   false,
+		},
 		{
 			name:          "exclude target both directions - ...^[HEAD~1...HEAD]...",
 			filterQuery:   "...^[HEAD~1...HEAD]...",

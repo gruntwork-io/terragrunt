@@ -321,6 +321,22 @@ func traverseDependencies(
 
 	for _, dep := range c.Dependencies() {
 		depPath := dep.Path()
+
+		depCtx := dep.DiscoveryContext()
+		if depCtx != nil {
+			origin := depCtx.Origin
+			if origin != component.OriginGraphDiscovery {
+				if l != nil {
+					l.Debugf(
+						"Skipping dependency %s in graph expression traversal: component was discovered via %s, not graph discovery",
+						depPath,
+						origin,
+					)
+				}
+				continue
+			}
+		}
+
 		resultSet[depPath] = dep
 
 		traverseDependencies(l, dep, resultSet, visited, maxDepth-1)
@@ -356,6 +372,22 @@ func traverseDependents(
 
 	for _, dependent := range c.Dependents() {
 		depPath := dependent.Path()
+
+		depCtx := dependent.DiscoveryContext()
+		if depCtx != nil {
+			origin := depCtx.Origin
+			if origin != component.OriginGraphDiscovery {
+				if l != nil {
+					l.Debugf(
+						"Skipping dependent %s in graph expression traversal: component was discovered via %s, not graph discovery",
+						depPath,
+						origin,
+					)
+				}
+				continue
+			}
+		}
+
 		resultSet[depPath] = dependent
 
 		traverseDependents(l, dependent, resultSet, visited, maxDepth-1)

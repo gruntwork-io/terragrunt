@@ -242,6 +242,8 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 
 	copiedDiscoveryCtx := dDiscoveryCtx.Copy()
 
+	copiedDiscoveryCtx.Origin = component.OriginGraphDiscovery
+
 	// To be conservative, we're going to assume that users _never_ want to
 	// destroy components discovered as a consequence of graph discovery on top of
 	// Git discovery.

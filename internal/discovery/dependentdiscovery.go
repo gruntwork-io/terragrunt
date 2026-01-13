@@ -244,6 +244,8 @@ func (dd *DependentDiscovery) discoverDependents(
 			if dCtx != nil {
 				copiedCtx := dCtx.Copy()
 
+				copiedCtx.Origin = component.OriginGraphDiscovery
+
 				if copiedCtx.Ref != "" {
 					updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
 						return arg == "-destroy"

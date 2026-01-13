@@ -753,7 +753,12 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 		}
 
 		if d.discoveryContext != nil {
-			c.SetDiscoveryContext(d.discoveryContext)
+			discoveryCtx := d.discoveryContext.Copy()
+			if discoveryCtx.Origin == "" {
+				discoveryCtx.Origin = component.OriginPathDiscovery
+			}
+
+			c.SetDiscoveryContext(discoveryCtx)
 		}
 
 		return c
