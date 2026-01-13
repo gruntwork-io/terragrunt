@@ -57,6 +57,22 @@
     {
       "name": "SHA256SUMS",
       "description": "Checksums for all files"
+    },
+    {
+      "name": "SHA256SUMS.gpgsig",
+      "description": "GPG detached signature"
+    },
+    {
+      "name": "SHA256SUMS.sig",
+      "description": "Cosign signature"
+    },
+    {
+      "name": "SHA256SUMS.pem",
+      "description": "Cosign certificate"
+    },
+    {
+      "name": "terragrunt-signing-key.asc",
+      "description": "GPG public key for signature verification"
     }
   ]
 }
