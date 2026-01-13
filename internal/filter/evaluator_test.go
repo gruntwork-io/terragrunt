@@ -943,12 +943,18 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 	t.Parallel()
 
-	vpc := component.NewUnit("./vpc").WithDiscoveryContext(&component.DiscoveryContext{
+	vpcCtx := &component.DiscoveryContext{
 		WorkingDir: ".",
-	})
-	db := component.NewUnit("./db").WithDiscoveryContext(&component.DiscoveryContext{
+	}
+	vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+	dbCtx := &component.DiscoveryContext{
 		WorkingDir: ".",
-	})
+	}
+	dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
 	app := component.NewUnit("./app").WithDiscoveryContext(&component.DiscoveryContext{
 		WorkingDir: ".",
 	})
@@ -1205,7 +1211,16 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		app.AddDependency(db)
 		db.AddDependency(vpc)
 
-		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
 
 		components := []component.Component{vpc, db, app}
 
@@ -1243,7 +1258,16 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		app.AddDependency(db)
 		db.AddDependency(vpc)
 
-		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
 
 		components := []component.Component{vpc, db, app}
 
@@ -1281,7 +1305,16 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		app.AddDependency(db)
 		db.AddDependency(vpc)
 
-		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
 
 		components := []component.Component{vpc, db, app}
 
@@ -1319,6 +1352,12 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		app.AddDependency(db)
 		db.AddDependency(vpc)
 
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
@@ -1348,8 +1387,21 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		db.AddDependency(vpc)
 		cache.AddDependency(vpc)
 
-		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
-		cache.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		discoveryCtx = &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		cache.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
 
 		components := []component.Component{vpc, db, cache, app}
 
@@ -1387,7 +1439,16 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		app.AddDependency(db)
 		db.AddDependency(vpc)
 
-		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
 
 		components := []component.Component{vpc, db, app}
 
@@ -1425,7 +1486,16 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		app.AddDependency(db)
 		db.AddDependency(vpc)
 
-		db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+		discoveryCtx := &component.DiscoveryContext{Ref: "main"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
 
 		components := []component.Component{vpc, db, app}
 
