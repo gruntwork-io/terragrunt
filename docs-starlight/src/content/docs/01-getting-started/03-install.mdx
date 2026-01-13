@@ -32,6 +32,25 @@ To verify the integrity of the file, do the following:
 3. Download the `SHA256SUMS` file from the releases page.
 4. Find the expected checksum for the binary you downloaded.
 5. If the checksums match, the binary is intact and has not been tampered with.
+6. Optionally, verify the GPG signature:
+
+```bash
+# Import Gruntwork's public key (first time only)
+curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import
+
+# Verify signature
+gpg --verify SHA256SUMS.gpgsig SHA256SUMS
+```
+
+7. Alternatively, verify with Cosign:
+
+```bash
+cosign verify-blob SHA256SUMS \
+  --signature SHA256SUMS.sig \
+  --certificate SHA256SUMS.pem \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
+```
 
 ### Convenience Scripts
 
