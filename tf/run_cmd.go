@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -47,7 +47,7 @@ func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 // RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
-	args = cli.Args(args).Normalize(cli.SingleDashFlag)
+	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 		return fn(ctx, l, opts, args)
@@ -79,7 +79,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 	return output, err
 }
 
-func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.Writer) {
+func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
 		outWriter = opts.Writer
 		errWriter = opts.ErrWriter
@@ -90,7 +90,7 @@ func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 
-	if opts.JSONLogFormat && !args.Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
+	if opts.JSONLogFormat && !args.Normalize(clihelper.SingleDashFlag).Contains(FlagNameJSON) {
 		outWriter = buildOutWriter(
 			opts,
 			logger,
@@ -149,7 +149,7 @@ func isCommandThatNeedsPty(args []string) (bool, error) {
 }
 
 // shouldForceForwardTFStdout returns true if at least one of the conditions is met, args contains the `-json` flag or the `output` or `state` command.
-func shouldForceForwardTFStdout(args cli.Args) bool {
+func shouldForceForwardTFStdout(args clihelper.Args) bool {
 	tfCommands := []string{
 		CommandNameOutput,
 		CommandNameState,
@@ -165,7 +165,7 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		FlagNameHelpShort,
 	}
 
-	if slices.ContainsFunc(tfFlags, args.Normalize(cli.SingleDashFlag).Contains) {
+	if slices.ContainsFunc(tfFlags, args.Normalize(clihelper.SingleDashFlag).Contains) {
 		return true
 	}
 

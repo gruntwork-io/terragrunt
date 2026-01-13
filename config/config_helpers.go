@@ -27,7 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -664,7 +664,7 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 		logger := log.ContextWithLogger(ctx, l)
 
 		if err := rootTGHCLControl.Evaluate(logger); err != nil {
-			return "", cli.NewExitError(err, cli.ExitCodeGeneralError)
+			return "", clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 		}
 	}
 
