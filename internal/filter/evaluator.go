@@ -237,6 +237,15 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		return nil, err
 	}
 
+	// We want to avoid including target matches in the initial set if they were discovered via graph discovery.
+	// They should pop out of graph traversal if they were relevant.
+	//
+	// This is to ensure that we don't accidentally include matches when they would only be included by their
+	// relationship in the dependency/dependent graph of a specific target.
+	targetMatches = slices.DeleteFunc(targetMatches, func(c component.Component) bool {
+		return c.DiscoveryContext().Origin() == component.OriginGraphDiscovery
+	})
+
 	if len(targetMatches) == 0 {
 		return component.Components{}, nil
 	}
@@ -324,7 +333,7 @@ func traverseDependencies(
 
 		depCtx := dep.DiscoveryContext()
 		if depCtx != nil {
-			origin := depCtx.Origin
+			origin := depCtx.Origin()
 			if origin != component.OriginGraphDiscovery {
 				if l != nil {
 					l.Debugf(
@@ -375,7 +384,7 @@ func traverseDependents(
 
 		depCtx := dependent.DiscoveryContext()
 		if depCtx != nil {
-			origin := depCtx.Origin
+			origin := depCtx.Origin()
 			if origin != component.OriginGraphDiscovery {
 				if l != nil {
 					l.Debugf(

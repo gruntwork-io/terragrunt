@@ -240,23 +240,6 @@ func (dd *DependentDiscovery) discoverDependents(
 		resolvedTargetPath := resolvePath(target.Path())
 
 		for candidate := range candidates {
-			dCtx := target.DiscoveryContext()
-			if dCtx != nil {
-				copiedCtx := dCtx.Copy()
-
-				copiedCtx.Origin = component.OriginGraphDiscovery
-
-				if copiedCtx.Ref != "" {
-					updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-						return arg == "-destroy"
-					})
-
-					copiedCtx.Args = updatedArgs
-				}
-
-				candidate.SetDiscoveryContext(copiedCtx)
-			}
-
 			if dd.isChecked(candidate) {
 				continue
 			}
@@ -265,6 +248,11 @@ func (dd *DependentDiscovery) discoverDependents(
 
 			// Skip stacks for dependent discovery for now.
 			if _, ok := candidate.(*component.Stack); ok {
+				continue
+			}
+
+			// Components can't be dependents of themselves.
+			if candidate.Path() == target.Path() {
 				continue
 			}
 
@@ -308,7 +296,7 @@ func (dd *DependentDiscovery) discoverDependents(
 					continue
 				}
 
-				isExternal := isExternal(dCtx.WorkingDir, c.Path())
+				isExternal := isExternal(target.DiscoveryContext().WorkingDir, c.Path())
 
 				if isExternal {
 					c.SetExternal()
@@ -323,6 +311,21 @@ func (dd *DependentDiscovery) discoverDependents(
 			}
 
 			if dependsOnTarget {
+				dCtx := target.DiscoveryContext()
+				if dCtx != nil {
+					copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+					if copiedCtx.Ref != "" {
+						updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+							return arg == "-destroy"
+						})
+
+						copiedCtx.Args = updatedArgs
+					}
+
+					candidate.SetDiscoveryContext(copiedCtx)
+				}
+
 				dd.ensureComponent(candidate)
 
 				select {

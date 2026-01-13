@@ -754,9 +754,7 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 
 		if d.discoveryContext != nil {
 			discoveryCtx := d.discoveryContext.Copy()
-			if discoveryCtx.Origin == "" {
-				discoveryCtx.Origin = component.OriginPathDiscovery
-			}
+			discoveryCtx.SuggestOrigin(component.OriginPathDiscovery)
 
 			c.SetDiscoveryContext(discoveryCtx)
 		}

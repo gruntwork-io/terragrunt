@@ -196,7 +196,7 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 	discoveryContext := discovery.discoveryContext.Copy()
 	discoveryContext.Ref = wt.Ref
 	discoveryContext.WorkingDir = wt.Path
-	discoveryContext.Origin = component.OriginWorktreeDiscovery
+	discoveryContext.SuggestOrigin(component.OriginWorktreeDiscovery)
 
 	// Deep copy Args slice to avoid race conditions across goroutines
 	if discoveryContext.Args != nil {

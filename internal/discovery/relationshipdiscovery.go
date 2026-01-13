@@ -246,7 +246,7 @@ func (rd *RelationshipDiscovery) dependencyToDiscover(c component.Component, pat
 	if rd.discoveryContext != nil {
 		discoveryCtx := rd.discoveryContext.Copy()
 		// Set origin for components discovered via relationship discovery
-		discoveryCtx.Origin = component.OriginRelationshipDiscovery
+		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
 		dep.SetDiscoveryContext(discoveryCtx)
 
 		if isExternal(discoveryCtx.WorkingDir, path) {

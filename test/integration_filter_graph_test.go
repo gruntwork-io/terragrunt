@@ -494,35 +494,34 @@ dependency "vpc" {
 		expectedUnits []string
 		expectError   bool
 	}{
-		// FIXME: Restore
-		// {
-		// 	name:          "git filter only - baseline",
-		// 	filterQuery:   "[HEAD~1...HEAD]",
-		// 	expectedUnits: []string{"db"},
-		// 	description:   "Baseline: git filter alone should find the modified db unit",
-		// 	expectError:   false,
-		// },
-		// {
-		// 	name:          "dependencies of git changes - [HEAD~1...HEAD]...",
-		// 	filterQuery:   "[HEAD~1...HEAD]...",
-		// 	expectedUnits: []string{"db", "vpc"},
-		// 	description:   "Should find db (git-matched) and vpc (its dependency)",
-		// 	expectError:   false,
-		// },
-		// {
-		// 	name:          "dependents of git changes - ...[HEAD~1...HEAD]",
-		// 	filterQuery:   "...[HEAD~1...HEAD]",
-		// 	expectedUnits: []string{"db", "app"},
-		// 	description:   "Should find db (git-matched) and app (its dependent)",
-		// 	expectError:   false,
-		// },
-		// {
-		// 	name:          "both directions - ...[HEAD~1...HEAD]...",
-		// 	filterQuery:   "...[HEAD~1...HEAD]...",
-		// 	expectedUnits: []string{"vpc", "db", "app"},
-		// 	description:   "Issue #5307: Should find db (git-matched), vpc (dependency), and app (dependent)",
-		// 	expectError:   false,
-		// },
+		{
+			name:          "git filter only - baseline",
+			filterQuery:   "[HEAD~1...HEAD]",
+			expectedUnits: []string{"db"},
+			description:   "Baseline: git filter alone should find the modified db unit",
+			expectError:   false,
+		},
+		{
+			name:          "dependencies of git changes - [HEAD~1...HEAD]...",
+			filterQuery:   "[HEAD~1...HEAD]...",
+			expectedUnits: []string{"db", "vpc"},
+			description:   "Should find db (git-matched) and vpc (its dependency)",
+			expectError:   false,
+		},
+		{
+			name:          "dependents of git changes - ...[HEAD~1...HEAD]",
+			filterQuery:   "...[HEAD~1...HEAD]",
+			expectedUnits: []string{"db", "app"},
+			description:   "Should find db (git-matched) and app (its dependent)",
+			expectError:   false,
+		},
+		{
+			name:          "both directions - ...[HEAD~1...HEAD]...",
+			filterQuery:   "...[HEAD~1...HEAD]...",
+			expectedUnits: []string{"vpc", "db", "app"},
+			description:   "Issue #5307: Should find db (git-matched), vpc (dependency), and app (dependent)",
+			expectError:   false,
+		},
 		{
 			name:          "exclude target - ^[HEAD~1...HEAD]...",
 			filterQuery:   "^[HEAD~1...HEAD]...",
@@ -548,8 +547,7 @@ dependency "vpc" {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// FIXME: Restore
-			// t.Parallel()
+			t.Parallel()
 			tmpDir := setup(t)
 
 			cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "'"

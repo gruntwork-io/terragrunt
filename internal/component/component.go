@@ -70,7 +70,7 @@ type DiscoveryContext struct {
 	WorkingDir string
 	Ref        string
 
-	Origin Origin
+	origin Origin
 
 	Cmd  string
 	Args []string
@@ -81,6 +81,35 @@ func (dc *DiscoveryContext) Copy() *DiscoveryContext {
 	c := *dc
 
 	return &c
+}
+
+// CopyWithNewOrigin returns a copy of the DiscoveryContext with the origin set to the given origin.
+//
+// Discovered components should never have their origin overridden by subsequent phases of discovery. Only use this
+// method if you are discovering a new component that was originally discovered by a different discovery phase.
+//
+// e.g. A component discovered as a dependency/dependent of a component discovered via Git discovery should be
+// considered discovered via graph discovery, not Git discovery.
+func (dc *DiscoveryContext) CopyWithNewOrigin(origin Origin) *DiscoveryContext {
+	c := dc.Copy()
+	c.origin = origin
+	return c
+}
+
+// Origin returns the origin of the DiscoveryContext.
+func (dc *DiscoveryContext) Origin() Origin {
+	return dc.origin
+}
+
+// SuggestOrigin suggests an origin for the DiscoveryContext.
+//
+// Only actually updates the origin if it is empty. This is to ensure that the origin of a component is always
+// considered the first origin discovered for that component, and that it can't be overridden by subsequent phases
+// of discovery that might re-discover the same component.
+func (dc *DiscoveryContext) SuggestOrigin(origin Origin) {
+	if dc.origin == "" {
+		dc.origin = origin
+	}
 }
 
 // Components is a list of discovered Terragrunt components.
