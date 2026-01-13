@@ -315,6 +315,20 @@ func (dd *DependentDiscovery) discoverDependents(
 				if dCtx != nil {
 					copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
+					// To be conservative, we're going to assume that users _never_ want to
+					// destroy components discovered as a consequence of graph discovery on top of
+					// Git discovery.
+					//
+					// e.g. --filter '...[HEAD^...HEAD]...' --filter-allow-destroy
+					//
+					// We're going to assume that the user's intent is to only destroy component(s) that were
+					// discovered as being removed in HEAD relative to HEAD^, and that what they want is to
+					// simply plan/apply the components discovered as a consequence of graph discovery
+					// from the removed component(s).
+					//
+					// The dependency/dependents haven't been removed between the Git references, so what the user
+					// probably wants is to simply plan/apply the components discovered as a consequence of graph discovery
+					// from the removed component(s).
 					if copiedCtx.Ref != "" {
 						updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
 							return arg == "-destroy"

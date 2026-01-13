@@ -93,6 +93,7 @@ func (dc *DiscoveryContext) Copy() *DiscoveryContext {
 func (dc *DiscoveryContext) CopyWithNewOrigin(origin Origin) *DiscoveryContext {
 	c := dc.Copy()
 	c.origin = origin
+
 	return c
 }
 
