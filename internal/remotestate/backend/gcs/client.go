@@ -44,7 +44,7 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 	gcsConfig := config.RemoteStateConfigGCS
 
 	if gcsConfig.Credentials != "" {
-		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials))
+		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials)) //nolint:staticcheck // supports both service account and user credentials
 	} else if gcsConfig.AccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcsConfig.AccessToken,
@@ -55,6 +55,8 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 			AccessToken: oauthAccessToken,
 		})
 		opts = append(opts, option.WithTokenSource(tokenSource))
+	} else if credPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credPath != "" {
+		opts = append(opts, option.WithCredentialsFile(credPath)) //nolint:staticcheck // supports both service account and user credentials
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
 		var account = struct {
 			PrivateKeyID string `json:"private_key_id"`
@@ -91,12 +93,14 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Clie
 			TargetPrincipal: gcsConfig.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcsConfig.ImpersonateServiceAccountDelegates,
-		})
+		}, opts...)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("failed to create impersonation token source for %s: %w", gcsConfig.ImpersonateServiceAccount, err)
 		}
 
-		opts = append(opts, option.WithTokenSource(ts))
+		// Replace opts with impersonation token source - the base credentials
+		// are now embedded in the impersonation token source
+		opts = []option.ClientOption{option.WithTokenSource(ts)}
 	}
 
 	gcsClient, err := storage.NewClient(ctx, opts...)
