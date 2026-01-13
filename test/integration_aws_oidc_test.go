@@ -40,7 +40,6 @@ const (
 func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
-
 	token := fetchGitHubOIDCToken(t)
 
 	// These tests need to be run without the static key + secret
@@ -94,7 +93,6 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
-
 	token := fetchGitHubOIDCToken(t)
 
 	// These tests need to be run without the static key + secret
@@ -121,7 +119,6 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
-
 	token := fetchGitHubOIDCToken(t)
 
 	t.Setenv("OIDC_TOKEN", token)
@@ -137,7 +134,6 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
-
 	token := fetchGitHubOIDCToken(t)
 
 	// These tests need to be run without the static key + secret
@@ -223,6 +219,7 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 
 	resp, err := client.Do(req)
 	require.NoError(t, err, "Failed to execute OIDC token request to %s", requestURL)
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -230,6 +227,7 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 		if readErr != nil {
 			t.Fatalf("OIDC token request to %s failed with status %s. Additionally, failed to read response body: %v", requestURL, resp.Status, readErr)
 		}
+
 		t.Fatalf("OIDC token request to %s failed with status %s. Response: %s", requestURL, resp.Status, string(bodyBytes))
 	}
 
@@ -237,9 +235,11 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 	require.NoError(t, err, "Failed to read OIDC token response body from %s", requestURL)
 
 	var tokenResp oidcTokenResponse
+
 	err = json.Unmarshal(body, &tokenResp)
 	require.NoError(t, err, "Failed to unmarshal OIDC token response JSON from %s. Response: %s", requestURL, string(body))
 
 	require.NotEmpty(t, tokenResp.Value, "OIDC token 'value' field is empty in response from %s. Response: %s", requestURL, string(body))
+
 	return tokenResp.Value
 }
