@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -47,7 +47,7 @@ func GetExitCode(err error) (int, error) {
 		return exitStatus.ExitStatus()
 	}
 
-	var exitCoder cli.ExitCoder
+	var exitCoder clihelper.ExitCoder
 	if errors.As(err, &exitCoder) {
 		return exitCoder.ExitCode(), nil
 	}
