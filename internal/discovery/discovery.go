@@ -1226,7 +1226,7 @@ func propagateTransitiveDependents(dependentUnits map[string][]string) {
 
 	maxIterations := len(nodes)
 
-	for i := 0; i < maxIterations; i++ {
+	for range maxIterations {
 		updated := false
 
 		for unit, dependents := range dependentUnits {

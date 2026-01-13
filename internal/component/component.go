@@ -16,17 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// resolvePath resolves symlinks in a path for consistent comparison across platforms.
-// On macOS, /var is a symlink to /private/var, so paths must be resolved.
-func resolvePath(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
-}
-
 // Kind is the type of Terragrunt component.
 type Kind string
 
@@ -58,6 +47,19 @@ type Component interface {
 	ensureDependent(Component)
 }
 
+// Origin determines the discovery origin of a component.
+// This is important if there are multiple different reasons that a component might have been discovered.
+//
+// e.g. A component might be discovered in a Git worktree due to graph discovery from the results of a Git-based filter.
+type Origin string
+
+const (
+	OriginWorktreeDiscovery     Origin = "worktree-discovery"
+	OriginGraphDiscovery        Origin = "graph-discovery"
+	OriginPathDiscovery         Origin = "path-discovery"
+	OriginRelationshipDiscovery Origin = "relationship-discovery"
+)
+
 // DiscoveryContext is the context in which
 // a Component was discovered.
 //
@@ -67,6 +69,8 @@ type Component interface {
 type DiscoveryContext struct {
 	WorkingDir string
 	Ref        string
+
+	Origin Origin
 
 	Cmd  string
 	Args []string
@@ -324,4 +328,15 @@ func (tsc *ThreadSafeComponents) Len() int {
 	defer tsc.mu.RUnlock()
 
 	return len(tsc.components)
+}
+
+// resolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+func resolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
 }

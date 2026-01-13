@@ -494,6 +494,7 @@ dependency "vpc" {
 		expectedUnits []string
 		expectError   bool
 	}{
+		// FIXME: Restore
 		// {
 		// 	name:          "git filter only - baseline",
 		// 	filterQuery:   "[HEAD~1...HEAD]",
@@ -540,8 +541,8 @@ dependency "vpc" {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// FIXME: Restore
 			// t.Parallel()
-
 			tmpDir := setup(t)
 
 			cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "'"
