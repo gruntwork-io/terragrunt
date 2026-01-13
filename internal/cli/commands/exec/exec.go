@@ -47,10 +47,18 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 		}
 	}
 
-	return runTargetCommand(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig, cmdOpts, args)
+	return runTargetCommand(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig, r, cmdOpts, args)
 }
 
-func runTargetCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, cmdOpts *Options, args cli.Args) error {
+func runTargetCommand(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+	r *report.Report,
+	cmdOpts *Options,
+	args cli.Args,
+) error {
 	var (
 		command = args.CommandName()
 		cmdArgs = args.Tail()
@@ -61,7 +69,7 @@ func runTargetCommand(ctx context.Context, l log.Logger, opts *options.Terragrun
 		dir = opts.RootWorkingDir
 	}
 
-	return run.RunActionWithHooks(ctx, l, command, opts, cfg, report.NewReport(), func(ctx context.Context) error {
+	return run.RunActionWithHooks(ctx, l, command, opts, cfg, r, func(ctx context.Context) error {
 		_, err := shell.RunCommandWithOutput(ctx, l, opts, dir, false, false, command, cmdArgs...)
 		if err != nil {
 			return errors.Errorf("failed to run command in directory %s: %w", dir, err)
