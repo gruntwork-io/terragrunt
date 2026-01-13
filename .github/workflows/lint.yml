@@ -5,7 +5,12 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    name: Lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
 
     steps:
     - uses: actions/checkout@v6
