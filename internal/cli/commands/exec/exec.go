@@ -41,6 +41,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 	} else {
 		// Just set inputs as env vars, skip init
 		opts.AutoInit = false
+
 		if err := run.PrepareInputsAsEnvVars(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
 			return err
 		}
