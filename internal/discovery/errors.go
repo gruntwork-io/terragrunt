@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -34,7 +34,7 @@ func (e GitFilterCommandError) Error() string {
 }
 
 // NewGitFilterCommandError creates a new GitFilterCommandError with the given command and arguments.
-func NewGitFilterCommandError(commandWithArgs *cli.TofuCommand) error {
+func NewGitFilterCommandError(commandWithArgs *tofucmd.TofuCommand) error {
 	return errors.New(GitFilterCommandError{
 		Cmd:  commandWithArgs.Cmd,
 		Args: commandWithArgs.Args,

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -120,7 +120,7 @@ func CloneGitRepo(t *testing.T, srcDir string) string {
 func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
 	return &component.DiscoveryContext{
 		WorkingDir: dir,
-		CommandWithArgs: &cli.TofuCommand{
+		CommandWithArgs: &tofucmd.TofuCommand{
 			Cmd:  baseCtx.CommandWithArgs.Cmd,
 			Args: append([]string{}, baseCtx.CommandWithArgs.Args...),
 		},

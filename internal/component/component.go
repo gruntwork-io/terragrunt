@@ -13,7 +13,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -71,7 +71,7 @@ type DiscoveryContext struct {
 	WorkingDir string
 	Ref        string
 
-	CommandWithArgs *cli.TofuCommand
+	CommandWithArgs *tofucmd.TofuCommand
 }
 
 // IsDestroyCommand returns true if this discovery context represents a destroy operation.

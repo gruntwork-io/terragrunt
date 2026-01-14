@@ -3,7 +3,7 @@ package queue_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -776,7 +776,7 @@ func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
 
 	// Set all configs to destroy (down) command
 	for _, cfg := range configs {
-		cfg.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
+		cfg.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -809,7 +809,7 @@ func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 
 	// Set all configs to destroy (down) command
 	for _, cfg := range configs {
-		cfg.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
+		cfg.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
 	}
 
 	// Only test fail-fast mode here
@@ -838,9 +838,9 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
-	cfgA.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
-	cfgB.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
-	cfgC.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
+	cfgA.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
+	cfgB.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
+	cfgC.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
 
 	configs := component.Components{cfgA, cfgB, cfgC}
 
@@ -860,7 +860,7 @@ func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 
 	configs := buildMultiLevelDependencyTree()
 	for _, cfg := range configs {
-		cfg.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
+		cfg.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
 	}
 
 	q, err := queue.NewQueue(configs)
@@ -903,9 +903,9 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
-	cfgA.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
-	cfgB.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
-	cfgC.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
+	cfgA.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
+	cfgB.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
+	cfgC.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
 
 	configs := component.Components{cfgA, cfgB, cfgC}
 
@@ -964,9 +964,9 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	cfgC.AddDependency(cfgB)
 
 	// Set all configs to destroy (down) command
-	cfgA.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
-	cfgB.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
-	cfgC.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &cli.TofuCommand{Cmd: "destroy"}})
+	cfgA.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
+	cfgB.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
+	cfgC.SetDiscoveryContext(&component.DiscoveryContext{CommandWithArgs: &tofucmd.TofuCommand{Cmd: "destroy"}})
 
 	configs := component.Components{cfgA, cfgB, cfgC}
 

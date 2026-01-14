@@ -9,7 +9,7 @@ import (
 
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -377,7 +377,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 
 			discoveryContext := &component.DiscoveryContext{
 				WorkingDir: testDir,
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd:  tt.cmd,
 					Args: tt.args,
 				},
@@ -845,7 +845,7 @@ unit "unit_to_be_untouched" {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
-			CommandWithArgs: &cli.TofuCommand{
+			CommandWithArgs: &tofucmd.TofuCommand{
 				Cmd: "plan",
 			},
 		}).
@@ -890,7 +890,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -899,7 +899,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -908,7 +908,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd:  "plan",
 					Args: []string{"-destroy"},
 				},
@@ -919,7 +919,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -928,7 +928,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -937,7 +937,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -949,7 +949,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -959,7 +959,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd: "plan",
 				},
 			},
@@ -970,7 +970,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd:  "plan",
 					Args: []string{"-destroy"},
 				},
@@ -981,7 +981,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd:  "plan",
 					Args: []string{"-destroy"},
 				},
@@ -991,7 +991,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd:  "plan",
 					Args: []string{"-destroy"},
 				},
@@ -1001,7 +1001,7 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				CommandWithArgs: &cli.TofuCommand{
+				CommandWithArgs: &tofucmd.TofuCommand{
 					Cmd:  "plan",
 					Args: []string{"-destroy"},
 				},
@@ -1116,7 +1116,7 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
-			CommandWithArgs: &cli.TofuCommand{
+			CommandWithArgs: &tofucmd.TofuCommand{
 				Cmd: "plan",
 			},
 		}).
@@ -1239,7 +1239,7 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
-			CommandWithArgs: &cli.TofuCommand{
+			CommandWithArgs: &tofucmd.TofuCommand{
 				Cmd: "plan",
 			},
 		}).
