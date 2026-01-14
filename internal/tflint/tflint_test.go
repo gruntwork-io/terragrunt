@@ -3,7 +3,7 @@ package tflint_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
