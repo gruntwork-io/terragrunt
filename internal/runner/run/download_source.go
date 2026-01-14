@@ -14,9 +14,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -45,7 +45,7 @@ func downloadTerraformSource(
 	l log.Logger,
 	source string,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (*options.TerragruntOptions, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
@@ -103,7 +103,7 @@ func DownloadTerraformSourceIfNecessary(
 	l log.Logger,
 	terraformSource *tf.Source,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
 	if opts.SourceUpdate {
@@ -151,7 +151,7 @@ func DownloadTerraformSourceIfNecessary(
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 
-	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, r, func(_ context.Context) error {
+	downloadErr := runActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, r, func(_ context.Context) error {
 		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
 	})
 	if downloadErr != nil {
@@ -237,7 +237,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
@@ -249,12 +249,12 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 			if getterName == "file" {
 				var includeInCopy, excludeFromCopy []string
 
-				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
-					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
+				if cfg.Terraform != nil && cfg.Terraform.IncludeInCopy != nil {
+					includeInCopy = *cfg.Terraform.IncludeInCopy
 				}
 
-				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
-					excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+				if cfg.Terraform != nil && cfg.Terraform.ExcludeFromCopy != nil {
+					excludeFromCopy = *cfg.Terraform.ExcludeFromCopy
 				}
 
 				client.Getters[getterName] = &FileCopyGetter{
@@ -298,7 +298,7 @@ func preserveSymlinksOption() getter.ClientOption {
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
-func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
+func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, r *report.Report) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,

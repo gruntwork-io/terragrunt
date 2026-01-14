@@ -7,14 +7,12 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
-
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -108,3 +106,54 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 
 	return matchedModulesMap
 }
+
+// DependentModulesFinder implements the runcfg.DependentModulesFinder interface.
+// It wraps the FindWhereWorkingDirIsIncluded function to provide dependency information.
+type DependentModulesFinder struct{}
+
+// NewDependentModulesFinder creates a new DependentModulesFinder.
+func NewDependentModulesFinder() *DependentModulesFinder {
+	return &DependentModulesFinder{}
+}
+
+// FindDependentModules implements runcfg.DependentModulesFinder.
+func (f *DependentModulesFinder) FindDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) []runcfg.DependentModule {
+	// Convert RunConfig back to TerragruntConfig for the existing function
+	// Note: This is a temporary shim until the underlying function can be refactored
+	terragruntConfig := convertRunConfigToTerragruntConfig(cfg)
+
+	units := FindWhereWorkingDirIsIncluded(ctx, l, opts, terragruntConfig)
+
+	modules := make([]runcfg.DependentModule, len(units))
+	for i, unit := range units {
+		modules[i] = unit
+	}
+
+	return modules
+}
+
+// convertRunConfigToTerragruntConfig creates a minimal TerragruntConfig from RunConfig
+// containing only the fields needed by FindWhereWorkingDirIsIncluded.
+func convertRunConfigToTerragruntConfig(cfg *runcfg.RunConfig) *config.TerragruntConfig {
+	if cfg == nil {
+		return &config.TerragruntConfig{}
+	}
+
+	// Convert ProcessedIncludes from runcfg to config format
+	processedIncludes := make(map[string]config.IncludeConfig)
+	for name, include := range cfg.ProcessedIncludes {
+		processedIncludes[name] = config.IncludeConfig{
+			Name:          include.Name,
+			Path:          include.Path,
+			Expose:        include.Expose,
+			MergeStrategy: include.MergeStrategy,
+		}
+	}
+
+	return &config.TerragruntConfig{
+		ProcessedIncludes: processedIncludes,
+	}
+}
+
+// Ensure DependentModulesFinder implements the interface
+var _ runcfg.DependentModulesFinder = (*DependentModulesFinder)(nil)

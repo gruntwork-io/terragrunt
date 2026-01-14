@@ -353,7 +353,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		}
 
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
+		out := run.FilterTerraformExtraArgs(l, tc.options, config.ToRunConfig())
 
 		assert.Equal(t, tc.expectedArgs, out)
 	}
@@ -364,7 +364,21 @@ var defaultLogLevel = log.DebugLevel
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
 	t.Helper()
 
-	o := mockOptions(t, filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
+	o := mockOptions(
+		t,
+		filepath.Join(
+			workingDir,
+			config.DefaultTerragruntConfigPath,
+		),
+		workingDir,
+		terraformCliArgs,
+		true,
+		"",
+		false,
+		false,
+		defaultLogLevel,
+		false,
+	)
 
 	return o
 }

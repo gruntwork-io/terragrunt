@@ -20,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runfn"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -1167,6 +1166,12 @@ func setupTerragruntOptionsForBareTerraform(ctx context.Context, pctx *ParsingCo
 // runTerragruntOutputJSON uses terragrunt running functions to extract the json output from the target config.
 // NOTE: targetTGOptions should be in the ctx of the targetConfig.
 func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
+	// Get the runner from context
+	runner := GetTerragruntRunner(ctx)
+	if runner == nil {
+		return nil, errors.Errorf("TerragruntRunner not available in context for dependency output retrieval")
+	}
+
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 
@@ -1179,7 +1184,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	newOpts.Writer = stdoutBufferWriter
 	pctx = pctx.WithTerragruntOptions(&newOpts)
 
-	err := runfn.Run(ctx, l, pctx.TerragruntOptions, report.NewReport())
+	err := runner.Run(ctx, l, pctx.TerragruntOptions, report.NewReport())
 	if err != nil {
 		return nil, errors.New(err)
 	}
