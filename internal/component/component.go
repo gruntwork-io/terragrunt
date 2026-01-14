@@ -124,14 +124,14 @@ func (dc *DiscoveryContext) TofuCLIArgs() []string {
 	return append([]string{dc.Cmd}, dc.Args...)
 }
 
-// ToExecution creates a TerraformExecution from this DiscoveryContext.
+// ToCommandWithArgs creates a CommandWithArgs from this DiscoveryContext.
 // Returns nil if dc is nil. The Args slice is cloned to avoid shared mutation.
-func (dc *DiscoveryContext) ToExecution() *cli.TerraformExecution {
+func (dc *DiscoveryContext) ToCommandWithArgs() *cli.CommandWithArgs {
 	if dc == nil {
 		return nil
 	}
 
-	return &cli.TerraformExecution{
+	return &cli.CommandWithArgs{
 		Cmd:  dc.Cmd,
 		Args: slices.Clone(dc.Args),
 	}

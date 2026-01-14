@@ -2,21 +2,14 @@ package cli
 
 import "slices"
 
-// TerraformExecution holds the command and arguments for a terraform execution.
-// This is passed separately from TerragruntOptions to make the data flow explicit.
-//
-// ARCHITECTURE:
-//   - DiscoveryContext.Cmd/Args is the source of truth (mutable during discovery/preparation)
-//   - TerraformExecution is created from DiscoveryContext via ToExecution()
-//   - TerraformExecution is passed to run.Run() for execution
-//   - TerragruntOptions remains for configuration only, not for command/args
-type TerraformExecution struct {
-	Cmd  string   // The terraform command (plan, apply, destroy, etc.)
-	Args []string // Arguments after the command
+// CommandWithArgs holds the command and arguments for a process.
+type CommandWithArgs struct {
+	Cmd  string
+	Args []string
 }
 
-// TerraformCliArgs returns the full CLI args [cmd, args...] for passing to terraform.
-func (e *TerraformExecution) TerraformCliArgs() []string {
+// CmdWithArgs returns a slice representing the command and arguments to run a process.
+func (e *CommandWithArgs) CmdWithArgs() []string {
 	if e == nil {
 		return nil
 	}
@@ -24,17 +17,8 @@ func (e *TerraformExecution) TerraformCliArgs() []string {
 	return append([]string{e.Cmd}, e.Args...)
 }
 
-// First returns the command name (same as Cmd, for compatibility with cli.Args).
-func (e *TerraformExecution) First() string {
-	if e == nil {
-		return ""
-	}
-
-	return e.Cmd
-}
-
-// Second returns the second argument (first arg after command), or empty string if no args.
-func (e *TerraformExecution) Second() string {
+// FirstArg returns the first argument, or an empty string if there are no args.
+func (e *CommandWithArgs) FirstArg() string {
 	if e == nil || len(e.Args) == 0 {
 		return ""
 	}
@@ -42,8 +26,8 @@ func (e *TerraformExecution) Second() string {
 	return e.Args[0]
 }
 
-// Last returns the last argument, or empty string if no args.
-func (e *TerraformExecution) Last() string {
+// LastArg returns the last argument, or an empty string if no args.
+func (e *CommandWithArgs) LastArg() string {
 	if e == nil || len(e.Args) == 0 {
 		return ""
 	}
@@ -52,7 +36,7 @@ func (e *TerraformExecution) Last() string {
 }
 
 // HasArg checks if args contain the specified argument.
-func (e *TerraformExecution) HasArg(arg string) bool {
+func (e *CommandWithArgs) HasArg(arg string) bool {
 	if e == nil {
 		return false
 	}
@@ -62,7 +46,7 @@ func (e *TerraformExecution) HasArg(arg string) bool {
 
 // InsertArg inserts an argument at the specified position.
 // Does nothing if the argument already exists or if e is nil.
-func (e *TerraformExecution) InsertArg(arg string, position int) {
+func (e *CommandWithArgs) InsertArg(arg string, position int) {
 	if e == nil || e.HasArg(arg) {
 		return
 	}
@@ -71,7 +55,7 @@ func (e *TerraformExecution) InsertArg(arg string, position int) {
 }
 
 // AppendArg appends an argument to the end of the args list.
-func (e *TerraformExecution) AppendArg(arg string) {
+func (e *CommandWithArgs) AppendArg(arg string) {
 	if e == nil {
 		return
 	}
@@ -80,12 +64,12 @@ func (e *TerraformExecution) AppendArg(arg string) {
 }
 
 // Clone creates a deep copy of the TerraformExecution.
-func (e *TerraformExecution) Clone() *TerraformExecution {
+func (e *CommandWithArgs) Clone() *CommandWithArgs {
 	if e == nil {
 		return nil
 	}
 
-	return &TerraformExecution{
+	return &CommandWithArgs{
 		Cmd:  e.Cmd,
 		Args: slices.Clone(e.Args),
 	}
