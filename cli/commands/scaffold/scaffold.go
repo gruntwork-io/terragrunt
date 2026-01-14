@@ -17,7 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"

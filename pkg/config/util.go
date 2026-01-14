@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // CopyLockFile copies the lock file from the source folder to the destination folder.

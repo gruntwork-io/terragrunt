@@ -16,7 +16,7 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 var (

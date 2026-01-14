@@ -17,7 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"

@@ -16,8 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.

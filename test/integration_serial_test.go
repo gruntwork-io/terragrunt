@@ -28,7 +28,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests

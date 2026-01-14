@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // ProviderInstallation is the structure of the "provider_installation" nested block within the CLI configuration.

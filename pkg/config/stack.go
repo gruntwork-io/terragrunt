@@ -19,7 +19,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/zclconf/go-cty/cty"

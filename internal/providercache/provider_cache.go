@@ -24,9 +24,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
