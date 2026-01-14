@@ -44,7 +44,7 @@ func runPrint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	}
 
 	// Download source
-	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, report.NewReport())
+	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, report.NewReport())
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)

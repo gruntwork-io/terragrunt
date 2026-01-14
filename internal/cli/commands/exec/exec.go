@@ -23,7 +23,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 	r := report.NewReport()
 
 	// Download source
-	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, r)
+	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, r)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 		}
 	} else {
 		// Just set inputs as env vars, skip init
-		opts.AutoInit = false
+		updatedOpts.AutoInit = false
 
 		if err := run.PrepareInputsAsEnvVars(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
 			return err
