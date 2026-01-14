@@ -384,11 +384,12 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 			return nil
 		}
 
-		// Reset the discovery context working directory to the original directory.
-		for _, component := range fromComponents {
-			discoveryContext := *component.DiscoveryContext()
+		// Reset the discovery context working directory to the original directory
+		// and set origin to worktree-discovery since these are discovered via worktree discovery.
+		for _, c := range fromComponents {
+			discoveryContext := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
 			discoveryContext.WorkingDir = fromStack.DiscoveryContext().WorkingDir
-			component.SetDiscoveryContext(&discoveryContext)
+			c.SetDiscoveryContext(discoveryContext)
 		}
 
 		return nil
@@ -413,11 +414,12 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 			return nil
 		}
 
-		// Reset the discovery context working directory to the original directory.
-		for _, component := range toComponents {
-			discoveryContext := *component.DiscoveryContext()
+		// Reset the discovery context working directory to the original directory
+		// and set origin to worktree-discovery since these are discovered via worktree discovery.
+		for _, c := range toComponents {
+			discoveryContext := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
 			discoveryContext.WorkingDir = toStack.DiscoveryContext().WorkingDir
-			component.SetDiscoveryContext(&discoveryContext)
+			c.SetDiscoveryContext(discoveryContext)
 		}
 
 		return nil
@@ -501,6 +503,9 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 		}
 
 		if fromSHA != toSHA {
+			// Ensure the component has the correct origin (it should already be set, but ensure it)
+			discoveryContext := componentPair.ToComponent.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+			componentPair.ToComponent.SetDiscoveryContext(discoveryContext)
 			finalComponents = append(finalComponents, componentPair.ToComponent)
 		}
 	}
