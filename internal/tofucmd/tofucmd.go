@@ -1,3 +1,7 @@
+// Package tofucmd provides a struct for holding the command and arguments for a tofu process.
+//
+// It's a convenience struct for ensuring that there's some type safety around controlling the arguments
+// passed to tofu.
 package tofucmd
 
 import "slices"

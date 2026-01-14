@@ -13,8 +13,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 )
 
 // resolvePath resolves symlinks in a path for consistent comparison across platforms.
@@ -68,10 +68,9 @@ type Component interface {
 // on how it was discovered. TerragruntOptions values are meant to be set externally (e.g. from the command line) and
 // left alone afterwards.
 type DiscoveryContext struct {
-	WorkingDir string
-	Ref        string
-
 	CommandWithArgs *tofucmd.TofuCommand
+	WorkingDir      string
+	Ref             string
 }
 
 // IsDestroyCommand returns true if this discovery context represents a destroy operation.

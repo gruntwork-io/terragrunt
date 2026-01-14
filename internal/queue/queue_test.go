@@ -3,9 +3,9 @@ package queue_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

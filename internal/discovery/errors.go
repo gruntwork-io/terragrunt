@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 )
 
 // GitFilterCommandError represents an error that occurs when attempting to use
