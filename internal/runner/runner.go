@@ -81,7 +81,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 	cfgOptions.TerraformCommand = opts.TerraformCommand
 	cfgOptions.TerraformCliArgs = opts.TerraformCliArgs
-	cfgOptions.CheckDependentModules = opts.CheckDependentModules
+	cfgOptions.CheckDependentUnits = opts.CheckDependentUnits
 	cfgOptions.NonInteractive = true
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
@@ -156,4 +156,4 @@ func convertRunConfigToTerragruntConfig(cfg *runcfg.RunConfig) *config.Terragrun
 }
 
 // Ensure DependentModulesFinder implements the interface
-var _ runcfg.DependentModulesFinder = (*DependentModulesFinder)(nil)
+var _ runcfg.DependentUnitsFinder = (*DependentModulesFinder)(nil)
