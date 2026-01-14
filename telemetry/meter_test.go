@@ -6,7 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
