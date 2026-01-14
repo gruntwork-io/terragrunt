@@ -88,12 +88,11 @@ func ReadCatalogConfig(parentCtx context.Context, l log.Logger, opts *options.Te
 
 	opts.TerragruntConfigPath = configPath
 
-	ctx := NewParsingContext(parentCtx, l, opts)
-	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
-	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
+	parentCtx, pctx := NewParsingContext(parentCtx, l, opts)
+	pctx.ParserOptions = append(pctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
+	pctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
-	// TODO: Resolve lint error
-	config, err := ParseConfigString(ctx, l, configPath, configString, nil) //nolint:contextcheck
+	config, err := ParseConfigString(parentCtx, pctx, l, configPath, configString, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +121,9 @@ func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.Terragru
 		default: // continue
 		}
 
-		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, l, opts), l, []string{configName}) //nolint:contextcheck
+		parseCtx, pctx := NewParsingContext(ctx, l, opts)
+
+		newConfigPath, err := FindInParentFolders(parseCtx, pctx, l, []string{configName})
 		if err != nil {
 			var parentFileNotFoundError ParentFileNotFoundError
 			if ok := errors.As(err, &parentFileNotFoundError); ok {
@@ -162,7 +163,7 @@ func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.Terragru
 	return "", "", nil
 }
 
-func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntCatalogConfig(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
 		defaultMetadata  = map[string]any{FoundInFile: configPath}
@@ -189,11 +190,11 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		terragruntConfig.SetFieldMetadata(MetadataErrors, defaultMetadata)
 	}
 
-	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
+	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
 		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
 		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
-		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*ctx.Locals)
+		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*pctx.Locals)
 		// Only set Locals if there are actual values to avoid setting an empty map
 		if len(localsParsed) > 0 {
 			terragruntConfig.Locals = localsParsed

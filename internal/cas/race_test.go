@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ import (
 func TestCASGetterGetWithRacing(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
 	c, err := cas.New(cas.Options{
@@ -52,7 +53,7 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			res, err := client.Get(
 				t.Context(),

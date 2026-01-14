@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -276,7 +277,7 @@ func TestHCLFmtStdin(t *testing.T) {
 	realStdin := os.Stdin
 	realStdout := os.Stdout
 
-	tempStdoutFile, err := os.CreateTemp(t.TempDir(), "stdout.hcl")
+	tempStdoutFile, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "stdout.hcl")
 
 	defer func() {
 		_ = tempStdoutFile.Close()

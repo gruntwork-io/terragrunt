@@ -2,6 +2,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 
 	"dario.cat/mergo"
@@ -21,9 +22,10 @@ import (
 // length) and returns as output a string. The implementation of the function calls the given toWrap function, passing
 // it the input parameters string slice as well as the given include and terragruntOptions.
 func wrapStringSliceToStringAsFuncImpl(
-	ctx *ParsingContext,
+	ctx context.Context,
+	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx *ParsingContext, l log.Logger, params []string) (string, error),
+	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -33,7 +35,7 @@ func wrapStringSliceToStringAsFuncImpl(
 			if err != nil {
 				return cty.StringVal(""), err
 			}
-			out, err := toWrap(ctx, l, params)
+			out, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -43,9 +45,10 @@ func wrapStringSliceToStringAsFuncImpl(
 }
 
 func wrapStringSliceToNumberAsFuncImpl(
-	ctx *ParsingContext,
+	ctx context.Context,
+	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx *ParsingContext, l log.Logger, params []string) (int64, error),
+	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (int64, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -55,7 +58,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
-			out, err := toWrap(ctx, l, params)
+			out, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
@@ -65,8 +68,9 @@ func wrapStringSliceToNumberAsFuncImpl(
 }
 
 func wrapStringSliceToBoolAsFuncImpl(
-	ctx *ParsingContext,
-	toWrap func(ctx *ParsingContext, params []string) (bool, error),
+	ctx context.Context,
+	pctx *ParsingContext,
+	toWrap func(ctx context.Context, pctx *ParsingContext, params []string) (bool, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -76,7 +80,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
-			out, err := toWrap(ctx, params)
+			out, err := toWrap(ctx, pctx, params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
@@ -88,14 +92,15 @@ func wrapStringSliceToBoolAsFuncImpl(
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(
-	ctx *ParsingContext,
+	ctx context.Context,
+	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx *ParsingContext, l log.Logger) (string, error),
+	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			out, err := toWrap(ctx, l)
+			out, err := toWrap(ctx, pctx, l)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -117,14 +122,15 @@ func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 // Create a cty Function that takes no input parameters and returns as output a string slice. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringSliceAsFuncImpl(
-	ctx *ParsingContext,
+	ctx context.Context,
+	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx *ParsingContext, l log.Logger) ([]string, error),
+	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals, err := toWrap(ctx, l)
+			outVals, err := toWrap(ctx, pctx, l)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -258,17 +264,17 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // NOTE: When evaluated in a partial parse ctx, only the partially parsed ctx is available in the expose. This
 // ensures that we can parse the child config without having access to dependencies when constructing the dependency
 // graph.
-func includeMapAsCtyVal(ctx *ParsingContext, l log.Logger) (cty.Value, error) {
-	bareInclude, hasBareInclude := ctx.TrackInclude.CurrentMap[bareIncludeKey]
-	if len(ctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
+func includeMapAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger) (cty.Value, error) {
+	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
+	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(ctx, l, bareInclude)
+		return includeConfigAsCtyVal(ctx, pctx, l, bareInclude)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
-	for key, included := range ctx.TrackInclude.CurrentMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, included)
+	for key, included := range pctx.TrackInclude.CurrentMap {
+		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, pctx, l, included)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -285,11 +291,11 @@ func includeMapAsCtyVal(ctx *ParsingContext, l log.Logger) (cty.Value, error) {
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
-func includeConfigAsCtyVal(ctx *ParsingContext, l log.Logger, includeConfig IncludeConfig) (cty.Value, error) {
-	ctx = ctx.WithTrackInclude(nil)
+func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger, includeConfig IncludeConfig) (cty.Value, error) {
+	pctx = pctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {
-		parsedIncluded, err := parseIncludedConfig(ctx, l, &includeConfig)
+		parsedIncluded, err := parseIncludedConfig(ctx, pctx, l, &includeConfig)
 		if err != nil {
 			return cty.NilVal, err
 		}

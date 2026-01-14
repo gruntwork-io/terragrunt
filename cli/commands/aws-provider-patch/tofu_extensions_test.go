@@ -10,6 +10,7 @@ import (
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -179,7 +180,7 @@ func TestPatchAwsProviderInTofuCode(t *testing.T) {
 func TestFindAllTerraformFilesIncludesTofuFiles(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	terraformModulesDir := filepath.Join(tmpDir, ".terraform", "modules")
 	require.NoError(t, os.MkdirAll(terraformModulesDir, 0755))

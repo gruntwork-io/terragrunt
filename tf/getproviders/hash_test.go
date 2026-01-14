@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ import (
 func createFakeZipArchive(t *testing.T, content []byte) string {
 	t.Helper()
 
-	file, err := os.CreateTemp(t.TempDir(), "*")
+	file, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "*")
 	require.NoError(t, err)
 
 	defer file.Close()

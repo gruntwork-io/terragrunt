@@ -3,10 +3,10 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey string) {
 	t.Helper()
 
-	modFullPath := util.JoinPath(registryFixturePath, modPath)
+	modFullPath := filepath.Join(registryFixturePath, modPath)
 	helpers.CleanupTerraformFolder(t, modFullPath)
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+modFullPath)
 

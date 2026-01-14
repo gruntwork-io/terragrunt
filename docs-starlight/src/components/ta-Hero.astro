@@ -1,0 +1,43 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import HeroCompleteBackground from '@assets/hero-bg.png';
+import MobileHeroBackground from '@assets/hero-bg.png';
+import TerragruntAmbassadorLogo from '@assets/terragrunt-ambassador-logo.svg';
+---
+
+<section class="relative min-h-[600px] flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden pt-[var(--sl-nav-height)]">
+    <!-- Hero Background -->
+    <Image
+      src={MobileHeroBackground}
+      alt="Isometric background pattern"
+      class="absolute bottom-0 left-1/4 transform -translate-x-1/4 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none block md:hidden"
+      decoding="async"
+      loading="eager"
+      width={900}
+    />
+
+    <!-- Tablet or wider Image -->
+    <Image
+      src={HeroCompleteBackground}
+      alt="Isometric background pattern with terragrunt logo"
+      class="absolute bottom-0 left-1/2 transform -translate-x-1/2 min-w-[100vw] h-auto z-0 pointer-events-none select-none hidden md:block"
+      decoding="async"
+      loading="eager"
+      width={1440}
+    />
+
+    <div class="flex flex-col gap-5 h-full w-full text-center">
+        <div class="flex flex-col justify-center gap-5 h-full w-full max-w-[1024px] md:max-w-[900px] mx-auto p-6">
+            <Image src={TerragruntAmbassadorLogo} alt="Terragrunt Ambassador Program Logo" class="w-52 h-auto mx-auto" />
+            <h1 class="text-4xl md:text-6xl text-white leading-12 md:leading-18 m-0">
+              Terragrunt Ambassador Program
+            </h1>
+            <p class="px-12 lg:px-40 md:px-0 text-lg text-[var(--color-gray-1)]">
+              Recognizing, empowering, and amplifying the most passionate and knowledgeable members of the Terragrunt community.
+            </p>
+        </div>
+    </div>
+
+</section>

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	libflag "flag"
 	"os"
 	"strings"
@@ -156,9 +157,9 @@ func (flag *MapFlag[K, V]) Names() []string {
 }
 
 // RunAction implements ActionableFlag.RunAction
-func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
+func (flag *MapFlag[K, V]) RunAction(ctx context.Context, cliCtx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx, *flag.Destination)
+		return flag.Action(ctx, cliCtx, *flag.Destination)
 	}
 
 	return nil

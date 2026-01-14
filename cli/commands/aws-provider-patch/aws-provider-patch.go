@@ -12,6 +12,8 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -23,9 +25,58 @@ import (
 const defaultKeyParts = 2
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	if opts.RunAll {
+		return runAll(ctx, l, opts)
+	}
+
+	return runSingle(ctx, l, opts)
+}
+
+func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
 
 	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+}
+
+func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return err
+	}
+
+	units := components.Filter(component.UnitKind).Sort()
+
+	var errs []error
+
+	for _, unit := range units {
+		unitOpts := opts.Clone()
+		unitOpts.WorkingDir = unit.Path()
+
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+
+		if err := runSingle(ctx, l, unitOpts); err != nil {
+			if opts.FailFast {
+				return err
+			}
+
+			l.Errorf("aws-provider-patch failed for %s: %v", unit.Path(), err)
+
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
@@ -88,7 +139,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 	// API, so the way we parse/read this modules.json file may break in future Terraform versions. Note that we
 	// can't use the official HashiCorp code to parse this file, as it's marked internal:
 	// https://github.com/hashicorp/terraform/blob/master/internal/modsdir/manifest.go
-	modulesJSONPath := util.JoinPath(opts.DataDir(), "modules", "modules.json")
+	modulesJSONPath := filepath.Join(opts.DataDir(), "modules", "modules.json")
 
 	if !util.FileExists(modulesJSONPath) {
 		return nil, nil
@@ -110,7 +161,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 		if module.Key != "" && module.Dir != "" {
 			moduleAbsPath := module.Dir
 			if !filepath.IsAbs(moduleAbsPath) {
-				moduleAbsPath = util.JoinPath(opts.WorkingDir, moduleAbsPath)
+				moduleAbsPath = filepath.Join(opts.WorkingDir, moduleAbsPath)
 			}
 
 			moduleFiles, err := util.FindTFFiles(moduleAbsPath)

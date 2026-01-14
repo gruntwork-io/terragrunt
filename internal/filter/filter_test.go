@@ -12,13 +12,27 @@ import (
 )
 
 var testComponents = []component.Component{
-	component.NewUnit("./apps/app1"),
-	component.NewUnit("./apps/app2"),
-	component.NewUnit("./apps/legacy"),
-	component.NewUnit("./libs/db"),
-	component.NewUnit("./libs/api"),
-	component.NewUnit("./services/web"),
-	component.NewUnit("./services/worker"),
+	component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
+	component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
+	component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
+	component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
+	component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
+	component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
+	component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	}),
 }
 
 func TestFilter_ParseAndEvaluate(t *testing.T) {
@@ -34,65 +48,99 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 			name:         "simple name filter",
 			filterString: "app1",
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
 			expected: component.Components{
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./libs/db"),
-				component.NewUnit("./libs/api"),
-				component.NewUnit("./services/web"),
-				component.NewUnit("./services/worker"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "intersection of path and name",
 			filterString: "./apps/* | app1",
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "intersection with negation",
 			filterString: "./apps/* | !legacy",
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "chained intersections",
 			filterString: "./apps/* | !legacy | app1",
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
 			expected: component.Components{
-				component.NewUnit("./services/web"),
-				component.NewUnit("./services/worker"),
+				component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -119,7 +167,7 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := filter.Parse(tt.filterString, ".")
+			filter, err := filter.Parse(tt.filterString)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -159,7 +207,9 @@ func TestFilter_Apply(t *testing.T) {
 			filterString: "app1",
 			components:   testComponents,
 			expected: component.Components{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -167,8 +217,12 @@ func TestFilter_Apply(t *testing.T) {
 			filterString: "./libs/*",
 			components:   testComponents,
 			expected: component.Components{
-				component.NewUnit("./libs/db"),
-				component.NewUnit("./libs/api"),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -191,7 +245,7 @@ func TestFilter_Apply(t *testing.T) {
 			t.Parallel()
 
 			l := log.New()
-			result, err := filter.Apply(l, tt.filterString, ".", tt.components)
+			result, err := filter.Apply(l, tt.filterString, tt.components)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -211,14 +265,14 @@ func TestFilter_Expression(t *testing.T) {
 	t.Parallel()
 
 	filterString := "name=foo"
-	f, err := filter.Parse(filterString, ".")
+	f, err := filter.Parse(filterString)
 	require.NoError(t, err)
 
 	expr := f.Expression()
 	assert.NotNil(t, expr)
 
 	// Verify it's the correct type
-	attrFilter, ok := expr.(*filter.AttributeFilter)
+	attrFilter, ok := expr.(*filter.AttributeExpression)
 	assert.True(t, ok)
 	assert.Equal(t, "name", attrFilter.Key)
 	assert.Equal(t, "foo", attrFilter.Value)
@@ -237,6 +291,12 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 		component.NewUnit("./apps/backend"),
 		component.NewUnit("./apps/api"),
 		component.NewUnit("./test/test-app"),
+	}
+
+	for _, c := range repoComponents {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
 	}
 
 	tests := []struct {
@@ -282,7 +342,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 			t.Parallel()
 
 			l := log.New()
-			result, err := filter.Apply(l, tt.filterString, ".", repoComponents)
+			result, err := filter.Apply(l, tt.filterString, repoComponents)
 			require.NoError(t, err)
 
 			var resultNames []string
@@ -302,7 +362,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		l := log.New()
-		result, err := filter.Apply(l, "nonexistent", ".", testComponents)
+		result, err := filter.Apply(l, "nonexistent", testComponents)
 		require.NoError(t, err)
 
 		assert.Empty(t, result)
@@ -311,7 +371,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("multiple parse and evaluate calls", func(t *testing.T) {
 		t.Parallel()
 
-		filter, err := filter.Parse("app1", ".")
+		filter, err := filter.Parse("app1")
 		require.NoError(t, err)
 
 		l := log.New()
@@ -337,13 +397,17 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		}
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./apps/app2"),
+			component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			}),
+			component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			}),
 		}
 
 		for _, tt := range tests {
 			l := log.New()
-			result, err := filter.Apply(l, tt.filterString, ".", testComponents)
+			result, err := filter.Apply(l, tt.filterString, testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, result)

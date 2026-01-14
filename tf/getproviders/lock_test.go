@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders/mocks"
@@ -21,7 +22,7 @@ import (
 func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, version string) getproviders.Provider {
 	t.Helper()
 
-	packageDir := t.TempDir()
+	packageDir := helpers.TmpDirWOSymlinks(t)
 	file, err := os.Create(filepath.Join(packageDir, "terraform-provider-v"+version))
 	require.NoError(t, err)
 	_, err = fmt.Fprintf(file, "mock-provider-content-%s-%s", address, version)
@@ -200,7 +201,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				}
 			}
 
-			workingDir := t.TempDir()
+			workingDir := helpers.TmpDirWOSymlinks(t)
 			lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
 
 			if tc.initialLockfile != "" {

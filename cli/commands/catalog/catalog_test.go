@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 	// Create mock repository function for testing
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		// Create a temporary directory structure for testing
-		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
+		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
@@ -46,7 +47,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 	}
 
 	// Create a temporary root config file
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	rootFile := filepath.Join(tmpDir, "root.hcl")
 	err = os.WriteFile(rootFile, []byte(`catalog {
 	urls = [

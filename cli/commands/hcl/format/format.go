@@ -17,8 +17,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
@@ -54,7 +54,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if targetFile != "" {
 		if !filepath.IsAbs(targetFile) {
-			targetFile = util.JoinPath(workingDir, targetFile)
+			targetFile = filepath.Join(workingDir, targetFile)
 		}
 
 		l.Debugf("Formatting hcl file at: %s.", targetFile)
@@ -67,11 +67,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		err     error
 	)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, err = filter.ParseFilterQueries(opts.FilterQueries, workingDir)
-		if err != nil {
-			return errors.New(err)
-		}
+	filters, err = filter.ParseFilterQueries(opts.FilterQueries)
+	if err != nil {
+		return errors.New(err)
 	}
 
 	// We use lightweight discovery here instead of the full discovery used by
@@ -112,16 +110,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	var components component.Components
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		components, err = filters.EvaluateOnFiles(l, files)
-		if err != nil {
-			return errors.New(err)
-		}
-	} else {
-		components = make(component.Components, 0, len(files))
-		for _, file := range files {
-			components = append(components, component.NewUnit(file))
-		}
+	components, err = filters.EvaluateOnFiles(l, files, workingDir)
+	if err != nil {
+		return errors.New(err)
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -299,7 +290,33 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 		return nil, err
 	}
 
-	data, err := exec.CommandContext(ctx, "diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
+	diffPath, err := exec.LookPath("diff")
+	if err != nil {
+		return nil, fmt.Errorf("failed to find diff command in PATH: %w", err)
+	}
+
+	cmd := exec.CommandContext(
+		ctx,
+		diffPath,
+		"--label="+filepath.Join("old", path),
+		"--label="+filepath.Join("new/", path),
+		"-u",
+		f1.Name(),
+		f2.Name(),
+	)
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
+	}
+
+	data, err := cmd.CombinedOutput()
 	if len(data) > 0 {
 		// diff exits with a non-zero status when the files don't match.
 		// Ignore that failure as long as we get output.

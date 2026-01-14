@@ -4,10 +4,10 @@ package test_test
 
 import (
 	"crypto/rand"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	tcexec "github.com/testcontainers/testcontainers-go/exec"
@@ -55,8 +55,8 @@ func TestTofuStateEncryptionOpenbao(t *testing.T) {
 	helpers.ContExecNoOutput(t, baoC, "bao write -f "+baoKeyPath, execOptions...)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionOpenbao)
-	workDir := util.JoinPath(tmpEnvPath, testFixtureTofuStateEncryptionOpenbao)
-	configPath := util.JoinPath(workDir, "terragrunt.hcl")
+	workDir := filepath.Join(tmpEnvPath, testFixtureTofuStateEncryptionOpenbao)
+	configPath := filepath.Join(workDir, "terragrunt.hcl")
 
 	helpers.CopyAndFillMapPlaceholders(t, configPath, configPath, map[string]string{
 		"__FILL_IN_OPENBAO_KEY_NAME__": baoKey,

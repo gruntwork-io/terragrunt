@@ -3,21 +3,16 @@ package run
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -26,6 +21,9 @@ const (
 )
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
+	cmdFlags := NewFlags(l, opts, nil)
+	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
+
 	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run an OpenTofu/Terraform command.",
@@ -34,24 +32,27 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Examples: []string{
 			"# Run a plan\nterragrunt run -- plan\n# Shortcut:\n# terragrunt plan",
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",
-			// TODO: Add this example back when we support `run --all` again.
-			//
-			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:       NewFlags(l, opts, nil),
+		Flags:       cmdFlags,
 		Subcommands: NewSubcommands(l, opts),
-		Action: func(ctx *cli.Context) error {
-			if len(ctx.Args()) == 0 {
-				return cli.ShowCommandHelp(ctx)
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
+			tgOpts := opts.OptionsFromContext(ctx)
+
+			if tgOpts.RunAll {
+				return runall.Run(ctx, l, tgOpts)
 			}
 
-			return Action(l, opts)(ctx)
+			if tgOpts.Graph {
+				return graph.Run(ctx, l, tgOpts)
+			}
+
+			if len(cliCtx.Args()) == 0 {
+				return cli.ShowCommandHelp(ctx, cliCtx)
+			}
+
+			return Action(l, opts)(ctx, cliCtx)
 		},
 	}
-
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run, false)
-	cmd = graph.WrapCommand(l, opts, cmd, run.Run, false)
-	cmd = wrapWithStackGenerate(l, opts, cmd)
 
 	return cmd
 }
@@ -67,8 +68,8 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 			Usage:      usage,
 			Hidden:     !visible,
 			CustomHelp: ShowTFHelp(l, opts),
-			Action: func(ctx *cli.Context) error {
-				return Action(l, opts)(ctx)
+			Action: func(ctx context.Context, cliCtx *cli.Context) error {
+				return Action(l, opts)(ctx, cliCtx)
 			},
 		}
 		subcommands[i] = subcommand
@@ -78,86 +79,29 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 }
 
 func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
+	return func(ctx context.Context, _ *cli.Context) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
-			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
-		}
-
-		if err := validateCommand(opts); err != nil {
-			return err
+			opts.CheckDependentModules = opts.DestroyDependenciesCheck
 		}
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-		return run.Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
+		tgOpts := opts.OptionsFromContext(ctx)
+
+		if tgOpts.RunAll {
+			return runall.Run(ctx, l, tgOpts)
+		}
+
+		if tgOpts.Graph {
+			return graph.Run(ctx, l, tgOpts)
+		}
+
+		return run.Run(ctx, l, tgOpts, r)
 	}
 }
 
-func validateCommand(opts *options.TerragruntOptions) error {
-	if opts.DisableCommandValidation || collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
-		return nil
-	}
-
-	if isTerraformPath(opts) {
-		return run.WrongTerraformCommand(opts.TerraformCommand)
-	}
-
-	return run.WrongTofuCommand(opts.TerraformCommand)
-}
-
+// isTerraformPath returns true if the TFPath ends with the default Terraform path.
+// This is used by help.go to determine whether to show "Terraform" or "OpenTofu" in help text.
 func isTerraformPath(opts *options.TerragruntOptions) bool {
 	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
-}
-
-// wrapWithStackGenerate wraps a CLI command to handle automatic stack generation.
-// It generates a stack configuration file when running terragrunt with --all or --graph flags,
-// unless explicitly disabled with --no-stack-generate.
-func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
-	// Wrap the command's action to inject stack generation logic
-	cmd = cmd.WrapAction(func(ctx *cli.Context, action cli.ActionFunc) error {
-		// Determine if stack generation should occur based on command flags
-		// Stack generation is triggered by --all or --graph flags, unless --no-stack-generate is set
-		shouldGenerateStack := (opts.RunAll || opts.Graph) && !opts.NoStackGenerate
-
-		// Skip stack generation if not needed
-		if !shouldGenerateStack {
-			l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
-			return action(ctx)
-		}
-
-		// Set the stack config path to the default location in the working directory
-		opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
-
-		// Clean stack folders before calling `generate` when the `--source-update` flag is passed
-		if opts.SourceUpdate {
-			errClean := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
-				"stack_config_path": opts.TerragruntStackConfigPath,
-				"working_dir":       opts.WorkingDir,
-			}, func(ctx context.Context) error {
-				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
-				return config.CleanStacks(ctx, l, opts)
-			})
-			if errClean != nil {
-				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
-			}
-		}
-
-		// Generate the stack configuration with telemetry tracking
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
-			"stack_config_path": opts.TerragruntStackConfigPath,
-			"working_dir":       opts.WorkingDir,
-		}, func(ctx context.Context) error {
-			return generate.GenerateStacks(ctx, l, opts)
-		})
-
-		// Handle any errors during stack generation
-		if err != nil {
-			return errors.Errorf("failed to generate stack file: %w", err)
-		}
-
-		// Execute the original command action after successful stack generation
-		return action(ctx)
-	})
-
-	return cmd
 }

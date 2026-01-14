@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -26,15 +27,15 @@ const bareIncludeKey = ""
 var fieldsCopyLocks = util.NewKeyLocks()
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
+func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntOptions.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
+		includePath = filepath.Join(filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
 	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt
@@ -86,22 +87,28 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 		return nil, err
 	}
 
-	if hasDependency && len(ctx.PartialParseDecodeList) > 0 {
+	if hasDependency && len(pctx.PartialParseDecodeList) > 0 {
 		l.Debugf(
 			"Included config %s can only be partially parsed during dependency graph formation for run --all command as it has a dependency block.",
 			includePath,
 		)
 
-		return PartialParseConfigFile(ctx, l, includePath, includedConfig)
+		return PartialParseConfigFile(ctx, pctx, l, includePath, includedConfig)
 	}
 
-	config, err := ParseConfigFile(ctx, l, includePath, includedConfig)
+	// When included config has dependencies, suppress diagnostics during parsing.
+	parseCtx := pctx
+	if hasDependency {
+		parseCtx = pctx.WithDiagnosticsSuppressed(l)
+	}
+
+	config, err := ParseConfigFile(ctx, parseCtx, l, includePath, includedConfig)
 	if err != nil {
 		var configNotFoundError TerragruntConfigNotFoundError
 		if errors.As(err, &configNotFoundError) {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
-				SourcePath:  ctx.TerragruntOptions.TerragruntConfigPath,
+				SourcePath:  pctx.TerragruntOptions.TerragruntConfigPath,
 			}
 		}
 
@@ -113,14 +120,14 @@ func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *Incl
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
-	if ctx.TrackInclude == nil {
+func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
+	if pctx.TrackInclude == nil {
 		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
-	includeList := ctx.TrackInclude.CurrentList
+	includeList := pctx.TrackInclude.CurrentList
 	baseConfig := config
 
 	for i := len(includeList) - 1; i >= 0; i-- {
@@ -136,13 +143,13 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 			logPrefix           string
 		)
 
-		trackFileRead(ctx.FilesRead, includeConfig.Path)
+		trackFileRead(pctx.FilesRead, includeConfig.Path)
 
 		if isPartial {
-			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, &includeConfig)
+			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)
 			logPrefix = "[Partial] "
 		} else {
-			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, &includeConfig)
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, pctx, l, &includeConfig)
 		}
 
 		if err != nil {
@@ -156,7 +163,7 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 		case ShallowMerge:
 			l.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.Path)
 
-			if err := parsedIncludeConfig.Merge(l, baseConfig, ctx.TerragruntOptions); err != nil {
+			if err := parsedIncludeConfig.Merge(l, baseConfig, pctx.TerragruntOptions); err != nil {
 				return nil, err
 			}
 
@@ -164,7 +171,7 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 		case DeepMerge:
 			l.Debugf("%sIncluded config %s has strategy deep merge: merging config in (deep).", logPrefix, includeConfig.Path)
 
-			if err := parsedIncludeConfig.DeepMerge(l, baseConfig, ctx.TerragruntOptions); err != nil {
+			if err := parsedIncludeConfig.DeepMerge(l, baseConfig, pctx.TerragruntOptions); err != nil {
 				return nil, err
 			}
 
@@ -181,13 +188,13 @@ func handleInclude(ctx *ParsingContext, l log.Logger, config *TerragruntConfig, 
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(ctx *ParsingContext, l log.Logger, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
-	if ctx.TrackInclude == nil {
+func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log.Logger, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
+	if pctx.TrackInclude == nil {
 		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
-	includeList := ctx.TrackInclude.CurrentList
+	includeList := pctx.TrackInclude.CurrentList
 	baseDependencyBlock := childDecodedDependency.Dependencies
 
 	for i := len(includeList) - 1; i >= 0; i-- {
@@ -199,7 +206,7 @@ func handleIncludeForDependency(ctx *ParsingContext, l log.Logger, childDecodedD
 		}
 
 		includedPartialParse, err := partialParseIncludedConfig(
-			ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock), l, &includeConfig)
+			ctx, pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock), l, &includeConfig)
 		if err != nil {
 			return nil, err
 		}

@@ -1,0 +1,57 @@
+---
+import { Image } from 'astro:assets';
+
+import Customers from '@assets/img/customers.png';
+import ContactForm from '@components/ta-ContactForm.astro';
+import Header from '@components/Header.astro';
+import PageContainer from '@components/PageContainer.astro';
+
+import '@styles/global.css';
+import '@styles/custom-page.css';
+---
+
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Contact Terragrunt - Get in touch with the Terragrunt team for support, questions, or feedback" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Contact - Terragrunt</title>
+	</head>
+
+  <body class="tg h-full bg-[var(--color-bg-dark)]">
+    <div class="fixed top-0 z-50">
+      <Header showThemeToggle={false} />
+    </div>
+
+    <PageContainer borderOuter="border-[#343956]" borderInner='border-transparent'>
+      <div class="grid grid-cols-1 lg:grid-cols-2 pt-[100px] lg:gap-12 mx-[50px] mt-12">
+
+        <!-- Left -->
+        <div class="mr-auto max-w-md lg:max-w-[550px] mx-auto lg:mr-auto">
+          <div class="w-full mb-10 sm:mb-20">
+            <h2 class="text-4xl text-white md:text-[42px] font-sans m-0 mb-[32px]">
+              Interested in being a Terragrunt Ambassador?
+            </h2>
+            <p class="text-base font-sans text-gray-1">
+              Let us know why you think you’d make a great Ambassador. We’re looking to hear from you!
+            </p>
+          </div>
+          <div class="hidden lg:block max-w-[472px] mt-0 lg:mt-[100px] xl:mt-[100px]">
+            <h4 class="text-base text-white !font-medium mb-[50px]">Thousands of engineers build with Terragrunt</h4>
+            <Image src={Customers} alt="Terragrunt Users" class="w-full h-auto max-w-full" />
+          </div>
+        </div>
+
+        <!-- Right -->
+        <div class="relative z-20 mb-[50px]">
+          <ContactForm />
+        </div>
+
+      </div>
+    </PageContainer>
+
+  </body>
+</html>

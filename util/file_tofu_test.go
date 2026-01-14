@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,7 +155,7 @@ func TestDirContainsTFFiles(t *testing.T) {
 			t.Parallel()
 
 			// Create temporary directory
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			// Create directories
 			for _, dir := range tc.directories {
@@ -242,7 +243,7 @@ func TestFindTFFiles(t *testing.T) {
 			t.Parallel()
 
 			// Create temporary directory
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			// Create directories
 			for _, dir := range tc.directories {
@@ -411,7 +412,7 @@ module "database" {
 			t.Parallel()
 
 			// Create temporary directory
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			// Create directories
 			for _, dir := range tc.directories {
@@ -455,7 +456,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		// Create a directory and file, then remove read permissions
-		tmpDir := t.TempDir()
+		tmpDir := helpers.TmpDirWOSymlinks(t)
 		testFile := filepath.Join(tmpDir, "test.tf")
 		require.NoError(t, os.WriteFile(testFile, []byte("content"), 0644))
 

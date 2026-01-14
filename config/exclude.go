@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -78,7 +79,7 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 }
 
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
-func evaluateExcludeBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.File) (*ExcludeConfig, error) {
+func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*ExcludeConfig, error) {
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,7 @@ func evaluateExcludeBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.Fil
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err

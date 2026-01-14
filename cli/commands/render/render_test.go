@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	t.Parallel()
 
 	opts, _ := setupTest(t)
-	outputPath := filepath.Join(t.TempDir(), "output.json")
+	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
 	opts.Format = render.FormatJSON
 	opts.DisableDependentModules = true
 	opts.RenderMetadata = false
@@ -122,7 +123,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 func setupTest(t *testing.T) (*render.Options, string) {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 	err := os.WriteFile(configPath, []byte(testTerragruntConfigFixture), 0644)
 	require.NoError(t, err)

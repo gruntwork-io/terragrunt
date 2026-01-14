@@ -47,7 +47,13 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 	}
 
 	cmdOutput := strings.TrimSpace(cmd.Stdout.String())
-	l.Debugf("git show-toplevel result: \n%v\n%v\n%v\n", stdout.String(), stderr.String(), cmdOutput)
+
+	if stderrString := strings.TrimSpace(stderr.String()); stderrString != "" {
+		l.Warnf("git rev-parse --show-toplevel resulted in stderr output: \n%v\n", stderrString)
+	}
+
+	l.Debugf("git show-toplevel result: %s", cmdOutput)
+
 	runCache.Put(ctx, cacheKey, cmdOutput)
 
 	return cmdOutput, nil

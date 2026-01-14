@@ -2,6 +2,7 @@
 package global
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -130,7 +131,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars: tgPrefix.EnvVars(LogFormatFlagName),
 			Usage:   "Set the log format.",
 			Setter:  l.Formatter().SetFormat,
-			Action: func(_ *cli.Context, val string) error {
+			Action: func(_ context.Context, _ *cli.Context, val string) error {
 				switch val {
 				case format.BareFormatName:
 					opts.ForwardTFStdout = true
@@ -185,7 +186,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
 			Setter:  opts.Experiments.EnableExperiment,
-			Action: func(_ *cli.Context, val []string) error {
+			Action: func(_ context.Context, _ *cli.Context, _ []string) error {
 				opts.Experiments.NotifyCompletedExperiments(l)
 
 				return nil
@@ -204,7 +205,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 				return nil
 			},
-			Action: func(_ *cli.Context, _ bool) error {
+			Action: func(_ context.Context, _ *cli.Context, _ bool) error {
 				opts.StrictControls.LogEnabled(l)
 
 				return nil
@@ -219,7 +220,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Setter: func(val string) error {
 				return opts.StrictControls.EnableControl(val)
 			},
-			Action: func(_ *cli.Context, _ []string) error {
+			Action: func(_ context.Context, _ *cli.Context, _ []string) error {
 				opts.StrictControls.LogEnabled(l)
 
 				return nil
@@ -294,7 +295,7 @@ func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags
 		DefaultText: l.Level().String(),
 		Setter:      l.SetLevel,
 		Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s.", log.AllLevels),
-		Action: func(_ *cli.Context, val string) error {
+		Action: func(_ context.Context, _ *cli.Context, val string) error {
 			// Before the release of v0.67.0, these levels actually disabled logs, since we do not use these levels for logging.
 			// For backward compatibility we simulate the same behavior.
 			removedLevels := []string{
@@ -318,16 +319,16 @@ func NewHelpVersionFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flag
 			Name:    HelpFlagName,  // --help, -help
 			Aliases: []string{"h"}, //  -h
 			Usage:   "Show help.",
-			Action: func(ctx *cli.Context, _ bool) error {
-				return help.Action(ctx, l, opts)
+			Action: func(ctx context.Context, cliCtx *cli.Context, _ bool) error {
+				return help.Action(ctx, cliCtx, l, opts)
 			},
 		},
 		&cli.BoolFlag{
 			Name:    VersionFlagName, // --version, -version
 			Aliases: []string{"v"},   //  -v
 			Usage:   "Show terragrunt version.",
-			Action: func(ctx *cli.Context, _ bool) (err error) {
-				return version.Action(ctx)
+			Action: func(ctx context.Context, cliCtx *cli.Context, _ bool) (err error) {
+				return version.Action(ctx, cliCtx)
 			},
 		},
 	}

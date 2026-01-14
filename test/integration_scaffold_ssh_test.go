@@ -34,7 +34,7 @@ func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithCustomDefaultTemplate)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
+	testPath := filepath.Join(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 		"terragrunt --non-interactive --working-dir %s scaffold %s",
@@ -52,7 +52,7 @@ func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 func TestSSHScaffoldModuleExternalTemplate(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s %s", tmpEnvPath, testScaffoldModuleGit, testScaffoldExternalTemplateModule))
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestSSHScaffoldModuleExternalTemplate(t *testing.T) {
 func TestSSHScaffoldModuleDifferentRevisionAndSSH(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=Ref=v0.67.4 --var=SourceUrlType=git-ssh", tmpEnvPath, testScaffoldModuleShort))
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestSSHScaffoldModuleDifferentRevisionAndSSH(t *testing.T) {
 func TestSSHScaffoldModuleSSH(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleGit))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Scaffolding completed")
@@ -85,7 +85,7 @@ func TestSSHScaffoldModuleSSH(t *testing.T) {
 func TestSSHScaffoldModuleTemplate(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldTemplateModule))
 	require.NoError(t, err)
@@ -102,11 +102,11 @@ Ref: v0.67.4
 EnableRootInclude: false
 SourceUrlType: "git-ssh"
 `
-	varFile := filepath.Join(t.TempDir(), "var-file.yaml")
+	varFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "var-file.yaml")
 	err := os.WriteFile(varFile, []byte(varFileContent), 0644)
 	require.NoError(t, err)
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var-file=%s", tmpEnvPath, testScaffoldModuleShort, varFile))
 	require.NoError(t, err)

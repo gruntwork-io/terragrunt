@@ -24,11 +24,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-01", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-01", "foo")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-01", "foo")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -43,11 +43,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-01.1", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-01.1", "foo")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-01.1", "foo")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan -var content='Hello, Terragrunt!' --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -59,11 +59,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-02", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-02")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-02")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'")
 		require.NoError(t, err)
@@ -75,11 +75,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-03", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-03")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-03")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'")
 		require.NoError(t, err)
@@ -91,11 +91,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-04", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-04")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-04")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -107,11 +107,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-05", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-05")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-05")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -123,11 +123,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-06", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-06")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-06")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -136,11 +136,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-07", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-07")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-07")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -149,11 +149,11 @@ func TestDocsQuickStart(t *testing.T) {
 	t.Run("step-07.1", func(t *testing.T) {
 		t.Parallel()
 
-		stepPath := util.JoinPath(testFixtureQuickStart, "step-07.1")
+		stepPath := filepath.Join(testFixtureQuickStart, "step-07.1")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
-		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -166,9 +166,9 @@ func TestStacksWithLocalState(t *testing.T) {
 	// Clean up the test fixture
 	helpers.CleanupTerraformFolder(t, testFixtureStacksLocalState)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalState)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocalState)
-	livePath := util.JoinPath(rootPath, "live")
-	localStatePath := util.JoinPath(rootPath, ".terragrunt-local-state")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksLocalState)
+	livePath := filepath.Join(rootPath, "live")
+	localStatePath := filepath.Join(rootPath, ".terragrunt-local-state")
 
 	// Ensure local state directory doesn't exist initially
 	require.NoError(t, os.RemoveAll(localStatePath))
@@ -177,13 +177,13 @@ func TestStacksWithLocalState(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+livePath)
 
 	// Verify .terragrunt-stack directory was created
-	stackPath := util.JoinPath(livePath, ".terragrunt-stack")
+	stackPath := filepath.Join(livePath, ".terragrunt-stack")
 	require.DirExists(t, stackPath)
 
 	// Verify individual units were generated
-	fooPath := util.JoinPath(stackPath, "foo")
-	barPath := util.JoinPath(stackPath, "bar")
-	bazPath := util.JoinPath(stackPath, "baz")
+	fooPath := filepath.Join(stackPath, "foo")
+	barPath := filepath.Join(stackPath, "bar")
+	bazPath := filepath.Join(stackPath, "baz")
 	require.DirExists(t, fooPath)
 	require.DirExists(t, barPath)
 	require.DirExists(t, bazPath)
@@ -193,9 +193,9 @@ func TestStacksWithLocalState(t *testing.T) {
 
 	// Verify local state files were created in .terragrunt-local-state
 	// Note: path_relative_to_include() returns "live/.terragrunt-stack/foo" etc.
-	fooStatePath := util.JoinPath(localStatePath, "live", ".terragrunt-stack", "foo", "tofu.tfstate")
-	barStatePath := util.JoinPath(localStatePath, "live", ".terragrunt-stack", "bar", "tofu.tfstate")
-	bazStatePath := util.JoinPath(localStatePath, "live", ".terragrunt-stack", "baz", "tofu.tfstate")
+	fooStatePath := filepath.Join(localStatePath, "live", ".terragrunt-stack", "foo", "tofu.tfstate")
+	barStatePath := filepath.Join(localStatePath, "live", ".terragrunt-stack", "bar", "tofu.tfstate")
+	bazStatePath := filepath.Join(localStatePath, "live", ".terragrunt-stack", "baz", "tofu.tfstate")
 
 	require.FileExists(t, fooStatePath)
 	require.FileExists(t, barStatePath)
@@ -256,9 +256,9 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 	// Test that verifies the exact file structure created by the local state configuration
 	helpers.CleanupTerraformFolder(t, testFixtureStacksLocalState)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalState)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocalState)
-	livePath := util.JoinPath(rootPath, "live")
-	localStatePath := util.JoinPath(rootPath, ".terragrunt-local-state")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksLocalState)
+	livePath := filepath.Join(rootPath, "live")
+	localStatePath := filepath.Join(rootPath, ".terragrunt-local-state")
 
 	// Ensure local state directory doesn't exist initially
 	require.NoError(t, os.RemoveAll(localStatePath))
@@ -272,25 +272,25 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 
 	// Check that each unit has its own subdirectory
 	// Note: path structure reflects live/.terragrunt-stack/[unit]
-	fooLocalStateDir := util.JoinPath(localStatePath, "live", ".terragrunt-stack", "foo")
-	barLocalStateDir := util.JoinPath(localStatePath, "live", ".terragrunt-stack", "bar")
-	bazLocalStateDir := util.JoinPath(localStatePath, "live", ".terragrunt-stack", "baz")
+	fooLocalStateDir := filepath.Join(localStatePath, "live", ".terragrunt-stack", "foo")
+	barLocalStateDir := filepath.Join(localStatePath, "live", ".terragrunt-stack", "bar")
+	bazLocalStateDir := filepath.Join(localStatePath, "live", ".terragrunt-stack", "baz")
 
 	require.DirExists(t, fooLocalStateDir)
 	require.DirExists(t, barLocalStateDir)
 	require.DirExists(t, bazLocalStateDir)
 
 	// Check that state files are in the correct locations
-	require.FileExists(t, util.JoinPath(fooLocalStateDir, "tofu.tfstate"))
-	require.FileExists(t, util.JoinPath(barLocalStateDir, "tofu.tfstate"))
-	require.FileExists(t, util.JoinPath(bazLocalStateDir, "tofu.tfstate"))
+	require.FileExists(t, filepath.Join(fooLocalStateDir, "tofu.tfstate"))
+	require.FileExists(t, filepath.Join(barLocalStateDir, "tofu.tfstate"))
+	require.FileExists(t, filepath.Join(bazLocalStateDir, "tofu.tfstate"))
 
 	// Since backend.tf is generated in the .terragrunt-cache directory during execution,
 	// we verify the state files exist in the expected .terragrunt-local-state directory structure
 	// This confirms that the backend configuration is working correctly
 
 	// Verify the .terragrunt-local-state directory structure matches path_relative_to_include()
-	liveStateDir := util.JoinPath(localStatePath, "live", ".terragrunt-stack")
+	liveStateDir := filepath.Join(localStatePath, "live", ".terragrunt-stack")
 	require.DirExists(t, liveStateDir)
 
 	// Clean up
@@ -300,11 +300,7 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 func TestFilterDocumentationExamples(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
-	tmpDirRaw := t.TempDir()
+	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
 	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
 	require.NoError(t, err)
 
@@ -380,16 +376,14 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		{
 			name:           "attribute-based-external-false",
 			fixtureDir:     "attribute-based",
-			filterQuery:    "external=false",
+			filterQuery:    "{./*}... | external=false",
 			expectedOutput: "stack1\nunit1\n",
-			extraFlags:     "--dependencies --external",
 		},
 		{
 			name:           "attribute-based-external-true",
 			fixtureDir:     "attribute-based",
-			filterQuery:    "*... | external=true",
+			filterQuery:    "{./*}... | external=true",
 			expectedOutput: "../dependencies/dependency-of-app1\n",
-			extraFlags:     "--dependencies --external",
 		},
 		{
 			name:           "attribute-based-name-glob",
@@ -559,16 +553,15 @@ func TestFilterDocumentationExamples(t *testing.T) {
 		},
 	}
 
-	// Run all test cases
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fixturePath := filepath.Join(tmpDir, tc.fixtureDir)
+			fixturePath := filepath.Join(tmpDir, tt.fixtureDir)
 			workingDir := filepath.Join(fixturePath, "root")
 
 			// Run the find command with the filter
-			command := fmt.Sprintf("terragrunt find --filter '%s' %s --working-dir %s", tc.filterQuery, tc.extraFlags, workingDir)
+			command := fmt.Sprintf("terragrunt find --filter '%s' %s --working-dir %s", tt.filterQuery, tt.extraFlags, workingDir)
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 
 			if err != nil {
@@ -578,7 +571,7 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			}
 
 			require.NoError(t, err, "Command should succeed")
-			assert.Equal(t, tc.expectedOutput, stdout, "Output should match expected result")
+			assert.Equal(t, tt.expectedOutput, stdout, "Output should match expected result")
 		})
 	}
 }
@@ -586,13 +579,8 @@ func TestFilterDocumentationExamples(t *testing.T) {
 func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 	t.Parallel()
 
-	// Skip if experiment mode is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter documentation tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	// Create temporary directory for dynamic fixtures
-	tmpDirRaw := t.TempDir()
+	tmpDirRaw := helpers.TmpDirWOSymlinks(t)
 	tmpDir, err := filepath.EvalSymlinks(tmpDirRaw)
 	require.NoError(t, err)
 

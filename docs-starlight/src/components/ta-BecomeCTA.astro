@@ -1,0 +1,91 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+import { ArrowRight } from 'lucide-react';
+
+import BackgroundPattern from '@assets/boxes-bg.svg';
+import ButtonLink from '@components/ui/ButtonLink';
+import Eyebrow from '@components/ta-Eyebrow.astro';
+import grunty from '@assets/grunty/grunty.svg';
+import IaC from '@assets/icons/iac-icon.svg';
+
+const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
+---
+
+<!-- Section -->
+<section class="relative px-5 pt-10 md:pt-36 w-full">
+  <div class="relative bg-bg-dark overflow-hidden border-[6px] border-[#E6E6E6] rounded-3xl">
+    <Image
+      alt="Isometric background pattern"
+      class="absolute bottom-[-80px] min-w-[100vw] h-auto max-w-none pointer-events-none select-none opacity-50"
+      src={BackgroundPattern}
+    />
+
+    <div class="relative flex flex-col py-8 md:py-0 md:pt-20 md:pb-[100px] justify-center items-center">
+      <!-- Header Section -->
+      <div class="flex flex-col px-5 xl:px-20 pb-10 md:pb-[60px] gap-8 text-center items-center">
+        <Eyebrow text="Join the Program" />
+        <h3 class="text-4xl md:text-[42px] font-sans text-white m-0">
+          Become a Terragrunt <span class="text-accent-3">Ambassador</span>
+        </h3>
+        <p class="text-gray-1 font-sans md:w-[594px]">
+          We're looking for community members who are passionate, expert users of Terragrunt and are (or willing to be) active in the community.
+        </p>
+      </div>
+
+      <!-- Wrapper -->
+      <div class="flex flex-col px-8 gap-4">
+        <h4 class="text-xl text-white font-bold text-center">To be considered, applicants should demonstrate</h4>
+
+        <div class="flex flex-row items-center p-2 sm:p-6 bg-surface-1 border border-stroke-light rounded-sm">
+          <div class="bg-surface-3 rounded-xs flex items-center justify-center mr-5 aspect-square w-8 h-8">
+            <Image src={IaC} alt="" />
+          </div>
+          <p class="text-white font-bold">
+            Technical expertise in Terragrunt and OpenTofu/Terraform
+          </p>
+        </div>
+
+        <div class="flex flex-row items-center p-2 sm:p-6 bg-surface-1 border border-stroke-light rounded-sm">
+          <div class="bg-surface-3 rounded-xs flex items-center justify-center mr-5 aspect-square w-8 h-8">
+            <Image src={IaC} alt="" />
+          </div>
+          <p class="text-white font-bold">
+            A passion for sharing knowledge and enabling the community
+          </p>
+        </div>
+
+        <div class="flex flex-row items-center p-2 sm:p-6 bg-surface-1 border border-stroke-light rounded-sm">
+          <div class="bg-surface-3 rounded-xs flex items-center justify-center mr-5 aspect-square w-8 h-8">
+            <Image src={IaC} alt="" />
+          </div>
+          <p class="text-white font-bold">
+            Active community involvement
+          </p>
+        </div>
+
+        <div class="w-full overflow-auto">
+          <p class="py-15 text-gray-1 font-sans max-w-[700px] text-center">
+            We understand that not everyone wants to be active on social channels or forums. If you show genuine enthusiasm for Terragrunt and are willing to be an active member of the community in other ways, we’d love to consider you as well!
+          </p>
+        </div>
+
+        <Image
+          src={grunty}
+          alt="Grunty"
+          class="hidden sm:block sm:absolute right-8 bottom-100 pointer-events-none select-none w-40 lg:w-52 xl:w-60 h-auto"
+        />
+      </div>
+
+      <h3 class="text-3xl font-sans text-white text-center mx-6 my-0">
+        Think you're a <span class="text-accent-3">good fit?</span> We'd love to hear from you.
+      </h3>
+      <div class="relative mt-12 px-5 md:px-12 lg:px-8">
+        <ButtonLink href={BecomeAnAmbassador} variant="primary">
+          <span>Become an Ambassador</span>
+          <ArrowRight className="inline-block ml-1 transform translate-y-0.75 -translate-x-0.75 w-4 h-4" aria-hidden="true" />
+        </ButtonLink>
+      </div>
+    </div>
+  </div>
+</section>

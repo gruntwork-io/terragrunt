@@ -107,7 +107,7 @@ func GetDefaultRegistryDomain(opts *options.TerragruntOptions) string {
 		return defaultRegistry
 	}
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
-	if opts.TerraformImplementation == options.OpenTofuImpl {
+	if opts.TofuImplementation == options.OpenTofuImpl {
 		return defaultOtRegistryDomain
 	}
 

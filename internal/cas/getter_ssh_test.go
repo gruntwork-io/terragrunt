@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			storePath := filepath.Join(tmpDir, "store")
 			c, err := cas.New(cas.Options{StorePath: storePath})
 			require.NoError(t, err)

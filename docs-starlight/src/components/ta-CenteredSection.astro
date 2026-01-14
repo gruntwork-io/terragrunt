@@ -1,0 +1,21 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+---
+
+<section class="flex pt-10 md:pt-36 px-5 md:px-0">
+    <div class="flex flex-col mx-auto gap-15">
+      <!-- Header Section -->
+      <div class="flex flex-col gap-4 md:gap-8">
+        <Eyebrow text="About the Program" class="mx-auto" />
+        <div class="max-w-[600px] mx-auto">
+          <h2 class="text-lg md:text-[42px] font-sans m-0 text-dark-blue-1 text-center">What it means to be a <span class="text-accent">Terragrunt Ambassador</span></h2>
+        </div>
+      </div>
+      <!-- Content Wrapper -->
+      <div class="bg-white border-4 border-[#F1F1F1] text-lg text-center rounded-lg max-w-[900px] p-6">
+        <h3 class="text-[#0F0934] font-medium">Ambassadors are passionate about Terragrunt and are experts at using it to manage infrastructure at scale using IaC. They are an essential part of the Terragrunt community—answering questions in forums, authoring blog posts, speaking at conferences, and are the community extension of the Terragrunt team at Gruntwork.</h3>
+      </div>
+    </div>
+</section>

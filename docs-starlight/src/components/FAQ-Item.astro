@@ -1,0 +1,65 @@
+---
+interface Props {
+  question: string;
+  answer: string;
+}
+
+const { question, answer } = Astro.props;
+const uniqueId = `faq-${Math.random().toString(36).substring(2, 11)}`;
+---
+
+<div class="accordion-item p-6 overflow-hidden border-t border-dashed border-gray-3" data-accordion-id={uniqueId}>
+  <div class="accordion-question cursor-pointer flex items-center justify-between" role="button" tabindex="0" aria-expanded="false">
+    <h3 class="text-2xl font-sans text-dark-blue-1 mt-6 mb-2">
+      {question}
+    </h3>
+    <svg class="accordion-caret w-6 h-6 transition-transform duration-300 flex-shrink-0 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+  </div>
+
+  <div class="accordion-answer max-h-0 overflow-hidden transition-all duration-300 ease-in-out text-gray-1 font-sans prose prose-sm md:prose-base max-w-none" set:html={answer}></div>
+</div>
+
+<script is:inline define:vars={{ uniqueId }}>
+  {
+    const accordionItem = document.querySelector(`[data-accordion-id="${uniqueId}"]`);
+
+    if (accordionItem) {
+      const question = accordionItem.querySelector('.accordion-question');
+      const answer = accordionItem.querySelector('.accordion-answer');
+      const caret = accordionItem.querySelector('.accordion-caret');
+      const heading = accordionItem.querySelector('h3');
+
+      if (question && answer && caret && heading) {
+        const handleToggle = () => {
+          const isExpanded = question.getAttribute('aria-expanded') === 'true';
+
+          if (isExpanded) {
+            answer.style.maxHeight = '0';
+            question.setAttribute('aria-expanded', 'false');
+            caret.style.transform = 'rotate(0deg)';
+            accordionItem.style.backgroundColor = '';
+            heading.style.color = '';
+            caret.style.color = '';
+          } else {
+            answer.style.maxHeight = answer.scrollHeight + 'px';
+            question.setAttribute('aria-expanded', 'true');
+            caret.style.transform = 'rotate(180deg)';
+            accordionItem.style.backgroundColor = 'var(--color-bg-dark)';
+            heading.style.color = 'white';
+            caret.style.color = 'white';
+          }
+        };
+
+        question.addEventListener('click', handleToggle);
+        question.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleToggle();
+          }
+        });
+      }
+    }
+  }
+</script>

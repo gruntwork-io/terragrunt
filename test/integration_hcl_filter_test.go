@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,14 +21,10 @@ const (
 func TestHCLFormatCheckWithFilter(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	// Create a temporary directory for this test case
 	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
@@ -187,10 +182,6 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 func TestHCLValidateWithFilter(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	testCases := []struct {
 		name         string
 		filterArgs   []string
@@ -256,7 +247,7 @@ func TestHCLValidateWithFilter(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "validate")
+			rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "validate")
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
@@ -284,13 +275,9 @@ func TestHCLValidateWithFilter(t *testing.T) {
 func TestHCLFormatFilterIntegration(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHCLFilter, "fmt")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --json --filter './needs-formatting/**' --working-dir "+rootPath)
 	require.NoError(t, err)

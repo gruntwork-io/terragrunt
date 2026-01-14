@@ -65,11 +65,3 @@ func wrapError(op, path string, err error) error {
 		Err:  err,
 	}
 }
-
-func wrapErrorWithContext(op, context string, err error) error {
-	return &WrappedError{
-		Op:      op,
-		Context: context,
-		Err:     err,
-	}
-}

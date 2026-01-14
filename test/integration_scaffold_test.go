@@ -25,7 +25,7 @@ const (
 func TestScaffoldModule(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleURL))
 	require.NoError(t, err)
@@ -36,7 +36,7 @@ func TestScaffoldModule(t *testing.T) {
 func TestScaffoldModuleShortUrl(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleShort))
 
@@ -51,7 +51,7 @@ func TestScaffoldModuleShortUrl(t *testing.T) {
 func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=EnableRootInclude=false", tmpEnvPath, testScaffoldModuleShort))
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 func TestScaffoldModuleDifferentRevision(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=Ref=v0.67.4", tmpEnvPath, testScaffoldModuleShort))
 
@@ -77,7 +77,7 @@ func TestScaffoldModuleDifferentRevision(t *testing.T) {
 func TestScaffoldErrorNoModuleUrl(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt scaffold --non-interactive --working-dir "+tmpEnvPath)
 	require.Error(t, err)
@@ -87,7 +87,7 @@ func TestScaffoldErrorNoModuleUrl(t *testing.T) {
 func TestScaffoldLocalModule(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestScaffoldLocalModule(t *testing.T) {
 func TestScaffold3rdPartyModule(t *testing.T) {
 	t.Parallel()
 
-	tmpRoot := t.TempDir()
+	tmpRoot := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := filepath.Join(tmpRoot, "app")
 	err := os.MkdirAll(tmpEnvPath, 0755)
@@ -124,7 +124,7 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 func TestScaffoldOutputFolderFlag(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	outputFolder := tmpEnvPath + "/foo/bar"
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --non-interactive --working-dir %s scaffold %s --output-folder %s", tmpEnvPath, testScaffoldModuleURL, outputFolder))
@@ -138,7 +138,7 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithRootHCL)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithRootHCL)
+	testPath := filepath.Join(tmpEnvPath, testScaffoldWithRootHCL)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 		"terragrunt --non-interactive --working-dir %s scaffold %s",
@@ -159,7 +159,7 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 func TestScaffoldNoDependencyPrompt(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestScaffoldNoDependencyPrompt(t *testing.T) {
 func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
@@ -207,7 +207,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
@@ -235,7 +235,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 func TestScaffoldWithHooksEnabled(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
@@ -261,7 +261,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 func TestScaffoldWithHooksDisabled(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
@@ -287,7 +287,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
@@ -322,7 +322,7 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 
 	catalogConfigPath := filepath.Join(workingDir, "fixtures/scaffold/catalog-config-test/terragrunt.hcl")
 	templatePath := workingDir + "//fixtures/scaffold/with-shell-and-hooks"
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	catalogContent, err := util.ReadFileAsString(catalogConfigPath)
 	require.NoError(t, err)

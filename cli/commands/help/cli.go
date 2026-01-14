@@ -2,6 +2,7 @@
 package help
 
 import (
+	"context"
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -20,16 +21,16 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:                        "Show help.",
 		Hidden:                       true,
 		DisabledErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context) error {
-			return Action(ctx, l, opts)
+		Action: func(ctx context.Context, cliCtx *cli.Context) error {
+			return Action(ctx, cliCtx, l, opts)
 		},
 	}
 }
 
-func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Action(ctx context.Context, cliCtx *cli.Context, l log.Logger, _ *options.TerragruntOptions) error {
 	var (
-		args = ctx.Args()
-		cmds = ctx.Commands
+		args = cliCtx.Args()
+		cmds = cliCtx.Commands
 	)
 
 	if l.Level() >= log.DebugLevel {
@@ -40,7 +41,7 @@ func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if cmdName := args.CommandName(); cmdName == "" || cmds.Get(cmdName) == nil {
-		return cli.ShowAppHelp(ctx)
+		return cli.ShowAppHelp(ctx, cliCtx)
 	}
 
 	const maxCommandDepth = 1000 // Maximum depth of nested subcommands
@@ -55,11 +56,11 @@ func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		args = args.Remove(cmdName)
 		cmds = cmd.Subcommands
-		ctx = ctx.NewCommandContext(cmd, args)
+		cliCtx = cliCtx.NewCommandContext(cmd, args)
 	}
 
-	if ctx.Command != nil {
-		return cli.ShowCommandHelp(ctx)
+	if cliCtx.Command != nil {
+		return cli.ShowCommandHelp(ctx, cliCtx)
 	}
 
 	return cli.NewExitError(errors.New(cli.InvalidCommandNameError(args.First())), cli.ExitCodeGeneralError)

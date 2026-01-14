@@ -56,9 +56,6 @@ type Options struct {
 	// Include determines if Include components should be included in the output.
 	Include bool
 
-	// External determines if external dependencies should be included in the output.
-	External bool
-
 	// Reading determines if the list of files that are read by components should be included in the output.
 	Reading bool
 }

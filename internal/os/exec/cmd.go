@@ -39,6 +39,17 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		if sig := signal.SignalFromContext(ctx); sig != nil {
+			return cmd.Process.Signal(sig)
+		}
+
+		return cmd.Process.Signal(os.Kill)
+	}
 
 	return cmd
 }

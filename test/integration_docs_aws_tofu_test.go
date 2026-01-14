@@ -21,7 +21,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
 
 	// Create a temporary workspace for the test
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	helpers.ExecWithTestLogger(t, tmpDir, "mkdir", "terralith-to-terragrunt")
 
 	// Determine the paths used throughout the steps.
@@ -50,12 +50,12 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 
 		helpers.ExecWithTestLogger(t, repoDir, "git", "init")
 
-		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "terragrunt@0.83.2")
-		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "opentofu@1.10.3")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "terragrunt@0.95.0")
+		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "opentofu@1.11.1")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "aws@2.27.63")
 		helpers.ExecWithTestLogger(t, repoDir, "mise", "use", "node@22.17.1")
 
-		miseTomlPath := util.JoinPath(repoDir, "mise.toml")
+		miseTomlPath := filepath.Join(repoDir, "mise.toml")
 		require.FileExists(t, miseTomlPath)
 		miseToml, err := os.ReadFile(miseTomlPath)
 		require.NoError(t, err)
@@ -63,8 +63,8 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 		assert.Equal(t, string(miseToml), `[tools]
 aws = "2.27.63"
 node = "22.17.1"
-opentofu = "1.10.3"
-terragrunt = "0.83.2"
+opentofu = "1.11.1"
+terragrunt = "0.95.0"
 `)
 
 		// Run a dummy command to check if the tools are installed
@@ -642,8 +642,8 @@ force_destroy = true
 		_, stderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan", "--non-interactive")
 
 		// This version of Terragrunt uses the new "Module" term instead of "Unit"
-		assert.Contains(t, stderr, "Unit ./dev")
-		assert.Contains(t, stderr, "Unit ./prod")
+		assert.Contains(t, stderr, "Unit dev")
+		assert.Contains(t, stderr, "Unit prod")
 
 		oldFiles := []string{"main.tf", "outputs.tf", "vars-required.tf", "vars-optional.tf", "versions.tf"}
 		for _, file := range oldFiles {
@@ -762,13 +762,13 @@ inputs = {
 		helpers.ExecWithMiseAndTestLogger(t, prodDir, "terragrunt", "apply", "-auto-approve", "--non-interactive")
 
 		runAllPlanStdout, runAllPlanStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "plan")
-		assert.Contains(t, runAllPlanStderr, "Unit ./dev")
-		assert.Contains(t, runAllPlanStderr, "Unit ./prod")
+		assert.Contains(t, runAllPlanStderr, "Unit dev")
+		assert.Contains(t, runAllPlanStderr, "Unit prod")
 		assert.Contains(t, runAllPlanStdout, "found no differences, so no changes are needed.")
 
 		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecWithMiseAndCaptureOutput(t, liveDir, "terragrunt", "run", "--all", "--queue-include-dir", "dev", "plan", "--non-interactive")
-		assert.Contains(t, devOnlyPlanStderr, "Unit ./dev")
-		assert.NotContains(t, devOnlyPlanStderr, "Unit ./prod")
+		assert.Contains(t, devOnlyPlanStderr, "Unit dev")
+		assert.NotContains(t, devOnlyPlanStderr, "Unit prod")
 		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
 
 		devOutputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, devDir, "terragrunt", "output")
@@ -872,7 +872,7 @@ EOF
 		for _, env := range environments {
 			envDir := filepath.Join(liveDir, env)
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			tempStateFile := filepath.Join(tmpDir, "tofu-"+env+".tfstate")
 
 			// Pull state from existing environment unit
@@ -941,7 +941,7 @@ inputs = {
 		// The plan output should show modules for all components
 		for _, env := range environments {
 			for _, component := range components {
-				expectedModulePath := fmt.Sprintf("Unit ./%s/%s", env, component)
+				expectedModulePath := fmt.Sprintf("Unit %s/%s", env, component)
 				assert.Contains(t, planStderr, expectedModulePath)
 			}
 		}
@@ -1112,7 +1112,7 @@ EOF
 		// The plan output should show modules for all components generated from stacks
 		for _, env := range environments {
 			for _, component := range components {
-				expectedModulePath := fmt.Sprintf("Unit ./%s/%s", env, component)
+				expectedModulePath := fmt.Sprintf("Unit %s/%s", env, component)
 				assert.Contains(t, planStderr, expectedModulePath)
 			}
 		}
@@ -1251,7 +1251,7 @@ EOF
 		}
 
 		// Migrate state from old unit paths to new .terragrunt-stack paths
-		tmpDir := t.TempDir()
+		tmpDir := helpers.TmpDirWOSymlinks(t)
 		tempStateFile := filepath.Join(tmpDir, "tofu.tfstate")
 
 		for _, env := range environments {
@@ -1290,7 +1290,7 @@ EOF
 		// The plan output should show modules for all components in .terragrunt-stack directories
 		for _, env := range environments {
 			for _, component := range components {
-				expectedModulePath := fmt.Sprintf("Unit ./%s/.terragrunt-stack/%s", env, component)
+				expectedModulePath := fmt.Sprintf("Unit %s/.terragrunt-stack/%s", env, component)
 				assert.Contains(t, planStderr, expectedModulePath)
 			}
 		}

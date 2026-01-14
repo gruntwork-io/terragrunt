@@ -242,7 +242,7 @@ func TestFileManifest(t *testing.T) {
 	var testfiles = make([]string, 0, len(files))
 
 	// create temp dir
-	dir := t.TempDir()
+	dir := helpers.TmpDirWOSymlinks(t)
 
 	for _, file := range files {
 		// create temp files in the dir
@@ -386,7 +386,7 @@ func TestIncludeInCopy(t *testing.T) {
 		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
 	}
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	source := filepath.Join(tempDir, "source")
 	destination := filepath.Join(tempDir, "destination")
 
@@ -434,7 +434,7 @@ func TestExcludeFromCopy(t *testing.T) {
 		{"/module/region2/project2-2/f2-dot-f0.txt", false},
 	}
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	source := filepath.Join(tempDir, "source")
 	destination := filepath.Join(tempDir, "destination")
 
@@ -477,7 +477,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 		{"/_module/.region3/.project2-1/readme.txt", false},
 	}
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	source := filepath.Join(tempDir, "source")
 	destination := filepath.Join(tempDir, "destination")
 
@@ -511,7 +511,7 @@ func TestEmptyDir(t *testing.T) {
 		path        string
 		expectEmpty bool
 	}{
-		{t.TempDir(), true},
+		{helpers.TmpDirWOSymlinks(t), true},
 		{os.TempDir(), false},
 	}
 	for i, tc := range testCases {
@@ -529,7 +529,7 @@ func TestEmptyDir(t *testing.T) {
 func TestWalkWithSimpleSymlinks(t *testing.T) {
 	t.Parallel()
 	// Create a temporary test directory structure
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	tempDir, err := filepath.EvalSymlinks(tempDir)
 	require.NoError(t, err)
 
@@ -605,7 +605,7 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 func TestWalkWithCircularSymlinks(t *testing.T) {
 	t.Parallel()
 	// Create temporary test directory structure
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	tempDir, err := filepath.EvalSymlinks(tempDir)
 	require.NoError(t, err)
 
@@ -690,7 +690,7 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 func TestWalkDirWithSymlinksErrors(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	// Test with non-existent directory
 	require.Error(t, util.WalkDirWithSymlinks(filepath.Join(tempDir, "nonexistent"), func(_ string, _ fs.DirEntry, err error) error {
@@ -785,7 +785,7 @@ func Test_sanitizePath(t *testing.T) {
 
 func TestMoveFile(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	src := filepath.Join(tempDir, "src.txt")
 	dst := filepath.Join(tempDir, "dst.txt")

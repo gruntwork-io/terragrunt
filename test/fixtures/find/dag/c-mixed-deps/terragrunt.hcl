@@ -6,3 +6,7 @@ dependency "single_dep" {
 dependencies {
     paths = ["../d-dependencies-only"]
 }
+
+terraform {
+    source = "."
+}

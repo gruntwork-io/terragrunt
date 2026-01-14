@@ -102,7 +102,7 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 
 		opts.TerraformVersion = terraformVersion
-		opts.TerraformImplementation = tfImplementation
+		opts.TofuImplementation = tfImplementation
 
 		return l, nil
 	}
@@ -117,7 +117,7 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 	versionCache.Put(ctx, cacheKey, cacheData)
 
 	opts.TerraformVersion = terraformVersion
-	opts.TerraformImplementation = tfImplementation
+	opts.TofuImplementation = tfImplementation
 
 	return l, nil
 }

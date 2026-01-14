@@ -35,6 +35,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 // https://github.com/gruntwork-io/terragrunt/issues/2109
 func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		response *s3.GetPublicAccessBlockOutput
 		name     string
@@ -71,6 +72,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			response, err := awshelper.ValidatePublicAccessBlock(tc.response)
 			require.NoError(t, err)
 			assert.False(t, response)

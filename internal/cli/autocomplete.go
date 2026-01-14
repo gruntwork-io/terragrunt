@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -24,7 +25,7 @@ const (
 	maxDashesInFlag = 2
 )
 
-var DefaultComplete = defaultComplete
+var DefaultComplete = defaultComplete //nolint:gochecknoglobals
 
 // AutocompleteInstaller is an interface to be implemented to perform the
 // autocomplete installation and uninstallation with a CLI.
@@ -57,26 +58,30 @@ func (i *autocompleteInstaller) Uninstall(cmd string) error {
 }
 
 // ShowCompletions prints the lists of commands within a given context
-func ShowCompletions(ctx *Context) error {
-	if cmd := ctx.Command; cmd != nil && cmd.Complete != nil {
-		return cmd.Complete(ctx)
+func ShowCompletions(ctx context.Context, cliCtx *Context) error {
+	if cmd := cliCtx.Command; cmd != nil && cmd.Complete != nil {
+		return cmd.Complete(ctx, cliCtx)
 	}
 
-	return DefaultComplete(ctx)
+	return DefaultComplete(cliCtx)
 }
 
-func defaultComplete(ctx *Context) error {
-	arg := ctx.Args().Last()
+func defaultComplete(cliCtx *Context) error {
+	arg := cliCtx.Args().Last()
 
 	if strings.HasPrefix(arg, "-") {
-		if cmd := ctx.Command; cmd != nil {
-			return printFlagSuggestions(arg, cmd.Flags, ctx.Writer)
+		if cmd := cliCtx.Command; cmd != nil {
+			return printFlagSuggestions(arg, cmd.Flags, cliCtx.Writer)
 		}
 
-		return printFlagSuggestions(arg, ctx.Flags, ctx.Writer)
+		return printFlagSuggestions(arg, cliCtx.Flags, cliCtx.Writer)
 	}
 
-	return printCommandSuggestions(arg, ctx.Command.Subcommands, ctx.Writer)
+	if cmd := cliCtx.Command; cmd != nil {
+		return printCommandSuggestions(arg, cmd.Subcommands, cliCtx.Writer)
+	}
+
+	return printCommandSuggestions(arg, cliCtx.Commands, cliCtx.Writer)
 }
 
 func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) error {

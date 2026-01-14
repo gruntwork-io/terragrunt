@@ -1,6 +1,7 @@
 package report
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/invopop/jsonschema"
+	"github.com/xeipuuv/gojsonschema"
+)
+
+const (
+	// csvFieldCount is the expected number of fields in a CSV report row.
+	csvFieldCount = 6
+	// csvRowOffset accounts for: 0-indexed loop (i starts at 0) + skipped header row.
+	csvRowOffset = 2
 )
 
 // JSONRun represents a run in JSON format.
@@ -21,13 +30,192 @@ type JSONRun struct {
 	// Ended is the time when the run ended.
 	Ended time.Time `json:"Ended" jsonschema:"required"`
 	// Reason is the reason for the run result, if any.
-	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=ancestor error"`
+	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=exclude block,enum=ancestor error"`
 	// Cause is the cause of the run result, if any.
 	Cause *string `json:"Cause,omitempty"`
 	// Name is the name of the run.
 	Name string `json:"Name" jsonschema:"required"`
 	// Result is the result of the run.
 	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
+}
+
+// JSONRuns is a slice of JSONRun entries with helper methods.
+type JSONRuns []JSONRun
+
+// ParseJSONRuns parses a JSON report from a byte slice.
+// Returns a slice of JSONRun entries or an error if parsing fails.
+func ParseJSONRuns(data []byte) (JSONRuns, error) {
+	var runs JSONRuns
+	if err := json.Unmarshal(data, &runs); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON report: %w", err)
+	}
+
+	return runs, nil
+}
+
+// ParseJSONRunsFromFile reads and parses a JSON report from a file.
+// Returns a slice of JSONRun entries or an error if reading or parsing fails.
+func ParseJSONRunsFromFile(path string) (JSONRuns, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
+	}
+
+	return ParseJSONRuns(data)
+}
+
+// FindByName searches for a run by name.
+// Returns the run if found, or nil if not found.
+func (runs JSONRuns) FindByName(name string) *JSONRun {
+	for i := range runs {
+		if runs[i].Name == name {
+			return &runs[i]
+		}
+	}
+
+	return nil
+}
+
+// Names returns a slice of all run names.
+// Useful for debugging and assertions in tests.
+func (runs JSONRuns) Names() []string {
+	names := make([]string, len(runs))
+	for i, run := range runs {
+		names[i] = run.Name
+	}
+
+	return names
+}
+
+// CSVRun represents a run parsed from CSV format.
+type CSVRun struct {
+	Name    string
+	Started string
+	Ended   string
+	Result  string
+	Reason  string
+	Cause   string
+}
+
+// CSVRuns is a slice of CSVRun entries with helper methods.
+type CSVRuns []CSVRun
+
+// ParseCSVRuns parses a CSV report from a byte slice.
+// Returns a slice of CSVRun entries or an error if parsing fails.
+// The first row is expected to be a header row and is skipped.
+func ParseCSVRuns(data []byte) (CSVRuns, error) {
+	reader := csv.NewReader(bytes.NewReader(data))
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CSV report: %w", err)
+	}
+
+	// Skip header row
+	if len(records) < 1 {
+		return CSVRuns{}, nil
+	}
+
+	runs := make(CSVRuns, 0, len(records)-1)
+
+	for i, record := range records[1:] {
+		if len(record) < csvFieldCount {
+			return nil, fmt.Errorf("invalid CSV record at row %d: expected %d fields, got %d", i+csvRowOffset, csvFieldCount, len(record))
+		}
+
+		runs = append(runs, CSVRun{
+			Name:    record[0],
+			Started: record[1],
+			Ended:   record[2],
+			Result:  record[3],
+			Reason:  record[4],
+			Cause:   record[5],
+		})
+	}
+
+	return runs, nil
+}
+
+// ParseCSVRunsFromFile reads and parses a CSV report from a file.
+// Returns a slice of CSVRun entries or an error if reading or parsing fails.
+func ParseCSVRunsFromFile(path string) (CSVRuns, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
+	}
+
+	return ParseCSVRuns(data)
+}
+
+// FindByName searches for a run by name.
+// Returns the run if found, or nil if not found.
+func (runs CSVRuns) FindByName(name string) *CSVRun {
+	for i := range runs {
+		if runs[i].Name == name {
+			return &runs[i]
+		}
+	}
+
+	return nil
+}
+
+// Names returns a slice of all run names.
+// Useful for debugging and assertions in tests.
+func (runs CSVRuns) Names() []string {
+	names := make([]string, len(runs))
+	for i, run := range runs {
+		names[i] = run.Name
+	}
+
+	return names
+}
+
+// SchemaValidationError represents a schema validation error with details.
+type SchemaValidationError struct {
+	Errors []string
+}
+
+func (e *SchemaValidationError) Error() string {
+	return fmt.Sprintf("schema validation failed with %d error(s): %v", len(e.Errors), e.Errors)
+}
+
+// ValidateJSONReport validates a JSON report against the schema.
+// Returns nil if valid, or a SchemaValidationError with details if invalid.
+func ValidateJSONReport(data []byte) error {
+	schemaBytes, err := json.Marshal(generateReportSchema())
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
+	documentLoader := gojsonschema.NewBytesLoader(data)
+
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	if err != nil {
+		return fmt.Errorf("failed to validate report: %w", err)
+	}
+
+	if !result.Valid() {
+		errors := make([]string, len(result.Errors()))
+		for i, validationErr := range result.Errors() {
+			errors[i] = validationErr.String()
+		}
+
+		return &SchemaValidationError{Errors: errors}
+	}
+
+	return nil
+}
+
+// ValidateJSONReportFromFile reads and validates a JSON report file against the schema.
+// Returns nil if valid, or an error if reading fails or validation fails.
+func ValidateJSONReportFromFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read report file %s: %w", path, err)
+	}
+
+	return ValidateJSONReport(data)
 }
 
 // WriteToFile writes the report to a file.
@@ -89,7 +277,8 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
-		name := nameOfPath(run.Path, r.workingDir)
+		workingDir := effectiveWorkingDir(run, r.workingDir)
+		name := nameOfPath(run.Path, workingDir)
 
 		started := run.Started.Format(time.RFC3339)
 		ended := run.Ended.Format(time.RFC3339)
@@ -104,8 +293,8 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		if run.Cause != nil {
 			cause = string(*run.Cause)
 
-			if reason == string(ReasonAncestorError) && r.workingDir != "" {
-				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
+			if reason == string(ReasonAncestorError) && workingDir != "" {
+				cause = strings.TrimPrefix(cause, workingDir+string(os.PathSeparator))
 			}
 		}
 
@@ -136,7 +325,8 @@ func (r *Report) WriteJSON(w io.Writer) error {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
-		name := nameOfPath(run.Path, r.workingDir)
+		workingDir := effectiveWorkingDir(run, r.workingDir)
+		name := nameOfPath(run.Path, workingDir)
 
 		jsonRun := JSONRun{
 			Name:    name,
@@ -152,8 +342,8 @@ func (r *Report) WriteJSON(w io.Writer) error {
 
 		if run.Cause != nil {
 			cause := string(*run.Cause)
-			if run.Reason != nil && *run.Reason == ReasonAncestorError && r.workingDir != "" {
-				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
+			if run.Reason != nil && *run.Reason == ReasonAncestorError && workingDir != "" {
+				cause = strings.TrimPrefix(cause, workingDir+string(os.PathSeparator))
 			}
 
 			jsonRun.Cause = &cause
@@ -181,7 +371,7 @@ func (r *Report) WriteSchemaToFile(path string) error {
 		return err
 	}
 
-	if err := r.WriteSchema(tmpFile); err != nil {
+	if err := WriteSchema(tmpFile); err != nil {
 		return fmt.Errorf("failed to write schema: %w", err)
 	}
 
@@ -197,23 +387,8 @@ func (r *Report) WriteSchemaToFile(path string) error {
 }
 
 // WriteSchema writes a JSON schema for the report to a writer.
-func (r *Report) WriteSchema(w io.Writer) error {
-	reflector := jsonschema.Reflector{
-		DoNotReference: true,
-	}
-
-	schema := reflector.Reflect(&JSONRun{})
-
-	schema.Description = "Schema for Terragrunt run report"
-	schema.Title = "Terragrunt Run Report Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json"
-
-	arraySchema := &jsonschema.Schema{
-		Type:        "array",
-		Title:       "Terragrunt Run Report Schema",
-		Description: "Array of Terragrunt runs",
-		Items:       schema,
-	}
+func WriteSchema(w io.Writer) error {
+	arraySchema := generateReportSchema()
 
 	jsonBytes, err := json.MarshalIndent(arraySchema, "", "  ")
 	if err != nil {
@@ -254,4 +429,34 @@ func nameOfPath(path string, workingDir string) string {
 	path = strings.TrimPrefix(path, string(os.PathSeparator))
 
 	return path
+}
+
+// effectiveWorkingDir returns the working directory to use for path computation.
+// If the run has a DiscoveryWorkingDir set (for worktree scenarios), use that.
+// Otherwise, fall back to the report's workingDir.
+func effectiveWorkingDir(run *Run, reportWorkingDir string) string {
+	if run.DiscoveryWorkingDir != "" {
+		return run.DiscoveryWorkingDir
+	}
+
+	return reportWorkingDir
+}
+
+// generateReportSchema generates the JSON schema for report validation.
+func generateReportSchema() *jsonschema.Schema {
+	reflector := jsonschema.Reflector{
+		DoNotReference: true,
+	}
+
+	schema := reflector.Reflect(&JSONRun{})
+	schema.Description = "Schema for Terragrunt run report"
+	schema.Title = "Terragrunt Run Report Schema"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json"
+
+	return &jsonschema.Schema{
+		Type:        "array",
+		Title:       "Terragrunt Run Report Schema",
+		Description: "Array of Terragrunt runs",
+		Items:       schema,
+	}
 }

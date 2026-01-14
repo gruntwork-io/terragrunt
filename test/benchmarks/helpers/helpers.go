@@ -36,7 +36,7 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 
 	l := logger.CreateLogger().WithOptions(log.WithOutput(io.Discard))
 
-	app := cli.NewApp(l, opts) //nolint:contextcheck
+	app := cli.NewApp(l, opts)
 
 	ctx := log.ContextWithLogger(b.Context(), l)
 

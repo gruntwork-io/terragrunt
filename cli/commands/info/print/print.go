@@ -8,8 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -19,9 +22,59 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// If --all flag is set, use discovery to find all units and print info for each one
+	if opts.RunAll {
+		return runAll(ctx, l, opts)
+	}
+
+	return runPrint(ctx, l, opts)
+}
+
+func runPrint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
 
 	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+}
+
+func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return err
+	}
+
+	units := components.Filter(component.UnitKind).Sort()
+
+	var errs []error
+
+	for _, unit := range units {
+		unitOpts := opts.Clone()
+		unitOpts.WorkingDir = unit.Path()
+
+		configFilename := config.DefaultTerragruntConfigPath
+		if len(opts.TerragruntConfigPath) > 0 {
+			configFilename = filepath.Base(opts.TerragruntConfigPath)
+		}
+
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+
+		if err := runPrint(ctx, l, unitOpts); err != nil {
+			if opts.FailFast {
+				return err
+			}
+
+			l.Errorf("Print failed: %v", err)
+
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 // InfoOutput represents the structured output of the info command

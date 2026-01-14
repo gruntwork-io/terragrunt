@@ -46,18 +46,34 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.TerragruntOptions)
-	if err != nil || srcRemoteState == nil {
+	if srcModule.Execution == nil || srcModule.Execution.TerragruntOptions == nil {
+		return errors.Errorf("src unit has no execution context at %s", srcPath)
+	}
+
+	if dstModule.Execution == nil || dstModule.Execution.TerragruntOptions == nil {
+		return errors.Errorf("dst unit has no execution context at %s", dstPath)
+	}
+
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.Execution.TerragruntOptions)
+	if err != nil {
 		return err
 	}
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.TerragruntOptions)
-	if err != nil || dstRemoteState == nil {
+	if srcRemoteState == nil {
+		return errors.Errorf("missing remote state configuration for source module: %s", srcPath)
+	}
+
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.Execution.TerragruntOptions)
+	if err != nil {
 		return err
+	}
+
+	if dstRemoteState == nil {
+		return errors.Errorf("missing remote state configuration for destination module: %s", dstPath)
 	}
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcModule.TerragruntOptions)
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcModule.Execution.TerragruntOptions)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -67,5 +83,5 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, l, srcModule.TerragruntOptions, dstModule.TerragruntOptions, dstRemoteState)
+	return srcRemoteState.Migrate(ctx, l, srcModule.Execution.TerragruntOptions, dstModule.Execution.TerragruntOptions, dstRemoteState)
 }

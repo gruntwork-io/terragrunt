@@ -1,12 +1,7 @@
 package cli
 
-import (
-	"context"
-)
-
 // Context can be used to retrieve context-specific args and parsed command-line options.
 type Context struct {
-	context.Context
 	*App
 	Command       *Command
 	parent        *Context
@@ -14,17 +9,15 @@ type Context struct {
 	shellComplete bool
 }
 
-func NewAppContext(ctx context.Context, app *App, args Args) *Context {
+func NewAppContext(app *App, args Args) *Context {
 	return &Context{
-		Context: ctx,
-		App:     app,
-		args:    args,
+		App:  app,
+		args: args,
 	}
 }
 
 func (ctx *Context) NewCommandContext(command *Command, args Args) *Context {
 	return &Context{
-		Context:       ctx.Context,
 		App:           ctx.App,
 		Command:       command,
 		parent:        ctx,
@@ -35,17 +28,6 @@ func (ctx *Context) NewCommandContext(command *Command, args Args) *Context {
 
 func (ctx *Context) Parent() *Context {
 	return ctx.parent
-}
-
-func (ctx *Context) WithValue(key, val any) *Context {
-	newCtx := *ctx
-	newCtx.Context = context.WithValue(newCtx.Context, key, val)
-
-	return &newCtx
-}
-
-func (ctx *Context) Value(key any) any {
-	return ctx.Context.Value(key)
 }
 
 // Args returns the command line arguments associated with the context.

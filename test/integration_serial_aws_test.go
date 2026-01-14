@@ -37,7 +37,6 @@ func TestTerragruntParallelism(t *testing.T) {
 		{parallelism: 5, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
-
 		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
 			t.Parallel()
 
@@ -50,13 +49,13 @@ func TestTerragruntParallelism(t *testing.T) {
 func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -71,7 +70,7 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: usetesting
 	}()
 
-	credsConfig := util.JoinPath(rootPath, "creds.config")
+	credsConfig := filepath.Join(rootPath, "creds.config")
 
 	helpers.CopyAndFillMapPlaceholders(t, credsConfig, credsConfig, map[string]string{
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
@@ -84,21 +83,22 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
-	dependencyCredsConfig := util.JoinPath(rootPath, "dependency", "creds.config")
+	dependencyCredsConfig := filepath.Join(rootPath, "dependency", "creds.config")
 	helpers.CopyAndFillMapPlaceholders(t, dependencyCredsConfig, dependencyCredsConfig, map[string]string{
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
 		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
 	})
 
-	dependentCredsConfig := util.JoinPath(rootPath, "dependent", "creds.config")
+	dependentCredsConfig := filepath.Join(rootPath, "dependent", "creds.config")
 	helpers.CopyAndFillMapPlaceholders(t, dependentCredsConfig, dependentCredsConfig, map[string]string{
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
 		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
@@ -127,9 +127,11 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	for _, match := range matches {
 		parsedTime, err := time.Parse(time.RFC3339, match[1])
 		require.NoError(t, err)
+
 		deploymentTime := int(parsedTime.Unix()) - testStart
 		deploymentTimes = append(deploymentTimes, deploymentTime)
 	}
+
 	sort.Ints(deploymentTimes)
 
 	// the reported times are skewed (running terragrunt/terraform apply adds a little bit of overhead)
@@ -142,6 +144,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 			scalingFactor = factor
 		}
 	}
+
 	scaledTimes := make([]float64, len(deploymentTimes))
 	for i, deploymentTime := range deploymentTimes {
 		scaledTimes[i] = float64(deploymentTime) / scalingFactor
@@ -149,6 +152,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 
 	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v deploymentTimes=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, deploymentTimes, scaledTimes, scalingFactor)
 	maxDiffInSeconds := 5.0 * scalingFactor
+
 	for i, scaledTime := range scaledTimes {
 		difference := math.Abs(scaledTime - float64(expectedTimings[i]))
 		assert.LessOrEqual(t, difference, maxDiffInSeconds, "Expected timing %d but got %f", expectedTimings[i], scaledTime)
@@ -161,12 +165,13 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// copy the template `numberOfModules` times into the app
-	tmpEnvPath := t.TempDir()
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range numberOfModules {
 		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
 		if err != nil {
 			return "", 0, err
 		}
+
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
 			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
@@ -175,7 +180,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		}
 	}
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "root.hcl")
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := tmpEnvPath

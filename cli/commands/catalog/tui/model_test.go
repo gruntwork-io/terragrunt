@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		// Create a temporary directory structure for testing
-		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
+		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 
 		// Initialize as a proper git repository
 		os.MkdirAll(dummyRepoDir, 0755)
@@ -86,7 +87,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 	}
 
 	// Create a temporary root config file
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 	rootFile := filepath.Join(tmpDir, "root.hcl")
 	err := os.WriteFile(rootFile, []byte(`catalog {
 	urls = [
@@ -317,7 +318,7 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a temp directory for scaffold output
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	opts.WorkingDir = tempDir
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}

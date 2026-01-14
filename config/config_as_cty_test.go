@@ -234,8 +234,8 @@ func TestStackUnitCtyReading(t *testing.T) {
 
 	l := logger.CreateLogger()
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, l, "../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
+	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
@@ -254,8 +254,8 @@ func TestStackLocalsCtyReading(t *testing.T) {
 
 	l := logger.CreateLogger()
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, l, "../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
+	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)

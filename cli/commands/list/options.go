@@ -49,9 +49,6 @@ type Options struct {
 	// Dependencies determines whether to include dependencies in the output.
 	Dependencies bool
 
-	// External determines whether to include external dependencies in the output.
-	External bool
-
 	// Tree determines whether to output in tree format.
 	Tree bool
 
