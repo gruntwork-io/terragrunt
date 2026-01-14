@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -72,10 +73,10 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts.Env = tc.envVarsInOpts
 
-			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
+			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg.ToRunConfig()))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
 
 			assert.Equal(t, tc.expected, opts.Env)
 		})

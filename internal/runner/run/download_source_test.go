@@ -24,8 +24,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-getter"
 )
@@ -275,7 +275,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 		logger.CreateLogger(),
 		terraformSource,
 		opts,
-		cfg.ToRunConfig(),
+		cfg,
 		report.NewReport(),
 	)
 	require.Error(t, err)
@@ -436,7 +436,7 @@ func testDownloadTerraformSourceIfNecessary(
 		logger.CreateLogger(),
 		terraformSource,
 		opts,
-		cfg.ToRunConfig(),
+		cfg,
 		report.NewReport(),
 	)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
@@ -458,7 +458,7 @@ func createConfig(
 	canonicalURL string,
 	downloadDir string,
 	sourceUpdate bool,
-) (*tf.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+) (*tf.Source, *options.TerragruntOptions, *runcfg.RunConfig, error) {
 	t.Helper()
 
 	logger := logger.CreateLogger()
@@ -471,23 +471,23 @@ func createConfig(
 		VersionFile:        filepath.Join(downloadDir, "version-file.txt"),
 	}
 
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	terragruntOptions.SourceUpdate = sourceUpdate
-	terragruntOptions.Env = env.Parse(os.Environ())
+	opts.SourceUpdate = sourceUpdate
+	opts.Env = env.Parse(os.Environ())
 
-	terragruntConfig := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			ExtraArgs: []config.TerraformExtraArguments{},
+	cfg := &runcfg.RunConfig{
+		Terraform: &runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
 			Source:    nil,
 		},
 	}
 
-	_, err = run.PopulateTFVersion(t.Context(), logger, terragruntOptions)
+	_, err = run.PopulateTFVersion(t.Context(), logger, opts)
 	require.NoError(t, err)
 
-	return terraformSource, terragruntOptions, terragruntConfig, err
+	return terraformSource, opts, cfg, err
 }
 
 func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir string, expected bool) {
@@ -578,13 +578,13 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 
 	testCases := []struct {
 		name                 string
-		terragruntConfig     *config.TerragruntConfig
+		cfg                  *runcfg.RunConfig
 		expectedExcludeFiles []string
 	}{
 		{
 			name: "Nil ExcludeFromCopy",
-			terragruntConfig: &config.TerragruntConfig{
-				Terraform: &config.TerraformConfig{
+			cfg: &runcfg.RunConfig{
+				Terraform: &runcfg.TerraformConfig{
 					ExcludeFromCopy: nil,
 				},
 			},
@@ -592,8 +592,8 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 		},
 		{
 			name: "Non-Nil ExcludeFromCopy",
-			terragruntConfig: &config.TerragruntConfig{
-				Terraform: &config.TerraformConfig{
+			cfg: &runcfg.RunConfig{
+				Terraform: &runcfg.TerraformConfig{
 					ExcludeFromCopy: &[]string{"*.tfstate", "excluded_dir/"},
 				},
 			},
@@ -611,7 +611,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			client := &getter.Client{}
 
 			// Call updateGetters
-			updateGettersFunc := run.UpdateGetters(terragruntOptions, tc.terragruntConfig.ToRunConfig())
+			updateGettersFunc := run.UpdateGetters(terragruntOptions, tc.cfg)
 			err = updateGettersFunc(client)
 			require.NoError(t, err)
 
@@ -646,9 +646,9 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Ensure CAS experiment is not enabled
 	opts.Experiments = experiment.NewExperiments()
 
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			ExtraArgs: []config.TerraformExtraArguments{},
+	cfg := &runcfg.RunConfig{
+		Terraform: &runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
 			Source:    nil,
 		},
 	}
@@ -659,7 +659,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Mock the download source function call
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg.ToRunConfig(), r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
 
 	require.NoError(t, err)
 
@@ -691,9 +691,9 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	err = opts.Experiments.EnableExperiment(experiment.CAS)
 	require.NoError(t, err)
 
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			ExtraArgs: []config.TerraformExtraArguments{},
+	cfg := &runcfg.RunConfig{
+		Terraform: &runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
 			Source:    nil,
 		},
 	}
@@ -703,7 +703,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg.ToRunConfig(), r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -734,9 +734,9 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	err = opts.Experiments.EnableExperiment(experiment.CAS)
 	require.NoError(t, err)
 
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			ExtraArgs: []config.TerraformExtraArguments{},
+	cfg := &runcfg.RunConfig{
+		Terraform: &runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
 			Source:    nil,
 		},
 	}
@@ -746,7 +746,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg.ToRunConfig(), r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
 	require.NoError(t, err)
 
 	// Verify the file was downloaded
@@ -776,9 +776,9 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	err = opts.Experiments.EnableExperiment(experiment.CAS)
 	require.NoError(t, err)
 
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			ExtraArgs: []config.TerraformExtraArguments{},
+	cfg := &runcfg.RunConfig{
+		Terraform: &runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
 			Source:    nil,
 		},
 	}
@@ -788,7 +788,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg.ToRunConfig(), r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -809,9 +809,9 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 	err = opts.Experiments.EnableExperiment(experiment.CAS)
 	require.NoError(t, err)
 
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			ExtraArgs: []config.TerraformExtraArguments{},
+	cfg := &runcfg.RunConfig{
+		Terraform: &runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
 			Source:    nil,
 		},
 	}
@@ -851,7 +851,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 			}
 
-			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg.ToRunConfig(), r)
+			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
 
 			if tc.name == "Local file source" {
 				require.NoError(t, err)
