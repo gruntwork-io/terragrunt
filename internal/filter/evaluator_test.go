@@ -694,20 +694,12 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 	t.Parallel()
 
 	// Create a component graph: vpc -> db -> app
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	app := component.NewUnit("./app")
-
-	// Set up dependencies: app depends on db, db depends on vpc
-	app.AddDependency(db)
-	db.AddDependency(vpc)
-
-	components := []component.Component{vpc, db, app}
 
 	tests := []struct {
 		name     string
 		expr     *filter.GraphExpression
-		expected []component.Component
+		expected []string
+		setup    func() []component.Component
 	}{
 		{
 			name: "dependency traversal - app...",
@@ -717,7 +709,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   false,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{app, db, vpc},
+			expected: []string{"./app", "./db", "./vpc"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				app := component.NewUnit("./app")
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "dependent traversal - ...vpc",
@@ -727,7 +735,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{vpc, db, app},
+			expected: []string{"./vpc", "./db", "./app"},
+			setup: func() []component.Component {
+				vpc := component.NewUnit("./vpc")
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "both directions - ...db...",
@@ -737,7 +761,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{db, vpc, app},
+			expected: []string{"./db", "./vpc", "./app"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				db := component.NewUnit("./db")
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "exclude target - ^app...",
@@ -747,7 +787,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   false,
 				ExcludeTarget:       true,
 			},
-			expected: []component.Component{db, vpc},
+			expected: []string{"./db", "./vpc"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				app := component.NewUnit("./app")
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "exclude target with dependents - ...^db...",
@@ -757,7 +813,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   true,
 				ExcludeTarget:       true,
 			},
-			expected: []component.Component{vpc, app},
+			expected: []string{"./vpc", "./app"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				db := component.NewUnit("./db")
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 	}
 
@@ -765,10 +837,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			components := tt.setup()
+
+			expected := make([]component.Component, 0, len(tt.expected))
+			expectedMap := make(map[string]bool)
+			for _, path := range tt.expected {
+				expectedMap[path] = true
+			}
+			for _, c := range components {
+				if expectedMap[c.Path()] {
+					expected = append(expected, c)
+				}
+			}
+
 			l := log.New()
 			result, err := filter.Evaluate(l, tt.expr, components)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, result)
+			assert.ElementsMatch(t, expected, result)
 		})
 	}
 }
@@ -778,20 +863,30 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 
 	// Create a more complex graph:
 	// vpc -> [db, cache] -> app
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	cache := component.NewUnit("./cache")
-	app := component.NewUnit("./app")
-
-	app.AddDependency(db)
-	app.AddDependency(cache)
-	db.AddDependency(vpc)
-	cache.AddDependency(vpc)
-
-	components := []component.Component{vpc, db, cache, app}
 
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
+
+		vpcCtx := &component.DiscoveryContext{}
+		vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+		dbCtx := &component.DiscoveryContext{}
+		dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+		cacheCtx := &component.DiscoveryContext{}
+		cacheCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		cache := component.NewUnit("./cache").WithDiscoveryContext(cacheCtx)
+
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
 			Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
@@ -808,6 +903,27 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 
 	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
 		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+
+		dbCtx := &component.DiscoveryContext{}
+		dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+		cacheCtx := &component.DiscoveryContext{}
+		cacheCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		cache := component.NewUnit("./cache").WithDiscoveryContext(cacheCtx)
+
+		appCtx := &component.DiscoveryContext{}
+		appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
 			Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
@@ -896,7 +1012,10 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 	// Create a circular dependency: a -> b -> a
 	// The traversal should not infinite loop
 	a := component.NewUnit("./a")
-	b := component.NewUnit("./b")
+
+	bCtx := &component.DiscoveryContext{}
+	bCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	b := component.NewUnit("./b").WithDiscoveryContext(bCtx)
 
 	a.AddDependency(b)
 	b.AddDependency(a)
