@@ -121,19 +121,13 @@ func (e *Entry) UpdateBlocked(entries Entries) {
 func (e *Entry) IsUp() bool {
 	// If we don't have a discovery context,
 	// we should assume the command is an "up" command.
-	if e.Component.DiscoveryContext() == nil {
+	discoveryContext := e.Component.DiscoveryContext()
+
+	if discoveryContext == nil {
 		return true
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "destroy" {
-		return false
-	}
-
-	if e.Component.DiscoveryContext().Cmd == "apply" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
-		return false
-	}
-
-	if e.Component.DiscoveryContext().Cmd == "plan" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
+	if discoveryContext.IsDestroyCommand() {
 		return false
 	}
 

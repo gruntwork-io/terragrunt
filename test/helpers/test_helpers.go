@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
@@ -119,8 +120,10 @@ func CloneGitRepo(t *testing.T, srcDir string) string {
 func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
 	return &component.DiscoveryContext{
 		WorkingDir: dir,
-		Cmd:        baseCtx.Cmd,
-		Args:       append([]string{}, baseCtx.Args...),
+		CommandWithArgs: &tofucmd.TofuCommand{
+			Cmd:  baseCtx.CommandWithArgs.Cmd,
+			Args: append([]string{}, baseCtx.CommandWithArgs.Args...),
+		},
 	}
 }
 

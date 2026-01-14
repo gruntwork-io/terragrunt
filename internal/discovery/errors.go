@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 )
 
 // GitFilterCommandError represents an error that occurs when attempting to use
@@ -33,9 +34,9 @@ func (e GitFilterCommandError) Error() string {
 }
 
 // NewGitFilterCommandError creates a new GitFilterCommandError with the given command and arguments.
-func NewGitFilterCommandError(cmd string, args []string) error {
+func NewGitFilterCommandError(commandWithArgs *tofucmd.TofuCommand) error {
 	return errors.New(GitFilterCommandError{
-		Cmd:  cmd,
-		Args: args,
+		Cmd:  commandWithArgs.Cmd,
+		Args: commandWithArgs.Args,
 	})
 }

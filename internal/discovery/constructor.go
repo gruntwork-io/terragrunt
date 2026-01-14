@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/mattn/go-shellwords"
 )
 
@@ -88,8 +89,10 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 		d = d.WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: opts.WorkingDir,
-			Cmd:        cmd,
-			Args:       args,
+			CommandWithArgs: &tofucmd.TofuCommand{
+				Cmd:  cmd,
+				Args: args,
+			},
 		})
 	}
 

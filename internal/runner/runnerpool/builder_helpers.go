@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/tofucmd"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -101,8 +102,10 @@ func newBaseDiscovery(
 		WithRelationships().
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: workingDir,
-			Cmd:        tgOpts.TerraformCliArgs.First(),
-			Args:       tgOpts.TerraformCliArgs.Tail(),
+			CommandWithArgs: &tofucmd.TofuCommand{
+				Cmd:  tgOpts.TerraformCliArgs.First(),
+				Args: tgOpts.TerraformCliArgs.Tail(),
+			},
 		})
 
 	return d
