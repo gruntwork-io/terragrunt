@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // ErrorHandler returns `FlagErrHandlerFunc` which takes a flag parsing error

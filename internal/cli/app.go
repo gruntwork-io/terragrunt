@@ -12,7 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
-	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
