@@ -4,13 +4,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,7 +117,7 @@ dependency "hitchhiker" {
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	filename := "../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
+	filename := "../../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
 	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)

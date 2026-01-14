@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
-	"github.com/gruntwork-io/terragrunt/config"
 	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"

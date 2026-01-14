@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +19,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	curDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	basePath := filepath.Join(curDir, "../test/fixtures/catalog")
+	basePath := filepath.Join(curDir, "../../test/fixtures/catalog")
 
 	testCases := []struct {
 		expectedErr    error

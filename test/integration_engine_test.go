@@ -15,7 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

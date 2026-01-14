@@ -10,9 +10,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -235,7 +235,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 	l := logger.CreateLogger()
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
@@ -255,7 +255,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	l := logger.CreateLogger()
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)

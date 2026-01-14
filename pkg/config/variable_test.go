@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +14,7 @@ func TestScanVariables(t *testing.T) {
 
 	opts := terragruntOptionsForTest(t, "")
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), opts, "../test/fixtures/inputs")
+	inputs, err := config.ParseVariables(logger.CreateLogger(), opts, "../../test/fixtures/inputs")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
@@ -46,7 +46,7 @@ func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 	opts := terragruntOptionsForTest(t, "")
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), opts, "../test/fixtures/inputs-defaults")
+	inputs, err := config.ParseVariables(logger.CreateLogger(), opts, "../../test/fixtures/inputs-defaults")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 

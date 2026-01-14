@@ -1,9 +1,9 @@
 package common
 
 import (
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // Option applies configuration to a StackRunner.
